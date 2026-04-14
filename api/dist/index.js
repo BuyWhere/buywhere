@@ -1,0 +1,20 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const server_1 = require("./server");
+const config_1 = require("./config");
+const posthog_1 = require("./analytics/posthog");
+const app = (0, server_1.createApp)();
+const server = app.listen(config_1.PORT, () => {
+    console.log(`BuyWhere API v1 listening on :${config_1.PORT}`);
+    console.log(`  Health:   http://localhost:${config_1.PORT}/health`);
+    console.log(`  Register: http://localhost:${config_1.PORT}/v1/auth/register`);
+    console.log(`  Search:   http://localhost:${config_1.PORT}/v1/products/search`);
+    console.log(`  MCP:      http://localhost:${config_1.PORT}/.well-known/ai-plugin.json`);
+});
+const shutdown = async () => {
+    console.log('Shutting down...');
+    await (0, posthog_1.shutdownPostHog)();
+    server.close(() => process.exit(0));
+};
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
