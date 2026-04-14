@@ -5,6 +5,7 @@ const config_1 = require("../config");
 const apiKey_1 = require("../middleware/apiKey");
 const agentDetect_1 = require("../middleware/agentDetect");
 const posthog_1 = require("../analytics/posthog");
+const SEARCH_CACHE_TTL_SECONDS = 60;
 const router = (0, express_1.Router)();
 // GET /v1/products/search
 // Query params: q, domain, min_price, max_price, currency, limit, offset, source_page
@@ -18,6 +19,20 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const limit = Math.min(parseInt(req.query.limit || '20'), 100);
     const offset = parseInt(req.query.offset || '0');
     const sourcePage = req.query.source_page;
+    // Check Redis cache for this exact query (60s TTL)
+    const cacheKey = `fts:${q}:${domain || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}`;
+    try {
+        const cached = await config_1.redis.get(cacheKey);
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            parsed.meta.cached = true;
+            parsed.meta.response_time_ms = Date.now() - start;
+            return res.json(parsed);
+        }
+    }
+    catch (_) {
+        // Redis miss or error — fall through to DB
+    }
     const conditions = ['currency = $1'];
     const params = [currency];
     let idx = 2;
@@ -79,6 +94,18 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     }));
     const total = parseInt(countResult.rows[0].count, 10);
     const responseTimeMs = Date.now() - start;
+    const responseBody = {
+        data: products,
+        meta: {
+            total,
+            limit,
+            offset,
+            response_time_ms: responseTimeMs,
+            cached: false,
+        },
+    };
+    // Cache result in Redis (fire-and-forget)
+    config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
     // Extract categories from results for analytics
     const categories = extractCategories(products);
     // PostHog event (fire-and-forget)
@@ -97,15 +124,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             endpoint: 'products.search',
         });
     }
-    res.json({
-        data: products,
-        meta: {
-            total,
-            limit,
-            offset,
-            response_time_ms: responseTimeMs,
-        },
-    });
+    res.json(responseBody);
 });
 // GET /v1/products/:id
 router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, async (req, res) => {

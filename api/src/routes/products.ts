@@ -1,8 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { db } from '../config';
+import { db, redis } from '../config';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackApiQuery } from '../analytics/posthog';
+
+const SEARCH_CACHE_TTL_SECONDS = 60;
 
 const router = Router();
 
@@ -24,6 +26,20 @@ router.get(
     const limit = Math.min(parseInt((req.query.limit as string) || '20'), 100);
     const offset = parseInt((req.query.offset as string) || '0');
     const sourcePage = req.query.source_page as string | undefined;
+
+    // Check Redis cache for this exact query (60s TTL)
+    const cacheKey = `fts:${q}:${domain || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}`;
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        parsed.meta.cached = true;
+        parsed.meta.response_time_ms = Date.now() - start;
+        return res.json(parsed);
+      }
+    } catch (_) {
+      // Redis miss or error — fall through to DB
+    }
 
     const conditions: string[] = ['currency = $1'];
     const params: unknown[] = [currency];
@@ -92,6 +108,20 @@ router.get(
     const total = parseInt(countResult.rows[0].count, 10);
     const responseTimeMs = Date.now() - start;
 
+    const responseBody = {
+      data: products,
+      meta: {
+        total,
+        limit,
+        offset,
+        response_time_ms: responseTimeMs,
+        cached: false,
+      },
+    };
+
+    // Cache result in Redis (fire-and-forget)
+    redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+
     // Extract categories from results for analytics
     const categories = extractCategories(products);
 
@@ -112,15 +142,7 @@ router.get(
       });
     }
 
-    res.json({
-      data: products,
-      meta: {
-        total,
-        limit,
-        offset,
-        response_time_ms: responseTimeMs,
-      },
-    });
+    res.json(responseBody);
   }
 );
 
