@@ -23,11 +23,12 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     let idx = 2;
     let ftsParamIdx = 0;
     if (q) {
-        // Use full-text search via search_vector; ILIKE fallback for short/exact queries
+        // Use full-text search via GIN-indexed search_vector only.
+        // The ILIKE fallback was removed: it defeats the GIN index and causes full table scans (3s vs 130ms).
         ftsParamIdx = idx;
-        conditions.push(`(search_vector @@ plainto_tsquery('english', $${idx}) OR name ILIKE $${idx + 1})`);
-        params.push(q, `%${q}%`);
-        idx += 2;
+        conditions.push(`search_vector @@ plainto_tsquery('english', $${idx})`);
+        params.push(q);
+        idx++;
     }
     if (domain) {
         // domain maps to platform in the products table
@@ -110,7 +111,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
 router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, async (req, res) => {
     const start = Date.now();
     const { id } = req.params;
-    const result = await config_1.db.query(`SELECT id, source_id, domain, url, title, price, currency, image_url, metadata, updated_at
+    const result = await config_1.db.query(`SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
+              name AS title, price, currency, image_url, attributes AS metadata, updated_at
        FROM products WHERE id = $1`, [id]);
     if (result.rows.length === 0) {
         res.status(404).json({ error: 'Product not found' });

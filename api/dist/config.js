@@ -11,7 +11,7 @@ exports.db = new pg_1.Pool({
     max: 20,
 });
 exports.redis = new ioredis_1.default({
-    host: process.env.REDIS_HOST || 'localhost',
+    host: process.env.REDIS_HOST || '172.18.0.8',
     port: parseInt(process.env.REDIS_PORT || '6379'),
     maxRetriesPerRequest: null,
 });

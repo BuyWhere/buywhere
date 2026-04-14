@@ -135,7 +135,8 @@ router.get(
     const { id } = req.params;
 
     const result = await db.query(
-      `SELECT id, source_id, domain, url, title, price, currency, image_url, metadata, updated_at
+      `SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
+              name AS title, price, currency, image_url, attributes AS metadata, updated_at
        FROM products WHERE id = $1`,
       [id]
     );

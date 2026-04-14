@@ -2,7 +2,16 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requireApiKey = requireApiKey;
 exports.checkRateLimit = checkRateLimit;
+const crypto_1 = require("crypto");
 const config_1 = require("../config");
+const TIER_LIMITS = {
+    free: config_1.FREE_TIER,
+    pro: { rpm: 300, daily: 10000 },
+    enterprise: { rpm: 1000, daily: 100000 },
+};
+function hashKey(rawKey) {
+    return (0, crypto_1.createHash)('sha256').update(rawKey).digest('hex');
+}
 async function requireApiKey(req, res, next) {
     const authHeader = req.headers['authorization'] || '';
     const queryKey = req.query['api_key'];
@@ -20,25 +29,27 @@ async function requireApiKey(req, res, next) {
         res.status(401).json({ error: 'API key required. Pass as Authorization: Bearer <key>' });
         return;
     }
-    const result = await config_1.db.query(`SELECT id, key, agent_name, tier, rpm_limit, daily_limit, signup_channel, attribution_source
-     FROM api_keys WHERE key = $1`, [key]);
+    const keyHash = hashKey(key);
+    const result = await config_1.db.query(`SELECT id, key_hash, name, tier, signup_channel, attribution_source
+     FROM api_keys WHERE key_hash = $1 AND is_active = 1`, [keyHash]);
     if (result.rows.length === 0) {
         res.status(401).json({ error: 'Invalid API key' });
         return;
     }
     const row = result.rows[0];
+    const tierLimits = TIER_LIMITS[row.tier] ?? config_1.FREE_TIER;
     req.apiKeyRecord = {
         id: row.id,
-        key: row.key,
-        agentName: row.agent_name,
+        key,
+        agentName: row.name,
         tier: row.tier,
-        rpmLimit: row.rpm_limit ?? config_1.FREE_TIER.rpm,
-        dailyLimit: row.daily_limit ?? config_1.FREE_TIER.daily,
+        rpmLimit: tierLimits.rpm,
+        dailyLimit: tierLimits.daily,
         signupChannel: row.signup_channel,
         attributionSource: row.attribution_source,
     };
     // Update last_used_at (fire-and-forget)
-    config_1.db.query('UPDATE api_keys SET last_used_at = NOW() WHERE key = $1', [key]).catch(() => { });
+    config_1.db.query('UPDATE api_keys SET last_used_at = NOW() WHERE key_hash = $1', [keyHash]).catch(() => { });
     next();
 }
 async function checkRateLimit(req, res, next) {
