@@ -1,0 +1,100 @@
+version: '3.9'
+
+# BuyWhere API stack — includes PgBouncer connection pooler (BUY-1841)
+# PgBouncer sits between the Node API and PostgreSQL to cap DB connections
+# at 20 while allowing up to 200 concurrent API clients.
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: buywhere
+      POSTGRES_USER: buywhere
+      POSTGRES_PASSWORD: buywhere_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U buywhere"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  pgbouncer:
+    image: edoburu/pgbouncer:1.21.0
+    environment:
+      # Backend database
+      DB_USER: buywhere
+      DB_PASSWORD: buywhere_dev
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: buywhere
+      # Pooling
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "200"
+      DEFAULT_POOL_SIZE: "20"
+      # Auth
+      AUTH_TYPE: md5
+      # Required for PgBouncer transaction mode + node-postgres compatibility:
+      # node-postgres uses extended query protocol (parameterized queries) which
+      # creates prepared statements per backend connection. DISCARD ALL ensures
+      # each backend session is clean when returned to the pool. This prevents
+      # "prepared statement already exists" errors across pooled connections.
+      SERVER_RESET_QUERY: "DISCARD ALL"
+      IGNORE_STARTUP_PARAMETERS: extra_float_digits
+    ports:
+      - "5433:5432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: node dist/migrate.js
+    environment:
+      # Migrations run directly against Postgres (not through PgBouncer) so
+      # DDL statements with multi-step transactions work correctly.
+      DATABASE_URL: postgresql://buywhere:buywhere_dev@postgres:5432/buywhere
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      # API traffic goes through PgBouncer on port 5432 inside docker network
+      DATABASE_URL: postgresql://buywhere:buywhere_dev@pgbouncer:5432/buywhere
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      PORT: "3000"
+      API_BASE_URL: https://api.buywhere.ai
+    ports:
+      - "3000:3000"
+    depends_on:
+      pgbouncer:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
