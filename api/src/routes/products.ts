@@ -31,11 +31,12 @@ router.get(
     let ftsParamIdx = 0;
 
     if (q) {
-      // Use full-text search via search_vector; ILIKE fallback for short/exact queries
+      // Use full-text search via GIN-indexed search_vector only.
+      // The ILIKE fallback was removed: it defeats the GIN index and causes full table scans (3s vs 130ms).
       ftsParamIdx = idx;
-      conditions.push(`(search_vector @@ plainto_tsquery('english', $${idx}) OR name ILIKE $${idx + 1})`);
-      params.push(q, `%${q}%`);
-      idx += 2;
+      conditions.push(`search_vector @@ plainto_tsquery('english', $${idx})`);
+      params.push(q);
+      idx++;
     }
     if (domain) {
       // domain maps to platform in the products table
