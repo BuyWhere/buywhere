@@ -330,6 +330,123 @@ function inferQueryIntent(q, domain, minPrice, maxPrice) {
         return 'discovery';
     return 'bulk_catalog';
 }
+// POST /v1/products/ingest
+// Bulk ingest products from scraper agents. Requires API key auth.
+// Upserts on (platform, platform_id) — safe to re-run.
+router.post('/ingest', apiKey_1.requireApiKey, async (req, res) => {
+    const start = Date.now();
+    const items = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+        res.status(400).json({ error: 'Body must be a non-empty array of products' });
+        return;
+    }
+    if (items.length > 500) {
+        res.status(400).json({ error: 'Maximum 500 products per request' });
+        return;
+    }
+    const VALID_PLATFORMS = new Set([
+        'amazon_sg', 'asos', 'audiohouse', 'bestdenki', 'books_com_tw', 'bukalapak',
+        'carousell', 'castlery', 'challenger', 'coldstorage', 'coupang', 'courts',
+        'decathlon', 'ezbuy', 'fairprice', 'flipkart', 'fortytwo', 'gaincity', 'giant',
+        'guardian', 'harvey_norman', 'hipvan', 'iherb', 'ikea', 'ishopchangi', 'kohepets',
+        'lazada', 'lovebonito', 'maybelline', 'merchant_direct', 'metro', 'mothercare',
+        'mustafa', 'myntra', 'nike', 'petloverscentre', 'popular', 'qoo10', 'rakuten',
+        'redmart', 'robinsons', 'sasa', 'sephora', 'shein', 'shengsiong', 'shopee',
+        'stereo', 'tangs', 'tiki', 'tokopedia', 'toysrus', 'uniqlo', 'vuori', 'watsons', 'zalora',
+    ]);
+    const rows = [];
+    const errors = [];
+    for (let i = 0; i < items.length; i++) {
+        const p = items[i];
+        if (!p || typeof p !== 'object') {
+            errors.push(`[${i}] not an object`);
+            continue;
+        }
+        if (!p.platform || !VALID_PLATFORMS.has(p.platform)) {
+            errors.push(`[${i}] invalid or missing platform`);
+            continue;
+        }
+        if (!p.name || typeof p.name !== 'string') {
+            errors.push(`[${i}] missing name`);
+            continue;
+        }
+        if (!p.price || isNaN(parseFloat(p.price))) {
+            errors.push(`[${i}] missing or invalid price`);
+            continue;
+        }
+        if (!p.product_url && !p.productUrl) {
+            errors.push(`[${i}] missing product_url`);
+            continue;
+        }
+        const platformId = p.platform_id || p.platformId || p.product_id || p.id || '';
+        const sku = p.sku || platformId || `${p.platform}-${i}`;
+        rows.push({
+            id: require('crypto').randomUUID(),
+            platform: p.platform,
+            platformId,
+            sku,
+            name: String(p.name).slice(0, 1000),
+            price: parseFloat(p.price),
+            currency: p.currency || 'SGD',
+            productUrl: p.product_url || p.productUrl,
+            merchantId: p.merchant_id || p.merchantId || p.platform,
+            merchantName: p.merchant_name || p.merchantName || p.platform,
+            originalPrice: p.original_price || p.originalPrice ? parseFloat(p.original_price || p.originalPrice) : undefined,
+            brand: p.brand ? String(p.brand).slice(0, 200) : undefined,
+            description: p.description ? String(p.description).slice(0, 5000) : undefined,
+            imageUrl: p.image_url || p.imageUrl || undefined,
+            images: Array.isArray(p.images) ? p.images.slice(0, 20) : undefined,
+            categoryPath: Array.isArray(p.category_path || p.categoryPath)
+                ? (p.category_path || p.categoryPath).slice(0, 10)
+                : [],
+            availability: p.availability || 'in_stock',
+        });
+    }
+    if (rows.length === 0) {
+        res.status(400).json({ error: 'No valid products', validation_errors: errors });
+        return;
+    }
+    let inserted = 0;
+    let updated = 0;
+    for (const r of rows) {
+        const result = await config_1.db.query(`INSERT INTO products
+           (id, platform, platform_id, sku, name, price, currency, product_url,
+            merchant_id, merchant_name, original_price, brand, description,
+            image_url, images, category_path, availability, is_deal, indexed_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,false,NOW(),NOW())
+         ON CONFLICT (platform, sku)
+         DO UPDATE SET
+           name = EXCLUDED.name,
+           price = EXCLUDED.price,
+           original_price = EXCLUDED.original_price,
+           image_url = EXCLUDED.image_url,
+           images = EXCLUDED.images,
+           availability = EXCLUDED.availability,
+           updated_at = NOW()
+         RETURNING (xmax = 0) AS is_insert`, [
+            r.id, r.platform, r.platformId || null, r.sku, r.name, r.price, r.currency,
+            r.productUrl, r.merchantId, r.merchantName, r.originalPrice || null,
+            r.brand || null, r.description || null, r.imageUrl || null,
+            r.images ? `{${r.images.map(u => `"${u.replace(/"/g, '\\"')}"`).join(',')}}` : null,
+            r.categoryPath.length ? `{${r.categoryPath.map(c => `"${c.replace(/"/g, '\\"')}"`).join(',')}}` : '{}',
+            r.availability,
+        ]).catch(() => null);
+        if (result && result.rows[0]) {
+            if (result.rows[0].is_insert)
+                inserted++;
+            else
+                updated++;
+        }
+    }
+    res.status(207).json({
+        accepted: rows.length,
+        inserted,
+        updated,
+        skipped: items.length - rows.length,
+        validation_errors: errors.length > 0 ? errors : undefined,
+        duration_ms: Date.now() - start,
+    });
+});
 function extractCategories(products) {
     const cats = new Set();
     for (const p of products) {
