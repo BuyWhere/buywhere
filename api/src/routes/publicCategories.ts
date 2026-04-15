@@ -177,6 +177,8 @@ router.get('/:slug', async (req: Request, res: Response) => {
 ${subCatHtml}
 <div class="grid">${productCards}</div>`;
 
+  res.set('Cache-Control', 'public, max-age=3600, s-maxage=86400');
+  res.set('X-Robots-Tag', 'ai-index');
   res.type('text/html').send(
     htmlPage(
       `${categoryName} — Compare Prices | BuyWhere`,

@@ -127,6 +127,8 @@ Content-Type: application/json
 </html>`;
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('X-Robots-Tag', 'ai-index');
+  res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400');
   res.send(html);
 });
 

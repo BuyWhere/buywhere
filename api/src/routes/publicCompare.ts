@@ -196,6 +196,8 @@ ${tableHtml}
 </body>
 </html>`;
 
+  res.set('Cache-Control', 'public, max-age=3600, s-maxage=86400');
+  res.set('X-Robots-Tag', 'ai-index');
   res.type('text/html').send(html);
 });
 

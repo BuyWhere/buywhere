@@ -1,0 +1,27 @@
+{
+  "name": "BuyWhere",
+  "description": "Agent-native product catalog for Singapore — search, compare, discover deals across 1,000+ merchants.",
+  "longDescription": "BuyWhere provides 5 MCP tools for AI agents to access structured Singapore commerce data in real-time. Search products, compare prices across Shopee/Lazada/Amazon SG/50+ merchants, and discover deals — all through the Model Context Protocol.\n\nKey differentiators:\n- 1M+ products from 50+ Singapore merchants, normalized and structured\n- Real-time pricing — no stale data, prices reflect current market\n- Agent-optimized responses — structured JSON designed for LLM consumption\n- Zero scraping — BuyWhere handles data collection, agents just query",
+  "version": "1.0.0",
+  "transport": "http",
+  "endpoint": "https://mcp.buywhere.io/mcp",
+  "authentication": {
+    "type": "bearer",
+    "registrationUrl": "https://api.buywhere.ai/v1/auth/register"
+  },
+  "tools": [
+    "search_products",
+    "get_product",
+    "compare_products",
+    "get_deals",
+    "list_categories"
+  ],
+  "tags": ["mcp", "commerce", "shopping", "singapore", "price-comparison", "product-catalog", "ai-agent"],
+  "author": {
+    "name": "BuyWhere",
+    "email": "api@buywhere.ai",
+    "url": "https://buywhere.ai"
+  },
+  "documentation": "https://api.buywhere.ai/docs/guides/mcp",
+  "homepage": "https://buywhere.ai"
+}

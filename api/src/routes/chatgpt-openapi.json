@@ -1,0 +1,286 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "BuyWhere — Singapore Product Catalog",
+    "description": "Search, compare prices, and find deals across 1000+ Singapore merchants. BuyWhere is the definitive product catalog API for Singapore commerce — access over 1,000,000 products from Shopee, Lazada, Amazon SG, Courts, Challenger, Harvey Norman, and 50+ merchants through a single API.",
+    "version": "1.0.0",
+    "contact": {
+      "email": "api@buywhere.ai"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.buywhere.ai/v1",
+      "description": "Production"
+    }
+  ],
+  "paths": {
+    "/products/search": {
+      "get": {
+        "summary": "Search products by keyword across all Singapore merchants",
+        "operationId": "searchProducts",
+        "description": "Full-text search across 1M+ products from Shopee, Lazada, Amazon SG, and 50+ Singapore merchants. Filter by price range, merchant, and category. Returns results with current pricing in SGD.",
+        "parameters": [
+          { "name": "q", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Search query (e.g. 'iPhone 15 Pro', 'wireless headphones')" },
+          { "name": "domain", "in": "query", "schema": { "type": "string" }, "description": "Filter by merchant platform (e.g. lazada, shopee, amazon)" },
+          { "name": "min_price", "in": "query", "schema": { "type": "number" }, "description": "Minimum price in SGD" },
+          { "name": "max_price", "in": "query", "schema": { "type": "number" }, "description": "Maximum price in SGD" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20, "maximum": 100 }, "description": "Number of results to return" },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 }, "description": "Pagination offset" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "format": "uuid" },
+                          "title": { "type": "string" },
+                          "price": { "type": "number" },
+                          "currency": { "type": "string" },
+                          "domain": { "type": "string" },
+                          "url": { "type": "string", "format": "uri" },
+                          "image_url": { "type": "string", "format": "uri" }
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "total": { "type": "integer" },
+                        "limit": { "type": "integer" },
+                        "offset": { "type": "integer" },
+                        "response_time_ms": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Missing or invalid API key" },
+          "429": { "description": "Rate limit exceeded" }
+        }
+      }
+    },
+    "/products/deals": {
+      "get": {
+        "summary": "Get current deals and discounts across Singapore merchants",
+        "operationId": "getDeals",
+        "description": "Find active promotions, flash sales, and discounts. Returns products sorted by discount percentage with original and current prices.",
+        "parameters": [
+          { "name": "min_discount", "in": "query", "schema": { "type": "number", "default": 10 }, "description": "Minimum discount percentage (0-90)" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20, "maximum": 100 }, "description": "Number of results" },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 }, "description": "Pagination offset" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Discounted products",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "format": "uuid" },
+                          "title": { "type": "string" },
+                          "price": { "type": "number" },
+                          "original_price": { "type": "number" },
+                          "discount_pct": { "type": "number" },
+                          "currency": { "type": "string" },
+                          "domain": { "type": "string" },
+                          "url": { "type": "string", "format": "uri" }
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "total": { "type": "integer" },
+                        "limit": { "type": "integer" },
+                        "offset": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Missing or invalid API key" }
+        }
+      }
+    },
+    "/products/compare": {
+      "get": {
+        "summary": "Compare multiple products side-by-side",
+        "operationId": "compareProducts",
+        "description": "Compare prices, ratings, and details for 2-10 products. Use this to help users decide between similar products from different merchants.",
+        "parameters": [
+          { "name": "ids", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Comma-separated product IDs (2-10)" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product comparison data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "format": "uuid" },
+                          "title": { "type": "string" },
+                          "price": { "type": "number" },
+                          "original_price": { "type": "number" },
+                          "currency": { "type": "string" },
+                          "brand": { "type": "string" },
+                          "rating": { "type": "number" },
+                          "review_count": { "type": "integer" },
+                          "domain": { "type": "string" },
+                          "url": { "type": "string", "format": "uri" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Fewer than 2 IDs provided" },
+          "401": { "description": "Missing or invalid API key" }
+        }
+      }
+    },
+    "/products/{id}": {
+      "get": {
+        "summary": "Get detailed product information by ID",
+        "operationId": "getProduct",
+        "description": "Get full product details including specs, pricing, availability, brand, category, and merchant info.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" }, "description": "Product UUID" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string", "format": "uuid" },
+                        "title": { "type": "string" },
+                        "price": { "type": "number" },
+                        "original_price": { "type": "number" },
+                        "currency": { "type": "string" },
+                        "brand": { "type": "string" },
+                        "category_path": { "type": "string" },
+                        "rating": { "type": "number" },
+                        "review_count": { "type": "integer" },
+                        "domain": { "type": "string" },
+                        "url": { "type": "string", "format": "uri" },
+                        "image_url": { "type": "string", "format": "uri" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "Product not found" }
+        }
+      }
+    },
+    "/products/{id}/prices": {
+      "get": {
+        "summary": "Get price history for a product",
+        "operationId": "getProductPrices",
+        "description": "Get historical pricing data for a product over the past 30-90 days, including min/max/average statistics.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" }, "description": "Product UUID" },
+          { "name": "days", "in": "query", "schema": { "type": "integer", "default": 30, "maximum": 90 }, "description": "Look-back window in days" }
+        ],
+        "responses": {
+          "200": { "description": "Price history with min/max/avg stats" },
+          "404": { "description": "Product not found" }
+        }
+      }
+    },
+    "/categories": {
+      "get": {
+        "summary": "List product categories",
+        "operationId": "listCategories",
+        "description": "Get all top-level product categories with product counts. Use this to help users browse the catalog.",
+        "responses": {
+          "200": {
+            "description": "Category list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "slug": { "type": "string" },
+                          "name": { "type": "string" },
+                          "product_count": { "type": "integer" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/categories/{slug}": {
+      "get": {
+        "summary": "Get products within a category",
+        "operationId": "getCategoryProducts",
+        "description": "Browse products within a specific category. Get the category slug from the /categories endpoint.",
+        "parameters": [
+          { "name": "slug", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Category slug" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20, "maximum": 100 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": {
+          "200": { "description": "Category detail with products" },
+          "404": { "description": "Category not found" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "API key obtained from POST /v1/auth/register"
+      }
+    }
+  },
+  "security": [
+    { "BearerAuth": [] }
+  ]
+}

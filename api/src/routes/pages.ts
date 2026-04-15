@@ -164,6 +164,8 @@ router.get('/:id', async (req: Request, res: Response) => {
   const pageTitle = `${p.title} — Price & Comparison | BuyWhere`;
   const metaDesc = `${p.title} at ${price !== null ? `${currency} ${price.toFixed(2)}` : 'best price'} from ${p.domain || 'Singapore merchants'}. Compare prices and deals on BuyWhere.`;
 
+  // Perplexity / AI-crawler cache headers — allow bots to cache product pages
+  res.set('Cache-Control', 'public, max-age=3600, s-maxage=86400');
   res.type('text/html').send(htmlPage(pageTitle, metaDesc, jsonld, body));
 });
 

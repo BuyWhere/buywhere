@@ -1,0 +1,119 @@
+# Smithery MCP server manifest — https://smithery.ai
+# BuyWhere: Agent-native product catalog API for Singapore commerce
+
+name: buywhere
+displayName: BuyWhere MCP Server
+description: >
+  Agent-native product catalog API for Singapore commerce with real-time search,
+  price comparison, and deal discovery across 1,000+ merchants.
+
+version: 1.0.0
+license: MIT
+
+mcp:
+  transport: http
+  url: https://mcp.buywhere.io/mcp
+  authentication:
+    type: bearer
+    description: >
+      API key required. Get a free key at https://api.buywhere.ai/v1/auth/register
+
+tools:
+  - name: search_products
+    description: >
+      Full-text product search with price, category, merchant, and rating filters.
+      Search across 1M+ products from Shopee, Lazada, Amazon SG, and 50+ Singapore merchants.
+    inputSchema:
+      type: object
+      properties:
+        q:
+          type: string
+          description: Keyword search query
+        domain:
+          type: string
+          description: Filter by merchant platform (e.g. lazada, shopee)
+        min_price:
+          type: number
+          description: Minimum price in SGD
+        max_price:
+          type: number
+          description: Maximum price in SGD
+        limit:
+          type: integer
+          description: Number of results (max 100, default 20)
+          default: 20
+        offset:
+          type: integer
+          description: Pagination offset
+          default: 0
+
+  - name: get_product
+    description: >
+      Get a specific product by its ID, including full details, current price,
+      brand, category, ratings, and merchant info.
+    inputSchema:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+          description: Product UUID
+
+  - name: compare_products
+    description: >
+      Compare multiple products side-by-side. Returns price, brand, rating,
+      and category for each product.
+    inputSchema:
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+          description: Array of product IDs to compare (2-10)
+          minItems: 2
+          maxItems: 10
+
+  - name: get_deals
+    description: >
+      Get discounted products sorted by discount percentage. Returns products
+      with original price and current discount.
+    inputSchema:
+      type: object
+      properties:
+        min_discount:
+          type: number
+          description: Minimum discount percentage (default 10)
+          default: 10
+        limit:
+          type: integer
+          description: Number of results (max 100, default 20)
+          default: 20
+        offset:
+          type: integer
+          description: Pagination offset
+          default: 0
+
+  - name: list_categories
+    description: >
+      List top-level product categories available in the BuyWhere catalog.
+    inputSchema:
+      type: object
+      properties: {}
+
+categories:
+  - Commerce
+  - Shopping
+  - Price Comparison
+  - Singapore
+  - Southeast Asia
+
+author:
+  name: BuyWhere
+  email: api@buywhere.ai
+  url: https://buywhere.ai
+
+homepage: https://buywhere.ai
+documentation: https://api.buywhere.ai/docs/guides/mcp
+repository: https://github.com/BuyWhere/buywhere
