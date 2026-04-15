@@ -16,8 +16,8 @@ exports.db = new pg_1.Pool({
     idleTimeoutMillis: 30000,
 });
 exports.redis = new ioredis_1.default({
-    host: process.env.REDIS_HOST || '172.18.0.8',
-    port: parseInt(process.env.REDIS_PORT || '6379'),
+    host: process.env.REDIS_HOST || '127.0.0.1',
+    port: parseInt(process.env.REDIS_PORT || '6380'),
     // maxRetriesPerRequest: null hangs commands indefinitely when Redis is down.
     // 0 = fail fast so HTTP request handlers can catch and fail open.
     maxRetriesPerRequest: 0,
