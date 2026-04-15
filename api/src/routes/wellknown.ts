@@ -34,7 +34,7 @@ router.get('/mcp.json', (_req: Request, res: Response) => {
     description: "Structured product catalog and price comparison API for AI agents. Real-time pricing from Singapore's major e-commerce platforms.",
     version: '0.1.0',
     mcp_endpoint: 'https://api.buywhere.ai/mcp',
-    documentation: 'https://docs.buywhere.ai/mcp',
+    documentation: 'https://api.buywhere.ai/docs/guides/mcp',
     capabilities: ['search_products', 'get_offers', 'compare_prices', 'get_categories'],
     coverage: 'Singapore',
     data_freshness: 'real-time',
