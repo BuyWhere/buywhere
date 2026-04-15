@@ -14,7 +14,18 @@ export const db = new Pool({
 export const redis = new Redis({
   host: process.env.REDIS_HOST || '172.18.0.8',
   port: parseInt(process.env.REDIS_PORT || '6379'),
-  maxRetriesPerRequest: null,
+  // maxRetriesPerRequest: null hangs commands indefinitely when Redis is down.
+  // 0 = fail fast so HTTP request handlers can catch and fail open.
+  maxRetriesPerRequest: 0,
+  commandTimeout: 500,
+  enableOfflineQueue: false,
+  retryStrategy: (times) => Math.min(times * 500, 10000),
+});
+// Suppress unhandled-error crashes from Redis reconnect attempts
+redis.on('error', (err) => {
+  if (process.env.NODE_ENV !== 'test') {
+    console.warn('[redis] connection error:', err.message);
+  }
 });
 
 export const PORT = parseInt(process.env.PORT || '3000');

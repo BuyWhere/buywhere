@@ -75,14 +75,25 @@ export async function checkRateLimit(req: Request, res: Response, next: NextFunc
   const rpmKey = `rl:rpm:${key}:${minuteWindow}`;
   const dailyKey = `rl:daily:${key}:${dayWindow}`;
 
-  const [rpmCount, dailyCount] = await Promise.all([
-    redis.incr(rpmKey),
-    redis.incr(dailyKey),
-  ]);
+  let rpmCount: number;
+  let dailyCount: number;
 
-  // Set TTL on first increment
-  if (rpmCount === 1) redis.expire(rpmKey, 120).catch(() => {});
-  if (dailyCount === 1) redis.expire(dailyKey, 172800).catch(() => {});
+  try {
+    [rpmCount, dailyCount] = await Promise.all([
+      redis.incr(rpmKey),
+      redis.incr(dailyKey),
+    ]);
+
+    // Set TTL on first increment
+    if (rpmCount === 1) redis.expire(rpmKey, 120).catch(() => {});
+    if (dailyCount === 1) redis.expire(dailyKey, 172800).catch(() => {});
+  } catch (_err) {
+    // Redis unavailable — fail open and allow the request through.
+    // This is preferable to hanging requests when Redis is down.
+    console.warn('[rate-limit] Redis unavailable, skipping rate limit check');
+    next();
+    return;
+  }
 
   if (rpmCount > req.apiKeyRecord.rpmLimit) {
     res.status(429).json({

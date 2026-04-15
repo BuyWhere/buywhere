@@ -72,25 +72,51 @@ router.get(
     }
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const countQuery = `SELECT COUNT(*) FROM products ${whereClause}`;
-    // When FTS query present, rank by ts_rank (uses same $param as WHERE clause)
-    const orderBy = ftsParamIdx
-      ? `ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC, updated_at DESC`
-      : `ORDER BY updated_at DESC`;
-    const dataQuery = `
-      SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
-             name AS title, price, currency, image_url, attributes AS metadata, updated_at
-      FROM products
-      ${whereClause}
-      ${orderBy}
-      LIMIT $${idx} OFFSET $${idx + 1}
-    `;
+    // Cap count at 1001: if result set > 1000 rows, ts_rank ordering over all matches is expensive
+    // (500ms+ for broad queries like "apple iphone"). For large result sets, fall back to
+    // updated_at DESC which uses the index and avoids full-scan rank computation.
+    const COUNT_CAP = 1001;
+    const countQuery = `SELECT COUNT(*) FROM (SELECT 1 FROM products ${whereClause} LIMIT ${COUNT_CAP}) _sub`;
+
+    // Run count first (fast, capped) to decide ordering strategy, then fetch data
+    const countResult = await db.query(countQuery, params.slice(0, idx - 1));
+    const approxCount = parseInt(countResult.rows[0].count, 10);
+
+    // For large result sets (>1000 rows), ORDER BY updated_at DESC with a direct GIN-filter
+    // forces Postgres to scan the updated_at index backwards, skipping many non-matching rows.
+    // Instead, use a candidate subquery: let the GIN index pick up to 500 candidates, then
+    // sort those by recency. This keeps query time <10ms even for broad FTS terms.
+    // For small result sets (<= 1000 rows), ts_rank gives more relevant ordering.
+    const CANDIDATE_LIMIT = Math.max(500, (limit + offset) * 10);
+    let dataQuery: string;
+    if (ftsParamIdx && approxCount <= 1000) {
+      // Small result set: ts_rank is fast and gives better relevance ordering
+      dataQuery = `
+        SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
+               name AS title, price, currency, image_url, attributes AS metadata, updated_at
+        FROM products
+        ${whereClause}
+        ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC, updated_at DESC
+        LIMIT $${idx} OFFSET $${idx + 1}
+      `;
+    } else {
+      // Large result set: subquery forces GIN index usage, outer sort is cheap
+      dataQuery = `
+        SELECT id, source_id, domain, url, title, price, currency, image_url, metadata, updated_at
+        FROM (
+          SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
+                 name AS title, price, currency, image_url, attributes AS metadata, updated_at
+          FROM products
+          ${whereClause}
+          LIMIT ${CANDIDATE_LIMIT}
+        ) _candidates
+        ORDER BY updated_at DESC
+        LIMIT $${idx} OFFSET $${idx + 1}
+      `;
+    }
     params.push(limit, offset);
 
-    const [countResult, dataResult] = await Promise.all([
-      db.query(countQuery, params.slice(0, idx - 1)),
-      db.query(dataQuery, params),
-    ]);
+    const dataResult = await db.query(dataQuery, params);
 
     const products = dataResult.rows.map((row) => ({
       id: row.id,
