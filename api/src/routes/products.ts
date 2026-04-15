@@ -82,15 +82,14 @@ router.get(
     const countResult = await db.query(countQuery, params.slice(0, idx - 1));
     const approxCount = parseInt(countResult.rows[0].count, 10);
 
-    // For large result sets (>1000 rows), ORDER BY updated_at DESC with a direct GIN-filter
-    // forces Postgres to scan the updated_at index backwards, skipping many non-matching rows.
-    // Instead, use a candidate subquery: let the GIN index pick up to 500 candidates, then
-    // sort those by recency. This keeps query time <10ms even for broad FTS terms.
-    // For small result sets (<= 1000 rows), ts_rank gives more relevant ordering.
+    // For large result sets (>1000 rows), computing ts_rank over all matches is expensive.
+    // Instead, let the GIN index fetch up to CANDIDATE_LIMIT rows, rank those by ts_rank,
+    // then return the top N. This gives relevance ordering at a fraction of the cost.
+    // For small result sets (<= 1000 rows), ts_rank over all matches is fast.
     const CANDIDATE_LIMIT = Math.max(500, (limit + offset) * 10);
     let dataQuery: string;
     if (ftsParamIdx && approxCount <= 1000) {
-      // Small result set: ts_rank is fast and gives better relevance ordering
+      // Small result set: ts_rank over all matches is fast, gives best relevance
       dataQuery = `
         SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
                name AS title, price, currency, image_url, attributes AS metadata, updated_at
@@ -99,17 +98,29 @@ router.get(
         ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC, updated_at DESC
         LIMIT $${idx} OFFSET $${idx + 1}
       `;
-    } else {
-      // Large result set: subquery forces GIN index usage, outer sort is cheap
+    } else if (ftsParamIdx) {
+      // Large result set: GIN index fetches CANDIDATE_LIMIT rows, ts_rank ranks only those
       dataQuery = `
         SELECT id, source_id, domain, url, title, price, currency, image_url, metadata, updated_at
         FROM (
           SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
-                 name AS title, price, currency, image_url, attributes AS metadata, updated_at
+                 name AS title, price, currency, image_url, attributes AS metadata, updated_at,
+                 ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
           FROM products
           ${whereClause}
+          ORDER BY rank DESC
           LIMIT ${CANDIDATE_LIMIT}
         ) _candidates
+        ORDER BY rank DESC
+        LIMIT $${idx} OFFSET $${idx + 1}
+      `;
+    } else {
+      // No FTS query (e.g. filter-only) — sort by recency
+      dataQuery = `
+        SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
+               name AS title, price, currency, image_url, attributes AS metadata, updated_at
+        FROM products
+        ${whereClause}
         ORDER BY updated_at DESC
         LIMIT $${idx} OFFSET $${idx + 1}
       `;
