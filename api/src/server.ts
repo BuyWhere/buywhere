@@ -9,6 +9,7 @@ import docsRouter from './routes/docs';
 import pagesRouter from './routes/pages';
 import publicCategoriesRouter from './routes/publicCategories';
 import publicCompareRouter from './routes/publicCompare';
+import mcpRouter from './routes/mcp';
 import { db } from './config';
 
 export function createApp() {
@@ -38,6 +39,9 @@ export function createApp() {
 
   // Docs
   app.use('/docs', docsRouter);
+
+  // MCP JSON-RPC endpoint (Model Context Protocol)
+  app.use('/mcp', mcpRouter);
 
   // v1 API
   app.use('/v1/auth', authRouter);

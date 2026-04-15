@@ -1,0 +1,64 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: buywhere-api
+  namespace: default
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/launch-stage: GA
+spec:
+  template:
+    metadata:
+      annotations:
+        # Min 1 instance to avoid cold-start latency penalty on first request
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "10"
+        # Use Cloud SQL connection via Unix socket
+        run.googleapis.com/cloudsql-instances: "PROJECT_ID:asia-southeast1:buywhere-staging"
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      containerConcurrency: 100
+      timeoutSeconds: 10
+      serviceAccountName: buywhere-api-sa@PROJECT_ID.iam.gserviceaccount.com
+      containers:
+        - image: asia-southeast1-docker.pkg.dev/PROJECT_ID/buywhere/api:IMAGE_TAG
+          command: ["node", "dist/index.js"]
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: API_BASE_URL
+              value: "https://api.buywhere.ai"
+            - name: PG_POOL_MAX
+              value: "10"
+            # Cloud SQL via Unix socket (PgBouncer not needed with Cloud SQL Proxy)
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: buywhere-db-url
+                  key: latest
+            - name: REDIS_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: buywhere-redis-host
+                  key: latest
+            - name: REDIS_PORT
+              value: "6379"
+          resources:
+            limits:
+              cpu: "1"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 6
