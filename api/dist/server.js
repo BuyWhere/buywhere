@@ -12,6 +12,9 @@ const categories_1 = __importDefault(require("./routes/categories"));
 const redirect_1 = __importDefault(require("./routes/redirect"));
 const wellknown_1 = __importDefault(require("./routes/wellknown"));
 const docs_1 = __importDefault(require("./routes/docs"));
+const pages_1 = __importDefault(require("./routes/pages"));
+const publicCategories_1 = __importDefault(require("./routes/publicCategories"));
+const publicCompare_1 = __importDefault(require("./routes/publicCompare"));
 const config_1 = require("./config");
 function createApp() {
     const app = (0, express_1.default)();
@@ -43,6 +46,10 @@ function createApp() {
     app.use('/v1/categories', categories_1.default);
     // Affiliate redirect (no /v1 prefix — short URLs)
     app.use('/r', redirect_1.default);
+    // Public HTML pages with Schema.org JSON-LD (no auth — crawlable by AI agents)
+    app.use('/p', pages_1.default); // /p/:id — product page
+    app.use('/c', publicCategories_1.default); // /c/:slug — category page
+    app.use('/compare', publicCompare_1.default); // /compare?ids=id1,id2 — comparison page
     // GEO / AI-crawler discoverability
     app.get('/robots.txt', (_req, res) => {
         res.type('text/plain').send([
