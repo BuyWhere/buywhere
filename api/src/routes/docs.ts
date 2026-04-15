@@ -7,7 +7,16 @@ const router = Router();
 // Serves the MCP integration guide as HTML.
 // This route exists because api.buywhere.ai/docs/guides/mcp was referenced as
 // the canonical MCP guide URL in public materials (BUY-579 / Aria DevRel audit).
-router.get('/guides/mcp', (_req: Request, res: Response) => {
+router.get('/guides/mcp', (req: Request, res: Response) => {
+  // Derive the public base URL from the incoming request so the guide is
+  // correct even if API_BASE_URL env var is misconfigured (e.g. localhost).
+  const forwardedProto = req.headers['x-forwarded-proto'] as string | undefined;
+  const proto = forwardedProto ? forwardedProto.split(',')[0].trim() : req.protocol;
+  const host = req.headers['x-forwarded-host'] as string || req.get('host') || '';
+  // Only use request-derived URL if it looks like a real public host (not localhost/127)
+  const isPublicHost = host && !host.startsWith('localhost') && !host.startsWith('127.');
+  const baseUrl = isPublicHost ? `${proto}://${host}` : API_BASE_URL;
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -32,10 +41,10 @@ router.get('/guides/mcp', (_req: Request, res: Response) => {
 <body>
 <h1>BuyWhere MCP Integration</h1>
 <p>BuyWhere exposes its product catalog as an MCP (Model Context Protocol) server. AI agents can search, compare, and retrieve product data without writing HTTP glue code.</p>
-<p><strong>Transport:</strong> HTTP (<code>POST ${API_BASE_URL}/mcp</code>) for remote agents. STDIO (local process) coming soon via npm.</p>
+<p><strong>Transport:</strong> HTTP (<code>POST ${baseUrl}/mcp</code>) for remote agents. STDIO (local process) coming soon via npm.</p>
 
 <h2>Install</h2>
-<p><strong>The hosted MCP server is live.</strong> Point your MCP client directly at <code>${API_BASE_URL}/mcp</code> — no local install required.</p>
+<p><strong>The hosted MCP server is live.</strong> Point your MCP client directly at <code>${baseUrl}/mcp</code> — no local install required.</p>
 <div class="callout">
   <strong>Note:</strong> The <code>buywhere-mcp</code> npm package (for STDIO / local process mode) is not yet published. Use the HTTP transport below until it is available.
 </div>
@@ -45,7 +54,7 @@ router.get('/guides/mcp', (_req: Request, res: Response) => {
 <pre><code>{
   "mcpServers": {
     "buywhere": {
-      "url": "${API_BASE_URL}/mcp",
+      "url": "${baseUrl}/mcp",
       "headers": { "Authorization": "Bearer bw_live_xxx" }
     }
   }
@@ -57,7 +66,7 @@ router.get('/guides/mcp', (_req: Request, res: Response) => {
 <pre><code>{
   "mcpServers": {
     "buywhere": {
-      "url": "${API_BASE_URL}/mcp",
+      "url": "${baseUrl}/mcp",
       "headers": { "Authorization": "Bearer bw_live_xxx" }
     }
   }
@@ -65,7 +74,7 @@ router.get('/guides/mcp', (_req: Request, res: Response) => {
 
 <h2>Remote HTTP Transport</h2>
 <p>For agents running in cloud environments:</p>
-<pre><code>POST ${API_BASE_URL}/mcp
+<pre><code>POST ${baseUrl}/mcp
 Authorization: Bearer bw_live_xxx
 Content-Type: application/json
 
@@ -91,7 +100,7 @@ Content-Type: application/json
 </table>
 
 <h2>Authentication</h2>
-<p>Pass your API key as a Bearer token. Get a free key at <code>POST ${API_BASE_URL}/v1/auth/register</code>.</p>
+<p>Pass your API key as a Bearer token. Get a free key at <code>POST ${baseUrl}/v1/auth/register</code>.</p>
 <table>
 <tr><th>Key tier</th><th>Rate limit</th><th>Use case</th></tr>
 <tr><td><code>bw_free_*</code></td><td>60 req/min</td><td>Demo, testing</td></tr>
@@ -110,8 +119,8 @@ Content-Type: application/json
 </table>
 
 <p style="margin-top:3em;color:#6b7280;font-size:.85em">
-  <a href="${API_BASE_URL}/openapi.json">OpenAPI spec</a> ·
-  <a href="${API_BASE_URL}/.well-known/ai-plugin.json">Plugin manifest</a> ·
+  <a href="${baseUrl}/openapi.json">OpenAPI spec</a> ·
+  <a href="${baseUrl}/.well-known/ai-plugin.json">Plugin manifest</a> ·
   <a href="mailto:api@buywhere.ai">api@buywhere.ai</a>
 </p>
 </body>
