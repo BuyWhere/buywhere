@@ -16,6 +16,9 @@ router.get('/guides/mcp', (req: Request, res: Response) => {
   // Only use request-derived URL if it looks like a real public host (not localhost/127)
   const isPublicHost = host && !host.startsWith('localhost') && !host.startsWith('127.');
   const baseUrl = isPublicHost ? `${proto}://${host}` : API_BASE_URL;
+  // MCP endpoint is always on api.buywhere.ai — never derive from request host,
+  // because docs.buywhere.ai proxies to this route but doesn't serve /mcp.
+  const mcpUrl = `${API_BASE_URL}/mcp`;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -41,10 +44,10 @@ router.get('/guides/mcp', (req: Request, res: Response) => {
 <body>
 <h1>BuyWhere MCP Integration</h1>
 <p>BuyWhere exposes its product catalog as an MCP (Model Context Protocol) server. AI agents can search, compare, and retrieve product data without writing HTTP glue code.</p>
-<p><strong>Transport:</strong> HTTP (<code>POST ${baseUrl}/mcp</code>) for remote agents. STDIO (local process) coming soon via npm.</p>
+<p><strong>Transport:</strong> HTTP (<code>POST ${mcpUrl}</code>) for remote agents. STDIO (local process) coming soon via npm.</p>
 
 <h2>Install</h2>
-<p><strong>The hosted MCP server is live.</strong> Point your MCP client directly at <code>${baseUrl}/mcp</code> — no local install required.</p>
+<p><strong>The hosted MCP server is live.</strong> Point your MCP client directly at <code>${mcpUrl}</code> — no local install required.</p>
 <div class="callout">
   <strong>Note:</strong> The <code>buywhere-mcp</code> npm package (for STDIO / local process mode) is not yet published. Use the HTTP transport below until it is available.
 </div>
@@ -54,7 +57,7 @@ router.get('/guides/mcp', (req: Request, res: Response) => {
 <pre><code>{
   "mcpServers": {
     "buywhere": {
-      "url": "${baseUrl}/mcp",
+      "url": "${mcpUrl}",
       "headers": { "Authorization": "Bearer bw_live_xxx" }
     }
   }
@@ -66,7 +69,7 @@ router.get('/guides/mcp', (req: Request, res: Response) => {
 <pre><code>{
   "mcpServers": {
     "buywhere": {
-      "url": "${baseUrl}/mcp",
+      "url": "${mcpUrl}",
       "headers": { "Authorization": "Bearer bw_live_xxx" }
     }
   }
@@ -74,7 +77,7 @@ router.get('/guides/mcp', (req: Request, res: Response) => {
 
 <h2>Remote HTTP Transport</h2>
 <p>For agents running in cloud environments:</p>
-<pre><code>POST ${baseUrl}/mcp
+<pre><code>POST ${mcpUrl}
 Authorization: Bearer bw_live_xxx
 Content-Type: application/json
 
