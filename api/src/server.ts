@@ -40,11 +40,18 @@ export function createApp() {
 
   // ChatGPT Actions-compatible OpenAPI spec (OpenAPI 3.1, action-friendly)
   app.get('/chatgpt-openapi.json', (_req, res) => {
-    res.sendFile('chatgpt-openapi.json', { root: __dirname + '/routes' });
+    res.json(require('./routes/chatgpt-openapi.json'));
   });
 
+  // AI crawler headers for public endpoints (Perplexity, GPTBot, etc.)
+  const aiCrawlerHeaders = (_req: express.Request, res: express.Response, next: express.NextFunction) => {
+    res.set('X-Robots-Tag', 'ai-index');
+    res.set('Cache-Control', 'public, max-age=3600, s-maxage=86400');
+    next();
+  };
+
   // Docs
-  app.use('/docs', docsRouter);
+  app.use('/docs', aiCrawlerHeaders, docsRouter);
 
   // MCP JSON-RPC endpoint (Model Context Protocol)
   app.use('/mcp', mcpRouter);
@@ -59,9 +66,9 @@ export function createApp() {
   app.use('/r', redirectRouter);
 
   // Public HTML pages with Schema.org JSON-LD (no auth — crawlable by AI agents)
-  app.use('/p', pagesRouter);           // /p/:id — product page
-  app.use('/c', publicCategoriesRouter); // /c/:slug — category page
-  app.use('/compare', publicCompareRouter); // /compare?ids=id1,id2 — comparison page
+  app.use('/p', aiCrawlerHeaders, pagesRouter);           // /p/:id — product page
+  app.use('/c', aiCrawlerHeaders, publicCategoriesRouter); // /c/:slug — category page
+  app.use('/compare', aiCrawlerHeaders, publicCompareRouter); // /compare?ids=id1,id2 — comparison page
 
   // GEO / AI-crawler discoverability
   app.get('/robots.txt', (_req, res) => {
