@@ -8,7 +8,7 @@
 
 **Server Type:** Remote (HTTPS)
 
-**MCP Endpoint URL:** https://mcp.buywhere.io/mcp
+**MCP Endpoint URL:** https://api.buywhere.ai/mcp
 
 **Short Description:**
 Agent-native product catalog API for Singapore commerce — search, compare prices, discover deals in real-time.
