@@ -77,6 +77,34 @@ CREATE TABLE IF NOT EXISTS affiliate_links (
 );
 
 CREATE INDEX IF NOT EXISTS idx_affiliate_links_slug ON affiliate_links(slug);
+
+-- Query log for agent analytics dashboard (BUY-1929)
+CREATE TABLE IF NOT EXISTS query_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  api_key_id VARCHAR REFERENCES api_keys(id),
+  agent_name TEXT,
+  agent_framework TEXT NOT NULL DEFAULT 'unknown',
+  sdk_language TEXT NOT NULL DEFAULT 'unknown',
+  is_agent BOOLEAN NOT NULL DEFAULT true,
+  endpoint TEXT NOT NULL,
+  query_text TEXT,
+  query_intent TEXT,
+  product_categories TEXT[],
+  result_count INTEGER,
+  response_time_ms INTEGER,
+  status_code INTEGER NOT NULL DEFAULT 200,
+  ip_address INET,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_query_log_created_at ON query_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_query_log_api_key_id ON query_log(api_key_id);
+CREATE INDEX IF NOT EXISTS idx_query_log_agent_name ON query_log(agent_name);
+CREATE INDEX IF NOT EXISTS idx_query_log_is_agent ON query_log(is_agent);
+CREATE INDEX IF NOT EXISTS idx_query_log_endpoint ON query_log(endpoint);
+-- Composite index for daily aggregation queries
+CREATE INDEX IF NOT EXISTS idx_query_log_daily ON query_log(created_at, is_agent);
 `;
 async function migrate() {
     console.log('Running migrations...');

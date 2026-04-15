@@ -5,11 +5,12 @@ const config_1 = require("../config");
 const apiKey_1 = require("../middleware/apiKey");
 const agentDetect_1 = require("../middleware/agentDetect");
 const posthog_1 = require("../analytics/posthog");
+const queryLog_1 = require("../middleware/queryLog");
 const SEARCH_CACHE_TTL_SECONDS = 60;
 const router = (0, express_1.Router)();
 // GET /v1/products/search
 // Query params: q, domain, min_price, max_price, currency, limit, offset, source_page
-router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, async (req, res) => {
+router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.search'), async (req, res) => {
     const start = Date.now();
     const q = req.query.q || '';
     const domain = req.query.domain;
@@ -167,7 +168,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
 });
 // GET /v1/products/deals
 // Returns products on sale (original_price > price), sorted by discount %
-router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, async (req, res) => {
+router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.deals'), async (req, res) => {
     const start = Date.now();
     const currency = req.query.currency || 'SGD';
     const minDiscount = parseFloat(req.query.min_discount || '10');
@@ -220,7 +221,7 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     res.json(responseBody);
 });
 // GET /v1/products/compare?ids=id1,id2,id3
-router.get('/compare', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, async (req, res) => {
+router.get('/compare', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.compare'), async (req, res) => {
     const start = Date.now();
     const ids = (req.query.ids || '').split(',').filter(Boolean).slice(0, 10);
     if (ids.length < 2) {
@@ -252,7 +253,7 @@ router.get('/compare', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiK
     res.json({ data: products, meta: { count: products.length, response_time_ms: Date.now() - start } });
 });
 // GET /v1/products/:id/prices — price history from price_snapshots
-router.get('/:id/prices', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, async (req, res) => {
+router.get('/:id/prices', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.prices'), async (req, res) => {
     const start = Date.now();
     const { id } = req.params;
     const days = Math.min(parseInt(req.query.days || '30'), 90);
@@ -290,7 +291,7 @@ router.get('/:id/prices', agentDetect_1.agentDetectMiddleware, apiKey_1.requireA
     });
 });
 // GET /v1/products/:id
-router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, async (req, res) => {
+router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.get'), async (req, res) => {
     const start = Date.now();
     const { id } = req.params;
     const result = await config_1.db.query(`SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,

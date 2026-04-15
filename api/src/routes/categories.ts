@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db, redis } from '../config';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
+import { queryLogMiddleware } from '../middleware/queryLog';
 
 const router = Router();
 const CACHE_TTL = 300; // 5 min — categories change slowly
@@ -13,6 +14,7 @@ router.get(
   agentDetectMiddleware,
   requireApiKey,
   checkRateLimit,
+  queryLogMiddleware('categories.list'),
   async (req: Request, res: Response) => {
     const start = Date.now();
     const currency = (req.query.currency as string) || 'SGD';
@@ -57,6 +59,7 @@ router.get(
   agentDetectMiddleware,
   requireApiKey,
   checkRateLimit,
+  queryLogMiddleware('categories.get'),
   async (req: Request, res: Response) => {
     const start = Date.now();
     const { slug } = req.params;

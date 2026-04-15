@@ -3,6 +3,7 @@ import { db, redis } from '../config';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackApiQuery } from '../analytics/posthog';
+import { queryLogMiddleware } from '../middleware/queryLog';
 
 const SEARCH_CACHE_TTL_SECONDS = 60;
 
@@ -15,6 +16,7 @@ router.get(
   agentDetectMiddleware,
   requireApiKey,
   checkRateLimit,
+  queryLogMiddleware('products.search'),
   async (req: Request, res: Response) => {
     const start = Date.now();
 
@@ -192,6 +194,7 @@ router.get(
   agentDetectMiddleware,
   requireApiKey,
   checkRateLimit,
+  queryLogMiddleware('products.deals'),
   async (req: Request, res: Response) => {
     const start = Date.now();
     const currency = (req.query.currency as string) || 'SGD';
@@ -261,6 +264,7 @@ router.get(
   agentDetectMiddleware,
   requireApiKey,
   checkRateLimit,
+  queryLogMiddleware('products.compare'),
   async (req: Request, res: Response) => {
     const start = Date.now();
     const ids = ((req.query.ids as string) || '').split(',').filter(Boolean).slice(0, 10);
@@ -306,6 +310,7 @@ router.get(
   agentDetectMiddleware,
   requireApiKey,
   checkRateLimit,
+  queryLogMiddleware('products.prices'),
   async (req: Request, res: Response) => {
     const start = Date.now();
     const { id } = req.params;
@@ -361,6 +366,7 @@ router.get(
   agentDetectMiddleware,
   requireApiKey,
   checkRateLimit,
+  queryLogMiddleware('products.get'),
   async (req: Request, res: Response) => {
     const start = Date.now();
     const { id } = req.params;

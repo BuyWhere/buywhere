@@ -4,11 +4,12 @@ const express_1 = require("express");
 const config_1 = require("../config");
 const apiKey_1 = require("../middleware/apiKey");
 const agentDetect_1 = require("../middleware/agentDetect");
+const queryLog_1 = require("../middleware/queryLog");
 const router = (0, express_1.Router)();
 const CACHE_TTL = 300; // 5 min — categories change slowly
 // GET /v1/categories
 // Returns top-level categories derived from products.category_path[1]
-router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, async (req, res) => {
+router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('categories.list'), async (req, res) => {
     const start = Date.now();
     const currency = req.query.currency || 'SGD';
     const cacheKey = `categories:top:${currency}`;
@@ -40,7 +41,7 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
 });
 // GET /v1/categories/:slug
 // Returns category info + subcategories + sample products
-router.get('/:slug', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, async (req, res) => {
+router.get('/:slug', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('categories.get'), async (req, res) => {
     const start = Date.now();
     const { slug } = req.params;
     const currency = req.query.currency || 'SGD';

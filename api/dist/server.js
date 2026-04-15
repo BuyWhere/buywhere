@@ -15,6 +15,8 @@ const docs_1 = __importDefault(require("./routes/docs"));
 const pages_1 = __importDefault(require("./routes/pages"));
 const publicCategories_1 = __importDefault(require("./routes/publicCategories"));
 const publicCompare_1 = __importDefault(require("./routes/publicCompare"));
+const mcp_1 = __importDefault(require("./routes/mcp"));
+const analytics_1 = __importDefault(require("./routes/analytics"));
 const config_1 = require("./config");
 function createApp() {
     const app = (0, express_1.default)();
@@ -40,10 +42,13 @@ function createApp() {
     app.get('/openapi.json', (req, res) => (0, wellknown_1.default)(req, res, () => { }));
     // Docs
     app.use('/docs', docs_1.default);
+    // MCP JSON-RPC endpoint (Model Context Protocol)
+    app.use('/mcp', mcp_1.default);
     // v1 API
     app.use('/v1/auth', auth_1.default);
     app.use('/v1/products', products_1.default);
     app.use('/v1/categories', categories_1.default);
+    app.use('/v1/analytics', analytics_1.default);
     // Affiliate redirect (no /v1 prefix — short URLs)
     app.use('/r', redirect_1.default);
     // Public HTML pages with Schema.org JSON-LD (no auth — crawlable by AI agents)

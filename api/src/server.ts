@@ -10,6 +10,7 @@ import pagesRouter from './routes/pages';
 import publicCategoriesRouter from './routes/publicCategories';
 import publicCompareRouter from './routes/publicCompare';
 import mcpRouter from './routes/mcp';
+import analyticsRouter from './routes/analytics';
 import { db } from './config';
 
 export function createApp() {
@@ -47,6 +48,7 @@ export function createApp() {
   app.use('/v1/auth', authRouter);
   app.use('/v1/products', productsRouter);
   app.use('/v1/categories', categoriesRouter);
+  app.use('/v1/analytics', analyticsRouter);
 
   // Affiliate redirect (no /v1 prefix — short URLs)
   app.use('/r', redirectRouter);

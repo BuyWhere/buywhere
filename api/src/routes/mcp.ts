@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db, redis } from '../config';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
+import { queryLogMiddleware } from '../middleware/queryLog';
 
 const router = Router();
 
@@ -289,7 +290,7 @@ function jsonrpcErr(id: unknown, code: number, message: string, data?: unknown) 
 
 // POST /mcp — MCP JSON-RPC 2.0 endpoint
 // Auth required (same API key as REST). Rate limited.
-router.post('/', requireApiKey, checkRateLimit, async (req: Request, res: Response) => {
+router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async (req: Request, res: Response) => {
   const body = req.body;
 
   // Validate JSON-RPC envelope
