@@ -36,9 +36,9 @@ Multi-currency support: SGD, USD, MYR, IDR, THB, PHP, VND
 
 **Contact Email:** api@buywhere.ai
 
-**Test API Key:** (generate a bw_live_* key for Anthropic review before submission)
+**Test API Key:** `bw_live_7a07fbc3eb1001356b1fcaffe3925410cb0db560d18823b0` (enterprise tier, name: anthropic-review)
 
 ## Status
-- [ ] Generate test API key for Anthropic review
-- [ ] Submit Google Form
+- [x] Generate test API key for Anthropic review
+- [ ] Submit Google Form (requires browser access — board action)
 - [ ] Monitor for review response (expected 1-2 weeks)
