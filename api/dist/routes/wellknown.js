@@ -83,12 +83,12 @@ router.get('/openapi.json', (_req, res) => {
             },
             '/products/search': {
                 get: {
-                    summary: 'Search products',
+                    summary: 'Search products by keyword with full-text search',
                     operationId: 'searchProducts',
                     security: [{ BearerAuth: [] }],
                     parameters: [
-                        { name: 'q', in: 'query', schema: { type: 'string' }, description: 'Search query' },
-                        { name: 'domain', in: 'query', schema: { type: 'string' }, description: 'Filter by merchant domain' },
+                        { name: 'q', in: 'query', schema: { type: 'string' }, description: 'Keyword search query (full-text)' },
+                        { name: 'domain', in: 'query', schema: { type: 'string' }, description: 'Filter by merchant platform (e.g. lazada, shopee)' },
                         { name: 'min_price', in: 'query', schema: { type: 'number' } },
                         { name: 'max_price', in: 'query', schema: { type: 'number' } },
                         { name: 'currency', in: 'query', schema: { type: 'string', default: 'SGD' } },
@@ -96,9 +96,100 @@ router.get('/openapi.json', (_req, res) => {
                         { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
                     ],
                     responses: {
-                        '200': { description: 'Product list' },
+                        '200': { description: 'Product list with meta (total, response_time_ms, cached)' },
                         '401': { description: 'Missing or invalid API key' },
                         '429': { description: 'Rate limit exceeded' },
+                    },
+                },
+            },
+            '/products/deals': {
+                get: {
+                    summary: 'Get discounted products sorted by discount percentage',
+                    operationId: 'getDeals',
+                    security: [{ BearerAuth: [] }],
+                    parameters: [
+                        { name: 'currency', in: 'query', schema: { type: 'string', default: 'SGD' } },
+                        { name: 'min_discount', in: 'query', schema: { type: 'number', default: 10 }, description: 'Minimum discount percentage (0-90)' },
+                        { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, maximum: 100 } },
+                        { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
+                    ],
+                    responses: {
+                        '200': { description: 'Discounted products with price, original_price, and discount_pct' },
+                        '401': { description: 'Missing or invalid API key' },
+                    },
+                },
+            },
+            '/products/compare': {
+                get: {
+                    summary: 'Compare multiple products side-by-side',
+                    operationId: 'compareProducts',
+                    security: [{ BearerAuth: [] }],
+                    parameters: [
+                        { name: 'ids', in: 'query', required: true, schema: { type: 'string' }, description: 'Comma-separated product IDs (2-10)' },
+                    ],
+                    responses: {
+                        '200': { description: 'Array of products with price, brand, rating, category_path' },
+                        '400': { description: 'Fewer than 2 IDs provided' },
+                        '401': { description: 'Missing or invalid API key' },
+                    },
+                },
+            },
+            '/products/{id}': {
+                get: {
+                    summary: 'Get a product by ID',
+                    operationId: 'getProduct',
+                    security: [{ BearerAuth: [] }],
+                    parameters: [
+                        { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+                    ],
+                    responses: {
+                        '200': { description: 'Product detail' },
+                        '404': { description: 'Product not found' },
+                    },
+                },
+            },
+            '/products/{id}/prices': {
+                get: {
+                    summary: 'Get price history for a product',
+                    operationId: 'getProductPrices',
+                    security: [{ BearerAuth: [] }],
+                    parameters: [
+                        { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+                        { name: 'days', in: 'query', schema: { type: 'integer', default: 30, maximum: 90 }, description: 'Look-back window in days' },
+                    ],
+                    responses: {
+                        '200': { description: 'Price history with min/max/avg stats' },
+                        '404': { description: 'Product not found' },
+                    },
+                },
+            },
+            '/categories': {
+                get: {
+                    summary: 'List top-level product categories',
+                    operationId: 'listCategories',
+                    security: [{ BearerAuth: [] }],
+                    parameters: [
+                        { name: 'currency', in: 'query', schema: { type: 'string', default: 'SGD' } },
+                    ],
+                    responses: {
+                        '200': { description: 'Category list with slug, name, and product_count' },
+                    },
+                },
+            },
+            '/categories/{slug}': {
+                get: {
+                    summary: 'Get products within a category',
+                    operationId: 'getCategoryProducts',
+                    security: [{ BearerAuth: [] }],
+                    parameters: [
+                        { name: 'slug', in: 'path', required: true, schema: { type: 'string' }, description: 'Category slug (from /categories)' },
+                        { name: 'currency', in: 'query', schema: { type: 'string', default: 'SGD' } },
+                        { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, maximum: 100 } },
+                        { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
+                    ],
+                    responses: {
+                        '200': { description: 'Category detail with subcategories and products' },
+                        '404': { description: 'Category not found' },
                     },
                 },
             },
