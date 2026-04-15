@@ -146,6 +146,176 @@ router.get(
   }
 );
 
+// GET /v1/products/deals
+// Returns products on sale (original_price > price), sorted by discount %
+router.get(
+  '/deals',
+  agentDetectMiddleware,
+  requireApiKey,
+  checkRateLimit,
+  async (req: Request, res: Response) => {
+    const start = Date.now();
+    const currency = (req.query.currency as string) || 'SGD';
+    const minDiscount = parseFloat((req.query.min_discount as string) || '10');
+    const limit = Math.min(parseInt((req.query.limit as string) || '20'), 100);
+    const offset = parseInt((req.query.offset as string) || '0');
+
+    const cacheKey = `deals:${currency}:${minDiscount}:${limit}:${offset}`;
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        parsed.meta.cached = true;
+        parsed.meta.response_time_ms = Date.now() - start;
+        return res.json(parsed);
+      }
+    } catch (_) {}
+
+    // Sanity cap: reject original_price > 10x price (likely scraped data corruption)
+    const [countResult, dataResult] = await Promise.all([
+      db.query(
+        `SELECT COUNT(*) FROM products
+         WHERE currency = $1 AND original_price > price AND original_price <= price * 10
+           AND ((original_price - price) / original_price * 100) >= $2`,
+        [currency, minDiscount]
+      ),
+      db.query(
+        `SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
+                name AS title, price, original_price, currency, image_url, attributes AS metadata, updated_at,
+                ROUND(((original_price - price) / original_price * 100)::numeric, 1) AS discount_pct
+         FROM products
+         WHERE currency = $1 AND original_price > price AND original_price <= price * 10
+           AND ((original_price - price) / original_price * 100) >= $2
+         ORDER BY ((original_price - price) / original_price) DESC, updated_at DESC
+         LIMIT $3 OFFSET $4`,
+        [currency, minDiscount, limit, offset]
+      ),
+    ]);
+
+    const deals = dataResult.rows.map((row) => ({
+      id: row.id,
+      source: row.source_id,
+      domain: row.domain,
+      url: row.url,
+      title: row.title,
+      price: row.price ? parseFloat(row.price) : null,
+      original_price: row.original_price ? parseFloat(row.original_price) : null,
+      discount_pct: row.discount_pct ? parseFloat(row.discount_pct) : null,
+      currency: row.currency,
+      image_url: row.image_url,
+      metadata: row.metadata,
+      updated_at: row.updated_at,
+    }));
+
+    const responseBody = {
+      data: deals,
+      meta: { total: parseInt(countResult.rows[0].count, 10), limit, offset, response_time_ms: Date.now() - start, cached: false },
+    };
+    redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+    res.json(responseBody);
+  }
+);
+
+// GET /v1/products/compare?ids=id1,id2,id3
+router.get(
+  '/compare',
+  agentDetectMiddleware,
+  requireApiKey,
+  checkRateLimit,
+  async (req: Request, res: Response) => {
+    const start = Date.now();
+    const ids = ((req.query.ids as string) || '').split(',').filter(Boolean).slice(0, 10);
+    if (ids.length < 2) {
+      res.status(400).json({ error: 'Provide at least 2 product IDs via ?ids=id1,id2' });
+      return;
+    }
+
+    const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
+    const result = await db.query(
+      `SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
+              name AS title, price, original_price, currency, image_url, attributes AS metadata,
+              category_path, brand, rating, review_count, updated_at
+       FROM products WHERE id IN (${placeholders})`,
+      ids
+    );
+
+    const products = result.rows.map((row) => ({
+      id: row.id,
+      source: row.source_id,
+      domain: row.domain,
+      url: row.url,
+      title: row.title,
+      price: row.price ? parseFloat(row.price) : null,
+      original_price: row.original_price ? parseFloat(row.original_price) : null,
+      currency: row.currency,
+      image_url: row.image_url,
+      brand: row.brand,
+      category_path: row.category_path,
+      rating: row.rating ? parseFloat(row.rating) : null,
+      review_count: row.review_count,
+      metadata: row.metadata,
+      updated_at: row.updated_at,
+    }));
+
+    res.json({ data: products, meta: { count: products.length, response_time_ms: Date.now() - start } });
+  }
+);
+
+// GET /v1/products/:id/prices — price history from price_snapshots
+router.get(
+  '/:id/prices',
+  agentDetectMiddleware,
+  requireApiKey,
+  checkRateLimit,
+  async (req: Request, res: Response) => {
+    const start = Date.now();
+    const { id } = req.params;
+    const days = Math.min(parseInt((req.query.days as string) || '30'), 90);
+
+    const [productResult, historyResult] = await Promise.all([
+      db.query(
+        `SELECT id, name AS title, price, original_price, currency FROM products WHERE id = $1`,
+        [id]
+      ),
+      db.query(
+        `SELECT price, currency, scraped_at
+         FROM price_snapshots
+         WHERE product_id = $1 AND scraped_at >= NOW() - ($2 || ' days')::interval
+         ORDER BY scraped_at ASC`,
+        [id, days]
+      ),
+    ]);
+
+    if (productResult.rows.length === 0) {
+      res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+
+    const p = productResult.rows[0];
+    const history = historyResult.rows.map((row) => ({
+      price: parseFloat(row.price),
+      currency: row.currency,
+      at: row.scraped_at,
+    }));
+
+    const prices = history.map((h) => h.price);
+    res.json({
+      data: {
+        product_id: p.id,
+        title: p.title,
+        current_price: p.price ? parseFloat(p.price) : null,
+        original_price: p.original_price ? parseFloat(p.original_price) : null,
+        currency: p.currency,
+        history,
+        stats: prices.length
+          ? { min: Math.min(...prices), max: Math.max(...prices), avg: +(prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2), data_points: prices.length }
+          : null,
+      },
+      meta: { days, response_time_ms: Date.now() - start },
+    });
+  }
+);
+
 // GET /v1/products/:id
 router.get(
   '/:id',

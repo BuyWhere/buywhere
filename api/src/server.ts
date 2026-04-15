@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import authRouter from './routes/auth';
 import productsRouter from './routes/products';
+import categoriesRouter from './routes/categories';
 import redirectRouter from './routes/redirect';
 import wellknownRouter from './routes/wellknown';
 import docsRouter from './routes/docs';
@@ -38,6 +39,7 @@ export function createApp() {
   // v1 API
   app.use('/v1/auth', authRouter);
   app.use('/v1/products', productsRouter);
+  app.use('/v1/categories', categoriesRouter);
 
   // Affiliate redirect (no /v1 prefix — short URLs)
   app.use('/r', redirectRouter);

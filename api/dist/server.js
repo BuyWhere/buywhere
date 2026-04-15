@@ -8,8 +8,10 @@ const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const auth_1 = __importDefault(require("./routes/auth"));
 const products_1 = __importDefault(require("./routes/products"));
+const categories_1 = __importDefault(require("./routes/categories"));
 const redirect_1 = __importDefault(require("./routes/redirect"));
 const wellknown_1 = __importDefault(require("./routes/wellknown"));
+const docs_1 = __importDefault(require("./routes/docs"));
 const config_1 = require("./config");
 function createApp() {
     const app = (0, express_1.default)();
@@ -33,9 +35,12 @@ function createApp() {
     // MCP / OpenAI plugin discovery
     app.use('/.well-known', wellknown_1.default);
     app.get('/openapi.json', (req, res) => (0, wellknown_1.default)(req, res, () => { }));
+    // Docs
+    app.use('/docs', docs_1.default);
     // v1 API
     app.use('/v1/auth', auth_1.default);
     app.use('/v1/products', products_1.default);
+    app.use('/v1/categories', categories_1.default);
     // Affiliate redirect (no /v1 prefix — short URLs)
     app.use('/r', redirect_1.default);
     // 404 fallback
