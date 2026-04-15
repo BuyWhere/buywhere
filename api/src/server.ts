@@ -6,6 +6,9 @@ import categoriesRouter from './routes/categories';
 import redirectRouter from './routes/redirect';
 import wellknownRouter from './routes/wellknown';
 import docsRouter from './routes/docs';
+import pagesRouter from './routes/pages';
+import publicCategoriesRouter from './routes/publicCategories';
+import publicCompareRouter from './routes/publicCompare';
 import { db } from './config';
 
 export function createApp() {
@@ -43,6 +46,11 @@ export function createApp() {
 
   // Affiliate redirect (no /v1 prefix — short URLs)
   app.use('/r', redirectRouter);
+
+  // Public HTML pages with Schema.org JSON-LD (no auth — crawlable by AI agents)
+  app.use('/p', pagesRouter);           // /p/:id — product page
+  app.use('/c', publicCategoriesRouter); // /c/:slug — category page
+  app.use('/compare', publicCompareRouter); // /compare?ids=id1,id2 — comparison page
 
   // GEO / AI-crawler discoverability
   app.get('/robots.txt', (_req, res) => {
