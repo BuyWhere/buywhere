@@ -25,6 +25,19 @@ router.get('/ai-plugin.json', (_req, res) => {
         legal_info_url: 'https://buywhere.ai/terms',
     });
 });
+// GET /.well-known/mcp.json — MCP server discovery manifest
+router.get('/mcp.json', (_req, res) => {
+    res.json({
+        name: 'BuyWhere Product Catalog',
+        description: "Structured product catalog and price comparison API for AI agents. Real-time pricing from Singapore's major e-commerce platforms.",
+        version: '0.1.0',
+        mcp_endpoint: 'https://mcp.buywhere.io/v1/mcp',
+        documentation: 'https://docs.buywhere.io/mcp',
+        capabilities: ['search_products', 'get_offers', 'compare_prices', 'get_categories'],
+        coverage: 'Singapore',
+        data_freshness: 'real-time',
+    });
+});
 // GET /openapi.json — OpenAPI 3.0 spec
 router.get('/openapi.json', (_req, res) => {
     res.json({
