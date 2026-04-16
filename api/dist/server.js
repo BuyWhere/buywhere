@@ -68,6 +68,7 @@ function createApp() {
     app.use('/v1/analytics', analytics_1.default);
     app.use('/v1/revenue', revenue_1.default);
     app.use('/v1/compare', aiCrawlerHeaders, compareSlug_1.default);
+    app.use('/api/v1/compare', aiCrawlerHeaders, compareSlug_1.default); // alias — FE integration uses /api prefix
     // Admin editorial CRUD (ADMIN_API_KEY auth, not rate-limited)
     app.use('/admin/comparison-pages', adminCompare_1.default);
     // Affiliate redirect (no /v1 prefix — short URLs)

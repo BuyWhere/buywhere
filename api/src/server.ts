@@ -70,6 +70,7 @@ export function createApp() {
   app.use('/v1/analytics', analyticsRouter);
   app.use('/v1/revenue', revenueRouter);
   app.use('/v1/compare', aiCrawlerHeaders, compareSlugRouter);
+  app.use('/api/v1/compare', aiCrawlerHeaders, compareSlugRouter); // alias — FE integration uses /api prefix
 
   // Admin editorial CRUD (ADMIN_API_KEY auth, not rate-limited)
   app.use('/admin/comparison-pages', adminCompareRouter);
