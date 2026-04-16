@@ -13,6 +13,7 @@ import compareSlugRouter from './routes/compareSlug';
 import adminCompareRouter from './routes/adminCompare';
 import mcpRouter from './routes/mcp';
 import analyticsRouter from './routes/analytics';
+import revenueRouter from './routes/revenue';
 import sitemapCompareRouter from './routes/sitemapCompare';
 import landingRouter from './routes/landing';
 import { db } from './config';
@@ -67,6 +68,7 @@ export function createApp() {
   app.use('/v2/products', productsRouter);
   app.use('/v1/categories', categoriesRouter);
   app.use('/v1/analytics', analyticsRouter);
+  app.use('/v1/revenue', revenueRouter);
   app.use('/v1/compare', aiCrawlerHeaders, compareSlugRouter);
 
   // Admin editorial CRUD (ADMIN_API_KEY auth, not rate-limited)

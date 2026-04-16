@@ -19,6 +19,7 @@ const compareSlug_1 = __importDefault(require("./routes/compareSlug"));
 const adminCompare_1 = __importDefault(require("./routes/adminCompare"));
 const mcp_1 = __importDefault(require("./routes/mcp"));
 const analytics_1 = __importDefault(require("./routes/analytics"));
+const revenue_1 = __importDefault(require("./routes/revenue"));
 const sitemapCompare_1 = __importDefault(require("./routes/sitemapCompare"));
 const landing_1 = __importDefault(require("./routes/landing"));
 const config_1 = require("./config");
@@ -65,6 +66,7 @@ function createApp() {
     app.use('/v2/products', products_1.default);
     app.use('/v1/categories', categories_1.default);
     app.use('/v1/analytics', analytics_1.default);
+    app.use('/v1/revenue', revenue_1.default);
     app.use('/v1/compare', aiCrawlerHeaders, compareSlug_1.default);
     // Admin editorial CRUD (ADMIN_API_KEY auth, not rate-limited)
     app.use('/admin/comparison-pages', adminCompare_1.default);
