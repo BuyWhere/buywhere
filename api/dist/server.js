@@ -15,6 +15,8 @@ const docs_1 = __importDefault(require("./routes/docs"));
 const pages_1 = __importDefault(require("./routes/pages"));
 const publicCategories_1 = __importDefault(require("./routes/publicCategories"));
 const publicCompare_1 = __importDefault(require("./routes/publicCompare"));
+const compareSlug_1 = __importDefault(require("./routes/compareSlug"));
+const adminCompare_1 = __importDefault(require("./routes/adminCompare"));
 const mcp_1 = __importDefault(require("./routes/mcp"));
 const analytics_1 = __importDefault(require("./routes/analytics"));
 const config_1 = require("./config");
@@ -40,8 +42,18 @@ function createApp() {
     // MCP / OpenAI plugin discovery
     app.use('/.well-known', wellknown_1.default);
     app.get('/openapi.json', (req, res) => (0, wellknown_1.default)(req, res, () => { }));
+    // ChatGPT Actions-compatible OpenAPI spec (OpenAPI 3.1, action-friendly)
+    app.get('/chatgpt-openapi.json', (_req, res) => {
+        res.json(require('./routes/chatgpt-openapi.json'));
+    });
+    // AI crawler headers for public endpoints (Perplexity, GPTBot, etc.)
+    const aiCrawlerHeaders = (_req, res, next) => {
+        res.set('X-Robots-Tag', 'ai-index');
+        res.set('Cache-Control', 'public, max-age=3600, s-maxage=86400');
+        next();
+    };
     // Docs
-    app.use('/docs', docs_1.default);
+    app.use('/docs', aiCrawlerHeaders, docs_1.default);
     // MCP JSON-RPC endpoint (Model Context Protocol)
     app.use('/mcp', mcp_1.default);
     // v1 API
@@ -49,12 +61,15 @@ function createApp() {
     app.use('/v1/products', products_1.default);
     app.use('/v1/categories', categories_1.default);
     app.use('/v1/analytics', analytics_1.default);
+    app.use('/v1/compare', aiCrawlerHeaders, compareSlug_1.default);
+    // Admin editorial CRUD (ADMIN_API_KEY auth, not rate-limited)
+    app.use('/admin/comparison-pages', adminCompare_1.default);
     // Affiliate redirect (no /v1 prefix — short URLs)
     app.use('/r', redirect_1.default);
     // Public HTML pages with Schema.org JSON-LD (no auth — crawlable by AI agents)
-    app.use('/p', pages_1.default); // /p/:id — product page
-    app.use('/c', publicCategories_1.default); // /c/:slug — category page
-    app.use('/compare', publicCompare_1.default); // /compare?ids=id1,id2 — comparison page
+    app.use('/p', aiCrawlerHeaders, pages_1.default); // /p/:id — product page
+    app.use('/c', aiCrawlerHeaders, publicCategories_1.default); // /c/:slug — category page
+    app.use('/compare', aiCrawlerHeaders, publicCompare_1.default); // /compare?ids=id1,id2 — comparison page
     // GEO / AI-crawler discoverability
     app.get('/robots.txt', (_req, res) => {
         res.type('text/plain').send([
@@ -90,7 +105,9 @@ function createApp() {
         ].join('\n'));
     });
     app.get('/llms.txt', (_req, res) => {
-        res.type('text/plain').send(`# BuyWhere\n\nBuyWhere is a structured product catalog and price comparison API for AI agents and LLM applications. We provide real-time pricing, availability, and product data from Singapore's major e-commerce platforms (Lazada, Shopee, Best Denki, and others).\n\n## What we offer\n- REST API: GET /v1/products, GET /v1/offers, GET /v1/categories\n- MCP endpoint: https://mcp.buywhere.io/v1/mcp\n- Schema.org-compatible product data (Product, Offer, ItemList)\n- Coverage: 2M+ Singapore products across 20+ merchants\n- Use cases: price comparison agents, shopping assistants, market research tools\n\n## Documentation\n- API docs: https://docs.buywhere.io\n- MCP guide: https://docs.buywhere.io/mcp\n- GitHub: https://github.com/BuyWhere/buywhere\n\n## Licensing\nFree tier: 1,000 API calls/month. Commercial plans available.\n`);
+        res.set('X-Robots-Tag', 'ai-index');
+        res.set('Cache-Control', 'public, max-age=86400');
+        res.type('text/plain').send(`# BuyWhere\n\nBuyWhere is a structured product catalog and price comparison API for AI agents and LLM applications. We provide real-time pricing, availability, and product data from Singapore's major e-commerce platforms (Lazada, Shopee, Best Denki, and others).\n\n## What we offer\n- REST API: GET /v1/products, GET /v1/offers, GET /v1/categories\n- MCP endpoint: https://api.buywhere.ai/mcp\n- Schema.org-compatible product data (Product, Offer, ItemList)\n- Coverage: 2M+ Singapore products across 40+ merchants\n- Use cases: price comparison agents, shopping assistants, market research tools\n\n## Documentation\n- API docs: https://docs.buywhere.ai\n- MCP guide: https://api.buywhere.ai/docs/guides/mcp\n- GitHub: https://github.com/BuyWhere/buywhere\n\n## Licensing\nFree tier: 1,000 API calls/month. Commercial plans available.\n`);
     });
     // 404 fallback
     app.use((_req, res) => {

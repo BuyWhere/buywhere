@@ -82,6 +82,24 @@ CREATE EXTENSION IF NOT EXISTS btree_gin;
 CREATE INDEX IF NOT EXISTS idx_products_search_region ON products USING gin(search_vector, region);
 CREATE INDEX IF NOT EXISTS idx_products_search_country ON products USING gin(search_vector, country_code);
 
+-- Comparison pages curation table (BUY-2273)
+CREATE TABLE IF NOT EXISTS comparison_pages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug TEXT UNIQUE NOT NULL,
+  product_id UUID NOT NULL REFERENCES products(id),
+  category TEXT NOT NULL CHECK (category IN ('electronics','grocery','home','health')),
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published','archived')),
+  expert_summary TEXT,
+  hero_image_url TEXT,
+  published_at TIMESTAMPTZ,
+  metadata JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_comparison_pages_slug ON comparison_pages(slug);
+CREATE INDEX IF NOT EXISTS idx_comparison_pages_published ON comparison_pages(status) WHERE status = 'published';
+
 -- Query log for agent analytics dashboard (BUY-1929)
 CREATE TABLE IF NOT EXISTS query_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
