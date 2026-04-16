@@ -9,7 +9,9 @@
     "start:mcp": "node dist/mcp-server.js",
     "dev": "ts-node src/index.ts",
     "dev:mcp": "ts-node src/mcp-server.ts",
-    "migrate": "ts-node src/migrate.ts"
+    "migrate": "ts-node src/migrate.ts",
+    "start:refresh": "node dist/jobs/priceRefreshRunner.js",
+    "refresh": "ts-node src/jobs/priceRefreshRunner.ts"
   },
   "dependencies": {
     "express": "^4.18.2",

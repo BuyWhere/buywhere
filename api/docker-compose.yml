@@ -5,49 +5,28 @@ version: '3.9'
 # at 20 while allowing up to 200 concurrent API clients.
 
 services:
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: buywhere
-      POSTGRES_USER: buywhere
-      POSTGRES_PASSWORD: buywhere_dev
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U buywhere"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
   pgbouncer:
-    image: edoburu/pgbouncer:1.21.0
+    image: edoburu/pgbouncer:latest
     environment:
-      # Backend database
+      # Connect to external catalog DB (buywhere-api-db-1)
       DB_USER: buywhere
-      DB_PASSWORD: buywhere_dev
-      DB_HOST: postgres
+      DB_PASSWORD: buywhere
+      DB_HOST: db
       DB_PORT: "5432"
-      DB_NAME: buywhere
+      DB_NAME: catalog
       # Pooling
       POOL_MODE: transaction
       MAX_CLIENT_CONN: "200"
       DEFAULT_POOL_SIZE: "20"
       # Auth
-      AUTH_TYPE: md5
-      # Required for PgBouncer transaction mode + node-postgres compatibility:
-      # node-postgres uses extended query protocol (parameterized queries) which
-      # creates prepared statements per backend connection. DISCARD ALL ensures
-      # each backend session is clean when returned to the pool. This prevents
-      # "prepared statement already exists" errors across pooled connections.
+      AUTH_TYPE: scram-sha-256
       SERVER_RESET_QUERY: "DISCARD ALL"
       IGNORE_STARTUP_PARAMETERS: extra_float_digits
     ports:
       - "5433:5432"
-    depends_on:
-      postgres:
-        condition: service_healthy
+    networks:
+      - default
+      - buywhere-api
     restart: unless-stopped
 
   redis:
@@ -68,20 +47,19 @@ services:
       dockerfile: Dockerfile
     command: node dist/migrate.js
     environment:
-      # Migrations run directly against Postgres (not through PgBouncer) so
-      # DDL statements with multi-step transactions work correctly.
-      DATABASE_URL: postgresql://buywhere:buywhere_dev@postgres:5432/buywhere
-    depends_on:
-      postgres:
-        condition: service_healthy
+      # Migrations run directly against catalog DB (not through PgBouncer)
+      DATABASE_URL: postgresql://buywhere:buywhere@db:5432/catalog
+    networks:
+      - default
+      - buywhere-api
 
   api:
     build:
       context: .
       dockerfile: Dockerfile
     environment:
-      # API traffic goes through PgBouncer on port 5432 inside docker network
-      DATABASE_URL: postgresql://buywhere:buywhere_dev@pgbouncer:5432/buywhere
+      # API traffic goes through PgBouncer → external catalog DB
+      DATABASE_URL: postgresql://buywhere:buywhere@pgbouncer:5432/catalog
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       PORT: "3000"
@@ -95,8 +73,6 @@ services:
       retries: 3
       start_period: 15s
     depends_on:
-      pgbouncer:
-        condition: service_started
       redis:
         condition: service_healthy
       migrate:
@@ -109,7 +85,7 @@ services:
       dockerfile: Dockerfile
     command: node dist/mcp-server.js
     environment:
-      DATABASE_URL: postgresql://buywhere:buywhere_dev@pgbouncer:5432/buywhere
+      DATABASE_URL: postgresql://buywhere:buywhere@pgbouncer:5432/catalog
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       MCP_PORT: "8081"
@@ -124,13 +100,33 @@ services:
       retries: 3
       start_period: 15s
     depends_on:
-      pgbouncer:
-        condition: service_started
       redis:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
     restart: unless-stopped
 
-volumes:
-  postgres_data:
+  # Nightly price-refresh job (BUY-2274) — runs daily at 03:00 SGT (19:00 UTC)
+  price-refresh-job:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: node dist/jobs/priceRefreshRunner.js
+    environment:
+      DATABASE_URL: postgresql://buywhere:buywhere@pgbouncer:5432/catalog
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      # Kai's targeted-refresh endpoint — set when endpoint is confirmed (BUY-2274)
+      # SCRAPER_REFRESH_URL: http://scraper-api:8080/v1/refresh
+      # Override schedule: REFRESH_HOUR_UTC=19, REFRESH_MIN_UTC=0 (03:00 SGT)
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+networks:
+  buywhere-api:
+    external: true
+    name: buywhere-api_default
