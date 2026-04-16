@@ -223,8 +223,8 @@ router.get('/openapi.json', (_req, res) => {
 router.get('/mcp/server-card.json', (_req, res) => {
     res.json({
         name: 'BuyWhere Product Catalog',
-        description: "Structured product catalog and price comparison API for AI agents. Real-time pricing from Singapore's major e-commerce platforms (Lazada, Shopee, Best Denki, and others). Covers 2M+ products.",
-        version: '0.1.0',
+        description: "The only agent-native product catalog API built for Southeast Asia. Real-time search, price comparison, and deal discovery across 1M+ products from Shopee, Lazada, Amazon SG, and 50+ Singapore merchants.",
+        version: '1.0.0',
         contact: { email: 'api@buywhere.ai', url: 'https://buywhere.ai' },
         license: { name: 'Commercial', url: 'https://buywhere.ai/terms' },
         servers: [
@@ -235,11 +235,11 @@ router.get('/mcp/server-card.json', (_req, res) => {
             },
         ],
         tools: [
-            { name: 'search_products', description: 'Search products by keyword, category, price range, merchant' },
-            { name: 'get_offers', description: 'Get live retailer offers for a product ID' },
-            { name: 'compare_prices', description: 'Compare prices across retailers for a list of product IDs' },
-            { name: 'get_categories', description: 'List available product categories and subcategories' },
-            { name: 'get_deals', description: 'Get current deals and promotions by region/category' },
+            { name: 'search_products', description: 'Full-text product search with price, category, merchant, and region filters across 1M+ Singapore products' },
+            { name: 'get_product', description: 'Get a specific product by ID including full details and current price' },
+            { name: 'compare_products', description: 'Compare multiple products side-by-side: price, brand, rating, category' },
+            { name: 'get_deals', description: 'Get discounted products sorted by discount percentage, optionally filtered by region/country' },
+            { name: 'list_categories', description: 'List top-level product categories available in the BuyWhere catalog' },
         ],
         authentication: {
             required: true,
@@ -248,7 +248,7 @@ router.get('/mcp/server-card.json', (_req, res) => {
             description: 'Register for a free API key. Free tier: 1,000 calls/month.',
         },
         documentation: 'https://api.buywhere.ai/docs/guides/mcp',
-        homepage: 'https://smithery.ai/server/buywhere',
+        homepage: 'https://buywhere.ai',
     });
 });
 exports.default = router;
