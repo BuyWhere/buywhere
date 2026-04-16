@@ -54,11 +54,13 @@ const TOOLS = [
   },
   {
     name: 'get_deals',
-    description: 'Get discounted products sorted by discount percentage. Returns products with original price and discount percentage.',
+    description: 'Get discounted products sorted by discount percentage. Returns products with original price and discount percentage. Supports region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters.',
     inputSchema: {
       type: 'object',
       properties: {
         min_discount: { type: 'number', description: 'Minimum discount percentage (default 10)', default: 10 },
+        region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
+        country: { type: 'string', description: 'Filter by ISO country code (SG, US, VN, MY)' },
         limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
       },
@@ -105,7 +107,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   }
   if (domain) {
     params.push(domain);
-    conditions.push(`platform = $${params.length}`);
+    conditions.push(`source = $${params.length}`);
   }
   if (minPrice != null) {
     params.push(minPrice);
@@ -140,8 +142,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     if (total <= 1000) {
       params.push(limit, offset);
       const result = await db.query(
-        `SELECT id, sku AS source, platform AS domain, url, name AS title,
-                price, original_price, currency, image_url, metadata, updated_at,
+        `SELECT id, sku AS source, source AS domain, url, title,
+                price, currency, image_url, metadata, updated_at,
                 region, country_code,
                 ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
          FROM products ${where}
@@ -154,8 +156,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
       params.push(CANDIDATE_LIMIT);
       const candidateResult = await db.query(
-        `SELECT id, sku AS source, platform AS domain, url, name AS title,
-                price, original_price, currency, image_url, metadata, updated_at,
+        `SELECT id, sku AS source, source AS domain, url, title,
+                price, currency, image_url, metadata, updated_at,
                 region, country_code,
                 ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
          FROM products ${where}
@@ -212,9 +214,9 @@ async function handleGetProduct(args: Record<string, unknown>) {
   const t0 = Date.now();
   const { id } = args;
   const result = await db.query(
-    `SELECT id, sku AS source, platform AS domain, url, name AS title,
-            price, original_price, currency, image_url, brand, category_path,
-            rating, review_count, metadata, updated_at, region, country_code
+    `SELECT id, sku AS source, source AS domain, url, title,
+            price, currency, image_url, brand, category_path,
+            avg_rating AS rating, review_count, metadata, updated_at, region, country_code
      FROM products WHERE id = $1`,
     [id]
   );
@@ -228,9 +230,9 @@ async function handleCompareProducts(args: Record<string, unknown>) {
   if (!ids || ids.length < 2) throw { code: -32602, message: 'Provide at least 2 product IDs' };
   const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
   const result = await db.query(
-    `SELECT id, sku AS source, platform AS domain, url, name AS title,
-            price, original_price, currency, image_url, brand, category_path,
-            rating, review_count, metadata, updated_at, region, country_code
+    `SELECT id, sku AS source, source AS domain, url, title,
+            price, currency, image_url, brand, category_path,
+            avg_rating AS rating, review_count, metadata, updated_at, region, country_code
      FROM products WHERE id IN (${placeholders})`,
     ids
   );
@@ -240,28 +242,47 @@ async function handleCompareProducts(args: Record<string, unknown>) {
 async function handleGetDeals(args: Record<string, unknown>) {
   const t0 = Date.now();
   const minDiscount = Number(args.min_discount) || 10;
+  const region = (args.region as string) || '';
+  const country = (args.country as string) || '';
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
 
+  const conditions: string[] = [
+    `(metadata->>'original_price')::numeric > price`,
+    `price > 0`,
+    `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100 >= $1`,
+  ];
+  const params: unknown[] = [minDiscount];
+
+  if (region) {
+    params.push(region);
+    conditions.push(`region = $${params.length}`);
+  }
+  if (country) {
+    params.push(country.toUpperCase());
+    conditions.push(`country_code = $${params.length}`);
+  }
+
+  const whereClause = conditions.join(' AND ');
+  params.push(limit, offset);
+  const limitIdx = params.length - 1;
+  const offsetIdx = params.length;
+
   const result = await db.query(
-    `SELECT id, sku AS source, platform AS domain, url, name AS title,
-            price, original_price, currency, image_url, metadata, updated_at,
-            ROUND((1 - price / NULLIF(original_price, 0)) * 100) AS discount_pct
+    `SELECT id, sku AS source, source AS domain, url, title,
+            price, (metadata->>'original_price')::numeric AS original_price,
+            currency, image_url, metadata, updated_at, region, country_code,
+            ROUND((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) AS discount_pct
      FROM products
-     WHERE original_price > price
-       AND original_price <= price * 10
-       AND price > 0
-       AND (1 - price / NULLIF(original_price, 0)) * 100 >= $1
+     WHERE ${whereClause}
      ORDER BY discount_pct DESC
-     LIMIT $2 OFFSET $3`,
-    [minDiscount, limit, offset]
+     LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+    params
   );
 
   const countResult = await db.query(
-    `SELECT COUNT(*) FROM products
-     WHERE original_price > price AND original_price <= price * 10
-       AND price > 0 AND (1 - price / NULLIF(original_price, 0)) * 100 >= $1`,
-    [minDiscount]
+    `SELECT COUNT(*) FROM products WHERE ${whereClause}`,
+    params.slice(0, params.length - 2)
   );
 
   return {
@@ -273,11 +294,11 @@ async function handleGetDeals(args: Record<string, unknown>) {
 async function handleListCategories(_args: Record<string, unknown>) {
   const t0 = Date.now();
   const result = await db.query(
-    `SELECT SPLIT_PART(category_path, ' > ', 1) AS slug,
-            SPLIT_PART(category_path, ' > ', 1) AS name,
+    `SELECT category_path[1] AS slug,
+            category_path[1] AS name,
             COUNT(*) AS product_count
      FROM products
-     WHERE category_path IS NOT NULL AND category_path != ''
+     WHERE category_path IS NOT NULL AND array_length(category_path, 1) > 0
      GROUP BY 1
      ORDER BY product_count DESC
      LIMIT 100`

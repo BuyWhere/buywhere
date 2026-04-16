@@ -9,14 +9,16 @@ const router = (0, express_1.Router)();
 const TOOLS = [
     {
         name: 'search_products',
-        description: 'Search the BuyWhere product catalog by keyword. Returns products from Singapore e-commerce platforms (Lazada, Shopee, etc.) with pricing in SGD.',
+        description: 'Search the BuyWhere product catalog by keyword. Returns products from e-commerce platforms across multiple regions (Singapore, US, etc.).',
         inputSchema: {
             type: 'object',
             properties: {
                 q: { type: 'string', description: 'Keyword search query' },
-                domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee)' },
-                min_price: { type: 'number', description: 'Minimum price in SGD' },
-                max_price: { type: 'number', description: 'Maximum price in SGD' },
+                domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
+                region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
+                country: { type: 'string', description: 'Filter by ISO country code (SG, US, VN, MY)' },
+                min_price: { type: 'number', description: 'Minimum price' },
+                max_price: { type: 'number', description: 'Maximum price' },
                 limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
                 offset: { type: 'integer', description: 'Pagination offset', default: 0 },
             },
@@ -52,11 +54,13 @@ const TOOLS = [
     },
     {
         name: 'get_deals',
-        description: 'Get discounted products sorted by discount percentage. Returns products with original price and discount percentage.',
+        description: 'Get discounted products sorted by discount percentage. Returns products with original price and discount percentage. Supports region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters.',
         inputSchema: {
             type: 'object',
             properties: {
                 min_discount: { type: 'number', description: 'Minimum discount percentage (default 10)', default: 10 },
+                region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
+                country: { type: 'string', description: 'Filter by ISO country code (SG, US, VN, MY)' },
                 limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
                 offset: { type: 'integer', description: 'Pagination offset', default: 0 },
             },
@@ -76,12 +80,14 @@ async function handleSearchProducts(args) {
     const t0 = Date.now();
     const q = args.q || '';
     const domain = args.domain || '';
+    const region = args.region || '';
+    const country = args.country || '';
     const minPrice = args.min_price != null ? Number(args.min_price) : null;
     const maxPrice = args.max_price != null ? Number(args.max_price) : null;
     const limit = Math.min(Number(args.limit) || 20, 100);
     const offset = Number(args.offset) || 0;
     const currency = 'SGD';
-    const cacheKey = `fts:${q}:${domain}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}`;
+    const cacheKey = `fts:${q}:${domain}:${region}:${country}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}`;
     try {
         const cached = await config_1.redis.get(cacheKey);
         if (cached) {
@@ -98,7 +104,7 @@ async function handleSearchProducts(args) {
     }
     if (domain) {
         params.push(domain);
-        conditions.push(`platform = $${params.length}`);
+        conditions.push(`source = $${params.length}`);
     }
     if (minPrice != null) {
         params.push(minPrice);
@@ -107,6 +113,14 @@ async function handleSearchProducts(args) {
     if (maxPrice != null) {
         params.push(maxPrice);
         conditions.push(`price <= $${params.length}`);
+    }
+    if (region) {
+        params.push(region);
+        conditions.push(`region = $${params.length}`);
+    }
+    if (country) {
+        params.push(country.toUpperCase());
+        conditions.push(`country_code = $${params.length}`);
     }
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     let rows;
@@ -117,8 +131,9 @@ async function handleSearchProducts(args) {
         total = parseInt(countResult.rows[0].count, 10);
         if (total <= 1000) {
             params.push(limit, offset);
-            const result = await config_1.db.query(`SELECT id, sku AS source, platform AS domain, url, name AS title,
-                price, original_price, currency, image_url, metadata, updated_at,
+            const result = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
+                price, currency, image_url, metadata, updated_at,
+                region, country_code,
                 ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
          FROM products ${where}
          ORDER BY rank DESC
@@ -128,8 +143,9 @@ async function handleSearchProducts(args) {
         else {
             const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
             params.push(CANDIDATE_LIMIT);
-            const candidateResult = await config_1.db.query(`SELECT id, sku AS source, platform AS domain, url, name AS title,
-                price, original_price, currency, image_url, metadata, updated_at,
+            const candidateResult = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
+                price, currency, image_url, metadata, updated_at,
+                region, country_code,
                 ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
          FROM products ${where}
          ORDER BY rank DESC
@@ -142,7 +158,8 @@ async function handleSearchProducts(args) {
         total = parseInt(countResult.rows[0].count, 10);
         params.push(limit, offset);
         const result = await config_1.db.query(`SELECT id, sku AS source, platform AS domain, url, name AS title,
-              price, original_price, currency, image_url, metadata, updated_at
+              price, original_price, currency, image_url, metadata, updated_at,
+              region, country_code
        FROM products ${where}
        ORDER BY updated_at DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
@@ -158,6 +175,8 @@ async function handleSearchProducts(args) {
         currency: r.currency || currency,
         image_url: r.image_url,
         metadata: r.metadata,
+        region: r.region || null,
+        country_code: r.country_code || null,
         updated_at: r.updated_at,
     }));
     const result = {
@@ -173,9 +192,9 @@ async function handleSearchProducts(args) {
 async function handleGetProduct(args) {
     const t0 = Date.now();
     const { id } = args;
-    const result = await config_1.db.query(`SELECT id, sku AS source, platform AS domain, url, name AS title,
-            price, original_price, currency, image_url, brand, category_path,
-            rating, review_count, metadata, updated_at
+    const result = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
+            price, currency, image_url, brand, category_path,
+            avg_rating AS rating, review_count, metadata, updated_at, region, country_code
      FROM products WHERE id = $1`, [id]);
     if (!result.rows.length)
         throw { code: -32001, message: 'Product not found' };
@@ -187,30 +206,46 @@ async function handleCompareProducts(args) {
     if (!ids || ids.length < 2)
         throw { code: -32602, message: 'Provide at least 2 product IDs' };
     const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-    const result = await config_1.db.query(`SELECT id, sku AS source, platform AS domain, url, name AS title,
-            price, original_price, currency, image_url, brand, category_path,
-            rating, review_count, metadata, updated_at
+    const result = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
+            price, currency, image_url, brand, category_path,
+            avg_rating AS rating, review_count, metadata, updated_at, region, country_code
      FROM products WHERE id IN (${placeholders})`, ids);
     return { data: result.rows, meta: { count: result.rows.length, response_time_ms: Date.now() - t0 } };
 }
 async function handleGetDeals(args) {
     const t0 = Date.now();
     const minDiscount = Number(args.min_discount) || 10;
+    const region = args.region || '';
+    const country = args.country || '';
     const limit = Math.min(Number(args.limit) || 20, 100);
     const offset = Number(args.offset) || 0;
-    const result = await config_1.db.query(`SELECT id, sku AS source, platform AS domain, url, name AS title,
-            price, original_price, currency, image_url, metadata, updated_at,
-            ROUND((1 - price / NULLIF(original_price, 0)) * 100) AS discount_pct
+    const conditions = [
+        `(metadata->>'original_price')::numeric > price`,
+        `price > 0`,
+        `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100 >= $1`,
+    ];
+    const params = [minDiscount];
+    if (region) {
+        params.push(region);
+        conditions.push(`region = $${params.length}`);
+    }
+    if (country) {
+        params.push(country.toUpperCase());
+        conditions.push(`country_code = $${params.length}`);
+    }
+    const whereClause = conditions.join(' AND ');
+    params.push(limit, offset);
+    const limitIdx = params.length - 1;
+    const offsetIdx = params.length;
+    const result = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
+            price, (metadata->>'original_price')::numeric AS original_price,
+            currency, image_url, metadata, updated_at, region, country_code,
+            ROUND((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) AS discount_pct
      FROM products
-     WHERE original_price > price
-       AND original_price <= price * 10
-       AND price > 0
-       AND (1 - price / NULLIF(original_price, 0)) * 100 >= $1
+     WHERE ${whereClause}
      ORDER BY discount_pct DESC
-     LIMIT $2 OFFSET $3`, [minDiscount, limit, offset]);
-    const countResult = await config_1.db.query(`SELECT COUNT(*) FROM products
-     WHERE original_price > price AND original_price <= price * 10
-       AND price > 0 AND (1 - price / NULLIF(original_price, 0)) * 100 >= $1`, [minDiscount]);
+     LIMIT $${limitIdx} OFFSET $${offsetIdx}`, params);
+    const countResult = await config_1.db.query(`SELECT COUNT(*) FROM products WHERE ${whereClause}`, params.slice(0, params.length - 2));
     return {
         data: result.rows,
         meta: { total: parseInt(countResult.rows[0].count, 10), limit, offset, response_time_ms: Date.now() - t0 },
@@ -218,11 +253,11 @@ async function handleGetDeals(args) {
 }
 async function handleListCategories(_args) {
     const t0 = Date.now();
-    const result = await config_1.db.query(`SELECT SPLIT_PART(category_path, ' > ', 1) AS slug,
-            SPLIT_PART(category_path, ' > ', 1) AS name,
+    const result = await config_1.db.query(`SELECT category_path[1] AS slug,
+            category_path[1] AS name,
             COUNT(*) AS product_count
      FROM products
-     WHERE category_path IS NOT NULL AND category_path != ''
+     WHERE category_path IS NOT NULL AND array_length(category_path, 1) > 0
      GROUP BY 1
      ORDER BY product_count DESC
      LIMIT 100`);
