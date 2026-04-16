@@ -7,6 +7,9 @@ import { queryLogMiddleware } from '../middleware/queryLog';
 
 const SEARCH_CACHE_TTL_SECONDS = 60;
 
+// Maps ISO country code to native currency — used for both query inference and ingest defaults.
+const COUNTRY_CURRENCY: Record<string, string> = { SG: 'SGD', US: 'USD', VN: 'VND', TH: 'THB', MY: 'MYR' };
+
 const router = Router();
 
 // GET /v1/products/search
@@ -29,7 +32,6 @@ router.get(
     const maxPrice = req.query.max_price ? parseFloat(req.query.max_price as string) : undefined;
     // Infer default currency from country_code when not explicitly provided.
     // Price filters (min_price/max_price) apply in this inferred currency.
-    const COUNTRY_CURRENCY: Record<string, string> = { SG: 'SGD', US: 'USD', VN: 'VND', TH: 'THB', MY: 'MYR' };
     const currency = (req.query.currency as string) || (countryCode ? (COUNTRY_CURRENCY[countryCode] || 'SGD') : 'SGD');
     const limit = Math.min(parseInt((req.query.limit as string) || '20'), 100);
     const offset = parseInt((req.query.offset as string) || '0');
@@ -353,7 +355,20 @@ router.get(
       updated_at: row.updated_at,
     }));
 
-    res.json({ data: products, meta: { count: products.length, response_time_ms: Date.now() - start } });
+    const uniqueCurrencies = [...new Set(products.map((p) => p.currency).filter(Boolean))];
+    const currenciesMixed = uniqueCurrencies.length > 1;
+
+    res.json({
+      data: products,
+      meta: {
+        count: products.length,
+        response_time_ms: Date.now() - start,
+        currencies_mixed: currenciesMixed,
+        ...(currenciesMixed && {
+          currency_warning: `Products span multiple currencies (${uniqueCurrencies.join(', ')}). Prices are not comparable across currencies — do not aggregate or rank by price in comparison_summary.`,
+        }),
+      },
+    });
   }
 );
 
@@ -699,7 +714,7 @@ router.post(
         sku,
         name: String(p.name).slice(0, 1000),
         price: parseFloat(p.price),
-        currency: p.currency || 'SGD',
+        currency: p.currency || (p.country_code ? COUNTRY_CURRENCY[(p.country_code as string).toUpperCase()] : null) || (p.countryCode ? COUNTRY_CURRENCY[(p.countryCode as string).toUpperCase()] : null) || 'SGD',
         productUrl: p.product_url || p.productUrl,
         merchantId: p.merchant_id || p.merchantId || p.platform,
         merchantName: p.merchant_name || p.merchantName || p.platform,
@@ -735,6 +750,7 @@ router.post(
          DO UPDATE SET
            title = EXCLUDED.title,
            price = EXCLUDED.price,
+           currency = EXCLUDED.currency,
            image_url = EXCLUDED.image_url,
            region = COALESCE(EXCLUDED.region, products.region),
            country_code = COALESCE(EXCLUDED.country_code, products.country_code),

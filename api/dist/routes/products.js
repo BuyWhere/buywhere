@@ -7,6 +7,8 @@ const agentDetect_1 = require("../middleware/agentDetect");
 const posthog_1 = require("../analytics/posthog");
 const queryLog_1 = require("../middleware/queryLog");
 const SEARCH_CACHE_TTL_SECONDS = 60;
+// Maps ISO country code to native currency — used for both query inference and ingest defaults.
+const COUNTRY_CURRENCY = { SG: 'SGD', US: 'USD', VN: 'VND', TH: 'THB', MY: 'MYR' };
 const router = (0, express_1.Router)();
 // GET /v1/products/search
 // Query params: q, domain, region, country, min_price, max_price, currency, limit, offset, source_page
@@ -21,7 +23,6 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const maxPrice = req.query.max_price ? parseFloat(req.query.max_price) : undefined;
     // Infer default currency from country_code when not explicitly provided.
     // Price filters (min_price/max_price) apply in this inferred currency.
-    const COUNTRY_CURRENCY = { SG: 'SGD', US: 'USD', VN: 'VND', TH: 'THB', MY: 'MYR' };
     const currency = req.query.currency || (countryCode ? (COUNTRY_CURRENCY[countryCode] || 'SGD') : 'SGD');
     const limit = Math.min(parseInt(req.query.limit || '20'), 100);
     const offset = parseInt(req.query.offset || '0');
@@ -305,7 +306,19 @@ router.get('/compare', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiK
         country_code: row.country_code || null,
         updated_at: row.updated_at,
     }));
-    res.json({ data: products, meta: { count: products.length, response_time_ms: Date.now() - start } });
+    const uniqueCurrencies = [...new Set(products.map((p) => p.currency).filter(Boolean))];
+    const currenciesMixed = uniqueCurrencies.length > 1;
+    res.json({
+        data: products,
+        meta: {
+            count: products.length,
+            response_time_ms: Date.now() - start,
+            currencies_mixed: currenciesMixed,
+            ...(currenciesMixed && {
+                currency_warning: `Products span multiple currencies (${uniqueCurrencies.join(', ')}). Prices are not comparable across currencies — do not aggregate or rank by price in comparison_summary.`,
+            }),
+        },
+    });
 });
 // GET /v1/products/:id/price-history — daily aggregated price history (BUY-2345)
 // Query params: days (30|90|180, default 30)
@@ -576,7 +589,7 @@ router.post('/ingest', apiKey_1.requireApiKey, async (req, res) => {
             sku,
             name: String(p.name).slice(0, 1000),
             price: parseFloat(p.price),
-            currency: p.currency || 'SGD',
+            currency: p.currency || (p.country_code ? COUNTRY_CURRENCY[p.country_code.toUpperCase()] : null) || (p.countryCode ? COUNTRY_CURRENCY[p.countryCode.toUpperCase()] : null) || 'SGD',
             productUrl: p.product_url || p.productUrl,
             merchantId: p.merchant_id || p.merchantId || p.platform,
             merchantName: p.merchant_name || p.merchantName || p.platform,
@@ -608,6 +621,7 @@ router.post('/ingest', apiKey_1.requireApiKey, async (req, res) => {
          DO UPDATE SET
            title = EXCLUDED.title,
            price = EXCLUDED.price,
+           currency = EXCLUDED.currency,
            image_url = EXCLUDED.image_url,
            region = COALESCE(EXCLUDED.region, products.region),
            country_code = COALESCE(EXCLUDED.country_code, products.country_code),
