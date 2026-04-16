@@ -1,4 +1,4 @@
-import { db } from './config';
+import { db, redis } from './config';
 
 const MIGRATION = `
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -25,26 +25,19 @@ BEFORE INSERT OR UPDATE ON products
 FOR EACH ROW EXECUTE FUNCTION products_search_vector_update();
 
 
--- API keys for agent access
-CREATE TABLE IF NOT EXISTS api_keys (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  key TEXT UNIQUE NOT NULL,
-  agent_name TEXT NOT NULL,
-  contact TEXT,
-  use_case TEXT,
-  tier TEXT NOT NULL DEFAULT 'free',
-  rpm_limit INTEGER NOT NULL DEFAULT 60,
-  daily_limit INTEGER NOT NULL DEFAULT 1000,
-  signup_channel TEXT,
-  attribution_source TEXT,
-  utm_source TEXT,
-  utm_medium TEXT,
-  utm_campaign TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  last_used_at TIMESTAMPTZ
-);
+-- API keys: use existing table from catalog DB (key_hash, developer_id, etc.)
+-- Add columns needed by API layer if missing
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS rpm_limit INTEGER DEFAULT 60;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS daily_limit INTEGER DEFAULT 1000;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS signup_channel TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS attribution_source TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS utm_source TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS utm_medium TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS utm_campaign TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS contact TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS use_case TEXT;
 
-CREATE INDEX IF NOT EXISTS idx_api_keys_key ON api_keys(key);
+CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
 CREATE INDEX IF NOT EXISTS idx_api_keys_created_at ON api_keys(created_at);
 
 -- Affiliate redirect click log
@@ -84,6 +77,11 @@ CREATE INDEX IF NOT EXISTS idx_products_region ON products(region);
 CREATE INDEX IF NOT EXISTS idx_products_country_code ON products(country_code);
 CREATE INDEX IF NOT EXISTS idx_products_region_active ON products(region, is_active) WHERE is_active = true;
 
+-- Composite GIN indexes for fast GEO-filtered full-text search (BUY-1979)
+CREATE EXTENSION IF NOT EXISTS btree_gin;
+CREATE INDEX IF NOT EXISTS idx_products_search_region ON products USING gin(search_vector, region);
+CREATE INDEX IF NOT EXISTS idx_products_search_country ON products USING gin(search_vector, country_code);
+
 -- Query log for agent analytics dashboard (BUY-1929)
 CREATE TABLE IF NOT EXISTS query_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -118,6 +116,7 @@ async function migrate() {
   await db.query(MIGRATION);
   console.log('Migrations complete.');
   await db.end();
+  redis.disconnect();
 }
 
 migrate().catch((err) => {
