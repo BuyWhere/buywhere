@@ -218,4 +218,39 @@ router.get('/openapi.json', (_req: Request, res: Response) => {
   });
 });
 
+// GET /.well-known/mcp/server-card.json — Smithery skip-scan card
+// Allows Smithery.ai to catalogue the server without a live endpoint scan.
+// Ref: https://smithery.ai/docs/build/publish#troubleshooting
+router.get('/mcp/server-card.json', (_req: Request, res: Response) => {
+  res.json({
+    name: 'BuyWhere Product Catalog',
+    description: "Structured product catalog and price comparison API for AI agents. Real-time pricing from Singapore's major e-commerce platforms (Lazada, Shopee, Best Denki, and others). Covers 2M+ products.",
+    version: '0.1.0',
+    contact: { email: 'api@buywhere.ai', url: 'https://buywhere.ai' },
+    license: { name: 'Commercial', url: 'https://buywhere.ai/terms' },
+    servers: [
+      {
+        url: 'https://api.buywhere.ai/mcp',
+        description: 'Production MCP endpoint (Singapore)',
+        transport: ['streamable-http', 'sse'],
+      },
+    ],
+    tools: [
+      { name: 'search_products', description: 'Search products by keyword, category, price range, merchant' },
+      { name: 'get_offers', description: 'Get live retailer offers for a product ID' },
+      { name: 'compare_prices', description: 'Compare prices across retailers for a list of product IDs' },
+      { name: 'get_categories', description: 'List available product categories and subcategories' },
+      { name: 'get_deals', description: 'Get current deals and promotions by region/category' },
+    ],
+    authentication: {
+      required: true,
+      type: 'bearer',
+      register_url: 'https://api.buywhere.ai/v1/auth/register',
+      description: 'Register for a free API key. Free tier: 1,000 calls/month.',
+    },
+    documentation: 'https://api.buywhere.ai/docs/guides/mcp',
+    homepage: 'https://smithery.ai/server/buywhere',
+  });
+});
+
 export default router;
