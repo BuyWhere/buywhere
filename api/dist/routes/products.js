@@ -22,8 +22,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const limit = Math.min(parseInt(req.query.limit || '20'), 100);
     const offset = parseInt(req.query.offset || '0');
     const sourcePage = req.query.source_page;
+    const compact = req.query.compact === 'true';
     // Check Redis cache for this exact query (60s TTL)
-    const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${country || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}`;
+    const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${country || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${compact ? 'c' : 'f'}`;
     try {
         const cached = await config_1.redis.get(cacheKey);
         if (cached) {
@@ -134,20 +135,41 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     }
     params.push(limit, offset);
     const dataResult = await config_1.db.query(dataQuery, params);
-    const products = dataResult.rows.map((row) => ({
-        id: row.id,
-        source: row.source_id,
-        domain: row.domain,
-        url: row.url,
-        title: row.title,
-        price: row.price ? parseFloat(row.price) : null,
-        currency: row.currency,
-        image_url: row.image_url,
-        metadata: row.metadata,
-        region: row.region || null,
-        country_code: row.country_code || null,
-        updated_at: row.updated_at,
-    }));
+    const products = dataResult.rows.map((row) => {
+        if (compact) {
+            // Compact format for AI agents: minimal payload, normalized specs
+            const meta = row.metadata;
+            return {
+                id: row.id,
+                title: row.title,
+                price: row.price ? parseFloat(row.price) : null,
+                currency: row.currency,
+                url: row.url,
+                source: row.source_id,
+                region: row.region || null,
+                country_code: row.country_code || null,
+                specs: {
+                    brand: meta?.brand ?? null,
+                    category: meta?.category ?? null,
+                    model: meta?.model ?? null,
+                },
+            };
+        }
+        return {
+            id: row.id,
+            source: row.source_id,
+            domain: row.domain,
+            url: row.url,
+            title: row.title,
+            price: row.price ? parseFloat(row.price) : null,
+            currency: row.currency,
+            image_url: row.image_url,
+            metadata: row.metadata,
+            region: row.region || null,
+            country_code: row.country_code || null,
+            updated_at: row.updated_at,
+        };
+    });
     const total = parseInt(countResult.rows[0].count, 10);
     const responseTimeMs = Date.now() - start;
     const responseBody = {
@@ -316,9 +338,9 @@ router.get('/:id/prices', agentDetect_1.agentDetectMiddleware, apiKey_1.requireA
 router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.get'), async (req, res) => {
     const start = Date.now();
     const { id } = req.params;
-    const result = await config_1.db.query(`SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
-              name AS title, price, currency, image_url, attributes AS metadata, updated_at,
-              region, country_code
+    const result = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
+              title, price, currency, image_url, metadata, updated_at,
+              region, country_code, brand, category_path, avg_rating AS rating, review_count
        FROM products WHERE id = $1`, [id]);
     if (result.rows.length === 0) {
         res.status(404).json({ error: 'Product not found' });
@@ -334,6 +356,10 @@ router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, 
         price: row.price ? parseFloat(row.price) : null,
         currency: row.currency,
         image_url: row.image_url,
+        brand: row.brand || null,
+        category_path: row.category_path || null,
+        rating: row.rating ? parseFloat(row.rating) : null,
+        review_count: row.review_count || null,
         metadata: row.metadata,
         region: row.region || null,
         country_code: row.country_code || null,
