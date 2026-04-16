@@ -48,7 +48,8 @@ export function queryLogMiddleware(endpoint: string) {
     // Hook into response finish to capture status code and timing
     res.on('finish', () => {
       const apiKeyRecord = req.apiKeyRecord;
-      if (!apiKeyRecord) return; // No auth = no log
+      // Log all requests — unauthenticated ones recorded with null api_key_id
+      // so we capture total demand even before API key adoption ramps up.
 
       const responseTimeMs = Date.now() - start;
       const isAgent = classifyIsAgent(req);
@@ -63,8 +64,8 @@ export function queryLogMiddleware(endpoint: string) {
            status_code, ip_address, user_agent)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
         [
-          apiKeyRecord.id,
-          apiKeyRecord.agentName,
+          apiKeyRecord?.id ?? null,
+          apiKeyRecord?.agentName ?? null,
           req.agentInfo?.framework || 'unknown',
           req.agentInfo?.sdkLanguage || 'unknown',
           isAgent,

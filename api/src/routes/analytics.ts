@@ -1,8 +1,24 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { db } from '../config';
 import { requireApiKey } from '../middleware/apiKey';
 
 const router = Router();
+
+// Admin auth — mirrors the pattern in adminCompare.ts
+const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
+function requireAdminKey(req: Request, res: Response, next: NextFunction): void {
+  if (!ADMIN_API_KEY) {
+    res.status(503).json({ error: 'Admin API not configured' });
+    return;
+  }
+  const auth = req.headers['authorization'] || '';
+  const key = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  if (!key || key !== ADMIN_API_KEY) {
+    res.status(401).json({ error: 'Admin API key required' });
+    return;
+  }
+  next();
+}
 
 // All analytics endpoints require an API key (enterprise tier recommended for production,
 // but accessible to all tiers for now during alpha).
@@ -322,6 +338,98 @@ router.get('/geo-scorecard', requireApiKey, async (req: Request, res: Response) 
   res.json({
     data: { weekly, frameworks, top_agents: topAgents },
     meta: { weeks },
+  });
+});
+
+// GET /v1/analytics/query-count
+// Lightweight PM-facing counter — daily + rolling totals for core product endpoints.
+// Auth: ADMIN_API_KEY (no user API key required — safe for internal PM dashboards).
+// This is the PostHog fallback described in BUY-2519: readable without any analytics
+// dependency, covers all traffic including unauthenticated demand.
+router.get('/query-count', requireAdminKey, async (req: Request, res: Response) => {
+  const days = Math.min(parseInt((req.query.days as string) || '30'), 90);
+
+  // Core product surfaces that map to Day-90 demand metrics
+  const CORE_ENDPOINTS = ['products.search', 'products.get', 'products.compare', 'products.deals'];
+
+  const [dailyResult, totalResult, endpointResult] = await Promise.all([
+    // Daily breakdown for the rolling window
+    db.query(
+      `SELECT
+         date_trunc('day', created_at)::date AS day,
+         COUNT(*) AS total,
+         COUNT(*) FILTER (WHERE is_agent = true) AS agent_count,
+         COUNT(*) FILTER (WHERE api_key_id IS NULL) AS unauthenticated_count,
+         COUNT(*) FILTER (WHERE status_code < 400) AS success_count,
+         COUNT(*) FILTER (WHERE status_code >= 400) AS error_count
+       FROM query_log
+       WHERE created_at >= NOW() - ($1 || ' days')::interval
+         AND endpoint = ANY($2)
+       GROUP BY day
+       ORDER BY day DESC`,
+      [days, CORE_ENDPOINTS]
+    ),
+    // Rolling totals
+    db.query(
+      `SELECT
+         COUNT(*) AS total,
+         COUNT(*) FILTER (WHERE is_agent = true) AS agent_count,
+         COUNT(*) FILTER (WHERE api_key_id IS NULL) AS unauthenticated_count,
+         COUNT(DISTINCT api_key_id) FILTER (WHERE api_key_id IS NOT NULL) AS unique_keys,
+         COUNT(*) FILTER (WHERE status_code < 400) AS success_count,
+         COUNT(*) FILTER (WHERE status_code >= 400) AS error_count
+       FROM query_log
+       WHERE created_at >= NOW() - ($1 || ' days')::interval
+         AND endpoint = ANY($2)`,
+      [days, CORE_ENDPOINTS]
+    ),
+    // Per-endpoint breakdown
+    db.query(
+      `SELECT
+         endpoint,
+         COUNT(*) AS total,
+         COUNT(*) FILTER (WHERE is_agent = true) AS agent_count
+       FROM query_log
+       WHERE created_at >= NOW() - ($1 || ' days')::interval
+         AND endpoint = ANY($2)
+       GROUP BY endpoint
+       ORDER BY total DESC`,
+      [days, CORE_ENDPOINTS]
+    ),
+  ]);
+
+  const t = totalResult.rows[0];
+  const totals = {
+    total: parseInt(t.total),
+    agent_count: parseInt(t.agent_count),
+    unauthenticated_count: parseInt(t.unauthenticated_count),
+    unique_keys: parseInt(t.unique_keys),
+    success_count: parseInt(t.success_count),
+    error_count: parseInt(t.error_count),
+  };
+
+  const daily = dailyResult.rows.map((r) => ({
+    day: r.day,
+    total: parseInt(r.total),
+    agent_count: parseInt(r.agent_count),
+    unauthenticated_count: parseInt(r.unauthenticated_count),
+    success_count: parseInt(r.success_count),
+    error_count: parseInt(r.error_count),
+  }));
+
+  const by_endpoint = endpointResult.rows.map((r) => ({
+    endpoint: r.endpoint,
+    total: parseInt(r.total),
+    agent_count: parseInt(r.agent_count),
+  }));
+
+  res.json({
+    data: { totals, daily, by_endpoint },
+    meta: {
+      days,
+      core_endpoints: CORE_ENDPOINTS,
+      note: 'PostHog fallback counter (BUY-2519). Includes unauthenticated demand. Limitations: no session stitching, no funnel analysis — those require PostHog (BUY-1362).',
+    },
   });
 });
 
