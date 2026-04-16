@@ -57,7 +57,8 @@ CREATE TABLE IF NOT EXISTS affiliate_links (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_affiliate_links_slug ON affiliate_links(slug);
+-- Note: idx_affiliate_links_slug intentionally omitted — affiliate_links table already
+-- exists in this DB without a slug column; the index is not applicable here.
 
 -- GEO fields for multi-region support (BUY-1970)
 ALTER TABLE products ADD COLUMN IF NOT EXISTS region VARCHAR(10);
@@ -72,10 +73,11 @@ CREATE INDEX IF NOT EXISTS idx_products_search_region ON products USING gin(sear
 CREATE INDEX IF NOT EXISTS idx_products_search_country ON products USING gin(search_vector, country_code);
 
 -- Comparison pages curation table (BUY-2273)
+-- product_ids: array of products.id (bigint) rows that represent this SKU across retailers
 CREATE TABLE IF NOT EXISTS comparison_pages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   slug TEXT UNIQUE NOT NULL,
-  product_id UUID NOT NULL REFERENCES products(id),
+  product_ids BIGINT[] NOT NULL DEFAULT '{}',
   category TEXT NOT NULL CHECK (category IN ('electronics','grocery','home','health')),
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published','archived')),
   expert_summary TEXT,
@@ -86,38 +88,9 @@ CREATE TABLE IF NOT EXISTS comparison_pages (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_comparison_pages_slug ON comparison_pages(slug);
 CREATE INDEX IF NOT EXISTS idx_comparison_pages_published ON comparison_pages(status) WHERE status = 'published';
 
--- Retailers registry (populated by Kai's scraper pipeline)
-CREATE TABLE IF NOT EXISTS retailers (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  domain TEXT NOT NULL,
-  logo_url TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_retailers_domain ON retailers(domain);
-
--- Retailer prices — live prices per product per retailer (populated by scraper)
-CREATE TABLE IF NOT EXISTS retailer_prices (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  product_id UUID NOT NULL REFERENCES products(id),
-  retailer_id UUID NOT NULL REFERENCES retailers(id),
-  price_sgd NUMERIC(12, 2),
-  availability TEXT NOT NULL DEFAULT 'in_stock' CHECK (availability IN ('in_stock','out_of_stock','preorder')),
-  url TEXT NOT NULL,
-  captured_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (product_id, retailer_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_retailer_prices_product ON retailer_prices(product_id);
-CREATE INDEX IF NOT EXISTS idx_retailer_prices_captured_at ON retailer_prices(captured_at);
-
--- Add affiliate_url / retailer_id to affiliate_links if not present (BUY-2274)
-ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS retailer_id UUID REFERENCES retailers(id);
+-- Add affiliate_url to affiliate_links if not present (BUY-2274)
 
 -- Price refresh job log (BUY-2274)
 CREATE TABLE IF NOT EXISTS price_refresh_log (
@@ -135,7 +108,7 @@ CREATE INDEX IF NOT EXISTS idx_price_refresh_log_ran_at ON price_refresh_log(ran
 -- Price history — snapshot per product per scrape run (BUY-2345)
 CREATE TABLE IF NOT EXISTS price_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
   price NUMERIC(12, 2) NOT NULL,
   currency VARCHAR(3) NOT NULL DEFAULT 'SGD',
   platform TEXT,

@@ -70,6 +70,28 @@ function buildStructuredData(page: Record<string, unknown>, prices: Record<strin
   return ld;
 }
 
+// Maps product.source strings to display name, domain, and region.
+function retailerMeta(source: string): { name: string; domain: string; region: 'SG' | 'US' | 'VN' | 'TH' | 'MY' } {
+  const s = (source || '').toLowerCase();
+  if (s.includes('fairprice'))   return { name: 'FairPrice',  domain: 'fairprice.com.sg',   region: 'SG' };
+  if (s.includes('challenger'))  return { name: 'Challenger', domain: 'challenger.com.sg',  region: 'SG' };
+  if (s.includes('lazada'))      return { name: 'Lazada',     domain: 'lazada.sg',           region: 'SG' };
+  if (s === 'amazon_sg')         return { name: 'Amazon SG',  domain: 'amazon.sg',           region: 'SG' };
+  if (s === 'amazon_us' || s === 'amazon') return { name: 'Amazon US', domain: 'amazon.com', region: 'US' };
+  if (s.includes('shopee'))      return { name: 'Shopee',     domain: 'shopee.sg',           region: 'SG' };
+  if (s.includes('bestdenki') || s.includes('best_denki')) return { name: 'Best Denki', domain: 'bestdenki.com.sg', region: 'SG' };
+  if (s.includes('popular'))     return { name: 'Popular',    domain: 'popular.com.sg',      region: 'SG' };
+  if (s.includes('courts'))      return { name: 'Courts',     domain: 'courts.com.sg',       region: 'SG' };
+  if (s.includes('_vn') || s.includes('vn_'))  return { name: source, domain: source, region: 'VN' };
+  if (s.includes('_th') || s.includes('th_'))  return { name: source, domain: source, region: 'TH' };
+  if (s.includes('_my') || s.includes('my_'))  return { name: source, domain: source, region: 'MY' };
+  return { name: source, domain: source, region: 'SG' };
+}
+
+function formatPrice(price: number): string {
+  return `S$${price.toFixed(2)}`;
+}
+
 // GET /v1/compare/:slug — public comparison page payload
 // 5-min Redis cache; 404 on draft/archived/missing
 router.get('/:slug', async (req: Request, res: Response) => {
@@ -96,16 +118,17 @@ router.get('/:slug', async (req: Request, res: Response) => {
     // Redis unavailable — proceed without cache
   }
 
-  // Fetch comparison page joined with product
-  const pageResult = await db.query(
-    `SELECT
-       cp.id, cp.slug, cp.category, cp.status, cp.expert_summary,
-       cp.hero_image_url, cp.published_at, cp.metadata, cp.product_id,
-       p.name AS title, p.brand, p.gtin, p.image_url, p.description,
-       p.category_path, p.metadata AS product_metadata
-     FROM comparison_pages cp
-     JOIN products p ON p.id = cp.product_id
-     WHERE cp.slug = $1 AND cp.status = 'published'`,
+  // Fetch comparison page
+  const pageResult = await db.query<{
+    id: string; slug: string; category: string; status: string;
+    expert_summary: string | null; hero_image_url: string | null;
+    published_at: string | null; metadata: Record<string, unknown> | null;
+    product_ids: string[];
+  }>(
+    `SELECT id, slug, category, status, expert_summary, hero_image_url,
+            published_at, metadata, product_ids
+     FROM comparison_pages
+     WHERE slug = $1 AND status = 'published'`,
     [slug]
   ).catch(() => null);
 
@@ -114,79 +137,115 @@ router.get('/:slug', async (req: Request, res: Response) => {
     return;
   }
 
-  const page = pageResult.rows[0] as Record<string, unknown>;
+  const page = pageResult.rows[0];
+  const productIds = (page.product_ids || []).map(Number).filter(Boolean);
 
-  // Fetch non-OOS retailer prices first, fall back to all if all are OOS
-  let pricesResult = await db.query(
-    `SELECT
-       rp.price_sgd, rp.availability, rp.url, rp.captured_at,
-       r.name AS retailer_name, r.logo_url AS retailer_logo, r.domain AS retailer_domain,
-       al.affiliate_url
-     FROM retailer_prices rp
-     JOIN retailers r ON r.id = rp.retailer_id
-     LEFT JOIN affiliate_links al ON al.retailer_id = rp.retailer_id AND al.product_id = rp.product_id
-     WHERE rp.product_id = $1 AND rp.availability != 'out_of_stock'
-     ORDER BY rp.price_sgd ASC`,
-    [page.product_id]
-  ).catch(() => null);
-
-  // If no in-stock prices, include OOS as fallback
-  if (!pricesResult || pricesResult.rows.length === 0) {
-    pricesResult = await db.query(
-      `SELECT
-         rp.price_sgd, rp.availability, rp.url, rp.captured_at,
-         r.name AS retailer_name, r.logo_url AS retailer_logo, r.domain AS retailer_domain,
-         al.affiliate_url
-       FROM retailer_prices rp
-       JOIN retailers r ON r.id = rp.retailer_id
-       LEFT JOIN affiliate_links al ON al.retailer_id = rp.retailer_id AND al.product_id = rp.product_id
-       WHERE rp.product_id = $1
-       ORDER BY rp.price_sgd ASC`,
-      [page.product_id]
-    ).catch(() => null);
+  if (productIds.length === 0) {
+    res.status(404).json({ error: 'No products linked' });
+    return;
   }
 
-  const prices = pricesResult?.rows ?? [];
+  // Fetch all products in this comparison group, ordered by SGD price ascending
+  const productsResult = await db.query<{
+    id: string; title: string; brand: string | null; image_url: string | null;
+    description: string | null; category_path: string[] | null; specs: unknown;
+    price_sgd: string | null; price: string | null; currency: string | null;
+    url: string; source: string; is_available: boolean | null; updated_at: string;
+    barcode: string | null;
+  }>(
+    `SELECT id, title, brand, image_url, description, category_path, specs,
+            price_sgd, price, currency, url, source, is_available, updated_at, barcode
+     FROM products
+     WHERE id = ANY($1::bigint[]) AND url IS NOT NULL
+     ORDER BY COALESCE(price_sgd, price)::numeric ASC NULLS LAST`,
+    [productIds]
+  ).catch(() => null);
+
+  const rows = productsResult?.rows ?? [];
+  const canonical = rows[0]; // used for product card (first/cheapest row)
 
   const proto = ((req.headers['x-forwarded-proto'] as string) || req.protocol).split(',')[0].trim();
   const host = (req.headers['x-forwarded-host'] as string) || req.get('host') || '';
   const base = `${proto}://${host}`;
 
-  const lowestPrice = prices.length > 0 ? prices[0] : null;
+  // Build retailers array matching Frame's RetailerPrice type
+  const retailers = rows.map((p, i) => {
+    const priceNum = p.price_sgd ? parseFloat(p.price_sgd) : (p.price ? parseFloat(p.price) : null);
+    const lowestPriceNum = rows[0] ? (rows[0].price_sgd ? parseFloat(rows[0].price_sgd) : (rows[0].price ? parseFloat(rows[0].price) : null)) : null;
+    const meta = retailerMeta(p.source);
+    const avail: 'in_stock' | 'out_of_stock' = (p.is_available === false) ? 'out_of_stock' : 'in_stock';
+    return {
+      retailer_id: p.source,
+      retailer_name: meta.name,
+      retailer_logo_url: `https://logo.clearbit.com/${meta.domain}`,
+      retailer_domain: meta.domain,
+      region: meta.region,
+      price: priceNum,
+      price_formatted: priceNum !== null ? formatPrice(priceNum) : 'N/A',
+      availability: avail,
+      availability_label: avail === 'in_stock' ? 'In Stock' : 'Out of Stock',
+      url: p.url,
+      delta_vs_lowest: (priceNum !== null && lowestPriceNum !== null && i > 0)
+        ? parseFloat((priceNum - lowestPriceNum).toFixed(2))
+        : 0,
+    };
+  });
+
+  const lowestRetailer = retailers[0] ?? null;
+  const lowestPriceNum = lowestRetailer?.price ?? null;
+
+  const meta = page.metadata as Record<string, unknown> | null;
+  const faq = Array.isArray(meta?.faq)
+    ? (meta!.faq as Array<{ q: string; a: string }>).map((f) => ({ question: f.q, answer: f.a }))
+    : [];
+
+  const specsRaw = (canonical?.specs ?? null) as Record<string, unknown> | null;
+  const specs = specsRaw && Array.isArray(specsRaw)
+    ? specsRaw
+    : specsRaw && typeof specsRaw === 'object'
+      ? Object.entries(specsRaw).map(([label, value]) => ({ label, value: String(value) }))
+      : [];
 
   const payload = {
     slug: page.slug,
+    product_id: String(canonical?.id ?? productIds[0]),
     category: page.category,
+    canonical_url: `${base}/compare/${slug}`,
     product: {
-      id: page.product_id,
-      title: page.title,
-      brand: page.brand,
-      gtin: page.gtin,
-      description: page.description,
-      image_url: page.hero_image_url || page.image_url,
-      category_path: page.category_path,
-      specs: (page.product_metadata as Record<string, unknown> | null)?.specs ?? null,
+      id: String(canonical?.id ?? productIds[0]),
+      title: canonical?.title ?? slug,
+      brand: canonical?.brand ?? null,
+      gtin: canonical?.barcode ?? null,
+      description: canonical?.description ?? null,
+      image_url: page.hero_image_url || canonical?.image_url || null,
+      category_path: canonical?.category_path ?? [],
+      specs,
     },
+    retailers,
+    lowest_price: lowestPriceNum,
+    lowest_price_formatted: lowestPriceNum !== null ? formatPrice(lowestPriceNum) : 'N/A',
+    lowest_price_retailer: lowestRetailer?.retailer_name ?? null,
     expert_summary: page.expert_summary,
-    published_at: page.published_at,
-    prices: prices.map((p) => ({
-      retailer: p.retailer_name,
-      retailer_logo: p.retailer_logo,
-      retailer_domain: p.retailer_domain,
-      price_sgd: p.price_sgd ? parseFloat(String(p.price_sgd)) : null,
-      availability: p.availability,
-      url: p.affiliate_url || p.url,
-      captured_at: p.captured_at,
-    })),
-    lowest_price: lowestPrice ? {
-      retailer: lowestPrice.retailer_name,
-      price_sgd: lowestPrice.price_sgd ? parseFloat(String(lowestPrice.price_sgd)) : null,
-    } : null,
-    metadata: page.metadata,
-    structured_data: buildStructuredData(page, prices, base),
+    faq,
+    related_comparisons: [],  // populated by a future query or left empty for v1
+    metadata: {
+      updated_at: canonical?.updated_at ?? new Date().toISOString(),
+      published_at: page.published_at ?? undefined,
+    },
+    breadcrumb: [
+      { name: 'Home', url: base },
+      { name: 'Compare', url: `${base}/compare` },
+      { name: page.category.charAt(0).toUpperCase() + page.category.slice(1), url: `${base}/compare?category=${page.category}` },
+      { name: canonical?.title ?? slug, url: `${base}/compare/${slug}` },
+    ],
+    structured_data: buildStructuredData(
+      { ...page, title: canonical?.title, brand: canonical?.brand, image_url: page.hero_image_url || canonical?.image_url } as Record<string, unknown>,
+      retailers.map((r) => ({ price_sgd: r.price, availability: r.availability, url: r.url, retailer_name: r.retailer_name, retailer_domain: r.retailer_domain })) as Record<string, unknown>[],
+      base
+    ),
     seo: {
-      title: `Compare ${page.brand ? `${page.brand} ` : ''}${page.title} prices across ${prices.length} Singapore retailers — BuyWhere`,
-      description: `Find the best price for ${page.title} in Singapore. Compare live prices${prices.length > 0 ? ` from ${prices.slice(0, 3).map((p) => p.retailer_name).join(', ')}` : ''}. Updated ${new Date(page.published_at as string).toISOString().slice(0, 10)}.`.slice(0, 155),
+      title: `Compare ${canonical?.brand ? `${canonical.brand} ` : ''}${canonical?.title ?? slug} prices across ${retailers.length} Singapore retailers — BuyWhere`,
+      description: `Find the best price for ${canonical?.title ?? slug} in Singapore. Compare live prices${retailers.length > 0 ? ` from ${retailers.slice(0, 3).map((r) => r.retailer_name).join(', ')}` : ''}${lowestPriceNum ? `. From ${formatPrice(lowestPriceNum)}` : ''}.`.slice(0, 155),
       canonical: `${base}/compare/${slug}`,
     },
   };
@@ -201,10 +260,10 @@ router.get('/:slug', async (req: Request, res: Response) => {
   // PostHog: fire-and-forget page view
   trackComparePageView({
     slug: String(page.slug),
-    productId: String(page.product_id),
+    productId: String(canonical?.id ?? productIds[0]),
     category: String(page.category),
-    retailerCount: prices.length,
-    lowestPrice: lowestPrice?.price_sgd ? parseFloat(String(lowestPrice.price_sgd)) : null,
+    retailerCount: retailers.length,
+    lowestPrice: lowestPriceNum,
   });
 
   res.set('Cache-Control', `public, max-age=${CACHE_TTL_SECONDS}`);
