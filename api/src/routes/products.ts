@@ -152,8 +152,16 @@ router.get(
       if (compact) {
         // Compact format for AI agents: minimal payload, normalized specs
         const meta = row.metadata as Record<string, unknown> | null;
+        const specs: Record<string, unknown> = {
+          brand: meta?.brand ?? null,
+          category: meta?.category ?? null,
+          model: meta?.model ?? null,
+        };
+        if (meta?.size != null) specs.size = meta.size;
+        if (meta?.color != null) specs.color = meta.color;
         return {
           id: row.id,
+          canonical_id: row.id,
           title: row.title,
           price: row.price ? parseFloat(row.price) : null,
           currency: row.currency,
@@ -161,11 +169,7 @@ router.get(
           source: row.source_id,
           region: row.region || null,
           country_code: row.country_code || null,
-          specs: {
-            brand: meta?.brand ?? null,
-            category: meta?.category ?? null,
-            model: meta?.model ?? null,
-          },
+          specs,
         };
       }
       return {
