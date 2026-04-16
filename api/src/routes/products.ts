@@ -353,6 +353,71 @@ router.get(
   }
 );
 
+// GET /v1/products/:id/price-history — daily aggregated price history (BUY-2345)
+// Query params: days (30|90|180, default 30)
+router.get(
+  '/:id/price-history',
+  agentDetectMiddleware,
+  requireApiKey,
+  checkRateLimit,
+  queryLogMiddleware('products.price-history'),
+  async (req: Request, res: Response) => {
+    const start = Date.now();
+    const { id } = req.params;
+    const days = Math.min(parseInt((req.query.days as string) || '30'), 180);
+
+    const [productResult, historyResult] = await Promise.all([
+      db.query(`SELECT id, title, price, currency FROM products WHERE id = $1`, [id]),
+      db.query(
+        `SELECT
+           DATE(recorded_at AT TIME ZONE 'UTC') AS day,
+           currency,
+           MIN(price)::float AS min_price,
+           MAX(price)::float AS max_price,
+           ROUND(AVG(price)::numeric, 2)::float AS avg_price,
+           COUNT(*) AS data_points
+         FROM price_history
+         WHERE product_id = $1
+           AND recorded_at >= NOW() - ($2 || ' days')::interval
+         GROUP BY DATE(recorded_at AT TIME ZONE 'UTC'), currency
+         ORDER BY day ASC`,
+        [id, days]
+      ),
+    ]);
+
+    if (productResult.rows.length === 0) {
+      res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+
+    const p = productResult.rows[0];
+    const daily = historyResult.rows.map((row) => ({
+      day: row.day,
+      currency: row.currency,
+      min: row.min_price,
+      max: row.max_price,
+      avg: row.avg_price,
+      data_points: parseInt(row.data_points, 10),
+    }));
+
+    const allPrices = daily.length
+      ? { min: Math.min(...daily.map((d) => d.min)), max: Math.max(...daily.map((d) => d.max)), avg: +(daily.reduce((a, d) => a + d.avg, 0) / daily.length).toFixed(2) }
+      : null;
+
+    res.json({
+      data: {
+        product_id: p.id,
+        title: p.title,
+        current_price: p.price ? parseFloat(p.price) : null,
+        currency: p.currency,
+        daily,
+        stats: allPrices,
+      },
+      meta: { days, response_time_ms: Date.now() - start },
+    });
+  }
+);
+
 // GET /v1/products/:id/prices — price history from price_snapshots
 router.get(
   '/:id/prices',

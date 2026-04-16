@@ -143,6 +143,18 @@ CREATE TABLE IF NOT EXISTS price_refresh_log (
 
 CREATE INDEX IF NOT EXISTS idx_price_refresh_log_ran_at ON price_refresh_log(ran_at);
 
+-- Price history — snapshot per product per scrape run (BUY-2345)
+CREATE TABLE IF NOT EXISTS price_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  price NUMERIC(12, 2) NOT NULL,
+  currency VARCHAR(3) NOT NULL DEFAULT 'SGD',
+  platform TEXT,
+  recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_price_history_product_recorded ON price_history(product_id, recorded_at DESC);
+
 -- Query log for agent analytics dashboard (BUY-1929)
 CREATE TABLE IF NOT EXISTS query_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
