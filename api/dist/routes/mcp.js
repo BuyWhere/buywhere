@@ -302,8 +302,27 @@ router.get('/', (_req, res) => {
         usage: 'POST this URL with a JSON-RPC 2.0 envelope. See https://api.buywhere.ai/docs/guides/mcp',
     });
 });
-// POST /mcp — MCP JSON-RPC 2.0 endpoint
-// Auth required (same API key as REST). Rate limited.
+// POST /mcp — public methods (no auth): initialize + tools/list
+// Directory scanners (Glama, Smithery) call these without credentials to introspect the server.
+router.post('/', async (req, res, next) => {
+    const body = req.body;
+    if (!body || body.jsonrpc !== '2.0' || !body.method) {
+        return next(); // let the authenticated handler return the 400
+    }
+    const { id, method } = body;
+    if (method === 'initialize') {
+        return res.json(jsonrpcOk(id, {
+            protocolVersion: '2024-11-05',
+            capabilities: { tools: {} },
+            serverInfo: { name: 'buywhere-catalog', version: '1.0.0' },
+        }));
+    }
+    if (method === 'tools/list') {
+        return res.json(jsonrpcOk(id, { tools: TOOLS }));
+    }
+    return next();
+});
+// POST /mcp — authenticated methods: tools/call (and any future additions)
 router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('mcp'), async (req, res) => {
     const body = req.body;
     // Validate JSON-RPC envelope
@@ -314,14 +333,6 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
     const args = (params && typeof params === 'object' && !Array.isArray(params)) ? params : {};
     try {
         switch (method) {
-            case 'initialize':
-                return res.json(jsonrpcOk(id, {
-                    protocolVersion: '2024-11-05',
-                    capabilities: { tools: {} },
-                    serverInfo: { name: 'buywhere-catalog', version: '1.0.0' },
-                }));
-            case 'tools/list':
-                return res.json(jsonrpcOk(id, { tools: TOOLS }));
             case 'tools/call': {
                 const toolName = args.name;
                 const toolArgs = (args.arguments && typeof args.arguments === 'object') ? args.arguments : {};

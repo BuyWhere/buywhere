@@ -14,6 +14,7 @@ import adminCompareRouter from './routes/adminCompare';
 import mcpRouter from './routes/mcp';
 import analyticsRouter from './routes/analytics';
 import sitemapCompareRouter from './routes/sitemapCompare';
+import landingRouter from './routes/landing';
 import { db } from './config';
 
 export function createApp() {
@@ -146,6 +147,9 @@ export function createApp() {
       `# BuyWhere\n\nBuyWhere is a structured product catalog and price comparison API for AI agents and LLM applications. We provide real-time pricing, availability, and product data from Singapore's major e-commerce platforms (Lazada, Shopee, Best Denki, and others).\n\n## What we offer\n- REST API: GET /v1/products, GET /v1/offers, GET /v1/categories\n- MCP endpoint: https://api.buywhere.ai/mcp\n- Schema.org-compatible product data (Product, Offer, ItemList)\n- Coverage: 2M+ Singapore products across 40+ merchants\n- Use cases: price comparison agents, shopping assistants, market research tools\n\n## Documentation\n- API docs: https://docs.buywhere.ai\n- MCP guide: https://api.buywhere.ai/docs/guides/mcp\n- GitHub: https://github.com/BuyWhere/buywhere\n\n## Licensing\nFree tier: 1,000 API calls/month. Commercial plans available.\n`
     );
   });
+
+  // Landing pages — homepage (en_SG) and US edition (en_US)
+  app.use(landingRouter);
 
   // 404 fallback
   app.use((_req, res) => {
