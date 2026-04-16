@@ -7,22 +7,10 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 ALTER TABLE products ADD COLUMN IF NOT EXISTS search_vector tsvector;
 CREATE INDEX IF NOT EXISTS idx_products_search_vector ON products USING GIN(search_vector);
 
-CREATE OR REPLACE FUNCTION products_search_vector_update() RETURNS trigger AS $$
-BEGIN
-  NEW.search_vector := to_tsvector('english',
-    coalesce(NEW.name, '') || ' ' ||
-    coalesce(NEW.description, '') || ' ' ||
-    coalesce(NEW.brand, '') || ' ' ||
-    coalesce(array_to_string(NEW.category_path, ' '), '') || ' ' ||
-    coalesce(array_to_string(NEW.tags, ' '), '')
-  );
-  RETURN NEW;
-END$$ LANGUAGE plpgsql;
-
+-- Drop the old broken trigger that referenced non-existent columns (name, tags).
+-- The existing trg_products_search_vector trigger already handles search_vector updates.
 DROP TRIGGER IF EXISTS products_search_vector_trig ON products;
-CREATE TRIGGER products_search_vector_trig
-BEFORE INSERT OR UPDATE ON products
-FOR EACH ROW EXECUTE FUNCTION products_search_vector_update();
+DROP FUNCTION IF EXISTS products_search_vector_update();
 
 
 -- API keys: use existing table from catalog DB (key_hash, developer_id, etc.)
