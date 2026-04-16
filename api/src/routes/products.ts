@@ -408,6 +408,94 @@ router.get(
   }
 );
 
+// GET /v1/products/:id/similar — return up to 8 similar products for 'related products' widget
+// Strategy: same brand+category first (fast index lookup), then FTS title fallback to pad to 8.
+// Target: <50ms p99 — both paths use GIN/B-tree indexes only.
+router.get(
+  '/:id/similar',
+  agentDetectMiddleware,
+  requireApiKey,
+  checkRateLimit,
+  queryLogMiddleware('products.similar'),
+  async (req: Request, res: Response) => {
+    const start = Date.now();
+    const { id } = req.params;
+    const limit = Math.min(parseInt((req.query.limit as string) || '8'), 20);
+
+    // Fetch the source product
+    const srcResult = await db.query(
+      `SELECT id, title, brand, category_path, currency, search_vector
+       FROM products WHERE id = $1`,
+      [id]
+    );
+    if (srcResult.rows.length === 0) {
+      res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+    const src = srcResult.rows[0];
+    const currency = src.currency || 'SGD';
+
+    // Phase 1: same brand + same first category element (indexed columns)
+    const brand = src.brand || null;
+    const topCategory = src.category_path?.[0] || null;
+
+    let similar: unknown[] = [];
+
+    if (brand && topCategory) {
+      const brandCatResult = await db.query(
+        `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
+                image_url, brand, category_path, region, country_code
+         FROM products
+         WHERE id != $1
+           AND brand = $2
+           AND category_path[1] = $3
+           AND currency = $4
+         ORDER BY updated_at DESC
+         LIMIT $5`,
+        [id, brand, topCategory, currency, limit]
+      );
+      similar = brandCatResult.rows;
+    }
+
+    // Phase 2: FTS on title to pad remaining slots (if < limit results so far)
+    if (similar.length < limit && src.title) {
+      const needed = limit - similar.length;
+      const existingIds = [id, ...(similar as Array<{ id: string }>).map((r) => r.id)];
+      const placeholders = existingIds.map((_, i) => `$${i + 1}`).join(',');
+      const ftsResult = await db.query(
+        `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
+                image_url, brand, category_path, region, country_code
+         FROM products
+         WHERE id NOT IN (${placeholders})
+           AND currency = $${existingIds.length + 1}
+           AND search_vector @@ plainto_tsquery('english', $${existingIds.length + 2})
+         ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${existingIds.length + 2})) DESC,
+                  updated_at DESC
+         LIMIT $${existingIds.length + 3}`,
+        [...existingIds, currency, src.title, needed]
+      );
+      similar = [...similar, ...ftsResult.rows];
+    }
+
+    const data = (similar as Array<Record<string, unknown>>).map((row) => ({
+      id: row.id,
+      source: row.source_id,
+      domain: row.domain,
+      url: row.url,
+      title: row.title,
+      price: row.price ? parseFloat(row.price as string) : null,
+      currency: row.currency,
+      image_url: row.image_url || null,
+      brand: row.brand || null,
+      category_path: row.category_path || null,
+      region: row.region || null,
+      country_code: row.country_code || null,
+    }));
+
+    res.json({ data, meta: { source_id: id, count: data.length, response_time_ms: Date.now() - start } });
+  }
+);
+
 // GET /v1/products/:id
 router.get(
   '/:id',
