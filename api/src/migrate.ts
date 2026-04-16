@@ -77,6 +77,13 @@ CREATE TABLE IF NOT EXISTS affiliate_links (
 
 CREATE INDEX IF NOT EXISTS idx_affiliate_links_slug ON affiliate_links(slug);
 
+-- GEO fields for multi-region support (BUY-1970)
+ALTER TABLE products ADD COLUMN IF NOT EXISTS region VARCHAR(10);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS country_code VARCHAR(2);
+CREATE INDEX IF NOT EXISTS idx_products_region ON products(region);
+CREATE INDEX IF NOT EXISTS idx_products_country_code ON products(country_code);
+CREATE INDEX IF NOT EXISTS idx_products_region_active ON products(region, is_active) WHERE is_active = true;
+
 -- Query log for agent analytics dashboard (BUY-1929)
 CREATE TABLE IF NOT EXISTS query_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

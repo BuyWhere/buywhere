@@ -10,7 +10,7 @@ const SEARCH_CACHE_TTL_SECONDS = 60;
 const router = Router();
 
 // GET /v1/products/search
-// Query params: q, domain, min_price, max_price, currency, limit, offset, source_page
+// Query params: q, domain, region, country, min_price, max_price, currency, limit, offset, source_page
 router.get(
   '/search',
   agentDetectMiddleware,
@@ -22,6 +22,8 @@ router.get(
 
     const q = (req.query.q as string) || '';
     const domain = req.query.domain as string | undefined;
+    const region = req.query.region as string | undefined;
+    const country = req.query.country as string | undefined;
     const minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
     const maxPrice = req.query.max_price ? parseFloat(req.query.max_price as string) : undefined;
     const currency = (req.query.currency as string) || 'SGD';
@@ -30,7 +32,7 @@ router.get(
     const sourcePage = req.query.source_page as string | undefined;
 
     // Check Redis cache for this exact query (60s TTL)
-    const cacheKey = `fts:${q}:${domain || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}`;
+    const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${country || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}`;
     try {
       const cached = await redis.get(cacheKey);
       if (cached) {
@@ -60,6 +62,16 @@ router.get(
       // domain maps to platform in the products table
       conditions.push(`platform::text = $${idx}`);
       params.push(domain);
+      idx++;
+    }
+    if (region) {
+      conditions.push(`region = $${idx}`);
+      params.push(region);
+      idx++;
+    }
+    if (country) {
+      conditions.push(`country_code = $${idx}`);
+      params.push(country.toUpperCase());
       idx++;
     }
     if (minPrice !== undefined) {
@@ -94,7 +106,8 @@ router.get(
       // Small result set: ts_rank over all matches is fast, gives best relevance
       dataQuery = `
         SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
-               name AS title, price, currency, image_url, attributes AS metadata, updated_at
+               name AS title, price, currency, image_url, attributes AS metadata, updated_at,
+               region, country_code
         FROM products
         ${whereClause}
         ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC, updated_at DESC
@@ -106,10 +119,11 @@ router.get(
       // CANDIDATE_LIMIT rows (vs scanning all 25k+ matching rows to sort by rank first).
       // 12x faster for broad queries (14ms vs 170ms for "headphones" on 2M product corpus).
       dataQuery = `
-        SELECT id, source_id, domain, url, title, price, currency, image_url, metadata, updated_at
+        SELECT id, source_id, domain, url, title, price, currency, image_url, metadata, updated_at, region, country_code
         FROM (
           SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
                  name AS title, price, currency, image_url, attributes AS metadata, updated_at,
+                 region, country_code,
                  ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
           FROM products
           ${whereClause}
@@ -122,7 +136,8 @@ router.get(
       // No FTS query (e.g. filter-only) — sort by recency
       dataQuery = `
         SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
-               name AS title, price, currency, image_url, attributes AS metadata, updated_at
+               name AS title, price, currency, image_url, attributes AS metadata, updated_at,
+               region, country_code
         FROM products
         ${whereClause}
         ORDER BY updated_at DESC
@@ -143,6 +158,8 @@ router.get(
       currency: row.currency,
       image_url: row.image_url,
       metadata: row.metadata,
+      region: row.region || null,
+      country_code: row.country_code || null,
       updated_at: row.updated_at,
     }));
 
@@ -224,6 +241,7 @@ router.get(
       db.query(
         `SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
                 name AS title, price, original_price, currency, image_url, attributes AS metadata, updated_at,
+                region, country_code,
                 ROUND(((original_price - price) / original_price * 100)::numeric, 1) AS discount_pct
          FROM products
          WHERE currency = $1 AND original_price > price AND original_price <= price * 10
@@ -246,6 +264,8 @@ router.get(
       currency: row.currency,
       image_url: row.image_url,
       metadata: row.metadata,
+      region: row.region || null,
+      country_code: row.country_code || null,
       updated_at: row.updated_at,
     }));
 
@@ -277,7 +297,7 @@ router.get(
     const result = await db.query(
       `SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
               name AS title, price, original_price, currency, image_url, attributes AS metadata,
-              category_path, brand, rating, review_count, updated_at
+              category_path, brand, rating, review_count, updated_at, region, country_code
        FROM products WHERE id IN (${placeholders})`,
       ids
     );
@@ -297,6 +317,8 @@ router.get(
       rating: row.rating ? parseFloat(row.rating) : null,
       review_count: row.review_count,
       metadata: row.metadata,
+      region: row.region || null,
+      country_code: row.country_code || null,
       updated_at: row.updated_at,
     }));
 
@@ -373,7 +395,8 @@ router.get(
 
     const result = await db.query(
       `SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
-              name AS title, price, currency, image_url, attributes AS metadata, updated_at
+              name AS title, price, currency, image_url, attributes AS metadata, updated_at,
+              region, country_code
        FROM products WHERE id = $1`,
       [id]
     );
@@ -394,6 +417,8 @@ router.get(
       currency: row.currency,
       image_url: row.image_url,
       metadata: row.metadata,
+      region: row.region || null,
+      country_code: row.country_code || null,
       updated_at: row.updated_at,
     };
 
@@ -464,6 +489,7 @@ router.post(
       merchantName: string; originalPrice?: number; brand?: string;
       description?: string; imageUrl?: string; images?: string[];
       categoryPath: string[]; availability: string;
+      region?: string; countryCode?: string;
     }> = [];
 
     const errors: string[] = [];
@@ -499,6 +525,8 @@ router.post(
           ? (p.category_path || p.categoryPath).slice(0, 10)
           : [],
         availability: p.availability || 'in_stock',
+        region: p.region || undefined,
+        countryCode: p.country_code || p.countryCode || undefined,
       });
     }
 
@@ -515,8 +543,9 @@ router.post(
         `INSERT INTO products
            (id, platform, platform_id, sku, name, price, currency, product_url,
             merchant_id, merchant_name, original_price, brand, description,
-            image_url, images, category_path, availability, is_deal, indexed_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,false,NOW(),NOW())
+            image_url, images, category_path, availability, is_deal, indexed_at, updated_at,
+            region, country_code)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,false,NOW(),NOW(),$18,$19)
          ON CONFLICT (platform, sku)
          DO UPDATE SET
            name = EXCLUDED.name,
@@ -525,6 +554,8 @@ router.post(
            image_url = EXCLUDED.image_url,
            images = EXCLUDED.images,
            availability = EXCLUDED.availability,
+           region = COALESCE(EXCLUDED.region, products.region),
+           country_code = COALESCE(EXCLUDED.country_code, products.country_code),
            updated_at = NOW()
          RETURNING (xmax = 0) AS is_insert`,
         [
@@ -534,6 +565,7 @@ router.post(
           r.images ? `{${r.images.map(u => `"${u.replace(/"/g, '\\"')}"`).join(',')}}` : null,
           r.categoryPath.length ? `{${r.categoryPath.map(c => `"${c.replace(/"/g, '\\"')}"`).join(',')}}` : '{}',
           r.availability,
+          r.region || null, r.countryCode || null,
         ]
       ).catch(() => null);
 
