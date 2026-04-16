@@ -16,9 +16,10 @@ const TOOLS = [
                 q: { type: 'string', description: 'Keyword search query' },
                 domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
                 region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
-                country: { type: 'string', description: 'Filter by ISO country code (SG, US, VN, MY)' },
-                min_price: { type: 'number', description: 'Minimum price' },
-                max_price: { type: 'number', description: 'Maximum price' },
+                country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
+                country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+                min_price: { type: 'number', description: 'Minimum price (in currency inferred from country_code, or SGD by default)' },
+                max_price: { type: 'number', description: 'Maximum price (in currency inferred from country_code, or SGD by default)' },
                 limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
                 offset: { type: 'integer', description: 'Pagination offset', default: 0 },
             },
@@ -81,12 +82,15 @@ async function handleSearchProducts(args) {
     const q = args.q || '';
     const domain = args.domain || '';
     const region = args.region || '';
-    const country = args.country || '';
+    // country_code is canonical; `country` kept as alias for backward compat
+    const country = ((args.country_code || args.country) || '').toUpperCase();
     const minPrice = args.min_price != null ? Number(args.min_price) : null;
     const maxPrice = args.max_price != null ? Number(args.max_price) : null;
     const limit = Math.min(Number(args.limit) || 20, 100);
     const offset = Number(args.offset) || 0;
-    const currency = 'SGD';
+    // Infer default currency from country_code; price filters apply in this currency
+    const COUNTRY_CURRENCY = { SG: 'SGD', US: 'USD', VN: 'VND', TH: 'THB', MY: 'MYR' };
+    const currency = country ? (COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
     const cacheKey = `fts:${q}:${domain}:${region}:${country}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}`;
     try {
         const cached = await config_1.redis.get(cacheKey);

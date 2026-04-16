@@ -60,6 +60,8 @@ function createApp() {
     // v1 API
     app.use('/v1/auth', auth_1.default);
     app.use('/v1/products', products_1.default);
+    // v2 alias — same router, extends v1 contract with country_code + multi-region currency inference
+    app.use('/v2/products', products_1.default);
     app.use('/v1/categories', categories_1.default);
     app.use('/v1/analytics', analytics_1.default);
     app.use('/v1/compare', aiCrawlerHeaders, compareSlug_1.default);

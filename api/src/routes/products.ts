@@ -23,17 +23,21 @@ router.get(
     const q = (req.query.q as string) || '';
     const domain = req.query.domain as string | undefined;
     const region = req.query.region as string | undefined;
-    const country = req.query.country as string | undefined;
+    // country_code is the canonical param; `country` is kept as a backward-compat alias
+    const countryCode = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
     const minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
     const maxPrice = req.query.max_price ? parseFloat(req.query.max_price as string) : undefined;
-    const currency = (req.query.currency as string) || 'SGD';
+    // Infer default currency from country_code when not explicitly provided.
+    // Price filters (min_price/max_price) apply in this inferred currency.
+    const COUNTRY_CURRENCY: Record<string, string> = { SG: 'SGD', US: 'USD', VN: 'VND', TH: 'THB', MY: 'MYR' };
+    const currency = (req.query.currency as string) || (countryCode ? (COUNTRY_CURRENCY[countryCode] || 'SGD') : 'SGD');
     const limit = Math.min(parseInt((req.query.limit as string) || '20'), 100);
     const offset = parseInt((req.query.offset as string) || '0');
     const sourcePage = req.query.source_page as string | undefined;
     const compact = req.query.compact === 'true';
 
     // Check Redis cache for this exact query (60s TTL)
-    const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${country || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${compact ? 'c' : 'f'}`;
+    const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${compact ? 'c' : 'f'}`;
     try {
       const cached = await redis.get(cacheKey);
       if (cached) {
@@ -69,9 +73,9 @@ router.get(
       params.push(region);
       idx++;
     }
-    if (country) {
+    if (countryCode) {
       conditions.push(`country_code = $${idx}`);
-      params.push(country.toUpperCase());
+      params.push(countryCode);
       idx++;
     }
     if (minPrice !== undefined) {

@@ -15,16 +15,20 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const q = req.query.q || '';
     const domain = req.query.domain;
     const region = req.query.region;
-    const country = req.query.country;
+    // country_code is the canonical param; `country` is kept as a backward-compat alias
+    const countryCode = (req.query.country_code || req.query.country)?.toUpperCase() || undefined;
     const minPrice = req.query.min_price ? parseFloat(req.query.min_price) : undefined;
     const maxPrice = req.query.max_price ? parseFloat(req.query.max_price) : undefined;
-    const currency = req.query.currency || 'SGD';
+    // Infer default currency from country_code when not explicitly provided.
+    // Price filters (min_price/max_price) apply in this inferred currency.
+    const COUNTRY_CURRENCY = { SG: 'SGD', US: 'USD', VN: 'VND', TH: 'THB', MY: 'MYR' };
+    const currency = req.query.currency || (countryCode ? (COUNTRY_CURRENCY[countryCode] || 'SGD') : 'SGD');
     const limit = Math.min(parseInt(req.query.limit || '20'), 100);
     const offset = parseInt(req.query.offset || '0');
     const sourcePage = req.query.source_page;
     const compact = req.query.compact === 'true';
     // Check Redis cache for this exact query (60s TTL)
-    const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${country || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${compact ? 'c' : 'f'}`;
+    const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${compact ? 'c' : 'f'}`;
     try {
         const cached = await config_1.redis.get(cacheKey);
         if (cached) {
@@ -59,9 +63,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         params.push(region);
         idx++;
     }
-    if (country) {
+    if (countryCode) {
         conditions.push(`country_code = $${idx}`);
-        params.push(country.toUpperCase());
+        params.push(countryCode);
         idx++;
     }
     if (minPrice !== undefined) {
@@ -139,8 +143,18 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         if (compact) {
             // Compact format for AI agents: minimal payload, normalized specs
             const meta = row.metadata;
+            const specs = {
+                brand: meta?.brand ?? null,
+                category: meta?.category ?? null,
+                model: meta?.model ?? null,
+            };
+            if (meta?.size != null)
+                specs.size = meta.size;
+            if (meta?.color != null)
+                specs.color = meta.color;
             return {
                 id: row.id,
+                canonical_id: row.id,
                 title: row.title,
                 price: row.price ? parseFloat(row.price) : null,
                 currency: row.currency,
@@ -148,11 +162,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                 source: row.source_id,
                 region: row.region || null,
                 country_code: row.country_code || null,
-                specs: {
-                    brand: meta?.brand ?? null,
-                    category: meta?.category ?? null,
-                    model: meta?.model ?? null,
-                },
+                specs,
             };
         }
         return {
@@ -297,6 +307,55 @@ router.get('/compare', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiK
     }));
     res.json({ data: products, meta: { count: products.length, response_time_ms: Date.now() - start } });
 });
+// GET /v1/products/:id/price-history — daily aggregated price history (BUY-2345)
+// Query params: days (30|90|180, default 30)
+router.get('/:id/price-history', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.price-history'), async (req, res) => {
+    const start = Date.now();
+    const { id } = req.params;
+    const days = Math.min(parseInt(req.query.days || '30'), 180);
+    const [productResult, historyResult] = await Promise.all([
+        config_1.db.query(`SELECT id, title, price, currency FROM products WHERE id = $1`, [id]),
+        config_1.db.query(`SELECT
+           DATE(recorded_at AT TIME ZONE 'UTC') AS day,
+           currency,
+           MIN(price)::float AS min_price,
+           MAX(price)::float AS max_price,
+           ROUND(AVG(price)::numeric, 2)::float AS avg_price,
+           COUNT(*) AS data_points
+         FROM price_history
+         WHERE product_id = $1
+           AND recorded_at >= NOW() - ($2 || ' days')::interval
+         GROUP BY DATE(recorded_at AT TIME ZONE 'UTC'), currency
+         ORDER BY day ASC`, [id, days]),
+    ]);
+    if (productResult.rows.length === 0) {
+        res.status(404).json({ error: 'Product not found' });
+        return;
+    }
+    const p = productResult.rows[0];
+    const daily = historyResult.rows.map((row) => ({
+        day: row.day,
+        currency: row.currency,
+        min: row.min_price,
+        max: row.max_price,
+        avg: row.avg_price,
+        data_points: parseInt(row.data_points, 10),
+    }));
+    const allPrices = daily.length
+        ? { min: Math.min(...daily.map((d) => d.min)), max: Math.max(...daily.map((d) => d.max)), avg: +(daily.reduce((a, d) => a + d.avg, 0) / daily.length).toFixed(2) }
+        : null;
+    res.json({
+        data: {
+            product_id: p.id,
+            title: p.title,
+            current_price: p.price ? parseFloat(p.price) : null,
+            currency: p.currency,
+            daily,
+            stats: allPrices,
+        },
+        meta: { days, response_time_ms: Date.now() - start },
+    });
+});
 // GET /v1/products/:id/prices — price history from price_snapshots
 router.get('/:id/prices', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.prices'), async (req, res) => {
     const start = Date.now();
@@ -333,6 +392,70 @@ router.get('/:id/prices', agentDetect_1.agentDetectMiddleware, apiKey_1.requireA
         },
         meta: { days, response_time_ms: Date.now() - start },
     });
+});
+// GET /v1/products/:id/similar — return up to 8 similar products for 'related products' widget
+// Strategy: same brand+category first (fast index lookup), then FTS title fallback to pad to 8.
+// Target: <50ms p99 — both paths use GIN/B-tree indexes only.
+router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.similar'), async (req, res) => {
+    const start = Date.now();
+    const { id } = req.params;
+    const limit = Math.min(parseInt(req.query.limit || '8'), 20);
+    // Fetch the source product
+    const srcResult = await config_1.db.query(`SELECT id, title, brand, category_path, currency, search_vector
+       FROM products WHERE id = $1`, [id]);
+    if (srcResult.rows.length === 0) {
+        res.status(404).json({ error: 'Product not found' });
+        return;
+    }
+    const src = srcResult.rows[0];
+    const currency = src.currency || 'SGD';
+    // Phase 1: same brand + same first category element (indexed columns)
+    const brand = src.brand || null;
+    const topCategory = src.category_path?.[0] || null;
+    let similar = [];
+    if (brand && topCategory) {
+        const brandCatResult = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
+                image_url, brand, category_path, region, country_code
+         FROM products
+         WHERE id != $1
+           AND brand = $2
+           AND category_path[1] = $3
+           AND currency = $4
+         ORDER BY updated_at DESC
+         LIMIT $5`, [id, brand, topCategory, currency, limit]);
+        similar = brandCatResult.rows;
+    }
+    // Phase 2: FTS on title to pad remaining slots (if < limit results so far)
+    if (similar.length < limit && src.title) {
+        const needed = limit - similar.length;
+        const existingIds = [id, ...similar.map((r) => r.id)];
+        const placeholders = existingIds.map((_, i) => `$${i + 1}`).join(',');
+        const ftsResult = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
+                image_url, brand, category_path, region, country_code
+         FROM products
+         WHERE id NOT IN (${placeholders})
+           AND currency = $${existingIds.length + 1}
+           AND search_vector @@ plainto_tsquery('english', $${existingIds.length + 2})
+         ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${existingIds.length + 2})) DESC,
+                  updated_at DESC
+         LIMIT $${existingIds.length + 3}`, [...existingIds, currency, src.title, needed]);
+        similar = [...similar, ...ftsResult.rows];
+    }
+    const data = similar.map((row) => ({
+        id: row.id,
+        source: row.source_id,
+        domain: row.domain,
+        url: row.url,
+        title: row.title,
+        price: row.price ? parseFloat(row.price) : null,
+        currency: row.currency,
+        image_url: row.image_url || null,
+        brand: row.brand || null,
+        category_path: row.category_path || null,
+        region: row.region || null,
+        country_code: row.country_code || null,
+    }));
+    res.json({ data, meta: { source_id: id, count: data.length, response_time_ms: Date.now() - start } });
 });
 // GET /v1/products/:id
 router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.get'), async (req, res) => {
