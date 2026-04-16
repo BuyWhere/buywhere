@@ -9,6 +9,9 @@ const queryLog_1 = require("../middleware/queryLog");
 const SEARCH_CACHE_TTL_SECONDS = 60;
 // Maps ISO country code to native currency — used for both query inference and ingest defaults.
 const COUNTRY_CURRENCY = { SG: 'SGD', US: 'USD', VN: 'VND', TH: 'THB', MY: 'MYR' };
+// Static approximate exchange rates to USD — used for normalized_price_usd only (not billing).
+// Approximate rates as of 2026-Q1; good enough for cross-currency ordering by agents.
+const TO_USD = { USD: 1, SGD: 0.74, VND: 0.000039, THB: 0.028, MYR: 0.22 };
 const router = (0, express_1.Router)();
 // GET /v1/products/search
 // Query params: q, domain, region, country, min_price, max_price, currency, limit, offset, source_page
@@ -34,8 +37,16 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         const cached = await config_1.redis.get(cacheKey);
         if (cached) {
             const parsed = JSON.parse(cached);
-            parsed.meta.cached = true;
-            parsed.meta.response_time_ms = Date.now() - start;
+            const elapsed = Date.now() - start;
+            // compact envelope uses flat keys; legacy uses nested meta
+            if (parsed.meta) {
+                parsed.meta.cached = true;
+                parsed.meta.response_time_ms = elapsed;
+            }
+            else {
+                parsed.cached = true;
+                parsed.response_time_ms = elapsed;
+            }
             return res.json(parsed);
         }
     }
@@ -140,30 +151,49 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     }
     params.push(limit, offset);
     const dataResult = await config_1.db.query(dataQuery, params);
+    const total = parseInt(countResult.rows[0].count, 10);
+    const responseTimeMs = Date.now() - start;
     const products = dataResult.rows.map((row) => {
         if (compact) {
-            // Compact format for AI agents: minimal payload, normalized specs
+            // Compact format for AI agents (BUY-2073): Phase 2 shape.
+            // ?compact=true opt-in only; no auto-default by UA.
             const meta = row.metadata;
-            const specs = {
-                brand: meta?.brand ?? null,
-                category: meta?.category ?? null,
-                model: meta?.model ?? null,
-            };
-            if (meta?.size != null)
-                specs.size = meta.size;
-            if (meta?.color != null)
-                specs.color = meta.color;
+            const amount = row.price ? parseFloat(row.price) : null;
+            const cur = row.currency || 'SGD';
+            // structured_specs: explicit key-value object for agent consumption.
+            const structured_specs = {};
+            for (const k of ['brand', 'category', 'model', 'size', 'color', 'material', 'weight']) {
+                const v = meta?.[k];
+                if (v != null)
+                    structured_specs[k] = v;
+            }
+            // comparison_attributes: flat array suited for LLM tool-use comparison tasks.
+            const comparison_attributes = [];
+            if (structured_specs.brand != null)
+                comparison_attributes.push({ key: 'brand', label: 'Brand', value: structured_specs.brand });
+            if (structured_specs.category != null)
+                comparison_attributes.push({ key: 'category', label: 'Category', value: structured_specs.category });
+            if (amount != null)
+                comparison_attributes.push({ key: 'price', label: `Price (${cur})`, value: amount });
+            if (structured_specs.model != null)
+                comparison_attributes.push({ key: 'model', label: 'Model', value: structured_specs.model });
+            if (structured_specs.color != null)
+                comparison_attributes.push({ key: 'color', label: 'Color', value: structured_specs.color });
+            // normalized_price_usd: cross-currency comparison anchor (approx rates, not billing).
+            const rate = TO_USD[cur] ?? null;
+            const normalized_price_usd = amount != null && rate != null ? +(amount * rate).toFixed(4) : null;
             return {
                 id: row.id,
                 canonical_id: row.id,
                 title: row.title,
-                price: row.price ? parseFloat(row.price) : null,
-                currency: row.currency,
+                price: { amount, currency: cur },
+                normalized_price_usd,
+                merchant: row.domain,
                 url: row.url,
-                source: row.source_id,
                 region: row.region || null,
                 country_code: row.country_code || null,
-                specs,
+                structured_specs,
+                comparison_attributes,
             };
         }
         return {
@@ -181,18 +211,26 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             updated_at: row.updated_at,
         };
     });
-    const total = parseInt(countResult.rows[0].count, 10);
-    const responseTimeMs = Date.now() - start;
-    const responseBody = {
-        data: products,
-        meta: {
+    // Compact responses use a flattened envelope (results/total/page) per approved spec.
+    // Standard responses keep the legacy data/meta shape for backwards-compat.
+    const responseBody = compact
+        ? {
+            results: products,
             total,
-            limit,
-            offset,
+            page: { limit, offset },
             response_time_ms: responseTimeMs,
             cached: false,
-        },
-    };
+        }
+        : {
+            data: products,
+            meta: {
+                total,
+                limit,
+                offset,
+                response_time_ms: responseTimeMs,
+                cached: false,
+            },
+        };
     // Cache result in Redis (fire-and-forget)
     config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
     // Extract categories from results for analytics

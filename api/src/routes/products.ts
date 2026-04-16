@@ -10,6 +10,10 @@ const SEARCH_CACHE_TTL_SECONDS = 60;
 // Maps ISO country code to native currency — used for both query inference and ingest defaults.
 const COUNTRY_CURRENCY: Record<string, string> = { SG: 'SGD', US: 'USD', VN: 'VND', TH: 'THB', MY: 'MYR' };
 
+// Static approximate exchange rates to USD — used for normalized_price_usd only (not billing).
+// Approximate rates as of 2026-Q1; good enough for cross-currency ordering by agents.
+const TO_USD: Record<string, number> = { USD: 1, SGD: 0.74, VND: 0.000039, THB: 0.028, MYR: 0.22 };
+
 const router = Router();
 
 // GET /v1/products/search
@@ -166,27 +170,48 @@ router.get(
 
     const products = dataResult.rows.map((row) => {
       if (compact) {
-        // Compact format for AI agents (BUY-2073): approved Phase 1 shape.
-        // ?compact=true opt-in only; no auto-default by UA until Phase 2.
+        // Compact format for AI agents (BUY-2073): Phase 2 shape.
+        // ?compact=true opt-in only; no auto-default by UA.
         const meta = row.metadata as Record<string, unknown> | null;
-        const specs: Record<string, unknown> = {
-          brand: meta?.brand ?? null,
-          category: meta?.category ?? null,
-          model: meta?.model ?? null,
-        };
-        if (meta?.size != null) specs.size = meta.size;
-        if (meta?.color != null) specs.color = meta.color;
         const amount = row.price ? parseFloat(row.price) : null;
+        const cur: string = row.currency || 'SGD';
+
+        // structured_specs: explicit key-value object for agent consumption.
+        const structured_specs: Record<string, unknown> = {};
+        for (const k of ['brand', 'category', 'model', 'size', 'color', 'material', 'weight']) {
+          const v = meta?.[k];
+          if (v != null) structured_specs[k] = v;
+        }
+
+        // comparison_attributes: flat array suited for LLM tool-use comparison tasks.
+        const comparison_attributes: { key: string; label: string; value: unknown }[] = [];
+        if (structured_specs.brand != null)
+          comparison_attributes.push({ key: 'brand', label: 'Brand', value: structured_specs.brand });
+        if (structured_specs.category != null)
+          comparison_attributes.push({ key: 'category', label: 'Category', value: structured_specs.category });
+        if (amount != null)
+          comparison_attributes.push({ key: 'price', label: `Price (${cur})`, value: amount });
+        if (structured_specs.model != null)
+          comparison_attributes.push({ key: 'model', label: 'Model', value: structured_specs.model });
+        if (structured_specs.color != null)
+          comparison_attributes.push({ key: 'color', label: 'Color', value: structured_specs.color });
+
+        // normalized_price_usd: cross-currency comparison anchor (approx rates, not billing).
+        const rate = TO_USD[cur] ?? null;
+        const normalized_price_usd = amount != null && rate != null ? +(amount * rate).toFixed(4) : null;
+
         return {
           id: row.id,
           canonical_id: row.id,
           title: row.title,
-          price: { amount, currency: row.currency },
+          price: { amount, currency: cur },
+          normalized_price_usd,
           merchant: row.domain,
           url: row.url,
           region: row.region || null,
           country_code: row.country_code || null,
-          specs,
+          structured_specs,
+          comparison_attributes,
         };
       }
       return {
