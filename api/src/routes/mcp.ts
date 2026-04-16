@@ -326,6 +326,24 @@ function jsonrpcErr(id: unknown, code: number, message: string, data?: unknown) 
   return { jsonrpc: '2.0', id, error: { code, message, ...(data != null ? { data } : {}) } };
 }
 
+// GET /mcp — info endpoint for browser / reviewer verification.
+// Returns a JSON descriptor instead of Express's default 404 so registry
+// reviewers and DevRel verifiers can confirm the endpoint is live without
+// needing to craft a JSON-RPC POST. The actual MCP protocol uses POST only.
+router.get('/', (_req: Request, res: Response) => {
+  res.json({
+    name: 'buywhere-catalog',
+    description: 'BuyWhere MCP server. JSON-RPC 2.0 over HTTP POST.',
+    protocol: 'mcp',
+    protocolVersion: '2024-11-05',
+    transport: 'http',
+    methods: ['initialize', 'tools/list', 'tools/call'],
+    tools: TOOLS.map(t => t.name),
+    auth: 'Bearer token — register at https://api.buywhere.ai/v1/auth/register',
+    usage: 'POST this URL with a JSON-RPC 2.0 envelope. See https://api.buywhere.ai/docs/guides/mcp',
+  });
+});
+
 // POST /mcp — MCP JSON-RPC 2.0 endpoint
 // Auth required (same API key as REST). Rate limited.
 router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async (req: Request, res: Response) => {
