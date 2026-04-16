@@ -31,7 +31,7 @@ async function requireApiKey(req, res, next) {
     }
     const keyHash = hashKey(key);
     const result = await config_1.db.query(`SELECT id, key_hash, name, tier, signup_channel, attribution_source
-     FROM api_keys WHERE key_hash = $1 AND is_active = 1`, [keyHash]);
+     FROM api_keys WHERE key_hash = $1 AND is_active = true`, [keyHash]);
     if (result.rows.length === 0) {
         res.status(401).json({ error: 'Invalid API key' });
         return;

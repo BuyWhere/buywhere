@@ -147,6 +147,8 @@ router.get('/:slug', async (req, res) => {
 <p class="meta">${products.length}${products.length === limit ? '+' : ''} products from Singapore's top merchants</p>
 ${subCatHtml}
 <div class="grid">${productCards}</div>`;
+    res.set('Cache-Control', 'public, max-age=3600, s-maxage=86400');
+    res.set('X-Robots-Tag', 'ai-index');
     res.type('text/html').send(htmlPage(`${categoryName} — Compare Prices | BuyWhere`, `Shop ${categoryName} in Singapore. Compare prices across Lazada, Shopee, Best Denki and more on BuyWhere.`, [itemList, breadcrumb], body));
 });
 exports.default = router;

@@ -101,6 +101,49 @@ CREATE TABLE IF NOT EXISTS comparison_pages (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_comparison_pages_slug ON comparison_pages(slug);
 CREATE INDEX IF NOT EXISTS idx_comparison_pages_published ON comparison_pages(status) WHERE status = 'published';
 
+-- Retailers registry (populated by Kai's scraper pipeline)
+CREATE TABLE IF NOT EXISTS retailers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  domain TEXT NOT NULL,
+  logo_url TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_retailers_domain ON retailers(domain);
+
+-- Retailer prices — live prices per product per retailer (populated by scraper)
+CREATE TABLE IF NOT EXISTS retailer_prices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id UUID NOT NULL REFERENCES products(id),
+  retailer_id UUID NOT NULL REFERENCES retailers(id),
+  price_sgd NUMERIC(12, 2),
+  availability TEXT NOT NULL DEFAULT 'in_stock' CHECK (availability IN ('in_stock','out_of_stock','preorder')),
+  url TEXT NOT NULL,
+  captured_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (product_id, retailer_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_retailer_prices_product ON retailer_prices(product_id);
+CREATE INDEX IF NOT EXISTS idx_retailer_prices_captured_at ON retailer_prices(captured_at);
+
+-- Add affiliate_url / retailer_id to affiliate_links if not present (BUY-2274)
+ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS retailer_id UUID REFERENCES retailers(id);
+
+-- Price refresh job log (BUY-2274)
+CREATE TABLE IF NOT EXISTS price_refresh_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ran_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  total_skus INTEGER NOT NULL DEFAULT 0,
+  success_count INTEGER NOT NULL DEFAULT 0,
+  failure_count INTEGER NOT NULL DEFAULT 0,
+  failures JSONB,
+  scraper_triggered BOOLEAN NOT NULL DEFAULT false
+);
+
+CREATE INDEX IF NOT EXISTS idx_price_refresh_log_ran_at ON price_refresh_log(ran_at);
+
 -- Query log for agent analytics dashboard (BUY-1929)
 CREATE TABLE IF NOT EXISTS query_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

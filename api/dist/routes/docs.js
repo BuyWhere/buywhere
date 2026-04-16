@@ -16,6 +16,9 @@ router.get('/guides/mcp', (req, res) => {
     // Only use request-derived URL if it looks like a real public host (not localhost/127)
     const isPublicHost = host && !host.startsWith('localhost') && !host.startsWith('127.');
     const baseUrl = isPublicHost ? `${proto}://${host}` : config_1.API_BASE_URL;
+    // MCP endpoint is always on api.buywhere.ai — never derive from request host,
+    // because docs.buywhere.ai proxies to this route but doesn't serve /mcp.
+    const mcpUrl = `${config_1.API_BASE_URL}/mcp`;
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -40,10 +43,10 @@ router.get('/guides/mcp', (req, res) => {
 <body>
 <h1>BuyWhere MCP Integration</h1>
 <p>BuyWhere exposes its product catalog as an MCP (Model Context Protocol) server. AI agents can search, compare, and retrieve product data without writing HTTP glue code.</p>
-<p><strong>Transport:</strong> HTTP (<code>POST ${baseUrl}/mcp</code>) for remote agents. STDIO (local process) coming soon via npm.</p>
+<p><strong>Transport:</strong> HTTP (<code>POST ${mcpUrl}</code>) for remote agents. STDIO (local process) coming soon via npm.</p>
 
 <h2>Install</h2>
-<p><strong>The hosted MCP server is live.</strong> Point your MCP client directly at <code>${baseUrl}/mcp</code> — no local install required.</p>
+<p><strong>The hosted MCP server is live.</strong> Point your MCP client directly at <code>${mcpUrl}</code> — no local install required.</p>
 <div class="callout">
   <strong>Note:</strong> The <code>buywhere-mcp</code> npm package (for STDIO / local process mode) is not yet published. Use the HTTP transport below until it is available.
 </div>
@@ -53,7 +56,7 @@ router.get('/guides/mcp', (req, res) => {
 <pre><code>{
   "mcpServers": {
     "buywhere": {
-      "url": "${baseUrl}/mcp",
+      "url": "${mcpUrl}",
       "headers": { "Authorization": "Bearer bw_live_xxx" }
     }
   }
@@ -65,7 +68,7 @@ router.get('/guides/mcp', (req, res) => {
 <pre><code>{
   "mcpServers": {
     "buywhere": {
-      "url": "${baseUrl}/mcp",
+      "url": "${mcpUrl}",
       "headers": { "Authorization": "Bearer bw_live_xxx" }
     }
   }
@@ -73,7 +76,7 @@ router.get('/guides/mcp', (req, res) => {
 
 <h2>Remote HTTP Transport</h2>
 <p>For agents running in cloud environments:</p>
-<pre><code>POST ${baseUrl}/mcp
+<pre><code>POST ${mcpUrl}
 Authorization: Bearer bw_live_xxx
 Content-Type: application/json
 
@@ -82,15 +85,30 @@ Content-Type: application/json
   "method": "tools/call",
   "params": {
     "name": "search_products",
-    "arguments": { "query": "wireless headphones", "max_price": 150 }
+    "arguments": { "q": "wireless headphones", "region": "us", "max_price": 150 }
   },
   "id": 1
+}</code></pre>
+
+<p>Filter by country:</p>
+<pre><code>POST ${mcpUrl}
+Authorization: Bearer bw_live_xxx
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "search_products",
+    "arguments": { "q": "laptop", "country": "SG" }
+  },
+  "id": 2
 }</code></pre>
 
 <h2>Available Tools</h2>
 <table>
 <tr><th>Tool</th><th>Description</th></tr>
-<tr><td><code>search_products</code></td><td>Search catalog by keyword, category, price range, platform, country</td></tr>
+<tr><td><code>search_products</code></td><td>Search catalog by keyword, category, price range, platform, region, country</td></tr>
 <tr><td><code>get_product</code></td><td>Full product details by ID</td></tr>
 <tr><td><code>get_price</code></td><td>Current prices across all merchants for a product</td></tr>
 <tr><td><code>compare_prices</code></td><td>Side-by-side comparison of 2–5 products</td></tr>
@@ -125,6 +143,8 @@ Content-Type: application/json
 </body>
 </html>`;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('X-Robots-Tag', 'ai-index');
+    res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400');
     res.send(html);
 });
 // Redirect /docs to the MCP guide (most common entry point)

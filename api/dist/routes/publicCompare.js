@@ -172,6 +172,8 @@ ${tableHtml}
 <p style="margin-top:20px;color:#555;font-size:.9em">Price comparison across Singapore merchants. Data updated regularly.</p>
 </body>
 </html>`;
+    res.set('Cache-Control', 'public, max-age=3600, s-maxage=86400');
+    res.set('X-Robots-Tag', 'ai-index');
     res.type('text/html').send(html);
 });
 exports.default = router;

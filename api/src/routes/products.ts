@@ -59,8 +59,7 @@ router.get(
       idx++;
     }
     if (domain) {
-      // domain maps to platform in the products table
-      conditions.push(`platform::text = $${idx}`);
+      conditions.push(`source = $${idx}`);
       params.push(domain);
       idx++;
     }
@@ -105,8 +104,8 @@ router.get(
     if (ftsParamIdx && approxCount <= 1000) {
       // Small result set: ts_rank over all matches is fast, gives best relevance
       dataQuery = `
-        SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
-               name AS title, price, currency, image_url, attributes AS metadata, updated_at,
+        SELECT id, sku AS source_id, source AS domain, url,
+               title, price, currency, image_url, metadata, updated_at,
                region, country_code
         FROM products
         ${whereClause}
@@ -121,8 +120,8 @@ router.get(
       dataQuery = `
         SELECT id, source_id, domain, url, title, price, currency, image_url, metadata, updated_at, region, country_code
         FROM (
-          SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
-                 name AS title, price, currency, image_url, attributes AS metadata, updated_at,
+          SELECT id, sku AS source_id, source AS domain, url,
+                 title, price, currency, image_url, metadata, updated_at,
                  region, country_code,
                  ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
           FROM products
@@ -135,8 +134,8 @@ router.get(
     } else {
       // No FTS query (e.g. filter-only) — sort by recency
       dataQuery = `
-        SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
-               name AS title, price, currency, image_url, attributes AS metadata, updated_at,
+        SELECT id, sku AS source_id, source AS domain, url,
+               title, price, currency, image_url, metadata, updated_at,
                region, country_code
         FROM products
         ${whereClause}
@@ -230,23 +229,26 @@ router.get(
       }
     } catch (_) {}
 
-    // Sanity cap: reject original_price > 10x price (likely scraped data corruption)
+    // Deals: use metadata->'original_price' if available, or price_sgd comparison
     const [countResult, dataResult] = await Promise.all([
       db.query(
         `SELECT COUNT(*) FROM products
-         WHERE currency = $1 AND original_price > price AND original_price <= price * 10
-           AND ((original_price - price) / original_price * 100) >= $2`,
+         WHERE currency = $1
+           AND (metadata->>'original_price')::numeric > price
+           AND (((metadata->>'original_price')::numeric - price) / (metadata->>'original_price')::numeric * 100) >= $2`,
         [currency, minDiscount]
       ),
       db.query(
-        `SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
-                name AS title, price, original_price, currency, image_url, attributes AS metadata, updated_at,
+        `SELECT id, sku AS source_id, source AS domain, url,
+                title, price, (metadata->>'original_price')::numeric AS original_price,
+                currency, image_url, metadata, updated_at,
                 region, country_code,
-                ROUND(((original_price - price) / original_price * 100)::numeric, 1) AS discount_pct
+                ROUND((((metadata->>'original_price')::numeric - price) / (metadata->>'original_price')::numeric * 100)::numeric, 1) AS discount_pct
          FROM products
-         WHERE currency = $1 AND original_price > price AND original_price <= price * 10
-           AND ((original_price - price) / original_price * 100) >= $2
-         ORDER BY ((original_price - price) / original_price) DESC, updated_at DESC
+         WHERE currency = $1
+           AND (metadata->>'original_price')::numeric > price
+           AND (((metadata->>'original_price')::numeric - price) / (metadata->>'original_price')::numeric * 100) >= $2
+         ORDER BY (((metadata->>'original_price')::numeric - price) / (metadata->>'original_price')::numeric) DESC, updated_at DESC
          LIMIT $3 OFFSET $4`,
         [currency, minDiscount, limit, offset]
       ),
@@ -295,9 +297,9 @@ router.get(
 
     const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
     const result = await db.query(
-      `SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
-              name AS title, price, original_price, currency, image_url, attributes AS metadata,
-              category_path, brand, rating, review_count, updated_at, region, country_code
+      `SELECT id, sku AS source_id, source AS domain, url,
+              title, price, currency, image_url, metadata,
+              category_path, brand, avg_rating AS rating, review_count, updated_at, region, country_code
        FROM products WHERE id IN (${placeholders})`,
       ids
     );
@@ -309,7 +311,6 @@ router.get(
       url: row.url,
       title: row.title,
       price: row.price ? parseFloat(row.price) : null,
-      original_price: row.original_price ? parseFloat(row.original_price) : null,
       currency: row.currency,
       image_url: row.image_url,
       brand: row.brand,
@@ -340,14 +341,14 @@ router.get(
 
     const [productResult, historyResult] = await Promise.all([
       db.query(
-        `SELECT id, name AS title, price, original_price, currency FROM products WHERE id = $1`,
+        `SELECT id, title, price, currency FROM products WHERE id = $1`,
         [id]
       ),
       db.query(
-        `SELECT price, currency, scraped_at
-         FROM price_snapshots
-         WHERE product_id = $1 AND scraped_at >= NOW() - ($2 || ' days')::interval
-         ORDER BY scraped_at ASC`,
+        `SELECT price, currency, recorded_at AS scraped_at
+         FROM price_history
+         WHERE product_id = $1 AND recorded_at >= NOW() - ($2 || ' days')::interval
+         ORDER BY recorded_at ASC`,
         [id, days]
       ),
     ]);
@@ -370,7 +371,6 @@ router.get(
         product_id: p.id,
         title: p.title,
         current_price: p.price ? parseFloat(p.price) : null,
-        original_price: p.original_price ? parseFloat(p.original_price) : null,
         currency: p.currency,
         history,
         stats: prices.length
@@ -541,30 +541,24 @@ router.post(
     for (const r of rows) {
       const result = await db.query(
         `INSERT INTO products
-           (id, platform, platform_id, sku, name, price, currency, product_url,
-            merchant_id, merchant_name, original_price, brand, description,
-            image_url, images, category_path, availability, is_deal, indexed_at, updated_at,
-            region, country_code)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,false,NOW(),NOW(),$18,$19)
-         ON CONFLICT (platform, sku)
+           (sku, source, merchant_id, title, description, price, currency, url,
+            image_url, category_path, brand, metadata, is_active, region, country_code)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,true,$13,$14)
+         ON CONFLICT (sku, source)
          DO UPDATE SET
-           name = EXCLUDED.name,
+           title = EXCLUDED.title,
            price = EXCLUDED.price,
-           original_price = EXCLUDED.original_price,
            image_url = EXCLUDED.image_url,
-           images = EXCLUDED.images,
-           availability = EXCLUDED.availability,
            region = COALESCE(EXCLUDED.region, products.region),
            country_code = COALESCE(EXCLUDED.country_code, products.country_code),
            updated_at = NOW()
          RETURNING (xmax = 0) AS is_insert`,
         [
-          r.id, r.platform, r.platformId || null, r.sku, r.name, r.price, r.currency,
-          r.productUrl, r.merchantId, r.merchantName, r.originalPrice || null,
-          r.brand || null, r.description || null, r.imageUrl || null,
-          r.images ? `{${r.images.map(u => `"${u.replace(/"/g, '\\"')}"`).join(',')}}` : null,
+          r.sku, r.platform, r.merchantId, r.name, r.description || null,
+          r.price, r.currency, r.productUrl, r.imageUrl || null,
           r.categoryPath.length ? `{${r.categoryPath.map(c => `"${c.replace(/"/g, '\\"')}"`).join(',')}}` : '{}',
-          r.availability,
+          r.brand || null,
+          JSON.stringify({ original_price: r.originalPrice, merchant_name: r.merchantName, availability: r.availability }),
           r.region || null, r.countryCode || null,
         ]
       ).catch(() => null);

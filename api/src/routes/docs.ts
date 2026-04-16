@@ -86,15 +86,30 @@ Content-Type: application/json
   "method": "tools/call",
   "params": {
     "name": "search_products",
-    "arguments": { "query": "wireless headphones", "max_price": 150 }
+    "arguments": { "q": "wireless headphones", "region": "us", "max_price": 150 }
   },
   "id": 1
+}</code></pre>
+
+<p>Filter by country:</p>
+<pre><code>POST ${mcpUrl}
+Authorization: Bearer bw_live_xxx
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "search_products",
+    "arguments": { "q": "laptop", "country": "SG" }
+  },
+  "id": 2
 }</code></pre>
 
 <h2>Available Tools</h2>
 <table>
 <tr><th>Tool</th><th>Description</th></tr>
-<tr><td><code>search_products</code></td><td>Search catalog by keyword, category, price range, platform, country</td></tr>
+<tr><td><code>search_products</code></td><td>Search catalog by keyword, category, price range, platform, region, country</td></tr>
 <tr><td><code>get_product</code></td><td>Full product details by ID</td></tr>
 <tr><td><code>get_price</code></td><td>Current prices across all merchants for a product</td></tr>
 <tr><td><code>compare_prices</code></td><td>Side-by-side comparison of 2–5 products</td></tr>

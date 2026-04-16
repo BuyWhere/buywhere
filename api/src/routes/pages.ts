@@ -60,10 +60,10 @@ router.get('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
 
   const result = await db.query(
-    `SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
-            name AS title, price, original_price, currency, image_url,
-            brand, description, category_path, rating, review_count,
-            availability, attributes AS metadata, updated_at
+    `SELECT id, sku AS source_id, source AS domain, url,
+            title, price, currency, image_url,
+            brand, description, category_path, avg_rating AS rating, review_count,
+            in_stock, metadata, updated_at
      FROM products WHERE id = $1`,
     [id]
   ).catch(() => null);
@@ -75,9 +75,9 @@ router.get('/:id', async (req: Request, res: Response) => {
 
   const p = result.rows[0];
   const price = p.price ? parseFloat(p.price) : null;
-  const originalPrice = p.original_price ? parseFloat(p.original_price) : null;
+  const originalPrice = p.metadata?.original_price ? parseFloat(p.metadata.original_price) : null;
   const currency = p.currency || 'SGD';
-  const availability = schemaAvailability(p.availability || 'in_stock');
+  const availability = schemaAvailability(p.in_stock === false ? 'out_of_stock' : 'in_stock');
   const base = baseUrl(req);
 
   // Build Schema.org Product with Offer

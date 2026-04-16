@@ -33,7 +33,7 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
   const keyHash = hashKey(key);
   const result = await db.query(
     `SELECT id, key_hash, name, tier, signup_channel, attribution_source
-     FROM api_keys WHERE key_hash = $1 AND is_active = 1`,
+     FROM api_keys WHERE key_hash = $1 AND is_active = true`,
     [keyHash]
   );
 

@@ -25,9 +25,9 @@ router.post('/register', async (req, res) => {
     const utmMedium = (req.query.utm_medium || req.body.utm_medium);
     const signupChannel = resolveSignupChannel(req.headers['referer'], utmSource, utmMedium);
     await config_1.db.query(`INSERT INTO api_keys
-       (id, key_hash, name, email, use_case, tier, scopes, is_active,
-        total_queries, signup_channel, attribution_source, developer_id)
-     VALUES (gen_random_uuid(),$1,$2,$3,$4,'free',ARRAY['read']::text[],1,0,$5,$6,'self-registered')`, [
+       (id, key_hash, name, contact, use_case, tier, is_active,
+        signup_channel, attribution_source, developer_id)
+     VALUES (gen_random_uuid(),$1,$2,$3,$4,'free',true,$5,$6,'self-registered')`, [
         keyHash,
         agent_name.trim().slice(0, 200),
         contact ? String(contact).slice(0, 500) : null,

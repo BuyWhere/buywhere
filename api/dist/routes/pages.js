@@ -56,10 +56,10 @@ function escHtml(s) {
 // GET /p/:id — public product page with Schema.org Product + Offer JSON-LD
 router.get('/:id', async (req, res) => {
     const { id } = req.params;
-    const result = await config_1.db.query(`SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
-            name AS title, price, original_price, currency, image_url,
-            brand, description, category_path, rating, review_count,
-            availability, attributes AS metadata, updated_at
+    const result = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
+            title, price, currency, image_url,
+            brand, description, category_path, avg_rating AS rating, review_count,
+            in_stock, metadata, updated_at
      FROM products WHERE id = $1`, [id]).catch(() => null);
     if (!result || result.rows.length === 0) {
         res.status(404).send('<h1>Product not found</h1>');
@@ -67,9 +67,9 @@ router.get('/:id', async (req, res) => {
     }
     const p = result.rows[0];
     const price = p.price ? parseFloat(p.price) : null;
-    const originalPrice = p.original_price ? parseFloat(p.original_price) : null;
+    const originalPrice = p.metadata?.original_price ? parseFloat(p.metadata.original_price) : null;
     const currency = p.currency || 'SGD';
-    const availability = schemaAvailability(p.availability || 'in_stock');
+    const availability = schemaAvailability(p.in_stock === false ? 'out_of_stock' : 'in_stock');
     const base = baseUrl(req);
     // Build Schema.org Product with Offer
     const offerBase = {
@@ -147,6 +147,8 @@ router.get('/:id', async (req, res) => {
 <script type="application/ld+json">${JSON.stringify(breadcrumb)}</script>`;
     const pageTitle = `${p.title} — Price & Comparison | BuyWhere`;
     const metaDesc = `${p.title} at ${price !== null ? `${currency} ${price.toFixed(2)}` : 'best price'} from ${p.domain || 'Singapore merchants'}. Compare prices and deals on BuyWhere.`;
+    // Perplexity / AI-crawler cache headers — allow bots to cache product pages
+    res.set('Cache-Control', 'public, max-age=3600, s-maxage=86400');
     res.type('text/html').send(htmlPage(pageTitle, metaDesc, jsonld, body));
 });
 exports.default = router;
