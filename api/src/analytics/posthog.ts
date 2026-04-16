@@ -94,6 +94,52 @@ export function trackRegistration(apiKey: string, agentName: string, signupChann
   });
 }
 
+export interface ComparePageViewEvent {
+  slug: string;
+  productId: string;
+  category: string;
+  retailerCount: number;
+  lowestPrice: number | null;
+}
+
+export function trackComparePageView(event: ComparePageViewEvent): void {
+  const ph = getClient();
+  if (!ph) return;
+  ph.capture({
+    distinctId: `compare:${event.slug}`,
+    event: 'compare_page_view',
+    properties: {
+      slug: event.slug,
+      product_id: event.productId,
+      category: event.category,
+      retailer_count: event.retailerCount,
+      lowest_price: event.lowestPrice,
+    },
+  });
+}
+
+export interface CompareRetailerClickEvent {
+  slug: string;
+  retailer: string;
+  price: number | null;
+  rank: number;
+}
+
+export function trackCompareRetailerClick(event: CompareRetailerClickEvent): void {
+  const ph = getClient();
+  if (!ph) return;
+  ph.capture({
+    distinctId: `compare:${event.slug}`,
+    event: 'compare_retailer_click',
+    properties: {
+      slug: event.slug,
+      retailer: event.retailer,
+      price: event.price,
+      rank: event.rank,
+    },
+  });
+}
+
 export async function shutdownPostHog(): Promise<void> {
   if (client) {
     await client.shutdown();

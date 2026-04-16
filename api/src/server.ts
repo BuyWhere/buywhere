@@ -13,6 +13,7 @@ import compareSlugRouter from './routes/compareSlug';
 import adminCompareRouter from './routes/adminCompare';
 import mcpRouter from './routes/mcp';
 import analyticsRouter from './routes/analytics';
+import sitemapCompareRouter from './routes/sitemapCompare';
 import { db } from './config';
 
 export function createApp() {
@@ -75,6 +76,29 @@ export function createApp() {
   app.use('/p', aiCrawlerHeaders, pagesRouter);           // /p/:id — product page
   app.use('/c', aiCrawlerHeaders, publicCategoriesRouter); // /c/:slug — category page
   app.use('/compare', aiCrawlerHeaders, publicCompareRouter); // /compare?ids=id1,id2 — comparison page
+
+  // Sitemaps
+  app.use('/sitemap-compare.xml', sitemapCompareRouter);
+
+  // Sitemap index — references all sitemaps
+  app.get('/sitemap.xml', (req, res) => {
+    const proto = ((req.headers['x-forwarded-proto'] as string) || req.protocol).split(',')[0].trim();
+    const host = (req.headers['x-forwarded-host'] as string) || req.get('host') || 'buywhere.ai';
+    const base = `${proto}://${host}`;
+    const now = new Date().toISOString().slice(0, 10);
+    const xml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      '  <sitemap>',
+      `    <loc>${base}/sitemap-compare.xml</loc>`,
+      `    <lastmod>${now}</lastmod>`,
+      '  </sitemap>',
+      '</sitemapindex>',
+    ].join('\n');
+    res.set('Content-Type', 'application/xml; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=3600, s-maxage=86400');
+    res.send(xml);
+  });
 
   // GEO / AI-crawler discoverability
   app.get('/robots.txt', (_req, res) => {

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db, redis } from '../config';
+import { trackComparePageView, trackCompareRetailerClick } from '../analytics/posthog';
 
 const router = Router();
 
@@ -197,10 +198,41 @@ router.get('/:slug', async (req: Request, res: Response) => {
     // Non-fatal
   }
 
+  // PostHog: fire-and-forget page view
+  trackComparePageView({
+    slug: String(page.slug),
+    productId: String(page.product_id),
+    category: String(page.category),
+    retailerCount: prices.length,
+    lowestPrice: lowestPrice?.price_sgd ? parseFloat(String(lowestPrice.price_sgd)) : null,
+  });
+
   res.set('Cache-Control', `public, max-age=${CACHE_TTL_SECONDS}`);
   res.set('X-Cache', 'MISS');
   res.set('X-Robots-Tag', 'ai-index');
   res.json(payload);
+});
+
+// POST /v1/compare/:slug/click — record a retailer click for PostHog analytics.
+// Body: { retailer: string, price: number|null, rank: number }
+// Falls back gracefully if PostHog is not configured.
+router.post('/:slug/click', (req: Request, res: Response) => {
+  const { slug } = req.params;
+  const { retailer, price, rank } = req.body as { retailer?: string; price?: number | null; rank?: number };
+
+  if (!isValidSlug(slug) || typeof retailer !== 'string' || typeof rank !== 'number') {
+    res.status(400).json({ error: 'Missing required fields: retailer (string), rank (number)' });
+    return;
+  }
+
+  trackCompareRetailerClick({
+    slug,
+    retailer,
+    price: price ?? null,
+    rank,
+  });
+
+  res.json({ ok: true });
 });
 
 export default router;

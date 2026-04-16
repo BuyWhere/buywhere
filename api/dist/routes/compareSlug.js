@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const config_1 = require("../config");
+const posthog_1 = require("../analytics/posthog");
 const router = (0, express_1.Router)();
 const CACHE_TTL_SECONDS = 300; // 5 min
 // Slug validation: kebab-case ASCII, ≤70 chars
@@ -169,9 +170,35 @@ router.get('/:slug', async (req, res) => {
     catch (_err) {
         // Non-fatal
     }
+    // PostHog: fire-and-forget page view
+    (0, posthog_1.trackComparePageView)({
+        slug: String(page.slug),
+        productId: String(page.product_id),
+        category: String(page.category),
+        retailerCount: prices.length,
+        lowestPrice: lowestPrice?.price_sgd ? parseFloat(String(lowestPrice.price_sgd)) : null,
+    });
     res.set('Cache-Control', `public, max-age=${CACHE_TTL_SECONDS}`);
     res.set('X-Cache', 'MISS');
     res.set('X-Robots-Tag', 'ai-index');
     res.json(payload);
+});
+// POST /v1/compare/:slug/click — record a retailer click for PostHog analytics.
+// Body: { retailer: string, price: number|null, rank: number }
+// Falls back gracefully if PostHog is not configured.
+router.post('/:slug/click', (req, res) => {
+    const { slug } = req.params;
+    const { retailer, price, rank } = req.body;
+    if (!isValidSlug(slug) || typeof retailer !== 'string' || typeof rank !== 'number') {
+        res.status(400).json({ error: 'Missing required fields: retailer (string), rank (number)' });
+        return;
+    }
+    (0, posthog_1.trackCompareRetailerClick)({
+        slug,
+        retailer,
+        price: price ?? null,
+        rank,
+    });
+    res.json({ ok: true });
 });
 exports.default = router;

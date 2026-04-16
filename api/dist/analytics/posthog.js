@@ -3,6 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.trackApiQuery = trackApiQuery;
 exports.trackAffiliateClick = trackAffiliateClick;
 exports.trackRegistration = trackRegistration;
+exports.trackComparePageView = trackComparePageView;
+exports.trackCompareRetailerClick = trackCompareRetailerClick;
 exports.shutdownPostHog = shutdownPostHog;
 const posthog_node_1 = require("posthog-node");
 const POSTHOG_API_KEY = process.env.POSTHOG_API_KEY || '';
@@ -72,6 +74,37 @@ function trackRegistration(apiKey, agentName, signupChannel, utmSource) {
             signup_channel: signupChannel,
             utm_source: utmSource,
             registered_at: new Date().toISOString(),
+        },
+    });
+}
+function trackComparePageView(event) {
+    const ph = getClient();
+    if (!ph)
+        return;
+    ph.capture({
+        distinctId: `compare:${event.slug}`,
+        event: 'compare_page_view',
+        properties: {
+            slug: event.slug,
+            product_id: event.productId,
+            category: event.category,
+            retailer_count: event.retailerCount,
+            lowest_price: event.lowestPrice,
+        },
+    });
+}
+function trackCompareRetailerClick(event) {
+    const ph = getClient();
+    if (!ph)
+        return;
+    ph.capture({
+        distinctId: `compare:${event.slug}`,
+        event: 'compare_retailer_click',
+        properties: {
+            slug: event.slug,
+            retailer: event.retailer,
+            price: event.price,
+            rank: event.rank,
         },
     });
 }
