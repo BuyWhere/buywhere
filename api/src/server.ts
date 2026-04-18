@@ -21,7 +21,15 @@ import { db } from './config';
 export function createApp() {
   const app = express();
 
-  app.use(cors());
+  app.use(cors({
+    origin: (process.env.CORS_ALLOWED_ORIGINS || 'https://us.buywhere.com,https://buywhere.ai').split(',').map((o) => o.trim()),
+    credentials: true,
+  }));
+  app.use((_req, res, next) => {
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('X-Frame-Options', 'DENY');
+    next();
+  });
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
 
