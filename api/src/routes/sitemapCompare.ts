@@ -5,7 +5,7 @@ const router = Router();
 
 // GET /sitemap-compare.xml
 // Auto-generated XML sitemap for published comparison pages.
-// lastmod = MAX(retailer_prices.captured_at) for the product, falling back to
+// lastmod = MAX(price_history.recorded_at) across linked products, falling back to
 // comparison_pages.updated_at if no price rows exist yet.
 router.get('/', async (req: Request, res: Response) => {
   const proto = ((req.headers['x-forwarded-proto'] as string) || req.protocol).split(',')[0].trim();
@@ -15,9 +15,9 @@ router.get('/', async (req: Request, res: Response) => {
   const result = await db.query(
     `SELECT
        cp.slug,
-       COALESCE(MAX(rp.captured_at), cp.updated_at) AS lastmod
+       COALESCE(MAX(ph.recorded_at), cp.updated_at) AS lastmod
      FROM comparison_pages cp
-     LEFT JOIN retailer_prices rp ON rp.product_id = cp.product_id
+     LEFT JOIN price_history ph ON ph.product_id = ANY(cp.product_ids)
      WHERE cp.status = 'published'
      GROUP BY cp.slug, cp.updated_at
      ORDER BY cp.slug`
