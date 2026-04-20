@@ -22,25 +22,25 @@ const analytics_1 = __importDefault(require("./routes/analytics"));
 const revenue_1 = __importDefault(require("./routes/revenue"));
 const sitemapCompare_1 = __importDefault(require("./routes/sitemapCompare"));
 const landing_1 = __importDefault(require("./routes/landing"));
-const config_1 = require("./config");
 function createApp() {
     const app = (0, express_1.default)();
-    app.use((0, cors_1.default)());
+    app.use((0, cors_1.default)({
+        origin: (process.env.CORS_ALLOWED_ORIGINS || 'https://us.buywhere.com,https://buywhere.ai').split(',').map((o) => o.trim()),
+        credentials: true,
+    }));
+    app.use((_req, res, next) => {
+        res.set('X-Content-Type-Options', 'nosniff');
+        res.set('X-Frame-Options', 'DENY');
+        next();
+    });
     app.use(express_1.default.json());
     app.use(express_1.default.urlencoded({ extended: false }));
-    // Health check
-    app.get('/health', async (_req, res) => {
-        try {
-            const result = await config_1.db.query('SELECT COUNT(*) FROM products');
-            res.json({
-                status: 'ok',
-                ts: new Date().toISOString(),
-                catalog: { total_products: parseInt(result.rows[0].count, 10) },
-            });
-        }
-        catch (err) {
-            res.status(500).json({ status: 'error', error: String(err) });
-        }
+    // Health check - fast in-process check as required by BUY-3280
+    app.get('/health', (_req, res) => {
+        res.json({
+            status: 'ok',
+            ts: new Date().toISOString(),
+        });
     });
     // MCP / OpenAI plugin discovery
     app.use('/.well-known', wellknown_1.default);
@@ -65,6 +65,11 @@ function createApp() {
     // v2 alias — same router, extends v1 contract with country_code + multi-region currency inference
     app.use('/v2/products', products_1.default);
     app.use('/v1/categories', categories_1.default);
+    // Backward-compat alias: /v1/search → /v1/products/search
+    app.get("/v1/search", (req, res) => {
+        const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+        res.redirect(301, `/v1/products/search${qs}`);
+    });
     app.use('/v1/analytics', analytics_1.default);
     app.use('/v1/revenue', revenue_1.default);
     app.use('/v1/compare', aiCrawlerHeaders, compareSlug_1.default);

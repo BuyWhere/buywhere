@@ -33,18 +33,12 @@ export function createApp() {
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
 
-  // Health check
-  app.get('/health', async (_req, res) => {
-    try {
-      const result = await db.query('SELECT COUNT(*) FROM products');
-      res.json({
-        status: 'ok',
-        ts: new Date().toISOString(),
-        catalog: { total_products: parseInt(result.rows[0].count, 10) },
-      });
-    } catch (err) {
-      res.status(500).json({ status: 'error', error: String(err) });
-    }
+  // Health check - fast in-process check as required by BUY-3280
+  app.get('/health', (_req, res) => {
+    res.json({
+      status: 'ok',
+      ts: new Date().toISOString(),
+    });
   });
 
   // MCP / OpenAI plugin discovery
@@ -75,6 +69,12 @@ export function createApp() {
   // v2 alias — same router, extends v1 contract with country_code + multi-region currency inference
   app.use('/v2/products', productsRouter);
   app.use('/v1/categories', categoriesRouter);
+
+  // Backward-compat alias: /v1/search → /v1/products/search
+  app.get("/v1/search", (req, res) => {
+    const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+    res.redirect(301, `/v1/products/search${qs}`);
+  });
   app.use('/v1/analytics', analyticsRouter);
   app.use('/v1/revenue', revenueRouter);
   app.use('/v1/compare', aiCrawlerHeaders, compareSlugRouter);

@@ -54,7 +54,7 @@ router.post('/register', async (req: Request, res: Response) => {
       rpm: FREE_TIER.rpm,
       daily: FREE_TIER.daily,
     },
-    docs: 'https://docs.buywhere.ai/api',
+    docs: 'https://api.buywhere.ai/docs',
   });
 });
 

@@ -44,7 +44,7 @@ router.post('/register', async (req, res) => {
             rpm: config_1.FREE_TIER.rpm,
             daily: config_1.FREE_TIER.daily,
         },
-        docs: 'https://docs.buywhere.ai/api',
+        docs: 'https://api.buywhere.ai/docs',
     });
 });
 // Infer signup channel from referer + UTM
