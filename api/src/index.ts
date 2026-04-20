@@ -1,6 +1,10 @@
+import { initSentry } from './sentry';
 import { createApp } from './server';
 import { PORT } from './config';
 import { shutdownPostHog } from './analytics/posthog';
+
+// Initialize Sentry before anything else so all errors are captured
+initSentry();
 
 const app = createApp();
 

@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import { Sentry } from './sentry';
 import authRouter from './routes/auth';
 import productsRouter from './routes/products';
 import categoriesRouter from './routes/categories';
@@ -165,6 +166,13 @@ export function createApp() {
   // 404 fallback
   app.use((_req, res) => {
     res.status(404).json({ error: 'Not found' });
+  });
+
+  // Sentry error capture — must be after all routes
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  app.use((err: Error, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+    Sentry.captureException(err);
+    next(err);
   });
 
   return app;

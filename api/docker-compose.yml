@@ -11,19 +11,20 @@ services:
       # Connect to external catalog DB (buywhere-api-db-1)
       DB_USER: buywhere
       DB_PASSWORD: buywhere
-      DB_HOST: db
+      DB_HOST: buywhere-api-db-1
       DB_PORT: "5432"
       DB_NAME: catalog
       # Pooling
       POOL_MODE: transaction
-      MAX_CLIENT_CONN: "200"
-      DEFAULT_POOL_SIZE: "20"
-      # Auth
-      AUTH_TYPE: scram-sha-256
+      MAX_CLIENT_CONN: "1000"
+      DEFAULT_POOL_SIZE: "100"
+      MIN_POOL_SIZE: "50"
+      # Auth — md5 matches postgres pg_hba.conf default
+      AUTH_TYPE: md5
       SERVER_RESET_QUERY: "DISCARD ALL"
       IGNORE_STARTUP_PARAMETERS: extra_float_digits
     ports:
-      - "5433:5432"
+      - "5436:5432"
     networks:
       - default
       - buywhere-api
@@ -48,7 +49,7 @@ services:
     command: node dist/migrate.js
     environment:
       # Migrations run directly against catalog DB (not through PgBouncer)
-      DATABASE_URL: postgresql://buywhere:buywhere@db:5432/catalog
+      DATABASE_URL: postgresql://buywhere:buywhere@buywhere-api-db-1:5432/catalog
     networks:
       - default
       - buywhere-api
@@ -58,12 +59,14 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      # API traffic goes through PgBouncer → external catalog DB
-      DATABASE_URL: postgresql://buywhere:buywhere@pgbouncer:5432/catalog
+      # API traffic direct to catalog DB (PgBouncer SCRAM compat issue — BUY-3283)
+      DATABASE_URL: postgresql://buywhere:buywhere@buywhere-api-db-1:5432/catalog
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       PORT: "3000"
       API_BASE_URL: https://api.buywhere.ai
+      # Sentry error tracking (BUY-3415) — set via AWS Secrets Manager in prod
+      SENTRY_DSN: ${SENTRY_DSN:-}
     ports:
       - "3000:3000"
     healthcheck:
@@ -72,6 +75,9 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+    networks:
+      - default
+      - buywhere-api
     depends_on:
       redis:
         condition: service_healthy
@@ -91,6 +97,7 @@ services:
       MCP_PORT: "8081"
       PORT: "8081"
       API_BASE_URL: https://api.buywhere.ai
+      SENTRY_DSN: ${SENTRY_DSN:-}
     ports:
       - "8081:8081"
     healthcheck:
