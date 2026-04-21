@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createApp = createApp;
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
+const sentry_1 = require("./sentry");
 const auth_1 = __importDefault(require("./routes/auth"));
 const products_1 = __importDefault(require("./routes/products"));
 const categories_1 = __importDefault(require("./routes/categories"));
@@ -147,6 +148,12 @@ function createApp() {
     // 404 fallback
     app.use((_req, res) => {
         res.status(404).json({ error: 'Not found' });
+    });
+    // Sentry error capture — must be after all routes
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    app.use((err, _req, res, next) => {
+        sentry_1.Sentry.captureException(err);
+        next(err);
     });
     return app;
 }

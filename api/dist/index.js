@@ -1,8 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const sentry_1 = require("./sentry");
 const server_1 = require("./server");
 const config_1 = require("./config");
 const posthog_1 = require("./analytics/posthog");
+// Initialize Sentry before anything else so all errors are captured
+(0, sentry_1.initSentry)();
 const app = (0, server_1.createApp)();
 const server = app.listen(config_1.PORT, () => {
     console.log(`BuyWhere API v1 listening on :${config_1.PORT}`);

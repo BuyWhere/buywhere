@@ -4,6 +4,29 @@ const express_1 = require("express");
 const config_1 = require("../config");
 const posthog_1 = require("../analytics/posthog");
 const router = (0, express_1.Router)();
+const DEFAULT_ALLOWED_DOMAINS = [
+    'lazada.sg',
+    'shopee.sg',
+    'bestdenki.com.sg',
+    'amazon.sg',
+    'courts.com.sg',
+    'harvey-norman.com.sg',
+    'challenger.sg',
+    'qoo10.sg',
+];
+const allowedDomains = new Set((process.env.AFFILIATE_ALLOWED_DOMAINS
+    ? process.env.AFFILIATE_ALLOWED_DOMAINS.split(',').map((d) => d.trim())
+    : DEFAULT_ALLOWED_DOMAINS).filter(Boolean));
+function isAllowedDestination(url) {
+    try {
+        const { hostname } = new URL(url);
+        const bare = hostname.replace(/^www\./, '');
+        return allowedDomains.has(bare);
+    }
+    catch {
+        return false;
+    }
+}
 // GET /r/:affiliateSlug/:productId
 // Log the affiliate click then redirect to destination
 router.get('/:affiliateSlug/:productId', async (req, res) => {
@@ -50,6 +73,17 @@ router.get('/:affiliateSlug/:productId', async (req, res) => {
         affiliateLinkId,
         source,
     });
+    if (!isAllowedDestination(destinationUrl)) {
+        const { hostname } = (() => { try {
+            return new URL(destinationUrl);
+        }
+        catch {
+            return { hostname: destinationUrl };
+        } })();
+        console.warn(`[redirect] blocked: hostname "${hostname}" not in allowlist`);
+        res.status(403).json({ error: 'Destination not permitted' });
+        return;
+    }
     res.redirect(302, destinationUrl);
 });
 exports.default = router;

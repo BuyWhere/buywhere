@@ -3,28 +3,55 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
 const MIGRATION = `
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "btree_gin";
+
+-- Ensure products has all columns before any indexes or triggers reference them
+ALTER TABLE products ADD COLUMN IF NOT EXISTS sku            TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS source         TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS merchant_id    TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS description    TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS category_path  TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS brand          TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS is_active      BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS search_vector  TSVECTOR;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS region         VARCHAR(10);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS country_code   VARCHAR(2);
 
 -- Full-text search support on products table
-ALTER TABLE products ADD COLUMN IF NOT EXISTS search_vector tsvector;
 CREATE INDEX IF NOT EXISTS idx_products_search_vector ON products USING GIN(search_vector);
 
 -- Drop the old broken trigger that referenced non-existent columns (name, tags).
--- The existing trg_products_search_vector trigger already handles search_vector updates.
 DROP TRIGGER IF EXISTS products_search_vector_trig ON products;
 DROP FUNCTION IF EXISTS products_search_vector_update();
 
+-- GEO indexes (now safe — is_active, region, country_code columns exist above)
+CREATE INDEX IF NOT EXISTS idx_products_is_active     ON products(is_active);
+CREATE INDEX IF NOT EXISTS idx_products_region        ON products(region);
+CREATE INDEX IF NOT EXISTS idx_products_country_code  ON products(country_code);
+CREATE INDEX IF NOT EXISTS idx_products_region_active ON products(region, is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_products_search_region  ON products USING gin(search_vector, region);
+CREATE INDEX IF NOT EXISTS idx_products_search_country ON products USING gin(search_vector, country_code);
 
--- API keys: use existing table from catalog DB (key_hash, developer_id, etc.)
--- Add columns needed by API layer if missing
-ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS rpm_limit INTEGER DEFAULT 60;
-ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS daily_limit INTEGER DEFAULT 1000;
-ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS signup_channel TEXT;
+-- api_keys: create if not exists, then add any missing columns
+CREATE TABLE IF NOT EXISTS api_keys (
+  id                 UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  key_hash           TEXT        NOT NULL UNIQUE,
+  name               TEXT        NOT NULL,
+  tier               TEXT        NOT NULL DEFAULT 'free',
+  is_active          BOOLEAN     NOT NULL DEFAULT true,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS rpm_limit          INTEGER     NOT NULL DEFAULT 60;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS daily_limit        INTEGER     NOT NULL DEFAULT 1000;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS signup_channel     TEXT;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS attribution_source TEXT;
-ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS utm_source TEXT;
-ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS utm_medium TEXT;
-ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS utm_campaign TEXT;
-ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS contact TEXT;
-ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS use_case TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS utm_source         TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS utm_medium         TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS utm_campaign       TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS contact            TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS use_case           TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS developer_id       TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS last_used_at       TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
 CREATE INDEX IF NOT EXISTS idx_api_keys_created_at ON api_keys(created_at);
@@ -60,17 +87,7 @@ CREATE TABLE IF NOT EXISTS affiliate_links (
 -- Note: idx_affiliate_links_slug intentionally omitted — affiliate_links table already
 -- exists in this DB without a slug column; the index is not applicable here.
 
--- GEO fields for multi-region support (BUY-1970)
-ALTER TABLE products ADD COLUMN IF NOT EXISTS region VARCHAR(10);
-ALTER TABLE products ADD COLUMN IF NOT EXISTS country_code VARCHAR(2);
-CREATE INDEX IF NOT EXISTS idx_products_region ON products(region);
-CREATE INDEX IF NOT EXISTS idx_products_country_code ON products(country_code);
-CREATE INDEX IF NOT EXISTS idx_products_region_active ON products(region, is_active) WHERE is_active = true;
-
--- Composite GIN indexes for fast GEO-filtered full-text search (BUY-1979)
-CREATE EXTENSION IF NOT EXISTS btree_gin;
-CREATE INDEX IF NOT EXISTS idx_products_search_region ON products USING gin(search_vector, region);
-CREATE INDEX IF NOT EXISTS idx_products_search_country ON products USING gin(search_vector, country_code);
+-- GEO fields (BUY-1970, BUY-1979): columns and indexes handled at top of migration
 
 -- Comparison pages curation table (BUY-2273)
 -- product_ids: array of products.id (bigint) rows that represent this SKU across retailers
