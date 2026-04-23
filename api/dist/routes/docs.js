@@ -108,12 +108,11 @@ Content-Type: application/json
 <h2>Available Tools</h2>
 <table>
 <tr><th>Tool</th><th>Description</th></tr>
-<tr><td><code>search_products</code></td><td>Search catalog by keyword, category, price range, platform, region, country</td></tr>
-<tr><td><code>get_product</code></td><td>Full product details by ID</td></tr>
-<tr><td><code>get_price</code></td><td>Current prices across all merchants for a product</td></tr>
-<tr><td><code>compare_prices</code></td><td>Side-by-side comparison of 2–5 products</td></tr>
-<tr><td><code>get_affiliate_link</code></td><td>Click-tracked BuyWhere affiliate link for a product</td></tr>
-<tr><td><code>get_catalog</code></td><td>Browse available product categories</td></tr>
+<tr><td><code>search_products</code></td><td>Search catalog by keyword, price range, platform, region, country</td></tr>
+<tr><td><code>get_product</code></td><td>Full product details and current price by ID</td></tr>
+<tr><td><code>compare_products</code></td><td>Side-by-side comparison of 2–10 products</td></tr>
+<tr><td><code>get_deals</code></td><td>Discounted products sorted by discount percentage</td></tr>
+<tr><td><code>list_categories</code></td><td>Browse available product categories</td></tr>
 </table>
 
 <h2>CORS Policy</h2>

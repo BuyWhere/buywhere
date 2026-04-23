@@ -35,7 +35,7 @@ router.get('/mcp.json', (_req: Request, res: Response) => {
     version: '0.1.0',
     mcp_endpoint: 'https://api.buywhere.ai/mcp',
     documentation: 'https://api.buywhere.ai/docs/guides/mcp',
-    capabilities: ['search_products', 'get_offers', 'compare_prices', 'get_categories'],
+    capabilities: ['search_products', 'get_product', 'compare_products', 'get_deals', 'list_categories'],
     coverage: 'Singapore',
     data_freshness: 'real-time',
   });

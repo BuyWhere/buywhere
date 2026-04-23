@@ -58,6 +58,9 @@ function createApp() {
     };
     // Docs
     app.use('/docs', aiCrawlerHeaders, docs_1.default);
+    // Public quickstart alias — launch fallback for BUY-3724
+    // api.buywhere.ai/quickstart → /docs/guides/mcp
+    app.get('/quickstart', aiCrawlerHeaders, (_req, res) => res.redirect(301, '/docs/guides/mcp'));
     // MCP JSON-RPC endpoint (Model Context Protocol)
     app.use('/mcp', mcp_1.default);
     // v1 API
