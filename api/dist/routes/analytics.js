@@ -347,4 +347,98 @@ router.get('/query-count', requireAdminKey, async (req, res) => {
         },
     });
 });
+// GET /v1/analytics/launch-window
+// Launch-day telemetry for arbitrary UTC time windows.
+// Returns query counts, first-query timestamps, registration count, and error rate.
+// Auth: ADMIN_API_KEY — safe for Sage/Reed without shell access (BUY-3866).
+router.get('/launch-window', requireAdminKey, async (req, res) => {
+    const startParam = req.query.start;
+    const endParam = req.query.end;
+    let startDate;
+    let endDate;
+    if (startParam && endParam) {
+        startDate = new Date(startParam);
+        endDate = new Date(endParam);
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+            res.status(400).json({ error: 'Invalid ISO 8601 date in start or end parameter' });
+            return;
+        }
+        if (startDate >= endDate) {
+            res.status(400).json({ error: 'start must be before end' });
+            return;
+        }
+    }
+    else {
+        // Default: last 4 hours (typical launch checkpoint window)
+        const hours = Math.min(parseInt(req.query.hours || '4'), 168);
+        endDate = new Date();
+        startDate = new Date(endDate.getTime() - hours * 60 * 60 * 1000);
+    }
+    const CORE_ENDPOINTS = ['products.search', 'products.get', 'products.compare', 'products.deals'];
+    const [totalsResult, firstQueryResult, registrationsResult, endpointResult] = await Promise.all([
+        // Aggregate counts for the window
+        config_1.db.query(`SELECT
+         COUNT(*) AS total,
+         COUNT(*) FILTER (WHERE is_agent = true) AS agent_count,
+         COUNT(*) FILTER (WHERE api_key_id IS NULL) AS unauthenticated_count,
+         COUNT(DISTINCT api_key_id) FILTER (WHERE api_key_id IS NOT NULL) AS unique_keys,
+         COUNT(*) FILTER (WHERE status_code < 400) AS success_count,
+         COUNT(*) FILTER (WHERE status_code >= 400) AS error_count
+       FROM query_log
+       WHERE created_at >= $1 AND created_at < $2
+         AND endpoint = ANY($3)`, [startDate.toISOString(), endDate.toISOString(), CORE_ENDPOINTS]),
+        // First-query timestamps
+        config_1.db.query(`SELECT
+         MIN(created_at) FILTER (WHERE status_code < 400) AS first_query_at,
+         MIN(created_at) FILTER (WHERE status_code < 400 AND api_key_id IS NOT NULL) AS first_external_query_at
+       FROM query_log
+       WHERE created_at >= $1 AND created_at < $2
+         AND endpoint = ANY($3)`, [startDate.toISOString(), endDate.toISOString(), CORE_ENDPOINTS]),
+        // Registration count in window
+        config_1.db.query(`SELECT COUNT(*) AS count FROM api_keys
+       WHERE created_at >= $1 AND created_at < $2`, [startDate.toISOString(), endDate.toISOString()]),
+        // Per-endpoint breakdown
+        config_1.db.query(`SELECT
+         endpoint,
+         COUNT(*) AS total,
+         COUNT(*) FILTER (WHERE is_agent = true) AS agent_count,
+         COUNT(*) FILTER (WHERE status_code >= 400) AS error_count
+       FROM query_log
+       WHERE created_at >= $1 AND created_at < $2
+         AND endpoint = ANY($3)
+       GROUP BY endpoint
+       ORDER BY total DESC`, [startDate.toISOString(), endDate.toISOString(), CORE_ENDPOINTS]),
+    ]);
+    const t = totalsResult.rows[0];
+    const total = parseInt(t.total);
+    const successCount = parseInt(t.success_count);
+    const errorCount = parseInt(t.error_count);
+    const fq = firstQueryResult.rows[0];
+    const totals = {
+        total,
+        agent_count: parseInt(t.agent_count),
+        unauthenticated_count: parseInt(t.unauthenticated_count),
+        unique_keys: parseInt(t.unique_keys),
+        success_count: successCount,
+        error_count: errorCount,
+        error_rate: total > 0 ? +(errorCount / total * 100).toFixed(2) : 0,
+        first_query_at: fq.first_query_at || null,
+        first_external_query_at: fq.first_external_query_at || null,
+        registrations: parseInt(registrationsResult.rows[0].count),
+    };
+    const by_endpoint = endpointResult.rows.map((r) => ({
+        endpoint: r.endpoint,
+        total: parseInt(r.total),
+        agent_count: parseInt(r.agent_count),
+        error_count: parseInt(r.error_count),
+    }));
+    res.json({
+        data: { totals, by_endpoint },
+        meta: {
+            window: { start: startDate.toISOString(), end: endDate.toISOString() },
+            core_endpoints: CORE_ENDPOINTS,
+            note: 'Launch-window telemetry (BUY-3866). Use ?start=&end= for arbitrary UTC ranges, or ?hours=N for rolling window.',
+        },
+    });
+});
 exports.default = router;
