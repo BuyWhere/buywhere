@@ -441,4 +441,77 @@ router.get('/launch-window', requireAdminKey, async (req, res) => {
         },
     });
 });
+// GET /v1/analytics/latency
+// p50/p95/p99 latency percentiles from query_log over a configurable window.
+// Returns per-endpoint and overall percentiles, plus alert status when p99 > threshold.
+// Auth: ADMIN_API_KEY (BUY-3006).
+router.get('/latency', requireAdminKey, async (req, res) => {
+    const minutes = Math.min(Math.max(parseInt(req.query.minutes || '5'), 1), 1440);
+    const threshold = parseInt(req.query.threshold || '1000');
+    const cutoff = new Date(Date.now() - minutes * 60 * 1000).toISOString();
+    const CORE_ENDPOINTS = ['products.search', 'products.get', 'products.compare', 'products.deals'];
+    const [overallResult, endpointResult] = await Promise.all([
+        config_1.db.query(`SELECT
+         COUNT(*) AS sample_count,
+         ROUND(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY response_time_ms))::int AS p50,
+         ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms))::int AS p95,
+         ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time_ms))::int AS p99,
+         ROUND(AVG(response_time_ms))::int AS avg_ms,
+         MAX(response_time_ms)::int AS max_ms
+       FROM query_log
+       WHERE created_at >= $1
+         AND endpoint = ANY($2)
+         AND response_time_ms IS NOT NULL`, [cutoff, CORE_ENDPOINTS]),
+        config_1.db.query(`SELECT
+         endpoint,
+         COUNT(*) AS sample_count,
+         ROUND(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY response_time_ms))::int AS p50,
+         ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms))::int AS p95,
+         ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time_ms))::int AS p99,
+         ROUND(AVG(response_time_ms))::int AS avg_ms,
+         MAX(response_time_ms)::int AS max_ms
+       FROM query_log
+       WHERE created_at >= $1
+         AND endpoint = ANY($2)
+         AND response_time_ms IS NOT NULL
+       GROUP BY endpoint
+       ORDER BY p99 DESC`, [cutoff, CORE_ENDPOINTS]),
+    ]);
+    const overall = overallResult.rows[0];
+    const p99 = parseInt(overall.p99) || 0;
+    const sampleCount = parseInt(overall.sample_count) || 0;
+    const alert = sampleCount >= 10 && p99 > threshold;
+    res.json({
+        data: {
+            overall: {
+                sample_count: sampleCount,
+                p50: parseInt(overall.p50) || 0,
+                p95: parseInt(overall.p95) || 0,
+                p99,
+                avg_ms: parseInt(overall.avg_ms) || 0,
+                max_ms: parseInt(overall.max_ms) || 0,
+            },
+            by_endpoint: endpointResult.rows.map((r) => ({
+                endpoint: r.endpoint,
+                sample_count: parseInt(r.sample_count),
+                p50: parseInt(r.p50),
+                p95: parseInt(r.p95),
+                p99: parseInt(r.p99),
+                avg_ms: parseInt(r.avg_ms),
+                max_ms: parseInt(r.max_ms),
+            })),
+            alert: {
+                threshold_ms: threshold,
+                p99_exceeds_threshold: alert,
+                status: alert ? 'ALERT' : 'OK',
+            },
+        },
+        meta: {
+            window_minutes: minutes,
+            cutoff: cutoff,
+            core_endpoints: CORE_ENDPOINTS,
+            note: 'p99 latency monitoring (BUY-3006). Alert fires when p99 > threshold with ≥10 samples.',
+        },
+    });
+});
 exports.default = router;
