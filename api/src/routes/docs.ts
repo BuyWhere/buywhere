@@ -3,22 +3,245 @@ import { API_BASE_URL } from '../config';
 
 const router = Router();
 
+// Shared Link headers for agent discoverability
+function setLinkHeaders(res: Response) {
+  res.set('Link', [
+    '</.well-known/api-catalog>; rel="api-catalog"',
+    '</.well-known/mcp.json>; rel="mcp-server-manifest"',
+    '</openapi.json>; rel="describedby"',
+  ].join(', '));
+}
+
+function buildMcpGuideMarkdown(baseUrl: string, mcpUrl: string): string {
+  return `# BuyWhere MCP Integration
+
+BuyWhere exposes its product catalog as an MCP (Model Context Protocol) server. AI agents can search, compare, and retrieve product data without writing HTTP glue code.
+
+**Transport:** HTTP (\`POST ${mcpUrl}\`) for remote agents. STDIO (local process) coming soon via npm.
+
+## Install
+
+**The hosted MCP server is live.** Point your MCP client directly at \`${mcpUrl}\` — no local install required.
+
+> **Note:** The \`buywhere-mcp\` npm package (for STDIO / local process mode) is not yet published. Use the HTTP transport below until it is available.
+
+## Configure Claude Desktop
+
+Add to \`~/Library/Application Support/Claude/claude_desktop_config.json\` (macOS) or \`%APPDATA%\\Claude\\claude_desktop_config.json\` (Windows):
+
+\`\`\`json
+{
+  "mcpServers": {
+    "buywhere": {
+      "url": "${mcpUrl}",
+      "headers": { "Authorization": "Bearer bw_live_xxx" }
+    }
+  }
+}
+\`\`\`
+
+Restart Claude Desktop. The BuyWhere tools appear automatically.
+
+## Configure Cursor
+
+In \`.cursor/mcp.json\` in your project root (or \`~/.cursor/mcp.json\` globally):
+
+\`\`\`json
+{
+  "mcpServers": {
+    "buywhere": {
+      "url": "${mcpUrl}",
+      "headers": { "Authorization": "Bearer bw_live_xxx" }
+    }
+  }
+}
+\`\`\`
+
+## Remote HTTP Transport
+
+For agents running in cloud environments:
+
+\`\`\`bash
+POST ${mcpUrl}
+Authorization: Bearer bw_live_xxx
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "search_products",
+    "arguments": { "q": "wireless headphones", "region": "us", "max_price": 150 }
+  },
+  "id": 1
+}
+\`\`\`
+
+## Available Tools
+
+| Tool | Description |
+|------|-------------|
+| \`search_products\` | Search catalog by keyword, price range, platform, region, country |
+| \`get_product\` | Full product details and current price by ID |
+| \`compare_products\` | Side-by-side comparison of 2–10 products |
+| \`get_deals\` | Discounted products sorted by discount percentage |
+| \`list_categories\` | Browse available product categories |
+
+## Python Quickstart
+
+\`\`\`bash
+pip install httpx
+\`\`\`
+
+\`\`\`python
+import httpx, json
+
+MCP_URL = "${mcpUrl}"
+API_KEY  = "bw_live_xxx"   # POST ${baseUrl}/v1/auth/register
+
+r = httpx.post(
+    MCP_URL,
+    headers={"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"},
+    json={
+        "jsonrpc": "2.0",
+        "method": "tools/call",
+        "params": {
+            "name": "search_products",
+            "arguments": {"q": "wireless headphones", "region": "us", "compact": True},
+        },
+        "id": 1,
+    },
+)
+result = json.loads(r.json()["result"]["content"][0]["text"])
+print(f"Found {result['meta']['total']} products")
+for p in result["data"][:3]:
+    print(f"  {p['title']}  {p['currency']} {p['price']}")
+\`\`\`
+
+> Also works with the official MCP Python SDK (\`pip install mcp\`) using \`streamablehttp_client\` pointed at the same URL.
+
+## TypeScript Quickstart
+
+Node 18+ has native \`fetch\`; no extra package needed.
+
+\`\`\`typescript
+const MCP_URL = "${mcpUrl}";
+const API_KEY  = "bw_live_xxx";   // POST ${baseUrl}/v1/auth/register
+
+const res = await fetch(MCP_URL, {
+  method: "POST",
+  headers: { Authorization: \`Bearer \${API_KEY}\`, "Content-Type": "application/json" },
+  body: JSON.stringify({
+    jsonrpc: "2.0",
+    method: "tools/call",
+    params: {
+      name: "search_products",
+      arguments: { q: "wireless headphones", region: "us", compact: true },
+    },
+    id: 1,
+  }),
+});
+
+const data = await res.json();
+const result = JSON.parse(data.result.content[0].text);
+console.log(\`Found \${result.meta.total} products\`);
+result.data.slice(0, 3).forEach((p: { title: string; currency: string; price: number }) =>
+  console.log(\`  \${p.title}  \${p.currency} \${p.price}\`)
+);
+\`\`\`
+
+> Using \`@modelcontextprotocol/sdk\`: \`npm install @modelcontextprotocol/sdk\`, then instantiate \`Client\` with \`StreamableHTTPClientTransport\` pointed at the same URL with an \`Authorization\` header.
+
+## Agent Use Cases
+
+### Price Comparison Bot
+
+Search for a product, collect the top IDs, then compare them side-by-side:
+
+\`\`\`json
+// Step 1 — discover candidates
+{ "method": "tools/call", "params": { "name": "search_products",
+  "arguments": { "q": "running shoes", "compact": true, "limit": 5 } } }
+
+// Step 2 — compare top results
+{ "method": "tools/call", "params": { "name": "compare_products",
+  "arguments": { "ids": ["<id1>", "<id2>", "<id3>"] } } }
+\`\`\`
+
+Rank the comparison output by \`normalized_price_usd\` (compact mode) to surface the best-value option.
+
+### Deal Alert Bot
+
+Poll for active discounts in a target market and filter by keyword:
+
+\`\`\`json
+{ "method": "tools/call", "params": { "name": "get_deals",
+  "arguments": { "min_discount": 20, "country": "SG", "limit": 50 } } }
+\`\`\`
+
+Scan the returned \`title\` fields against your watchlist. Run on a schedule and notify when a match appears.
+
+### Product Researcher
+
+Discover available categories, then drill into structured specs for a given category:
+
+\`\`\`json
+// Step 1 — list categories
+{ "method": "tools/call", "params": { "name": "list_categories", "arguments": {} } }
+
+// Step 2 — fetch products with machine-readable specs
+{ "method": "tools/call", "params": { "name": "search_products",
+  "arguments": { "q": "electronics", "compact": true, "limit": 20 } } }
+\`\`\`
+
+Each result in compact mode includes \`structured_specs\` (brand, model, size, color) and \`comparison_attributes\` ready for agent reasoning.
+
+## Authentication
+
+Pass your API key as a Bearer token. Get a free key at \`POST ${baseUrl}/v1/auth/register\`.
+
+| Key tier | Rate limit | Use case |
+|----------|-----------|----------|
+| \`bw_free_*\` | 60 req/min | Demo, testing |
+| \`bw_live_*\` | 600 req/min | Production |
+| \`bw_partner_*\` | Unlimited | Platform data partners |
+
+## Error Handling
+
+| MCP error code | Meaning |
+|----------------|---------|
+| \`invalid_params\` | Missing or invalid tool arguments |
+| \`not_found\` | Product / category not found |
+| \`rate_limited\` | Rate limit exceeded — implement exponential backoff |
+| \`unauthorized\` | Invalid or missing API key |
+| \`internal_error\` | BuyWhere API error |
+
+## Links
+
+- [OpenAPI spec](${baseUrl}/openapi.json)
+- [Plugin manifest](${baseUrl}/.well-known/ai-plugin.json)
+- [api@buywhere.ai](mailto:api@buywhere.ai)
+`;
+}
+
 // GET /docs/guides/mcp
-// Serves the MCP integration guide as HTML.
-// This route exists because api.buywhere.ai/docs/guides/mcp was referenced as
-// the canonical MCP guide URL in public materials (BUY-579 / Aria DevRel audit).
+// Serves the MCP integration guide as HTML or markdown.
 router.get('/guides/mcp', (req: Request, res: Response) => {
-  // Derive the public base URL from the incoming request so the guide is
-  // correct even if API_BASE_URL env var is misconfigured (e.g. localhost).
   const forwardedProto = req.headers['x-forwarded-proto'] as string | undefined;
   const proto = forwardedProto ? forwardedProto.split(',')[0].trim() : req.protocol;
   const host = req.headers['x-forwarded-host'] as string || req.get('host') || '';
-  // Only use request-derived URL if it looks like a real public host (not localhost/127)
   const isPublicHost = host && !host.startsWith('localhost') && !host.startsWith('127.');
   const baseUrl = isPublicHost ? `${proto}://${host}` : API_BASE_URL;
-  // MCP endpoint is always on api.buywhere.ai — never derive from request host,
-  // because docs.buywhere.ai proxies to this route but doesn't serve /mcp.
   const mcpUrl = `${API_BASE_URL}/mcp`;
+
+  setLinkHeaders(res);
+
+  if (req.accepts(['text/markdown', 'text/html']) === 'text/markdown') {
+    res.set('X-Robots-Tag', 'ai-index');
+    res.set('Cache-Control', 'public, max-age=3600, s-maxage=86400');
+    res.type('text/markdown; charset=utf-8').send(buildMcpGuideMarkdown(baseUrl, mcpUrl));
+    return;
+  }
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -115,6 +338,88 @@ Content-Type: application/json
 <tr><td><code>get_deals</code></td><td>Discounted products sorted by discount percentage</td></tr>
 <tr><td><code>list_categories</code></td><td>Browse available product categories</td></tr>
 </table>
+
+<h2>Python Quickstart</h2>
+<pre><code>pip install httpx</code></pre>
+<pre><code>import httpx, json
+
+MCP_URL = "${mcpUrl}"
+API_KEY  = "bw_live_xxx"   # POST ${baseUrl}/v1/auth/register
+
+r = httpx.post(
+    MCP_URL,
+    headers={"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"},
+    json={
+        "jsonrpc": "2.0",
+        "method": "tools/call",
+        "params": {
+            "name": "search_products",
+            "arguments": {"q": "wireless headphones", "region": "us", "compact": True},
+        },
+        "id": 1,
+    },
+)
+result = json.loads(r.json()["result"]["content"][0]["text"])
+print(f"Found {result['meta']['total']} products")
+for p in result["data"][:3]:
+    print(f"  {p['title']}  {p['currency']} {p['price']}")</code></pre>
+<p>Also works with the official MCP Python SDK (<code>pip install mcp</code>) using <code>streamablehttp_client</code> pointed at the same URL.</p>
+
+<h2>TypeScript Quickstart</h2>
+<p>Node 18+ has native <code>fetch</code>; no extra package needed.</p>
+<pre><code>const MCP_URL = "${mcpUrl}";
+const API_KEY  = "bw_live_xxx";   // POST ${baseUrl}/v1/auth/register
+
+const res = await fetch(MCP_URL, {
+  method: "POST",
+  headers: { Authorization: \`Bearer \${API_KEY}\`, "Content-Type": "application/json" },
+  body: JSON.stringify({
+    jsonrpc: "2.0",
+    method: "tools/call",
+    params: {
+      name: "search_products",
+      arguments: { q: "wireless headphones", region: "us", compact: true },
+    },
+    id: 1,
+  }),
+});
+
+const data = await res.json();
+const result = JSON.parse(data.result.content[0].text);
+console.log(\`Found \${result.meta.total} products\`);
+result.data.slice(0, 3).forEach(p =>
+  console.log(\`  \${p.title}  \${p.currency} \${p.price}\`)
+);</code></pre>
+<p>Using <code>@modelcontextprotocol/sdk</code>: <code>npm install @modelcontextprotocol/sdk</code>, then instantiate <code>Client</code> with <code>StreamableHTTPClientTransport</code> pointed at the same URL with an <code>Authorization</code> header.</p>
+
+<h2>Agent Use Cases</h2>
+
+<h3>Price Comparison Bot</h3>
+<p>Search for a product, collect the top IDs, then compare them side-by-side:</p>
+<pre><code>// Step 1 — discover candidates
+{ "method": "tools/call", "params": { "name": "search_products",
+  "arguments": { "q": "running shoes", "compact": true, "limit": 5 } } }
+
+// Step 2 — compare top results
+{ "method": "tools/call", "params": { "name": "compare_products",
+  "arguments": { "ids": ["&lt;id1&gt;", "&lt;id2&gt;", "&lt;id3&gt;"] } } }</code></pre>
+<p>Rank the comparison output by <code>normalized_price_usd</code> (compact mode) to surface the best-value option.</p>
+
+<h3>Deal Alert Bot</h3>
+<p>Poll for active discounts in a target market and filter by keyword:</p>
+<pre><code>{ "method": "tools/call", "params": { "name": "get_deals",
+  "arguments": { "min_discount": 20, "country": "SG", "limit": 50 } } }</code></pre>
+<p>Scan the returned <code>title</code> fields against your watchlist. Run on a schedule and notify when a match appears.</p>
+
+<h3>Product Researcher</h3>
+<p>Discover available categories, then drill into structured specs:</p>
+<pre><code>// Step 1 — list categories
+{ "method": "tools/call", "params": { "name": "list_categories", "arguments": {} } }
+
+// Step 2 — fetch products with machine-readable specs
+{ "method": "tools/call", "params": { "name": "search_products",
+  "arguments": { "q": "electronics", "compact": true, "limit": 20 } } }</code></pre>
+<p>Each result in compact mode includes <code>structured_specs</code> (brand, model, size, color) and <code>comparison_attributes</code> ready for agent reasoning.</p>
 
 <h2>CORS Policy</h2>
 <p>The BuyWhere API sets <code>Access-Control-Allow-Origin: *</code> (wildcard) on all endpoints, including <code>/mcp</code> and all <code>/v1/</code> REST routes.</p>
