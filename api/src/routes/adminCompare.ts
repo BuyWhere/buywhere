@@ -32,14 +32,10 @@ function bustCache(slug: string): void {
 // GET /admin/comparison-pages — list all pages (all statuses)
 router.get('/', requireAdminKey, async (_req: Request, res: Response) => {
   const result = await db.query(
-    `SELECT
-       cp.id, cp.slug, cp.category, cp.status, cp.expert_summary,
-       cp.hero_image_url, cp.published_at, cp.metadata, cp.product_id,
-       cp.created_at, cp.updated_at,
-       p.name AS product_title
-     FROM comparison_pages cp
-     JOIN products p ON p.id = cp.product_id
-     ORDER BY cp.updated_at DESC`
+    `SELECT id, slug, category, status, expert_summary, hero_image_url,
+            published_at, metadata, product_ids, created_at, updated_at
+     FROM comparison_pages
+     ORDER BY updated_at DESC`
   ).catch((err: Error) => { throw err; });
 
   res.json({ data: result.rows, total: result.rows.length });
@@ -47,10 +43,10 @@ router.get('/', requireAdminKey, async (_req: Request, res: Response) => {
 
 // POST /admin/comparison-pages — create a new comparison page
 router.post('/', requireAdminKey, async (req: Request, res: Response) => {
-  const { slug, product_id, category, status, expert_summary, hero_image_url, metadata } = req.body;
+  const { slug, product_ids, category, status, expert_summary, hero_image_url, metadata } = req.body;
 
-  if (!slug || !product_id || !category) {
-    res.status(400).json({ error: 'slug, product_id, and category are required' });
+  if (!slug || !Array.isArray(product_ids) || product_ids.length === 0 || !category) {
+    res.status(400).json({ error: 'slug, product_ids (non-empty UUID array), and category are required' });
     return;
   }
 
@@ -76,12 +72,12 @@ router.post('/', requireAdminKey, async (req: Request, res: Response) => {
 
   const result = await db.query(
     `INSERT INTO comparison_pages
-       (slug, product_id, category, status, expert_summary, hero_image_url, published_at, metadata)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       (slug, product_ids, category, status, expert_summary, hero_image_url, published_at, metadata)
+     VALUES ($1, $2::uuid[], $3, $4, $5, $6, $7, $8)
      RETURNING *`,
     [
       slug,
-      product_id,
+      product_ids,
       category,
       pageStatus,
       expert_summary || null,
@@ -91,7 +87,6 @@ router.post('/', requireAdminKey, async (req: Request, res: Response) => {
     ]
   ).catch((err: Error & { code?: string }) => {
     if (err.code === '23505') throw Object.assign(new Error('slug already exists'), { statusCode: 409 });
-    if (err.code === '23503') throw Object.assign(new Error('product_id not found'), { statusCode: 422 });
     throw err;
   });
 
@@ -103,7 +98,7 @@ router.post('/', requireAdminKey, async (req: Request, res: Response) => {
 // PATCH /admin/comparison-pages/:id — update an existing page
 router.patch('/:id', requireAdminKey, async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { slug, product_id, category, status, expert_summary, hero_image_url, metadata } = req.body;
+  const { slug, product_ids, category, status, expert_summary, hero_image_url, metadata } = req.body;
 
   // Fetch current row to get old slug for cache busting
   const current = await db.query(
@@ -120,6 +115,11 @@ router.patch('/:id', requireAdminKey, async (req: Request, res: Response) => {
 
   if (slug !== undefined && !isValidSlug(slug)) {
     res.status(400).json({ error: 'slug must be kebab-case ASCII, max 70 chars' });
+    return;
+  }
+
+  if (product_ids !== undefined && (!Array.isArray(product_ids) || product_ids.length === 0)) {
+    res.status(400).json({ error: 'product_ids must be a non-empty UUID array' });
     return;
   }
 
@@ -152,8 +152,12 @@ router.patch('/:id', requireAdminKey, async (req: Request, res: Response) => {
     }
   };
 
-  addField(slug, 'slug');
-  addField(product_id, 'product_id');
+  if (slug !== undefined) addField(slug, 'slug');
+  // product_ids passed as UUID[] literal
+  if (product_ids !== undefined) {
+    setClauses.push(`product_ids = $${idx++}::uuid[]`);
+    params.push(product_ids);
+  }
   addField(category, 'category');
   addField(status, 'status');
   addField(expert_summary, 'expert_summary');
@@ -170,7 +174,6 @@ router.patch('/:id', requireAdminKey, async (req: Request, res: Response) => {
     params
   ).catch((err: Error & { code?: string }) => {
     if (err.code === '23505') throw Object.assign(new Error('slug already exists'), { statusCode: 409 });
-    if (err.code === '23503') throw Object.assign(new Error('product_id not found'), { statusCode: 422 });
     throw err;
   });
 
