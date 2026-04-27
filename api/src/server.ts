@@ -17,6 +17,7 @@ import analyticsRouter from './routes/analytics';
 import revenueRouter from './routes/revenue';
 import sitemapCompareRouter from './routes/sitemapCompare';
 import landingRouter from './routes/landing';
+import clicksRouter from './routes/clicks';
 import { db } from './config';
 
 export function createApp() {
@@ -88,6 +89,10 @@ export function createApp() {
   // Admin editorial CRUD (ADMIN_API_KEY auth, not rate-limited)
   app.use('/admin/comparison-pages', adminCompareRouter);
 
+  // Outbound click tracking (BUY-4869): /api/click redirect + /admin/clicks analytics
+  app.use('/api', clicksRouter);
+  app.use('/admin', clicksRouter);
+
   // Affiliate redirect (no /v1 prefix — short URLs)
   app.use('/r', redirectRouter);
 
@@ -121,6 +126,7 @@ export function createApp() {
 
   // GEO / AI-crawler discoverability
   app.get('/robots.txt', (_req, res) => {
+    res.set('Content-Signal', 'ai-train=no, search=yes, ai-input=yes');
     res.type('text/plain').send(
       [
         'User-agent: *',

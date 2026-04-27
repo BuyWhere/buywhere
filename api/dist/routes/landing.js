@@ -7,6 +7,68 @@ function baseUrl(req) {
     const host = req.headers['x-forwarded-host'] || req.get('host') || 'buywhere.ai';
     return `${proto}://${host}`;
 }
+// Shared Link headers for agent discoverability
+function setLinkHeaders(res) {
+    res.set('Link', [
+        '</.well-known/api-catalog>; rel="api-catalog"',
+        '</.well-known/mcp.json>; rel="mcp-server-manifest"',
+        '</openapi.json>; rel="describedby"',
+    ].join(', '));
+}
+function homepageMarkdown(base, locale) {
+    const isSG = locale === 'en_SG';
+    const regionLabel = isSG ? 'Singapore' : 'United States';
+    const regionMerchants = isSG
+        ? 'Lazada, Shopee, Best Denki, and more'
+        : 'Amazon, Best Buy, Walmart, and more';
+    return `# BuyWhere — AI-Native Product Catalog & Price Comparison
+
+**Region:** ${regionLabel} | **Currency:** ${isSG ? 'SGD' : 'USD'}
+
+## What is BuyWhere?
+
+BuyWhere is a structured product catalog and price comparison API for AI agents. Real-time pricing and availability from ${regionMerchants}.
+
+## Quick Start
+
+\`\`\`bash
+# Search products
+GET ${base}/v1/products/search?q=laptop&country_code=${isSG ? 'SG' : 'US'}&limit=5
+
+# MCP (Model Context Protocol)
+POST ${base}/mcp
+Content-Type: application/json
+Authorization: Bearer bw_live_xxx
+\`\`\`
+
+## Key Features
+
+- **MCP-native** — Connect any MCP-compatible AI agent in seconds. No SDK required — point at \`/mcp\` and go.
+- **Structured for LLMs** — Schema.org-compatible JSON responses with prices, availability, and merchant data.
+- **${regionLabel} coverage** — 2M+ products across ${regionMerchants}. Updated daily.
+- **Sub-100ms p99** — Hosted in ${isSG ? 'Singapore (ap-southeast-1)' : 'US East'} for low-latency agent workflows.
+
+## Documentation
+
+- MCP guide: ${base}/docs/guides/mcp
+- API reference: ${base}/openapi.json
+- MCP endpoint: ${base}/mcp
+
+## merchants
+
+${regionMerchants}
+
+## Status
+
+- Homepage: ${base}/
+- US edition: ${base}/us/
+- robots.txt: ${base}/robots.txt
+- llms.txt: ${base}/llms.txt
+
+---
+&copy; 2024 BuyWhere · https://buywhere.ai
+`;
+}
 function homepageHtml(base, locale) {
     const isSG = locale === 'en_SG';
     const canonicalPath = isSG ? '/' : '/us/';
@@ -140,13 +202,25 @@ router.get('/', (req, res) => {
     const base = baseUrl(req);
     res.set('Cache-Control', 'public, max-age=3600, s-maxage=86400');
     res.set('X-Robots-Tag', 'ai-index');
-    res.type('text/html').send(homepageHtml(base, 'en_SG'));
+    setLinkHeaders(res);
+    if (req.accepts(['text/markdown', 'text/html']) === 'text/markdown') {
+        res.type('text/markdown; charset=utf-8').send(homepageMarkdown(base, 'en_SG'));
+    }
+    else {
+        res.type('text/html').send(homepageHtml(base, 'en_SG'));
+    }
 });
 // GET /us/ — US landing page with en_US locale
 router.get('/us', (req, res) => {
     const base = baseUrl(req);
     res.set('Cache-Control', 'public, max-age=3600, s-maxage=86400');
     res.set('X-Robots-Tag', 'ai-index');
-    res.type('text/html').send(homepageHtml(base, 'en_US'));
+    setLinkHeaders(res);
+    if (req.accepts(['text/markdown', 'text/html']) === 'text/markdown') {
+        res.type('text/markdown; charset=utf-8').send(homepageMarkdown(base, 'en_US'));
+    }
+    else {
+        res.type('text/html').send(homepageHtml(base, 'en_US'));
+    }
 });
 exports.default = router;

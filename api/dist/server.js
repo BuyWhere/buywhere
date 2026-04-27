@@ -23,6 +23,7 @@ const analytics_1 = __importDefault(require("./routes/analytics"));
 const revenue_1 = __importDefault(require("./routes/revenue"));
 const sitemapCompare_1 = __importDefault(require("./routes/sitemapCompare"));
 const landing_1 = __importDefault(require("./routes/landing"));
+const clicks_1 = __importDefault(require("./routes/clicks"));
 function createApp() {
     const app = (0, express_1.default)();
     app.use((0, cors_1.default)({
@@ -80,6 +81,9 @@ function createApp() {
     app.use('/api/v1/compare', aiCrawlerHeaders, compareSlug_1.default); // alias — FE integration uses /api prefix
     // Admin editorial CRUD (ADMIN_API_KEY auth, not rate-limited)
     app.use('/admin/comparison-pages', adminCompare_1.default);
+    // Outbound click tracking (BUY-4869): /api/click redirect + /admin/clicks analytics
+    app.use('/api', clicks_1.default);
+    app.use('/admin', clicks_1.default);
     // Affiliate redirect (no /v1 prefix — short URLs)
     app.use('/r', redirect_1.default);
     // Public HTML pages with Schema.org JSON-LD (no auth — crawlable by AI agents)
@@ -109,6 +113,7 @@ function createApp() {
     });
     // GEO / AI-crawler discoverability
     app.get('/robots.txt', (_req, res) => {
+        res.set('Content-Signal', 'ai-train=no, search=yes, ai-input=yes');
         res.type('text/plain').send([
             'User-agent: *',
             'Allow: /',

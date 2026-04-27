@@ -161,6 +161,25 @@ CREATE INDEX IF NOT EXISTS idx_query_log_is_agent ON query_log(is_agent);
 CREATE INDEX IF NOT EXISTS idx_query_log_endpoint ON query_log(endpoint);
 -- Composite index for daily aggregation queries
 CREATE INDEX IF NOT EXISTS idx_query_log_daily ON query_log(created_at, is_agent);
+
+-- Outbound click tracking (BUY-4869): user-facing /api/click redirect logs
+-- Distinct from affiliate_clicks (affiliate programme tracking via /r/:slug/:productId)
+CREATE TABLE IF NOT EXISTS clicks (
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id      TEXT,
+  merchant_id     TEXT,
+  user_id         TEXT,           -- null when unauthenticated
+  api_key         TEXT,           -- from Authorization header if present
+  referrer        TEXT,
+  destination_url TEXT        NOT NULL,
+  ip_hash         TEXT,           -- SHA-256 of client IP, never raw
+  source          TEXT        DEFAULT 'click_endpoint',
+  clicked_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_clicks_product    ON clicks(product_id);
+CREATE INDEX IF NOT EXISTS idx_clicks_merchant   ON clicks(merchant_id);
+CREATE INDEX IF NOT EXISTS idx_clicks_clicked_at ON clicks(clicked_at);
 `;
 async function migrate() {
     console.log('Running migrations...');
