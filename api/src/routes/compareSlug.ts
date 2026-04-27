@@ -23,13 +23,13 @@ function buildStructuredData(page: Record<string, unknown>, prices: Record<strin
     offers: prices.length > 0 ? {
       '@type': 'AggregateOffer',
       priceCurrency: 'SGD',
-      lowPrice: prices.length ? (prices[0] as { price_sgd: string }).price_sgd : undefined,
-      highPrice: prices.length ? (prices[prices.length - 1] as { price_sgd: string }).price_sgd : undefined,
+      lowPrice: prices.length ? (prices[0] as { price: string }).price : undefined,
+      highPrice: prices.length ? (prices[prices.length - 1] as { price: string }).price : undefined,
       offerCount: prices.length,
       offers: prices.map((p) => ({
         '@type': 'Offer',
         priceCurrency: 'SGD',
-        price: p.price_sgd,
+        price: p.price,
         availability: p.availability === 'out_of_stock'
           ? 'https://schema.org/OutOfStock'
           : p.availability === 'preorder'
@@ -138,7 +138,7 @@ router.get('/:slug', async (req: Request, res: Response) => {
   }
 
   const page = pageResult.rows[0];
-  const productIds = (page.product_ids || []).map(Number).filter(Boolean);
+  const productIds = (page.product_ids || []).filter((id) => typeof id === 'string' && id.length > 0);
 
   if (productIds.length === 0) {
     res.status(404).json({ error: 'No products linked' });
@@ -148,16 +148,15 @@ router.get('/:slug', async (req: Request, res: Response) => {
   // Fetch all products in this comparison group, ordered by SGD price ascending
   const productsResult = await db.query<{
     id: string; title: string; brand: string | null; image_url: string | null;
-    description: string | null; category_path: string[] | null; specs: unknown;
-    price_sgd: string | null; price: string | null; currency: string | null;
-    url: string; source: string; is_available: boolean | null; updated_at: string;
-    barcode: string | null;
+    description: string | null; category_path: string[] | null;
+    price: string | null; currency: string | null;
+    url: string; source: string; is_active: boolean | null; updated_at: string;
   }>(
-    `SELECT id, title, brand, image_url, description, category_path, specs,
-            price_sgd, price, currency, url, source, is_available, updated_at, barcode
+    `SELECT id, title, brand, image_url, description, category_path,
+            price, currency, url, source, is_active, updated_at
      FROM products
-     WHERE id = ANY($1::bigint[]) AND url IS NOT NULL
-     ORDER BY COALESCE(price_sgd, price)::numeric ASC NULLS LAST`,
+     WHERE id = ANY($1::uuid[]) AND url IS NOT NULL
+     ORDER BY price::numeric ASC NULLS LAST`,
     [productIds]
   ).catch(() => null);
 
@@ -170,10 +169,10 @@ router.get('/:slug', async (req: Request, res: Response) => {
 
   // Build retailers array matching Frame's RetailerPrice type
   const retailers = rows.map((p, i) => {
-    const priceNum = p.price_sgd ? parseFloat(p.price_sgd) : (p.price ? parseFloat(p.price) : null);
-    const lowestPriceNum = rows[0] ? (rows[0].price_sgd ? parseFloat(rows[0].price_sgd) : (rows[0].price ? parseFloat(rows[0].price) : null)) : null;
+    const priceNum = p.price ? parseFloat(p.price) : null;
+    const lowestPriceNum = rows[0]?.price ? parseFloat(rows[0].price) : null;
     const meta = retailerMeta(p.source);
-    const avail: 'in_stock' | 'out_of_stock' = (p.is_available === false) ? 'out_of_stock' : 'in_stock';
+    const avail: 'in_stock' | 'out_of_stock' = (p.is_active === false) ? 'out_of_stock' : 'in_stock';
     return {
       retailer_id: p.source,
       retailer_name: meta.name,
@@ -199,12 +198,7 @@ router.get('/:slug', async (req: Request, res: Response) => {
     ? (meta!.faq as Array<{ q: string; a: string }>).map((f) => ({ question: f.q, answer: f.a }))
     : [];
 
-  const specsRaw = (canonical?.specs ?? null) as Record<string, unknown> | null;
-  const specs = specsRaw && Array.isArray(specsRaw)
-    ? specsRaw
-    : specsRaw && typeof specsRaw === 'object'
-      ? Object.entries(specsRaw).map(([label, value]) => ({ label, value: String(value) }))
-      : [];
+  const specs: unknown[] = [];
 
   const payload = {
     slug: page.slug,
@@ -215,7 +209,7 @@ router.get('/:slug', async (req: Request, res: Response) => {
       id: String(canonical?.id ?? productIds[0]),
       title: canonical?.title ?? slug,
       brand: canonical?.brand ?? null,
-      gtin: canonical?.barcode ?? null,
+      gtin: null,
       description: canonical?.description ?? null,
       image_url: page.hero_image_url || canonical?.image_url || null,
       category_path: canonical?.category_path ?? [],
@@ -240,7 +234,7 @@ router.get('/:slug', async (req: Request, res: Response) => {
     ],
     structured_data: buildStructuredData(
       { ...page, title: canonical?.title, brand: canonical?.brand, image_url: page.hero_image_url || canonical?.image_url } as Record<string, unknown>,
-      retailers.map((r) => ({ price_sgd: r.price, availability: r.availability, url: r.url, retailer_name: r.retailer_name, retailer_domain: r.retailer_domain })) as Record<string, unknown>[],
+      retailers.map((r) => ({ price: r.price, availability: r.availability, url: r.url, retailer_name: r.retailer_name, retailer_domain: r.retailer_domain })) as Record<string, unknown>[],
       base
     ),
     seo: {

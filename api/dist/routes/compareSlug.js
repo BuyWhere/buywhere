@@ -21,13 +21,13 @@ function buildStructuredData(page, prices, base) {
         offers: prices.length > 0 ? {
             '@type': 'AggregateOffer',
             priceCurrency: 'SGD',
-            lowPrice: prices.length ? prices[0].price_sgd : undefined,
-            highPrice: prices.length ? prices[prices.length - 1].price_sgd : undefined,
+            lowPrice: prices.length ? prices[0].price : undefined,
+            highPrice: prices.length ? prices[prices.length - 1].price : undefined,
             offerCount: prices.length,
             offers: prices.map((p) => ({
                 '@type': 'Offer',
                 priceCurrency: 'SGD',
-                price: p.price_sgd,
+                price: p.price,
                 availability: p.availability === 'out_of_stock'
                     ? 'https://schema.org/OutOfStock'
                     : p.availability === 'preorder'
@@ -128,17 +128,17 @@ router.get('/:slug', async (req, res) => {
         return;
     }
     const page = pageResult.rows[0];
-    const productIds = (page.product_ids || []).map(Number).filter(Boolean);
+    const productIds = (page.product_ids || []).filter((id) => typeof id === 'string' && id.length > 0);
     if (productIds.length === 0) {
         res.status(404).json({ error: 'No products linked' });
         return;
     }
     // Fetch all products in this comparison group, ordered by SGD price ascending
-    const productsResult = await config_1.db.query(`SELECT id, title, brand, image_url, description, category_path, specs,
-            price_sgd, price, currency, url, source, is_available, updated_at, barcode
+    const productsResult = await config_1.db.query(`SELECT id, title, brand, image_url, description, category_path,
+            price, currency, url, source, is_active, updated_at
      FROM products
-     WHERE id = ANY($1::bigint[]) AND url IS NOT NULL
-     ORDER BY COALESCE(price_sgd, price)::numeric ASC NULLS LAST`, [productIds]).catch(() => null);
+     WHERE id = ANY($1::uuid[]) AND url IS NOT NULL
+     ORDER BY price::numeric ASC NULLS LAST`, [productIds]).catch(() => null);
     const rows = productsResult?.rows ?? [];
     const canonical = rows[0]; // used for product card (first/cheapest row)
     const proto = (req.headers['x-forwarded-proto'] || req.protocol).split(',')[0].trim();
@@ -146,10 +146,10 @@ router.get('/:slug', async (req, res) => {
     const base = `${proto}://${host}`;
     // Build retailers array matching Frame's RetailerPrice type
     const retailers = rows.map((p, i) => {
-        const priceNum = p.price_sgd ? parseFloat(p.price_sgd) : (p.price ? parseFloat(p.price) : null);
-        const lowestPriceNum = rows[0] ? (rows[0].price_sgd ? parseFloat(rows[0].price_sgd) : (rows[0].price ? parseFloat(rows[0].price) : null)) : null;
+        const priceNum = p.price ? parseFloat(p.price) : null;
+        const lowestPriceNum = rows[0]?.price ? parseFloat(rows[0].price) : null;
         const meta = retailerMeta(p.source);
-        const avail = (p.is_available === false) ? 'out_of_stock' : 'in_stock';
+        const avail = (p.is_active === false) ? 'out_of_stock' : 'in_stock';
         return {
             retailer_id: p.source,
             retailer_name: meta.name,
@@ -172,12 +172,7 @@ router.get('/:slug', async (req, res) => {
     const faq = Array.isArray(meta?.faq)
         ? meta.faq.map((f) => ({ question: f.q, answer: f.a }))
         : [];
-    const specsRaw = (canonical?.specs ?? null);
-    const specs = specsRaw && Array.isArray(specsRaw)
-        ? specsRaw
-        : specsRaw && typeof specsRaw === 'object'
-            ? Object.entries(specsRaw).map(([label, value]) => ({ label, value: String(value) }))
-            : [];
+    const specs = [];
     const payload = {
         slug: page.slug,
         product_id: String(canonical?.id ?? productIds[0]),
@@ -187,7 +182,7 @@ router.get('/:slug', async (req, res) => {
             id: String(canonical?.id ?? productIds[0]),
             title: canonical?.title ?? slug,
             brand: canonical?.brand ?? null,
-            gtin: canonical?.barcode ?? null,
+            gtin: null,
             description: canonical?.description ?? null,
             image_url: page.hero_image_url || canonical?.image_url || null,
             category_path: canonical?.category_path ?? [],
@@ -210,7 +205,7 @@ router.get('/:slug', async (req, res) => {
             { name: page.category.charAt(0).toUpperCase() + page.category.slice(1), url: `${base}/compare?category=${page.category}` },
             { name: canonical?.title ?? slug, url: `${base}/compare/${slug}` },
         ],
-        structured_data: buildStructuredData({ ...page, title: canonical?.title, brand: canonical?.brand, image_url: page.hero_image_url || canonical?.image_url }, retailers.map((r) => ({ price_sgd: r.price, availability: r.availability, url: r.url, retailer_name: r.retailer_name, retailer_domain: r.retailer_domain })), base),
+        structured_data: buildStructuredData({ ...page, title: canonical?.title, brand: canonical?.brand, image_url: page.hero_image_url || canonical?.image_url }, retailers.map((r) => ({ price: r.price, availability: r.availability, url: r.url, retailer_name: r.retailer_name, retailer_domain: r.retailer_domain })), base),
         seo: {
             title: `Compare ${canonical?.brand ? `${canonical.brand} ` : ''}${canonical?.title ?? slug} prices across ${retailers.length} Singapore retailers — BuyWhere`,
             description: `Find the best price for ${canonical?.title ?? slug} in Singapore. Compare live prices${retailers.length > 0 ? ` from ${retailers.slice(0, 3).map((r) => r.retailer_name).join(', ')}` : ''}${lowestPriceNum ? `. From ${formatPrice(lowestPriceNum)}` : ''}.`.slice(0, 155),
