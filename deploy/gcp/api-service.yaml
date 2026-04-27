@@ -2,7 +2,7 @@ apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
   name: buywhere-api
-  namespace: default
+  namespace: gaia-calendar-488606
   annotations:
     run.googleapis.com/ingress: all
     run.googleapis.com/launch-stage: GA
@@ -26,8 +26,6 @@ spec:
           ports:
             - containerPort: 3000
           env:
-            - name: PORT
-              value: "3000"
             - name: API_BASE_URL
               value: "https://api.buywhere.ai"
             - name: PG_POOL_MAX
@@ -45,6 +43,16 @@ spec:
                   key: latest
             - name: REDIS_PORT
               value: "6379"
+            - name: ADMIN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: buywhere-admin-api-key
+                  key: latest
+            - name: POSTHOG_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: buywhere-posthog-api-key
+                  key: latest
           resources:
             limits:
               cpu: "1"
