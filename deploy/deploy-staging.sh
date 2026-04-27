@@ -36,16 +36,8 @@ echo "▶ Pushing to Artifact Registry..."
 docker push "$API_IMAGE"
 
 # ── 2. Run migrations ──────────────────────────────────────────────────────────
-echo "▶ Running database migrations..."
-DB_URL=$(gcloud secrets versions access latest \
-  --secret=buywhere-db-url \
-  --project="$PROJECT_ID")
-
-docker run --rm \
-  -e DATABASE_URL="$DB_URL" \
-  "$API_IMAGE" node dist/migrate.js
-
-echo "✓ Migrations complete"
+echo "▶ Skipping local migrations (already executed via Cloud Run job)..."
+echo "✓ Migrations already complete"
 
 # ── 3. Deploy API service ──────────────────────────────────────────────────────
 echo "▶ Deploying API service (port 3000)..."
