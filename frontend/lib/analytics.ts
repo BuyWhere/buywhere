@@ -39,3 +39,13 @@ export function trackCompareSort(slug: string, sortOption: string) {
   if (typeof window === 'undefined') return;
   posthog.capture('compare_sort', { slug, sort_option: sortOption });
 }
+
+export function trackPageView(page: string) {
+  if (typeof window === 'undefined') return;
+  posthog.capture('page_view', { page });
+}
+
+export function trackCTA(ctaName: string) {
+  if (typeof window === 'undefined') return;
+  posthog.capture('cta_click', { cta_name: ctaName });
+}
