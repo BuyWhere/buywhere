@@ -1,0 +1,124 @@
+name: Inject PostHog Key to Production VM
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inject-posthog-vm:
+    name: Inject POSTHOG_PROJECT_KEY to Production VM
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PRODUCTION_DEPLOY_SSH_KEY }}
+
+      - name: Trust production host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}" -H "${{ secrets.PRODUCTION_DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Detect service management and inject key
+        env:
+          DEPLOY_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
+          DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+          POSTHOG_PROJECT_KEY: ${{ secrets.POSTHOG_API_KEY_PRODUCTION }}
+        run: |
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" << 'EOF'
+            set -euo pipefail
+
+            echo "=== Detecting FastAPI service management ==="
+
+            POSTHOG_KEY="$POSTHOG_PROJECT_KEY"
+
+            # Check for systemd service
+            if systemctl list-unit-files | grep -q 'buywhere-api\|fastapi\|uvicorn'; then
+              echo "Detected: systemd-managed service"
+              SERVICE_NAME=$(systemctl list-units --type=service --all | grep -i 'buywhere-api\|fastapi' | awk '{print $1}' | head -1)
+              if [ -z "$SERVICE_NAME" ]; then
+                SERVICE_NAME="buywhere-api"
+              fi
+              echo "Service name: $SERVICE_NAME"
+
+              # Try to find and update environment file
+              ENV_FILE=""
+              for ef in /etc/default/buywhere-api /etc/environment /etc/systemd/system/${SERVICE_NAME}.d/override.conf; do
+                if [ -f "$ef" ] || [ -d "$(dirname $ef)" ]; then
+                  ENV_FILE="$ef"
+                  break
+                fi
+              done
+
+              if [ -n "$ENV_FILE" ]; then
+                echo "Adding POSTHOG_PROJECT_KEY to $ENV_FILE"
+                if ! grep -q "POSTHOG_PROJECT_KEY=" "$ENV_FILE" 2>/dev/null; then
+                  echo "POSTHOG_PROJECT_KEY=$POSTHOG_KEY" >> "$ENV_FILE"
+                else
+                  sed -i "s|POSTHOG_PROJECT_KEY=.*|POSTHOG_PROJECT_KEY=$POSTHOG_KEY|" "$ENV_FILE"
+                fi
+              fi
+
+              # Also set in current session for immediate effect
+              export POSTHOG_PROJECT_KEY="$POSTHOG_KEY"
+
+              echo "Reloading systemd and restarting service..."
+              systemctl daemon-reload 2>/dev/null || true
+              systemctl restart "$SERVICE_NAME" 2>/dev/null || true
+              echo "Done"
+
+            # Check for PM2
+            elif command -v pm2 &>/dev/null && pm2 list 2>/dev/null | grep -q 'buywhere\|api\|fastapi'; then
+              echo "Detected: PM2-managed service"
+              PM2_NAME=$(pm2 list | grep -i 'buywhere\|api\|fastapi' | awk '{print $2}' | head -1)
+              if [ -n "$PM2_NAME" ]; then
+                echo "PM2 process: $PM2_NAME"
+                POSTHOG_PROJECT_KEY="$POSTHOG_KEY" pm2 restart "$PM2_NAME" || true
+                echo "Done"
+              fi
+
+            # Check for Docker/Container
+            elif command -v docker &>/dev/null && docker ps 2>/dev/null | grep -q 'buywhere\|api'; then
+              echo "Detected: Docker-managed service"
+              CONTAINER_ID=$(docker ps | grep -i 'buywhere\|api' | awk '{print $1}' | head -1)
+              if [ -n "$CONTAINER_ID" ]; then
+                echo "Container: $CONTAINER_ID"
+                docker exec "$CONTAINER_ID" env POSTHOG_PROJECT_KEY="$POSTHOG_KEY" sh -c 'echo "POSTHOG_PROJECT_KEY set in container"'
+                docker restart "$CONTAINER_ID"
+                echo "Done"
+              fi
+
+            # Check for running process directly
+            elif pgrep -f "uvicorn\|gunicorn\|fastapi" &>/dev/null; then
+              echo "Detected: Raw process (uvicorn/gunicorn)"
+              # Find the PID
+              PID=$(pgrep -f "uvicorn\|gunicorn" | head -1)
+              if [ -n "$PID" ]; then
+                echo "Process PID: $PID"
+                # Update /etc/environment as a fallback
+                if ! grep -q "POSTHOG_PROJECT_KEY=" /etc/environment 2>/dev/null; then
+                  echo "POSTHOG_PROJECT_KEY=$POSTHOG_KEY" >> /etc/environment
+                fi
+                export POSTHOG_PROJECT_KEY="$POSTHOG_KEY"
+                # Kill and restart - this is risky, better to find the startup mechanism
+                echo "Warning: Raw process detected. Please configure proper service management."
+              fi
+            else
+              echo "Could not detect service management method"
+              # Last resort: add to /etc/environment
+              if ! grep -q "POSTHOG_PROJECT_KEY=" /etc/environment 2>/dev/null; then
+                echo "POSTHOG_PROJECT_KEY=$POSTHOG_KEY" >> /etc/environment
+                echo "Added to /etc/environment"
+              fi
+              echo "Please manually restart the service"
+            fi
+
+            echo "=== PostHog key injection complete ==="
+          EOF
