@@ -1,0 +1,84 @@
+name: Deploy MCP to Cloud Run (production)
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to deploy (default: git SHA)'
+        required: false
+
+env:
+  GCP_PROJECT_ID: gaia-calendar-488606
+  GCP_REGION: asia-southeast1
+  ARTIFACT_REGISTRY: asia-southeast1-docker.pkg.dev
+  IMAGE_REPO: buywhere
+  SERVICE_NAME: buywhere-mcp
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }} --quiet
+
+      - name: Set image tag
+        id: tag
+        run: |
+          TAG="${{ github.event.inputs.image_tag || github.sha }}"
+          echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          FULL_IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.IMAGE_REPO }}/api:${TAG}"
+          echo "full_image=${FULL_IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push MCP image
+        env:
+          FULL_IMAGE: ${{ steps.tag.outputs.full_image }}
+        run: |
+          docker build -t "$FULL_IMAGE" ./api
+          docker push "$FULL_IMAGE"
+
+      - name: Deploy MCP service to Cloud Run
+        env:
+          IMAGE_TAG: ${{ steps.tag.outputs.image_tag }}
+        run: |
+          sed \
+            -e "s|PROJECT_ID|${{ env.GCP_PROJECT_ID }}|g" \
+            -e "s|IMAGE_TAG|${IMAGE_TAG}|g" \
+            deploy/gcp/mcp-service.yaml | \
+          gcloud run services replace - \
+            --region="${{ env.GCP_REGION }}" \
+            --project="${{ env.GCP_PROJECT_ID }}"
+
+      - name: Allow unauthenticated access
+        run: |
+          gcloud run services add-iam-policy-binding ${{ env.SERVICE_NAME }} \
+            --region="${{ env.GCP_REGION }}" \
+            --project="${{ env.GCP_PROJECT_ID }}" \
+            --member="allUsers" \
+            --role="roles/run.invoker" \
+            2>/dev/null || true
+
+      - name: Smoke test MCP health
+        run: |
+          sleep 5
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" https://mcp.buywhere.ai/health)
+          echo "GET /health → HTTP ${HTTP}"
+          if [[ "$HTTP" != "200" ]]; then
+            echo "ERROR: MCP health check failed with ${HTTP}"
+            exit 1
+          fi
+          echo "MCP health OK"
