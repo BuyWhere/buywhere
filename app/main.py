@@ -582,6 +582,20 @@ async def mcp_registry_auth():
     )
 
 
+import json as _json
+from pathlib import Path as _Path
+
+GLAMA_JSON_PATH = _Path(__file__).parent.parent / "glama.json"
+
+
+@app.get("/.well-known/glama.json", include_in_schema=False, summary="Glama MCP registry manifest")
+async def glama_json():
+    return JSONResponse(
+        content=_json.loads(GLAMA_JSON_PATH.read_text()),
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 @app.get("/v1/health", response_model=ComprehensiveHealthReport, tags=["system"], summary="Comprehensive health check with dependency status")
 async def health_check(request: Request):
     from app.database import AsyncSessionLocal
