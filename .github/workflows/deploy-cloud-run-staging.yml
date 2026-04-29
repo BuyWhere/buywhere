@@ -14,7 +14,7 @@ permissions:
   packages: write
 
 env:
-  REGISTRY: ghcr.io
+  REGISTRY: asia-southeast1-docker.pkg.dev/gaia-calendar-488606
   GCP_PROJECT_ID: gaia-calendar-488606
   GCP_REGION: asia-southeast1
   CLOUD_RUN_SERVICE: buywhere-api
@@ -25,42 +25,47 @@ jobs:
     name: Build Docker Image
     runs-on: ubuntu-latest
     outputs:
-      image_tag: ghcr.io/${{ env.LOWER_REPO }}:sha-${{ github.sha }}
+      image_tag: asia-southeast1-docker.pkg.dev/gaia-calendar-488606/buywhere/api:sha-${{ github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set lowercase repository name
-        run: echo "LOWER_REPO=buywhere/buywhere" >> $GITHUB_ENV
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Log in to Artifact Registry
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: asia-southeast1-docker.pkg.dev/gaia-calendar-488606
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
 
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/buywhere/buywhere
+            asia-southeast1-docker.pkg.dev/gaia-calendar-488606/buywhere/api
           tags: |
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push to GHCR
+      - name: Build and push to GCR
         uses: docker/build-push-action@v5
         with:
           context: .
           file: Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ env.LOWER_REPO }}:sha-${{ github.sha }}
+            asia-southeast1-docker.pkg.dev/gaia-calendar-488606/buywhere/api:sha-${{ github.sha }}
             ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -83,8 +88,8 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure Docker auth for GHCR
-        run: gcloud auth configure-docker ghcr.io --quiet
+      - name: Configure Docker auth for GCR
+        run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
 
       - name: Create GCP Secret Manager secret for PostHog
         run: |
