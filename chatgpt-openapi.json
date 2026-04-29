@@ -115,6 +115,98 @@
         }
       }
     },
+    "/v1/products/search": {
+      "get": {
+        "operationId": "searchProductsV1",
+        "summary": "Search products (v1 API)",
+        "description": "Full-text search across 1.5M+ products from Shopee, Lazada, Amazon, Walmart, and 20+ platforms. Supports filtering by category, price range, platform, region, and availability.",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Search query (e.g. 'iphone 15 pro', 'sony headphones')"
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Filter by category"
+          },
+          {
+            "name": "price_min",
+            "in": "query",
+            "schema": { "type": "number" },
+            "description": "Minimum price filter"
+          },
+          {
+            "name": "price_max",
+            "in": "query",
+            "schema": { "type": "number" },
+            "description": "Maximum price filter"
+          },
+          {
+            "name": "platform",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Filter by platform (e.g. shopee_sg, lazada_sg, amazon_us)"
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Filter by country code (e.g. SG, US, MY)"
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["SGD", "USD", "MYR", "THB", "PHP", "EUR", "GBP"] },
+            "description": "Convert prices to this currency"
+          },
+          {
+            "name": "in_stock",
+            "in": "query",
+            "schema": { "type": "boolean" },
+            "description": "Filter to only in-stock products"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 20, "maximum": 100 },
+            "description": "Results per page"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": { "type": "integer", "default": 0 },
+            "description": "Pagination offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total": { "type": "integer" },
+                    "limit": { "type": "integer" },
+                    "offset": { "type": "integer" },
+                    "has_more": { "type": "boolean" },
+                    "items": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Product" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/products/{product_id}": {
       "get": {
         "operationId": "getProduct",
