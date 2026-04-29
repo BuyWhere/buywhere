@@ -1,0 +1,184 @@
+name: Deploy MCP to Cloud Run (Production)
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip smoke tests'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: richmondteo-code/buywhere-catalog-api
+  GCP_PROJECT_ID: buywhere-production
+  GCP_REGION: asia-southeast1
+  CLOUD_RUN_SERVICE: buywhere-mcp
+
+jobs:
+  build:
+    name: Build MCP Docker Image
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ghcr.io/richmondteo-code/buywhere-catalog-api-mcp:${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-mcp
+          tags: |
+            type=sha,prefix=mcp-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push MCP image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.mcp
+          push: true
+          tags: |
+            ghcr.io/richmondteo-code/buywhere-catalog-api-mcp:${{ github.sha }}
+            ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-cloud-run:
+    name: Deploy MCP to Cloud Run
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PROD || secrets.GCP_SA_KEY }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Force target GCP project
+        run: gcloud config set project ${{ env.GCP_PROJECT_ID }}
+
+      - name: Configure Docker auth for Artifact Registry
+        run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
+
+      - name: Pull Docker image
+        run: docker pull ${{ needs.build.outputs.image_tag }}
+
+      - name: Retag for GCR
+        run: |
+          GCR_IMAGE="asia-southeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/buywhere/${{ env.CLOUD_RUN_SERVICE }}:sha-${{ github.sha }}"
+          docker tag ${{ needs.build.outputs.image_tag }} $GCR_IMAGE
+          echo "GCR_IMAGE=$GCR_IMAGE" >> $GITHUB_ENV
+
+      - name: Push to Artifact Registry
+        run: docker push $GCR_IMAGE
+
+      - name: Deploy MCP to Cloud Run
+        run: |
+          echo "Deploying MCP to Cloud Run..."
+          SERVICE_URL=$(gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --region ${{ env.GCP_REGION }} \
+            --image $GCR_IMAGE \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars "BUYWHERE_API_URL=${{ secrets.BUYWHERE_API_URL_PROD }}" \
+            --set-env-vars "BUYWHERE_API_KEY=${{ secrets.BUYWHERE_API_KEY_PROD }}" \
+            --set-env-vars "BUYWHERE_MCP_HTTP_PORT=8080" \
+            --set-env-vars "BUYWHERE_REDIS_URL=${{ secrets.REDIS_PRODUCTION_URL }}" \
+            --set-env-vars "LOG_LEVEL=INFO" \
+            --memory 512Mi \
+            --cpu 1 \
+            --min-instances 1 \
+            --max-instances 10 \
+            --concurrency 80 \
+            --timeout 60s \
+            --label "commit-sha=${{ github.sha }}" \
+            --output json | jq -r '.status.url')
+
+          echo "MCP Service URL: $SERVICE_URL"
+          echo "url=$SERVICE_URL" >> $GITHUB_OUTPUT
+
+      - name: Wait for service to stabilize
+        run: |
+          echo "Waiting 20 seconds for Cloud Run service to initialize..."
+          sleep 20
+
+      - name: Verify Cloud Run deployment
+        run: |
+          gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --region ${{ env.GCP_REGION }} \
+            --format "table(status.conditions.name,status.conditions.status,status.conditions.reason)"
+
+  mcp-healthcheck:
+    name: MCP Health Check
+    needs: deploy-cloud-run
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_tests != 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: MCP Health Check
+        env:
+          MCP_BASE_URL: ${{ needs.deploy-cloud-run.outputs.url }}
+        run: |
+          echo "Checking MCP health at $MCP_BASE_URL..."
+          
+          for i in 1 2 3 4 5; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$MCP_BASE_URL/health" --max-time 30 --retry 3 --retry-delay 5)
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "MCP health check passed (attempt $i)"
+              exit 0
+            fi
+            echo "MCP health check failed (attempt $i/$MAX_RETRIES). HTTP code: $HTTP_CODE"
+            sleep 10
+          done
+          
+          echo "MCP health check failed after 5 attempts."
+          curl -v "$MCP_BASE_URL/health" --max-time 30
+          exit 1
+
+  summary:
+    name: Deployment Summary
+    needs: [deploy-cloud-run, mcp-healthcheck]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate deployment summary
+        run: |
+          echo "## MCP Cloud Run Production Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Cloud Run Deployment | ${{ needs.deploy-cloud-run.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| MCP Health Check | ${{ needs.mcp-healthcheck.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "MCP Service URL: ${{ needs.deploy-cloud-run.outputs.url }}" >> $GITHUB_STEP_SUMMARY
