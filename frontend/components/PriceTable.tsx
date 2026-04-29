@@ -11,6 +11,8 @@ interface PriceTableProps {
   lastUpdated?: string;
   highestPrice?: number;
   averagePrice?: number;
+  slug?: string;
+  productId?: string;
 }
 
 interface RankingBadges {
