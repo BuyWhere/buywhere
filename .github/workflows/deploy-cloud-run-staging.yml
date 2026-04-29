@@ -25,7 +25,7 @@ jobs:
     name: Build Docker Image
     runs-on: ubuntu-latest
     outputs:
-      image_tag: asia-southeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/buywhere/api:sha-${{ github.sha }}
+      image_tag: ghcr.io/${{ env.LOWER_REPO }}:sha-${{ github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,7 +53,7 @@ jobs:
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push to GHCR and GAR
+      - name: Build and push to GHCR
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -61,25 +61,10 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ env.LOWER_REPO }}:sha-${{ github.sha }}
-            asia-southeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/buywhere/api:sha-${{ github.sha }}
             ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Configure Docker auth for Artifact Registry
-        run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
-
-      - name: Configure Docker auth for GHCR
-        run: gcloud auth configure-docker ghcr.io --quiet
 
   deploy-cloud-run:
     name: Deploy to Cloud Run Staging
@@ -101,6 +86,23 @@ jobs:
       - name: Configure Docker auth for Artifact Registry
         run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull image from GHCR and push to GAR
+        run: |
+          echo "Pulling image from GHCR..."
+          docker pull ${{ needs.build.outputs.image_tag }}
+          echo "Tagging for GAR..."
+          docker tag ${{ needs.build.outputs.image_tag }} \
+            asia-southeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/buywhere/api:sha-${{ github.sha }}
+          echo "Pushing to GAR..."
+          docker push asia-southeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/buywhere/api:sha-${{ github.sha }}
+
       - name: Create GCP Secret Manager secret for PostHog
         run: |
           echo "Creating/updating POSTHOG_API_KEY secret in GCP Secret Manager..."
@@ -118,7 +120,7 @@ jobs:
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
             --project ${{ env.GCP_PROJECT_ID }} \
             --region ${{ env.GCP_REGION }} \
-            --image ${{ needs.build.outputs.image_tag }} \
+            --image asia-southeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/buywhere/api:sha-${{ github.sha }} \
             --platform managed \
             --allow-unauthenticated \
             --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
@@ -133,7 +135,7 @@ jobs:
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
             --project ${{ env.GCP_PROJECT_ID }} \
             --region ${{ env.GCP_REGION }} \
-            --image ${{ needs.build.outputs.image_tag }} \
+            --image asia-southeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/buywhere/api:sha-${{ github.sha }} \
             --platform managed \
             --allow-unauthenticated \
             --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
