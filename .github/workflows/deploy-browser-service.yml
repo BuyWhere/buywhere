@@ -49,7 +49,8 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" bash -c '
             set -euo pipefail
-            cd /srv/buywhere-site
+            SKIP_BUILD="$1"
+            cd /home/paperclip/buywhere-api
             
             echo "=== Deploying browser service ==="
             echo "Skip build: $SKIP_BUILD"
@@ -75,7 +76,7 @@ jobs:
             fi
             
             echo "=== Browser service deployment complete ==="
-          '
+          ' _ "$SKIP_BUILD"
 
       - name: Verify deployment
         env:
@@ -84,12 +85,12 @@ jobs:
           DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
         run: |
           sleep 5
-          HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" "http://$DEPLOY_HOST:8090/health" --max-time 10 2>/dev/null || echo "000")
-          if [[ "$HTTP_CODE" == "200" ]]; then
-            echo "Browser service health check passed (HTTP $HTTP_CODE)"
-          else
-            echo "WARNING: Health check returned HTTP $HTTP_CODE"
-          fi
+          ssh -o StrictHostKeyChecking=no -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" bash -c '
+            set -euo pipefail
+            echo "=== Verifying browser service ==="
+            docker-compose -f /home/paperclip/buywhere-api/docker-compose.prod.yml ps browser
+            curl -fsS --max-time 10 http://127.0.0.1:8090/health
+          '
 
   notify:
     name: Notify Deploy Result

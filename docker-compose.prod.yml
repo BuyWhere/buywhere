@@ -28,6 +28,10 @@ services:
       USD_DEFAULT: ${USD_DEFAULT:-true}
       US_REGION: ${US_REGION:-us}
       AFFILIATE_TAG: ${AFFILIATE_TAG:-buywhere-20}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      STRIPE_PRO_PRICE_ID: ${STRIPE_PRO_PRICE_ID}
+      STRIPE_ENTERPRISE_PRICE_ID: ${STRIPE_ENTERPRISE_PRICE_ID}
     volumes:
       - api_pm2_data:/app/data
       - api_pm2_logs:/app/logs
@@ -485,11 +489,12 @@ services:
     image: buywhere-browser:latest
     restart: unless-stopped
     ports:
-      - "8090:8090"
+      - "8090:8080"
     environment:
       BUYWHERE_API_URL: ${BUYWHERE_API_URL:-http://api:8000}
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN}
     healthcheck:
-      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8090/health\")'"]
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8080/health\")'"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -552,3 +557,7 @@ volumes:
   api_pm2_logs:
   alertmanager_data:
   fluent_bit_data:
+
+networks:
+  monitoring:
+    driver: bridge
