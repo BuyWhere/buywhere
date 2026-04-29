@@ -1,0 +1,258 @@
+name: Deploy Nginx Config
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'nginx.conf'
+      - 'ops/nginx/**'
+      - '.github/workflows/nginx-deploy.yml'
+  workflow_dispatch:
+    inputs:
+      config_source:
+        description: 'Config source (api|site)'
+        required: false
+        default: 'api'
+        type: choice
+        options:
+          - api
+          - site
+
+concurrency:
+  group: nginx-config-deploy
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DEPLOY_ROOT: /srv/buywhere-site
+  NGINX_CONFIG_NAME: api.buywhere.ai
+
+jobs:
+  validate-nginx-config:
+    name: Validate Nginx Config
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get nginx config
+        id: config
+        run: |
+          if [[ "${{ github.event.inputs.config_source || 'api' }}" == "api" ]]; then
+            echo "source=nginx.conf" >> $GITHUB_OUTPUT
+            echo "path=nginx.conf" >> $GITHUB_OUTPUT
+          else
+            echo "source=ops/nginx/buywhere.ai.conf" >> $GITHUB_OUTPUT
+            echo "path=ops/nginx/buywhere.ai.conf" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Display config location
+        run: |
+          echo "Using config: ${{ steps.config.outputs.path }}"
+          cat ${{ steps.config.outputs.path }}
+
+      - name: Install nginx and validate
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nginx > /dev/null 2>&1
+          echo "Creating test SSL certificates for validation..."
+          sudo mkdir -p /tmp/nginx-test-certs
+          sudo openssl req -x509 -nodes -newkey rsa:2048 -keyout /tmp/nginx-test-certs/key.pem -out /tmp/nginx-test-certs/cert.pem -days 1 -subj "/CN=test" 2>/dev/null
+          sed "s|/etc/letsencrypt/live/api.buywhere.ai/fullchain.pem|/tmp/nginx-test-certs/cert.pem|g; s|/etc/letsencrypt/live/api.buywhere.ai/privkey.pem|/tmp/nginx-test-certs/key.pem|g; s|/etc/letsencrypt/options-ssl-nginx.conf|/dev/null|g; s|/etc/letsencrypt/ssl-dhparams.pem|/dev/null|g" "${{ steps.config.outputs.path }}" > /tmp/nginx-test-valid.conf
+          { echo 'events {} http {'; cat /tmp/nginx-test-valid.conf; echo '}'; } > /tmp/nginx-test-valid-wrapped.conf
+          sudo nginx -t -c /tmp/nginx-test-valid-wrapped.conf
+
+  deploy-nginx-config:
+    name: Deploy Nginx Config
+    runs-on: ubuntu-latest
+    needs: validate-nginx-config
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine config path
+        id: config
+        run: |
+          if [[ "${{ github.event.inputs.config_source || 'api' }}" == "api" ]]; then
+            echo "path=nginx.conf" >> $GITHUB_OUTPUT
+          else
+            echo "path=ops/nginx/buywhere.ai.conf" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PRODUCTION_DEPLOY_SSH_KEY }}
+
+      - name: Trust production host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}" -H "${{ secrets.PRODUCTION_DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Upload config to server
+        env:
+          DEPLOY_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
+          DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+        run: |
+          CONFIG_PATH="${{ steps.config.outputs.path }}"
+          ssh -o StrictHostKeyChecking=no -o BatchMode=yes -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "cat > /tmp/nginx-${{ env.NGINX_CONFIG_NAME }}-${{ github.sha }}.conf" < "$CONFIG_PATH"
+
+      - name: Deploy config on server
+        env:
+          DEPLOY_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
+          DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+          NGINX_CONFIG_NAME: ${{ env.NGINX_CONFIG_NAME }}
+          DEPLOY_SHA: ${{ github.sha }}
+        run: |
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" bash -c '
+            set -euo pipefail
+            NGINX_CONFIG_NAME="$1"
+            DEPLOY_SHA="$2"
+            NGINX_ATOMIC_TARGET="/etc/nginx/sites-enabled/${NGINX_CONFIG_NAME}.conf"
+            NGINX_TMP_TARGET="/tmp/nginx-${NGINX_CONFIG_NAME}-${DEPLOY_SHA}.conf"
+            PREVIOUS_CONFIG="/srv/buywhere-site/.nginx_previous_config"
+
+            echo "=== Deploying Nginx Config ==="
+            echo "Source: $NGINX_TMP_TARGET"
+            echo "Target: $NGINX_ATOMIC_TARGET"
+
+            if [[ ! -f "$NGINX_TMP_TARGET" ]]; then
+              echo "ERROR: Config not found at $NGINX_TMP_TARGET"
+              exit 1
+            fi
+
+            echo "Validating nginx config..."
+            if ! nginx -t -c "$NGINX_TMP_TARGET" 2>&1; then
+              echo "ERROR: nginx config test failed"
+              rm -f "$NGINX_TMP_TARGET"
+              exit 1
+            fi
+            echo "nginx config test passed"
+
+            if [[ -f "$NGINX_ATOMIC_TARGET" ]]; then
+              cp "$NGINX_ATOMIC_TARGET" "$PREVIOUS_CONFIG"
+              echo "Backed up current config to $PREVIOUS_CONFIG"
+            fi
+
+            echo "Atomically swapping nginx config..."
+            mv -f "$NGINX_TMP_TARGET" "$NGINX_ATOMIC_TARGET"
+
+            echo "Reloading nginx..."
+            sudo nginx -s reload 2>&1 || { echo "ERROR: nginx reload failed"; exit 1; }
+
+            echo "=== Nginx config deployment complete ==="
+          ' _ "$NGINX_CONFIG_NAME" "$DEPLOY_SHA"
+
+      - name: Verify deployment
+        env:
+          DEPLOY_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
+          DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+        run: |
+          sleep 3
+          HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" "https://buywhere.ai/" --max-time 10 --retry 1 2>/dev/null || echo "000")
+          if [[ "$HTTP_CODE" == "200" || "$HTTP_CODE" == "301" || "$HTTP_CODE" == "302" ]]; then
+            echo "Health check passed (HTTP $HTTP_CODE)"
+          else
+            echo "WARNING: Health check returned HTTP $HTTP_CODE"
+          fi
+
+  rollback:
+    name: Rollback Nginx Config
+    runs-on: ubuntu-latest
+    needs: deploy-nginx-config
+    if: failure()
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PRODUCTION_DEPLOY_SSH_KEY }}
+
+      - name: Trust production host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}" -H "${{ secrets.PRODUCTION_DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Rollback config on server
+        env:
+          DEPLOY_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
+          DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+          NGINX_CONFIG_NAME: ${{ env.NGINX_CONFIG_NAME }}
+        run: |
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" << 'EOF'
+            set -euo pipefail
+
+            NGINX_CONFIG_NAME="${{ env.NGINX_CONFIG_NAME }}"
+            NGINX_ATOMIC_TARGET="/etc/nginx/sites-enabled/${NGINX_CONFIG_NAME}.conf"
+            PREVIOUS_CONFIG="/srv/buywhere-site/.nginx_previous_config"
+
+            echo "=== Rolling back Nginx Config ==="
+
+            if [[ ! -f "$PREVIOUS_CONFIG" ]]; then
+              echo "ERROR: No previous config found at $PREVIOUS_CONFIG"
+              exit 1
+            fi
+
+            echo "Restoring previous config..."
+            cp "$PREVIOUS_CONFIG" "$NGINX_ATOMIC_TARGET"
+
+            echo "Validating nginx config..."
+            if ! nginx -t -c "$NGINX_ATOMIC_TARGET" 2>&1; then
+              echo "ERROR: nginx config test failed on rollback"
+              exit 1
+            fi
+            echo "nginx config test passed"
+
+            echo "Reloading nginx..."
+            nginx -s reload 2>&1 || { echo "ERROR: nginx reload failed"; exit 1; }
+
+            echo "=== Nginx config rollback complete ==="
+          EOF
+
+  notify:
+    name: Notify Deploy Result
+    runs-on: ubuntu-latest
+    needs:
+      - validate-nginx-config
+      - deploy-nginx-config
+    if: always()
+    steps:
+      - name: Send deployment webhook
+        env:
+          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+          DEPLOY_STATUS: ${{ needs.deploy-nginx-config.result == 'success' && 'success' || 'failure' }}
+        run: |
+          if [[ -z "${DEPLOY_WEBHOOK_URL}" ]]; then
+            echo "DEPLOY_WEBHOOK_URL is not configured; skipping notification."
+            exit 0
+          fi
+
+          payload=$(jq -n \
+            --arg status "$DEPLOY_STATUS" \
+            --arg sha "$GITHUB_SHA" \
+            --arg ref "$GITHUB_REF_NAME" \
+            --arg run_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            '{
+              text: ("buywhere-api nginx config deploy " + $status),
+              status: $status,
+              repository: env.GITHUB_REPOSITORY,
+              ref: $ref,
+              sha: $sha,
+              runUrl: $run_url
+            }')
+
+          curl -fsS -X POST "$DEPLOY_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -d "$payload"
