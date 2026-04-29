@@ -14,7 +14,8 @@
       "command": [
         "python",
         "-m",
-        "scrapers.zalora_sg"
+        "scrapers.zalora_sg",
+        "--use-scraperapi"
       ],
       "environment": [
         {
@@ -42,6 +43,10 @@
         {
           "name": "SCRAPER_USER_AGENT",
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:123456789:secret:buywhere/scraper-agents:SCRAPER_USER_AGENT::"
+        },
+        {
+          "name": "SCRAPERAPI_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:123456789:secret:buywhere/scraper-api-key:SCRAPERAPI_KEY::"
         }
       ],
       "logConfiguration": {
