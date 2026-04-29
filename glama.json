@@ -1,0 +1,51 @@
+{
+  "name": "buywhere",
+  "display_name": "BuyWhere",
+  "description": "Agent-native product catalog API. Search 1.5M+ products across Shopee, Lazada, Amazon, Walmart, and 20+ e-commerce platforms. Compare prices, find deals, browse categories.",
+  "icon_url": "https://buywhere.ai/assets/icon.png",
+  "homepage_url": "https://buywhere.ai",
+  "repository_url": "https://github.com/buywhere/buywhere-api",
+  "server": {
+    "transport": "stdio",
+    "command": "python",
+    "args": ["mcp_server.py"],
+    "env": {
+      "BUYWHERE_API_KEY": {
+        "description": "BuyWhere API key",
+        "required": true
+      },
+      "BUYWHERE_API_URL": {
+        "description": "API base URL",
+        "default": "https://api.buywhere.ai"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "search_products",
+      "description": "Full-text search across 1.5M+ products from 20+ e-commerce platforms"
+    },
+    {
+      "name": "get_product",
+      "description": "Get full product details by BuyWhere product ID"
+    },
+    {
+      "name": "compare_prices",
+      "description": "Compare prices for a product across all platforms"
+    },
+    {
+      "name": "get_deals",
+      "description": "Find products with active discounts"
+    },
+    {
+      "name": "browse_categories",
+      "description": "Browse the product category taxonomy tree"
+    },
+    {
+      "name": "get_category_products",
+      "description": "Get products within a specific category"
+    }
+  ],
+  "categories": ["shopping", "e-commerce", "price-comparison"],
+  "regions": ["SG", "US", "MY", "TH", "PH", "VN", "ID"]
+}
