@@ -56,17 +56,9 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push to GCR
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile
-          push: true
-          tags: |
-            asia-southeast1-docker.pkg.dev/gaia-calendar-488606/buywhere/api:sha-${{ github.sha }}
-            ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        run: |
+          docker build -t asia-southeast1-docker.pkg.dev/gaia-calendar-488606/buywhere/api:sha-${{ github.sha }} .
+          docker push asia-southeast1-docker.pkg.dev/gaia-calendar-488606/buywhere/api:sha-${{ github.sha }}
 
   deploy-cloud-run:
     name: Deploy to Cloud Run Staging
