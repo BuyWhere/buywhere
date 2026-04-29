@@ -175,6 +175,14 @@ async def compare_page_by_slug(
     Includes structured data (JSON-LD), retailer prices, SEO metadata, and FAQ.
     5-minute cache (Cache-Control + in-memory).
     """
+    return await _compare_page_by_slug_impl(request, slug, db)
+
+
+async def _compare_page_by_slug_impl(
+    request: Request,
+    slug: str,
+    db: AsyncSession,
+) -> JSONResponse:
     if not _is_valid_slug(slug):
         raise HTTPException(status_code=404, detail="Not found")
 
@@ -305,6 +313,17 @@ async def compare_page_by_slug(
             "X-Robots-Tag": "ai-index",
         },
     )
+
+
+@router.get("/{slug}", summary="Compare page by slug (alias for /pages/{slug})")
+@limiter.limit(rate_limit_from_request)
+async def compare_page_slug_alias(
+    request: Request,
+    slug: str,
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Alias for /pages/{slug} — serves same payload for the FE route /compare/{slug}."""
+    return await _compare_page_by_slug_impl(request, slug, db)
 
 
 @router.get("/{product_id}", response_model=CompareResponse, summary="Compare same product across all sources")
