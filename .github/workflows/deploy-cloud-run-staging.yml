@@ -107,12 +107,22 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
-            --remove-env-vars "DATABASE_URL" \
-            --set-env-vars "ENVIRONMENT=staging" \
-            --set-env-vars "DATABASE_URL=${{ secrets.CLOUD_SQL_STAGING_CONNECTION_STRING }}" \
-            --set-env-vars "REDIS_URL=${{ secrets.REDIS_STAGING_URL }}" \
-            --set-env-vars "API_KEY_SECRET=${{ secrets.API_KEY_SECRET_STAGING }}" \
-            --set-env-vars "SENTRY_DSN=${{ secrets.SENTRY_DSN_STAGING }}" \
+            --remove-env-vars DATABASE_URL \
+            --memory 1Gi \
+            --cpu 2 \
+            --min-instances 1 \
+            --max-instances 10 \
+            --concurrency 80 \
+            --timeout 60s
+
+          gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --region ${{ env.GCP_REGION }} \
+            --image ${{ needs.build.outputs.image_tag }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
+            --set-env-vars "ENVIRONMENT=staging,DATABASE_URL=${{ secrets.CLOUD_SQL_STAGING_CONNECTION_STRING }},REDIS_URL=${{ secrets.REDIS_STAGING_URL }},API_KEY_SECRET=${{ secrets.API_KEY_SECRET_STAGING }},SENTRY_DSN=${{ secrets.SENTRY_DSN_STAGING }}" \
             --set-secrets "POSTHOG_PROJECT_KEY=buywhere-posthog-api-key:latest" \
             --memory 1Gi \
             --cpu 2 \
