@@ -457,22 +457,29 @@ class ZaloraSitemapScraper:
         brand = str(product_raw.get("Brand", "")).strip() or extract_brand_from_slug(entry.slug)
 
         return {
-            "product_id": f"zalora_sg_{product_id}",
-            "name": name,
+            "sku": f"zalora_sg_{product_id}",
+            "source": "zalora_sg",
+            "title": name,
             "price": {
                 "amount": price_amount,
                 "currency": "SGD",
             },
+            "currency": "SGD",
             "url": canonical_url,
             "image_url": entry.image_url,
             "category": category,
-            "category_slug": category.lower().replace(" & ", "_").replace(" ", "_"),
-            "platform": "zalora_sg",
-            "merchant_name": merchant_name,
-            "merchant_id": "zalora",
+            "category_path": [category],
             "brand": brand,
+            "is_active": True,
+            "is_available": in_stock,
             "in_stock": in_stock,
-            "scraped_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "merchant_id": "zalora",
+            "name": merchant_name,
+            "metadata": {
+                "category_slug": category.lower().replace(" & ", "_").replace(" ", "_"),
+                "platform": "zalora_sg",
+                "scraped_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            },
         }
 
     async def _write_product(self, product: dict[str, Any]) -> None:

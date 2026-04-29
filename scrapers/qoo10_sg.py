@@ -194,6 +194,7 @@ class Qoo10SGScraper(BaseScraper):
             if products:
                 return products
 
+        direct_failed = False
         for attempt in range(self.max_retries):
             try:
                 resp = self._scraper.get(url)
@@ -211,10 +212,20 @@ class Qoo10SGScraper(BaseScraper):
                     if attempt < self.max_retries - 1:
                         time.sleep(2 ** attempt)
             except Exception as e:
+                direct_failed = True
                 if attempt < self.max_retries - 1:
                     time.sleep(2 ** attempt)
                 else:
                     self.log.network_error(url, str(e))
+
+        if direct_failed and self.scraperapi_key:
+            self.log.progress("Direct connection failed, falling back to ScraperAPI")
+            text = await self._fetch_via_scraperapi(url)
+            if text:
+                products = self._extract_products_from_html(text, category)
+                if products:
+                    return products
+
         return []
 
     def _extract_products_from_html(self, html: str, category: dict) -> list[dict]:
