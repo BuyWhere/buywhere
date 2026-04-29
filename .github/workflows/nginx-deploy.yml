@@ -1,0 +1,119 @@
+name: Deploy nginx config
+
+# Triggers: push to deploy/nginx/ on main, or manual dispatch
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/nginx/**'
+  workflow_dispatch:
+    inputs:
+      config_name:
+        description: 'nginx config name without extension (default: api.buywhere.ai)'
+        required: false
+        default: 'api.buywhere.ai'
+      dry_run:
+        description: 'If true, validate config but do not reload nginx'
+        required: false
+        default: 'false'
+
+jobs:
+  deploy-nginx:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set deploy variables
+        id: vars
+        run: |
+          CONFIG_NAME="${{ github.event.inputs.config_name || 'api.buywhere.ai' }}"
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+          echo "config_name=${CONFIG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "deploy_sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "dry_run=${DRY_RUN}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate config file exists
+        run: |
+          CONFIG_NAME="${{ steps.vars.outputs.config_name }}"
+          if [[ ! -f "deploy/nginx/${CONFIG_NAME}.conf" ]]; then
+            echo "ERROR: deploy/nginx/${CONFIG_NAME}.conf not found in repo"
+            exit 1
+          fi
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PRODUCTION_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.PRODUCTION_SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Upload nginx config
+        env:
+          CONFIG_NAME: ${{ steps.vars.outputs.config_name }}
+          DEPLOY_SHA: ${{ steps.vars.outputs.deploy_sha }}
+          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+        run: |
+          REMOTE_TMP="/tmp/nginx-${CONFIG_NAME}-${DEPLOY_SHA}.conf"
+          scp -i ~/.ssh/id_ed25519 \
+            "deploy/nginx/${CONFIG_NAME}.conf" \
+            "${SSH_USER}@${SSH_HOST}:${REMOTE_TMP}"
+          echo "Uploaded to ${SSH_HOST}:${REMOTE_TMP}"
+
+      - name: Deploy and reload nginx
+        env:
+          CONFIG_NAME: ${{ steps.vars.outputs.config_name }}
+          DEPLOY_SHA: ${{ steps.vars.outputs.deploy_sha }}
+          DRY_RUN: ${{ steps.vars.outputs.dry_run }}
+          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+        run: |
+          # Pass variables as explicit env vars on the remote command line.
+          # Using bash -s with heredoc avoids the positional-argument/unbound-variable
+          # issue that occurs when bash -c '...' _ "$VAR" is used over SSH.
+          ssh -i ~/.ssh/id_ed25519 "${SSH_USER}@${SSH_HOST}" \
+            env CONFIG_NAME="${CONFIG_NAME}" DEPLOY_SHA="${DEPLOY_SHA}" DRY_RUN="${DRY_RUN}" \
+            bash -s <<'REMOTE'
+          set -euo pipefail
+
+          DEST="/etc/nginx/sites-enabled/${CONFIG_NAME}.conf"
+          SRC="/tmp/nginx-${CONFIG_NAME}-${DEPLOY_SHA}.conf"
+
+          echo "nginx-deploy: config=${CONFIG_NAME} sha=${DEPLOY_SHA} dry_run=${DRY_RUN}"
+
+          if [[ ! -f "${SRC}" ]]; then
+            echo "ERROR: ${SRC} not found on server"
+            exit 1
+          fi
+
+          # Validate before touching live config
+          nginx -t -c /etc/nginx/nginx.conf 2>&1 || true
+          cp "${SRC}" "${DEST}"
+          nginx -t
+
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            echo "DRY RUN: config validated OK, skipping reload"
+            exit 0
+          fi
+
+          nginx -s reload
+          echo "nginx reloaded — ${CONFIG_NAME} is live (sha ${DEPLOY_SHA})"
+
+          # Cleanup tmp
+          rm -f "${SRC}"
+          REMOTE
+
+      - name: Smoke test /mcp endpoint
+        if: steps.vars.outputs.dry_run != 'true'
+        run: |
+          sleep 2
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST https://api.buywhere.ai/mcp \
+            -H "Content-Type: application/json" \
+            -d '{"jsonrpc":"2.0","method":"tools/list","id":1}')
+          echo "POST /mcp → HTTP ${HTTP}"
+          if [[ "$HTTP" != "200" ]]; then
+            echo "WARN: /mcp returned ${HTTP} after deploy — check nginx on production"
+            exit 1
+          fi
