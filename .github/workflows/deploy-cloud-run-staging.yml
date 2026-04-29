@@ -53,7 +53,7 @@ jobs:
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push to GHCR
+      - name: Build and push to GHCR and GAR
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -61,6 +61,7 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ env.LOWER_REPO }}:sha-${{ github.sha }}
+            asia-southeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/buywhere/api:sha-${{ github.sha }}
             ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -76,12 +77,6 @@ jobs:
 
       - name: Configure Docker auth for Artifact Registry
         run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
-
-      - name: Tag and push to Artifact Registry
-        run: |
-          docker tag ghcr.io/${{ env.LOWER_REPO }}:sha-${{ github.sha }} \
-            asia-southeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/buywhere/api:sha-${{ github.sha }}
-          docker push asia-southeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/buywhere/api:sha-${{ github.sha }}
 
   deploy-cloud-run:
     name: Deploy to Cloud Run Staging
@@ -100,8 +95,8 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure Docker auth for GHCR
-        run: gcloud auth configure-docker ghcr.io --quiet
+      - name: Configure Docker auth for Artifact Registry
+        run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
 
       - name: Create GCP Secret Manager secret for PostHog
         run: |
