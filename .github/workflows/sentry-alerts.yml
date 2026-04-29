@@ -1,0 +1,50 @@
+name: Configure Sentry Alerts
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to configure alerts for'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+  schedule:
+    cron: '0 */6 * * *'
+
+jobs:
+  configure-alerts:
+    name: Configure Sentry Alerts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Configure Sentry Alerts (>5 errors/hour)
+        env:
+          SENTRY_API_TOKEN: ${{ secrets.SENTRY_API_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG || 'buywhere' }}
+          SENTRY_ENVIRONMENT: ${{ github.event.inputs.environment || 'production' }}
+        run: |
+          python scripts/configure_sentry_alerts.py
+
+      - name: Verify Alert Configuration
+        env:
+          SENTRY_API_TOKEN: ${{ secrets.SENTRY_API_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG || 'buywhere' }}
+        run: |
+          echo "Verifying alert rules in Sentry..."
+          curl -s -H "Authorization: Bearer $SENTRY_API_TOKEN" \
+            "https://sentry.io/api/0/organizations/$SENTRY_ORG/rules/" | \
+            python -c "import sys, json; rules = json.load(sys.stdin); print(f'Found {len(rules)} alert rules')"
