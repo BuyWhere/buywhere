@@ -1,24 +1,23 @@
-name: Deploy Nginx Config
+name: Deploy Nginx Config for Next.js
 
 on:
   push:
     branches:
-      - main
       - master
     paths:
-      - 'nginx.conf'
-      - 'ops/nginx/**'
-      - '.github/workflows/nginx-deploy.yml'
+      - 'ops/nginx/buywhere.ai.conf'
+      - '.github/workflows/deploy-buywhere-site.yml'
   workflow_dispatch:
     inputs:
       config_source:
-        description: 'Config source (api|site)'
+        description: 'Config source (api|site|nextjs)'
         required: false
-        default: 'api'
+        default: 'nextjs'
         type: choice
         options:
           - api
           - site
+          - nextjs
 
 concurrency:
   group: nginx-config-deploy
@@ -29,7 +28,7 @@ permissions:
 
 env:
   DEPLOY_ROOT: /srv/buywhere-site
-  NGINX_CONFIG_NAME: api.buywhere.ai
+  NGINX_CONFIG_NAME: buywhere.ai
 
 jobs:
   validate-nginx-config:
@@ -42,18 +41,20 @@ jobs:
       - name: Get nginx config
         id: config
         run: |
-          if [[ "${{ github.event.inputs.config_source || 'api' }}" == "api" ]]; then
+          if [[ "${{ github.event.inputs.config_source || 'nextjs' }}" == "api" ]]; then
             echo "source=nginx.conf" >> $GITHUB_OUTPUT
             echo "path=nginx.conf" >> $GITHUB_OUTPUT
-          else
+          elif [[ "${{ github.event.inputs.config_source || 'nextjs' }}" == "site" ]]; then
             echo "source=ops/nginx/buywhere.ai.conf" >> $GITHUB_OUTPUT
             echo "path=ops/nginx/buywhere.ai.conf" >> $GITHUB_OUTPUT
+          else
+            echo "source=ops/nginx/buywhere.ai.nextjs.conf" >> $GITHUB_OUTPUT
+            echo "path=ops/nginx/buywhere.ai.nextjs.conf" >> $GITHUB_OUTPUT
           fi
 
       - name: Display config location
         run: |
           echo "Using config: ${{ steps.config.outputs.path }}"
-          cat ${{ steps.config.outputs.path }}
 
       - name: Install nginx and validate
         run: |
@@ -62,7 +63,7 @@ jobs:
           echo "Creating test SSL certificates for validation..."
           sudo mkdir -p /tmp/nginx-test-certs
           sudo openssl req -x509 -nodes -newkey rsa:2048 -keyout /tmp/nginx-test-certs/key.pem -out /tmp/nginx-test-certs/cert.pem -days 1 -subj "/CN=test" 2>/dev/null
-          sed "s|/etc/letsencrypt/live/api.buywhere.ai/fullchain.pem|/tmp/nginx-test-certs/cert.pem|g; s|/etc/letsencrypt/live/api.buywhere.ai/privkey.pem|/tmp/nginx-test-certs/key.pem|g; s|/etc/letsencrypt/options-ssl-nginx.conf|/dev/null|g; s|/etc/letsencrypt/ssl-dhparams.pem|/dev/null|g" "${{ steps.config.outputs.path }}" > /tmp/nginx-test-valid.conf
+          sed "s|/etc/letsencrypt/live/api.buywhere.ai/fullchain.pem|/tmp/nginx-test-certs/cert.pem|g; s|/etc/letsencrypt/live/api.buywhere.ai/privkey.pem|/tmp/nginx-test-certs/key.pem|g; s|/etc/letsencrypt/options-ssl-nginx.conf|/dev/null|g; s|/etc/letsencrypt/ssl-dhparams.pem|/dev/null|g; s|/etc/nginx/sites-enabled|/tmp/nginx-test-sites|g; s|/etc/nginx/conf.d|/tmp/nginx-test-conf|g" "${{ steps.config.outputs.path }}" > /tmp/nginx-test-valid.conf
           sudo nginx -t -c /tmp/nginx-test-valid.conf
 
   deploy-nginx-config:
@@ -77,10 +78,12 @@ jobs:
       - name: Determine config path
         id: config
         run: |
-          if [[ "${{ github.event.inputs.config_source || 'api' }}" == "api" ]]; then
+          if [[ "${{ github.event.inputs.config_source || 'nextjs' }}" == "api" ]]; then
             echo "path=nginx.conf" >> $GITHUB_OUTPUT
-          else
+          elif [[ "${{ github.event.inputs.config_source || 'nextjs' }}" == "site" ]]; then
             echo "path=ops/nginx/buywhere.ai.conf" >> $GITHUB_OUTPUT
+          else
+            echo "path=ops/nginx/buywhere.ai.nextjs.conf" >> $GITHUB_OUTPUT
           fi
 
       - name: Set up SSH agent
@@ -219,39 +222,3 @@ jobs:
 
             echo "=== Nginx config rollback complete ==="
           EOF
-
-  notify:
-    name: Notify Deploy Result
-    runs-on: ubuntu-latest
-    needs:
-      - validate-nginx-config
-      - deploy-nginx-config
-    if: always()
-    steps:
-      - name: Send deployment webhook
-        env:
-          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
-          DEPLOY_STATUS: ${{ needs.deploy-nginx-config.result == 'success' && 'success' || 'failure' }}
-        run: |
-          if [[ -z "${DEPLOY_WEBHOOK_URL}" ]]; then
-            echo "DEPLOY_WEBHOOK_URL is not configured; skipping notification."
-            exit 0
-          fi
-
-          payload=$(jq -n \
-            --arg status "$DEPLOY_STATUS" \
-            --arg sha "$GITHUB_SHA" \
-            --arg ref "$GITHUB_REF_NAME" \
-            --arg run_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-            '{
-              text: ("buywhere-api nginx config deploy " + $status),
-              status: $status,
-              repository: env.GITHUB_REPOSITORY,
-              ref: $ref,
-              sha: $sha,
-              runUrl: $run_url
-            }')
-
-          curl -fsS -X POST "$DEPLOY_WEBHOOK_URL" \
-            -H 'Content-Type: application/json' \
-            -d "$payload"
