@@ -1,0 +1,302 @@
+name: Deploy to US
+
+on:
+  push:
+    branches:
+      - us-main
+      - us-staging
+    tags:
+      - 'us-v*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      image_tag:
+        description: 'Image tag to deploy (defaults to latest)'
+        required: false
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy-us:
+    name: Deploy to US ${{ github.event.inputs.environment || (startsWith(github.ref, 'refs/heads/us-') && 'staging') || 'production' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || (startsWith(github.ref, 'refs/heads/us-') && 'staging') || 'production' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (US East)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_US_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_US_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login to ECR (US East)
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ "${{ github.event.inputs.image_tag }}" != "" ]; then
+            echo "VERSION=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" =~ ^refs/tags/us-v(.+)$ ]]; then
+            echo "VERSION=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine environment
+        id: env
+        run: |
+          if [ "${{ github.event.inputs.environment }}" != "" ]; then
+            echo "NAME=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/us-staging" ]]; then
+            echo "NAME=staging" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/us-main" ]]; then
+            echo "NAME=production" >> $GITHUB_OUTPUT
+          else
+            echo "NAME=production" >> $GITHUB_OUTPUT
+          fi
+          echo "HEALTH_URL=${{ github.event.inputs.environment == 'production' && 'https://api.buywhere.ai/health' || 'https://api-staging-us.buywhere.ai/health' }}" >> $GITHUB_OUTPUT
+
+      - name: Capture previous task definition
+        id: prev-task
+        run: |
+          CLUSTER="buywhere-us-${{ steps.env.outputs.NAME }}"
+          SERVICE="buywhere-us-${{ steps.env.outputs.NAME }}-api-service"
+          PREV_TASK=$(aws ecs describe-services \
+            --cluster $CLUSTER \
+            --services $SERVICE \
+            --query 'services[0].taskDefinition' \
+            --output text 2>/dev/null || echo "")
+          echo "Previous task definition: $PREV_TASK"
+          echo "prev_task=$PREV_TASK" >> $GITHUB_OUTPUT
+          echo "cluster=$CLUSTER" >> $GITHUB_OUTPUT
+          echo "service=$SERVICE" >> $GITHUB_OUTPUT
+
+      - name: Register new task definition
+        run: |
+          CLUSTER="${{ steps.prev-task.outputs.cluster }}"
+          SERVICE="${{ steps.prev-task.outputs.service }}"
+          FAMILY="buywhere-us-${{ steps.env.outputs.NAME }}"
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}"
+
+          echo "Registering new task definition for family $FAMILY with image $IMAGE"
+
+          SENTRY_DSN_SECRET="${{ secrets.SENTRY_DSN_US_PRODUCTION }}"
+          if [ "${{ steps.env.outputs.NAME }}" == "staging" ]; then
+            SENTRY_DSN_SECRET="${{ secrets.SENTRY_DSN_US_STAGING }}"
+          fi
+
+          NEW_TASK_ARN=$(aws ecs register-task-definition \
+            --family $FAMILY \
+            --container-definitions "[{\"name\":\"api\",\"image\":\"$IMAGE\",\"essential\":true,\"portMappings\":[{\"containerPort\":8000,\"protocol\":\"tcp\"}],\"environment\":[{\"name\":\"SENTRY_DSN\",\"value\":\"$SENTRY_DSN_SECRET\"},{\"name\":\"SENTRY_ENVIRONMENT\",\"value\":\"${{ steps.env.outputs.NAME }}\"}],\"logConfiguration\":{\"logDriver\":\"awslogs\",\"options\":{\"awslogs-group\":\"/ecs/buywhere/us-${{ steps.env.outputs.NAME }}\",\"awslogs-region\":\"us-east-1\",\"awslogs-stream-prefix\":\"ecs\"}}}]" \
+            --network-mode awsvpc \
+            --requires-compatibilities FARGATE \
+            --cpu 1024 \
+            --memory 2048 \
+            --execution-role-arn "arn:aws:iam::${{ secrets.AWS_US_ACCOUNT_ID }}:role/buywhere-us-${{ steps.env.outputs.NAME }}-ecs-execution-role" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          echo "New task definition: $NEW_TASK_ARN"
+          echo "new_task=$NEW_TASK_ARN" >> $GITHUB_OUTPUT
+
+      - name: Deploy to ECS
+        run: |
+          echo "Deploying to ECS cluster ${{ steps.prev-task.outputs.cluster }}..."
+          aws ecs update-service \
+            --cluster ${{ steps.prev-task.outputs.cluster }} \
+            --service ${{ steps.prev-task.outputs.service }} \
+            --task-definition ${{ steps.prev-task.outputs.new_task }} \
+            --deployment-configuration "maximumPercent=200,minimumHealthyPercent=100" \
+            --health-check-grace-period-seconds 60
+
+      - name: Wait for deployment
+        run: |
+          echo "Waiting for deployment to stabilize..."
+          if ! aws ecs wait services-stable \
+            --cluster ${{ steps.prev-task.outputs.cluster }} \
+            --services ${{ steps.prev-task.outputs.service }}; then
+            echo "Deployment failed to stabilize."
+            if [ -n "${{ steps.prev-task.outputs.prev_task }}" ]; then
+              echo "Rolling back to previous task definition..."
+              aws ecs update-service \
+                --cluster ${{ steps.prev-task.outputs.cluster }} \
+                --service ${{ steps.prev-task.outputs.service }} \
+                --task-definition ${{ steps.prev-task.outputs.prev_task }} \
+                --force-new-deployment
+              aws ecs wait services-stable \
+                --cluster ${{ steps.prev-task.outputs.cluster }} \
+                --services ${{ steps.prev-task.outputs.service }}
+            fi
+            exit 1
+          fi
+          echo "Deployment stabilized successfully."
+
+      - name: Run smoke tests
+        env:
+          SMOKE_URL: ${{ steps.env.outputs.HEALTH_URL }}
+        run: |
+          MAX_RETRIES=5
+          RETRY_DELAY=15
+
+          echo "Performing smoke test validation against $SMOKE_URL..."
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$SMOKE_URL/health" --max-time 30 --retry 3 --retry-delay 5)
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Health check passed (attempt $i)"
+              break
+            fi
+            echo "Health check failed (attempt $i/$MAX_RETRIES). HTTP code: $HTTP_CODE"
+            if [ $i -lt $MAX_RETRIES ]; then
+              sleep $RETRY_DELAY
+            else
+              echo "Health check failed after $MAX_RETRIES attempts."
+              exit 1
+            fi
+          done
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          if [ -n "${{ steps.prev-task.outputs.prev_task }}" ]; then
+            echo "Initiating rollback due to health check failure..."
+            aws ecs update-service \
+              --cluster ${{ steps.prev-task.outputs.cluster }} \
+              --service ${{ steps.prev-task.outputs.service }} \
+              --task-definition ${{ steps.prev-task.outputs.prev_task }} \
+              --force-new-deployment
+            aws ecs wait services-stable \
+              --cluster ${{ steps.prev-task.outputs.cluster }} \
+              --services ${{ steps.prev-task.outputs.service }}
+          fi
+
+  deploy-us-mcp:
+    name: Deploy US MCP
+    runs-on: ubuntu-latest
+    needs: deploy-us
+    environment:
+      name: ${{ github.event.inputs.environment || (startsWith(github.ref, 'refs/heads/us-') && 'staging') || 'production' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (US East)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_US_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_US_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login to ECR (US East)
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ "${{ github.event.inputs.image_tag }}" != "" ]; then
+            echo "VERSION=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" =~ ^refs/tags/us-v(.+)$ ]]; then
+            echo "VERSION=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine environment
+        id: env
+        run: |
+          if [ "${{ github.event.inputs.environment }}" != "" ]; then
+            echo "NAME=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/us-staging" ]]; then
+            echo "NAME=staging" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/us-main" ]]; then
+            echo "NAME=production" >> $GITHUB_OUTPUT
+          else
+            echo "NAME=production" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Register new MCP task definition
+        run: |
+          FAMILY="buywhere-us-${{ steps.env.outputs.NAME }}-mcp"
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-mcp:${{ steps.version.outputs.VERSION }}"
+
+          echo "Registering new MCP task definition for family $FAMILY with image $IMAGE"
+
+          aws ecs register-task-definition \
+            --family $FAMILY \
+            --container-definitions "[{\"name\":\"mcp\",\"image\":\"$IMAGE\",\"essential\":true,\"portMappings\":[{\"containerPort\":8080,\"protocol\":\"tcp\"}],\"environment\":[{\"name\":\"BUYWHERE_API_KEY\",\"value\":\"${{ secrets.BUYWHERE_US_API_KEY }}\"}],\"logConfiguration\":{\"logDriver\":\"awslogs\",\"options\":{\"awslogs-group\":\"/ecs/buywhere/us-${{ steps.env.outputs.NAME }}\",\"awslogs-region\":\"us-east-1\",\"awslogs-stream-prefix\":\"ecs\"}}}]" \
+            --network-mode awsvpc \
+            --requires-compatibilities FARGATE \
+            --cpu 512 \
+            --memory 1024 \
+            --execution-role-arn "arn:aws:iam::${{ secrets.AWS_US_ACCOUNT_ID }}:role/buywhere-us-${{ steps.env.outputs.NAME }}-ecs-execution-role"
+
+      - name: Deploy MCP to ECS
+        run: |
+          CLUSTER="buywhere-us-${{ steps.env.outputs.NAME }}"
+          SERVICE="buywhere-us-${{ steps.env.outputs.NAME }}-mcp-service"
+
+          echo "Deploying MCP to ECS cluster $CLUSTER..."
+          aws ecs update-service \
+            --cluster $CLUSTER \
+            --service $SERVICE \
+            --task-definition "buywhere-us-${{ steps.env.outputs.NAME }}-mcp" \
+            --deployment-configuration "maximumPercent=200,minimumHealthyPercent=100" \
+            --health-check-grace-period-seconds 30
+
+          echo "Waiting for MCP deployment to stabilize..."
+          if ! aws ecs wait services-stable --cluster $CLUSTER --services $SERVICE 2>/dev/null; then
+            echo "MCP service deployment did not stabilize, but continuing..."
+          else
+            echo "MCP deployment stabilized successfully."
+          fi
+
+  configure-sentry-alerts:
+    name: Configure Sentry Alerts (US)
+    runs-on: ubuntu-latest
+    needs: deploy-us
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/us-main' || startsWith(github.ref, 'refs/tags/us-v'))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Configure US Sentry Alerts
+        env:
+          SENTRY_API_TOKEN: ${{ secrets.SENTRY_API_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG || 'buywhere' }}
+          SENTRY_ENVIRONMENT: ${{ github.event.inputs.environment || 'production' }}
+        run: |
+          python scripts/configure_sentry_alerts.py
+
+      - name: Verify Alert Configuration
+        env:
+          SENTRY_API_TOKEN: ${{ secrets.SENTRY_API_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG || 'buywhere' }}
+        run: |
+          echo "Verifying alert rules in Sentry..."
+          curl -s -H "Authorization: Bearer $SENTRY_API_TOKEN" \
+            "https://sentry.io/api/0/organizations/$SENTRY_ORG/rules/" | \
+            python -c "import sys, json; rules = json.load(sys.stdin); print(f'Found {len(rules)} alert rules')"

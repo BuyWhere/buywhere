@@ -1,0 +1,88 @@
+name: Publish Python SDK
+
+on:
+  push:
+    tags:
+      - 'buywhere-sdk-v*'
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "Publish target"
+        required: true
+        default: "testpypi"
+        type: choice
+        options:
+          - testpypi
+          - pypi
+      publish:
+        description: "Upload artifacts after verification"
+        required: true
+        default: false
+        type: boolean
+
+env:
+  SDK_DIR: sdk
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install build tooling
+        working-directory: ${{ env.SDK_DIR }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+          pip install -e ".[dev]"
+
+      - name: Verify SDK package
+        working-directory: ${{ env.SDK_DIR }}
+        run: |
+          python -m pytest tests/test_cli.py tests/test_client_cli_primitives.py -q
+          rm -rf dist build
+          python -m build
+          twine check dist/*
+          python -m venv /tmp/buywhere-sdk-smoke
+          source /tmp/buywhere-sdk-smoke/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install dist/*.whl
+          python -c "from buywhere_sdk import AsyncBuyWhere, BuyWhere; print(BuyWhere.__name__, AsyncBuyWhere.__name__)"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: buywhere-sdk-dist
+          path: sdk/dist/*
+
+      - name: Publish to TestPyPI
+        if: |
+          github.event_name == 'workflow_dispatch' &&
+          inputs.publish &&
+          inputs.repository == 'testpypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: sdk/dist
+          skip-existing: true
+
+      - name: Publish to PyPI
+        if: |
+          startsWith(github.ref, 'refs/tags/buywhere-sdk-v') ||
+          (github.event_name == 'workflow_dispatch' &&
+          inputs.publish &&
+          inputs.repository == 'pypi')
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: sdk/dist
+          skip-existing: true

@@ -1,0 +1,149 @@
+name: Deploy to Cloud Run (Staging)
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip smoke tests'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  GCP_PROJECT_ID: gaia-calendar-488606
+  GCP_REGION: asia-southeast1
+  CLOUD_RUN_SERVICE: buywhere-api
+  CLOUD_SQL_INSTANCE: buywhere-staging:asia-southeast1:buywhere-db
+
+jobs:
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ghcr.io/${{ env.LOWER_REPO }}:sha-${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set lowercase repository name
+        run: echo "LOWER_REPO=buywhere/buywhere" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/buywhere/buywhere
+          tags: |
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push to GHCR
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ env.LOWER_REPO }}:sha-${{ github.sha }}
+            ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-cloud-run:
+    name: Deploy to Cloud Run Staging
+    needs: build
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PROD || secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker auth for GHCR
+        run: gcloud auth configure-docker ghcr.io --quiet
+
+      - name: Create GCP Secret Manager secret for PostHog
+        run: |
+          echo "Creating/updating POSTHOG_API_KEY secret in GCP Secret Manager..."
+          echo -n "${{ secrets.POSTHOG_API_KEY_PRODUCTION }}" | gcloud secrets versions add buywhere-posthog-api-key --data-file=- --project ${{ env.GCP_PROJECT_ID }} 2>/dev/null || \
+            gcloud secrets create buywhere-posthog-api-key --data-file=- --project ${{ env.GCP_PROJECT_ID }} <<< "${{ secrets.POSTHOG_API_KEY_PRODUCTION }}"
+
+          echo "Granting secretAccessor role to Cloud Run service account..."
+          GCP_SA=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} --region ${{ env.GCP_REGION }} --project ${{ env.GCP_PROJECT_ID }} --format "value(spec.template.spec.serviceAccountName)" 2>/dev/null || echo "")
+          [ -z "$GCP_SA" ] && GCP_SA="${{ env.GCP_PROJECT_ID }}@${{ env.GCP_PROJECT_ID }}.iam.gserviceaccount.com"
+          gcloud secrets add-iam-policy-binding buywhere-posthog-api-key --member "serviceAccount:$GCP_SA" --role "roles/secretmanager.secretAccessor" --project ${{ env.GCP_PROJECT_ID }} 2>/dev/null || true
+
+      - name: Deploy to Cloud Run
+        run: |
+          echo "Deploying to Cloud Run staging..."
+          gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --region ${{ env.GCP_REGION }} \
+            --image ${{ needs.build.outputs.image_tag }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
+            --set-env-vars "ENVIRONMENT=staging" \
+            --set-env-vars "DATABASE_URL=${{ secrets.CLOUD_SQL_STAGING_CONNECTION_STRING }}" \
+            --set-env-vars "REDIS_URL=${{ secrets.REDIS_STAGING_URL }}" \
+            --set-env-vars "API_KEY_SECRET=${{ secrets.API_KEY_SECRET_STAGING }}" \
+            --set-env-vars "SENTRY_DSN=${{ secrets.SENTRY_DSN_STAGING }}" \
+            --set-secrets "POSTHOG_PROJECT_KEY=buywhere-posthog-api-key:latest" \
+            --memory 1Gi \
+            --cpu 2 \
+            --min-instances 1 \
+            --max-instances 10 \
+            --concurrency 80 \
+            --timeout 60s
+
+      - name: Wait for service to stabilize
+        run: |
+          echo "Waiting 20 seconds for Cloud Run service to initialize..."
+          sleep 20
+
+      - name: Verify Cloud Run deployment
+        run: |
+          gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --region ${{ env.GCP_REGION }} \
+            --format "table(status.conditions.name,status.conditions.status,status.conditions.reason)"
+
+  api-latency-smoke-test:
+    name: API Latency Smoke Test
+    needs: deploy-cloud-run
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_tests != 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run API latency smoke test
+        env:
+          API_BASE_URL: ${{ needs.deploy-cloud-run.outputs.url }}
+        run: |
+          chmod +x scripts/cloud-run-latency-smoke-test.sh
+          ./scripts/cloud-run-latency-smoke-test.sh "$API_BASE_URL"

@@ -1,0 +1,100 @@
+name: Enable pg_stat_statements (Staging)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  packages: read
+
+env:
+  GCP_PROJECT_ID: gaia-calendar-488606
+  GCP_REGION: asia-southeast1
+  CLOUD_SQL_INSTANCE: buywhere-staging
+  INSTANCE_CONNECTION_NAME: gaia-calendar-488606:asia-southeast1:buywhere-staging
+
+jobs:
+  enable-pg-stat-statements:
+    name: Enable pg_stat_statements on Cloud SQL Staging
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Enable IAM authentication for Cloud SQL
+        run: |
+          echo "Enabling IAM authentication on Cloud SQL instance..."
+          echo "y" | gcloud sql instances patch ${{ env.CLOUD_SQL_INSTANCE }} \
+            --database-flags=cloudsql.iam_authentication=on \
+            --project=${{ env.GCP_PROJECT_ID }}
+
+      - name: List Cloud SQL users
+        run: |
+          echo "Listing Cloud SQL users..."
+          gcloud sql users list --instance=${{ env.CLOUD_SQL_INSTANCE }} --project=${{ env.GCP_PROJECT_ID }}
+
+      - name: Get access token and service account email
+        id: get-token
+        run: |
+          TOKEN=$(gcloud auth print-access-token)
+          SA_EMAIL=$(gcloud auth list --filter=status:ACTIVE --format='value(account)')
+          IAM_USER=$(echo "$SA_EMAIL" | sed 's/\.gserviceaccount\.com$//')
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+          echo "sa_email=$SA_EMAIL" >> $GITHUB_OUTPUT
+          echo "iam_user=$IAM_USER" >> $GITHUB_OUTPUT
+          echo "Service account: $SA_EMAIL"
+          echo "IAM user: $IAM_USER"
+
+      - name: Create IAM user with correct type
+        run: |
+          echo "Creating IAM service account user in Cloud SQL..."
+          gcloud sql users create "${{ steps.get-token.outputs.iam_user }}" \
+            --instance=${{ env.CLOUD_SQL_INSTANCE }} \
+            --type=CLOUD_IAM_SERVICE_ACCOUNT \
+            --project=${{ env.GCP_PROJECT_ID }} || echo "User may already exist"
+
+      - name: Grant IAM user privileges
+        run: |
+          echo "Granting privileges to IAM user..."
+          gcloud sql users grant "${{ steps.get-token.outputs.iam_user }}" \
+            --instance=${{ env.CLOUD_SQL_INSTANCE }} \
+            --project=${{ env.GCP_PROJECT_ID }} || echo "Grant may have failed"
+
+      - name: Install Cloud SQL Proxy
+        run: |
+          echo "Installing Cloud SQL Proxy..."
+          gcloud components install cloud_sql_proxy --quiet
+
+      - name: Start Cloud SQL Proxy
+        run: |
+          PROXY_DIR=/tmp/cloud_sql
+          mkdir -p $PROXY_DIR
+          echo "Starting Cloud SQL Proxy with IAM auth..."
+          /opt/hostedtoolcache/gcloud/564.0.0/x64/bin/cloud_sql_proxy \
+            --dir=$PROXY_DIR \
+            --instances=${{ env.INSTANCE_CONNECTION_NAME }}=tcp:5432 \
+            --enable_iam_login \
+            &
+          echo "Waiting for proxy to start..."
+          sleep 15
+          ls -la $PROXY_DIR/
+
+      - name: Enable pg_stat_statements with IAM user
+        run: |
+          echo "Enabling pg_stat_statements with IAM user..."
+          PGPASSWORD="" psql -h 127.0.0.1 -p 5432 -U "${{ steps.get-token.outputs.iam_user }}" -d postgres -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;" 2>&1
+
+      - name: Verify pg_stat_statements is enabled
+        run: |
+          echo "Verifying pg_stat_statements..."
+          PGPASSWORD="" psql -h 127.0.0.1 -p 5432 -U "${{ steps.get-token.outputs.iam_user }}" -d postgres -c "SELECT query, calls, mean_time, total_time FROM pg_stat_statements ORDER BY mean_time DESC LIMIT 10;" 2>&1 | head -50
