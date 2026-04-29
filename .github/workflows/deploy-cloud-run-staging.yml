@@ -78,6 +78,9 @@ jobs:
       - name: Configure Docker auth for Artifact Registry
         run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
 
+      - name: Configure Docker auth for GHCR
+        run: gcloud auth configure-docker ghcr.io --quiet
+
   deploy-cloud-run:
     name: Deploy to Cloud Run Staging
     needs: build
