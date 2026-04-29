@@ -1,0 +1,20 @@
+[Unit]
+Description=BuyWhere Next.js Frontend
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=paperclip
+WorkingDirectory=/home/paperclip/buywhere-api/frontend
+Environment="NODE_ENV=production"
+Environment="PORT=3000"
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=buywhere-nextjs
+
+[Install]
+WantedBy=multi-user.target
