@@ -19,7 +19,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.product import Product
+from app.models.product import Product, ComparisonPage
 
 router = APIRouter(tags=["seo"])
 
@@ -346,6 +346,45 @@ async def get_sitemap_us(request: Request, db: AsyncSession = Depends(get_db)) -
     )
 
 
+@router.get("/sitemap-compare.xml", include_in_schema=False)
+async def get_sitemap_compare(request: Request, db: AsyncSession = Depends(get_db)) -> Response:
+    """SEO sitemap for compare page slugs (BUY-4903)."""
+    base_url = str(request.base_url).rstrip("/").replace("http://", "https://")
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+
+    result = await db.execute(
+        select(ComparisonPage.slug, ComparisonPage.updated_at)
+        .where(ComparisonPage.status == "published")
+        .order_by(ComparisonPage.updated_at.desc())
+    )
+    pages = result.all()
+
+    entries = []
+    for page in pages:
+        lastmod = page.updated_at.strftime('%Y-%m-%d') if page.updated_at else today
+        entries.append(_render_sitemap_url(
+            base_url,
+            f"compare/{page.slug}",
+            lastmod,
+            "daily",
+            "0.8"
+        ))
+
+    sitemap_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!-- sitemap-compare.xml — BuyWhere compare pages -->
+<!-- Generated: {datetime.now(timezone.utc).isoformat()} -->
+<!-- Total pages: {len(pages)} -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{chr(10).join(entries)}
+</urlset>"""
+
+    return Response(
+        content=sitemap_xml,
+        media_type="application/xml",
+        headers={"Cache-Control": "max-age=86400"},
+    )
+
+
 @router.get("/robots.txt", include_in_schema=False)
 async def get_robots(request: Request) -> Response:
     static_response = _static_file_response(STATIC_DIR / "robots.txt", "text/plain")
@@ -358,6 +397,7 @@ Allow: /
 
 Sitemap: {base_url}/sitemap.xml
 Sitemap: {base_url}/sitemap-us.xml
+Sitemap: {base_url}/sitemap-compare.xml
 """
     return Response(
         content=robots_txt,

@@ -29,7 +29,7 @@ jobs:
     name: Build Docker Image
     runs-on: ubuntu-latest
     outputs:
-      image_tag: ghcr.io/buywhere/buywhere:sha-${{ github.sha }}
+      image_tag: ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
       deployment_id: ${{ steps.deploy_info.outputs.deployment_id }}
       version: ${{ steps.deploy_info.outputs.version }}
     steps:
@@ -51,7 +51,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/buywhere/buywhere
+            ghcr.io/${{ github.repository }}
           tags: |
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
@@ -63,7 +63,7 @@ jobs:
           file: Dockerfile
           push: true
           tags: |
-            ghcr.io/buywhere/buywhere:sha-${{ github.sha }}
+            ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
             ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -101,20 +101,8 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure Docker auth for GCR
-        run: gcloud auth configure-docker
-
-      - name: Pull Docker image
-        run: docker pull ${{ needs.build.outputs.image_tag }}
-
-      - name: Retag for GCR
-        run: |
-          GCR_IMAGE="gcr.io/${{ env.GCP_PROJECT_ID }}/${{ env.CLOUD_RUN_SERVICE }}:sha-${{ github.sha }}"
-          docker tag ${{ needs.build.outputs.image_tag }} $GCR_IMAGE
-          echo "GCR_IMAGE=$GCR_IMAGE" >> $GITHUB_ENV
-
-      - name: Push to Google Container Registry
-        run: docker push $GCR_IMAGE
+      - name: Configure Docker auth for GHCR
+        run: gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
 
       - name: Create GCP Secret Manager secrets and deploy
         id: deploy
@@ -128,14 +116,14 @@ jobs:
           echo "Granting secretAccessor role to Cloud Run service account..."
           GCP_SA=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} --region ${{ env.GCP_REGION }} --project ${{ env.GCP_PROJECT_ID }} --format "value(spec.template.spec.serviceAccountName)" 2>/dev/null || echo "")
           [ -z "$GCP_SA" ] && GCP_SA="${{ env.GCP_PROJECT_ID }}-sa@${{ env.GCP_PROJECT_ID }}.iam.gserviceaccount.com"
-          gcloud secrets add-iam-policyBinding buywhere-admin-api-key --member "serviceAccount:$GCP_SA" --role "roles/secretmanager.secretAccessor" --project ${{ env.GCP_PROJECT_ID }} 2>/dev/null || true
-          gcloud secrets add-iam-policyBinding buywhere-posthog-api-key --member "serviceAccount:$GCP_SA" --role "roles/secretmanager.secretAccessor" --project ${{ env.GCP_PROJECT_ID }} 2>/dev/null || true
+          gcloud secrets add-iam-policy-binding buywhere-admin-api-key --member "serviceAccount:$GCP_SA" --role "roles/secretmanager.secretAccessor" --project ${{ env.GCP_PROJECT_ID }} 2>/dev/null || true
+          gcloud secrets add-iam-policy-binding buywhere-posthog-api-key --member "serviceAccount:$GCP_SA" --role "roles/secretmanager.secretAccessor" --project ${{ env.GCP_PROJECT_ID }} 2>/dev/null || true
 
           echo "Deploying to Cloud Run..."
           SERVICE_URL=$(gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
             --project ${{ env.GCP_PROJECT_ID }} \
             --region ${{ env.GCP_REGION }} \
-            --image $GCR_IMAGE \
+            --image ${{ needs.build.outputs.image_tag }} \
             --platform managed \
             --allow-unauthenticated \
             --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
