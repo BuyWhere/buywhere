@@ -44,8 +44,8 @@ jobs:
       - name: Create GCP Secret Manager secret for PostHog
         run: |
           echo "Creating/updating POSTHOG_API_KEY secret in GCP Secret Manager..."
-          echo -n "${{ secrets.POSTHOG_API_KEY }}" | gcloud secrets versions add buywhere-posthog-api-key --data-file=- --project ${{ env.GCP_PROJECT_ID }} 2>/dev/null || \
-            gcloud secrets create buywhere-posthog-api-key --data-file=- --project ${{ env.GCP_PROJECT_ID }} <<< "${{ secrets.POSTHOG_API_KEY }}"
+          echo -n "${{ secrets.POSTHOG_API_KEY_PRODUCTION }}" | gcloud secrets versions add buywhere-posthog-api-key --data-file=- --project ${{ env.GCP_PROJECT_ID }} 2>/dev/null || \
+            gcloud secrets create buywhere-posthog-api-key --data-file=- --project ${{ env.GCP_PROJECT_ID }} <<< "${{ secrets.POSTHOG_API_KEY_PRODUCTION }}"
           
           echo "Granting secretAccessor role to Cloud Run service account..."
           GCP_SA=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} --region ${{ env.GCP_REGION }} --project ${{ env.GCP_PROJECT_ID }} --format "value(spec.template.spec.serviceAccountName)" 2>/dev/null || echo "")
