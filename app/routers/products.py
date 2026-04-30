@@ -373,6 +373,7 @@ async def v1_product_search(
     price_min: Optional[Decimal] = Query(None, ge=0, description="Minimum price filter"),
     price_max: Optional[Decimal] = Query(None, ge=0, description="Maximum price filter"),
     platform: Optional[str] = Query(None, max_length=100, description="Filter by platform/source"),
+    country: Optional[str] = Query(None, max_length=2, description="Filter by country code (e.g., SG, US, VN)"),
     sort_by: Optional[str] = Query(None, description="Sort order: relevance, price_asc, price_desc, newest"),
     limit: int = Query(20, ge=1, le=100, description="Results per page (1-100)"),
     offset: int = Query(0, ge=0, le=10000, description="Pagination offset (0-10000)"),
@@ -418,6 +419,7 @@ async def v1_product_search(
         price_min=str(price_min) if price_min is not None else None,
         price_max=str(price_max) if price_max is not None else None,
         platform=platform,
+        country=country.upper() if country else None,
         sort_by=sort_by,
         limit=limit,
         offset=offset,
@@ -452,6 +454,8 @@ async def v1_product_search(
         base_query = base_query.where(Product.price <= price_max)
     if platform:
         base_query = base_query.where(Product.source == platform)
+    if country:
+        base_query = base_query.where(Product.country_code == country.upper())
 
     if offset == 0:
         count_query = select(func.count()).select_from(base_query.subquery())
