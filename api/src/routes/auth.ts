@@ -16,7 +16,20 @@ router.post('/register', async (req: Request, res: Response) => {
   const { agent_name, contact, use_case } = req.body;
 
   if (!agent_name || typeof agent_name !== 'string') {
-    res.status(400).json({ error: 'agent_name is required' });
+    res.status(400).json({
+      error: 'agent_name is required',
+      hint: 'Provide a name for your agent or app, e.g. { "agent_name": "my-price-bot" }',
+      docs: 'https://api.buywhere.ai/docs/quickstart',
+    });
+    return;
+  }
+
+  const trimmedName = agent_name.trim();
+  if (trimmedName.length === 0) {
+    res.status(400).json({
+      error: 'agent_name must not be blank',
+      hint: 'Provide a non-empty name, e.g. { "agent_name": "my-price-bot" }',
+    });
     return;
   }
 
@@ -36,7 +49,7 @@ router.post('/register', async (req: Request, res: Response) => {
      VALUES (gen_random_uuid(),$1,$2,$3,$4,'free',true,$5,$6,'self-registered')`,
     [
       keyHash,
-      agent_name.trim().slice(0, 200),
+      trimmedName.slice(0, 200),
       contact ? String(contact).slice(0, 500) : null,
       use_case ? String(use_case).slice(0, 1000) : null,
       signupChannel,
@@ -56,6 +69,12 @@ router.post('/register', async (req: Request, res: Response) => {
       daily: FREE_TIER.daily,
     },
     docs: 'https://api.buywhere.ai/docs',
+    quickstart: 'https://api.buywhere.ai/docs/quickstart',
+    next_steps: [
+      'Make your first search: GET /v1/products/search?q=laptop&limit=3',
+      'Pass your key as: Authorization: Bearer ' + rawKey,
+      'Full quick-start guide: https://api.buywhere.ai/docs/quickstart',
+    ],
   });
 });
 

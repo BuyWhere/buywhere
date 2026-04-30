@@ -224,6 +224,164 @@ Pass your API key as a Bearer token. Get a free key at \`POST ${baseUrl}/v1/auth
 `;
 }
 
+// GET /docs/quickstart
+// 5-minute REST API quick-start guide for new developers.
+router.get('/quickstart', (req: Request, res: Response) => {
+  const forwardedProto = req.headers['x-forwarded-proto'] as string | undefined;
+  const proto = forwardedProto ? forwardedProto.split(',')[0].trim() : req.protocol;
+  const host = req.headers['x-forwarded-host'] as string || req.get('host') || '';
+  const isPublicHost = host && !host.startsWith('localhost') && !host.startsWith('127.');
+  const baseUrl = isPublicHost ? `${proto}://${host}` : API_BASE_URL;
+
+  setLinkHeaders(res);
+  res.set('X-Robots-Tag', 'ai-index');
+  res.set('Cache-Control', 'public, max-age=3600, s-maxage=86400');
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BuyWhere API — 5-Minute Quick Start</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 780px; margin: 48px auto; padding: 0 24px; color: #1a1a1a; line-height: 1.6; }
+  h1 { font-size: 2rem; margin-bottom: .25em; }
+  h2 { font-size: 1.25rem; margin-top: 2em; border-bottom: 1px solid #e5e5e5; padding-bottom: .3em; }
+  pre { background: #f6f8fa; border: 1px solid #e5e5e5; border-radius: 6px; padding: 16px; overflow-x: auto; }
+  code { font-family: "SFMono-Regular", Consolas, monospace; font-size: .9em; }
+  p code, li code { background: #f6f8fa; border: 1px solid #e5e5e5; border-radius: 3px; padding: 2px 5px; }
+  .step { background: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 12px 16px; border-radius: 4px; margin: 1em 0; }
+  .step strong { color: #0ea5e9; }
+  .success { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 12px 16px; border-radius: 4px; margin: 1em 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+  th, td { border: 1px solid #d1d5db; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; }
+  a { color: #0969da; }
+</style>
+</head>
+<body>
+<h1>BuyWhere API — 5-Minute Quick Start</h1>
+<p>Get your API key and make your first successful product search in under 5 minutes.</p>
+
+<h2>Step 1 — Get your free API key (30 seconds)</h2>
+<div class="step"><strong>One curl command.</strong> No email verification, no credit card.</div>
+<pre><code>curl -s -X POST ${baseUrl}/v1/auth/register \\
+  -H "Content-Type: application/json" \\
+  -d '{"agent_name": "my-first-bot", "contact": "you@example.com"}'</code></pre>
+<p>You'll receive:</p>
+<pre><code>{
+  "api_key": "bw_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "tier": "free",
+  "rate_limit": { "rpm": 60, "daily": 1000 },
+  "next_steps": [
+    "Make your first search: GET /v1/products/search?q=laptop&amp;limit=3",
+    "Pass your key as: Authorization: Bearer bw_xxx..."
+  ]
+}</code></pre>
+<p>Save your <code>api_key</code> — it is shown only once.</p>
+
+<h2>Step 2 — Search products (1 minute)</h2>
+<p>Replace <code>bw_YOUR_KEY</code> with the key you just received:</p>
+<pre><code>curl -s "${baseUrl}/v1/products/search?q=wireless+headphones&amp;limit=3" \\
+  -H "Authorization: Bearer bw_YOUR_KEY" | python3 -m json.tool</code></pre>
+<p>Expected response shape:</p>
+<pre><code>{
+  "data": [
+    {
+      "id": "prod_...",
+      "title": "Sony WH-1000XM5 Wireless Headphones",
+      "price": 379.0,
+      "currency": "SGD",
+      "domain": "lazada",
+      "url": "https://..."
+    }
+  ],
+  "meta": { "total": 142, "limit": 3, "offset": 0, "response_time_ms": 18 }
+}</code></pre>
+<div class="success">If you see results — you're done! Your first API call succeeded.</div>
+
+<h2>Step 3 — Common queries</h2>
+<table>
+<tr><th>Goal</th><th>Request</th></tr>
+<tr><td>Search by keyword</td><td><code>GET /v1/products/search?q=iphone+15&amp;limit=10</code></td></tr>
+<tr><td>Filter by price range</td><td><code>GET /v1/products/search?q=laptop&amp;min_price=500&amp;max_price=1500&amp;currency=SGD</code></td></tr>
+<tr><td>Filter by merchant</td><td><code>GET /v1/products/search?q=shoes&amp;domain=shopee</code></td></tr>
+<tr><td>Get current deals</td><td><code>GET /v1/products/deals?min_discount=20&amp;limit=10</code></td></tr>
+<tr><td>Get a product by ID</td><td><code>GET /v1/products/{id}</code></td></tr>
+<tr><td>Compare products</td><td><code>GET /v1/products/compare?ids=id1,id2,id3</code></td></tr>
+<tr><td>Browse categories</td><td><code>GET /v1/categories</code></td></tr>
+</table>
+
+<h2>Authentication</h2>
+<p>Pass your key in the <code>Authorization</code> header:</p>
+<pre><code>Authorization: Bearer bw_YOUR_KEY</code></pre>
+<p>Or as a query parameter (not recommended for production):</p>
+<pre><code>GET /v1/products/search?q=laptop&amp;api_key=bw_YOUR_KEY</code></pre>
+
+<h2>Common errors and fixes</h2>
+<table>
+<tr><th>Error</th><th>HTTP</th><th>Fix</th></tr>
+<tr><td><code>API key required</code></td><td>401</td><td>Add <code>Authorization: Bearer bw_YOUR_KEY</code> header</td></tr>
+<tr><td><code>Invalid API key</code></td><td>401</td><td>Check your key starts with <code>bw_</code>. Re-register if lost: <code>POST /v1/auth/register</code></td></tr>
+<tr><td><code>Rate limit exceeded</code></td><td>429</td><td>Free tier: 60 req/min, 1 000/day. Wait and retry, or upgrade tier.</td></tr>
+<tr><td><code>Product not found</code></td><td>404</td><td>The product ID doesn't exist or was removed. Re-search to get a fresh ID.</td></tr>
+<tr><td><code>Body must be a non-empty array</code></td><td>400</td><td>POST /v1/products/ingest requires a JSON array body.</td></tr>
+</table>
+
+<h2>Rate limits</h2>
+<table>
+<tr><th>Tier</th><th>Req/min</th><th>Req/day</th><th>Notes</th></tr>
+<tr><td>Free (<code>bw_free_*</code>)</td><td>60</td><td>1 000</td><td>Default on registration</td></tr>
+<tr><td>Pro (<code>bw_live_*</code>)</td><td>300</td><td>10 000</td><td>Contact api@buywhere.ai</td></tr>
+<tr><td>Enterprise (<code>bw_partner_*</code>)</td><td>1 000</td><td>100 000</td><td>Volume agreements</td></tr>
+</table>
+
+<h2>Python example</h2>
+<pre><code>import requests
+
+API_KEY = "bw_YOUR_KEY"
+BASE    = "${baseUrl}"
+
+resp = requests.get(
+    f"{BASE}/v1/products/search",
+    params={"q": "wireless headphones", "limit": 5, "currency": "SGD"},
+    headers={"Authorization": f"Bearer {API_KEY}"},
+)
+resp.raise_for_status()
+
+for p in resp.json()["data"]:
+    print(f"{p['title']}  {p['currency']} {p['price']}")</code></pre>
+
+<h2>Node.js / TypeScript example</h2>
+<pre><code>const API_KEY = "bw_YOUR_KEY";
+const BASE    = "${baseUrl}";
+
+const res = await fetch(\`\${BASE}/v1/products/search?q=wireless+headphones&limit=5\`, {
+  headers: { Authorization: \`Bearer \${API_KEY}\` },
+});
+
+const { data } = await res.json();
+data.forEach(p => console.log(\`\${p.title}  \${p.currency} \${p.price}\`));</code></pre>
+
+<h2>Next steps</h2>
+<ul>
+  <li><a href="${baseUrl}/docs/guides/mcp">MCP integration guide</a> — connect BuyWhere to Claude Desktop, Cursor, and other MCP clients</li>
+  <li><a href="${baseUrl}/openapi.json">OpenAPI spec</a> — full parameter reference</li>
+  <li><a href="mailto:api@buywhere.ai">api@buywhere.ai</a> — support and tier upgrades</li>
+</ul>
+
+<p style="margin-top:3em;color:#6b7280;font-size:.85em">
+  <a href="${baseUrl}/docs/guides/mcp">MCP guide</a> ·
+  <a href="${baseUrl}/openapi.json">OpenAPI spec</a> ·
+  <a href="mailto:api@buywhere.ai">api@buywhere.ai</a>
+</p>
+</body>
+</html>`;
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(html);
+});
+
 // GET /docs/guides/mcp
 // Serves the MCP integration guide as HTML or markdown.
 router.get('/guides/mcp', (req: Request, res: Response) => {
@@ -484,9 +642,9 @@ result.data.slice(0, 3).forEach(p =>
   res.send(html);
 });
 
-// Redirect /docs to the MCP guide (most common entry point)
+// Redirect /docs to the quickstart (primary entry point for new developers)
 router.get('/', (_req: Request, res: Response) => {
-  res.redirect(301, '/docs/guides/mcp');
+  res.redirect(301, '/docs/quickstart');
 });
 
 export default router;

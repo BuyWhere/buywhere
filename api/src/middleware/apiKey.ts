@@ -26,7 +26,12 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
   }
 
   if (!key) {
-    res.status(401).json({ error: 'API key required. Pass as Authorization: Bearer <key>' });
+    res.set('X-BuyWhere-Docs', 'https://api.buywhere.ai/docs/quickstart');
+    res.status(401).json({
+      error: 'API key required. Pass as Authorization: Bearer <key>',
+      hint: 'Get a free API key in 30 seconds: POST https://api.buywhere.ai/v1/auth/register with {"agent_name":"your-bot"}',
+      quickstart: 'https://api.buywhere.ai/docs/quickstart',
+    });
     return;
   }
 
@@ -38,7 +43,12 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
   );
 
   if (result.rows.length === 0) {
-    res.status(401).json({ error: 'Invalid API key' });
+    res.set('X-BuyWhere-Docs', 'https://api.buywhere.ai/docs/quickstart');
+    res.status(401).json({
+      error: 'Invalid API key',
+      hint: 'Check that your key starts with bw_ and matches what was returned at registration. Register a new key: POST /v1/auth/register',
+      quickstart: 'https://api.buywhere.ai/docs/quickstart',
+    });
     return;
   }
 

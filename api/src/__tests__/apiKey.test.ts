@@ -33,11 +33,12 @@ function makeReq(overrides: Partial<Request> = {}): Request {
   } as unknown as Request;
 }
 
-function makeRes(): { res: Response; status: jest.Mock; json: jest.Mock } {
+function makeRes(): { res: Response; status: jest.Mock; json: jest.Mock; set: jest.Mock } {
   const json = jest.fn();
+  const set = jest.fn();
   const status = jest.fn().mockReturnValue({ json });
-  const res = { status, json } as unknown as Response;
-  return { res, status, json };
+  const res = { status, json, set } as unknown as Response;
+  return { res, status, json, set };
 }
 
 describe('hashKey', () => {
