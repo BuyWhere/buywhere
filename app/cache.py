@@ -17,6 +17,8 @@ async def get_redis() -> Redis:
             settings.redis_url,
             encoding="utf-8",
             decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=2,
         )
     return _redis
 
