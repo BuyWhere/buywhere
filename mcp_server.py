@@ -172,6 +172,62 @@ async def get_deals(
     return TextContent(type="text", text="\n".join(lines))
 
 
+@mcp.tool()
+async def list_categories() -> TextContent:
+    """List all product categories available in the BuyWhere catalog, with product counts."""
+    try:
+        data = await _api_get("/v1/categories")
+    except Exception as exc:
+        logger.exception("list_categories API error")
+        return TextContent(type="text", text=f"Categories fetch failed: {exc}")
+
+    categories = data.get("categories", []) if isinstance(data, dict) else []
+    total = data.get("total", len(categories)) if isinstance(data, dict) else len(categories)
+    if not categories:
+        return TextContent(type="text", text="No categories found.")
+
+    lines = [f"**{total} categories available in BuyWhere:**\n"]
+    for cat in categories:
+        name = cat.get("name", "Unknown")
+        count = cat.get("count", 0)
+        lines.append(f"- {name} ({count:,} products)")
+    return TextContent(type="text", text="\n".join(lines))
+
+
+@mcp.tool()
+async def compare_products(
+    product_ids: list[int],
+) -> TextContent:
+    """Compare multiple products side-by-side by their BuyWhere IDs. Pass 2–10 product IDs to see name, price, platform, and URL for each."""
+    if len(product_ids) < 2:
+        return TextContent(type="text", text="Please provide at least 2 product IDs to compare.")
+    if len(product_ids) > 10:
+        product_ids = product_ids[:10]
+
+    ids_param = ",".join(str(pid) for pid in product_ids)
+    try:
+        data = await _api_get("/v1/products/compare", {"ids": ids_param})
+    except Exception as exc:
+        logger.exception("compare_products API error for ids %r", product_ids)
+        return TextContent(type="text", text=f"Compare failed: {exc}")
+
+    items = data.get("items", []) if isinstance(data, dict) else []
+    if not items:
+        return TextContent(type="text", text="No products found for the given IDs.")
+
+    lines = [f"## Product Comparison ({len(items)} products)\n"]
+    for i, p in enumerate(items, 1):
+        price_str = _fmt_price(p.get("price"), p.get("currency", "SGD"))
+        url = p.get("affiliate_url") or p.get("buy_url") or ""
+        url_line = f"\n   URL: {url}" if url else ""
+        lines.append(
+            f"{i}. **{p.get('name') or 'Unknown'}**\n"
+            f"   Price: {price_str} | Platform: {p.get('source', 'unknown')}{url_line}\n"
+            f"   ID: {p.get('id', '')} | Category: {p.get('category') or 'N/A'}\n"
+        )
+    return TextContent(type="text", text="\n".join(lines))
+
+
 async def _api_get(path: str, params: dict[str, Any] | None = None) -> Any:
     headers: dict[str, str] = {"Accept": "application/json"}
     if API_KEY:
