@@ -1,0 +1,131 @@
+name: Deploy BuyWhere Site (Cloud Run)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'content/**'
+      - 'docs/**'
+      - 'next.config.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'site.Dockerfile'
+      - '.github/workflows/deploy-site-production.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-site-production
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: gaia-calendar-488606
+  GCP_REGION: asia-southeast1
+  CLOUD_RUN_SERVICE: buywhere-site-production
+  AR_REPO: buywhere
+  AR_IMAGE: asia-southeast1-docker.pkg.dev/gaia-calendar-488606/buywhere/site
+
+jobs:
+  build:
+    name: Build and Push Site Image
+    runs-on: ubuntu-latest
+    environment: production
+    outputs:
+      image_tag: ${{ steps.image_meta.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PROD || secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Ensure Artifact Registry repository exists
+        run: |
+          gcloud artifacts repositories describe ${{ env.AR_REPO }} \
+            --location=${{ env.GCP_REGION }} \
+            --project=${{ env.GCP_PROJECT_ID }} \
+            --format="value(name)" 2>/dev/null || \
+          gcloud artifacts repositories create ${{ env.AR_REPO }} \
+            --repository-format=docker \
+            --location=${{ env.GCP_REGION }} \
+            --project=${{ env.GCP_PROJECT_ID }} \
+            --description="BuyWhere container images"
+
+      - name: Set image tag
+        id: image_meta
+        run: echo "image_tag=${{ env.AR_IMAGE }}:sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push site image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: site.Dockerfile
+          push: true
+          tags: ${{ steps.image_meta.outputs.image_tag }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to Cloud Run
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PROD || secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        run: |
+          set -o pipefail
+          SERVICE_URL=$(gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --region ${{ env.GCP_REGION }} \
+            --image ${{ needs.build.outputs.image_tag }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 3000 \
+            --memory 512Mi \
+            --cpu 1 \
+            --min-instances 1 \
+            --max-instances 10 \
+            --concurrency 80 \
+            --timeout 30s \
+            --set-env-vars "NODE_ENV=production" \
+            --set-env-vars "SIGNUP_WEBHOOK_URL=${{ secrets.SIGNUP_WEBHOOK_URL || '' }}" \
+            --format json | jq -r '.status.url // empty')
+          echo "url=${SERVICE_URL}" >> "$GITHUB_OUTPUT"
+          echo "Site deployed: ${SERVICE_URL}"
+
+      - name: Verify deployment
+        run: |
+          sleep 10
+          HTTP=$(curl -sf -o /dev/null -w "%{http_code}" \
+            "${{ steps.deploy.outputs.url }}" --max-time 15 || echo "000")
+          echo "Cloud Run site health: HTTP ${HTTP}"
+          if [[ "$HTTP" != "200" ]]; then
+            echo "WARN: Cloud Run returned ${HTTP} — check service logs"
+          fi

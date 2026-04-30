@@ -1,0 +1,26 @@
+{
+  "name": "BuyWhere",
+  "short_name": "BuyWhere",
+  "description": "Product Discovery Infrastructure for AI-Powered Shopping",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4F46E5",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "apple_mobile_web_app_capable": "yes",
+  "apple_mobile_web_app_status_bar_style": "default",
+  "apple_mobile_web_app_title": "BuyWhere"
+}

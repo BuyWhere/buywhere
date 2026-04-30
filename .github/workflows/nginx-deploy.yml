@@ -44,16 +44,16 @@ jobs:
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.PRODUCTION_SSH_KEY }}" > ~/.ssh/id_ed25519
+          echo "${{ secrets.PRODUCTION_DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${{ secrets.PRODUCTION_SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -H "${{ secrets.PRODUCTION_DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Upload nginx config
         env:
           CONFIG_NAME: ${{ steps.vars.outputs.config_name }}
           DEPLOY_SHA: ${{ steps.vars.outputs.deploy_sha }}
-          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
-          SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
         run: |
           REMOTE_TMP="/tmp/nginx-${CONFIG_NAME}-${DEPLOY_SHA}.conf"
           scp -i ~/.ssh/id_ed25519 \
@@ -66,8 +66,8 @@ jobs:
           CONFIG_NAME: ${{ steps.vars.outputs.config_name }}
           DEPLOY_SHA: ${{ steps.vars.outputs.deploy_sha }}
           DRY_RUN: ${{ steps.vars.outputs.dry_run }}
-          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
-          SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
         run: |
           # Pass variables as explicit env vars on the remote command line.
           # Using bash -s with heredoc avoids the positional-argument/unbound-variable

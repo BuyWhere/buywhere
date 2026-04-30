@@ -1,0 +1,222 @@
+{
+  "electronics": {
+    "expertSummaries": [
+      {
+        "title": "Check retailer stock status before committing",
+        "body": "Prices can look identical across platforms but stock availability varies. Filter for in-stock offers first — a listed price means nothing if the item ships in 3–4 weeks. Electronics like headphones and earbuds often see sudden price drops when retailers clear inventory, so the freshness timestamp matters as much as the number itself."
+      },
+      {
+        "title": "Warranty and after-sales support differ by retailer",
+        "body": "The cheapest listing may carry a grey-market import with no local warranty. For high-ticket electronics, check whether the retailer offers a local service centre or direct manufacturer warranty. A $20 saving can evaporate quickly if a repair requires overseas shipping."
+      }
+    ],
+    "faqs": [
+      {
+        "question": "Why do prices differ across retailers for the same model?",
+        "answer": "Retailers set their own margins, run independent promotions, and may carry different regional SKUs. Prices also update at different frequencies — some retailers reprice daily, others weekly. Our freshness badge shows how recently each price was confirmed."
+      },
+      {
+        "question": "Is it safe to buy electronics from marketplace sellers?",
+        "answer": "Reputable marketplaces vet sellers, but warranty coverage varies. Always check the seller's rating, read return policies, and verify the item ships from an authorised distributor if warranty claims matter to you."
+      }
+    ]
+  },
+  "fashion": {
+    "expertSummaries": [
+      {
+        "title": "Size availability affects the real best price",
+        "body": "A discounted listing for a popular size may sell out faster than the price updates. When comparing fashion items, treat the listed price as a starting point — click through to confirm your size is actually available before deciding which retailer wins on value."
+      },
+      {
+        "title": "Return policies change the effective cost",
+        "body": "Free returns make a $5 price premium worthwhile on clothing. Some retailers charge restocking or return-shipping fees that can exceed the savings from picking the cheapest listing. Factor in total cost of ownership, especially for footwear where sizing is unpredictable online."
+      }
+    ],
+    "faqs": [
+      {
+        "question": "Why are the same brand items priced differently across retailers?",
+        "answer": "Retailers negotiate different wholesale rates, run seasonal sales independently, and may carry different colourways or season codes at different price points. Older colourways often carry steeper discounts that don't appear on the main search result."
+      },
+      {
+        "question": "How do I know if a deal is actually a good price?",
+        "answer": "Compare the listed price against historical data if available, and check whether the item is on sale at the brand's own store. Brand-direct sales often match third-party discounts while including loyalty points or easier returns."
+      }
+    ]
+  },
+  "home-living": {
+    "expertSummaries": [
+      {
+        "title": "Shipping weight affects the real total cost",
+        "body": "Bulky home items like shelving or cookware sets often carry separate freight charges not reflected in the listed price. Check the full checkout total before comparing — a listing that looks $15 cheaper may carry a $25 delivery surcharge for oversize items."
+      },
+      {
+        "title": "Bundle deals can offer better per-unit value",
+        "body": "Retailers frequently discount home goods in bundles — a single bedsheet set versus a full bedroom bundle, or a stand-alone blender versus a kitchen appliance pack. When a single-item price looks high, search for the retailer's bundle equivalent before concluding it's expensive."
+      }
+    ],
+    "faqs": [
+      {
+        "question": "Are home goods covered by local warranty even from online retailers?",
+        "answer": "Warranty terms depend on the brand and the retailer's authorisation status. Branded appliances from authorised retailers carry the standard manufacturer warranty; marketplace third-party sellers may not. Always confirm before purchase."
+      },
+      {
+        "question": "How often do home goods prices change?",
+        "answer": "Large retailers update home goods prices frequently around major sale events (Mega Sales, year-end clearances, new model launches). Prices between events tend to be stable, so a stale badge on a home item usually signals less urgency than the same badge on electronics."
+      }
+    ]
+  },
+  "beauty": {
+    "expertSummaries": [
+      {
+        "title": "Authenticity risk is higher for prestige skincare",
+        "body": "Luxury skincare and cosmetics attract counterfeit listings on some marketplaces. Authorised retailers and brand-direct stores carry the lowest authenticity risk. If the price for a high-end serum is 40% below RRP with no stated reason, treat that as a red flag rather than a bargain."
+      },
+      {
+        "title": "Expiry dates matter more than price for perishables",
+        "body": "Skincare and cosmetics have shelf lives. Discounted stock may be approaching expiry. Check whether the retailer states the production or expiry batch, especially for products you plan to use over several months."
+      }
+    ],
+    "faqs": [
+      {
+        "question": "Why is the same product cheaper on some platforms?",
+        "answer": "Authorised retailers operate under brand-set minimum advertised prices. Marketplace sellers may undercut these by sourcing through grey channels or selling near-expiry stock. Significant discounts below the standard market price warrant extra scrutiny."
+      },
+      {
+        "question": "Do loyalty points affect which retailer is actually cheapest?",
+        "answer": "Yes. If you regularly shop a specific retailer, points redemption can meaningfully offset the listed price. Factor in your typical earn rate — 5–10% effective cashback can swing the value calculation in favour of a nominally more expensive listing."
+      }
+    ]
+  },
+  "sports-outdoors": {
+    "expertSummaries": [
+      {
+        "title": "Seasonal pricing follows demand cycles",
+        "body": "Running shoes see price spikes before major race seasons; camping gear peaks before public holidays and school breaks. If you can buy off-peak, prices for sports and outdoor products can drop 20–30% compared to peak-demand months."
+      },
+      {
+        "title": "Previous-season models offer strong value",
+        "body": "Performance improvements between consecutive model years are often marginal. Last season's running shoe or gym tracker typically performs identically for recreational users while selling at a significant discount. Search by model year if the comparison table mixes generations."
+      }
+    ],
+    "faqs": [
+      {
+        "question": "Are sports goods from online retailers covered by manufacturer warranty?",
+        "answer": "Authorised online retailers carry the full manufacturer warranty. For large items like exercise equipment, confirm whether assembly or installation is included and whether warranty claims require the original packaging."
+      },
+      {
+        "question": "How do I compare technical specs across brands?",
+        "answer": "Focus on the specifications that match your use case — VO2 max tracking matters for runners but not casual gym-goers. Marketing claims like 'advanced cushioning' are not standardised; look for independent reviews that benchmark the spec you care about."
+      }
+    ]
+  },
+  "health-wellness": {
+    "expertSummaries": [
+      {
+        "title": "Price per serving is more useful than unit price",
+        "body": "A supplement bottle with 60 capsules at a lower price may deliver fewer milligrams per dose than a pricier 30-capsule bottle. Always calculate cost per serving or per active-ingredient gram before comparing listings — the cheapest headline price is rarely the most economical option."
+      },
+      {
+        "title": "Certification claims vary by retailer",
+        "body": "GMP certification, third-party testing, and heavy-metal screens are not universal. Authorised health retailers and pharmacies tend to carry verified products; marketplace third-party sellers may import uncertified equivalents. Check the listed certifications against the brand's official website."
+      }
+    ],
+    "faqs": [
+      {
+        "question": "Why do supplement prices vary so much across retailers?",
+        "answer": "Retail pharmacies operate under different margins and promotional cycles than online marketplaces. Subscribe-and-save or loyalty programme discounts can significantly undercut standard listed prices. Marketplaces also carry private-label products that mimic branded formulations at lower price points."
+      },
+      {
+        "question": "Is it safe to buy health supplements from marketplace sellers?",
+        "answer": "Regulatory risk varies by country. In Singapore and the US, health supplements must meet specific registration requirements. Buying from retailers who stock approved products reduces exposure to adulterated or misrepresented formulations."
+      }
+    ]
+  },
+  "toys-games": {
+    "expertSummaries": [
+      {
+        "title": "Prices spike around gift-giving seasons",
+        "body": "Toys and games see sharp price increases in the lead-up to Christmas, Chinese New Year, and major school holidays. Buying 4–8 weeks before peak season typically captures the best pricing window before demand outstrips inventory."
+      },
+      {
+        "title": "Age-rating and regional versions affect compatibility",
+        "body": "Board games and video game accessories can carry region-specific versions with different language cards, rule booklets, or accessory compatibility. Confirm the regional variant before buying on price alone — a cheaper import may not match the version your group already owns."
+      }
+    ],
+    "faqs": [
+      {
+        "question": "How do I know if a toy listing is from an authorised retailer?",
+        "answer": "Major toy brands publish authorised reseller lists on their websites. For safety-certified products like infant toys, buying from an authorised retailer ensures compliance with local safety standards rather than relying on a marketplace seller's self-declaration."
+      },
+      {
+        "question": "Are digital game codes cheaper than physical editions?",
+        "answer": "Digital codes eliminate shipping and packaging costs, which sometimes (but not always) translates to lower prices. Physical editions retain resale value and may include regional pricing benefits. Compare both formats when a digital edition appears in the price table."
+      }
+    ]
+  },
+  "food-beverages": {
+    "expertSummaries": [
+      {
+        "title": "Minimum order thresholds affect the real per-unit cost",
+        "body": "Gourmet food retailers frequently offer free shipping only above a spend threshold. A single premium tea tin may look competitive at S$28 until you add S$9 delivery — making the same item from a retailer with a lower minimum significantly cheaper in practice. Compare total basket cost, not line-item price."
+      },
+      {
+        "title": "Freshness windows are shorter than general merchandise",
+        "body": "Artisanal chocolate, specialty coffee, and craft beverages have production dates that directly affect quality. Ask retailers for production-batch information when purchasing items where freshness materially affects the experience. Our freshness badge reflects data recency, not product freshness."
+      }
+    ],
+    "faqs": [
+      {
+        "question": "Can I trust the product descriptions for imported gourmet items?",
+        "answer": "Authorised importers provide accurate origin and ingredient information. Grey-channel listings on marketplaces may carry translated descriptions that omit allergens or misrepresent origin. For items with dietary restrictions, purchase only from retailers who can provide the original packaging or importer declaration."
+      },
+      {
+        "question": "Why are some gourmet products only available from one retailer?",
+        "answer": "Specialty food brands often appoint exclusive regional distributors. If only one retailer lists a product, there may be a distribution exclusivity agreement in place rather than supply constraints — meaning the price is unlikely to fall regardless of how long you wait."
+      }
+    ]
+  },
+  "automotive": {
+    "expertSummaries": [
+      {
+        "title": "Compatibility verification is critical before purchase",
+        "body": "Automotive accessories and parts are highly vehicle-specific. A dash cam mount or car charger that fits one model may not fit another with the same brand name. Always cross-reference the listed vehicle compatibility with your exact make, model, and year before comparing prices."
+      },
+      {
+        "title": "OEM vs aftermarket pricing reflects different value propositions",
+        "body": "Original Equipment Manufacturer parts carry quality guarantees and preserve warranty coverage on newer vehicles. Aftermarket alternatives can cost 30–60% less but vary widely in quality and longevity. For consumables like wiper blades or cabin filters, aftermarket is often fine; for safety-critical components, OEM or branded alternatives are worth the premium."
+      }
+    ],
+    "faqs": [
+      {
+        "question": "Does buying car parts online void my vehicle warranty?",
+        "answer": "In most jurisdictions, using non-OEM parts does not void your warranty for unrelated systems. However, using a non-OEM part on the component that subsequently fails may affect warranty coverage for that specific part. Consult your service centre if warranty preservation is important."
+      },
+      {
+        "question": "Why do prices vary so much for the same part number?",
+        "answer": "Retailers source from different tiers of the supply chain. Authorised dealers pay distributor prices; online marketplaces may source from wholesale clearance lots or international grey channels. Verify that the part number on the product matches your vehicle's requirement exactly before assuming all listings are equivalent."
+      }
+    ]
+  },
+  "pet-supplies": {
+    "expertSummaries": [
+      {
+        "title": "Subscription pricing often beats one-time purchase rates",
+        "body": "Pet food and recurring consumables like litter or flea treatments are commonly offered at 10–15% discount via retailer subscription programmes. If you buy the same product monthly, compare the subscription price against the one-time price shown in the comparison table — the effective cost can differ substantially."
+      },
+      {
+        "title": "Prescription and therapeutic diets require vet authorisation",
+        "body": "Therapeutic pet foods listed on retail platforms may appear significantly cheaper than clinic prices, but legitimate therapeutic diets typically require a veterinary prescription. Purchasing without a valid prescription may result in receiving a substitute product or a non-therapeutic formulation marketed under a similar name."
+      }
+    ],
+    "faqs": [
+      {
+        "question": "How do I compare pet food prices when pack sizes differ?",
+        "answer": "Calculate cost per kilogram or per serving across listings — pack sizes differ widely and headline prices are misleading without normalisation. Larger bags typically offer better per-unit rates but check expiry windows if your pet consumes slowly."
+      },
+      {
+        "question": "Are generic or store-brand pet foods comparable to premium brands?",
+        "answer": "Ingredient quality and formulation standards vary significantly. Look for products that meet AAFCO or equivalent regional nutritional standards rather than relying on price alone as a proxy for quality. Your veterinarian is the best source of guidance for your pet's specific dietary needs."
+      }
+    ]
+  }
+}

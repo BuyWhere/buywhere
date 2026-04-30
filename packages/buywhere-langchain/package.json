@@ -1,0 +1,66 @@
+{
+  "name": "@buywhere/langchain",
+  "version": "0.1.0",
+  "description": "BuyWhere tools for LangChain - product search, price comparison, and deals as LangChain tools",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "buywhere",
+    "langchain",
+    "langchain-tools",
+    "product-search",
+    "price-comparison",
+    "deals",
+    "shopping",
+    "agent-sdk",
+    "ai"
+  ],
+  "author": "BuyWhere",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/buywhere/buywhere-site.git",
+    "directory": "packages/buywhere-langchain"
+  },
+  "homepage": "https://buywhere.ai",
+  "bugs": {
+    "url": "https://github.com/buywhere/buywhere-site/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0",
+    "@langchain/core": "^0.3.0"
+  },
+  "dependencies": {
+    "@buywhere/sdk": "file:../buywhere-sdk",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@langchain/core": "^0.3.0",
+    "@types/node": "^20.0.0",
+    "eslint": "^8.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,0 +1,430 @@
+/**
+ * BuyWhere Docs Portal — Design Tokens
+ * Version: 1.0
+ * 
+ * All CSS variables for the docs portal color system.
+ * Import this file in the docs layout.
+ * 
+ * Usage:
+ *   background-color: var(--bw-docs-bg-page);
+ *   color: var(--bw-docs-text-primary);
+ */
+
+/* ============================================================================
+   PRIMITIVE PALETTE
+   Source of truth — all semantic tokens reference these primitives.
+   ============================================================================ */
+
+:root {
+  /* -------------------------------------------------------------------------
+     Blues — Primary brand accent
+     ------------------------------------------------------------------------- */
+  --bw-docs-blue-50:  #eef2ff;
+  --bw-docs-blue-100: #e0e7ff;
+  --bw-docs-blue-200: #c7d2fe;
+  --bw-docs-blue-300: #a5b4fc;
+  --bw-docs-blue-400: #818cf8;
+  --bw-docs-blue-500: #6366f1;
+  --bw-docs-blue-600: #4f46e5;  /* DEFAULT accent */
+  --bw-docs-blue-700: #4338ca;
+  --bw-docs-blue-800: #3730a3;
+  --bw-docs-blue-900: #312e81;
+
+  /* -------------------------------------------------------------------------
+     Slate — Text & surfaces
+     ------------------------------------------------------------------------- */
+  --bw-docs-slate-50:  #f8fafc;
+  --bw-docs-slate-100: #f1f5f9;
+  --bw-docs-slate-200: #e2e8f0;
+  --bw-docs-slate-300: #cbd5e1;
+  --bw-docs-slate-400: #94a3b8;
+  --bw-docs-slate-500: #64748b;
+  --bw-docs-slate-600: #475569;
+  --bw-docs-slate-700: #334155;
+  --bw-docs-slate-800: #1e293b;
+  --bw-docs-slate-900: #0f172a;
+  --bw-docs-slate-950: #020617;
+
+  /* -------------------------------------------------------------------------
+     Emerald — GET method, success states
+     ------------------------------------------------------------------------- */
+  --bw-docs-emerald-50:  #ecfdf5;
+  --bw-docs-emerald-100: #d1fae5;
+  --bw-docs-emerald-300: #6ee7b7;
+  --bw-docs-emerald-500: #10b981;
+  --bw-docs-emerald-700: #047857;
+
+  /* -------------------------------------------------------------------------
+     Blue method — POST method
+     ------------------------------------------------------------------------- */
+  --bw-docs-blue-method-50:  #eff6ff;
+  --bw-docs-blue-method-100: #dbeafe;
+  --bw-docs-blue-method-300: #93c5fd;
+  --bw-docs-blue-method-500: #3b82f6;
+  --bw-docs-blue-method-700: #1d4ed8;
+
+  /* -------------------------------------------------------------------------
+     Amber — PUT/PATCH method, warnings
+     ------------------------------------------------------------------------- */
+  --bw-docs-amber-50:  #fffbeb;
+  --bw-docs-amber-100: #fef3c7;
+  --bw-docs-amber-300: #fcd34d;
+  --bw-docs-amber-500: #f59e0b;
+  --bw-docs-amber-700: #b45309;
+
+  /* -------------------------------------------------------------------------
+     Red — DELETE method, error states
+     ------------------------------------------------------------------------- */
+  --bw-docs-red-50:  #fef2f2;
+  --bw-docs-red-100: #fee2e2;
+  --bw-docs-red-300: #fca5a5;
+  --bw-docs-red-500: #ef4444;
+  --bw-docs-red-700: #b91c1c;
+
+  /* -------------------------------------------------------------------------
+     Gray — Neutral surfaces
+     ------------------------------------------------------------------------- */
+  --bw-docs-gray-50:  #f9fafb;
+  --bw-docs-gray-100: #f3f4f6;
+  --bw-docs-gray-200: #e5e7eb;
+  --bw-docs-gray-300: #d1d5db;
+  --bw-docs-gray-400: #9ca3af;
+  --bw-docs-gray-500: #6b7280;
+  --bw-docs-gray-600: #4b5563;
+  --bw-docs-gray-700: #374151;
+  --bw-docs-gray-900: #111827;
+
+  /* -------------------------------------------------------------------------
+     Zinc — Dark mode neutral surfaces
+     ------------------------------------------------------------------------- */
+  --bw-docs-zinc-50:  #fafafa;
+  --bw-docs-zinc-100: #f4f4f5;
+  --bw-docs-zinc-200: #e4e4e7;
+  --bw-docs-zinc-800: #27272a;
+  --bw-docs-zinc-900: #18181b;
+  --bw-docs-zinc-950: #09090b;
+
+  /* -------------------------------------------------------------------------
+     Semantic neutrals
+     ------------------------------------------------------------------------- */
+  --bw-docs-white: #ffffff;
+  --bw-docs-black: #000000;
+
+  /* -------------------------------------------------------------------------
+     Brand dark palette (from BUY-2261 brand identity)
+     ------------------------------------------------------------------------- */
+  --bw-docs-brand-bg-dark:      #0f0f1a;
+  --bw-docs-brand-card-dark:   #1a1a2e;
+  --bw-docs-brand-border-dark: #2d2d44;
+  --bw-docs-brand-text-dark:   #f9fafb;
+  --bw-docs-brand-muted-dark:   #9ca3af;
+}
+
+
+/* ============================================================================
+   SEMANTIC TOKENS — LIGHT MODE
+   ============================================================================ */
+
+:root {
+  /* --- Backgrounds --- */
+  --bw-docs-bg-page:        var(--bw-docs-white);
+  --bw-docs-bg-surface:     var(--bw-docs-slate-50);
+  --bw-docs-bg-card:        var(--bw-docs-white);
+  --bw-docs-bg-hover:       var(--bw-docs-slate-100);
+  --bw-docs-bg-code:        #0f172a;  /* Slate-900 — code always dark */
+  --bw-docs-bg-input:       var(--bw-docs-white);
+
+  /* --- Borders --- */
+  --bw-docs-border-default: var(--bw-docs-slate-200);
+  --bw-docs-border-subtle:  var(--bw-docs-slate-100);
+  --bw-docs-border-active: var(--bw-docs-blue-600);
+
+  /* --- Text --- */
+  --bw-docs-text-primary:   var(--bw-docs-gray-900);
+  --bw-docs-text-secondary: var(--bw-docs-gray-600);
+  --bw-docs-text-muted:     var(--bw-docs-gray-400);
+  --bw-docs-text-inverse:   var(--bw-docs-white);
+  --bw-docs-text-link:      var(--bw-docs-blue-600);
+
+  /* --- Accent / Interactive --- */
+  --bw-docs-accent:         var(--bw-docs-blue-600);
+  --bw-docs-accent-hover:   var(--bw-docs-blue-700);
+  --bw-docs-accent-subtle:  var(--bw-docs-blue-50);
+
+  /* --- Sidebar --- */
+  --bw-docs-sidebar-bg:            var(--bw-docs-white);
+  --bw-docs-sidebar-border:         var(--bw-docs-slate-200);
+  --bw-docs-sidebar-text:           var(--bw-docs-slate-700);
+  --bw-docs-sidebar-text-muted:     var(--bw-docs-slate-500);
+  --bw-docs-sidebar-active-bg:      var(--bw-docs-blue-50);
+  --bw-docs-sidebar-active-border:  var(--bw-docs-blue-600);
+  --bw-docs-sidebar-hover-bg:       var(--bw-docs-slate-50);
+
+  /* --- Top bar --- */
+  --bw-docs-topbar-bg:      var(--bw-docs-white);
+  --bw-docs-topbar-border:  var(--bw-docs-slate-200);
+
+  /* --- Center panel --- */
+  --bw-docs-center-bg:      var(--bw-docs-white);
+  --bw-docs-center-border:  var(--bw-docs-slate-200);
+
+  /* --- Code panel (right) — always dark --- */
+  --bw-docs-code-bg:        #0f172a;
+  --bw-docs-code-border:    var(--bw-docs-slate-800);
+  --bw-docs-code-text:      var(--bw-docs-slate-100);
+
+  /* --- Status colors --- */
+  --bw-docs-status-success: var(--bw-docs-emerald-500);
+  --bw-docs-status-warning: var(--bw-docs-amber-500);
+  --bw-docs-status-error:   var(--bw-docs-red-500);
+  --bw-docs-status-info:    var(--bw-docs-blue-method-500);
+
+  /* --- HTTP Method badges --- */
+  --bw-docs-method-get-bg:      var(--bw-docs-emerald-50);
+  --bw-docs-method-get-text:     var(--bw-docs-emerald-700);
+  --bw-docs-method-post-bg:     var(--bw-docs-blue-method-50);
+  --bw-docs-method-post-text:   var(--bw-docs-blue-method-700);
+  --bw-docs-method-put-bg:      var(--bw-docs-amber-50);
+  --bw-docs-method-put-text:   var(--bw-docs-amber-700);
+  --bw-docs-method-delete-bg:   var(--bw-docs-red-50);
+  --bw-docs-method-delete-text: var(--bw-docs-red-700);
+
+  /* --- Status badges --- */
+  --bw-docs-badge-new-bg:       #f3e8ff;
+  --bw-docs-badge-new-text:      #6b21a8;
+  --bw-docs-badge-beta-bg:      var(--bw-docs-amber-50);
+  --bw-docs-badge-beta-text:     var(--bw-docs-amber-700);
+  --bw-docs-badge-deprecated-bg: var(--bw-docs-gray-100);
+  --bw-docs-badge-deprecated-text: var(--bw-docs-gray-500);
+
+  /* --- Focus ring --- */
+  --bw-docs-focus-ring: 0 0 0 3px rgba(79, 70, 229, 0.3);
+}
+
+
+/* ============================================================================
+   SEMANTIC TOKENS — DARK MODE
+   ============================================================================ */
+
+[data-theme="dark"] {
+  /* --- Backgrounds --- */
+  --bw-docs-bg-page:        #0a0a0f;   /* Near-black, slight blue tint */
+  --bw-docs-bg-surface:     var(--bw-docs-gray-900);
+  --bw-docs-bg-card:        var(--bw-docs-brand-card-dark);
+  --bw-docs-bg-hover:       #252540;
+  --bw-docs-bg-code:        #0f172a;   /* Code always stays dark */
+  --bw-docs-bg-input:       var(--bw-docs-slate-800);
+
+  /* --- Borders --- */
+  --bw-docs-border-default: var(--bw-docs-brand-border-dark);
+  --bw-docs-border-subtle:  #1f1f38;
+  --bw-docs-border-active:  var(--bw-docs-blue-400);
+
+  /* --- Text --- */
+  --bw-docs-text-primary:   var(--bw-docs-brand-text-dark);
+  --bw-docs-text-secondary: var(--bw-docs-brand-muted-dark);
+  --bw-docs-text-muted:     var(--bw-docs-gray-500);
+  --bw-docs-text-inverse:   var(--bw-docs-gray-900);
+  --bw-docs-text-link:      var(--bw-docs-blue-400);
+
+  /* --- Accent / Interactive --- */
+  --bw-docs-accent:         var(--bw-docs-blue-400);
+  --bw-docs-accent-hover:   var(--bw-docs-blue-300);
+  --bw-docs-accent-subtle:  var(--bw-docs-slate-800);
+
+  /* --- Sidebar --- */
+  --bw-docs-sidebar-bg:            var(--bw-docs-brand-bg-dark);
+  --bw-docs-sidebar-border:        var(--bw-docs-brand-border-dark);
+  --bw-docs-sidebar-text:          var(--bw-docs-slate-200);
+  --bw-docs-sidebar-text-muted:    var(--bw-docs-slate-500);
+  --bw-docs-sidebar-active-bg:      rgba(79, 70, 229, 0.15);
+  --bw-docs-sidebar-active-border: var(--bw-docs-blue-400);
+  --bw-docs-sidebar-hover-bg:      #1a1a2e;
+
+  /* --- Top bar --- */
+  --bw-docs-topbar-bg:      var(--bw-docs-brand-bg-dark);
+  --bw-docs-topbar-border:  var(--bw-docs-brand-border-dark);
+
+  /* --- Center panel --- */
+  --bw-docs-center-bg:      #0a0a0f;
+  --bw-docs-center-border:  #1f1f38;
+
+  /* --- Code panel — unchanged (always dark) --- */
+  --bw-docs-code-bg:        #0f172a;
+  --bw-docs-code-border:    var(--bw-docs-slate-800);
+  --bw-docs-code-text:      var(--bw-docs-slate-100);
+
+  /* --- HTTP Method badges — lighter variants for dark mode --- */
+  --bw-docs-method-get-bg:      rgba(16, 185, 129, 0.15);
+  --bw-docs-method-get-text:    var(--bw-docs-emerald-300);
+  --bw-docs-method-post-bg:     rgba(59, 130, 246, 0.15);
+  --bw-docs-method-post-text:   var(--bw-docs-blue-method-300);
+  --bw-docs-method-put-bg:      rgba(245, 158, 11, 0.15);
+  --bw-docs-method-put-text:    var(--bw-docs-amber-300);
+  --bw-docs-method-delete-bg:   rgba(239, 68, 68, 0.15);
+  --bw-docs-method-delete-text: var(--bw-docs-red-300);
+
+  /* --- Focus ring --- */
+  --bw-docs-focus-ring: 0 0 0 3px rgba(129, 140, 248, 0.3);
+}
+
+
+/* ============================================================================
+   TYPOGRAPHY TOKENS
+   ============================================================================ */
+
+:root {
+  /* Font stacks */
+  --bw-docs-font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --bw-docs-font-mono: 'JetBrains Mono', "SF Mono", "Fira Code", Consolas, ui-monospace, monospace;
+
+  /* Type scale */
+  --bw-docs-text-display-size:   48px;
+  --bw-docs-text-display-height: 56px;
+  --bw-docs-text-display-weight: 700;
+  --bw-docs-text-display-tracking: -0.02em;
+
+  --bw-docs-text-h1-size:     36px;
+  --bw-docs-text-h1-height:  44px;
+  --bw-docs-text-h1-weight:   700;
+  --bw-docs-text-h1-tracking: -0.01em;
+
+  --bw-docs-text-h2-size:     28px;
+  --bw-docs-text-h2-height:   36px;
+  --bw-docs-text-h2-weight:   600;
+  --bw-docs-text-h2-tracking: 0;
+
+  --bw-docs-text-h3-size:     22px;
+  --bw-docs-text-h3-height:   30px;
+  --bw-docs-text-h3-weight:   600;
+  --bw-docs-text-h3-tracking: 0;
+
+  --bw-docs-text-h4-size:     18px;
+  --bw-docs-text-h4-height:   26px;
+  --bw-docs-text-h4-weight:   600;
+  --bw-docs-text-h4-tracking: 0;
+
+  --bw-docs-text-body-lg-size:     18px;
+  --bw-docs-text-body-lg-height:   28px;
+  --bw-docs-text-body-lg-weight:    400;
+  --bw-docs-text-body-lg-tracking: 0;
+
+  --bw-docs-text-body-size:     16px;
+  --bw-docs-text-body-height:   24px;
+  --bw-docs-text-body-weight:    400;
+  --bw-docs-text-body-tracking:  0;
+
+  --bw-docs-text-body-sm-size:     14px;
+  --bw-docs-text-body-sm-height:    20px;
+  --bw-docs-text-body-sm-weight:    400;
+  --bw-docs-text-body-sm-tracking:  0;
+
+  --bw-docs-text-caption-size:     12px;
+  --bw-docs-text-caption-height:   16px;
+  --bw-docs-text-caption-weight:   500;
+  --bw-docs-text-caption-tracking: 0.02em;
+
+  --bw-docs-text-code-size:      14px;
+  --bw-docs-text-code-height:     22px;
+  --bw-docs-text-code-weight:     400;
+  --bw-docs-text-code-tracking:   0;
+
+  /* Prose */
+  --bw-docs-prose-font:          var(--bw-docs-font-sans);
+  --bw-docs-prose-size:          16px;
+  --bw-docs-prose-height:        1.75;
+  --bw-docs-prose-heading-weight: 600;
+  --bw-docs-prose-code-bg:       var(--bw-docs-accent-subtle);
+  --bw-docs-prose-code-radius:    4px;
+
+  /* Code blocks */
+  --bw-docs-code-block-size:     14px;
+  --bw-docs-code-block-height:    1.6;
+  --bw-docs-code-block-padding:  16px;
+  --bw-docs-code-block-radius:   8px;
+
+  /* Inline code */
+  --bw-docs-inline-code-bg:      var(--bw-docs-accent-subtle);
+  --bw-docs-inline-code-padding:  2px 6px;
+  --bw-docs-inline-code-radius:   4px;
+}
+
+
+/* ============================================================================
+   SPACING TOKENS
+   ============================================================================ */
+
+:root {
+  --bw-docs-space-1:  4px;
+  --bw-docs-space-2:  8px;
+  --bw-docs-space-3:  12px;
+  --bw-docs-space-4:  16px;
+  --bw-docs-space-5:  20px;
+  --bw-docs-space-6:  24px;
+  --bw-docs-space-8:  32px;
+  --bw-docs-space-10: 40px;
+  --bw-docs-space-12: 48px;
+  --bw-docs-space-16: 64px;
+}
+
+
+/* ============================================================================
+   RADIUS TOKENS
+   ============================================================================ */
+
+:root {
+  --bw-docs-radius-sm:   4px;
+  --bw-docs-radius-md:   6px;
+  --bw-docs-radius-lg:   8px;
+  --bw-docs-radius-xl:   12px;
+  --bw-docs-radius-full:  9999px;
+}
+
+
+/* ============================================================================
+   SHADOW / ELEVATION TOKENS
+   ============================================================================ */
+
+:root {
+  --bw-docs-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --bw-docs-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --bw-docs-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --bw-docs-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+
+/* ============================================================================
+   TRANSITION TOKENS
+   ============================================================================ */
+
+:root {
+  --bw-docs-transition-fast:   150ms ease;
+  --bw-docs-transition-normal: 200ms ease;
+  --bw-docs-transition-slow:   300ms ease;
+}
+
+
+/* ============================================================================
+   LAYOUT TOKENS
+   ============================================================================ */
+
+:root {
+  --bw-docs-sidebar-width:        260px;
+  --bw-docs-topbar-height:        56px;
+  --bw-docs-code-panel-width:      360px;
+  --bw-docs-content-max-width:    900px;
+  --bw-docs-page-max-width:      1280px;
+}
+
+
+/* ============================================================================
+   Z-INDEX SCALE
+   ============================================================================ */
+
+:root {
+  --bw-docs-z-sidebar:    30;
+  --bw-docs-z-topbar:      40;
+  --bw-docs-z-dropdown:    50;
+  --bw-docs-z-modal:      100;
+  --bw-docs-z-toast:      110;
+}

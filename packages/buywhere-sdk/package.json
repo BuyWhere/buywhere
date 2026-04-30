@@ -1,0 +1,62 @@
+{
+  "name": "@buywhere/sdk",
+  "version": "0.2.0",
+  "description": "Official BuyWhere SDK for product search, price comparison, and deals",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "browser": "dist/index.global.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "browser": "./dist/index.global.js",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm,iife --dts --clean",
+    "build:tsc": "tsc --outDir dist --moduleResolution node --esModuleInterop --target es2020 src/index.ts && tsc --outDir dist --declaration --emitDeclarationOnly --declarationMap src/index.ts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "lint": "eslint src/",
+    "test": "npm run typecheck && npm run build && node --test tests/**/*.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "buywhere",
+    "product-search",
+    "price-comparison",
+    "deals",
+    "shopping",
+    "agent-sdk"
+  ],
+  "author": "BuyWhere",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/buywhere/buywhere-site.git",
+    "directory": "packages/buywhere-sdk"
+  },
+  "homepage": "https://buywhere.ai",
+  "bugs": {
+    "url": "https://github.com/buywhere/buywhere-site/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "eslint": "^8.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}

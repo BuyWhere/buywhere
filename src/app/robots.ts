@@ -6,6 +6,6 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
     },
-    sitemap: ["https://buywhere.ai/sitemap.xml", "https://buywhere.ai/sitemap-compare.xml"],
+    sitemap: "https://buywhere.ai/sitemap.xml",
   };
 }
