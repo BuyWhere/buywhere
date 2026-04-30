@@ -1,0 +1,93 @@
+{
+  "tool": {
+    "name": "compare_products",
+    "description": "Use this whenever a user asks to compare products (A vs B, which is better, compare X and Y). Use this instead of guessing about product differences.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "products": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 2,
+          "maxItems": 10,
+          "description": "List of 2-10 product names or identifiers to compare (e.g., ['MacBook Pro 14', 'Dell XPS 15', 'iPhone 15 Pro'])"
+        },
+        "market": {
+          "type": "string",
+          "description": "ISO 3166-1 alpha-2 country code (e.g., 'US', 'SG'). Defaults to 'US'."
+        },
+        "decision_criteria": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "What aspects to compare (e.g., ['price', 'rating', 'battery_life', 'features', 'weight']). If not specified, compares all available criteria."
+        }
+      },
+      "required": ["products"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "query": { "type": "string" },
+        "summary": { "type": "string" },
+        "total_results": { "type": "integer" },
+        "comparison": {
+          "type": "object",
+          "description": "Side-by-side comparison across criteria",
+          "additionalProperties": true
+        },
+        "products": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "product_id": { "type": "string" },
+              "title": { "type": "string" },
+              "description": { "type": "string" },
+              "price": {
+                "type": "object",
+                "properties": {
+                  "current": { "type": "number" },
+                  "currency": { "type": "string" },
+                  "was": { "type": "number" }
+                }
+              },
+              "merchant": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "reliability_score": { "type": "number" }
+                }
+              },
+              "availability": { "type": "string", "enum": ["in_stock", "low_stock", "out_of_stock"] },
+              "buywhere_score": { "type": "number" },
+              "confidence": { "type": "number" },
+              "reason_for_rank": { "type": "string" },
+              "purchase_url": { "type": "string" }
+            }
+          }
+        },
+        "agent_guidance": {
+          "type": "object",
+          "properties": {
+            "recommended_answer_style": { "type": "string" },
+            "next_best_action": { "type": "string" },
+            "disclaimers": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "latency_ms": { "type": "number" },
+            "freshness": { "type": "string" },
+            "market": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  "buywhere": {
+    "tool_id": "compare_products",
+    "version": "1.0.0",
+    "intent": "product_comparison_decision"
+  }
+}

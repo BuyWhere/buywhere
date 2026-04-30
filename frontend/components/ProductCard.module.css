@@ -1,0 +1,222 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  background: var(--bw-bg-primary, #fff);
+  border: 1px solid var(--bw-border, #e5e7eb);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.imageLink {
+  display: block;
+  text-decoration: none;
+}
+
+.imageWrapper {
+  position: relative;
+  aspect-ratio: 1;
+  background: var(--bw-bg-secondary, #f9fafb);
+  overflow: hidden;
+}
+
+.image {
+  object-fit: contain;
+}
+
+.imagePlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--bw-text-muted, #9ca3af);
+}
+
+.imagePlaceholder svg {
+  width: 48px;
+  height: 48px;
+}
+
+.trendBadge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.trendBadge.up {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.trendBadge.down {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.trendBadge.stable {
+  background: var(--bw-bg-secondary, #f3f4f6);
+  color: var(--bw-text-secondary, #6b7280);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  flex: 1;
+}
+
+.brand {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--bw-text-muted, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.name {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.name a {
+  color: var(--bw-text-primary, #111827);
+  text-decoration: none;
+}
+
+.name a:hover {
+  color: var(--bw-primary, #2563eb);
+}
+
+.rating {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ratingStars {
+  color: #f59e0b;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+.reviewCount {
+  font-size: 11px;
+  color: var(--bw-text-muted, #6b7280);
+}
+
+.priceRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.price {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--bw-text-primary, #111827);
+}
+
+.stockBadge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.inStock {
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.outOfStock {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.lowStock {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.source {
+  font-size: 11px;
+  color: var(--bw-text-muted, #6b7280);
+  text-transform: capitalize;
+}
+
+.cta {
+  display: block;
+  text-align: center;
+  padding: 10px 16px;
+  background: var(--bw-primary, #2563eb);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.cta:hover {
+  background: var(--bw-primary-dark, #1d4ed8);
+}
+
+@media (max-width: 768px) {
+  .card {
+    flex-direction: row;
+    gap: 12px;
+  }
+
+  .imageLink {
+    width: 120px;
+    flex-shrink: 0;
+  }
+
+  .imageWrapper {
+    aspect-ratio: 1;
+    border-radius: 8px 0 0 8px;
+  }
+
+  .content {
+    padding: 12px 12px 12px 0;
+    justify-content: center;
+  }
+
+  .name {
+    font-size: 13px;
+    -webkit-line-clamp: 2;
+  }
+
+  .price {
+    font-size: 16px;
+  }
+
+  .cta {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+}

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to BuyWhere — Your API key is ready</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f9fafb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+    
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f9fafb;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                
+                <!-- Main Container -->
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                    
+                    <!-- Header -->
+                    <tr>
+                        <td style="padding: 32px 40px 24px; border-bottom: 1px solid #e5e7eb;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                                <tr>
+                                    <td align="left">
+                                        <a href="https://buywhere.ai" style="display: inline-block; text-decoration: none;">
+                                            <span style="font-size: 24px; font-weight: 700; color: #4f46e5;">BuyWhere</span>
+                                        </a>
+                                    </td>
+                                    <td align="right">
+                                        <span style="font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Developer Preview</span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding: 40px;">
+                            
+                            <!-- Greeting -->
+                            <h1 style="margin: 0 0 8px; font-size: 28px; font-weight: 700; color: #111827; line-height: 1.3;">
+                                Hi {{ first_name }},
+                            </h1>
+                            <p style="margin: 0 0 24px; font-size: 18px; color: #6b7280;">Welcome to BuyWhere — your API key is ready.</p>
+                            
+                            <!-- Intro -->
+                            <p style="margin: 0 0 32px; font-size: 16px; line-height: 1.6; color: #374151;">
+                                You've got access to a product catalog API built for AI agents, shopping copilots, and price-comparison workflows. Query one layer instead of stitching together retailer-specific scrapers.
+                            </p>
+                            
+                            <!-- Quick Start Code Block -->
+                            <div style="background-color: #1f2937; border-radius: 8px; padding: 20px; margin-bottom: 32px;">
+                                <p style="margin: 0 0 12px; font-size: 12px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em;">Your first API call</p>
+                                <code style="font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 14px; color: #f9fafb; line-height: 1.6; display: block; white-space: pre;">curl "https://api.buywhere.ai/v1/search?q=wireless+headphones&limit=3" \
+  -H "Authorization: Bearer {{ api_key }}"</code>
+                            </div>
+                            
+                            <!-- What you get -->
+                            <h2 style="margin: 0 0 16px; font-size: 18px; font-weight: 600; color: #111827;">What you get</h2>
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 32px;">
+                                <tr>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+                                        <span style="color: #10b981; font-weight: 600;">&#10003;</span>&nbsp;&nbsp;<strong>Product search</strong> — query across 100+ merchants in real-time
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+                                        <span style="color: #10b981; font-weight: 600;">&#10003;</span>&nbsp;&nbsp;<strong>Price comparison</strong> — compare offers across retailers instantly
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 0;">
+                                        <span style="color: #10b981; font-weight: 600;">&#10003;</span>&nbsp;&nbsp;<strong>MCP tools</strong> — use inside Claude Desktop or Cursor
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- CTA Buttons -->
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 24px;">
+                                <tr>
+                                    <td align="center" style="padding: 8px;">
+                                        <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="https://api.buywhere.ai/docs" style="height:48px;v-text-anchor:middle;width:200px;" arcsize="7%" stroke="f" fillcolor="#4f46e5"><w:anchorlock/><center style="color:#ffffff;font-family:sans-serif;font-size:16px;font-weight:600;">View Documentation</center></v:roundrect><![endif]-->
+                                        <!--[if !mso]><!-->
+                                        <a href="https://api.buywhere.ai/docs" style="display: inline-block; padding: 14px 32px; background-color: #4f46e5; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; border-radius: 8px;">View Documentation</a>
+                                        <!--<![endif]-->
+                                    </td>
+                                    <td align="center" style="padding: 8px;">
+                                        <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="https://api.buywhere.ai/docs/quickstart" style="height:48px;v-text-anchor:middle;width:200px;" arcsize="7%" stroke="f" fillcolor="#ffffff; border: 2px solid #4f46e5;"><w:anchorlock/><center style="color:#4f46e5;font-family:sans-serif;font-size:16px;font-weight:600;">Quickstart Guide</center></v:roundrect><![endif]-->
+                                        <!--[if !mso]><!-->
+                                        <a href="https://api.buywhere.ai/docs/quickstart" style="display: inline-block; padding: 14px 32px; background-color: #ffffff; color: #4f46e5; font-size: 16px; font-weight: 600; text-decoration: none; border-radius: 8px; border: 2px solid #4f46e5;">Quickstart Guide</a>
+                                        <!--<![endif]-->
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Note -->
+                            <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #6b7280;">
+                                Need MCP setup instead of raw HTTP? Reply with <strong>MCP</strong> and we'll send the shortest path for Claude Desktop or Cursor.
+                            </p>
+                            
+                            <!-- Closing -->
+                            <p style="margin: 32px 0 0; font-size: 16px; line-height: 1.6; color: #374151;">
+                                Happy building,<br>
+                                <strong>The BuyWhere Team</strong>
+                            </p>
+                            
+                        </td>
+                    </tr>
+                    
+                    <!-- Divider -->
+                    <tr>
+                        <td style="padding: 0 40px;">
+                            <div style="height: 1px; background-color: #e5e7eb;"></div>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 24px 40px 32px;">
+                            <p style="margin: 0 0 8px; font-size: 14px; color: #6b7280; text-align: center;">
+                                Questions? Reply directly or <a href="mailto:developers@buywhere.ai" style="color: #4f46e5; text-decoration: underline;">email us</a>.
+                            </p>
+                            <p style="margin: 0 0 16px; font-size: 14px; color: #6b7280; text-align: center;">
+                                <a href="https://buywhere.ai/dashboard" style="color: #4f46e5; text-decoration: underline;">Dashboard</a>&nbsp;&middot;&nbsp;
+                                <a href="https://api.buywhere.ai/docs" style="color: #4f46e5; text-decoration: underline;">Documentation</a>&nbsp;&middot;&nbsp;
+                                <a href="https://buywhere.ai/privacy" style="color: #4f46e5; text-decoration: underline;">Privacy</a>
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #9ca3af; text-align: center;">
+                                &copy; {{ current_year }} BuyWhere. 123 Marina Boulevard, Singapore 018989
+                            </p>
+                        </td>
+                    </tr>
+                    
+                </table>
+                
+                <div style="height: 40px;"></div>
+                
+            </td>
+        </tr>
+    </table>
+    
+</body>
+</html>

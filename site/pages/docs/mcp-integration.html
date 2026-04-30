@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="docs-layout">
+    <aside class="docs-sidebar">
+        <nav class="docs-nav">
+            <div class="docs-nav__section">
+                <h3>Getting Started</h3>
+                <ul>
+                    <li><a href="/docs/quickstart">Quickstart</a></li>
+                    <li><a href="/docs/authentication">Authentication</a></li>
+                    <li><a href="/docs/errors">Error Handling</a></li>
+                </ul>
+            </div>
+            <div class="docs-nav__section">
+                <h3>Products</h3>
+                <ul>
+                    <li><a href="/docs/api-reference#search">Search Products</a></li>
+                    <li><a href="/docs/api-reference#get-product">Get Product</a></li>
+                    <li><a href="/docs/api-reference#compare">Compare Products</a></li>
+                    <li><a href="/docs/api-reference#deals">Get Deals</a></li>
+                </ul>
+            </div>
+            <div class="docs-nav__section">
+                <h3>Integrations</h3>
+                <ul>
+                    <li><a href="/docs/mcp-integration" class="active">MCP Integration</a></li>
+                    <li><a href="/docs/langchain">LangChain</a></li>
+                    <li><a href="/docs/examples">Examples</a></li>
+                </ul>
+            </div>
+        </nav>
+    </aside>
+
+    <main class="docs-main">
+        <h1>MCP Integration</h1>
+        <p class="lead">Connect BuyWhere directly to Claude, Cursor, and any MCP-compatible AI agent.</p>
+
+        <div class="section">
+            <h2>What is MCP?</h2>
+            <p>The Model Context Protocol (MCP) enables AI agents to connect to external data sources and tools. BuyWhere provides first-class MCP support so your AI agents can search and compare products natively.</p>
+        </div>
+
+        <div class="section">
+            <h2>Setup</h2>
+            <p>Add BuyWhere to your MCP configuration:</p>
+            <div class="code-block">
+                <pre><code>{
+  "mcpServers": {
+    "buywhere": {
+      "command": "npx",
+      "args": ["-y", "@buywhere/mcp-server"],
+      "env": {
+        "BW_API_KEY": "bw_live_your_api_key_here"
+      }
+    }
+  }
+}</code></pre>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Available Tools</h2>
+            <table class="tools-table">
+                <thead>
+                    <tr>
+                        <th>Tool</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>search_products</code></td>
+                        <td>Search for products by query across all US retailers</td>
+                    </tr>
+                    <tr>
+                        <td><code>get_product</code></td>
+                        <td>Get detailed product information by ID</td>
+                    </tr>
+                    <tr>
+                        <td><code>compare_prices</code></td>
+                        <td>Compare prices for a specific product across retailers</td>
+                    </tr>
+                    <tr>
+                        <td><code>get_deals</code></td>
+                        <td>Get current deals and promotions</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>Example Usage</h2>
+            <p>Once configured, your agent can search products naturally:</p>
+            <div class="code-block">
+                <pre><code>User: Find me the best price on Sony WH-1000XM5 headphones
+
+Agent calls: search_products({
+  query: "Sony WH-1000XM5 headphones",
+  country: "US"
+})
+
+Response: Found 3 results starting at $279.99 from Amazon</code></pre>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Next Steps</h2>
+            <ul>
+                <li><a href="/docs/quickstart">Learn the API basics</a></li>
+                <li><a href="/docs/examples">View code examples</a></li>
+                <li><a href="/register">Get your API key</a></li>
+            </ul>
+        </div>
+    </main>
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+.docs-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: var(--bw-spacing-8);
+    max-width: var(--bw-container-max);
+    margin: 0 auto;
+    padding: var(--bw-spacing-8) var(--bw-container-padding);
+}
+
+.docs-main {
+    max-width: 720px;
+}
+
+.docs-main h1 {
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.lead {
+    font-size: var(--bw-font-size-lg);
+    color: var(--bw-color-text-secondary);
+    margin-bottom: var(--bw-spacing-8);
+}
+
+.section {
+    margin-bottom: var(--bw-spacing-10);
+}
+
+.section h2 {
+    font-size: var(--bw-font-size-xl);
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.section ul {
+    list-style: disc;
+    padding-left: var(--bw-spacing-6);
+}
+
+.section li {
+    margin-bottom: var(--bw-spacing-2);
+}
+
+.section a {
+    color: var(--bw-color-primary);
+}
+
+.code-block {
+    background: var(--bw-color-bg-dark);
+    border-radius: var(--bw-radius-lg);
+    padding: var(--bw-spacing-4);
+    overflow-x: auto;
+}
+
+.code-block pre {
+    margin: 0;
+    font-size: var(--bw-font-size-sm);
+    color: var(--bw-color-text-inverse);
+}
+
+.tools-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.tools-table th,
+.tools-table td {
+    padding: var(--bw-spacing-3);
+    text-align: left;
+    border-bottom: 1px solid var(--bw-color-border);
+}
+
+.tools-table th {
+    font-weight: var(--bw-font-weight-semibold);
+    color: var(--bw-color-text-secondary);
+}
+
+@media (max-width: 768px) {
+    .docs-layout {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

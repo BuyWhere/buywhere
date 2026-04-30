@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="blog-hero">
+    <div class="container">
+        <div class="post-meta">
+            <span class="post-date">April 14, 2026</span>
+            <span class="post-tag">Deals</span>
+        </div>
+        <h1>Top 10 Electronics Deals in Singapore This Week</h1>
+        <p class="lead">BuyWhere tracks listings across Lazada, Shopee, and Qoo10 in real time — here are the standout deals from this week's catalog.</p>
+    </div>
+</section>
+
+<section class="blog-content">
+    <div class="container">
+        <div class="prose">
+<p>Looking for the best electronics deals in Singapore right now? BuyWhere tracks listings across Lazada, Shopee, and Qoo10 in real time — here are the standout deals from this week's catalog.</p>
+
+<p><em>Note: Prices are sourced from BuyWhere's live catalog. Availability and pricing may change — click through to confirm before purchasing.</em></p>
+
+<hr>
+
+<ol>
+<li>
+<h3>Sony WH-1000XM5 Wireless Headphones — from SGD 329</h3>
+<p>The gold standard for noise cancellation, now consistently under SGD 350. Multiple sellers on Lazada and Shopee have this at SGD 329–349 this week.</p>
+<p><em>Best for: Commuters, remote workers, frequent fliers.</em></p>
+</li>
+
+<li>
+<h3>Xiaomi Redmi Note 13 Pro (256GB) — from SGD 299</h3>
+<p>Strong mid-range performance at a hard-to-argue-with price. Available on Shopee and Lazada. The 256GB variant represents excellent value over the base model.</p>
+<p><em>Best for: Budget-conscious buyers who do not want to compromise on storage.</em></p>
+</li>
+
+<li>
+<h3>Dyson V12 Detect Slim — from SGD 649</h3>
+<p>The V12 has been creeping down in price as Dyson pushes the V15 line. If you do not need the extra suction of the V15, the V12 at this price is a smart buy.</p>
+<p><em>Best for: Apartments and HDB units up to 4-room.</em></p>
+</li>
+
+<li>
+<h3>Apple AirPods Pro (2nd gen) — from SGD 289</h3>
+<p>Consistently on deal across Lazada and Qoo10. Watch for Shopee flash sales that have pushed these to SGD 269 on certain days this month.</p>
+<p><em>Best for: iPhone users who want the best wireless ANC earbuds in the ecosystem.</em></p>
+</li>
+
+<li>
+<h3>Asus ZenBook 14 OLED (Intel Core Ultra 5) — from SGD 1,149</h3>
+<p>The OLED display on this machine is exceptional. Under SGD 1,200 for a compact OLED laptop with a current-gen processor is a legitimate deal.</p>
+<p><em>Best for: Students, writers, anyone who stares at a screen all day.</em></p>
+</li>
+
+<li>
+<h3>Samsung 55" Crystal UHD 4K TV — from SGD 699</h3>
+<p>Large-format TVs have been a consistent deal category in 2026. Samsung's Crystal UHD line at this price is a reasonable upgrade for living rooms that have not been updated in 3+ years.</p>
+<p><em>Best for: HDB living rooms, bedroom setups.</em></p>
+</li>
+
+<li>
+<h3>Logitech MX Master 3S Mouse — from SGD 99</h3>
+<p>Down from the usual SGD 119–129. This is the best productivity mouse available and one of the few peripherals where the premium is clearly justified.</p>
+<p><em>Best for: Power users, developers, designers.</em></p>
+</li>
+
+<li>
+<h3>GoPro HERO12 Black — from SGD 449</h3>
+<p>The HERO12 has been replaced by the HERO13 in most markets, which means the HERO12 is now moving at discount. For most users, the HERO12 is more than capable.</p>
+<p><em>Best for: Travel, sports, creators who do not need 5.3K.</em></p>
+</li>
+
+<li>
+<h3>Anker 737 Power Bank (24,000 mAh) — from SGD 89</h3>
+<p>Fast charging, high capacity, airline-compliant. Anker's powerbanks are a reliable category and this model has been particularly well-reviewed.</p>
+<p><em>Best for: Heavy phone users, travellers, remote workers.</em></p>
+</li>
+
+<li>
+<h3>Kindle Paperwhite (16GB) — from SGD 209</h3>
+<p>The Paperwhite has been hovering around SGD 199–219 for months. If you have been on the fence about an e-reader, this is a good entry point.</p>
+<p><em>Best for: Commuters, avid readers, anyone who wants to read more.</em></p>
+</li>
+</ol>
+
+<hr>
+
+<h2>How BuyWhere finds these deals</h2>
+
+<p>BuyWhere crawls Lazada, Shopee, Qoo10, and other Singapore merchant platforms continuously. Our API surfaces current prices, availability, and direct purchase links — the same data that powers the deals above.</p>
+
+<p>If you are a developer building a shopping agent, deal finder, or price comparison tool, <a href="https://buywhere.io/developers">get free API access at buywhere.io/developers</a>.</p>
+
+<p>We will update this post weekly as catalog data refreshes.</p>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.blog-hero { padding: var(--bw-spacing-16) 0; background: linear-gradient(135deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%); }
+.blog-hero h1 { margin-bottom: var(--bw-spacing-4); font-size: var(--bw-font-size-3xl); }
+.post-meta { display: flex; gap: var(--bw-spacing-4); margin-bottom: var(--bw-spacing-4); }
+.post-tag { background: var(--bw-color-accent); color: white; padding: var(--bw-spacing-1) var(--bw-spacing-3); border-radius: var(--bw-radius-full); font-size: var(--bw-font-size-sm); }
+.blog-content { padding: var(--bw-spacing-16) 0; }
+.prose { max-width: 720px; }
+.prose h3 { font-size: var(--bw-font-size-lg); margin: var(--bw-spacing-6) 0 var(--bw-spacing-2); }
+.prose p { margin-bottom: var(--bw-spacing-3); line-height: 1.6; }
+.prose ol { padding-left: var(--bw-spacing-6); }
+.prose li { margin-bottom: var(--bw-spacing-6); }
+.prose hr { border: none; border-top: 1px solid var(--bw-color-border); margin: var(--bw-spacing-8) 0; }
+.prose em { color: var(--bw-color-text-secondary); font-style: italic; }
+.prose a { color: var(--bw-color-primary); }
+</style>
+{% endblock %}

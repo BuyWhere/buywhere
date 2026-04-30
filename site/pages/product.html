@@ -1,0 +1,978 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="product-detail" id="product-detail" data-product-id="{{ product_id | default('') }}">
+    <div class="container">
+        <div class="product-loading" id="product-loading">
+            <div class="spinner"></div>
+            <p>Loading product...</p>
+        </div>
+        
+        <div class="product-error" id="product-error" hidden>
+            <h2>Product Not Found</h2>
+            <p>We couldn't find this product in our catalog.</p>
+            <a href="/catalog" class="btn btn-primary">Browse Catalog</a>
+        </div>
+        
+        <div class="product-content" id="product-content" hidden>
+            <nav class="product-breadcrumb" aria-label="Breadcrumb">
+                <ol class="breadcrumb-list" id="breadcrumb-list">
+                    <li class="breadcrumb-item"><a href="/">Home</a></li>
+                </ol>
+            </nav>
+            
+            <div class="product-main">
+                <div class="product-gallery">
+                    <div class="product-image-container">
+                        <img id="product-image" src="" alt="" class="product-image" />
+                    </div>
+                </div>
+                
+                <div class="product-info">
+                    <div class="product-header">
+                        <span class="product-platform" id="product-platform"></span>
+                        <h1 class="product-title" id="product-title"></h1>
+                        <p class="product-description" id="product-description"></p>
+                    </div>
+                    
+                    <div class="product-pricing">
+                        <div class="price-current">
+                            <span class="price-label">Current Price</span>
+                            <span class="price-value" id="product-price"></span>
+                        </div>
+                        <div class="price-30d-avg" id="price-30d-avg-container" hidden>
+                            <span class="price-label">30-Day Avg</span>
+                            <span class="price-value" id="price-30d-avg"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="product-merchant">
+                        <span class="merchant-rating" id="merchant-rating"></span>
+                        <a href="#" class="merchant-link" id="merchant-link" target="_blank" rel="noopener">View on <span class="merchant-name" id="merchant-name"></span></a>
+                    </div>
+                    
+                    <div class="product-badges" id="product-badges"></div>
+                </div>
+            </div>
+            
+            <div class="product-chart-section">
+                <div class="chart-header">
+                    <h2>Price History</h2>
+                    <div class="chart-toggle" role="group" aria-label="Price history period">
+                        <button class="chart-toggle-btn" data-period="30d">30D</button>
+                        <button class="chart-toggle-btn active" data-period="90d">90D</button>
+                        <button class="chart-toggle-btn" data-period="all">All Time</button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="price-history-chart" aria-label="Price history chart" role="img"></canvas>
+                    <div class="chart-empty" id="chart-empty" hidden>
+                        <p>Not enough price history data available yet.</p>
+                    </div>
+                    <div class="chart-loading" id="chart-loading">
+                        <div class="spinner-small"></div>
+                    </div>
+                </div>
+                <div class="chart-legend" id="chart-legend" hidden>
+                    <span class="legend-current">
+                        <span class="legend-dot current"></span>
+                        Current Price
+                    </span>
+                    <span class="legend-low" id="legend-low"></span>
+                </div>
+            </div>
+            
+            <div class="product-listings" id="product-listings-section">
+                <h2>All Listings</h2>
+                <div class="listings-table-wrapper">
+                    <table class="listings-table">
+                        <thead>
+                            <tr>
+                                <th>Merchant</th>
+                                <th>Price</th>
+                                <th>Shipping</th>
+                                <th>Total</th>
+                                <th>Rating</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="listings-tbody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <section class="related-products" id="related-products-section" hidden>
+                <h2>Similar Products</h2>
+                <div class="related-products-grid" id="related-products-grid"></div>
+                <div class="related-products-loading" id="related-products-loading">
+                    <div class="spinner-small"></div>
+                </div>
+                <div class="related-products-error" id="related-products-error" hidden>
+                    <p></p>
+                </div>
+            </section>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="/assets/js/price-history-chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const productDetail = document.getElementById('product-detail');
+    const productId = productDetail?.getAttribute('data-product-id');
+    
+    if (!productId) {
+        showError();
+        return;
+    }
+    
+    const API_BASE = 'https://api.buywhere.io';
+    
+    async function fetchProduct() {
+        try {
+            const [productRes, pricesRes, historyRes, dealScoreRes] = await Promise.all([
+                fetch(`${API_BASE}/v1/products/${encodeURIComponent(productId)}`),
+                fetch(`${API_BASE}/v1/products/${encodeURIComponent(productId)}/prices`),
+                fetch(`${API_BASE}/v1/products/${encodeURIComponent(productId)}/price-history?period=90d`),
+                fetch(`${API_BASE}/v1/products/${encodeURIComponent(productId)}/deal-score`)
+            ]);
+            
+            if (!productRes.ok) {
+                throw new Error('Product not found');
+            }
+            
+            const product = await productRes.json();
+            const prices = pricesRes.ok ? await pricesRes.json() : { listings: [] };
+            const history = historyRes.ok ? await historyRes.json() : { history: [] };
+            const dealScore = dealScoreRes.ok ? await dealScoreRes.json() : null;
+            
+            renderProduct(product, prices, history, dealScore);
+        } catch (err) {
+            console.error('Error fetching product:', err);
+            showError();
+        }
+    }
+    
+    function formatPrice(amount, currency) {
+        const localeMap = {
+            'USD': 'en-US', 'SGD': 'en-SG', 'MYR': 'en-MY',
+            'IDR': 'id-ID', 'VND': 'vi-VN', 'PHP': 'en-PH'
+        };
+        const locale = localeMap[currency] || 'en-US';
+        try {
+            return new Intl.NumberFormat(locale, {
+                style: 'currency',
+                currency: currency || 'USD'
+            }).format(amount);
+        } catch {
+            return `${currency || 'USD'} ${amount}`;
+        }
+    }
+    
+    function renderProduct(product, prices, history, dealScore) {
+        document.getElementById('product-loading').hidden = true;
+        document.getElementById('product-content').hidden = false;
+        
+        const breadcrumbList = document.getElementById('breadcrumb-list');
+        if (product.category_path && product.category_path.length > 0) {
+            const lastTwo = product.category_path.slice(-2);
+            const homeLink = '<li class="breadcrumb-item"><a href="/">Home</a></li>';
+            const segments = lastTwo.map((cat, i) => {
+                const encodedCat = encodeURIComponent(cat);
+                if (i === lastTwo.length - 1) {
+                    return `<li class="breadcrumb-item" aria-current="page">${cat}</li>`;
+                }
+                return `<li class="breadcrumb-item"><a href="/search?q=&category=${encodedCat}">${cat}</a></li>`;
+            }).join('');
+            breadcrumbList.innerHTML = homeLink + segments;
+        } else {
+            breadcrumbList.innerHTML = '<li class="breadcrumb-item"><a href="/">Home</a></li><li class="breadcrumb-item" aria-current="page">Product</li>';
+        }
+        
+        const existingJsonLd = document.querySelector('script[data-json-ld="breadcrumb"]');
+        if (existingJsonLd) existingJsonLd.remove();
+        if (product.category_path && product.category_path.length > 0) {
+            const items = [{ "@type": "ListItem", "position": 1, "name": "Home", "item": "/" }];
+            product.category_path.slice(-2).forEach((cat, i) => {
+                items.push({ "@type": "ListItem", "position": i + 2, "name": cat });
+            });
+            const jsonLd = {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": items
+            };
+            const script = document.createElement('script');
+            script.type = 'application/ld+json';
+            script.setAttribute('data-json-ld', 'breadcrumb');
+            script.textContent = JSON.stringify(jsonLd);
+            document.head.appendChild(script);
+        }
+        
+        document.getElementById('product-title').textContent = product.title;
+        document.getElementById('product-description').textContent = product.description_short || '';
+        
+        const img = document.getElementById('product-image');
+        img.src = product.images?.[0] || 'https://via.placeholder.com/400x400?text=No+Image';
+        img.alt = product.title;
+        
+        const platform = document.getElementById('product-platform');
+        platform.textContent = product.merchant?.platform || '';
+        platform.className = `product-platform ${product.merchant?.platform || ''}`;
+        
+        const priceEl = document.getElementById('product-price');
+        priceEl.setAttribute('data-price', product.price.amount);
+        priceEl.setAttribute('data-currency', product.price.currency);
+        priceEl.textContent = formatPrice(product.price.amount, product.price.currency);
+        
+        const merchantLink = document.getElementById('merchant-link');
+        merchantLink.href = product.source_url || '#';
+        
+        const merchantName = document.getElementById('merchant-name');
+        merchantName.textContent = product.merchant?.name || product.merchant?.platform || 'the retailer';
+        
+        const ratingEl = document.getElementById('merchant-rating');
+        if (product.merchant?.rating) {
+            ratingEl.textContent = `${product.merchant.rating} ★`;
+            ratingEl.hidden = false;
+        } else {
+            ratingEl.hidden = true;
+        }
+        
+        const badges = document.getElementById('product-badges');
+        let badgeHtml = '';
+        
+        const isAllTimeLow = history.history && history.history.length >= 2 && 
+            product.price.amount <= Math.min(...history.history.map(h => h.price));
+        
+        if (dealScore && dealScore.has_sufficient_history && !isAllTimeLow) {
+            const pct = Math.abs(dealScore.percent_vs_avg);
+            if (dealScore.score === 'great_deal') {
+                badgeHtml += `<span class="badge badge-great">🔥 Great Deal — ${pct.toFixed(0)}% below average</span>`;
+            } else if (dealScore.score === 'good_deal') {
+                badgeHtml += `<span class="badge badge-good">✓ Good Deal — ${pct.toFixed(0)}% below average</span>`;
+            } else if (dealScore.score === 'fair_price') {
+                badgeHtml += `<span class="badge badge-fair">Fair Price — avg ${formatPrice(dealScore.avg_price, dealScore.currency)}</span>`;
+            } else if (dealScore.score === 'high_price') {
+                badgeHtml += `<span class="badge badge-high">⚠ High Price — ${pct.toFixed(0)}% above average</span>`;
+            }
+        }
+        
+        if (isAllTimeLow) {
+            badgeHtml += `<span class="badge badge-low">All-time low: ${formatPrice(product.price.amount, product.price.currency)}</span>`;
+        }
+        
+        badges.innerHTML = badgeHtml;
+        
+        if (prices.listings && prices.listings.length > 0) {
+            renderListings(prices.listings, product.price.currency);
+        } else {
+            document.getElementById('product-listings-section').hidden = true;
+        }
+        
+        initPriceChart(history, product.price);
+
+        if (product.category_path && product.category_path.length > 0) {
+            const category = product.category_path[product.category_path.length - 1];
+            fetchRelatedProducts(category);
+        }
+    }
+    
+    function renderListings(listings, currency) {
+        const tbody = document.getElementById('listings-tbody');
+        tbody.innerHTML = listings.map(listing => {
+            const listingCurrency = listing.price.currency || currency;
+            return `<tr>
+                <td>
+                    <span class="listing-merchant">${listing.merchant?.name || ''}</span>
+                    <span class="listing-platform ${listing.merchant?.platform || ''}">${listing.merchant?.platform || ''}</span>
+                </td>
+                <td data-price="${listing.price.amount}" data-currency="${listingCurrency}">${formatPrice(listing.price.amount, listingCurrency)}</td>
+                <td>${listing.price.shipping_fee > 0 ? formatPrice(listing.price.shipping_fee, listingCurrency) : 'Free'}</td>
+                <td class="listing-total" data-price="${listing.price.total}" data-currency="${listingCurrency}">${formatPrice(listing.price.total, listingCurrency)}</td>
+                <td>${listing.merchant?.rating ? `${listing.merchant.rating} ★` : '-'}</td>
+                <td><a href="${listing.source_url || '#'}" class="btn btn-sm" target="_blank" rel="noopener">View</a></td>
+            </tr>`;
+        }).join('');
+    }
+    
+    let priceChart = null;
+    let currentHistoryData = null;
+    let currentPrice = null;
+    
+    function initPriceChart(history, price) {
+        currentHistoryData = history;
+        currentPrice = price;
+        
+        const chartContainer = document.getElementById('price-history-chart');
+        const chartEmpty = document.getElementById('chart-empty');
+        const chartLoading = document.getElementById('chart-loading');
+        
+        if (!history.history || history.history.length < 2) {
+            chartLoading.hidden = true;
+            chartEmpty.hidden = false;
+            chartContainer.hidden = true;
+            return;
+        }
+        
+        chartLoading.hidden = true;
+        chartEmpty.hidden = true;
+        chartContainer.hidden = false;
+        document.getElementById('chart-legend').hidden = false;
+        
+        renderChart(history.history, price.currency);
+    }
+    
+    function renderChart(historyPoints, currency) {
+        const ctx = document.getElementById('price-history-chart').getContext('2d');
+        
+        if (priceChart) {
+            priceChart.destroy();
+        }
+        
+        const labels = historyPoints.map(p => new Date(p.recorded_at).toLocaleDateString('en-SG', { month: 'short', day: 'numeric' }));
+        const data = historyPoints.map(p => p.price);
+        const currentPriceValue = currentPrice?.amount || data[data.length - 1];
+        
+        priceChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Price',
+                    data: data,
+                    borderColor: '#00D4C8',
+                    backgroundColor: 'rgba(0, 212, 200, 0.1)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 6,
+                    pointHoverBackgroundColor: '#00D4C8',
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return formatPrice(context.parsed.y, currency);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { maxTicksLimit: 8 }
+                    },
+                    y: {
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: {
+                            callback: function(value) {
+                                return formatPrice(value, currency);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        const allPrices = historyPoints.map(p => p.price);
+        const minPrice = Math.min(...allPrices);
+        const legendLow = document.getElementById('legend-low');
+        if (currentPriceValue <= minPrice) {
+            legendLow.innerHTML = `<span class="legend-dot low"></span>All-time low: ${formatPrice(minPrice, currency)}`;
+            legendLow.hidden = false;
+        } else {
+            legendLow.hidden = true;
+        }
+    }
+    
+    async function changePeriod(period) {
+        const productDetail = document.getElementById('product-detail');
+        const productId = productDetail.getAttribute('data-product-id');
+        
+        document.getElementById('chart-loading').hidden = false;
+        document.getElementById('price-history-chart').hidden = true;
+        
+        try {
+            const res = await fetch(`${API_BASE}/v1/products/${encodeURIComponent(productId)}/price-history?period=${period}`);
+            if (!res.ok) throw new Error('Failed to fetch');
+            
+            const data = await res.json();
+            currentHistoryData = data;
+            
+            document.getElementById('chart-loading').hidden = true;
+            
+            if (!data.history || data.history.length < 2) {
+                document.getElementById('chart-empty').hidden = false;
+                document.getElementById('chart-empty').querySelector('p').textContent = 
+                    'Not enough price history data for this period.';
+                document.getElementById('price-history-chart').hidden = true;
+            } else {
+                document.getElementById('chart-empty').hidden = true;
+                document.getElementById('price-history-chart').hidden = false;
+                renderChart(data.history, currentPrice.currency);
+            }
+        } catch (err) {
+            console.error('Error fetching price history:', err);
+            document.getElementById('chart-loading').hidden = true;
+            document.getElementById('chart-empty').hidden = false;
+        }
+    }
+    
+    document.querySelectorAll('.chart-toggle-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.chart-toggle-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            changePeriod(this.dataset.period);
+        });
+    });
+    
+    function showError() {
+        document.getElementById('product-loading').hidden = true;
+        document.getElementById('product-error').hidden = false;
+        document.getElementById('product-content').hidden = true;
+    }
+    
+    fetchProduct();
+
+    async function fetchRelatedProducts(category) {
+        try {
+            document.getElementById('related-products-section').hidden = false;
+            document.getElementById('related-products-loading').hidden = false;
+            document.getElementById('related-products-error').hidden = true;
+
+            const res = await fetch(`${API_BASE}/v1/products/search?q=${encodeURIComponent(category)}&limit=12`);
+            if (!res.ok) throw new Error('Failed to fetch related products');
+
+            const data = await res.json();
+            const currentProductId = productDetail.getAttribute('data-product-id');
+            const related = (data.products || []).filter(p => p.id !== currentProductId).slice(0, 6);
+
+            renderRelatedProducts(related);
+        } catch (err) {
+            document.getElementById('related-products-loading').hidden = true;
+            document.getElementById('related-products-error').hidden = false;
+            document.getElementById('related-products-error').querySelector('p').textContent = 'Could not load similar products.';
+        }
+    }
+
+    function renderRelatedProducts(products) {
+        document.getElementById('related-products-loading').hidden = true;
+        const grid = document.getElementById('related-products-grid');
+
+        if (!products || products.length === 0) {
+            document.getElementById('related-products-section').hidden = true;
+            return;
+        }
+
+        grid.innerHTML = products.map(product => `
+            <div class="related-product-card">
+                <a href="/products/${product.id}" class="related-product-card__image">
+                    <img src="${product.images?.[0] || 'https://via.placeholder.com/200x200?text=No+Image'}" alt="${product.title}" loading="lazy">
+                </a>
+                <div class="related-product-card__content">
+                    <h3 class="related-product-card__title">
+                        <a href="/products/${product.id}">${product.title}</a>
+                    </h3>
+                    <div class="related-product-card__meta">
+                        <span class="related-product-card__platform ${product.merchant?.platform || ''}">${product.merchant?.platform || ''}</span>
+                    </div>
+                    <div class="related-product-card__footer">
+                        <span class="related-product-card__price">${formatPrice(product.price.amount, product.price.currency)}</span>
+                        ${product.deal_score && product.deal_score.score === 'great_deal' ? '<span class="related-product-card__badge">🔥 Great Deal</span>' : ''}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+});
+</script>
+{% endblock %}
+
+{% block head %}
+<style>
+.product-detail {
+    padding: var(--bw-spacing-12) 0;
+}
+.product-loading, .product-error {
+    text-align: center;
+    padding: var(--bw-spacing-24) 0;
+}
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--bw-color-border);
+    border-top-color: var(--bw-color-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto var(--bw-spacing-4);
+}
+.spinner-small {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--bw-color-border);
+    border-top-color: var(--bw-color-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+.product-breadcrumb {
+    margin-bottom: var(--bw-spacing-6);
+}
+.breadcrumb-list {
+    display: flex;
+    align-items: center;
+    gap: var(--bw-spacing-2);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: var(--bw-font-size-sm);
+    flex-wrap: wrap;
+}
+.breadcrumb-item {
+    display: flex;
+    align-items: center;
+    color: var(--bw-color-text-muted);
+}
+.breadcrumb-item:not(:last-child)::after {
+    content: "›";
+    margin-left: var(--bw-spacing-2);
+    color: var(--bw-color-text-muted);
+}
+.breadcrumb-item a {
+    color: var(--bw-color-text-secondary);
+    text-decoration: none;
+}
+.breadcrumb-item a:hover {
+    color: var(--bw-color-primary);
+    text-decoration: underline;
+}
+.breadcrumb-item[aria-current="page"] {
+    color: var(--bw-color-text-primary);
+    font-weight: var(--bw-font-weight-medium);
+}
+.product-main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--bw-spacing-12);
+    margin-bottom: var(--bw-spacing-12);
+}
+@media (max-width: 768px) {
+    .product-main { grid-template-columns: 1fr; gap: var(--bw-spacing-8); }
+    .product-gallery { position: static; }
+}
+.product-gallery {
+    position: sticky;
+    top: var(--bw-spacing-8);
+}
+.product-image-container {
+    aspect-ratio: 1;
+    border-radius: var(--bw-radius-xl);
+    overflow: hidden;
+    background: var(--bw-color-bg-secondary);
+}
+.product-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.product-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bw-spacing-6);
+}
+.product-platform {
+    display: inline-block;
+    padding: var(--bw-spacing-1) var(--bw-spacing-2);
+    border-radius: var(--bw-radius-sm);
+    font-size: var(--bw-font-size-xs);
+    font-weight: var(--bw-font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.product-platform.shopee { background: #EE4D2D; color: white; }
+.product-platform.lazada { background: #0F146D; color: white; }
+.product-platform.carousell { background: #00B14C; color: white; }
+.product-platform.fairprice { background: #0066B2; color: white; }
+.product-title {
+    font-size: var(--bw-font-size-3xl);
+    line-height: 1.2;
+    margin: 0;
+}
+.product-description {
+    color: var(--bw-color-text-secondary);
+    font-size: var(--bw-font-size-base);
+    line-height: 1.6;
+}
+.product-pricing {
+    display: flex;
+    gap: var(--bw-spacing-8);
+    padding: var(--bw-spacing-6);
+    background: var(--bw-color-bg-secondary);
+    border-radius: var(--bw-radius-lg);
+}
+.price-label {
+    display: block;
+    font-size: var(--bw-font-size-sm);
+    color: var(--bw-color-text-muted);
+    margin-bottom: var(--bw-spacing-1);
+}
+.price-value {
+    font-size: var(--bw-font-size-2xl);
+    font-weight: var(--bw-font-weight-bold);
+    color: var(--bw-color-text-primary);
+}
+.price-30d-avg {
+    padding-left: var(--bw-spacing-6);
+    border-left: 1px solid var(--bw-color-border);
+}
+.product-merchant {
+    display: flex;
+    align-items: center;
+    gap: var(--bw-spacing-4);
+    flex-wrap: wrap;
+}
+.merchant-rating {
+    color: var(--bw-color-accent);
+    font-weight: var(--bw-font-weight-medium);
+}
+.merchant-link {
+    color: var(--bw-color-primary);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+.merchant-link:hover { text-decoration: underline; }
+.product-badges {
+    display: flex;
+    gap: var(--bw-spacing-2);
+    flex-wrap: wrap;
+}
+.badge {
+    padding: var(--bw-spacing-1) var(--bw-spacing-3);
+    border-radius: var(--bw-radius-full);
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-medium);
+}
+.badge-low {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+    border: 1px solid #10b981;
+}
+.badge-great {
+    background: rgba(16, 185, 129, 0.15);
+    color: #059669;
+    border: 1px solid #059669;
+}
+.badge-good {
+    background: rgba(0, 212, 200, 0.1);
+    color: #00D4C8;
+    border: 1px solid #00D4C8;
+}
+.badge-fair {
+    background: rgba(107, 114, 128, 0.1);
+    color: #6b7280;
+    border: 1px solid #6b7280;
+}
+.badge-high {
+    background: rgba(245, 158, 11, 0.1);
+    color: #d97706;
+    border: 1px solid #d97706;
+}
+.product-chart-section {
+    background: var(--bw-color-bg-primary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+    padding: var(--bw-spacing-8);
+    margin-bottom: var(--bw-spacing-12);
+}
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--bw-spacing-6);
+}
+.chart-header h2 {
+    font-size: var(--bw-font-size-xl);
+    margin: 0;
+}
+.chart-toggle {
+    display: flex;
+    gap: var(--bw-spacing-1);
+    background: var(--bw-color-bg-secondary);
+    padding: var(--bw-spacing-1);
+    border-radius: var(--bw-radius-md);
+}
+.chart-toggle-btn {
+    padding: var(--bw-spacing-2) var(--bw-spacing-4);
+    min-height: 44px;
+    border: none;
+    background: transparent;
+    border-radius: var(--bw-radius-sm);
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-medium);
+    color: var(--bw-color-text-secondary);
+    cursor: pointer;
+    transition: all var(--bw-transition-fast);
+}
+.chart-toggle-btn:hover {
+    color: var(--bw-color-text-primary);
+}
+.chart-toggle-btn.active {
+    background: var(--bw-color-bg-primary);
+    color: var(--bw-color-primary);
+    box-shadow: var(--bw-shadow-sm);
+}
+.chart-container {
+    height: 300px;
+    position: relative;
+}
+.chart-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.8);
+}
+.chart-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bw-color-text-muted);
+}
+.chart-legend {
+    display: flex;
+    gap: var(--bw-spacing-6);
+    margin-top: var(--bw-spacing-4);
+    font-size: var(--bw-font-size-sm);
+}
+.legend-current, .legend-low {
+    display: flex;
+    align-items: center;
+    gap: var(--bw-spacing-2);
+}
+.legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+.legend-dot.current { background: #00D4C8; }
+.legend-dot.low { background: #10b981; }
+.product-listings h2 {
+    font-size: var(--bw-font-size-xl);
+    margin-bottom: var(--bw-spacing-6);
+}
+.listings-table-wrapper {
+    overflow-x: auto;
+}
+.listings-table {
+    width: 100%;
+    min-width: 640px;
+    border-collapse: collapse;
+}
+.listings-table th,
+.listings-table td {
+    padding: var(--bw-spacing-4);
+    text-align: left;
+    border-bottom: 1px solid var(--bw-color-border);
+}
+.listings-table th {
+    font-size: var(--bw-font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--bw-color-text-muted);
+}
+.listing-merchant {
+    font-weight: var(--bw-font-weight-medium);
+    display: block;
+}
+.listing-platform {
+    font-size: var(--bw-font-size-xs);
+    color: var(--bw-color-text-muted);
+}
+.listing-total {
+    font-weight: var(--bw-font-weight-bold);
+}
+.btn-sm {
+    padding: var(--bw-spacing-2) var(--bw-spacing-3);
+    font-size: var(--bw-font-size-sm);
+}
+.related-products {
+    margin-top: var(--bw-spacing-12);
+    padding-top: var(--bw-spacing-12);
+    border-top: 1px solid var(--bw-color-border);
+}
+.related-products h2 {
+    font-size: var(--bw-font-size-xl);
+    margin-bottom: var(--bw-spacing-6);
+}
+.related-products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--bw-spacing-6);
+}
+.related-products-loading {
+    display: flex;
+    justify-content: center;
+    padding: var(--bw-spacing-8) 0;
+}
+.related-products-error {
+    text-align: center;
+    padding: var(--bw-spacing-6) 0;
+    color: var(--bw-color-text-muted);
+}
+.related-product-card {
+    background: var(--bw-color-bg-primary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-lg);
+    overflow: hidden;
+    transition: all var(--bw-transition-normal);
+}
+@media (hover: hover) {
+    .related-product-card:hover {
+        border-color: var(--bw-color-primary);
+        box-shadow: var(--bw-shadow-md);
+        transform: translateY(-2px);
+    }
+}
+.related-product-card__image {
+    display: block;
+    aspect-ratio: 1;
+    background: var(--bw-color-bg-secondary);
+    overflow: hidden;
+}
+.related-product-card__image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.related-product-card__content {
+    padding: var(--bw-spacing-4);
+}
+.related-product-card__title {
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-semibold);
+    margin-bottom: var(--bw-spacing-2);
+    line-height: var(--bw-line-height-tight);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.related-product-card__title a {
+    color: var(--bw-color-text-primary);
+    text-decoration: none;
+}
+.related-product-card__title a:hover {
+    color: var(--bw-color-primary);
+}
+.related-product-card__meta {
+    margin-bottom: var(--bw-spacing-3);
+}
+.related-product-card__platform {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: var(--bw-radius-sm);
+    font-size: var(--bw-font-size-xs);
+    font-weight: var(--bw-font-weight-semibold);
+    text-transform: uppercase;
+}
+.related-product-card__platform.shopee { background: #EE4D2D; color: white; }
+.related-product-card__platform.lazada { background: #0F146D; color: white; }
+.related-product-card__platform.carousell { background: #00B14C; color: white; }
+.related-product-card__platform.fairprice { background: #0066B2; color: white; }
+.related-product-card__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--bw-spacing-2);
+}
+.related-product-card__price {
+    font-size: var(--bw-font-size-base);
+    font-weight: var(--bw-font-weight-bold);
+    color: var(--bw-color-text-primary);
+}
+.related-product-card__badge {
+    font-size: var(--bw-font-size-xs);
+    padding: 2px 6px;
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+    border-radius: var(--bw-radius-full);
+}
+
+@media (max-width: 480px) {
+    .product-detail {
+        padding: var(--bw-spacing-8) 0;
+    }
+    .product-main,
+    .product-chart-section {
+        margin-bottom: var(--bw-spacing-8);
+    }
+    .product-title {
+        font-size: var(--bw-font-size-2xl);
+    }
+    .product-pricing {
+        flex-direction: column;
+        gap: var(--bw-spacing-4);
+        padding: var(--bw-spacing-4);
+    }
+    .price-30d-avg {
+        padding-left: 0;
+        padding-top: var(--bw-spacing-4);
+        border-left: 0;
+        border-top: 1px solid var(--bw-color-border);
+    }
+    .price-value {
+        font-size: var(--bw-font-size-xl);
+    }
+    .badge {
+        width: 100%;
+        border-radius: var(--bw-radius-lg);
+    }
+    .product-chart-section {
+        padding: var(--bw-spacing-4);
+    }
+    .chart-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--bw-spacing-4);
+    }
+    .chart-toggle {
+        width: 100%;
+    }
+    .chart-toggle-btn {
+        flex: 1;
+        padding-left: var(--bw-spacing-2);
+        padding-right: var(--bw-spacing-2);
+    }
+    .chart-container {
+        height: 240px;
+    }
+    .chart-legend {
+        flex-wrap: wrap;
+        gap: var(--bw-spacing-3);
+    }
+    .listings-table-wrapper {
+        margin: 0 calc(var(--bw-container-padding) * -1);
+        padding: 0 var(--bw-container-padding);
+    }
+}
+</style>
+{% endblock %}

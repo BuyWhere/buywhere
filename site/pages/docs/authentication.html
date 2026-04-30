@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="docs-layout">
+    <aside class="docs-sidebar">
+        <nav class="docs-nav">
+            <div class="docs-nav__section">
+                <h3>Getting Started</h3>
+                <ul>
+                    <li><a href="/docs/quickstart">Quickstart</a></li>
+                    <li><a href="/docs/authentication" class="active">Authentication</a></li>
+                    <li><a href="/docs/errors">Error Handling</a></li>
+                </ul>
+            </div>
+            <div class="docs-nav__section">
+                <h3>Products</h3>
+                <ul>
+                    <li><a href="/docs/api-reference#search">Search Products</a></li>
+                    <li><a href="/docs/api-reference#get-product">Get Product</a></li>
+                    <li><a href="/docs/api-reference#compare">Compare Products</a></li>
+                    <li><a href="/docs/api-reference#deals">Get Deals</a></li>
+                </ul>
+            </div>
+            <div class="docs-nav__section">
+                <h3>Integrations</h3>
+                <ul>
+                    <li><a href="/docs/mcp-integration">MCP Integration</a></li>
+                    <li><a href="/docs/langchain">LangChain</a></li>
+                    <li><a href="/docs/examples">Examples</a></li>
+                </ul>
+            </div>
+        </nav>
+    </aside>
+
+    <main class="docs-main">
+        <h1>Authentication</h1>
+        <p class="lead">All BuyWhere API requests require authentication via an API key.</p>
+
+        <div class="section">
+            <h2>Getting Your API Key</h2>
+            <p>Sign up for a free account at <a href="/register">buywhere.io/register</a> to get your API key. Your API key will be available in your dashboard.</p>
+        </div>
+
+        <div class="section">
+            <h2>Using Your API Key</h2>
+            <p>Include your API key in the <code>X-API-Key</code> header of every request:</p>
+            <div class="code-block">
+                <pre><code>curl -s "https://api.buywhere.io/v1/products/search?q=headphones" \
+  -H "X-API-Key: bw_live_your_api_key_here"</code></pre>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>API Key Types</h2>
+            <table class="info-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Prefix</th>
+                        <th>Usage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>Live</code></td>
+                        <td><code>bw_live_</code></td>
+                        <td>Production requests</td>
+                    </tr>
+                    <tr>
+                        <td><code>Test</code></td>
+                        <td><code>bw_test_</code></td>
+                        <td>Development and testing</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>Security</h2>
+            <ul>
+                <li>Keep your API key secure and never commit it to version control</li>
+                <li>Use environment variables to store your API key</li>
+                <li>Rotate your API key if you suspect it has been compromised</li>
+                <li>Use test keys for development to avoid affecting production data</li>
+            </ul>
+        </div>
+    </main>
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+.docs-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: var(--bw-spacing-8);
+    max-width: var(--bw-container-max);
+    margin: 0 auto;
+    padding: var(--bw-spacing-8) var(--bw-container-padding);
+}
+.docs-main { max-width: 720px; }
+.docs-main h1 { margin-bottom: var(--bw-spacing-4); }
+.lead { font-size: var(--bw-font-size-lg); color: var(--bw-color-text-secondary); margin-bottom: var(--bw-spacing-8); }
+.section { margin-bottom: var(--bw-spacing-10); }
+.section h2 { font-size: var(--bw-font-size-xl); margin-bottom: var(--bw-spacing-4); }
+.section ul { list-style: disc; padding-left: var(--bw-spacing-6); }
+.section li { margin-bottom: var(--bw-spacing-2); }
+.section a { color: var(--bw-color-primary); }
+.section code { background: var(--bw-color-bg-tertiary); padding: 2px 6px; border-radius: 4px; }
+.code-block { background: var(--bw-color-bg-dark); border-radius: var(--bw-radius-lg); padding: var(--bw-spacing-4); overflow-x: auto; }
+.code-block pre { margin: 0; font-size: var(--bw-font-size-sm); color: var(--bw-color-text-inverse); }
+.info-table { width: 100%; border-collapse: collapse; }
+.info-table th, .info-table td { padding: var(--bw-spacing-3); text-align: left; border-bottom: 1px solid var(--bw-color-border); }
+.info-table th { font-weight: var(--bw-font-weight-semibold); color: var(--bw-color-text-secondary); }
+@media (max-width: 768px) { .docs-layout { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}

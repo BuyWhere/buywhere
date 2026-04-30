@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BuyWhere — Performance Metrics for AI Agents</title>
+  <meta name="description" content="Machine-relevant performance metrics: latency, accuracy, freshness, and coverage for AI agents integrating with BuyWhere API." />
+  <link rel="canonical" href="https://www.buywhere.ai/agent/metrics" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "API",
+    "name": "BuyWhere Product Resolution API",
+    "description": "AI agent product resolution API providing product discovery, price comparison, and availability checking.",
+    "url": "https://api.buywhere.ai/v1",
+    "version": "1.0.0",
+    "provider": {
+      "@type": "Organization",
+      "name": "BuyWhere",
+      "url": "https://www.buywhere.ai"
+    }
+  }
+  </script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #fff; color: #0F172A; line-height: 1.6; }
+    .container { max-width: 900px; margin: 0 auto; padding: 48px 24px; }
+    h1 { font-size: 2rem; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.02em; }
+    .subtitle { color: #475569; margin-bottom: 48px; }
+    .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-bottom: 48px; }
+    .metric-card { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 24px; }
+    .metric-card h3 { font-size: 0.875rem; font-weight: 600; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+    .metric-value { font-size: 2.5rem; font-weight: 700; color: #059669; margin-bottom: 4px; }
+    .metric-detail { font-size: 0.875rem; color: #64748B; }
+    .code-block { background: #0F172A; color: #E2E8F0; padding: 20px; border-radius: 8px; overflow-x: auto; font-size: 0.875rem; margin: 24px 0; }
+    .section { margin-bottom: 48px; }
+    .section h2 { font-size: 1.5rem; font-weight: 600; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 12px 0; border-bottom: 1px solid #E2E8F0; }
+    th { font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Performance Metrics</h1>
+    <p class="subtitle">Machine-relevant metrics for AI agents integrating with BuyWhere</p>
+
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <h3>Latency p50</h3>
+        <div class="metric-value">~120ms</div>
+        <div class="metric-detail">Median response time</div>
+      </div>
+      <div class="metric-card">
+        <h3>Latency p95</h3>
+        <div class="metric-value">~210ms</div>
+        <div class="metric-detail">95th percentile response</div>
+      </div>
+      <div class="metric-card">
+        <h3>Uptime</h3>
+        <div class="metric-value">99.9%</div>
+        <div class="metric-detail">Monthly uptime SLA</div>
+      </div>
+      <div class="metric-card">
+        <h3>Data Freshness</h3>
+        <div class="metric-value">&lt;24h</div>
+        <div class="metric-detail">Price/availability updates</div>
+      </div>
+      <div class="metric-card">
+        <h3>Accuracy</h3>
+        <div class="metric-value">92%+</div>
+        <div class="metric-detail">Query match relevance</div>
+      </div>
+      <div class="metric-card">
+        <h3>Coverage</h3>
+        <div class="metric-value">US, SG</div>
+        <div class="metric-detail">Active markets</div>
+      </div>
+    </div>
+
+    <section class="section">
+      <h2>Metrics in JSON Format</h2>
+      <pre class="code-block">{
+  "api_version": "v1",
+  "performance": {
+    "latency": {
+      "p50_ms": 120,
+      "p95_ms": 210,
+      "p99_ms": 350
+    },
+    "uptime_sla": "99.9%",
+    "data_freshness_hours": 24
+  },
+  "quality": {
+    "accuracy_score": 0.92,
+    "relevance_threshold": 0.6
+  },
+  "coverage": {
+    "markets": ["US", "SG"],
+    "categories": "all",
+    "merchants_count": 50+
+  },
+  "limits": {
+    "rate_limit_rpm": 60,
+    "max_results_per_query": 50
+  }
+}</pre>
+    </section>
+
+    <section class="section">
+      <h2>Latency Breakdown</h2>
+      <table>
+        <tr>
+          <th>Operation</th>
+          <th>Typical Latency</th>
+          <th>Notes</th>
+        </tr>
+        <tr>
+          <td><code>resolve_product_query</code></td>
+          <td>100-150ms</td>
+          <td>Product discovery and ranking</td>
+        </tr>
+        <tr>
+          <td><code>find_best_price</code></td>
+          <td>80-120ms</td>
+          <td>Price lookup optimized</td>
+        </tr>
+        <tr>
+          <td><code>compare_products</code></td>
+          <td>150-200ms</td>
+          <td>Multi-product comparison</td>
+        </tr>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>Agent Response Time Budget</h2>
+      <p>For a smooth user experience, allocate response time as follows:</p>
+      <pre class="code-block">Total agent response target: &lt;2 seconds
+├── User query parsing: ~100ms
+├── BuyWhere API call: ~150ms (p50)
+├── Result processing: ~50ms
+└── Response formatting: ~100ms
+Remaining buffer: ~1.6s</pre>
+    </section>
+
+    <section class="section">
+      <h2>Quality Indicators in Response</h2>
+      <table>
+        <tr>
+          <th>Field</th>
+          <th>Agent Usage</th>
+        </tr>
+        <tr>
+          <td><code>buywhere_score</code></td>
+          <td>Primary quality ranking (0-1). Score >= 0.8 = strong recommendation.</td>
+        </tr>
+        <tr>
+          <td><code>confidence</code></td>
+          <td>Query match certainty (0-1). Low confidence warrants disclaimer.</td>
+        </tr>
+        <tr>
+          <td><code>merchant.reliability_score</code></td>
+          <td>Merchant trustworthiness (0-1). Score &lt; 0.7 = flag concern.</td>
+        </tr>
+        <tr>
+          <td><code>availability</code></td>
+          <td>Stock status. Never recommend out_of_stock items.</td>
+        </tr>
+        <tr>
+          <td><code>metadata.freshness</code></td>
+          <td>Data timestamp. Older = mention potential price changes.</td>
+        </tr>
+      </table>
+    </section>
+
+    <footer style="margin-top: 64px; padding-top: 32px; border-top: 1px solid #E2E8F0; color: #64748B; font-size: 0.875rem;">
+      <p>API base URL: <code>https://api.buywhere.ai/v1</code></p>
+      <p style="margin-top: 8px;">Status page: <a href="https://status.buywhere.ai">status.buywhere.ai</a> | Support: <a href="mailto:support@buywhere.ai">support@buywhere.ai</a></p>
+    </footer>
+  </div>
+</body>
+</html>

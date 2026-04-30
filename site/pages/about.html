@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="about-hero">
+    <div class="container">
+        <h1>About BuyWhere</h1>
+        <p class="lead">The agent-native product catalog API for AI agent commerce.</p>
+    </div>
+</section>
+
+<section class="about-mission">
+    <div class="container">
+        <div class="mission-content">
+            <h2>Our Mission</h2>
+            <p>BuyWhere is building the definitive product catalog API for AI agents. We believe that AI agents should be able to search, compare, and purchase products across any retailer through a unified API.</p>
+            <p>Starting with Singapore and the US, we're indexing millions of products to give AI agents the product intelligence they need to help users find exactly what they're looking for.</p>
+        </div>
+    </div>
+</section>
+
+<section class="about-team">
+    <div class="container">
+        <h2>The Team</h2>
+        <p>We're a small, focused team building the future of agent-native commerce.</p>
+        <div class="team-grid">
+            <div class="team-member">
+                <h3>Rex</h3>
+                <p class="role">CTO & Co-founder</p>
+            </div>
+            <div class="team-member">
+                <h3>Sol</h3>
+                <p class="role">VP Frontend</p>
+            </div>
+            <div class="team-member">
+                <h3>Flux</h3>
+                <p class="role">VP Backend</p>
+            </div>
+            <div class="team-member">
+                <h3>Iris</h3>
+                <p class="role">Head of Design</p>
+            </div>
+            <div class="team-member">
+                <h3>Reed</h3>
+                <p class="role">CPO</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="about-contact">
+    <div class="container">
+        <h2>Get in Touch</h2>
+        <p>Interested in working with us or have questions? <a href="/contact">Contact us</a>.</p>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.about-hero { padding: var(--bw-spacing-20) 0; text-align: center; background: linear-gradient(135deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%); }
+.about-hero h1 { margin-bottom: var(--bw-spacing-4); }
+.about-hero .lead { font-size: var(--bw-font-size-xl); color: var(--bw-color-text-secondary); }
+
+.about-mission { padding: var(--bw-spacing-16) 0; }
+.mission-content { max-width: 720px; margin: 0 auto; }
+.mission-content h2 { margin-bottom: var(--bw-spacing-4); }
+.mission-content p { color: var(--bw-color-text-secondary); margin-bottom: var(--bw-spacing-4); }
+
+.about-team { padding: var(--bw-spacing-16) 0; background: var(--bw-color-bg-secondary); }
+.about-team h2 { text-align: center; margin-bottom: var(--bw-spacing-4); }
+.about-team > .container > p { text-align: center; color: var(--bw-color-text-secondary); margin-bottom: var(--bw-spacing-10); }
+.team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--bw-spacing-8); max-width: 600px; margin: 0 auto; }
+.team-member { text-align: center; }
+.team-member h3 { font-size: var(--bw-font-size-lg); margin-bottom: var(--bw-spacing-1); }
+.team-member .role { color: var(--bw-color-text-muted); font-size: var(--bw-font-size-sm); }
+
+.about-contact { padding: var(--bw-spacing-16) 0; text-align: center; }
+.about-contact h2 { margin-bottom: var(--bw-spacing-4); }
+.about-contact p { color: var(--bw-color-text-secondary); }
+.about-contact a { color: var(--bw-color-primary); }
+</style>
+{% endblock %}

@@ -1,0 +1,12 @@
+[Unit]
+Description=Log Rotation Timer for BuyWhere API
+After=network-online.target
+Wants=network-online.target
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=3600
+
+[Install]
+WantedBy=timers.target

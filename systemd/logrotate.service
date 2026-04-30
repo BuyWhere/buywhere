@@ -1,0 +1,11 @@
+[Unit]
+Description=Log Rotation Service for BuyWhere API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/logrotate -f /home/paperclip/buywhere-api/config/logrotate.host.conf -s /home/paperclip/buywhere-api/.logrotate.status
+User=root
+PrivateTmp=false
+NonBlocking=false

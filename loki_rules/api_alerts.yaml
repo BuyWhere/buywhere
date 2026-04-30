@@ -1,0 +1,69 @@
+groups:
+  - name: buywhere_api_alerts
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          sum(rate({job=~"buywhere-api|all-services"} |= "error" [5m])) by (service)
+            / sum(rate({job=~"buywhere-api|all-services"}[5m])) by (service) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: High error rate detected in {{ $labels.service }}
+          description: Error rate is {{ $value | printf "%.2f" }}% in the last 5 minutes
+
+      - alert: APIServiceDown
+        expr: |
+          sum(rate({job=~"buywhere-api|all-services"}[5m])) by (service) == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: API service {{ $labels.service }} is down
+          description: No logs received from {{ $labels.service }} in the last 5 minutes
+
+      - alert: NoLogsReceived
+        expr: |
+          sum(rate({job=~"buywhere-api|all-services"}[5m])) == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: No logs received by Loki
+          description: Loki has not received any logs in the last 5 minutes
+
+  - name: scraper_fleet_alerts
+    rules:
+      - alert: ScraperHighErrorRate
+        expr: |
+          sum(rate({job=~"all-services", service=~"scraper.*"} |= "error" [5m])) by (service)
+            / sum(rate({job=~"all-services", service=~"scraper.*"}[5m])) by (service) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High error rate in scraper {{ $labels.service }}
+          description: Scraper error rate is {{ $value | printf "%.2f" }}%
+
+      - alert: ScraperNoLogs
+        expr: |
+          sum(rate({job=~"all-services", service=~"scraper.*"}[5m])) by (service) == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: No logs from scraper {{ $labels.service }}
+          description: Scraper {{ $labels.service }} has not emitted logs in 15 minutes
+
+  - name: mcp_service_alerts
+    rules:
+      - alert: MCPServiceErrors
+        expr: |
+          sum(rate({job=~"all-services", service=~"mcp.*"} |= "error" [5m])) by (service)
+            / sum(rate({job=~"all-services", service=~"mcp.*"}[5m])) by (service) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: MCP service error rate is high
+          description: Error rate is {{ $value | printf "%.2f" }}%

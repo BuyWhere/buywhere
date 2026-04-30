@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roadmap – BuyWhere</title>
+  <meta name="description" content="BuyWhere API roadmap. What's coming for the product catalog API for AI agents." />
+  <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f7f3ec;
+      --surface: #fffdf8;
+      --surface-strong: #fff7eb;
+      --ink: #1f2933;
+      --muted: #52606d;
+      --line: #e5d8c7;
+      --accent: #c75b12;
+      --accent-dark: #8f3e08;
+      --accent-soft: #f4dfc7;
+      --green: #166534;
+      --green-bg: #dcfce7;
+      --yellow: #92400e;
+      --yellow-bg: #fef3c7;
+      --blue: #1e40af;
+      --blue-bg: #dbeafe;
+      --max-w: 800px;
+      --radius: 18px;
+      --radius-sm: 12px;
+    }
+    body {
+      font-family: Georgia, "Times New Roman", serif;
+      background:
+        radial-gradient(circle at top left, rgba(199, 91, 18, 0.08), transparent 28%),
+        linear-gradient(180deg, #fbf6ee 0%, var(--bg) 100%);
+      color: var(--ink);
+      line-height: 1.75;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent-dark); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .container { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; }
+    nav {
+      border-bottom: 1px solid rgba(31, 41, 51, 0.08);
+      background: rgba(255, 253, 248, 0.9);
+      backdrop-filter: blur(10px);
+    }
+    .nav-inner {
+      min-height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .brand {
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .nav-links { display: flex; gap: 20px; list-style: none; font-size: 0.95rem; }
+    .page-header { padding: 64px 0 40px; }
+    .eyebrow {
+      display: inline-block;
+      margin-bottom: 18px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent-dark);
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 700;
+      font-family: sans-serif;
+    }
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 12px;
+    }
+    .page-sub {
+      color: var(--muted);
+      font-size: 1.05rem;
+      margin-bottom: 32px;
+    }
+    .section-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      margin-top: 40px;
+      font-family: sans-serif;
+    }
+    .roadmap-list { list-style: none; }
+    .roadmap-item {
+      padding: 20px 24px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      margin-bottom: 12px;
+      box-shadow: 0 4px 12px rgba(31, 41, 51, 0.04);
+    }
+    .item-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .item-title { font-size: 1rem; font-weight: 700; }
+    .status {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-family: sans-serif;
+    }
+    .status-shipped { background: var(--green-bg); color: var(--green); }
+    .status-in-progress { background: var(--blue-bg); color: var(--blue); }
+    .status-exploring { background: var(--yellow-bg); color: var(--yellow); }
+    .item-body { color: var(--muted); font-size: 0.9rem; }
+    .divider {
+      border: none;
+      border-top: 1px solid var(--line);
+      margin: 48px 0;
+    }
+    .stability-note {
+      background: var(--surface-strong);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-top: 48px;
+    }
+    .stability-note h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      font-family: sans-serif;
+    }
+    .stability-note p { color: var(--muted); font-size: 0.9rem; }
+    footer {
+      padding: 36px 0 54px;
+      border-top: 1px solid rgba(31, 41, 51, 0.08);
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="container nav-inner">
+      <a class="brand" href="/">BuyWhere</a>
+      <ul class="nav-links">
+        <li><a href="/">Home</a></li>
+        <li><a href="/docs/tutorials/first-query">Quickstart</a></li>
+        <li><a href="/contact">Contact</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main>
+    <div class="container page-header">
+      <div class="eyebrow">Planning</div>
+      <h1>Roadmap</h1>
+      <p class="page-sub">What we are building next for the BuyWhere product catalog API. Updated regularly.</p>
+    </div>
+
+    <div class="container">
+
+      <h2 class="section-title">🟢 In Progress</h2>
+      <ul class="roadmap-list">
+        <li class="roadmap-item">
+          <div class="item-header">
+            <span class="item-title">Malaysia coverage expansion</span>
+            <span class="status status-in-progress">In Progress</span>
+          </div>
+          <div class="item-body">Adding Shopee MY and Lazada MY product coverage. Expected Q2 2026.</div>
+        </li>
+        <li class="roadmap-item">
+          <div class="item-header">
+            <span class="item-title">MCP server reference implementation</span>
+            <span class="status status-in-progress">In Progress</span>
+          </div>
+          <div class="item-body">Model Context Protocol server for BuyWhere. Lets agent frameworks like Claude directly use BuyWhere as a native tool.</div>
+        </li>
+        <li class="roadmap-item">
+          <div class="item-header">
+            <span class="item-title">Deal alerts webhook API</span>
+            <span class="status status-in-progress">In Progress</span>
+          </div>
+          <div class="item-body">Subscribe to price drop alerts on specific products or categories. Push to your agent via webhook.</div>
+        </li>
+      </ul>
+
+      <h2 class="section-title">🔵 Exploring</h2>
+      <ul class="roadmap-list">
+        <li class="roadmap-item">
+          <div class="item-header">
+            <span class="item-title">Vietnam coverage</span>
+            <span class="status status-exploring">Exploring</span>
+          </div>
+          <div class="item-body">ShopeeVN and LazadaVN product indexing. Depends on Malaysia launch success.</div>
+        </li>
+        <li class="roadmap-item">
+          <div class="item-header">
+            <span class="item-title">Affiliate commission dashboard</span>
+            <span class="status status-exploring">Exploring</span>
+          </div>
+          <div class="item-body">Merchant and developer portal showing affiliate earnings, conversion rates, and commission history.</div>
+        </li>
+        <li class="roadmap-item">
+          <div class="item-header">
+            <span class="item-title">Structured product attributes</span>
+            <span class="status status-exploring">Exploring</span>
+          </div>
+          <div class="item-body">Normalized product specifications (screen size, RAM, flavor, etc.) enabling precise filtering and comparison beyond price.</div>
+        </li>
+      </ul>
+
+      <h2 class="section-title">🟢 Shipped</h2>
+      <ul class="roadmap-list">
+        <li class="roadmap-item">
+          <div class="item-header">
+            <span class="item-title">Singapore product catalog</span>
+            <span class="status status-shipped">Shipped</span>
+          </div>
+          <div class="item-body">Shopee SG, Lazada SG, Amazon.sg, and 40+ Singapore merchant products indexed and normalized.</div>
+        </li>
+        <li class="roadmap-item">
+          <div class="item-header">
+            <span class="item-title">Python SDK v1</span>
+            <span class="status status-shipped">Shipped</span>
+          </div>
+          <div class="item-body">Python SDK with full API coverage. Install via pip: <code>pip install buywhere</code></div>
+        </li>
+        <li class="roadmap-item">
+          <div class="item-header">
+            <span class="item-title">Private developer beta</span>
+            <span class="status status-shipped">Shipped</span>
+          </div>
+          <div class="item-body">Developer beta program open for AI agent developers. Apply via hello@buywhere.ai.</div>
+        </li>
+        <li class="roadmap-item">
+          <div class="item-header">
+            <span class="item-title">Price comparison endpoint</span>
+            <span class="status status-shipped">Shipped</span>
+          </div>
+          <div class="item-body">Compare prices across platforms for the same product by product ID.</div>
+        </li>
+      </ul>
+
+      <hr class="divider" />
+
+      <div class="stability-note">
+        <h2>API Stability Commitment</h2>
+        <p>BuyWhere does not make breaking changes to the API without 90 days notice. We increment versions for breaking changes and maintain backwards compatibility within major versions. Backwards-compatible additions (new fields, new endpoints) are deployed continuously without notice.</p>
+        <p style="margin-top: 12px;">Questions about the roadmap? Email <a href="mailto:hello@buywhere.ai">hello@buywhere.ai</a>.</p>
+      </div>
+
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      BuyWhere Technologies Pte. Ltd. · Singapore · <a href="mailto:hello@buywhere.ai">hello@buywhere.ai</a>
+    </div>
+  </footer>
+</body>
+</html>

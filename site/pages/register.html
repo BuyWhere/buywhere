@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="auth-hero">
+    <div class="container">
+        <h1>Get Your API Key</h1>
+        <p class="subtitle">Start building with BuyWhere in minutes. No credit card required.</p>
+    </div>
+</section>
+
+<section class="auth-form-section">
+    <div class="container">
+        <div class="auth-card">
+            <form id="registerForm" class="auth-form">
+                <div class="form-group">
+                    <label for="email">Work Email</label>
+                    <input type="email" id="email" name="email" placeholder="you@company.com" required autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="Create a password (min 8 characters)" required minlength="8">
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">Confirm Password</label>
+                    <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Confirm your password" required>
+                </div>
+                <div class="form-group">
+                    <label for="useCase">Primary Use Case</label>
+                    <select id="useCase" name="useCase">
+                        <option value="">Select a use case...</option>
+                        <option value="agent">AI Agent Development</option>
+                        <option value="ecommerce">E-commerce Platform</option>
+                        <option value="price-comparison">Price Comparison Site</option>
+                        <option value="research">Market Research</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="form-terms">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="terms" required>
+                        <span>I agree to the <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a></span>
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg btn-full">Create Account</button>
+                <p class="form-note">Already have an account? <a href="/login">Sign in</a></p>
+            </form>
+        </div>
+    </div>
+</section>
+
+<section class="auth-benefits">
+    <div class="container">
+        <h2>Start Free, Scale as You Grow</h2>
+        <div class="benefits-grid">
+            <div class="benefit">
+                <h3>1,000 Free Requests</h3>
+                <p>No credit card required. Start building immediately.</p>
+            </div>
+            <div class="benefit">
+                <h3>Instant API Access</h3>
+                <p>Get your API key immediately after signup.</p>
+            </div>
+            <div class="benefit">
+                <h3>QuickStart Guides</h3>
+                <p>Ready-to-run code examples in 10+ languages.</p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.auth-hero { padding: var(--bw-spacing-16) 0 var(--bw-spacing-8); text-align: center; }
+.auth-hero h1 { font-size: var(--bw-font-size-3xl); margin-bottom: var(--bw-spacing-4); }
+.auth-hero .subtitle { color: var(--bw-color-text-secondary); }
+
+.auth-form-section { padding: var(--bw-spacing-8) 0 var(--bw-spacing-16); }
+
+.auth-card { max-width: 420px; margin: 0 auto; background: var(--bw-color-bg-primary); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-2xl); padding: var(--bw-spacing-8); }
+
+.auth-form { display: flex; flex-direction: column; gap: var(--bw-spacing-5); }
+
+.form-group { display: flex; flex-direction: column; gap: var(--bw-spacing-2); }
+.form-group label { font-weight: var(--bw-font-weight-medium); font-size: var(--bw-font-size-sm); }
+.form-group input, .form-group select { padding: var(--bw-spacing-3) var(--bw-spacing-4); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-lg); font-size: var(--bw-font-size-base); transition: border-color var(--bw-transition-fast); }
+.form-group input:focus, .form-group select:focus { outline: none; border-color: var(--bw-color-primary); box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.15); }
+
+.form-terms { font-size: var(--bw-font-size-sm); }
+.checkbox-label { display: flex; align-items: flex-start; gap: var(--bw-spacing-2); cursor: pointer; }
+.checkbox-label input { margin-top: 4px; }
+.checkbox-label a { color: var(--bw-color-primary); }
+
+.btn-full { width: 100%; justify-content: center; }
+.form-note { text-align: center; font-size: var(--bw-font-size-sm); color: var(--bw-color-text-secondary); margin-top: var(--bw-spacing-4); }
+.form-note a { color: var(--bw-color-primary); }
+
+.auth-benefits { padding: var(--bw-spacing-16) 0; background: var(--bw-color-bg-secondary); }
+.auth-benefits h2 { text-align: center; margin-bottom: var(--bw-spacing-10); }
+.benefits-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--bw-spacing-8); max-width: 720px; margin: 0 auto; }
+.benefit { text-align: center; }
+.benefit h3 { font-size: var(--bw-font-size-lg); margin-bottom: var(--bw-spacing-2); }
+.benefit p { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-sm); }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script src="/assets/js/utm.js"></script>
+<script src="/assets/js/auth.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    Auth.init();
+    var form = document.getElementById('registerForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var email = document.getElementById('email').value;
+            var password = document.getElementById('password').value;
+            var confirmPassword = document.getElementById('confirmPassword').value;
+            var errorEl = form.querySelector('.form-error') || (function() {
+                var el = document.createElement('p');
+                el.className = 'form-error';
+                el.style.color = 'var(--bw-color-error, #dc2626)';
+                el.style.textAlign = 'center';
+                el.style.marginTop = 'var(--bw-spacing-3)';
+                form.appendChild(el);
+                return el;
+            })();
+            errorEl.textContent = '';
+            if (password !== confirmPassword) {
+                errorEl.textContent = 'Passwords do not match.';
+                return;
+            }
+            Auth.register(email, password)
+                .then(function() {
+                    window.location.href = '/';
+                })
+                .catch(function(err) {
+                    errorEl.textContent = err.message || 'Registration failed. Please try again.';
+                });
+        });
+    }
+});
+</script>
+{% endblock %}

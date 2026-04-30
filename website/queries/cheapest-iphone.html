@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cheapest iPhone — BuyWhere</title>
+  <meta name="description" content="Find the cheapest iPhone across merchants. Current prices, availability, and purchase links for AI agents." />
+  <link rel="canonical" href="https://www.buywhere.ai/queries/cheapest-iphone" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": {
+      "@type": "Question",
+      "name": "Where is the cheapest iPhone?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Use BuyWhere's find_best_price tool to get current cheapest iPhone prices across trusted merchants."
+      }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": "iPhone",
+    "description": "Apple iPhone smartphones",
+    "offers": {
+      "@type": "AggregateOffer",
+      "lowPrice": "399",
+      "highPrice": "1199",
+      "priceCurrency": "USD",
+      "availability": "https://schema.org/InStock"
+    }
+  }
+  </script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #fff; color: #0F172A; line-height: 1.6; }
+    .container { max-width: 900px; margin: 0 auto; padding: 48px 24px; }
+    header { margin-bottom: 48px; }
+    h1 { font-size: 2.5rem; font-weight: 700; margin-bottom: 16px; letter-spacing: -0.02em; }
+    .subtitle { font-size: 1.25rem; color: #475569; }
+    .query-badge { display: inline-block; background: #F1F5F9; padding: 8px 16px; border-radius: 20px; font-size: 0.875rem; margin-bottom: 24px; }
+    .tool-call { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 24px; margin: 32px 0; }
+    .tool-call h3 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; }
+    pre { background: #0F172A; color: #E2E8F0; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 0.875rem; }
+    .price { font-size: 1.5rem; font-weight: 700; color: #059669; }
+    .merchant { color: #64748B; font-size: 0.875rem; }
+    .stock { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+    .stock.in-stock { background: #D1FAE5; color: #065F46; }
+    .stock.low-stock { background: #FEF3C7; color: #92400E; }
+    .stock.out-of-stock { background: #FEE2E2; color: #991B1B; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <span class="query-badge">Price Lookup Example</span>
+      <h1>Cheapest iPhone</h1>
+      <p class="subtitle">Find current lowest prices across merchants for AI agents</p>
+    </header>
+
+    <section class="tool-call">
+      <h3>Agent Tool Call Example — find_best_price</h3>
+      <pre>{
+  "name": "find_best_price",
+  "arguments": {
+    "product": "iPhone 15",
+    "market": "US",
+    "include_similar": true
+  }
+}</pre>
+    </section>
+
+    <section style="margin-bottom: 48px;">
+      <h2 style="font-size: 1.5rem; margin-bottom: 24px;">Example API Response</h2>
+      <pre>{
+  "query": "cheapest iPhone 15",
+  "summary": "Found 5 options across merchants",
+  "total_results": 5,
+  "products": [
+    {
+      "product_id": "bw_iph_001",
+      "title": "iPhone 15 128GB",
+      "description": "6.1-inch display, A16 chip, 48MP camera",
+      "price": { "current": 799.99, "currency": "USD", "was": 849.99 },
+      "merchant": { "name": "Amazon", "reliability_score": 0.95 },
+      "availability": "in_stock",
+      "buywhere_score": 0.94,
+      "confidence": 0.91,
+      "reason_for_rank": "Lowest price among authorized sellers",
+      "purchase_url": "https://partner.buywhere.ai/click/bw_iph_001"
+    },
+    {
+      "product_id": "bw_iph_002",
+      "title": "iPhone 15 128GB",
+      "description": "6.1-inch display, A16 chip, 48MP camera",
+      "price": { "current": 819.00, "currency": "USD" },
+      "merchant": { "name": "Best Buy", "reliability_score": 0.93 },
+      "availability": "in_stock",
+      "buywhere_score": 0.92,
+      "confidence": 0.89,
+      "reason_for_rank": "Same day pickup available",
+      "purchase_url": "https://partner.buywhere.ai/click/bw_iph_002"
+    },
+    {
+      "product_id": "bw_iph_003",
+      "title": "iPhone 14 128GB",
+      "description": "6.1-inch display, A15 chip, 12MP camera",
+      "price": { "current": 649.99, "currency": "USD", "was": 699.99 },
+      "merchant": { "name": "Amazon", "reliability_score": 0.95 },
+      "availability": "in_stock",
+      "buywhere_score": 0.88,
+      "confidence": 0.85,
+      "reason_for_rank": "Best value older generation - still excellent performance",
+      "purchase_url": "https://partner.buywhere.ai/click/bw_iph_003"
+    }
+  ],
+  "agent_guidance": {
+    "recommended_answer_style": "show_price_range_with_top_deal",
+    "next_best_action": "ask_if_user_wants_pro_model",
+    "disclaimers": ["prices may change", "availability updates every 6 hours"]
+  },
+  "metadata": {
+    "latency_ms": 95,
+    "freshness": "2026-04-27T12:00:00Z",
+    "market": "US"
+  }
+}</pre>
+    </section>
+
+    <section style="margin-bottom: 48px;">
+      <h2 style="font-size: 1.5rem; margin-bottom: 16px;">Price Summary</h2>
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid #E2E8F0;">
+          <th style="text-align: left; padding: 12px 0;">Model</th>
+          <th style="text-align: right; padding: 12px 0;">Lowest Price</th>
+          <th style="text-align: left; padding: 12px 0;">Merchant</th>
+          <th style="text-align: left; padding: 12px 0;">Status</th>
+        </tr>
+        <tr style="border-bottom: 1px solid #E2E8F0;">
+          <td style="padding: 12px 0;">iPhone 15</td>
+          <td style="text-align: right; padding: 12px 0;"><span class="price">$799.99</span></td>
+          <td style="padding: 12px 0;">Amazon</td>
+          <td><span class="stock in-stock">In Stock</span></td>
+        </tr>
+        <tr style="border-bottom: 1px solid #E2E8F0;">
+          <td style="padding: 12px 0;">iPhone 14</td>
+          <td style="text-align: right; padding: 12px 0;"><span class="price">$649.99</span></td>
+          <td style="padding: 12px 0;">Amazon</td>
+          <td><span class="stock in-stock">In Stock</span></td>
+        </tr>
+        <tr style="border-bottom: 1px solid #E2E8F0;">
+          <td style="padding: 12px 0;">iPhone 15 Pro</td>
+          <td style="text-align: right; padding: 12px 0;"><span class="price">$999.00</span></td>
+          <td style="padding: 12px 0;">Apple</td>
+          <td><span class="stock in-stock">In Stock</span></td>
+        </tr>
+        <tr>
+          <td style="padding: 12px 0;">iPhone SE (2022)</td>
+          <td style="text-align: right; padding: 12px 0;"><span class="price">$429.00</span></td>
+          <td style="padding: 12px 0;">Amazon</td>
+          <td><span class="stock low-stock">Low Stock</span></td>
+        </tr>
+      </table>
+    </section>
+
+    <footer style="margin-top: 64px; padding-top: 32px; border-top: 1px solid #E2E8F0; color: #64748B; font-size: 0.875rem;">
+      <p>Powered by <a href="https://www.buywhere.ai">BuyWhere</a> — Product resolution API for AI agents</p>
+      <p style="margin-top: 8px;">Tool schemas: <a href="/schemas/find_best_price.json">OpenAI</a> | <a href="/schemas/mcp/find_best_price.json">MCP</a></p>
+    </footer>
+  </div>
+</body>
+</html>

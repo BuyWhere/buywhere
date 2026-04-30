@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="blog-hero">
+    <div class="container">
+        <div class="post-meta">
+            <span class="post-date">April 14, 2026</span>
+            <span class="post-tag">Coverage</span>
+        </div>
+        <h1>Singapore E-Commerce for AI Agents: What BuyWhere Indexes</h1>
+        <p class="lead">A clear breakdown of the Singapore e-commerce landscape and how BuyWhere makes it accessible to AI agents.</p>
+    </div>
+</section>
+
+<section class="blog-content">
+    <div class="container">
+        <div class="prose">
+<p>Singapore has one of the most competitive online retail markets in Southeast Asia. Multiple major platforms operate here, prices fluctuate constantly, and consumers have high expectations for availability and speed. For AI agents trying to answer questions like "where should I buy this?" or "is this the best price?", having accurate Singapore product data is essential.</p>
+
+<h2>The Singapore e-commerce landscape</h2>
+
+<p><strong>Lazada Singapore</strong><br>One of the largest platforms in SEA, Lazada Singapore covers electronics, fashion, home goods, and FMCG. Lazada operates both a marketplace (third-party sellers) and direct retail (LazMall). Price competition between sellers is active.</p>
+
+<p><strong>Shopee Singapore</strong><br>The dominant mobile commerce platform in Singapore. Shopee is known for flash deals, platform-wide vouchers, and a large base of local and cross-border sellers. Shopee listings update frequently, especially during sale periods.</p>
+
+<p><strong>Qoo10 Singapore</strong><br>Qoo10 has deep penetration in certain categories — particularly Korean beauty, electronics accessories, and daily necessities. It attracts a price-sensitive buyer base and frequently runs category-level promotions.</p>
+
+<h2>What BuyWhere crawls</h2>
+
+<table>
+<thead>
+<tr><th>Field</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>title</code></td><td>Product name as listed</td></tr>
+<tr><td><code>price</code></td><td>Current listed price in SGD</td></tr>
+<tr><td><code>merchant</code></td><td>Source platform</td></tr>
+<tr><td><code>url</code></td><td>Direct product page link</td></tr>
+<tr><td><code>availability</code></td><td><code>in_stock</code>, <code>limited</code>, <code>out_of_stock</code></td></tr>
+<tr><td><code>category</code></td><td>Normalised product category</td></tr>
+<tr><td><code>updated_at</code></td><td>Last crawl timestamp</td></tr>
+<tr><td><code>rating</code></td><td>Merchant rating where available</td></tr>
+<tr><td><code>review_count</code></td><td>Number of reviews where available</td></tr>
+</tbody>
+</table>
+
+<p>We do <strong>not</strong> currently index:</p>
+<ul>
+<li>Product specifications or detailed attributes</li>
+<li>Historical price data (coming later this year)</li>
+<li>Seller-level data beyond merchant platform</li>
+</ul>
+
+<h2>How freshness works</h2>
+
+<p>Static price data is dangerous. A catalog updated once a week will show prices that may be 30% off from reality — especially during platform-wide sales.</p>
+
+<p>BuyWhere crawls continuously. High-velocity categories (electronics, phones, laptops) are refreshed more frequently than slower-moving ones (home goods, books). The <code>updated_at</code> field on each listing tells you exactly how stale the data is — your agent can use this to decide whether to surface or flag a result.</p>
+
+<h2>What AI agents can build with this</h2>
+
+<ul>
+<li><strong>Price comparison assistants</strong> that search across all three major platforms in a single query</li>
+<li><strong>Deal alert agents</strong> that watch a specific product and notify when price drops below a threshold</li>
+<li><strong>Budget shopping agents</strong> that find the best option for a given item within a price ceiling</li>
+<li><strong>Gift recommenders</strong> that surface in-stock options matching a description and budget</li>
+<li><strong>Procurement tools</strong> for SMBs that regularly source supplies across platforms</li>
+</ul>
+
+<h2>Coverage gaps (we are honest about these)</h2>
+
+<p>BuyWhere is in beta. Current gaps include:</p>
+
+<ul>
+<li><strong>No historical pricing</strong> — we are working on this</li>
+<li><strong>Limited spec-level data</strong> — title and price only for now</li>
+<li><strong>Growing merchant coverage</strong> — we are adding new merchants based on developer demand</li>
+</ul>
+
+<p>If your use case requires coverage we do not have, <a href="https://buywhere.io/feedback">tell us</a>. We build based on what developers actually need.</p>
+
+<h2>Get started</h2>
+
+<p>Developer docs and free API key: <a href="https://buywhere.io/developers">buywhere.io/developers</a></p>
+
+<p>Free tier: 1,000 queries/month. No credit card required.</p>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.blog-hero { padding: var(--bw-spacing-16) 0; background: linear-gradient(135deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%); }
+.blog-hero h1 { margin-bottom: var(--bw-spacing-4); font-size: var(--bw-font-size-3xl); }
+.post-meta { display: flex; gap: var(--bw-spacing-4); margin-bottom: var(--bw-spacing-4); }
+.post-tag { background: var(--bw-color-secondary); color: white; padding: var(--bw-spacing-1) var(--bw-spacing-3); border-radius: var(--bw-radius-full); font-size: var(--bw-font-size-sm); }
+.blog-content { padding: var(--bw-spacing-16) 0; }
+.prose { max-width: 720px; }
+.prose h2 { font-size: var(--bw-font-size-xl); margin: var(--bw-spacing-8) 0 var(--bw-spacing-4); }
+.prose p { margin-bottom: var(--bw-spacing-4); line-height: 1.7; }
+.prose ul, .prose ol { margin-bottom: var(--bw-spacing-4); padding-left: var(--bw-spacing-6); }
+.prose li { margin-bottom: var(--bw-spacing-2); line-height: 1.6; }
+.prose table { width: 100%; border-collapse: collapse; margin-bottom: var(--bw-spacing-6); }
+.prose th, .prose td { border: 1px solid var(--bw-color-border); padding: var(--bw-spacing-3); text-align: left; }
+.prose th { background: var(--bw-color-bg-secondary); font-weight: 600; }
+.prose code { font-family: var(--bw-font-family-mono); font-size: 0.9em; background: var(--bw-color-bg-secondary); padding: 2px 6px; border-radius: 4px; }
+.prose a { color: var(--bw-color-primary); }
+</style>
+{% endblock %}

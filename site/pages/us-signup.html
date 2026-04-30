@@ -1,0 +1,449 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="us-signup-hero">
+    <div class="container">
+        <div class="us-signup-badge">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                <path d="M2 17l10 5 10-5"/>
+                <path d="M2 12l10 5 10-5"/>
+            </svg>
+            Coming Soon to the US
+        </div>
+        <h1>Be First to Access<br>America's Product Catalog API</h1>
+        <p class="hero-subtitle">BuyWhere is launching in the US. Join the waitlist to get early access, exclusive pricing, and a head start building agent-native commerce.</p>
+        
+        <div class="signup-form-container" id="signupFormContainer">
+            <form class="signup-form" id="signupForm">
+                <div class="form-row">
+                    <input 
+                        type="email" 
+                        name="email" 
+                        id="emailInput"
+                        class="email-input" 
+                        placeholder="Enter your work email" 
+                        required
+                        autocomplete="email"
+                    >
+                    <button type="submit" class="btn btn-primary btn-lg signup-btn" id="submitBtn">
+                        <span class="btn-text">Join Waitlist</span>
+                        <span class="btn-loading" hidden>
+                            <svg class="spinner" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+                                <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
+                            </svg>
+                        </span>
+                    </button>
+                </div>
+                <p class="form-note">No spam. Launch updates only.</p>
+                <p class="form-error" id="formError" hidden></p>
+            </form>
+        </div>
+
+        <div class="thank-you-state" id="thankYouState" hidden>
+            <div class="thank-you-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="m9 12 2 2 4-4"/>
+                </svg>
+            </div>
+            <h2>You're on the list!</h2>
+            <p>We'll email you as soon as BuyWhere launches in the US. Check your inbox for a confirmation.</p>
+        </div>
+    </div>
+</section>
+
+<section class="product-count-section">
+    <div class="container">
+        <div class="count-card">
+            <div class="count-number" id="productCount">
+                <span class="count-value">--</span>
+                <span class="count-loading" hidden>
+                    <svg class="spinner" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+                        <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
+                    </svg>
+                </span>
+            </div>
+            <p class="count-label">Products Indexed (US Launch)</p>
+            <p class="count-note">Live count as we build out US coverage</p>
+        </div>
+    </div>
+</section>
+
+<section class="retailers-section">
+    <div class="container">
+        <p class="section-eyebrow">Launch Partners</p>
+        <h2>Covering America's Top Retailers</h2>
+        <div class="retailer-logos">
+            <div class="retailer-logo">
+                <svg viewBox="0 0 60 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Amazon">
+                    <text x="0" y="18" font-family="Inter, sans-serif" font-size="18" font-weight="700" fill="currentColor">amazon</text>
+                </svg>
+            </div>
+            <div class="retailer-logo">
+                <svg viewBox="0 0 80 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Walmart">
+                    <text x="0" y="18" font-family="Inter, sans-serif" font-size="18" font-weight="700" fill="currentColor">Walmart</text>
+                </svg>
+            </div>
+            <div class="retailer-logo">
+                <svg viewBox="0 0 70 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Target">
+                    <text x="0" y="18" font-family="Inter, sans-serif" font-size="18" font-weight="700" fill="currentColor">Target</text>
+                </svg>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="features-section">
+    <div class="container">
+        <h2>Built for AI Agents and Developers</h2>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                </div>
+                <h3>Lightning-Fast Search</h3>
+                <p>Sub-100ms product search across millions of US products. Semantic understanding built in.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        <path d="M3 9h18"/>
+                        <path d="M9 21V9"/>
+                    </svg>
+                </div>
+                <h3>Normalized Schema</h3>
+                <p>One unified data format across all retailers. No more parsing Amazon vs Walmart vs Target APIs.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                </div>
+                <h3>MCP Native</h3>
+                <p>First-class Model Context Protocol support. Connect directly to Claude, Cursor, and any MCP-compatible agent.</p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.us-signup-hero {
+    padding: var(--bw-spacing-24) 0 var(--bw-spacing-16);
+    background: linear-gradient(135deg, var(--bw-color-bg-dark) 0%, #1a2744 100%);
+    color: var(--bw-color-text-inverse);
+    text-align: center;
+}
+
+.us-signup-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--bw-spacing-2);
+    padding: var(--bw-spacing-2) var(--bw-spacing-4);
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: var(--bw-radius-full);
+    color: var(--bw-color-secondary);
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-semibold);
+    margin-bottom: var(--bw-spacing-8);
+}
+
+.us-signup-hero h1 {
+    font-size: var(--bw-font-size-5xl);
+    color: var(--bw-color-text-inverse);
+    margin-bottom: var(--bw-spacing-6);
+    line-height: 1.1;
+}
+
+.us-signup-hero .hero-subtitle {
+    font-size: var(--bw-font-size-xl);
+    color: rgba(255, 255, 255, 0.75);
+    max-width: 600px;
+    margin: 0 auto var(--bw-spacing-10);
+    line-height: var(--bw-line-height-relaxed);
+}
+
+.signup-form-container {
+    max-width: 520px;
+    margin: 0 auto;
+}
+
+.signup-form .form-row {
+    display: flex;
+    gap: var(--bw-spacing-3);
+}
+
+.email-input {
+    flex: 1;
+    padding: var(--bw-spacing-4) var(--bw-spacing-5);
+    font-size: var(--bw-font-size-base);
+    font-family: var(--bw-font-family-sans);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--bw-radius-xl);
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--bw-color-text-inverse);
+    min-height: 52px;
+    transition: all var(--bw-transition-fast);
+}
+
+.email-input::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.email-input:focus {
+    outline: none;
+    border-color: var(--bw-color-primary-light);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.signup-btn {
+    min-width: 160px;
+    white-space: nowrap;
+}
+
+.form-note {
+    font-size: var(--bw-font-size-sm);
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: var(--bw-spacing-3);
+}
+
+.form-error {
+    color: var(--bw-color-error);
+    font-size: var(--bw-font-size-sm);
+    margin-top: var(--bw-spacing-3);
+    padding: var(--bw-spacing-3);
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: var(--bw-radius-md);
+}
+
+.thank-you-state {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: var(--bw-spacing-8);
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: var(--bw-radius-2xl);
+}
+
+.thank-you-icon {
+    color: var(--bw-color-secondary);
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.thank-you-state h2 {
+    color: var(--bw-color-text-inverse);
+    margin-bottom: var(--bw-spacing-3);
+}
+
+.thank-you-state p {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.product-count-section {
+    padding: var(--bw-spacing-16) 0;
+    background: var(--bw-color-bg-secondary);
+}
+
+.count-card {
+    text-align: center;
+    padding: var(--bw-spacing-8);
+}
+
+.count-number {
+    font-size: var(--bw-font-size-5xl);
+    font-weight: var(--bw-font-weight-bold);
+    color: var(--bw-color-primary);
+    margin-bottom: var(--bw-spacing-2);
+}
+
+.count-value {
+    font-variant-numeric: tabular-nums;
+}
+
+.count-label {
+    font-size: var(--bw-font-size-lg);
+    font-weight: var(--bw-font-weight-semibold);
+    color: var(--bw-color-text-primary);
+    margin-bottom: var(--bw-spacing-2);
+}
+
+.count-note {
+    font-size: var(--bw-font-size-sm);
+    color: var(--bw-color-text-muted);
+}
+
+.retailers-section {
+    padding: var(--bw-spacing-20) 0;
+    background: var(--bw-color-bg-primary);
+    text-align: center;
+}
+
+.section-eyebrow {
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--bw-color-primary);
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.retailers-section h2 {
+    margin-bottom: var(--bw-spacing-12);
+}
+
+.retailer-logos {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--bw-spacing-12);
+    flex-wrap: wrap;
+}
+
+.retailer-logo {
+    color: var(--bw-color-text-muted);
+    transition: color var(--bw-transition-fast);
+}
+
+.retailer-logo:hover {
+    color: var(--bw-color-text-secondary);
+}
+
+.retailer-logo svg {
+    height: 28px;
+    width: auto;
+}
+
+.features-section {
+    padding: var(--bw-spacing-24) 0;
+    background: var(--bw-color-bg-secondary);
+}
+
+.features-section h2 {
+    text-align: center;
+    margin-bottom: var(--bw-spacing-12);
+}
+
+.spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@media (max-width: 640px) {
+    .us-signup-hero h1 {
+        font-size: var(--bw-font-size-3xl);
+    }
+    .signup-form .form-row {
+        flex-direction: column;
+    }
+    .signup-btn {
+        width: 100%;
+    }
+    .retailer-logos {
+        gap: var(--bw-spacing-8);
+    }
+    .retailer-logo svg {
+        height: 22px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const API_BASE = window.BASE_URL || 'http://localhost:3001';
+    
+    const form = document.getElementById('signupForm');
+    const emailInput = document.getElementById('emailInput');
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = submitBtn.querySelector('.btn-text');
+    const btnLoading = submitBtn.querySelector('.btn-loading');
+    const formError = document.getElementById('formError');
+    const signupContainer = document.getElementById('signupFormContainer');
+    const thankYouState = document.getElementById('thankYouState');
+    const productCountEl = document.getElementById('productCount');
+    const countValue = productCountEl.querySelector('.count-value');
+    const countLoading = productCountEl.querySelector('.count-loading');
+
+    async function loadProductCount() {
+        countLoading.hidden = false;
+        countValue.hidden = true;
+        try {
+            const res = await fetch(API_BASE + '/v1/stats/products-count', {
+                headers: { 'Authorization': 'Bearer ' + window.API_KEY }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                countValue.textContent = (data.count || 0).toLocaleString();
+            } else {
+                countValue.textContent = '250K+';
+            }
+        } catch {
+            countValue.textContent = '250K+';
+        }
+        countLoading.hidden = true;
+        countValue.hidden = false;
+    }
+
+    async function handleSubmit(e) {
+        e.preventDefault();
+        const email = emailInput.value.trim();
+        
+        if (!email || !email.includes('@')) {
+            formError.textContent = 'Please enter a valid email address.';
+            formError.hidden = false;
+            return;
+        }
+
+        btnText.hidden = true;
+        btnLoading.hidden = false;
+        submitBtn.disabled = true;
+        formError.hidden = true;
+
+        try {
+            const res = await fetch(API_BASE + '/v1/signup/email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + window.API_KEY
+                },
+                body: JSON.stringify({ email, source: 'us-waitlist' })
+            });
+
+            if (res.ok || res.status === 409) {
+                signupContainer.hidden = true;
+                thankYouState.hidden = false;
+            } else {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.message || 'Something went wrong');
+            }
+        } catch (err) {
+            formError.textContent = err.message || 'Failed to join waitlist. Please try again.';
+            formError.hidden = false;
+            btnText.hidden = false;
+            btnLoading.hidden = true;
+            submitBtn.disabled = false;
+        }
+    }
+
+    form.addEventListener('submit', handleSubmit);
+    
+    if (window.productCountDisabled !== true) {
+        loadProductCount();
+    }
+})();
+</script>
+{% endblock %}

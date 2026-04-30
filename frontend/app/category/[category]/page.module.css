@@ -1,0 +1,129 @@
+.page {
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  max-width: var(--container-xl, 1280px);
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+@media (min-width: 768px) {
+  .page {
+    padding: var(--space-6);
+  }
+}
+
+@media (min-width: 1024px) {
+  .page {
+    padding: var(--space-8);
+  }
+}
+
+.header {
+  margin-bottom: var(--space-8);
+  padding-bottom: var(--space-6);
+  border-bottom: 1px solid var(--bw-border, #e5e7eb);
+}
+
+.headerContent {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--bw-text-primary, #111827);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.resultCount {
+  font-size: 14px;
+  color: var(--bw-text-secondary, #4b5563);
+  margin: 0;
+}
+
+.layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+@media (min-width: 1024px) {
+  .layout {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: var(--space-8);
+  }
+}
+
+.sidebarSkeleton {
+  height: 300px;
+  background: var(--bw-bg-secondary, #f3f4f6);
+  border-radius: 12px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+}
+
+.productGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-4);
+}
+
+@media (min-width: 768px) {
+  .productGrid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-6);
+  }
+}
+
+@media (min-width: 1200px) {
+  .productGrid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-6);
+  }
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-16) var(--space-4);
+  text-align: center;
+  color: var(--bw-text-secondary, #4b5563);
+}
+
+.emptyState svg {
+  width: 64px;
+  height: 64px;
+  margin-bottom: var(--space-4);
+  color: var(--bw-text-muted, #9ca3af);
+}
+
+.emptyState h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--bw-text-primary, #111827);
+  margin: 0 0 8px;
+}
+
+.emptyState p {
+  font-size: 14px;
+  margin: 0;
+}

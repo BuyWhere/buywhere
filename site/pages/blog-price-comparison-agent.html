@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="blog-hero">
+    <div class="container">
+        <div class="post-meta">
+            <span class="post-date">April 14, 2026</span>
+            <span class="post-tag">Tutorial</span>
+        </div>
+        <h1>Build a Price Comparison Agent with BuyWhere API</h1>
+        <p class="lead">Price comparison is one of the most requested capabilities in AI shopping assistants — and one of the hardest to build reliably. BuyWhere solves this.</p>
+    </div>
+</section>
+
+<section class="blog-content">
+    <div class="container">
+        <div class="prose">
+<p>Price comparison is one of the most requested capabilities in AI shopping assistants — and one of the hardest to build reliably. Web scraping breaks, retailer APIs are gated or nonexistent, and maintaining freshness across dozens of Singapore merchants is a full-time engineering job.</p>
+
+<p>BuyWhere solves this. We maintain a real-time product catalog covering major Singapore e-commerce platforms — Lazada, Shopee, Qoo10, and more — accessible through a single REST API. In this post, I will walk you through building a minimal price comparison agent using the BuyWhere API and a Python-based LLM agent loop.</p>
+
+<h2>What you will build</h2>
+
+<p>A command-line agent that:</p>
+<ul>
+<li>Accepts a product query in natural language (e.g. "Sony WH-1000XM5 headphones")</li>
+<li>Searches BuyWhere for matching listings across all indexed merchants</li>
+<li>Returns the top 5 results sorted by price with source links</li>
+<li>Explains the price spread in plain English</li>
+</ul>
+
+<h2>Prerequisites</h2>
+
+<ul>
+<li>Python 3.10+</li>
+<li>A BuyWhere API key (get one at buywhere.io/developers)</li>
+<li>An Anthropic API key (or any LLM provider)</li>
+</ul>
+
+<h2>Step 1: Install dependencies</h2>
+
+<pre><code>pip install anthropic httpx</code></pre>
+
+<h2>Step 2: Search the BuyWhere catalog</h2>
+
+<p>BuyWhere exposes a <code>/search</code> endpoint that accepts a natural language query and returns structured product listings:</p>
+
+<pre><code>import httpx
+
+BUYWHERE_API_KEY = "your-api-key"
+BASE_URL = "https://api.buywhere.io/v1"
+
+def search_products(query: str, limit: int = 10) -> list[dict]:
+    resp = httpx.get(
+        f"{BASE_URL}/search",
+        params={"q": query, "limit": limit, "region": "SG"},
+        headers={"Authorization": f"Bearer {BUYWHERE_API_KEY}"},
+    )
+    resp.raise_for_status()
+    return resp.json()["results"]</code></pre>
+
+<p>Each result includes:</p>
+<ul>
+<li><code>title</code> — product name as listed by the merchant</li>
+<li><code>price</code> — current price in SGD</li>
+<li><code>merchant</code> — e.g. <code>lazada</code>, <code>shopee</code>, <code>qoo10</code></li>
+<li><code>url</code> — direct product page link</li>
+<li><code>updated_at</code> — when this listing was last refreshed</li>
+<li><code>availability</code> — <code>in_stock</code>, <code>limited</code>, <code>out_of_stock</code></li>
+</ul>
+
+<h2>Step 3: Build the agent loop</h2>
+
+<pre><code>import anthropic
+import json
+
+client = anthropic.Anthropic()
+
+def compare_prices(user_query: str) -> str:
+    # 1. Fetch listings from BuyWhere
+    listings = search_products(user_query, limit=10)
+    in_stock = [l for l in listings if l["availability"] == "in_stock"]
+    sorted_listings = sorted(in_stock, key=lambda x: x["price"])[:5]
+
+    # 2. Format for the LLM
+    context = json.dumps(sorted_listings, indent=2)
+
+    # 3. Ask the LLM to summarise
+    message = client.messages.create(
+        model="claude-opus-4-6",
+        max_tokens=512,
+        messages=[
+            {
+                "role": "user",
+                "content": f"""You are a shopping assistant. Here are the top in-stock results for "{user_query}" in Singapore:
+
+{context}
+
+Summarise the price range, highlight the cheapest option, and note any meaningful price spread. Keep it under 100 words.""",
+            }
+        ],
+    )
+    return message.content[0].text
+
+if __name__ == "__main__":
+    query = input("What are you looking for? ")
+    print(compare_prices(query))</code></pre>
+
+<h2>Example output</h2>
+
+<pre><code>What are you looking for? Sony WH-1000XM5 headphones
+
+The Sony WH-1000XM5 is available at SGD 329–399 across Lazada, Shopee,
+and Qoo10. The cheapest option is currently on Lazada at SGD 329 (free
+shipping). Shopee has the same unit at SGD 349 with a voucher available
+that could bring it to SGD 319. Qoo10 lists at SGD 399 — skip unless
+you need the extended warranty bundle.</code></pre>
+
+<h2>What just happened</h2>
+
+<p>In under 50 lines of Python, you built a working price comparison agent grounded in real Singapore merchant data. No scraping, no rate limiting, no maintenance. BuyWhere handles catalog freshness — your agent focuses on the reasoning layer.</p>
+
+<h2>Next steps</h2>
+
+<ul>
+<li>Add tool use to give Claude structured access to the search API</li>
+<li>Stream responses for a better CLI experience</li>
+<li>Wrap in a Telegram or Slack bot for real-time shopping queries</li>
+</ul>
+
+<p>Get your free API key at <a href="https://buywhere.io/developers">buywhere.io/developers</a>. The free tier includes 1,000 queries/month — enough to ship your first agent.</p>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.blog-hero { padding: var(--bw-spacing-16) 0; background: linear-gradient(135deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%); }
+.blog-hero h1 { margin-bottom: var(--bw-spacing-4); font-size: var(--bw-font-size-3xl); }
+.post-meta { display: flex; gap: var(--bw-spacing-4); margin-bottom: var(--bw-spacing-4); }
+.post-tag { background: var(--bw-color-primary); color: white; padding: var(--bw-spacing-1) var(--bw-spacing-3); border-radius: var(--bw-radius-full); font-size: var(--bw-font-size-sm); }
+.blog-content { padding: var(--bw-spacing-16) 0; }
+.prose { max-width: 720px; }
+.prose h2 { font-size: var(--bw-font-size-xl); margin: var(--bw-spacing-8) 0 var(--bw-spacing-4); }
+.prose p { margin-bottom: var(--bw-spacing-4); line-height: 1.7; }
+.prose ul, .prose ol { margin-bottom: var(--bw-spacing-4); padding-left: var(--bw-spacing-6); }
+.prose li { margin-bottom: var(--bw-spacing-2); line-height: 1.6; }
+.prose pre { background: var(--bw-color-bg-dark); color: #e2e8f0; padding: var(--bw-spacing-4); border-radius: var(--bw-radius-lg); overflow-x: auto; margin-bottom: var(--bw-spacing-6); font-size: var(--bw-font-size-sm); }
+.prose code { font-family: var(--bw-font-family-mono); font-size: 0.9em; }
+.prose a { color: var(--bw-color-primary); }
+</style>
+{% endblock %}

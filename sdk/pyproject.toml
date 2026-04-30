@@ -1,0 +1,95 @@
+[build-system]
+requires = ["hatchling", "hatch-fancy-pypi-readme>=22.5.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "buywhere-sdk"
+version = "0.1.0"
+description = "Python SDK for the BuyWhere product catalog API"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [
+    { name = "BuyWhere", email = "eng@buywhere.ai" },
+]
+keywords = ["buywhere", "product-catalog", "ecommerce", "shopping", "api", "ai-agents", "langchain", "crewai"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "httpx>=0.27.0",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.5.0",
+]
+langchain = [
+    "langchain>=0.3.0",
+    "langchain-community>=0.3.0",
+]
+crewai = [
+    "crewai>=0.80.0",
+]
+
+[project.urls]
+Homepage = "https://buywhere.ai"
+Documentation = "https://docs.buywhere.ai"
+Repository = "https://github.com/buywhere/buywhere-api/tree/main/sdk"
+Changelog = "https://github.com/buywhere/buywhere-api/releases"
+Issues = "https://github.com/buywhere/buywhere-api/issues"
+
+[project.scripts]
+buywhere = "buywhere_sdk.cli:main"
+
+[tool.hatch.build]
+exclude = [
+    "/.pytest_cache",
+    "/.ruff_cache",
+    "/dist",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/buywhere_sdk"]
+
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "README.md"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+text = "\n\n## Changelog\n"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "CHANGELOG.md"
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = []
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

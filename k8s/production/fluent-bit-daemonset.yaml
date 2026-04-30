@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluent-bit
+  namespace: production
+  labels:
+    app: fluent-bit
+    environment: production
+spec:
+  selector:
+    matchLabels:
+      app: fluent-bit
+      environment: production
+  template:
+    metadata:
+      labels:
+        app: fluent-bit
+        environment: production
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "2020"
+        prometheus.io/path: /api/v1/metrics
+    spec:
+      serviceAccountName: fluent-bit
+      containers:
+        - name: fluent-bit
+          image: fluent/fluent-bit:3.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 2020
+              name: http
+              protocol: TCP
+          volumeMounts:
+            - name: fluent-bit-config
+              mountPath: /fluent-bit/etc
+            - name: var-log
+              mountPath: /var/log
+              readOnly: true
+            - name: docker-logs
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: run
+              mountPath: /var/run
+              readOnly: true
+            - name: db
+              mountPath: /var/log/flb_db
+          env:
+            - name: FLUENT_BIT_ENVIRONMENT
+              value: "production"
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 2020
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 2020
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          securityContext:
+            readOnlyRootFilesystem: false
+            runAsUser: 0
+            runAsGroup: 0
+      volumes:
+        - name: fluent-bit-config
+          configMap:
+            name: fluent-bit-config
+        - name: var-log
+          hostPath:
+            path: /var/log
+        - name: docker-logs
+          hostPath:
+            path: /var/lib/docker/containers
+        - name: run
+          hostPath:
+            path: /var/run
+        - name: db
+          emptyDir: {}
+      restartPolicy: Always
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule

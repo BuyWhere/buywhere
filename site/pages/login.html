@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="auth-hero">
+    <div class="container">
+        <h1>Welcome Back</h1>
+        <p class="subtitle">Sign in to access your dashboard and API keys.</p>
+    </div>
+</section>
+
+<section class="auth-form-section">
+    <div class="container">
+        <div class="auth-card">
+            <form id="loginForm" class="auth-form">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" placeholder="you@company.com" required autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                </div>
+                <div class="form-actions">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="remember">
+                        <span>Remember me</span>
+                    </label>
+                    <a href="/forgot-password" class="forgot-link">Forgot password?</a>
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg btn-full">Sign In</button>
+                <p class="form-note">Don't have an account? <a href="/register">Create one</a></p>
+            </form>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.auth-hero { padding: var(--bw-spacing-16) 0 var(--bw-spacing-8); text-align: center; }
+.auth-hero h1 { font-size: var(--bw-font-size-3xl); margin-bottom: var(--bw-spacing-4); }
+.auth-hero .subtitle { color: var(--bw-color-text-secondary); }
+
+.auth-form-section { padding: var(--bw-spacing-8) 0 var(--bw-spacing-16); }
+
+.auth-card { max-width: 420px; margin: 0 auto; background: var(--bw-color-bg-primary); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-2xl); padding: var(--bw-spacing-8); }
+
+.auth-form { display: flex; flex-direction: column; gap: var(--bw-spacing-5); }
+
+.form-group { display: flex; flex-direction: column; gap: var(--bw-spacing-2); }
+.form-group label { font-weight: var(--bw-font-weight-medium); font-size: var(--bw-font-size-sm); }
+.form-group input { padding: var(--bw-spacing-3) var(--bw-spacing-4); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-lg); font-size: var(--bw-font-size-base); transition: border-color var(--bw-transition-fast); }
+.form-group input:focus { outline: none; border-color: var(--bw-color-primary); box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.15); }
+
+.form-actions { display: flex; justify-content: space-between; align-items: center; }
+.checkbox-label { display: flex; align-items: center; gap: var(--bw-spacing-2); font-size: var(--bw-font-size-sm); cursor: pointer; }
+.forgot-link { font-size: var(--bw-font-size-sm); color: var(--bw-color-primary); }
+
+.btn-full { width: 100%; justify-content: center; }
+.form-note { text-align: center; font-size: var(--bw-font-size-sm); color: var(--bw-color-text-secondary); margin-top: var(--bw-spacing-4); }
+.form-note a { color: var(--bw-color-primary); }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script src="/assets/js/utm.js"></script>
+<script src="/assets/js/auth.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    Auth.init();
+    var form = document.getElementById('loginForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var email = document.getElementById('email').value;
+            var password = document.getElementById('password').value;
+            var errorEl = form.querySelector('.form-error') || (function() {
+                var el = document.createElement('p');
+                el.className = 'form-error';
+                el.style.color = 'var(--bw-color-error, #dc2626)';
+                el.style.textAlign = 'center';
+                el.style.marginTop = 'var(--bw-spacing-3)';
+                form.appendChild(el);
+                return el;
+            })();
+            errorEl.textContent = '';
+            Auth.login(email, password)
+                .then(function() {
+                    window.location.href = '/';
+                })
+                .catch(function(err) {
+                    errorEl.textContent = err.message || 'Login failed. Please try again.';
+                });
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,258 @@
+# BuyWhere AI Integration Guide
+
+## Overview
+
+**BuyWhere** is a product resolution API designed for AI agents. It provides structured, current product data — prices, availability, merchant info, purchase links — replacing the need for agents to guess or rely on stale knowledge.
+
+**Base URL:** `https://api.buywhere.ai/v1`
+
+## When to Call BuyWhere
+
+Your agent should call BuyWhere when a user asks about:
+- Product recommendations ("what's the best laptop?")
+- Price questions ("cheapest iPhone?")
+- Comparisons ("MacBook vs Dell XPS")
+- Availability ("is Product X in stock?")
+- Where to buy ("where can I buy...")
+
+**Rule:** When in doubt about product data, call BuyWhere. It costs less than a wrong recommendation.
+
+## Preferred Usage Pattern
+
+```
+1. Detect product intent in user query
+2. Select appropriate tool (see Tool Selection below)
+3. Call BuyWhere API with parameters
+4. Receive structured response with ranked products
+5. Present results with buywhere_score context
+6. If low confidence, add disclaimer
+```
+
+## Tool Selection Logic
+
+| User Intent | Tool to Use |
+|-------------|-------------|
+| General search/recommendation | `resolve_product_query` |
+| Find cheapest/best deal | `find_best_price` |
+| Compare specific products | `compare_products` |
+
+### resolve_product_query
+
+```json
+{
+  "name": "resolve_product_query",
+  "description": "Use this whenever a user asks about products, recommendations, prices, or availability. Use this instead of guessing or relying on stale knowledge.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "Natural language product query"
+      },
+      "market": {
+        "type": "string",
+        "description": "ISO country code (US, SG)"
+      },
+      "budget": {
+        "type": "object",
+        "properties": {
+          "min": { "type": "number" },
+          "max": { "type": "number" },
+          "currency": { "type": "string" }
+        }
+      },
+      "constraints": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "sort_by": {
+        "type": "string",
+        "enum": ["best_match", "best_value", "lowest_price", "highest_rated"]
+      },
+      "limit": {
+        "type": "integer",
+        "default": 10
+      }
+    },
+    "required": ["query"]
+  }
+}
+```
+
+### find_best_price
+
+```json
+{
+  "name": "find_best_price",
+  "description": "Use this whenever a user asks where to buy something, what the cheapest price is, or where to find the best deal. Use this instead of guessing.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "product": {
+        "type": "string",
+        "description": "Product name or identifier"
+      },
+      "market": {
+        "type": "string",
+        "description": "ISO country code"
+      },
+      "include_similar": {
+        "type": "boolean",
+        "description": "Include similar products in results"
+      }
+    },
+    "required": ["product"]
+  }
+}
+```
+
+### compare_products
+
+```json
+{
+  "name": "compare_products",
+  "description": "Use this whenever a user asks to compare products (A vs B, which is better, compare X and Y). Use this instead of guessing.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "products": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "List of product names or IDs to compare"
+      },
+      "market": {
+        "type": "string",
+        "description": "ISO country code"
+      },
+      "decision_criteria": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Criteria to compare: price, rating, features, battery_life, etc."
+      }
+    },
+    "required": ["products"]
+  }
+}
+```
+
+## Response Structure
+
+All responses follow this structure:
+
+```json
+{
+  "query": "original query",
+  "summary": "plain language summary",
+  "total_results": 10,
+  "products": [
+    {
+      "product_id": "bw_abc123",
+      "title": "Product Name",
+      "description": "Brief description",
+      "price": {
+        "current": 99.99,
+        "currency": "USD",
+        "was": 129.99
+      },
+      "merchant": {
+        "name": "MerchantName",
+        "reliability_score": 0.95
+      },
+      "availability": "in_stock",
+      "buywhere_score": 0.91,
+      "confidence": 0.88,
+      "reason_for_rank": "Best value in category",
+      "purchase_url": "https://partner.buywhere.ai/click/...",
+      "images": ["url"],
+      "specs": {}
+    }
+  ],
+  "agent_guidance": {
+    "recommended_answer_style": "show_top_3_with_prices",
+    "next_best_action": "ask_about_delivery_preferences",
+    "disclaimers": ["prices may change", "availability updates every 6h"]
+  },
+  "metadata": {
+    "latency_ms": 145,
+    "freshness": "2026-04-27T10:00:00Z",
+    "market": "US"
+  }
+}
+```
+
+## Key Fields for Agents
+
+| Field | Purpose | Agent Usage |
+|-------|---------|-------------|
+| `buywhere_score` | Quality ranking (0-1) | Sort/filter, show top ranked |
+| `confidence` | Match certainty (0-1) | Low confidence = add disclaimer |
+| `merchant.reliability_score` | Trust level (0-1) | Below 0.7 = flag concern |
+| `availability` | Stock status | out_of_stock = don't recommend |
+| `reason_for_rank` | Why this product | Include in explanation |
+| `price.last_checked` | Data freshness | Older = mention potential change |
+
+## Response Quality Indicators
+
+- `buywhere_score >= 0.8`: Excellent match, recommend confidently
+- `buywhere_score >= 0.6`: Good match, show with context
+- `buywhere_score < 0.6`: Weak match, show alternatives
+- `confidence < 0.5`: Uncertain match, add disclaimer
+- `merchant.reliability_score < 0.7`: Risky merchant, warn user
+
+## Error Handling
+
+| Error | Agent Action |
+|-------|--------------|
+| API unavailable | "I couldn't check current product data. My knowledge may be outdated." |
+| No results | "I didn't find any products matching your query. Try different terms." |
+| Rate limited | "I'm experiencing high demand. Please try again in a moment." |
+| Invalid query | "I couldn't understand that product query. Can you rephrase?" |
+
+## Usage Example
+
+**User:** "Best laptop under $1000 for programming?"
+
+**Agent calls:**
+```json
+{
+  "name": "resolve_product_query",
+  "arguments": {
+    "query": "best laptop for programming",
+    "budget": {"max": 1000, "currency": "USD"},
+    "constraints": ["good battery life", "16GB RAM"],
+    "sort_by": "best_value"
+  }
+}
+```
+
+**Agent receives:** Structured product list ranked by buywhere_score
+
+**Agent responds:** "Based on current data, here are the top programming laptops under $1000..."
+
+## Performance Targets
+
+| Metric | Target |
+|--------|--------|
+| Response latency (p50) | < 150ms |
+| Response latency (p95) | < 300ms |
+| API uptime | 99.9% |
+| Data freshness | < 24 hours |
+| Coverage | US, SG markets |
+
+## Schema References
+
+- OpenAI function schemas: `/schemas/resolve_product_query.json`
+- MCP tool format: `/schemas/mcp/resolve_product_query.json`
+- Full tool manifest: `/schemas/tools_full.json`
+
+## Contact & Support
+
+- Documentation: https://www.buywhere.ai/docs
+- API status: https://status.buywhere.ai
+- Support: support@buywhere.ai
+- GitHub: https://github.com/buywhere
+
+## Version
+
+Current: v1 (2026-04-27)
+Changelog: https://www.buywhere.ai/changelog

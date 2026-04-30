@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="container">
+        <h1>For Platforms</h1>
+        <p class="page-subtitle">Integrate BuyWhere's product catalog API to power search, recommendations, and comparison features in your platform.</p>
+    </div>
+</section>
+
+<section class="platform-benefits">
+    <div class="container">
+        <h2>Why Platforms Choose BuyWhere</h2>
+        <div class="benefit-grid">
+            <div class="benefit-card">
+                <h3>Comprehensive Coverage</h3>
+                <p>Single API access to 500K+ products from Shopee, Lazada, FairPrice, Carousell, Qoo10, and other SEA retailers.</p>
+            </div>
+            <div class="benefit-card">
+                <h3>Normalized Schema</h3>
+                <p>Every product returns in the same schema regardless of source. No more mapping retailer-specific formats.</p>
+            </div>
+            <div class="benefit-card">
+                <h3>High Availability</h3>
+                <p>99.9% uptime SLA. Built on Singapore infrastructure with redundant data centers across SEA.</p>
+            </div>
+            <div class="benefit-card">
+                <h3>Agent Ready</h3>
+                <p>Designed for AI-first products. MCP-compatible, natural language query support, and structured JSON responses.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="use-cases">
+    <div class="container">
+        <h2>Use Cases</h2>
+        <div class="use-case-grid">
+            <div class="use-case">
+                <h3>E-Commerce Aggregators</h3>
+                <p>Power product search across multiple SEA retailers from a single API. Users get unified search results with live pricing.</p>
+            </div>
+            <div class="use-case">
+                <h3>Price Comparison Sites</h3>
+                <p>Pull live prices from all major SEA platforms and display the best deals. Commission eligible.</p>
+            </div>
+            <div class="use-case">
+                <h3>AI Shopping Assistants</h3>
+                <p>Give your AI agent access to a structured product database. Handle purchase research, price comparisons, and availability checks.</p>
+            </div>
+            <div class="use-case">
+                <h3>Deal Alert Services</h3>
+                <p>Monitor price changes and product availability across platforms. Notify users when deals match their criteria.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="api-details">
+    <div class="container">
+        <h2>Enterprise API</h2>
+        <div class="details-grid">
+            <div class="detail-card">
+                <h3>Rate Limits</h3>
+                <p>Enterprise plans include higher rate limits and dedicated capacity. Standard: 1,000 req/min. Enterprise: custom.</p>
+            </div>
+            <div class="detail-card">
+                <h3>Data Freshness</h3>
+                <p>Product data refreshes hourly for active listings. Historical data available for trend analysis.</p>
+            </div>
+            <div class="detail-card">
+                <h3>Support</h3>
+                <p>Dedicated Slack channel and technical account manager for enterprise partners.</p>
+            </div>
+        </div>
+        <div class="api-cta">
+            <a href="/register" class="btn btn-primary">Apply for Enterprise API</a>
+            <a href="/contact" class="btn btn-secondary">Talk to Sales</a>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.page-hero {
+    padding: var(--bw-spacing-20) 0;
+    background: linear-gradient(135deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%);
+    text-align: center;
+}
+.page-hero h1 { font-size: var(--bw-font-size-4xl); margin-bottom: var(--bw-spacing-4); }
+.page-subtitle { font-size: var(--bw-font-size-xl); color: var(--bw-color-text-secondary); max-width: 600px; margin: 0 apt-Auto; }
+.platform-benefits { padding: var(--bw-spacing-24) 0; }
+.platform-benefits h2 { text-align: center; margin-bottom: var(--bw-spacing-12); }
+.benefit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--bw-spacing-8); }
+.benefit-card { padding: var(--bw-spacing-6); background: var(--bw-color-bg-primary); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-xl); }
+.benefit-card h3 { font-size: var(--bw-font-size-lg); margin-bottom: var(--bw-spacing-2); }
+.benefit-card p { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-sm); }
+.use-cases { padding: var(--bw-spacing-24) 0; background: var(--bw-color-bg-secondary); }
+.use-cases h2 { text-align: center; margin-bottom: var(--bw-spacing-12); }
+.use-case-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--bw-spacing-8); }
+.use-case { padding: var(--bw-spacing-6); background: var(--bw-color-bg-primary); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-xl); }
+.use-case h3 { font-size: var(--bw-font-size-lg); margin-bottom: var(--bw-spacing-2); }
+.use-case p { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-sm); }
+.api-details { padding: var(--bw-spacing-24) 0; }
+.api-details h2 { text-align: center; margin-bottom: var(--bw-spacing-12); }
+.details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--bw-spacing-8); margin-bottom: var(--bw-spacing-12); }
+.detail-card { padding: var(--bw-spacing-6); background: var(--bw-color-bg-primary); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-xl); }
+.detail-card h3 { font-size: var(--bw-font-size-lg); margin-bottom: var(--bw-spacing-2); }
+.detail-card p { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-sm); }
+.api-cta { display: flex; gap: var(--bw-spacing-4); justify-content: center; }
+@media (max-width: 768px) { .api-cta { flex-direction: column; align-items: stretch; } }
+</style>
+{% endblock %}

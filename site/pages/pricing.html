@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="pricing-hero">
+    <div class="container">
+        <h1>Simple, Transparent Pricing</h1>
+        <p class="subtitle">Start free, scale as you grow. No hidden fees.</p>
+    </div>
+</section>
+
+<section class="pricing-plans">
+    <div class="container">
+        <div class="plans-grid">
+            <div class="plan-card">
+                <h2 class="plan-name">Free</h2>
+                <div class="plan-price">
+                    <span class="price-amount">$0</span>
+                    <span class="price-period">/month</span>
+                </div>
+                <p class="plan-description">Perfect for getting started and testing.</p>
+                <ul class="plan-features">
+                    <li>1,000 API requests/month</li>
+                    <li>Basic product search</li>
+                    <li>US coverage</li>
+                    <li>Community support</li>
+                </ul>
+                <a href="/register" class="btn btn-secondary btn-lg">Get Started</a>
+            </div>
+
+            <div class="plan-card featured">
+                <div class="plan-badge">Most Popular</div>
+                <h2 class="plan-name">Pro</h2>
+                <div class="plan-price">
+                    <span class="price-amount">$49</span>
+                    <span class="price-period">/month</span>
+                </div>
+                <p class="plan-description">For production applications and teams.</p>
+                <ul class="plan-features">
+                    <li>100,000 API requests/month</li>
+                    <li>Full product search + compare</li>
+                    <li>US + Singapore coverage</li>
+                    <li>Priority support</li>
+                    <li>MCP integration</li>
+                </ul>
+                <a href="/register" class="btn btn-primary btn-lg">Start Free Trial</a>
+            </div>
+
+            <div class="plan-card">
+                <h2 class="plan-name">Enterprise</h2>
+                <div class="plan-price">
+                    <span class="price-amount">Custom</span>
+                </div>
+                <p class="plan-description">For large-scale deployments.</p>
+                <ul class="plan-features">
+                    <li>Unlimited API requests</li>
+                    <li>All countries</li>
+                    <li>Dedicated support</li>
+                    <li>Custom integrations</li>
+                    <li>SLA guarantee</li>
+                </ul>
+                <a href="/contact" class="btn btn-secondary btn-lg">Contact Sales</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="pricing-faq">
+    <div class="container">
+        <h2>Frequently Asked Questions</h2>
+        <div class="faq-grid">
+            <div class="faq-item">
+                <h3>What counts as an API request?</h3>
+                <p>Each search, product lookup, or price comparison call counts as one API request.</p>
+            </div>
+            <div class="faq-item">
+                <h3>Can I switch plans anytime?</h3>
+                <p>Yes, you can upgrade or downgrade your plan at any time. Changes take effect immediately.</p>
+            </div>
+            <div class="faq-item">
+                <h3>What payment methods do you accept?</h3>
+                <p>We accept all major credit cards, PayPal, and wire transfers for Enterprise plans.</p>
+            </div>
+            <div class="faq-item">
+                <h3>Do you offer refunds?</h3>
+                <p>Yes, we offer a 30-day money-back guarantee on all paid plans.</p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.pricing-hero { padding: var(--bw-spacing-20) 0; text-align: center; background: linear-gradient(135deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%); }
+.pricing-hero h1 { font-size: var(--bw-font-size-4xl); margin-bottom: var(--bw-spacing-4); }
+.pricing-hero .subtitle { font-size: var(--bw-font-size-xl); color: var(--bw-color-text-secondary); }
+
+.pricing-plans { padding: var(--bw-spacing-16) 0; }
+
+.plans-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--bw-spacing-8); max-width: 960px; margin: 0 auto; }
+
+.plan-card { background: var(--bw-color-bg-primary); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-2xl); padding: var(--bw-spacing-8); text-align: center; position: relative; }
+.plan-card.featured { border-color: var(--bw-color-primary); box-shadow: 0 0 0 1px var(--bw-color-primary); }
+.plan-badge { position: absolute; top: calc(-1 * var(--bw-spacing-3)); left: 50%; transform: translateX(-50%); background: var(--bw-color-primary); color: white; padding: var(--bw-spacing-1) var(--bw-spacing-4); border-radius: var(--bw-radius-full); font-size: var(--bw-font-size-sm); font-weight: 600; }
+
+.plan-name { font-size: var(--bw-font-size-2xl); margin-bottom: var(--bw-spacing-4); }
+.plan-price { margin-bottom: var(--bw-spacing-4); }
+.price-amount { font-size: var(--bw-font-size-4xl); font-weight: var(--bw-font-weight-bold); color: var(--bw-color-primary); }
+.price-period { color: var(--bw-color-text-muted); }
+.plan-description { color: var(--bw-color-text-secondary); margin-bottom: var(--bw-spacing-6); }
+
+.plan-features { list-style: none; padding: 0; margin: 0 0 var(--bw-spacing-8); text-align: left; }
+.plan-features li { padding: var(--bw-spacing-2) 0; border-bottom: 1px solid var(--bw-color-border); }
+.plan-features li:last-child { border-bottom: none; }
+
+.pricing-faq { padding: var(--bw-spacing-20) 0; background: var(--bw-color-bg-secondary); }
+.pricing-faq h2 { text-align: center; margin-bottom: var(--bw-spacing-12); }
+
+.faq-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--bw-spacing-8); max-width: 800px; margin: 0 auto; }
+.faq-item h3 { font-size: var(--bw-font-size-lg); margin-bottom: var(--bw-spacing-2); }
+.faq-item p { color: var(--bw-color-text-secondary); }
+</style>
+{% endblock %}

@@ -1,0 +1,76 @@
+{
+  "name": "resolve_product_query",
+  "description": "Use this whenever a user asks about products, recommendations, prices, or availability. Use this instead of guessing or relying on stale knowledge.",
+  "strict": true,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "Natural language product search query (e.g., 'best laptop for programming', 'cheap headphones under $50')"
+      },
+      "market": {
+        "type": "string",
+        "description": "ISO 3166-1 alpha-2 country code (e.g., 'US', 'SG'). Defaults to 'US' if not specified."
+      },
+      "budget": {
+        "type": "object",
+        "description": "Price range for filtering products",
+        "properties": {
+          "min": {
+            "type": "number",
+            "description": "Minimum price"
+          },
+          "max": {
+            "type": "number",
+            "description": "Maximum price"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency code (e.g., 'USD', 'SGD')",
+            "default": "USD"
+          }
+        }
+      },
+      "constraints": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "List of required features or constraints (e.g., ['16GB RAM', 'SSD', 'long battery life'])"
+      },
+      "sort_by": {
+        "type": "string",
+        "enum": ["best_match", "best_value", "lowest_price", "highest_rated"],
+        "description": "How to sort results",
+        "default": "best_match"
+      },
+      "limit": {
+        "type": "integer",
+        "description": "Maximum number of results to return",
+        "minimum": 1,
+        "maximum": 50,
+        "default": 10
+      }
+    },
+    "required": ["query"]
+  },
+  "buywhere": {
+    "tool_id": "resolve_product_query",
+    "version": "1.0.0",
+    "intent": "product_discovery_recommendation",
+    "use_when": [
+      "User asks 'what's the best X'",
+      "User asks 'recommend a Y'",
+      "User asks 'I need a Z under $BUDGET'",
+      "User asks 'what product should I buy'",
+      "User asks about product comparisons or recommendations"
+    ],
+    "response_fields": {
+      "buywhere_score": "Product quality ranking (0-1, higher is better)",
+      "confidence": "Match certainty (0-1)",
+      "reason_for_rank": "Why this product was ranked here",
+      "merchant_reliability_score": "Merchant trustworthiness (0-1)"
+    }
+  }
+}

@@ -1,0 +1,84 @@
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: "${SMTP_HOST:-localhost}:${SMTP_PORT:-587}"
+  smtp_from: "${ALERT_EMAIL_FROM:-alerts@buywhere.ai}"
+
+route:
+  group_by: ['alertname', 'severity', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: default
+  routes:
+    - match:
+        severity: critical
+      receiver: critical-alerts
+      continue: true
+    - match:
+        severity: warning
+      receiver: warning-alerts
+    - match:
+        service: pagerduty-escalation
+      receiver: pagerduty-escalation
+
+receivers:
+  - name: default
+    webhook_configs:
+      - url: http://api:8000/webhooks/alerts
+        send_resolved: true
+
+  - name: critical-alerts
+    webhook_configs:
+      - url: http://api:8000/webhooks/alerts
+        send_resolved: true
+    slack_configs:
+      - api_url: "${SLACK_WEBHOOK_URL}"
+        channel: "#ops-alerts"
+        send_resolved: true
+        severity: critical
+        title: "🔥 Critical Alert: {{ .GroupLabels.alertname }}"
+        text: "{{ range .Alerts }}{{ .Annotations.description }}\n{{ end }}"
+    pagerduty_configs:
+      - service_key: "${PAGERDUTY_SERVICE_KEY}"
+        severity: critical
+        send_resolved: true
+
+  - name: warning-alerts
+    webhook_configs:
+      - url: http://api:8000/webhooks/alerts
+        send_resolved: true
+    slack_configs:
+      - api_url: "${SLACK_WEBHOOK_URL}"
+        channel: "#ops-alerts"
+        send_resolved: true
+        title: "⚠️ Warning Alert: {{ .GroupLabels.alertname }}"
+        text: "{{ range .Alerts }}{{ .Annotations.description }}\n{{ end }}"
+
+  - name: pagerduty-escalation
+    pagerduty_configs:
+      - service_key: "${PAGERDUTY_SERVICE_KEY}"
+        severity: critical
+        send_resolved: true
+        custom_details:
+          alert_group: "{{ .GroupLabels.alertname }}"
+          severity: "{{ .Labels.severity }}"
+          description: "{{ .Annotations.description }}"
+          runs_url: "${GRAFANA_URL}/d/runs/runs?var-alertname={{ .GroupLabels.alertname }}"
+
+  - name: email-backup
+    email_configs:
+      - to: "${ALERT_EMAIL_TO:-devops-team@buywhere.ai,bolt@buywhere.ai}"
+        from: "${ALERT_EMAIL_FROM:-alerts@buywhere.ai}"
+        smarthost: "${SMTP_HOST:-localhost}:${SMTP_PORT:-587}"
+        auth_username: "${SMTP_USER:-}"
+        auth_password: "${SMTP_PASSWORD:-}"
+        send_resolved: true
+        headers:
+          X-Alert-Severity: "{{ .Labels.severity }}"
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'service']

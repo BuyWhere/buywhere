@@ -1,0 +1,149 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: catalog
+      POSTGRES_USER: buywhere
+      POSTGRES_PASSWORD: buywhere
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U buywhere -d catalog"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build: .
+    command: alembic upgrade head
+    environment:
+      DATABASE_URL: postgresql+asyncpg://buywhere:buywhere@db:5432/catalog
+      JWT_SECRET_KEY: staging-secret-change-before-prod
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://buywhere:buywhere@db:5432/catalog
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: staging-secret-change-before-prod
+      ENVIRONMENT: staging
+      DEBUG: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  scraper-shopee:
+    build: .
+    profiles:
+      - scraper
+    command: ["python", "-m", "scrapers.shopee_sg"]
+    environment:
+      SCRAPER_TYPE: shopee
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://buywhere:buywhere@db:5432/catalog
+      LOG_LEVEL: INFO
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+
+  scraper-lazada:
+    build: .
+    profiles:
+      - scraper
+    command: ["python", "-m", "scrapers.lazada_sg"]
+    environment:
+      SCRAPER_TYPE: lazada
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://buywhere:buywhere@db:5432/catalog
+      LOG_LEVEL: INFO
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+
+  scraper-carousell:
+    build: .
+    profiles:
+      - scraper
+    command: ["python", "-m", "scrapers.carousell_sg"]
+    environment:
+      SCRAPER_TYPE: carousell
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://buywhere:buywhere@db:5432/catalog
+      LOG_LEVEL: INFO
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+
+  scraper-qoo10:
+    build: .
+    profiles:
+      - scraper
+    command: ["python", "-m", "scrapers.qoo10_sg"]
+    environment:
+      SCRAPER_TYPE: qoo10
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://buywhere:buywhere@db:5432/catalog
+      LOG_LEVEL: INFO
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+
+  scraper-amazon-sg:
+    build: .
+    profiles:
+      - scraper
+    command: ["python", "-m", "scrapers.amazon_sg"]
+    environment:
+      SCRAPER_TYPE: amazon-sg
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://buywhere:buywhere@db:5432/catalog
+      LOG_LEVEL: INFO
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:

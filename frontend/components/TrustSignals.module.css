@@ -1,0 +1,79 @@
+.trustSignals {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--bw-space-4);
+  padding: var(--bw-space-4);
+  background: var(--bw-color-surface-3);
+  border-radius: var(--bw-radius-lg);
+  margin-bottom: var(--bw-space-6);
+}
+
+.trustItem {
+  display: flex;
+  align-items: center;
+  gap: var(--bw-space-2);
+  font-size: var(--bw-font-size-0);
+}
+
+.icon {
+  width: 16px;
+  height: 16px;
+  color: var(--bw-color-ink-secondary);
+  flex-shrink: 0;
+}
+
+.trustLabel {
+  color: var(--bw-color-ink-secondary);
+}
+
+.trustValue {
+  font-weight: var(--bw-font-weight-semibold);
+  color: var(--bw-color-ink-primary);
+}
+
+.matchScore {
+  color: var(--bw-color-info);
+}
+
+.highTrust {
+  color: var(--bw-color-success);
+}
+
+.mediumTrust {
+  color: var(--bw-color-accent);
+}
+
+.lowTrust {
+  color: var(--bw-color-error);
+}
+
+.buywhereSeal {
+  display: flex;
+  align-items: center;
+  gap: var(--bw-space-2);
+  margin-left: auto;
+  padding: var(--bw-space-2) var(--bw-space-3);
+  background: var(--bw-color-brand-primary-soft);
+  border-radius: var(--bw-radius-full);
+  font-size: var(--bw-font-size-00);
+  font-weight: var(--bw-font-weight-semibold);
+  color: var(--bw-color-brand-primary);
+}
+
+.sealIcon {
+  width: 14px;
+  height: 14px;
+}
+
+@media (max-width: 640px) {
+  .trustSignals {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--bw-space-3);
+  }
+
+  .buywhereSeal {
+    margin-left: 0;
+  }
+}

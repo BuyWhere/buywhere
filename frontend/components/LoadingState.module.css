@@ -1,0 +1,263 @@
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bw-color-bg-secondary, #f3f4f6) 25%,
+    var(--bw-color-bg-tertiary, #e5e7eb) 50%,
+    var(--bw-color-bg-secondary, #f3f4f6) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--bw-radius-md, 6px);
+}
+
+.pageLoading {
+  padding: var(--bw-space-4, 1rem);
+  max-width: var(--container-xl, 1280px);
+  margin: 0 auto;
+}
+
+.breadcrumb {
+  margin-bottom: var(--bw-space-4, 1rem);
+}
+
+.skeletonBreadcrumb {
+  width: 200px;
+  height: 16px;
+}
+
+.heroSection {
+  display: grid;
+  gap: var(--bw-space-6, 1.5rem);
+  padding: var(--bw-space-6, 1.5rem);
+  background: var(--bw-color-bg-secondary, #f9fafb);
+  border-radius: var(--bw-radius-xl, 12px);
+  margin-bottom: var(--bw-space-8, 2rem);
+}
+
+@media (min-width: 768px) {
+  .heroSection {
+    grid-template-columns: 300px 1fr;
+  }
+}
+
+.heroImage {
+  aspect-ratio: 1;
+}
+
+.skeletonImage {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--bw-radius-lg, 8px);
+}
+
+.heroContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bw-space-3, 0.75rem);
+  padding: var(--bw-space-4, 1rem) 0;
+}
+
+.skeletonBrand {
+  width: 80px;
+  height: 14px;
+}
+
+.skeletonTitle {
+  width: 100%;
+  height: 32px;
+}
+
+.skeletonPrice {
+  width: 200px;
+  height: 48px;
+  margin-top: var(--bw-space-2, 0.5rem);
+}
+
+.skeletonMeta {
+  width: 150px;
+  height: 16px;
+}
+
+.tableSection {
+  padding: var(--bw-space-4, 1rem);
+  background: var(--bw-color-surface-2, #ffffff);
+  border: 1px solid var(--bw-color-line-strong, #d1d5db);
+  border-radius: var(--bw-radius-xl, 12px);
+}
+
+.skeletonSectionHeader {
+  width: 180px;
+  height: 28px;
+  margin-bottom: var(--bw-space-4, 1rem);
+}
+
+.tableHeader {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  gap: var(--bw-space-4, 1rem);
+  padding: var(--bw-space-3, 0.75rem) var(--bw-space-4, 1rem);
+  background: var(--bw-color-surface-3, #f3f4f6);
+  border-radius: var(--bw-radius-md, 6px);
+  margin-bottom: var(--bw-space-2, 0.5rem);
+}
+
+.skeletonHeader {
+  height: 14px;
+  border-radius: var(--bw-radius-sm, 4px);
+}
+
+.tableRow {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  gap: var(--bw-space-4, 1rem);
+  padding: var(--bw-space-4, 1rem);
+  border-bottom: 1px solid var(--bw-color-line-soft, #e5e7eb);
+  align-items: center;
+}
+
+.tableRow:last-child {
+  border-bottom: none;
+}
+
+.retailerCell {
+  display: flex;
+  align-items: center;
+  gap: var(--bw-space-3, 0.75rem);
+}
+
+.skeletonLogo {
+  width: 80px;
+  height: 28px;
+  border-radius: var(--bw-radius-sm, 4px);
+}
+
+.skeletonName {
+  width: 100px;
+  height: 14px;
+}
+
+.skeletonBadge {
+  width: 70px;
+  height: 24px;
+}
+
+.skeletonPrice {
+  width: 80px;
+  height: 28px;
+  margin-left: auto;
+}
+
+.skeletonCta {
+  width: 100px;
+  height: 36px;
+  margin: 0 auto;
+}
+
+.heroLoading {
+  display: grid;
+  gap: var(--bw-space-6, 1.5rem);
+  padding: var(--bw-space-6, 1.5rem);
+  background: var(--bw-color-bg-secondary, #f9fafb);
+  border-radius: var(--bw-radius-xl, 12px);
+  margin-bottom: var(--bw-space-6, 1.5rem);
+}
+
+@media (min-width: 768px) {
+  .heroLoading {
+    grid-template-columns: 300px 1fr;
+    align-items: start;
+  }
+}
+
+.tableLoading {
+  padding: var(--bw-space-4, 1rem);
+  background: var(--bw-color-surface-2, #ffffff);
+  border: 1px solid var(--bw-color-line-strong, #d1d5db);
+  border-radius: var(--bw-radius-xl, 12px);
+}
+
+.tableLoading .tableHeader {
+  margin-bottom: var(--bw-space-2, 0.5rem);
+}
+
+.tableLoading .tableRow {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  gap: var(--bw-space-4, 1rem);
+  padding: var(--bw-space-4, 1rem);
+  border-bottom: 1px solid var(--bw-color-line-soft, #e5e7eb);
+  align-items: center;
+}
+
+.tableLoading .tableRow:last-child {
+  border-bottom: none;
+}
+
+.tableLoading .retailerCell {
+  display: flex;
+  align-items: center;
+  gap: var(--bw-space-3, 0.75rem);
+}
+
+.tableLoading .skeletonLogo {
+  width: 80px;
+  height: 28px;
+  border-radius: var(--bw-radius-sm, 4px);
+}
+
+.tableLoading .skeletonName {
+  width: 100px;
+  height: 14px;
+}
+
+.tableLoading .skeletonBadge {
+  width: 70px;
+  height: 24px;
+}
+
+.tableLoading .skeletonPrice {
+  width: 80px;
+  height: 28px;
+  margin-left: auto;
+}
+
+.tableLoading .skeletonCta {
+  width: 100px;
+  height: 36px;
+  margin: 0 auto;
+}
+
+@media (max-width: 639px) {
+  .tableHeader,
+  .tableRow,
+  .tableLoading .tableRow {
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  .tableHeader > *:nth-child(n+3),
+  .tableRow > *:nth-child(n+3),
+  .tableLoading .tableRow > *:nth-child(n+3) {
+    display: none;
+  }
+}

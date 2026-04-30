@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="legal-container">
+    <h1>Terms of Service</h1>
+    <p class="last-updated">Last updated: April 2026</p>
+
+    <h2>1. Acceptance of Terms</h2>
+    <p>By accessing and using BuyWhere's services, you accept and agree to be bound by these Terms of Service.</p>
+
+    <h2>2. Description of Service</h2>
+    <p>BuyWhere provides an API service for product search and comparison. We reserve the right to modify, suspend, or discontinue any part of our service at any time.</p>
+
+    <h2>3. API Usage</h2>
+    <p>You may use our API in accordance with your subscription plan. You agree not to:</p>
+    <ul>
+        <li>Exceed the rate limits associated with your plan</li>
+        <li>Use the service for any illegal or unauthorized purpose</li>
+        <li>Attempt to gain unauthorized access to our systems</li>
+        <li>Reverse engineer or decompile any part of our service</li>
+    </ul>
+
+    <h2>4. Intellectual Property</h2>
+    <p>All content, features, and functionality of our service are owned by BuyWhere and are protected by copyright, trademark, and other intellectual property laws.</p>
+
+    <h2>5. Payment Terms</h2>
+    <p>Subscription fees are billed in advance on a monthly basis. All fees are non-refundable except as required by law.</p>
+
+    <h2>6. Limitation of Liability</h2>
+    <p>BuyWhere shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of or inability to use the service.</p>
+
+    <h2>7. Changes to Terms</h2>
+    <p>We reserve the right to modify these terms at any time. We will provide notice of significant changes via email or through our website.</p>
+
+    <h2>8. Contact</h2>
+    <p>If you have any questions about these Terms, please contact us at <a href="mailto:legal@buywhere.io">legal@buywhere.io</a>.</p>
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+.legal-container { max-width: 720px; margin: 0 auto; padding: var(--bw-spacing-12) var(--bw-container-padding); }
+.legal-container h1 { margin-bottom: var(--bw-spacing-2); }
+.last-updated { color: var(--bw-color-text-muted); font-size: var(--bw-font-size-sm); margin-bottom: var(--bw-spacing-8); }
+.legal-container h2 { font-size: var(--bw-font-size-xl); margin-top: var(--bw-spacing-10); margin-bottom: var(--bw-spacing-4); }
+.legal-container p { color: var(--bw-color-text-secondary); margin-bottom: var(--bw-spacing-4); }
+.legal-container ul { padding-left: var(--bw-spacing-6); margin-bottom: var(--bw-spacing-4); }
+.legal-container li { color: var(--bw-color-text-secondary); margin-bottom: var(--bw-spacing-2); }
+.legal-container a { color: var(--bw-color-primary); }
+</style>
+{% endblock %}

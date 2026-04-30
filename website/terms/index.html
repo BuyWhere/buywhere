@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Terms of Service – BuyWhere</title>
+  <meta name="description" content="BuyWhere Technologies Pte. Ltd. Terms of Service — API usage terms, data use policy, and acceptable use guidelines." />
+  <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-bg:        #0a0d14;
+      --color-surface:   #111827;
+      --color-border:    #1f2937;
+      --color-accent:    #6366f1;
+      --color-accent-light: #818cf8;
+      --color-text:      #f9fafb;
+      --color-muted:     #9ca3af;
+      --color-dim:       #6b7280;
+      --color-card:      #161d2e;
+      --radius:          12px;
+      --radius-sm:       8px;
+      --max-w:           800px;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+      background: var(--color-bg);
+      color: var(--color-text);
+      line-height: 1.75;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--color-accent-light); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(10, 13, 20, 0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--color-border);
+    }
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px; max-width: 1100px; margin: 0 auto; padding: 0 24px;
+    }
+    .nav-logo { font-size: 1.25rem; font-weight: 700; color: var(--color-text); letter-spacing: -0.02em; }
+    .nav-logo span { color: var(--color-accent-light); }
+    .nav-links { display: flex; gap: 32px; list-style: none; }
+    .nav-links a { font-size: 0.9rem; color: var(--color-muted); transition: color 0.2s; }
+    .nav-links a:hover { color: var(--color-text); text-decoration: none; }
+    .nav-cta {
+      background: var(--color-accent); color: #fff !important;
+      padding: 8px 18px; border-radius: var(--radius-sm);
+      font-weight: 600; font-size: 0.875rem; transition: background 0.2s;
+    }
+    .nav-cta:hover { background: var(--color-accent-light); text-decoration: none !important; }
+    .page-header { padding: 64px 0 40px; border-bottom: 1px solid var(--color-border); }
+    .container { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; }
+    .page-header .label {
+      display: inline-block;
+      background: rgba(99,102,241,0.15);
+      border: 1px solid rgba(99,102,241,0.3);
+      color: var(--color-accent-light);
+      font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 4px 12px; border-radius: 100px; margin-bottom: 16px;
+    }
+    .page-header h1 { font-size: 2.2rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 12px; }
+    .page-header .meta { color: var(--color-dim); font-size: 0.9rem; }
+    .content { padding: 48px 0 80px; }
+    .content h2 { font-size: 1.2rem; font-weight: 700; margin: 40px 0 12px; color: var(--color-text); }
+    .content h2:first-child { margin-top: 0; }
+    .content p { color: var(--color-muted); margin-bottom: 16px; }
+    .content ul { color: var(--color-muted); padding-left: 20px; margin-bottom: 16px; }
+    .content ul li { margin-bottom: 6px; }
+    .content strong { color: var(--color-text); }
+    .highlight-box {
+      background: var(--color-card);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin: 24px 0;
+    }
+    .highlight-box p { margin-bottom: 0; }
+    footer { border-top: 1px solid var(--color-border); padding: 40px 0; }
+    .footer-inner {
+      max-width: 1100px; margin: 0 auto; padding: 0 24px;
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 32px; flex-wrap: wrap;
+    }
+    .footer-brand { font-size: 1.1rem; font-weight: 700; color: var(--color-text); letter-spacing: -0.02em; }
+    .footer-brand span { color: var(--color-accent-light); }
+    .footer-tagline { font-size: 0.8rem; color: var(--color-dim); margin-top: 4px; }
+    .footer-links { display: flex; gap: 24px; list-style: none; flex-wrap: wrap; }
+    .footer-links a { font-size: 0.85rem; color: var(--color-dim); }
+    .footer-links a:hover { color: var(--color-text); }
+    .footer-copy {
+      max-width: 1100px; margin: 20px auto 0; padding: 20px 24px 0;
+      border-top: 1px solid var(--color-border);
+      font-size: 0.8rem; color: var(--color-dim);
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">Buy<span>Where</span></a>
+      <ul class="nav-links">
+        <li><a href="/#how-it-works">How it works</a></li>
+        <li><a href="/#use-cases">Use cases</a></li>
+        <li><a href="/contact">Contact</a></li>
+        <li><a href="/#partnerships" class="nav-cta">Partner with us</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="page-header">
+    <div class="container">
+      <div class="label">Legal</div>
+      <h1>Terms of Service</h1>
+      <p class="meta">Last updated: 2 April 2026 &nbsp;·&nbsp; BuyWhere Technologies Pte. Ltd.</p>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="container">
+
+      <div class="highlight-box">
+        <p>These Terms of Service ("Terms") govern your access to and use of the BuyWhere product catalog API, website at <a href="https://buywhere.ai">buywhere.ai</a>, and related services provided by BuyWhere Technologies Pte. Ltd. ("BuyWhere", "we", "us", or "our"). By accessing or using our services, you agree to these Terms.</p>
+      </div>
+
+      <h2>1. Acceptance of Terms</h2>
+      <p>By accessing or using BuyWhere's API, website, or any related services, you agree to be bound by these Terms and our <a href="/privacy">Privacy Policy</a>. If you do not agree, do not use our services.</p>
+      <p>These Terms constitute a legally binding agreement between you (the "User" or "Developer") and BuyWhere Technologies Pte. Ltd., a company incorporated in Singapore.</p>
+
+      <h2>2. API Access and Use</h2>
+      <p>BuyWhere provides programmatic access to its product catalog database via a REST API. Access requires an API key issued by BuyWhere.</p>
+      <ul>
+        <li>API keys are issued to registered users and are non-transferable.</li>
+        <li>You are responsible for keeping your API key confidential and for all use under your key.</li>
+        <li>Rate limits apply as documented in the API reference. We may throttle or suspend access for excessive use.</li>
+        <li>API access is provided for the purpose of building applications, AI agents, and integrations that surface BuyWhere product data to end users.</li>
+      </ul>
+
+      <h2>3. Acceptable Use</h2>
+      <p>You agree not to use BuyWhere's services to:</p>
+      <ul>
+        <li>Scrape, bulk-download, or replicate our product database for competitive purposes.</li>
+        <li>Resell API access or sublicense your API key without written permission.</li>
+        <li>Use our data to train AI or machine learning models without a separate data licensing agreement.</li>
+        <li>Misrepresent product data, prices, or availability to end users.</li>
+        <li>Violate any applicable laws or regulations, including Singapore's Electronic Transactions Act, PDPA, or relevant consumer protection laws.</li>
+        <li>Interfere with or disrupt BuyWhere's infrastructure, servers, or networks.</li>
+        <li>Reverse-engineer, decompile, or attempt to extract proprietary algorithms or data collection methods.</li>
+      </ul>
+
+      <h2>4. Product Data and Accuracy</h2>
+      <p>BuyWhere aggregates product data from merchant partners and third-party sources. While we strive for accuracy and freshness:</p>
+      <ul>
+        <li>Product data (including prices, availability, and descriptions) is provided for informational purposes and may not reflect real-time merchant inventory.</li>
+        <li>BuyWhere does not guarantee the accuracy, completeness, or timeliness of any product data.</li>
+        <li>You are responsible for ensuring that your application appropriately communicates data freshness to end users and directs users to merchant sites for purchase confirmation.</li>
+      </ul>
+
+      <h2>5. Affiliate and Attribution</h2>
+      <p>BuyWhere operates an affiliate tracking system. Where BuyWhere product links include affiliate attribution:</p>
+      <ul>
+        <li>You must not strip, alter, or replace BuyWhere affiliate tracking parameters without a separate commercial agreement.</li>
+        <li>Affiliate commission terms are governed by separate partner agreements where applicable.</li>
+        <li>BuyWhere's affiliate links comply with applicable disclosure requirements. Developers must ensure their applications comply with relevant affiliate disclosure laws in their target markets.</li>
+      </ul>
+
+      <h2>6. Intellectual Property</h2>
+      <p>BuyWhere retains all rights to its API, documentation, website content, and underlying infrastructure. Your use of our services grants you a limited, non-exclusive, non-transferable licence to access and use BuyWhere data for the purposes described in your API agreement.</p>
+      <p>Product data provided by BuyWhere may include third-party intellectual property (product images, names, descriptions). You must comply with applicable IP laws and merchant terms when displaying this content.</p>
+
+      <h2>7. Privacy and Data</h2>
+      <p>Our collection and use of personal data is governed by our <a href="/privacy">Privacy Policy</a>, which is incorporated into these Terms by reference.</p>
+
+      <h2>8. Disclaimers and Limitation of Liability</h2>
+      <p>BuyWhere's services are provided <strong>"as is"</strong> and <strong>"as available"</strong>, without warranty of any kind, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, or non-infringement.</p>
+      <p>To the maximum extent permitted by Singapore law, BuyWhere shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising out of or relating to your use of our services, including but not limited to lost profits, lost data, or business interruption.</p>
+      <p>BuyWhere's total liability for any claim arising out of these Terms shall not exceed the fees paid by you to BuyWhere in the three months preceding the claim.</p>
+
+      <h2>9. Service Availability</h2>
+      <p>We aim for high availability but do not guarantee uninterrupted service. We may modify, suspend, or discontinue any part of our services at any time with reasonable notice where practicable.</p>
+
+      <h2>10. Governing Law and Dispute Resolution</h2>
+      <p>These Terms are governed by the laws of Singapore. Any dispute arising from or in connection with these Terms shall be subject to the exclusive jurisdiction of the courts of Singapore, without regard to conflict of law principles.</p>
+
+      <h2>11. Changes to These Terms</h2>
+      <p>We may update these Terms from time to time. Material changes will be communicated via email (where we hold your contact information) or posted on this page with an updated "Last updated" date. Continued use of our services after changes constitutes acceptance of the updated Terms.</p>
+
+      <h2>12. Contact</h2>
+      <p>For questions about these Terms:</p>
+      <p>
+        <strong>Email:</strong> <a href="mailto:hello@buywhere.ai">hello@buywhere.ai</a><br />
+        <strong>Company:</strong> BuyWhere Technologies Pte. Ltd., Singapore
+      </p>
+
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">Buy<span>Where</span></div>
+        <div class="footer-tagline">BuyWhere Technologies Pte. Ltd. · Singapore</div>
+      </div>
+      <ul class="footer-links">
+        <li><a href="https://docs.buywhere.ai">API Documentation</a></li>
+        <li><a href="/#how-it-works">How it works</a></li>
+        <li><a href="/#use-cases">Use cases</a></li>
+        <li><a href="/contact">Contact</a></li>
+        <li><a href="mailto:partnerships@buywhere.ai">Partnerships</a></li>
+        <li><a href="/terms">Terms of Service</a></li>
+        <li><a href="/privacy">Privacy Policy</a></li>
+      </ul>
+    </div>
+    <div class="footer-copy">
+      &copy; 2026 BuyWhere Technologies Pte. Ltd. All rights reserved. · Singapore
+    </div>
+  </footer>
+
+</body>
+</html>

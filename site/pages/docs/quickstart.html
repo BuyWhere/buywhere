@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="docs-layout">
+    <aside class="docs-sidebar">
+        <nav class="docs-nav">
+            <div class="docs-nav__section">
+                <h3>Getting Started</h3>
+                <ul>
+                    <li><a href="/docs/quickstart" class="active">Quickstart</a></li>
+                    <li><a href="/docs/authentication">Authentication</a></li>
+                    <li><a href="/docs/errors">Error Handling</a></li>
+                </ul>
+            </div>
+            <div class="docs-nav__section">
+                <h3>Products</h3>
+                <ul>
+                    <li><a href="/docs/api-reference#search">Search Products</a></li>
+                    <li><a href="/docs/api-reference#get-product">Get Product</a></li>
+                    <li><a href="/docs/api-reference#compare">Compare Products</a></li>
+                    <li><a href="/docs/api-reference#deals">Get Deals</a></li>
+                </ul>
+            </div>
+            <div class="docs-nav__section">
+                <h3>Categories</h3>
+                <ul>
+                    <li><a href="/docs/api-reference#list-categories">List Categories</a></li>
+                    <li><a href="/docs/api-reference#get-category">Get Category</a></li>
+                </ul>
+            </div>
+            <div class="docs-nav__section">
+                <h3>Integrations</h3>
+                <ul>
+                    <li><a href="/docs/mcp-integration">MCP Integration</a></li>
+                    <li><a href="/docs/langchain">LangChain</a></li>
+                    <li><a href="/docs/examples">Examples</a></li>
+                </ul>
+            </div>
+        </nav>
+    </aside>
+
+    <main class="docs-main">
+        <h1>Quickstart</h1>
+        <p class="lead">Get up and running with the BuyWhere API in under 5 minutes.</p>
+
+        <div class="step">
+            <h2>1. Get Your API Key</h2>
+            <p>Sign up for a free account at <a href="/register">buywhere.io/register</a> to get your API key.</p>
+            <div class="code-block">
+                <pre><code>bw_live_your_api_key_here</code></pre>
+            </div>
+        </div>
+
+        <div class="step">
+            <h2>2. Make Your First Request</h2>
+            <p>Search for products using a simple cURL request:</p>
+            <div class="code-block">
+                <pre><code>curl -s "https://api.buywhere.io/v1/products/search?q=wireless+headphones&country=US&limit=3" \
+  -H "X-API-Key: bw_live_your_api_key_here"</code></pre>
+            </div>
+        </div>
+
+        <div class="step">
+            <h2>3. Parse the Response</h2>
+            <p>You'll receive a JSON response with product details:</p>
+            <div class="code-block">
+                <pre><code>{
+  "object": "list",
+  "query": "wireless headphones",
+  "total_estimated": 142,
+  "results": [
+    {
+      "product_id": "prod_amazon_sony_wh1000xm5_us",
+      "title": "Sony WH-1000XM5 Wireless Noise Cancelling Headphones",
+      "price": { "amount": 449.00, "currency": "USD" },
+      "merchant": { "name": "Sony Official Store", "platform": "amazon" },
+      "source_url": "https://amazon.com/dp/B0CHX1W7V2"
+    }
+  ]
+}</code></pre>
+            </div>
+        </div>
+
+        <div class="step">
+            <h2>Next Steps</h2>
+            <ul>
+                <li><a href="/docs/api-reference">Explore the full API Reference</a></li>
+                <li><a href="/docs/mcp-integration">Set up MCP for AI agents</a></li>
+                <li><a href="/docs/examples">View code examples</a></li>
+            </ul>
+        </div>
+    </main>
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+.docs-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: var(--bw-spacing-8);
+    max-width: var(--bw-container-max);
+    margin: 0 auto;
+    padding: var(--bw-spacing-8) var(--bw-container-padding);
+}
+
+.docs-main {
+    max-width: 720px;
+}
+
+.docs-main h1 {
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.lead {
+    font-size: var(--bw-font-size-lg);
+    color: var(--bw-color-text-secondary);
+    margin-bottom: var(--bw-spacing-8);
+}
+
+.step {
+    margin-bottom: var(--bw-spacing-10);
+}
+
+.step h2 {
+    font-size: var(--bw-font-size-xl);
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.step ul {
+    list-style: disc;
+    padding-left: var(--bw-spacing-6);
+}
+
+.step li {
+    margin-bottom: var(--bw-spacing-2);
+}
+
+.step a {
+    color: var(--bw-color-primary);
+}
+
+.code-block {
+    background: var(--bw-color-bg-dark);
+    border-radius: var(--bw-radius-lg);
+    padding: var(--bw-spacing-4);
+    overflow-x: auto;
+}
+
+.code-block pre {
+    margin: 0;
+    font-size: var(--bw-font-size-sm);
+    color: var(--bw-color-text-inverse);
+}
+
+@media (max-width: 768px) {
+    .docs-layout {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,2676 @@
+{
+  "version": "2.0",
+  "standard_taxonomy": [
+    "Electronics",
+    "Fashion",
+    "Groceries",
+    "Home",
+    "Beauty",
+    "Sports",
+    "Books",
+    "Automotive",
+    "Toys",
+    "Health"
+  ],
+  "input_files": [
+    "catalog_sg_deduped.ndjson",
+    "data/challenger/laptops.jsonl",
+    "data/challenger/phones.jsonl",
+    "data/challenger/tablets.jsonl",
+    "data/courts/gaming.jsonl",
+    "data/courts/home-appliances.jsonl",
+    "data/courts/laptops.jsonl",
+    "data/courts/phones.jsonl",
+    "data/courts/tablets.jsonl",
+    "data/decathlon/products_20260404_122620.jsonl",
+    "data/decathlon/products_20260404_122723.jsonl",
+    "data/giant/giant_sg.jsonl",
+    "data/guardian/products_20260403_184100.jsonl",
+    "data/guardian/products_20260403_184210.jsonl",
+    "data/harvey-norman/products_20260403_235914.jsonl",
+    "data/harvey-norman/products_20260404_000005.jsonl",
+    "data/raw/coldstorage_sg/cat_1564.jsonl",
+    "data/raw/coldstorage_sg/cat_1567.jsonl",
+    "data/raw/coldstorage_sg/cat_1570.jsonl",
+    "data/raw/coldstorage_sg/cat_1574.jsonl",
+    "data/raw/coldstorage_sg/cat_1578.jsonl",
+    "data/raw/coldstorage_sg/cat_1583.jsonl",
+    "data/raw/coldstorage_sg/cat_1596.jsonl",
+    "data/raw/coldstorage_sg/cat_1599.jsonl",
+    "data/raw/coldstorage_sg/cat_1604.jsonl",
+    "data/raw/coldstorage_sg/cat_1611.jsonl",
+    "data/raw/coldstorage_sg/cat_1616.jsonl",
+    "data/raw/coldstorage_sg/cat_1632.jsonl",
+    "data/raw/coldstorage_sg/cat_1647.jsonl",
+    "data/raw/coldstorage_sg/cat_1667.jsonl",
+    "data/raw/coldstorage_sg/cat_1675.jsonl",
+    "data/raw/coldstorage_sg/cat_1682.jsonl",
+    "data/raw/coldstorage_sg/cat_1714.jsonl",
+    "data/raw/coldstorage_sg/cat_1747.jsonl",
+    "data/raw/coldstorage_sg/cat_1851.jsonl",
+    "data/raw/coldstorage_sg/cat_2034.jsonl",
+    "data/raw/coldstorage_sg/cat_2035.jsonl",
+    "data/raw/coldstorage_sg/cat_2036.jsonl",
+    "data/raw/coldstorage_sg/cat_2037.jsonl",
+    "data/raw/coldstorage_sg/cat_2038.jsonl",
+    "data/raw/coldstorage_sg/cat_2039.jsonl",
+    "data/raw/coldstorage_sg/cat_2041.jsonl",
+    "data/raw/coldstorage_sg/cat_2042.jsonl",
+    "data/raw/coldstorage_sg/cat_2043.jsonl",
+    "data/raw/coldstorage_sg/cat_2044.jsonl",
+    "data/raw/coldstorage_sg/cat_2045.jsonl",
+    "data/raw/coldstorage_sg/cat_2047.jsonl",
+    "data/raw/coldstorage_sg/cat_2048.jsonl",
+    "data/raw/coldstorage_sg/cat_2049.jsonl",
+    "data/raw/coldstorage_sg/cat_2050.jsonl",
+    "data/raw/coldstorage_sg/cat_2051.jsonl",
+    "data/raw/coldstorage_sg/cat_2052.jsonl",
+    "data/raw/coldstorage_sg/cat_2070.jsonl",
+    "data/raw/coldstorage_sg/cat_2087.jsonl",
+    "data/tiki-vn/.jsonl",
+    "data/tiki-vn/accessories.jsonl",
+    "data/tiki-vn/bags.jsonl",
+    "data/tiki-vn/cameras.jsonl",
+    "data/tiki-vn/fitness.jsonl",
+    "data/tiki-vn/fragrances.jsonl",
+    "data/tiki-vn/furniture.jsonl",
+    "data/tiki-vn/grocery.jsonl",
+    "data/tiki-vn/haircare.jsonl",
+    "data/tiki-vn/headphones.jsonl",
+    "data/tiki-vn/home-appliances.jsonl",
+    "data/tiki-vn/kitchen.jsonl",
+    "data/tiki-vn/makeup.jsonl",
+    "data/tiki-vn/men-fashion.jsonl",
+    "data/tiki-vn/pet-supplies.jsonl",
+    "data/tiki-vn/shoes.jsonl",
+    "data/tiki-vn/skincare.jsonl",
+    "data/tiki-vn/sports.jsonl",
+    "data/tiki-vn/tablets.jsonl",
+    "data/tiki-vn/toys.jsonl",
+    "data/tiki-vn/watches.jsonl",
+    "data/tiki-vn/women-fashion.jsonl",
+    "scripts/normalized/catalog_sg_deduped_usd.ndjson"
+  ],
+  "summary": {
+    "total_files": 77,
+    "total_products_with_category": 213978,
+    "total_sources": 17,
+    "total_unique_categories": 260,
+    "mapped_categories": 259,
+    "unmapped_categories": 1
+  },
+  "source_stats": {
+    "carousell_sg": {
+      "unique_categories": 5,
+      "products_with_category": 54742,
+      "mapped_products": 54742,
+      "unmapped_products": 0,
+      "mapped_distribution": {
+        "Electronics": 52686,
+        "Fashion": 240,
+        "Home": 472,
+        "Sports": 912,
+        "Toys": 432
+      }
+    },
+    "challenger_sg": {
+      "unique_categories": 2,
+      "products_with_category": 437,
+      "mapped_products": 437,
+      "unmapped_products": 0,
+      "mapped_distribution": {
+        "Electronics": 437
+      }
+    },
+    "cold_storage_sg": {
+      "unique_categories": 36,
+      "products_with_category": 14074,
+      "mapped_products": 14074,
+      "unmapped_products": 0,
+      "mapped_distribution": {
+        "Beauty": 800,
+        "Groceries": 11227,
+        "Health": 237,
+        "Home": 1017,
+        "Sports": 40,
+        "Toys": 753
+      }
+    },
+    "coldstorage_sg": {
+      "unique_categories": 1,
+      "products_with_category": 1536,
+      "mapped_products": 1536,
+      "unmapped_products": 0,
+      "mapped_distribution": {
+        "Groceries": 1536
+      }
+    },
+    "courts_sg": {
+      "unique_categories": 5,
+      "products_with_category": 129,
+      "mapped_products": 129,
+      "unmapped_products": 0,
+      "mapped_distribution": {
+        "Electronics": 98,
+        "Home": 31
+      }
+    },
+    "decathlon_sg": {
+      "unique_categories": 1,
+      "products_with_category": 2405,
+      "mapped_products": 2405,
+      "unmapped_products": 0,
+      "mapped_distribution": {
+        "Sports": 2405
+      }
+    },
+    "fairprice_sg": {
+      "unique_categories": 1,
+      "products_with_category": 2168,
+      "mapped_products": 2168,
+      "unmapped_products": 0,
+      "mapped_distribution": {
+        "Groceries": 2168
+      }
+    },
+    "giant_sg": {
+      "unique_categories": 13,
+      "products_with_category": 600,
+      "mapped_products": 394,
+      "unmapped_products": 206,
+      "mapped_distribution": {
+        "Beauty": 6,
+        "Groceries": 338,
+        "Home": 44,
+        "Toys": 6
+      }
+    },
+    "guardian_sg": {
+      "unique_categories": 5,
+      "products_with_category": 2845,
+      "mapped_products": 2845,
+      "unmapped_products": 0,
+      "mapped_distribution": {
+        "Beauty": 799,
+        "Health": 1800,
+        "Toys": 246
+      }
+    },
+    "harvey_norman_sg": {
+      "unique_categories": 1,
+      "products_with_category": 2,
+      "mapped_products": 2,
+      "unmapped_products": 0,
+      "mapped_distribution": {
+        "Electronics": 2
+      }
+    },
+    "hipvan": {
+      "unique_categories": 9,
+      "products_with_category": 2492,
+      "mapped_products": 2492,
+      "unmapped_products": 0,
+      "mapped_distribution": {
+        "Home": 2492
+      }
+    },
+    "hipvan_sg": {
+      "unique_categories": 85,
+      "products_with_category": 542,
+      "mapped_products": 542,
+      "unmapped_products": 0,
+      "mapped_distribution": {
+        "Books": 4,
+        "Electronics": 28,
+        "Fashion": 18,
+        "Groceries": 8,
+        "Home": 484
+      }
+    },
+    "lazada_sg": {
+      "unique_categories": 5,
+      "products_with_category": 69822,
+      "mapped_products": 69822,
+      "unmapped_products": 0,
+      "mapped_distribution": {
+        "Beauty": 11478,
+        "Electronics": 32726,
+        "Fashion": 17592,
+        "Home": 8026
+      }
+    },
+    "mustafa_sg": {
+      "unique_categories": 108,
+      "products_with_category": 8368,
+      "mapped_products": 8368,
+      "unmapped_products": 0,
+      "mapped_distribution": {
+        "Beauty": 1414,
+        "Electronics": 952,
+        "Fashion": 2946,
+        "Groceries": 1484,
+        "Health": 486,
+        "Home": 1086
+      }
+    },
+    "qoo10_sg": {
+      "unique_categories": 5,
+      "products_with_category": 100,
+      "mapped_products": 100,
+      "unmapped_products": 0,
+      "mapped_distribution": {
+        "Beauty": 20,
+        "Electronics": 22,
+        "Fashion": 16,
+        "Groceries": 22,
+        "Home": 20
+      }
+    },
+    "tiki_vn": {
+      "unique_categories": 7,
+      "products_with_category": 32358,
+      "mapped_products": 32358,
+      "unmapped_products": 0,
+      "mapped_distribution": {
+        "Beauty": 5966,
+        "Electronics": 2604,
+        "Fashion": 11196,
+        "Groceries": 1180,
+        "Home": 8060,
+        "Sports": 1170,
+        "Toys": 2182
+      }
+    },
+    "zalora_sg": {
+      "unique_categories": 2,
+      "products_with_category": 21358,
+      "mapped_products": 21358,
+      "unmapped_products": 0,
+      "mapped_distribution": {
+        "Fashion": 21358
+      }
+    }
+  },
+  "mapping": {
+    "(Sale) Decor & Furnishings": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "decor",
+      "product_count": 6,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "(Sale) Dining Room": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "dining",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "(Sale) Sofas & Sofa Beds": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "sofa",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "1.7m x 1.2m Rugs": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "rug",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "2 + 1 Seater Sofa Sets": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "sofa",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "3 + 2 Seater Sofa Sets": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "sofa",
+      "product_count": 6,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "3m x 2m Rugs": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "rug",
+      "product_count": 6,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "4 Seater Dining Tables": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "dining",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "All Cushions": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "all cushions",
+      "product_count": 12,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Asian Delicatessen": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "asian delicatessen",
+      "product_count": 36,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "BRUNO Kitchen & Household Appliances": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "kitchen",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Baby": {
+      "mapped_category": "Toys",
+      "confidence": "medium",
+      "matched_rule": "baby",
+      "product_count": 246,
+      "sources": [
+        "guardian_sg"
+      ]
+    },
+    "Baby Care": {
+      "mapped_category": "Toys",
+      "confidence": "medium",
+      "matched_rule": "baby",
+      "product_count": 265,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Bakery": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "bakery",
+      "product_count": 124,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Baking Needs": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "baking needs",
+      "product_count": 107,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Baking Trays & Pans": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "baking trays and pans",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Bath Towels": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "bath",
+      "product_count": 6,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Bathroom Accessories": {
+      "mapped_category": "Fashion",
+      "confidence": "medium",
+      "matched_rule": "accessories",
+      "product_count": 8,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Bean Bags": {
+      "mapped_category": "Fashion",
+      "confidence": "medium",
+      "matched_rule": "bag",
+      "product_count": 6,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Beauty": {
+      "mapped_category": "Beauty",
+      "confidence": "exact",
+      "matched_rule": "beauty",
+      "product_count": 5986,
+      "sources": [
+        "qoo10_sg",
+        "tiki_vn"
+      ]
+    },
+    "Beauty & Personal Care": {
+      "mapped_category": "Beauty",
+      "confidence": "medium",
+      "matched_rule": "beauty",
+      "product_count": 800,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Beds & Mattresses": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "mattress",
+      "product_count": 290,
+      "sources": [
+        "hipvan",
+        "hipvan_sg"
+      ]
+    },
+    "Beer, Wines & Spirits": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "beer wines and spirits",
+      "product_count": 679,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Beverages": {
+      "mapped_category": "Groceries",
+      "confidence": "medium",
+      "matched_rule": "beverage",
+      "product_count": 1580,
+      "sources": [
+        "cold_storage_sg",
+        "giant_sg"
+      ]
+    },
+    "Biscuits": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "biscuits",
+      "product_count": 213,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Blenders & Juicers": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "blenders and juicers",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Breakfast & Bakery": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "breakfast and bakery",
+      "product_count": 649,
+      "sources": [
+        "cold_storage_sg",
+        "giant_sg"
+      ]
+    },
+    "Breakfast Food": {
+      "mapped_category": "Groceries",
+      "confidence": "medium",
+      "matched_rule": "food",
+      "product_count": 446,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Bulk & Exclusive": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "bulk and exclusive",
+      "product_count": 164,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Canned Food": {
+      "mapped_category": "Groceries",
+      "confidence": "medium",
+      "matched_rule": "food",
+      "product_count": 260,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Canned, Preserved & Soup": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "canned preserved and soup",
+      "product_count": 472,
+      "sources": [
+        "cold_storage_sg",
+        "giant_sg"
+      ]
+    },
+    "Canvas & Art Prints": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "canvas and art prints",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Carton Deals": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "carton deals",
+      "product_count": 198,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Ceiling & Pendant Lamps": {
+      "mapped_category": "Books",
+      "confidence": "medium",
+      "matched_rule": "pen",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Coffee Machines": {
+      "mapped_category": "Groceries",
+      "confidence": "medium",
+      "matched_rule": "coffee",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Coffee Tables": {
+      "mapped_category": "Groceries",
+      "confidence": "medium",
+      "matched_rule": "coffee",
+      "product_count": 6,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Computers, Tablets & Gaming": {
+      "mapped_category": "Electronics",
+      "confidence": "high",
+      "matched_rule": "tablet",
+      "product_count": 2,
+      "sources": [
+        "harvey_norman_sg"
+      ]
+    },
+    "Console Tables": {
+      "mapped_category": "Electronics",
+      "confidence": "medium",
+      "matched_rule": "console",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Cooking & Baking Needs": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "cooking and baking needs",
+      "product_count": 978,
+      "sources": [
+        "cold_storage_sg",
+        "giant_sg"
+      ]
+    },
+    "Cooking Needs": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "cooking needs",
+      "product_count": 397,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Curtain Rods": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "curtain rods",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Cutlery": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "cutlery",
+      "product_count": 8,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Dairy & Non Dairy": {
+      "mapped_category": "Groceries",
+      "confidence": "medium",
+      "matched_rule": "dairy",
+      "product_count": 706,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Dairy, Chilled & Eggs": {
+      "mapped_category": "Groceries",
+      "confidence": "medium",
+      "matched_rule": "dairy",
+      "product_count": 889,
+      "sources": [
+        "cold_storage_sg",
+        "giant_sg"
+      ]
+    },
+    "Decorative Baskets": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "decor",
+      "product_count": 16,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Decorative Trays": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "decor",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Delicatessen": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "delicatessen",
+      "product_count": 437,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Desks & Workstations": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "desks and workstations",
+      "product_count": 306,
+      "sources": [
+        "hipvan",
+        "hipvan_sg"
+      ]
+    },
+    "Dining Arm Chairs": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "dining",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Dining Furniture": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "dining furniture",
+      "product_count": 264,
+      "sources": [
+        "hipvan",
+        "hipvan_sg"
+      ]
+    },
+    "Dining Side Chairs": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "dining",
+      "product_count": 8,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Dried Food": {
+      "mapped_category": "Groceries",
+      "confidence": "medium",
+      "matched_rule": "food",
+      "product_count": 34,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Duvets, Quilts & Blankets": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "duvets quilts and blankets",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Eclectic": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "eclectic",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Electronics": {
+      "mapped_category": "Electronics",
+      "confidence": "exact",
+      "matched_rule": "electronics",
+      "product_count": 79194,
+      "sources": [
+        "carousell_sg",
+        "lazada_sg",
+        "qoo10_sg",
+        "tiki_vn"
+      ]
+    },
+    "Electronics - Accessories": {
+      "mapped_category": "Electronics",
+      "confidence": "exact",
+      "matched_rule": "electronics",
+      "product_count": 126,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Electronics - Audio": {
+      "mapped_category": "Electronics",
+      "confidence": "exact",
+      "matched_rule": "electronics",
+      "product_count": 134,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Electronics - Cameras": {
+      "mapped_category": "Electronics",
+      "confidence": "exact",
+      "matched_rule": "electronics",
+      "product_count": 84,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Electronics - Car Electronics": {
+      "mapped_category": "Electronics",
+      "confidence": "exact",
+      "matched_rule": "electronics",
+      "product_count": 64,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Electronics - Computer Accessories": {
+      "mapped_category": "Electronics",
+      "confidence": "exact",
+      "matched_rule": "electronics",
+      "product_count": 108,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Electronics - Gaming": {
+      "mapped_category": "Electronics",
+      "confidence": "exact",
+      "matched_rule": "electronics",
+      "product_count": 74,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Electronics - Laptops": {
+      "mapped_category": "Electronics",
+      "confidence": "exact",
+      "matched_rule": "electronics",
+      "product_count": 24,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Electronics - Networking": {
+      "mapped_category": "Electronics",
+      "confidence": "exact",
+      "matched_rule": "electronics",
+      "product_count": 64,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Electronics - Projectors": {
+      "mapped_category": "Electronics",
+      "confidence": "exact",
+      "matched_rule": "electronics",
+      "product_count": 34,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Electronics - Smart Home": {
+      "mapped_category": "Electronics",
+      "confidence": "exact",
+      "matched_rule": "electronics",
+      "product_count": 62,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Electronics - Smartphones": {
+      "mapped_category": "Electronics",
+      "confidence": "exact",
+      "matched_rule": "electronics",
+      "product_count": 22,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Electronics - Storage": {
+      "mapped_category": "Electronics",
+      "confidence": "exact",
+      "matched_rule": "electronics",
+      "product_count": 62,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Electronics - TV & Home Theatre": {
+      "mapped_category": "Electronics",
+      "confidence": "exact",
+      "matched_rule": "electronics",
+      "product_count": 12,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Electronics - Tablets": {
+      "mapped_category": "Electronics",
+      "confidence": "exact",
+      "matched_rule": "electronics",
+      "product_count": 18,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Electronics - Wearables": {
+      "mapped_category": "Electronics",
+      "confidence": "exact",
+      "matched_rule": "electronics",
+      "product_count": 64,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Extendable Dining Tables": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "dining",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Extension Sockets & Chargers": {
+      "mapped_category": "Electronics",
+      "confidence": "exact",
+      "matched_rule": "extension sockets and chargers",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Face Towels": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "towel",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Fashion": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "fashion",
+      "product_count": 44822,
+      "sources": [
+        "lazada_sg",
+        "qoo10_sg",
+        "tiki_vn",
+        "zalora_sg"
+      ]
+    },
+    "Fashion & Accessories": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "fashion",
+      "product_count": 240,
+      "sources": [
+        "carousell_sg"
+      ]
+    },
+    "Fashion - Accessories": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "fashion",
+      "product_count": 114,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Fashion - Bags": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "fashion",
+      "product_count": 68,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Fashion - Eyewear": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "fashion",
+      "product_count": 54,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Fashion - Footwear": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "fashion",
+      "product_count": 154,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Fashion - Headwear": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "fashion",
+      "product_count": 58,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Fashion - Kids": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "fashion",
+      "product_count": 48,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Fashion - Men's Jeans": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "fashion",
+      "product_count": 54,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Fashion - Men's Outerwear": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "fashion",
+      "product_count": 48,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Fashion - Men's Shirts": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "fashion",
+      "product_count": 74,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Fashion - Men's Shorts": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "fashion",
+      "product_count": 72,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Fashion - Men's T-Shirts": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "fashion",
+      "product_count": 60,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Fashion - Men's Trousers": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "fashion",
+      "product_count": 62,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Fashion - Women's Activewear": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "fashion",
+      "product_count": 56,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Fashion - Women's Dresses": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "fashion",
+      "product_count": 58,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Fashion - Women's Ethnic": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "fashion",
+      "product_count": 56,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Fashion - Women's Outerwear": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "fashion",
+      "product_count": 52,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Fashion - Women's Tops": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "fashion",
+      "product_count": 54,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Floor Lamps": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "floor lamps",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Floor Mats": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "floor mats",
+      "product_count": 10,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Food": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "food",
+      "product_count": 22,
+      "sources": [
+        "qoo10_sg"
+      ]
+    },
+    "Food Containers & Storage": {
+      "mapped_category": "Electronics",
+      "confidence": "medium",
+      "matched_rule": "storage",
+      "product_count": 12,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Frozen Foods": {
+      "mapped_category": "Groceries",
+      "confidence": "high",
+      "matched_rule": "food",
+      "product_count": 1,
+      "sources": [
+        "giant_sg"
+      ]
+    },
+    "Fruits & Vegetables": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "table",
+      "product_count": 430,
+      "sources": [
+        "cold_storage_sg",
+        "giant_sg"
+      ]
+    },
+    "Gaming": {
+      "mapped_category": "Electronics",
+      "confidence": "medium",
+      "matched_rule": "gaming",
+      "product_count": 31,
+      "sources": [
+        "courts_sg"
+      ]
+    },
+    "General": {
+      "mapped_category": null,
+      "confidence": "unmapped",
+      "matched_rule": null,
+      "product_count": 206,
+      "sources": [
+        "giant_sg"
+      ]
+    },
+    "Get Free Swatches": {
+      "mapped_category": "Fashion",
+      "confidence": "medium",
+      "matched_rule": "watch",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Groceries": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "groceries",
+      "product_count": 2168,
+      "sources": [
+        "fairprice_sg"
+      ]
+    },
+    "Groceries & Food - Beverages": {
+      "mapped_category": "Groceries",
+      "confidence": "high",
+      "matched_rule": "food",
+      "product_count": 66,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Groceries & Food - Biscuits": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "biscuits",
+      "product_count": 70,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Groceries & Food - Canned Goods": {
+      "mapped_category": "Groceries",
+      "confidence": "high",
+      "matched_rule": "food",
+      "product_count": 74,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Groceries & Food - Condiments": {
+      "mapped_category": "Groceries",
+      "confidence": "high",
+      "matched_rule": "food",
+      "product_count": 84,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Groceries & Food - Cooking Oil": {
+      "mapped_category": "Groceries",
+      "confidence": "high",
+      "matched_rule": "food",
+      "product_count": 54,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Groceries & Food - Dairy": {
+      "mapped_category": "Groceries",
+      "confidence": "high",
+      "matched_rule": "food",
+      "product_count": 158,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Groceries & Food - Flour": {
+      "mapped_category": "Groceries",
+      "confidence": "high",
+      "matched_rule": "food",
+      "product_count": 78,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Groceries & Food - Flour & Grains": {
+      "mapped_category": "Groceries",
+      "confidence": "high",
+      "matched_rule": "food",
+      "product_count": 86,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Groceries & Food - Frozen Food": {
+      "mapped_category": "Groceries",
+      "confidence": "high",
+      "matched_rule": "food",
+      "product_count": 74,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Groceries & Food - Instant Food": {
+      "mapped_category": "Groceries",
+      "confidence": "high",
+      "matched_rule": "food",
+      "product_count": 68,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Groceries & Food - Lentils & Pulses": {
+      "mapped_category": "Groceries",
+      "confidence": "high",
+      "matched_rule": "food",
+      "product_count": 60,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Groceries & Food - Pickles & Condiments": {
+      "mapped_category": "Groceries",
+      "confidence": "high",
+      "matched_rule": "food",
+      "product_count": 82,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Groceries & Food - Rice & Grains": {
+      "mapped_category": "Groceries",
+      "confidence": "high",
+      "matched_rule": "food",
+      "product_count": 80,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Groceries & Food - Sauces": {
+      "mapped_category": "Groceries",
+      "confidence": "high",
+      "matched_rule": "food",
+      "product_count": 74,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Groceries & Food - Snacks": {
+      "mapped_category": "Groceries",
+      "confidence": "high",
+      "matched_rule": "food",
+      "product_count": 84,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Groceries & Food - Spices": {
+      "mapped_category": "Groceries",
+      "confidence": "high",
+      "matched_rule": "food",
+      "product_count": 138,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Groceries & Food - Spices & Masalas": {
+      "mapped_category": "Groceries",
+      "confidence": "high",
+      "matched_rule": "food",
+      "product_count": 76,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Groceries & Food - Tea & Coffee": {
+      "mapped_category": "Groceries",
+      "confidence": "high",
+      "matched_rule": "food",
+      "product_count": 78,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Grocery & Pets": {
+      "mapped_category": "Groceries",
+      "confidence": "medium",
+      "matched_rule": "grocery",
+      "product_count": 1180,
+      "sources": [
+        "tiki_vn"
+      ]
+    },
+    "Hand Towels": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "towel",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Health": {
+      "mapped_category": "Health",
+      "confidence": "medium",
+      "matched_rule": "health",
+      "product_count": 1000,
+      "sources": [
+        "guardian_sg"
+      ]
+    },
+    "Health & Beauty": {
+      "mapped_category": "Beauty",
+      "confidence": "medium",
+      "matched_rule": "beauty",
+      "product_count": 11484,
+      "sources": [
+        "giant_sg",
+        "lazada_sg"
+      ]
+    },
+    "Health & Beauty - Body Care": {
+      "mapped_category": "Beauty",
+      "confidence": "high",
+      "matched_rule": "beauty",
+      "product_count": 76,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Health & Beauty - First Aid": {
+      "mapped_category": "Health",
+      "confidence": "high",
+      "matched_rule": "health",
+      "product_count": 82,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Health & Beauty - Hair Care": {
+      "mapped_category": "Beauty",
+      "confidence": "high",
+      "matched_rule": "beauty",
+      "product_count": 84,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Health & Beauty - Hand Care": {
+      "mapped_category": "Beauty",
+      "confidence": "high",
+      "matched_rule": "beauty",
+      "product_count": 82,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Health & Beauty - Health Drinks": {
+      "mapped_category": "Health",
+      "confidence": "high",
+      "matched_rule": "health",
+      "product_count": 82,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Health & Beauty - Medical Devices": {
+      "mapped_category": "Health",
+      "confidence": "high",
+      "matched_rule": "health",
+      "product_count": 166,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Health & Beauty - Men's Grooming": {
+      "mapped_category": "Beauty",
+      "confidence": "high",
+      "matched_rule": "beauty",
+      "product_count": 80,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Health & Beauty - Nail Care": {
+      "mapped_category": "Beauty",
+      "confidence": "high",
+      "matched_rule": "beauty",
+      "product_count": 86,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Health & Beauty - Oral Care": {
+      "mapped_category": "Beauty",
+      "confidence": "high",
+      "matched_rule": "beauty",
+      "product_count": 66,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Health & Beauty - Skincare": {
+      "mapped_category": "Beauty",
+      "confidence": "high",
+      "matched_rule": "beauty",
+      "product_count": 152,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Health & Beauty - Sun Care": {
+      "mapped_category": "Beauty",
+      "confidence": "high",
+      "matched_rule": "beauty",
+      "product_count": 66,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Health & Beauty - Supplements": {
+      "mapped_category": "Health",
+      "confidence": "high",
+      "matched_rule": "health",
+      "product_count": 156,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Health Care": {
+      "mapped_category": "Health",
+      "confidence": "medium",
+      "matched_rule": "health",
+      "product_count": 221,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Home": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "home",
+      "product_count": 20,
+      "sources": [
+        "qoo10_sg"
+      ]
+    },
+    "Home & Decor": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "home",
+      "product_count": 472,
+      "sources": [
+        "carousell_sg"
+      ]
+    },
+    "Home & Kitchen - Air Fryers": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "home",
+      "product_count": 82,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Home & Kitchen - Blenders": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "home",
+      "product_count": 76,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Home & Kitchen - Cookware": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "home",
+      "product_count": 66,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Home & Kitchen - Drinkware": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "home",
+      "product_count": 70,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Home & Kitchen - Food Storage": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "home",
+      "product_count": 74,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Home & Kitchen - Kettles": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "kettles",
+      "product_count": 72,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Home & Kitchen - Kitchen Prep": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "home",
+      "product_count": 64,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Home & Kitchen - Knives": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "knives",
+      "product_count": 70,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Home & Kitchen - Laundry": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "home",
+      "product_count": 144,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Home & Kitchen - Microwaves": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "home",
+      "product_count": 84,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Home & Kitchen - Pressure Cookers": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "home",
+      "product_count": 62,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Home & Kitchen - Rice Cookers": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "home",
+      "product_count": 78,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Home & Kitchen - Tableware": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "home",
+      "product_count": 70,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Home & Kitchen - Toasters": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "home",
+      "product_count": 74,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Home & Living": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "home",
+      "product_count": 16086,
+      "sources": [
+        "lazada_sg",
+        "tiki_vn"
+      ]
+    },
+    "Home Appliances": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "home",
+      "product_count": 31,
+      "sources": [
+        "courts_sg"
+      ]
+    },
+    "Home D\u00e9cor": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "home decor",
+      "product_count": 332,
+      "sources": [
+        "hipvan",
+        "hipvan_sg"
+      ]
+    },
+    "Household Supplies": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "household supplies",
+      "product_count": 524,
+      "sources": [
+        "cold_storage_sg",
+        "giant_sg"
+      ]
+    },
+    "Japandi": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "japandi",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Jewellery - Diamond Jewellery": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "jewellery",
+      "product_count": 36,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Jewellery - Fashion Bangles": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "fashion",
+      "product_count": 68,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Jewellery - Fashion Jewellery": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "fashion",
+      "product_count": 80,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Jewellery - Gold Chains": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "jewellery",
+      "product_count": 60,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Jewellery - Gold Earrings": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "jewellery",
+      "product_count": 76,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Jewellery - Gold Jewellery": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "jewellery",
+      "product_count": 42,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Jewellery - Nose Pins": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "jewellery",
+      "product_count": 70,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Jewellery - Pearl Jewellery": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "jewellery",
+      "product_count": 72,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Jewellery - Silver Jewellery": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "jewellery",
+      "product_count": 66,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Jewellery - Traditional Jewellery": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "jewellery",
+      "product_count": 66,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Kettles": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "kettles",
+      "product_count": 14,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Kids & Baby": {
+      "mapped_category": "Toys",
+      "confidence": "high",
+      "matched_rule": "kids",
+      "product_count": 432,
+      "sources": [
+        "carousell_sg"
+      ]
+    },
+    "Kids Beds": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "bed",
+      "product_count": 8,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Kids Chairs & Tables": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "chair",
+      "product_count": 6,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Kids Lighting": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "lighting",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "King Size Bed Frames": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "bed",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Kitchen & Dining": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "kitchen",
+      "product_count": 22,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Kitchen Racks & Trolleys": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "kitchen",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Kitchen Storage Organisers": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "kitchen",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Kitchen Utensils": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "kitchen",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Knives": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "knives",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "L-Shaped Sofas": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "sofa",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Ladders & Step Stools": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "ladders and step stools",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Laptops": {
+      "mapped_category": "Electronics",
+      "confidence": "medium",
+      "matched_rule": "laptop",
+      "product_count": 31,
+      "sources": [
+        "courts_sg"
+      ]
+    },
+    "Laundry Baskets & Racks": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "laundry",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Light Bulbs & Drop Caps": {
+      "mapped_category": "Electronics",
+      "confidence": "exact",
+      "matched_rule": "light bulbs and drop caps",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Lighting": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "lighting",
+      "product_count": 304,
+      "sources": [
+        "hipvan",
+        "hipvan_sg"
+      ]
+    },
+    "Loft & Industrial": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "loft and industrial",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Luggage & Travel - Cabin Luggage": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "luggage",
+      "product_count": 76,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Luggage & Travel - Check-in Luggage": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "luggage",
+      "product_count": 70,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Luggage & Travel - Duffel Bags": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "bag",
+      "product_count": 78,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Luggage & Travel - Laptop Bags": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "bag",
+      "product_count": 68,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Luggage & Travel - Luggage Sets": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "luggage",
+      "product_count": 74,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Luggage & Travel - Travel Accessories": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "luggage",
+      "product_count": 326,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Luggage & Travel - Travel Backpacks": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "luggage",
+      "product_count": 70,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Mattress & Pillow Protectors": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "mattress",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Meat": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "meat",
+      "product_count": 39,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Meat & Seafood": {
+      "mapped_category": "Groceries",
+      "confidence": "medium",
+      "matched_rule": "food",
+      "product_count": 68,
+      "sources": [
+        "cold_storage_sg",
+        "giant_sg"
+      ]
+    },
+    "Mobiles & Tablets": {
+      "mapped_category": "Electronics",
+      "confidence": "high",
+      "matched_rule": "mobile",
+      "product_count": 8844,
+      "sources": [
+        "lazada_sg"
+      ]
+    },
+    "More Great Deals": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "more great deals",
+      "product_count": 245,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Mother & Baby": {
+      "mapped_category": "Toys",
+      "confidence": "medium",
+      "matched_rule": "baby",
+      "product_count": 494,
+      "sources": [
+        "cold_storage_sg",
+        "giant_sg"
+      ]
+    },
+    "Nuts & Seeds": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "nuts and seeds",
+      "product_count": 175,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Office Chairs": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "chair",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Oral Care": {
+      "mapped_category": "Beauty",
+      "confidence": "medium",
+      "matched_rule": "oral care",
+      "product_count": 299,
+      "sources": [
+        "guardian_sg"
+      ]
+    },
+    "Organic and Wellness": {
+      "mapped_category": "Health",
+      "confidence": "medium",
+      "matched_rule": "wellness",
+      "product_count": 16,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Ottomans & Benches": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "ottomans and benches",
+      "product_count": 16,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Outdoor & Sundries": {
+      "mapped_category": "Sports",
+      "confidence": "medium",
+      "matched_rule": "outdoor",
+      "product_count": 40,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Outdoor Chairs": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "chair",
+      "product_count": 6,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Outdoor Furniture": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "outdoor furniture",
+      "product_count": 274,
+      "sources": [
+        "hipvan",
+        "hipvan_sg"
+      ]
+    },
+    "Outdoor Storage": {
+      "mapped_category": "Electronics",
+      "confidence": "medium",
+      "matched_rule": "storage",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Ovens & Toasters": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "ovens and toasters",
+      "product_count": 8,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Perfumes & Fragrances - Attar & Oud": {
+      "mapped_category": "Beauty",
+      "confidence": "high",
+      "matched_rule": "fragrance",
+      "product_count": 78,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Perfumes & Fragrances - Deodorants": {
+      "mapped_category": "Beauty",
+      "confidence": "high",
+      "matched_rule": "fragrance",
+      "product_count": 76,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Perfumes & Fragrances - Gift Sets": {
+      "mapped_category": "Beauty",
+      "confidence": "high",
+      "matched_rule": "fragrance",
+      "product_count": 72,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Perfumes & Fragrances - Men's Fragrances": {
+      "mapped_category": "Beauty",
+      "confidence": "high",
+      "matched_rule": "fragrance",
+      "product_count": 214,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Perfumes & Fragrances - Perfume Oil": {
+      "mapped_category": "Beauty",
+      "confidence": "high",
+      "matched_rule": "fragrance",
+      "product_count": 76,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Perfumes & Fragrances - Travel": {
+      "mapped_category": "Beauty",
+      "confidence": "high",
+      "matched_rule": "fragrance",
+      "product_count": 66,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Perfumes & Fragrances - Women's Fragrances": {
+      "mapped_category": "Beauty",
+      "confidence": "high",
+      "matched_rule": "fragrance",
+      "product_count": 140,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Pet Supplies": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "pet supplies",
+      "product_count": 107,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Phones": {
+      "mapped_category": "Electronics",
+      "confidence": "medium",
+      "matched_rule": "phone",
+      "product_count": 278,
+      "sources": [
+        "challenger_sg",
+        "courts_sg"
+      ]
+    },
+    "Pillows & Bolsters": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "pillows and bolsters",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Placemats & Coasters": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "placemats and coasters",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Plants & Flowers": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "plants and flowers",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Premium Groceries": {
+      "mapped_category": "Groceries",
+      "confidence": "exact",
+      "matched_rule": "premium groceries",
+      "product_count": 1536,
+      "sources": [
+        "coldstorage_sg"
+      ]
+    },
+    "Queen Bed Frames": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "bed",
+      "product_count": 6,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Rice, Noodles & Oil": {
+      "mapped_category": "Groceries",
+      "confidence": "medium",
+      "matched_rule": "rice",
+      "product_count": 495,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Rice, Oil & Noodles": {
+      "mapped_category": "Groceries",
+      "confidence": "medium",
+      "matched_rule": "rice",
+      "product_count": 327,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Rugs & Carpets": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "rug",
+      "product_count": 306,
+      "sources": [
+        "hipvan",
+        "hipvan_sg"
+      ]
+    },
+    "Sauces & Spread": {
+      "mapped_category": "Groceries",
+      "confidence": "medium",
+      "matched_rule": "sauce",
+      "product_count": 351,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Seafood": {
+      "mapped_category": "Groceries",
+      "confidence": "medium",
+      "matched_rule": "food",
+      "product_count": 13,
+      "sources": [
+        "cold_storage_sg"
+      ]
+    },
+    "Serveware": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "serveware",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Shelving & Storage": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "storage",
+      "product_count": 300,
+      "sources": [
+        "hipvan",
+        "hipvan_sg"
+      ]
+    },
+    "Shoes": {
+      "mapped_category": "Fashion",
+      "confidence": "exact",
+      "matched_rule": "shoes",
+      "product_count": 5340,
+      "sources": [
+        "zalora_sg"
+      ]
+    },
+    "Side Tables": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "table",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Sideboards": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "sideboards",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Skin Care": {
+      "mapped_category": "Beauty",
+      "confidence": "exact",
+      "matched_rule": "skin care",
+      "product_count": 500,
+      "sources": [
+        "guardian_sg"
+      ]
+    },
+    "Snacks & Confectionery": {
+      "mapped_category": "Groceries",
+      "confidence": "medium",
+      "matched_rule": "snack",
+      "product_count": 1482,
+      "sources": [
+        "cold_storage_sg",
+        "giant_sg"
+      ]
+    },
+    "Soap Pumps": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "soap pumps",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Sofa Beds": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "sofa",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Sofas & Armchairs": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "sofa",
+      "product_count": 284,
+      "sources": [
+        "hipvan",
+        "hipvan_sg"
+      ]
+    },
+    "Sports": {
+      "mapped_category": "Sports",
+      "confidence": "medium",
+      "matched_rule": "sport",
+      "product_count": 2405,
+      "sources": [
+        "decathlon_sg"
+      ]
+    },
+    "Sports & Outdoors": {
+      "mapped_category": "Sports",
+      "confidence": "high",
+      "matched_rule": "sport",
+      "product_count": 2082,
+      "sources": [
+        "carousell_sg",
+        "tiki_vn"
+      ]
+    },
+    "Stand & Floor Fans": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "stand and floor fans",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Storage Boxes": {
+      "mapped_category": "Electronics",
+      "confidence": "medium",
+      "matched_rule": "storage",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "TV Consoles": {
+      "mapped_category": "Electronics",
+      "confidence": "high",
+      "matched_rule": "tv",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Table & Bedside Lamps": {
+      "mapped_category": "Home",
+      "confidence": "high",
+      "matched_rule": "table",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Table Clocks": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "table",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Tablets": {
+      "mapped_category": "Electronics",
+      "confidence": "medium",
+      "matched_rule": "tablet",
+      "product_count": 195,
+      "sources": [
+        "challenger_sg",
+        "courts_sg"
+      ]
+    },
+    "Toys & Kids": {
+      "mapped_category": "Toys",
+      "confidence": "high",
+      "matched_rule": "toy",
+      "product_count": 2182,
+      "sources": [
+        "tiki_vn"
+      ]
+    },
+    "Trash Bins": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "trash bins",
+      "product_count": 14,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Vanity & Bathroom Mirrors": {
+      "mapped_category": "Home",
+      "confidence": "medium",
+      "matched_rule": "bath",
+      "product_count": 2,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Vitamins & Supplements": {
+      "mapped_category": "Health",
+      "confidence": "high",
+      "matched_rule": "supplement",
+      "product_count": 800,
+      "sources": [
+        "guardian_sg"
+      ]
+    },
+    "Wall Clocks": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "wall clocks",
+      "product_count": 12,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Wardrobe Organisers": {
+      "mapped_category": "Home",
+      "confidence": "exact",
+      "matched_rule": "wardrobe organisers",
+      "product_count": 4,
+      "sources": [
+        "hipvan_sg"
+      ]
+    },
+    "Watches - Chronographs": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "watch",
+      "product_count": 26,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Watches - Couple Watches": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "watch",
+      "product_count": 52,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Watches - Eco Watches": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "watch",
+      "product_count": 48,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Watches - Kids Watches": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "watch",
+      "product_count": 70,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Watches - Men's Watches": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "watch",
+      "product_count": 30,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Watches - Smartwatches": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "watch",
+      "product_count": 58,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Watches - Sports Watches": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "watch",
+      "product_count": 66,
+      "sources": [
+        "mustafa_sg"
+      ]
+    },
+    "Watches - Women's Watches": {
+      "mapped_category": "Fashion",
+      "confidence": "high",
+      "matched_rule": "watch",
+      "product_count": 56,
+      "sources": [
+        "mustafa_sg"
+      ]
+    }
+  },
+  "unmapped_categories": [
+    {
+      "source_category": "General",
+      "product_count": 206,
+      "sources": [
+        "giant_sg"
+      ]
+    }
+  ]
+}

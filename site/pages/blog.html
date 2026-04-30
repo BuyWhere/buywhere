@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="blog-hero">
+    <div class="container">
+        <h1>Blog</h1>
+        <p class="lead">News, updates, and insights from the BuyWhere team.</p>
+    </div>
+</section>
+
+<section class="blog-posts">
+    <div class="container">
+        <div class="posts-grid">
+            <article class="post-card">
+                <span class="post-tag">Tutorial</span>
+                <span class="post-date">April 14, 2026</span>
+                <h2><a href="/blog/price-comparison-agent">Build a Price Comparison Agent with BuyWhere API</a></h2>
+                <p>Price comparison is one of the most requested capabilities in AI shopping assistants. Here's how to build one in under 50 lines of Python.</p>
+                <a href="/blog/price-comparison-agent" class="read-more">Read more →</a>
+            </article>
+            <article class="post-card">
+                <span class="post-tag">Strategy</span>
+                <span class="post-date">April 14, 2026</span>
+                <h2><a href="/blog/neutral-catalog-api">The Case for a Neutral Product Catalog API in SEA</a></h2>
+                <p>Every e-commerce platform wants to be the definitive catalog. None have an incentive to share data with developers. Here's the infrastructure gap we're filling.</p>
+                <a href="/blog/neutral-catalog-api" class="read-more">Read more →</a>
+            </article>
+            <article class="post-card">
+                <span class="post-tag">Guide</span>
+                <span class="post-date">April 14, 2026</span>
+                <h2><a href="/blog/ai-agents-cheapest-products">How AI Agents Can Find the Cheapest Products in Singapore</a></h2>
+                <p>Singapore shoppers are well-trained comparison buyers. AI shopping agents are changing this — instead of opening five tabs, you ask once.</p>
+                <a href="/blog/ai-agents-cheapest-products" class="read-more">Read more →</a>
+            </article>
+            <article class="post-card">
+                <span class="post-tag">Comparison</span>
+                <span class="post-date">April 14, 2026</span>
+                <h2><a href="/blog/buywhere-vs-scraper">BuyWhere vs Building Your Own Scraper</a></h2>
+                <p>What AI developers need to know about the true cost of DIY product data collection — and why BuyWhere is the faster path.</p>
+                <a href="/blog/buywhere-vs-scraper" class="read-more">Read more →</a>
+            </article>
+            <article class="post-card">
+                <span class="post-tag">Coverage</span>
+                <span class="post-date">April 14, 2026</span>
+                <h2><a href="/blog/singapore-ecommerce-ai-agents">Singapore E-Commerce for AI Agents: What BuyWhere Indexes</a></h2>
+                <p>A clear breakdown of the Singapore e-commerce landscape — Lazada, Shopee, Qoo10 — and how BuyWhere makes it accessible to AI agents.</p>
+                <a href="/blog/singapore-ecommerce-ai-agents" class="read-more">Read more →</a>
+            </article>
+            <article class="post-card">
+                <span class="post-tag">Deals</span>
+                <span class="post-date">April 14, 2026</span>
+                <h2><a href="/blog/top-electronics-deals">Top 10 Electronics Deals in Singapore This Week</a></h2>
+                <p>From Sony headphones to Kindles, here are the standout electronics deals across Lazada, Shopee, and Qoo10 this week.</p>
+                <a href="/blog/top-electronics-deals" class="read-more">Read more →</a>
+            </article>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.blog-hero { padding: var(--bw-spacing-16) 0; text-align: center; background: linear-gradient(135deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%); }
+.blog-hero h1 { margin-bottom: var(--bw-spacing-4); }
+.blog-hero .lead { font-size: var(--bw-font-size-lg); color: var(--bw-color-text-secondary); }
+
+.blog-posts { padding: var(--bw-spacing-16) 0; }
+
+.posts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--bw-spacing-8); }
+
+.post-card { background: var(--bw-color-bg-primary); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-xl); padding: var(--bw-spacing-6); display: flex; flex-direction: column; }
+.post-tag { display: inline-block; background: var(--bw-color-primary); color: white; padding: var(--bw-spacing-1) var(--bw-spacing-3); border-radius: var(--bw-radius-full); font-size: var(--bw-font-size-xs); margin-bottom: var(--bw-spacing-2); width: fit-content; }
+.post-card:nth-child(2) .post-tag { background: var(--bw-color-secondary); }
+.post-card:nth-child(4) .post-tag { background: var(--bw-color-secondary); }
+.post-card:nth-child(5) .post-tag { background: var(--bw-color-secondary); }
+.post-card:nth-child(6) .post-tag { background: var(--bw-color-accent); }
+.post-date { font-size: var(--bw-font-size-sm); color: var(--bw-color-text-muted); margin-bottom: var(--bw-spacing-3); }
+.post-card h2 { font-size: var(--bw-font-size-lg); margin: var(--bw-spacing-2) 0 var(--bw-spacing-3); line-height: 1.3; }
+.post-card h2 a { color: var(--bw-color-text-primary); text-decoration: none; }
+.post-card h2 a:hover { color: var(--bw-color-primary); }
+.post-card p { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-sm); line-height: 1.6; flex-grow: 1; margin-bottom: var(--bw-spacing-4); }
+.read-more { color: var(--bw-color-primary); font-weight: var(--bw-font-weight-medium); font-size: var(--bw-font-size-sm); text-decoration: none; }
+.read-more:hover { text-decoration: underline; }
+</style>
+{% endblock %}

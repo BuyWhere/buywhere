@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="container">
+        <h1>For Affiliates</h1>
+        <p class="page-subtitle">Monetize AI agent commerce. Earn commissions when your audience uses AI agents that shop through BuyWhere.</p>
+    </div>
+</section>
+
+<section class="why-affiliates">
+    <div class="container">
+        <h2>The Agent Commerce Opportunity</h2>
+        <p class="section-intro">AI agents are becoming shopping assistants. When they research products and find the best deals, they use BuyWhere. As an affiliate, you earn a commission on every purchase made through your referral links.</p>
+        <div class="benefit-grid">
+            <div class="benefit-card">
+                <h3>Growing Segment</h3>
+                <p>Agent-mediated commerce is growing rapidly as more users delegate shopping to AI assistants. Get in early.</p>
+            </div>
+            <div class="benefit-card">
+                <h3>Transparent Tracking</h3>
+                <p>Real-time dashboard shows which products and agents are driving your commissions. Full attribution transparency.</p>
+            </div>
+            <div class="benefit-card">
+                <h3>Competitive Rates</h3>
+                <p>Commission rates starting at 5% on GMV. Higher tiers available for high-volume affiliates.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="how-it-works-affiliates">
+    <div class="container">
+        <h2>How It Works</h2>
+        <div class="steps">
+            <div class="step-item">
+                <div class="step-num">1</div>
+                <div>
+                    <h4>Apply</h4>
+                    <p>Fill out the affiliate application. We review within 48 hours.</p>
+                </div>
+            </div>
+            <div class="step-item">
+                <div class="step-num">2</div>
+                <div>
+                    <h4>Get Your Links</h4>
+                    <p>Receive unique affiliate links and API credentials for tracking.</p>
+                </div>
+            </div>
+            <div class="step-item">
+                <div class="step-num">3</div>
+                <div>
+                    <h4>Drive Traffic</h4>
+                    <p>Share BuyWhere-powered tools, content, or recommendations with your audience.</p>
+                </div>
+            </div>
+            <div class="step-item">
+                <div class="step-num">4</div>
+                <div>
+                    <h4>Earn Commissions</h4>
+                    <p>Get paid monthly for all purchases attributed to your referral links.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="commission-table">
+    <div class="container">
+        <h2>Commission Structure</h2>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Volume Tier</th>
+                        <th>Commission Rate</th>
+                        <th>Payment</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>0 – 50 sales/month</td>
+                        <td>5%</td>
+                        <td>Monthly, bank transfer or PayPal</td>
+                    </tr>
+                    <tr>
+                        <td>51 – 200 sales/month</td>
+                        <td>7%</td>
+                        <td>Monthly, bank transfer or PayPal</td>
+                    </tr>
+                    <tr>
+                        <td>200+ sales/month</td>
+                        <td>10%</td>
+                        <td>Monthly, bank transfer</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<section class="cta">
+    <div class="container">
+        <h2>Join the Affiliate Program</h2>
+        <p>Start earning from agent commerce today.</p>
+        <div class="cta-actions">
+            <a href="/register" class="btn btn-primary btn-lg">Apply Now</a>
+            <a href="/contact" class="btn btn-secondary btn-lg">Contact</a>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.page-hero {
+    padding: var(--bw-spacing-20) 0;
+    background: linear-gradient(135deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%);
+    text-align: center;
+}
+.page-hero h1 { font-size: var(--bw-font-size-4xl); margin-bottom: var(--bw-spacing-4); }
+.page-subtitle { font-size: var(--bw-font-size-xl); color: var(--bw-color-text-secondary); max-width: 600px; margin: 0 auto; }
+.why-affiliates { padding: var(--bw-spacing-24) 0; }
+.why-affiliates h2 { text-align: center; margin-bottom: var(--bw-spacing-4); }
+.section-intro { text-align: center; color: var(--bw-color-text-secondary); max-width: 600px; margin: 0 auto var(--bw-spacing-12); font-size: var(--bw-font-size-lg); }
+.benefit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--bw-spacing-8); }
+.benefit-card { padding: var(--bw-spacing-6); background: var(--bw-color-bg-primary); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-xl); }
+.benefit-card h3 { font-size: var(--bw-font-size-lg); margin-bottom: var(--bw-spacing-2); }
+.benefit-card p { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-sm); }
+.how-it-works-affiliates { padding: var(--bw-spacing-24) 0; background: var(--bw-color-bg-secondary); }
+.how-it-works-affiliates h2 { text-align: center; margin-bottom: var(--bw-spacing-12); }
+.steps { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--bw-spacing-6); }
+.step-item { display: flex; gap: var(--bw-spacing-4); align-items: flex-start; }
+.step-num { width: 40px; height: 40px; border-radius: 50%; background: var(--bw-color-secondary); color: var(--bw-color-text-inverse); font-weight: var(--bw-font-weight-bold); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.step-item h4 { margin-bottom: var(--bw-spacing-1); }
+.step-item p { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-sm); }
+.commission-table { padding: var(--bw-spacing-24) 0; }
+.commission-table h2 { text-align: center; margin-bottom: var(--bw-spacing-12); }
+.table-wrapper { max-width: 700px; margin: 0 auto; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: var(--bw-spacing-4); text-align: left; border-bottom: 1px solid var(--bw-color-border); }
+th { font-size: var(--bw-font-size-sm); text-transform: uppercase; letter-spacing: 0.05em; color: var(--bw-color-text-muted); }
+.cta { padding: var(--bw-spacing-24) 0; text-align: center; }
+.cta h2 { margin-bottom: var(--bw-spacing-4); }
+.cta p { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-lg); margin-bottom: var(--bw-spacing-8); }
+.cta-actions { display: flex; gap: var(--bw-spacing-4); justify-content: center; }
+@media (max-width: 768px) { .cta-actions { flex-direction: column; align-items: stretch; } }
+</style>
+{% endblock %}

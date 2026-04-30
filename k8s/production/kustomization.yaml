@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: production
+
+resources:
+  - namespace.yaml
+  - loki-configmap.yaml
+  - loki-deployment.yaml
+  - loki-service.yaml
+  - promtail-configmap.yaml
+  - promtail-rbac.yaml
+  - promtail-daemonset.yaml
+  - fluent-bit-configmap.yaml
+  - fluent-bit-rbac.yaml
+  - fluent-bit-daemonset.yaml
+  - loki-alerts-configmap.yaml
+
+commonLabels:
+  environment: production
+  app: buywhere

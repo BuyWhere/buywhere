@@ -1,0 +1,600 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="container">
+        <h1>Product Catalog</h1>
+        <p class="page-subtitle">Browse our index of 500K+ products from Singapore and Southeast Asia's top e-commerce platforms.</p>
+    </div>
+</section>
+
+<section class="catalog-search">
+    <div class="container">
+        <form class="search-box" id="catalog-search-form" action="/catalog" method="get">
+            <div class="bw-autocomplete" id="catalog-search">
+                <input type="text" id="catalog-search-input" placeholder="Search products, brands, or categories..." aria-label="Search products" />
+                <ul class="bw-autocomplete-listbox" hidden id="catalog-results"></ul>
+            </div>
+            <button type="submit" class="btn btn-primary search-submit">Search catalog</button>
+        </form>
+        <div class="catalog-layout">
+            <aside class="catalog-filters" id="filter-sidebar">
+                <div class="filter-header">
+                    <h3>Filters</h3>
+                    <button type="button" class="btn-clear-all" id="clear-all-filters">Clear all</button>
+                </div>
+                <div class="active-filter-count" id="active-filter-count" hidden>0 active</div>
+
+                <div class="filter-group">
+                    <label>Category</label>
+                    <select id="category-filter">
+                        <option value="">All Categories</option>
+                        <option value="electronics">Electronics</option>
+                        <option value="fashion">Fashion</option>
+                        <option value="home">Home & Living</option>
+                        <option value="beauty">Beauty</option>
+                        <option value="grocery">Grocery</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label>Market</label>
+                    <div class="checkbox-list">
+                        <label class="checkbox-label"><input type="checkbox" id="market-sg" value="SG"> Singapore</label>
+                        <label class="checkbox-label"><input type="checkbox" id="market-my" value="MY"> Malaysia</label>
+                        <label class="checkbox-label"><input type="checkbox" id="market-th" value="TH"> Thailand</label>
+                        <label class="checkbox-label"><input type="checkbox" id="market-id" value="ID"> Indonesia</label>
+                        <label class="checkbox-label"><input type="checkbox" id="market-ph" value="PH"> Philippines</label>
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <label>Price Range</label>
+                    <div class="price-range">
+                        <input type="number" id="price-min" placeholder="Min" min="0" step="0.01">
+                        <span class="price-sep">—</span>
+                        <input type="number" id="price-max" placeholder="Max" min="0" step="0.01">
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <label class="checkbox-label deal-toggle"><input type="checkbox" id="great-deal-only"> Great Deals only</label>
+                </div>
+            </aside>
+
+            <div class="catalog-main">
+                <div class="results-header">
+                    <span class="results-count" id="results-count">Showing sample products</span>
+                </div>
+                <div class="products-grid" id="products-grid"></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="catalog-api-cta">
+    <div class="container">
+        <h2>Build with the API</h2>
+        <p>Access the full catalog programmatically. 500K+ products, real-time data, structured JSON.</p>
+        <div class="cta-actions">
+            <a href="/docs/api-reference" class="btn btn-primary">API Reference</a>
+            <a href="/register" class="btn btn-secondary">Get API Key</a>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/assets/js/price-sparkline.js"></script>
+<script src="/assets/js/autocomplete.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('catalog-search-form');
+    var searchInput = document.getElementById('catalog-search-input');
+    var categoryFilter = document.getElementById('category-filter');
+    var marketFilters = document.querySelectorAll('[id^="market-"]');
+    var priceMin = document.getElementById('price-min');
+    var priceMax = document.getElementById('price-max');
+    var greatDealOnly = document.getElementById('great-deal-only');
+    var clearAllBtn = document.getElementById('clear-all-filters');
+    var activeFilterCount = document.getElementById('active-filter-count');
+    var productsGrid = document.getElementById('products-grid');
+    var resultsCount = document.getElementById('results-count');
+    var searchParams = new URLSearchParams(window.location.search);
+
+    function escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function getSelectedMarkets() {
+        return Array.from(marketFilters)
+            .filter(function(cb) { return cb.checked; })
+            .map(function(cb) { return cb.value; });
+    }
+
+    function countActiveFilters() {
+        var count = 0;
+        if (categoryFilter.value) count++;
+        if (getSelectedMarkets().length > 0) count++;
+        if (priceMin && priceMin.value) count++;
+        if (priceMax && priceMax.value) count++;
+        if (greatDealOnly && greatDealOnly.checked) count++;
+        return count;
+    }
+
+    function updateActiveFilterBadge() {
+        var n = countActiveFilters();
+        if (n > 0) {
+            activeFilterCount.textContent = n + ' active';
+            activeFilterCount.hidden = false;
+        } else {
+            activeFilterCount.hidden = true;
+        }
+    }
+
+    function buildFilterParams() {
+        var markets = getSelectedMarkets();
+        var params = new URLSearchParams();
+        var q = searchInput ? searchInput.value.trim() : '';
+        if (q) params.set('q', q);
+        if (categoryFilter.value) params.set('category', categoryFilter.value);
+        if (markets.length > 0) params.set('market', markets.join(','));
+        if (priceMin && priceMin.value) params.set('min_price', priceMin.value);
+        if (priceMax && priceMax.value) params.set('max_price', priceMax.value);
+        if (greatDealOnly && greatDealOnly.checked) params.set('great_deal', 'true');
+        return params;
+    }
+
+    function syncFiltersFromUrl() {
+        if (searchParams.get('category')) categoryFilter.value = searchParams.get('category');
+        if (searchParams.get('market')) {
+            var markets = searchParams.get('market').split(',');
+            marketFilters.forEach(function(cb) {
+                cb.checked = markets.includes(cb.value);
+            });
+        }
+        if (searchParams.get('min_price') && priceMin) priceMin.value = searchParams.get('min_price');
+        if (searchParams.get('max_price') && priceMax) priceMax.value = searchParams.get('max_price');
+        if (searchParams.get('great_deal') === 'true' && greatDealOnly) greatDealOnly.checked = true;
+        updateActiveFilterBadge();
+    }
+
+    function formatPrice(price) {
+        var amount = price && typeof price.amount === 'number' ? price.amount : null;
+        var currency = price && price.currency ? price.currency : (countryFilter ? countryFilter.value : 'SG');
+        if (amount === null) {
+            return 'Price unavailable';
+        }
+        try {
+            return new Intl.NumberFormat('en', {
+                style: 'currency',
+                currency: currency,
+                maximumFractionDigits: 2
+            }).format(amount);
+        } catch (error) {
+            return currency + ' ' + amount.toFixed(2);
+        }
+    }
+
+    function platformClass(platform) {
+        return String(platform || 'buywhere').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    }
+
+    function renderDealBadge(dealScore) {
+        if (!dealScore || !dealScore.has_sufficient_history) return '';
+        var pct = Math.abs(dealScore.percent_vs_avg);
+        var cls = dealScore.score === 'great_deal' ? 'badge-great' :
+                  dealScore.score === 'good_deal' ? 'badge-good' :
+                  dealScore.score === 'high_price' ? 'badge-high' : 'badge-fair';
+        var label = dealScore.score === 'great_deal' ? '🔥 -' + pct + '%' :
+                    dealScore.score === 'good_deal' ? '✓ Good' :
+                    dealScore.score === 'high_price' ? '⚠ +' + pct + '%' : 'Fair';
+        return '<span class="deal-badge ' + cls + '">' + label + '</span>';
+    }
+
+    function renderProducts(items, query) {
+        if (!items.length) {
+            productsGrid.innerHTML = '<div class="catalog-state"><h3>No matches yet</h3><p>Try a broader keyword, switch region, or browse one of the popular categories below.</p></div>';
+            resultsCount.textContent = query ? 'No results for "' + query + '"' : 'No results found';
+            return;
+        }
+
+        productsGrid.innerHTML = items.map(function(product) {
+            var title = product.title || product.name || 'Untitled product';
+            var merchant = product.merchant && product.merchant.name ? product.merchant.name : '';
+            var platform = product.merchant && product.merchant.platform ? product.merchant.platform : (product.retailer || 'BuyWhere');
+            var category = product.category ? '<span class="product-category">' + escapeHtml(product.category) + '</span>' : '';
+            var availability = product.availability && product.availability.in_stock === false ? 'Out of stock' : 'In stock';
+            var href = product.source_url || (product.product_id ? '/product?product_id=' + encodeURIComponent(product.product_id) : '#');
+            var dealBadge = renderDealBadge(product.deal_score);
+            var productId = product.product_id || '';
+            var priceAmount = product.price && typeof product.price.amount === 'number' ? product.price.amount : 0;
+            var priceCurrency = product.price && product.price.currency ? product.price.currency : 'SGD';
+            return '' +
+                '<a class="product-card product-card-link" href="' + escapeHtml(href) + '" data-product-id="' + escapeHtml(productId) + '">' +
+                    '<div class="product-source ' + platformClass(platform) + '">' + escapeHtml(platform) + '</div>' +
+                    '<h3 class="product-name">' + escapeHtml(title) + '</h3>' +
+                    '<p class="product-price" data-price="' + priceAmount + '" data-currency="' + escapeHtml(priceCurrency) + '">' + escapeHtml(formatPrice(product.price)) + dealBadge + '</p>' +
+                    '<div class="product-sparkline" aria-hidden="true"></div>' +
+                    '<div class="product-meta">' +
+                        '<span class="product-rating">' + escapeHtml(availability) + '</span>' +
+                        (merchant ? '<span class="product-reviews">' + escapeHtml(merchant) + '</span>' : '') +
+                    '</div>' +
+                    category +
+                '</a>';
+        }).join('');
+
+        resultsCount.textContent = query ? 'Showing ' + items.length + ' result' + (items.length === 1 ? '' : 's') + ' for "' + query + '"' : 'Showing ' + items.length + ' featured results';
+
+        attachSparklineHandlers();
+    }
+
+    var sparklineFetched = {};
+    function attachSparklineHandlers() {
+        var cards = productsGrid.querySelectorAll('.product-card[data-product-id]');
+        cards.forEach(function(card) {
+            var productId = card.getAttribute('data-product-id');
+            if (!productId || sparklineFetched[productId]) return;
+            card.addEventListener('mouseenter', function onFirstHover() {
+                card.removeEventListener('mouseenter', onFirstHover);
+                sparklineFetched[productId] = true;
+                var sparklineContainer = card.querySelector('.product-sparkline');
+                if (sparklineContainer && window.PriceSparkline) {
+                    window.PriceSparkline.fetchAndRender(sparklineContainer, productId);
+                }
+            });
+        });
+    }
+
+    function renderError(message) {
+        productsGrid.innerHTML = '<div class="catalog-state catalog-state-error"><h3>Search is temporarily unavailable</h3><p>' + escapeHtml(message) + '</p></div>';
+        resultsCount.textContent = 'Unable to load results';
+    }
+
+    function renderSampleState() {
+        productsGrid.innerHTML = '<div class="catalog-state"><h3>No search yet</h3><p>Enter a search term above to find products.</p></div>';
+        resultsCount.textContent = 'Enter a search term to begin';
+    }
+
+    async function runCatalogSearch(query) {
+        if (!query) {
+            renderSampleState();
+            return;
+        }
+
+        resultsCount.textContent = 'Searching...';
+        productsGrid.innerHTML = '<div class="catalog-state"><h3>Searching the catalog</h3><p>Fetching live product matches from BuyWhere.</p></div>';
+
+        var params = buildFilterParams();
+        params.set('q', query);
+
+        try {
+            var response = await fetch('/v1/products/search?' + params.toString());
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+
+            var payload = await response.json();
+            var items = payload.results || payload.products || payload.data || payload.items || [];
+            renderProducts(items, query);
+        } catch (error) {
+            renderError(error.message || 'Unknown error');
+        }
+    }
+
+    function submitSearch(query) {
+        var params = buildFilterParams();
+        if (query) params.set('q', query);
+        window.location.href = '/catalog' + (params.toString() ? '?' + params.toString() : '');
+    }
+
+    if (searchParams.get('q')) {
+        searchInput.value = searchParams.get('q');
+    }
+    syncFiltersFromUrl();
+
+    function triggerSearch() {
+        var q = searchInput ? searchInput.value.trim() : '';
+        runCatalogSearch(q);
+    }
+
+    function clearAllFilters() {
+        categoryFilter.value = '';
+        marketFilters.forEach(function(cb) { cb.checked = false; });
+        if (priceMin) priceMin.value = '';
+        if (priceMax) priceMax.value = '';
+        if (greatDealOnly) greatDealOnly.checked = false;
+        updateActiveFilterBadge();
+        triggerSearch();
+    }
+
+    if (searchInput && window.BwAutocomplete) {
+        new BwAutocomplete(searchInput, {
+            country: 'SG',
+            onSelect: function(product) {
+                if (product.source_url) {
+                    window.location.href = product.source_url;
+                } else if (product.product_id) {
+                    window.location.href = '/product?product_id=' + encodeURIComponent(product.product_id);
+                } else {
+                    submitSearch(product.name || searchInput.value.trim());
+                }
+            }
+        });
+    }
+
+    form.addEventListener('submit', function(event) {
+        event.preventDefault();
+        submitSearch(searchInput.value.trim());
+    });
+
+    categoryFilter.addEventListener('change', function() {
+        updateActiveFilterBadge();
+        triggerSearch();
+    });
+
+    marketFilters.forEach(function(cb) {
+        cb.addEventListener('change', function() {
+            updateActiveFilterBadge();
+            triggerSearch();
+        });
+    });
+
+    if (priceMin) priceMin.addEventListener('change', function() {
+        updateActiveFilterBadge();
+        triggerSearch();
+    });
+
+    if (priceMax) priceMax.addEventListener('change', function() {
+        updateActiveFilterBadge();
+        triggerSearch();
+    });
+
+    if (greatDealOnly) greatDealOnly.addEventListener('change', function() {
+        updateActiveFilterBadge();
+        triggerSearch();
+    });
+
+    if (clearAllBtn) clearAllBtn.addEventListener('click', clearAllFilters);
+
+    if (searchInput.value.trim()) {
+        runCatalogSearch(searchInput.value.trim());
+    }
+});
+</script>
+{% endblock %}
+
+{% block head %}
+<style>
+.page-hero {
+    padding: var(--bw-spacing-20) 0;
+    background: linear-gradient(135deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%);
+    text-align: center;
+}
+.page-hero h1 { font-size: var(--bw-font-size-4xl); margin-bottom: var(--bw-spacing-4); }
+.page-subtitle { font-size: var(--bw-font-size-xl); color: var(--bw-color-text-secondary); max-width: 600px; margin: 0 auto; }
+.catalog-search { padding: var(--bw-spacing-12) 0; }
+.search-box { max-width: 720px; margin: 0 auto var(--bw-spacing-8); display: flex; gap: var(--bw-spacing-3); align-items: stretch; }
+.search-box .bw-autocomplete { flex: 1; }
+.search-submit { flex-shrink: 0; }
+.catalog-layout { display: flex; gap: var(--bw-spacing-8); align-items: flex-start; }
+.catalog-filters {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--bw-color-bg-primary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+    padding: var(--bw-spacing-4);
+}
+.filter-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--bw-spacing-3); }
+.filter-header h3 { font-size: var(--bw-font-size-sm); font-weight: var(--bw-font-weight-semibold); margin: 0; }
+.btn-clear-all {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: var(--bw-font-size-xs);
+    color: var(--bw-color-text-muted);
+    cursor: pointer;
+    text-decoration: underline;
+}
+.btn-clear-all:hover { color: var(--bw-color-text-primary); }
+.active-filter-count {
+    font-size: var(--bw-font-size-xs);
+    color: var(--bw-color-primary);
+    font-weight: var(--bw-font-weight-semibold);
+    margin-bottom: var(--bw-spacing-3);
+    display: inline-block;
+}
+.filter-group { margin-bottom: var(--bw-spacing-4); }
+.filter-group:last-child { margin-bottom: 0; }
+.filter-group > label {
+    display: block;
+    font-size: var(--bw-font-size-xs);
+    font-weight: var(--bw-font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--bw-color-text-secondary);
+    margin-bottom: var(--bw-spacing-2);
+}
+.filter-group select {
+    width: 100%;
+    padding: var(--bw-spacing-2) var(--bw-spacing-3);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-md);
+    background: var(--bw-color-bg-primary);
+    font-size: var(--bw-font-size-sm);
+    min-height: 36px;
+}
+.checkbox-list { display: flex; flex-direction: column; gap: var(--bw-spacing-1); }
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--bw-spacing-2);
+    font-size: var(--bw-font-size-sm);
+    cursor: pointer;
+}
+.checkbox-label input[type="checkbox"] { cursor: pointer; }
+.price-range { display: flex; align-items: center; gap: var(--bw-spacing-2); }
+.price-range input {
+    flex: 1;
+    padding: var(--bw-spacing-1) var(--bw-spacing-2);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-md);
+    background: var(--bw-color-bg-primary);
+    font-size: var(--bw-font-size-sm);
+    min-height: 32px;
+    width: 80px;
+}
+.price-sep { color: var(--bw-color-text-muted); font-size: var(--bw-font-size-sm); }
+.deal-toggle { font-size: var(--bw-font-size-sm); }
+.catalog-main { flex: 1; min-width: 0; }
+.results-header { margin-bottom: var(--bw-spacing-8); }
+.results-count { font-size: var(--bw-font-size-sm); color: var(--bw-color-text-muted); }
+.catalog-results { padding: var(--bw-spacing-12) 0; }
+.results-header { margin-bottom: var(--bw-spacing-8); }
+.results-count { font-size: var(--bw-font-size-sm); color: var(--bw-color-text-muted); }
+.products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--bw-spacing-6);
+}
+.product-card {
+    background: var(--bw-color-bg-primary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+    padding: var(--bw-spacing-4);
+    transition: all var(--bw-transition-fast);
+}
+.product-card-link {
+    color: inherit;
+    text-decoration: none;
+}
+.product-card-link:hover {
+    color: inherit;
+    text-decoration: none;
+}
+@media (hover: hover) {
+    .product-card:hover {
+        border-color: var(--bw-color-primary);
+        box-shadow: var(--bw-shadow-md);
+        transform: translateY(-2px);
+    }
+}
+.product-source {
+    font-size: var(--bw-font-size-xs);
+    font-weight: var(--bw-font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: var(--bw-spacing-1) var(--bw-spacing-2);
+    border-radius: var(--bw-radius-sm);
+    display: inline-block;
+    margin-bottom: var(--bw-spacing-2);
+}
+.product-source.shopee { background: #EE4D2D; color: white; }
+.product-source.lazada { background: #0F146D; color: white; }
+.product-source.fairprice { background: #0066B2; color: white; }
+.product-source.carousell { background: #00B14C; color: white; }
+.product-name { font-size: var(--bw-font-size-sm); font-weight: var(--bw-font-weight-medium); margin-bottom: var(--bw-spacing-2); line-height: 1.3; }
+.product-price { font-size: var(--bw-font-size-lg); font-weight: var(--bw-font-weight-bold); color: var(--bw-color-text-primary); display: flex; align-items: center; gap: var(--bw-spacing-2); justify-content: space-between; flex-wrap: wrap; }
+.deal-badge { font-size: var(--bw-font-size-xs); font-weight: var(--bw-font-weight-semibold); padding: 2px 6px; border-radius: var(--bw-radius-sm); white-space: nowrap; }
+.deal-badge.badge-great { background: #16a34a; color: white; }
+.deal-badge.badge-good { background: #15803d; color: white; }
+.deal-badge.badge-fair { background: var(--bw-color-text-muted); color: white; }
+.deal-badge.badge-high { background: #d97706; color: white; }
+.product-meta { display: flex; gap: var(--bw-spacing-2); align-items: center; margin-top: var(--bw-spacing-2); flex-wrap: wrap; }
+.product-rating { font-size: var(--bw-font-size-sm); color: var(--bw-color-accent); }
+.product-reviews { font-size: var(--bw-font-size-xs); color: var(--bw-color-text-muted); }
+.product-sparkline {
+    height: 20px;
+    display: flex;
+    align-items: center;
+    margin-top: var(--bw-spacing-2);
+}
+.price-sparkline {
+    display: block;
+}
+.catalog-state {
+    grid-column: 1 / -1;
+    padding: var(--bw-spacing-10);
+    border: 1px dashed var(--bw-color-border-dark);
+    border-radius: var(--bw-radius-xl);
+    background: var(--bw-color-bg-secondary);
+    text-align: center;
+}
+.catalog-state p {
+    margin-top: var(--bw-spacing-3);
+    color: var(--bw-color-text-secondary);
+}
+.catalog-state-error {
+    border-color: rgba(239, 68, 68, 0.4);
+    background: rgba(239, 68, 68, 0.05);
+}
+.catalog-api-cta { padding: var(--bw-spacing-24) 0; background: var(--bw-color-bg-secondary); text-align: center; }
+.catalog-api-cta h2 { margin-bottom: var(--bw-spacing-4); }
+.catalog-api-cta p { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-lg); margin-bottom: var(--bw-spacing-8); }
+.cta-actions { display: flex; gap: var(--bw-spacing-4); justify-content: center; }
+@media (max-width: 768px) {
+    .search-box { flex-direction: column; }
+    .search-submit { width: 100%; }
+    .cta-actions { flex-direction: column; align-items: stretch; }
+    .catalog-layout { flex-direction: column; }
+    .catalog-filters { width: 100%; }
+}
+
+@media (max-width: 420px) {
+    .page-hero {
+        padding: var(--bw-spacing-16) 0;
+    }
+    .page-hero h1 {
+        font-size: var(--bw-font-size-3xl);
+    }
+    .page-subtitle {
+        font-size: var(--bw-font-size-base);
+    }
+    .catalog-search,
+    .catalog-results {
+        padding: var(--bw-spacing-8) 0;
+    }
+    .search-box {
+        margin-bottom: var(--bw-spacing-5);
+    }
+    .catalog-filters {
+        gap: var(--bw-spacing-3);
+    }
+    .filter-group {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .filter-group select {
+        width: 100%;
+        min-height: 44px;
+    }
+    .results-header {
+        margin-bottom: var(--bw-spacing-5);
+    }
+    .products-grid {
+        grid-template-columns: 1fr;
+        gap: var(--bw-spacing-4);
+    }
+    .product-card {
+        padding: var(--bw-spacing-3);
+    }
+    .product-name {
+        font-size: var(--bw-font-size-base);
+    }
+    .product-price {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+    .deal-badge {
+        align-self: flex-start;
+    }
+}
+</style>
+{% endblock %}

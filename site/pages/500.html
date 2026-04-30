@@ -1,0 +1,133 @@
+{% set title = "Server error" %}
+{% set description = "A branded BuyWhere 500 page with recovery navigation." %}
+{% set robots = "noindex, nofollow" %}
+{% extends "base.html" %}
+
+{% block content %}
+<section class="server-shell">
+    <div class="container">
+        <div class="server-panel">
+            <p class="server-kicker">500</p>
+            <h1>Something went wrong — we're on it</h1>
+            <p class="server-copy">The page hit an unexpected error. You can retry, head back to the homepage, or continue browsing the catalog while we recover.</p>
+
+            <div class="server-actions">
+                <button type="button" class="btn btn-primary" id="retry-button">Try again</button>
+                <a href="/" class="btn btn-secondary">Go to homepage</a>
+                <a href="/catalog" class="btn btn-secondary">Browse catalog</a>
+            </div>
+
+            {% if sentry_enabled %}
+            <div class="server-diagnostic" id="server-diagnostic" hidden>
+                <strong>Error reference:</strong>
+                <code id="server-error-id"></code>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var retryButton = document.getElementById('retry-button');
+    if (retryButton) {
+        retryButton.addEventListener('click', function() {
+            window.location.reload();
+        });
+    }
+
+    {% if sentry_enabled %}
+    var params = new URLSearchParams(window.location.search);
+    var errorId = params.get('error_id') || params.get('sentry_error_id');
+    var diagnostic = document.getElementById('server-diagnostic');
+    var output = document.getElementById('server-error-id');
+
+    if (errorId && diagnostic && output) {
+        output.textContent = errorId;
+        diagnostic.hidden = false;
+    }
+    {% endif %}
+});
+</script>
+{% endblock %}
+
+{% block head %}
+<style>
+.server-shell {
+    min-height: calc(100vh - 220px);
+    padding: var(--bw-spacing-20) 0;
+    background:
+        radial-gradient(circle at top center, rgba(239, 68, 68, 0.14), transparent 30%),
+        linear-gradient(180deg, #fff9f8 0%, #ffffff 55%, #f8fafc 100%);
+}
+
+.server-panel {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: var(--bw-spacing-16);
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid rgba(239, 68, 68, 0.14);
+    box-shadow: 0 26px 72px rgba(15, 23, 42, 0.1);
+    text-align: center;
+}
+
+.server-kicker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 72px;
+    padding: var(--bw-spacing-2) var(--bw-spacing-4);
+    border-radius: var(--bw-radius-full);
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--bw-color-error);
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-bold);
+    letter-spacing: 0.12em;
+}
+
+.server-panel h1 {
+    margin: var(--bw-spacing-6) auto var(--bw-spacing-4);
+    max-width: 12ch;
+    font-size: clamp(2.25rem, 4.5vw, 4rem);
+}
+
+.server-copy {
+    max-width: 38rem;
+    margin: 0 auto var(--bw-spacing-10);
+    color: var(--bw-color-text-secondary);
+    font-size: var(--bw-font-size-lg);
+}
+
+.server-actions {
+    display: flex;
+    gap: var(--bw-spacing-3);
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.server-diagnostic {
+    margin-top: var(--bw-spacing-8);
+    padding: var(--bw-spacing-4);
+    border-radius: var(--bw-radius-lg);
+    background: var(--bw-color-bg-secondary);
+    color: var(--bw-color-text-secondary);
+}
+
+@media (max-width: 768px) {
+    .server-shell {
+        padding: var(--bw-spacing-12) 0;
+    }
+
+    .server-panel {
+        padding: var(--bw-spacing-10);
+    }
+
+    .server-actions {
+        flex-direction: column;
+    }
+}
+</style>
+{% endblock %}

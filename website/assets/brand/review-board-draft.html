@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BuyWhere Brand Review Draft</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --surface: rgba(255, 255, 255, 0.82);
+      --text: #0f172a;
+      --muted: #475569;
+      --line: #dbe4ee;
+      --blue: #2563eb;
+      --mint: #14b8a6;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(37, 99, 235, 0.15), transparent 28%),
+        radial-gradient(circle at right 20%, rgba(20, 184, 166, 0.14), transparent 24%),
+        var(--bg);
+    }
+
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    h1, h2, h3 {
+      font-family: 'Space Grotesk', sans-serif;
+      letter-spacing: -0.03em;
+      margin: 0;
+    }
+
+    .eyebrow {
+      color: var(--blue);
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .intro {
+      margin-bottom: 32px;
+    }
+
+    .intro p {
+      max-width: 760px;
+      font-size: 1.05rem;
+      line-height: 1.7;
+      color: var(--muted);
+      margin: 16px 0 0;
+    }
+
+    .grid {
+      display: grid;
+      gap: 24px;
+    }
+
+    .card {
+      display: grid;
+      grid-template-columns: minmax(280px, 640px) 1fr;
+      gap: 24px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: var(--surface);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
+    }
+
+    .card img {
+      width: 100%;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      background: rgba(37, 99, 235, 0.1);
+      color: var(--blue);
+      margin-bottom: 12px;
+    }
+
+    ul {
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .note {
+      margin-top: 36px;
+      padding: 20px 24px;
+      border-left: 4px solid var(--mint);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.72);
+      color: var(--muted);
+    }
+
+    @media (max-width: 920px) {
+      .card {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="intro">
+      <div class="eyebrow">BuyWhere Board Review</div>
+      <h1>Draft logo directions for the agent-native catalog layer</h1>
+      <p>These are work-in-progress concepts for board selection, not final publication. The recommendation is Concept 01 because it carries the strongest infrastructure signal while staying compact enough for website chrome, favicon use, and partner application forms.</p>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <img src="./concept-01-signal-grid.svg" alt="BuyWhere Signal Grid logo concept" />
+        <div>
+          <div class="tag">Recommended</div>
+          <h2>Concept 01: Signal Grid</h2>
+          <ul>
+            <li>Structured symbol built from routing lanes and a rounded grid tile.</li>
+            <li>Feels like indexed infrastructure rather than a shopping brand.</li>
+            <li>Scales cleanly into square favicon and docs navigation.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="card">
+        <img src="./concept-02-meridian-loop.svg" alt="BuyWhere Meridian Loop logo concept" />
+        <div>
+          <div class="tag">Option</div>
+          <h2>Concept 02: Meridian Loop</h2>
+          <ul>
+            <li>Orbital motion and central node suggest global agent commerce routes.</li>
+            <li>Softer and more networked, but less unmistakably infrastructural.</li>
+            <li>Strong fit if the company wants a more international platform feel.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="card">
+        <img src="./concept-03-market-node.svg" alt="BuyWhere Market Node logo concept" />
+        <div>
+          <div class="tag">Option</div>
+          <h2>Concept 03: Market Node</h2>
+          <ul>
+            <li>Linked nodes form a directional `W` with marketplace energy.</li>
+            <li>Most dynamic of the set, but also closest to category clichés.</li>
+            <li>Best reserved if BuyWhere wants to lean more into commercial aggregation.</li>
+          </ul>
+        </div>
+      </article>
+    </section>
+
+    <div class="note">
+      Draft supporting files live alongside this page, including the favicon study and the written brand rationale in <code>buywhere-brand-directions.md</code>.
+    </div>
+  </main>
+</body>
+</html>

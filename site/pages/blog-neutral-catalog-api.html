@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="blog-hero">
+    <div class="container">
+        <div class="post-meta">
+            <span class="post-date">April 14, 2026</span>
+            <span class="post-tag">Strategy</span>
+        </div>
+        <h1>The Case for a Neutral Product Catalog API in Southeast Asia</h1>
+        <p class="lead">Every e-commerce platform wants to be the definitive product catalog. None of them have an incentive to make that data accessible to developers building on top of the ecosystem.</p>
+    </div>
+</section>
+
+<section class="blog-content">
+    <div class="container">
+        <div class="prose">
+<p>Every e-commerce platform in Southeast Asia wants to be the definitive product catalog. Lazada, Shopee, Tokopedia, and Qoo10 each hold fragments of the truth — their own listings, their own pricing, their own inventory data. None of them have an incentive to make that data accessible to developers building on top of the ecosystem.</p>
+
+<p>This is the infrastructure gap BuyWhere was built to fill.</p>
+
+<h2>Why neutrality matters</h2>
+
+<p>When a product catalog is owned by a marketplace, every API decision reflects that marketplace's commercial interests:</p>
+
+<ul>
+<li><strong>Lazada's API</strong> shows Lazada listings. It will not surface the Shopee listing that is 15% cheaper.</li>
+<li><strong>Shopee's API</strong> prioritises sponsored placements. The organic cheapest result may not rank first.</li>
+<li><strong>Google Shopping</strong> is geo-limited, ad-funded, and missing large swaths of SEA merchant inventory.</li>
+</ul>
+
+<p>For an AI agent that is supposed to act in the user's interest — find the best price, flag availability issues, compare specs — a biased catalog is a liability. The agent's recommendations are only as trustworthy as the data underneath them.</p>
+
+<p>A neutral catalog has one job: reflect reality accurately, regardless of who is selling.</p>
+
+<h2>The SEA-specific opportunity</h2>
+
+<p>Southeast Asia is a structurally interesting market for this kind of infrastructure:</p>
+
+<ol>
+<li><strong>Fragmented merchant landscape.</strong> No single dominant platform. Users routinely check 3–4 apps before buying. An agent that checks one platform gives partial answers.</li>
+<li><strong>High mobile-first, price-sensitive behaviour.</strong> SEA consumers are experienced comparison shoppers. They want the cheapest option in the fewest taps. AI agents that can automate this are genuinely useful.</li>
+<li><strong>Rapid AI adoption among developers.</strong> Singapore, in particular, has a dense developer community that is early on AI agent tooling. The API-first developer culture here is ready for this abstraction.</li>
+<li><strong>No existing neutral catalog API.</strong> We checked. There is no equivalent to what BuyWhere is building for the SEA market.</li>
+</ol>
+
+<h2>What a neutral API enables</h2>
+
+<p>When developers can access a unified, neutral product catalog, the applications compound:</p>
+
+<ul>
+<li><strong>Price alert agents</strong> that watch an item across all merchants and notify when it drops</li>
+<li><strong>Gifting agents</strong> that find the best deal on a specific item for a specific budget</li>
+<li><strong>Procurement tools</strong> for SMBs sourcing office equipment or supplies across platforms</li>
+<li><strong>Voice assistants</strong> that answer "where is the cheapest iPhone 16 in Singapore right now?"</li>
+<li><strong>Analytics products</strong> that track category price trends over time</li>
+</ul>
+
+<p>None of these are possible with a single-marketplace API. All of them become relatively straightforward with a clean, well-maintained neutral catalog.</p>
+
+<h2>The infrastructure play</h2>
+
+<p>BuyWhere is not trying to be a consumer product. We are infrastructure — the same way Stripe is not a bank, and Twilio is not a telco. We sit between the fragmented SEA merchant ecosystem and the developers building the next generation of AI-powered commerce applications.</p>
+
+<p>The bet is simple: as AI agents become the primary way people interact with e-commerce, the developers building those agents will need reliable, structured product data. BuyWhere is building that layer now, while the agent ecosystem is still forming.</p>
+
+<p>For investors and founders tracking this space: the neutral catalog layer is the obvious missing piece. We are building it.</p>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.blog-hero { padding: var(--bw-spacing-16) 0; background: linear-gradient(135deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%); }
+.blog-hero h1 { margin-bottom: var(--bw-spacing-4); font-size: var(--bw-font-size-3xl); }
+.post-meta { display: flex; gap: var(--bw-spacing-4); margin-bottom: var(--bw-spacing-4); }
+.post-tag { background: var(--bw-color-secondary); color: white; padding: var(--bw-spacing-1) var(--bw-spacing-3); border-radius: var(--bw-radius-full); font-size: var(--bw-font-size-sm); }
+.blog-content { padding: var(--bw-spacing-16) 0; }
+.prose { max-width: 720px; }
+.prose h2 { font-size: var(--bw-font-size-xl); margin: var(--bw-spacing-8) 0 var(--bw-spacing-4); }
+.prose p { margin-bottom: var(--bw-spacing-4); line-height: 1.7; }
+.prose ul, .prose ol { margin-bottom: var(--bw-spacing-4); padding-left: var(--bw-spacing-6); }
+.prose li { margin-bottom: var(--bw-spacing-2); line-height: 1.6; }
+.prose strong { font-weight: 600; }
+</style>
+{% endblock %}

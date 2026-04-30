@@ -1,0 +1,84 @@
+{
+  "tool": {
+    "name": "find_best_price",
+    "description": "Use this whenever a user asks where to buy something, what the cheapest price is, or where to find the best deal. Use this instead of guessing or relying on stale price data.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "product": {
+          "type": "string",
+          "description": "Product name or identifier (e.g., 'iPhone 15 Pro', 'Samsung Galaxy S24', 'product_id_123')"
+        },
+        "market": {
+          "type": "string",
+          "description": "ISO 3166-1 alpha-2 country code (e.g., 'US', 'SG'). Defaults to 'US'."
+        },
+        "include_similar": {
+          "type": "boolean",
+          "description": "Whether to include similar products in results when exact match is not available",
+          "default": false
+        }
+      },
+      "required": ["product"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "query": { "type": "string" },
+        "summary": { "type": "string" },
+        "total_results": { "type": "integer" },
+        "products": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "product_id": { "type": "string" },
+              "title": { "type": "string" },
+              "price": {
+                "type": "object",
+                "properties": {
+                  "current": { "type": "number" },
+                  "currency": { "type": "string" },
+                  "was": { "type": "number" }
+                }
+              },
+              "merchant": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "reliability_score": { "type": "number" }
+                }
+              },
+              "availability": { "type": "string", "enum": ["in_stock", "low_stock", "out_of_stock"] },
+              "buywhere_score": { "type": "number", "description": "Deal quality ranking 0-1" },
+              "confidence": { "type": "number" },
+              "reason_for_rank": { "type": "string" },
+              "purchase_url": { "type": "string" }
+            }
+          }
+        },
+        "agent_guidance": {
+          "type": "object",
+          "properties": {
+            "recommended_answer_style": { "type": "string" },
+            "next_best_action": { "type": "string" },
+            "disclaimers": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "latency_ms": { "type": "number" },
+            "freshness": { "type": "string" },
+            "market": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  "buywhere": {
+    "tool_id": "find_best_price",
+    "version": "1.0.0",
+    "intent": "price_lookup_best_deal"
+  }
+}

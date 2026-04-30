@@ -1,0 +1,95 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files:
+  - /etc/prometheus/prometheus_alerts.yml
+
+scrape_configs:
+  - job_name: 'buywhere-api'
+    static_configs:
+      - targets: ['api:8000']
+    metrics_path: '/api/v1/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'blackbox'
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets:
+          - api.buywhere.ai:443
+        labels:
+          service: api
+          url: https://api.buywhere.ai/health
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  - job_name: 'blackbox-mcp'
+    metrics_path: /probe
+    scheme: http
+    static_configs:
+      - targets:
+          - https://api.buywhere.ai/mcp/v1/tools/call
+        labels:
+          service: mcp
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+      - source_labels: [__param_target]
+        regex: '(https://[^/]+)'
+        target_label: __param_module
+        replacement: http_post_2xx
+
+  - job_name: 'blackbox-website'
+    metrics_path: /probe
+    scheme: https
+    static_configs:
+      - targets:
+          - buywhere.ai
+        labels:
+          service: website
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+      - target_label: __param_module
+        replacement: http_2xx
+
+  - job_name: 'ssl-cert-expiry'
+    metrics_path: /probe
+    params:
+      module: [ssl_cert]
+    static_configs:
+      - targets:
+          - api.buywhere.ai:443
+        labels:
+          job: blackbox
+          service: api
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

@@ -1,0 +1,312 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "BuyWhere Product Catalog API",
+    "description": "Search and compare products across 20+ e-commerce platforms in Singapore and globally. Find the best prices, deals, and product availability.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "BuyWhere",
+      "url": "https://buywhere.ai",
+      "email": "dev@buywhere.ai"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.buywhere.ai",
+      "description": "Production API"
+    }
+  ],
+  "paths": {
+    "/v1/search": {
+      "get": {
+        "operationId": "searchProducts",
+        "summary": "Search products",
+        "description": "Full-text search across 1.5M+ products from Shopee, Lazada, Amazon, Walmart, and 20+ platforms. Supports filtering by category, price range, platform, region, and availability.",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Search query (e.g. 'iphone 15 pro', 'sony headphones')"
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Filter by category"
+          },
+          {
+            "name": "min_price",
+            "in": "query",
+            "schema": { "type": "number" },
+            "description": "Minimum price filter"
+          },
+          {
+            "name": "max_price",
+            "in": "query",
+            "schema": { "type": "number" },
+            "description": "Maximum price filter"
+          },
+          {
+            "name": "platform",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Filter by platform (e.g. shopee_sg, lazada_sg, amazon_us)"
+          },
+          {
+            "name": "region",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["sg", "us", "sea"] },
+            "description": "Filter by region"
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Filter by country code (e.g. SG, US, MY)"
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["SGD", "USD", "MYR", "THB", "PHP", "EUR", "GBP"] },
+            "description": "Convert prices to this currency"
+          },
+          {
+            "name": "in_stock",
+            "in": "query",
+            "schema": { "type": "boolean" },
+            "description": "Filter to only in-stock products"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 20, "maximum": 100 },
+            "description": "Results per page"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": { "type": "integer", "default": 0 },
+            "description": "Pagination offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total": { "type": "integer" },
+                    "limit": { "type": "integer" },
+                    "offset": { "type": "integer" },
+                    "has_more": { "type": "boolean" },
+                    "items": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Product" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/products/{product_id}": {
+      "get": {
+        "operationId": "getProduct",
+        "summary": "Get product details",
+        "description": "Retrieve full details for a specific product by ID.",
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "Product ID"
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Convert price to this currency"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Product" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/deals": {
+      "get": {
+        "operationId": "getDeals",
+        "summary": "Find deals",
+        "description": "Find products currently priced below their historical price, sorted by discount depth.",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Filter by category"
+          },
+          {
+            "name": "min_discount_pct",
+            "in": "query",
+            "schema": { "type": "number", "default": 10 },
+            "description": "Minimum discount percentage (0-100)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 20 },
+            "description": "Results per page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deal listings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total": { "type": "integer" },
+                    "items": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Product" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/categories/taxonomy": {
+      "get": {
+        "operationId": "browseCategories",
+        "summary": "Browse categories",
+        "description": "Browse the product category taxonomy tree with product counts.",
+        "responses": {
+          "200": {
+            "description": "Category taxonomy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "categories": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "name": { "type": "string" },
+                          "product_count": { "type": "integer" },
+                          "subcategories": { "type": "array" }
+                        }
+                      }
+                    },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/products/{product_id}/compare": {
+      "get": {
+        "operationId": "compareProduct",
+        "summary": "Compare product prices",
+        "description": "Find the same or similar products across different platforms and compare prices.",
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "Source product ID to compare"
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Convert prices to this currency"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Price comparison results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "source_product_id": { "type": "integer" },
+                    "source_product_name": { "type": "string" },
+                    "matches": { "type": "array" },
+                    "total_matches": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "sku": { "type": "string" },
+          "source": { "type": "string", "description": "Platform (e.g. shopee_sg, lazada_sg, amazon_us)" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "price": { "type": "number" },
+          "currency": { "type": "string" },
+          "region": { "type": "string", "description": "Geographic region (sg, us, sea)" },
+          "country_code": { "type": "string", "description": "ISO 3166-1 alpha-2 country code" },
+          "buy_url": { "type": "string", "format": "uri" },
+          "affiliate_url": { "type": "string", "format": "uri" },
+          "image_url": { "type": "string", "format": "uri" },
+          "brand": { "type": "string" },
+          "category": { "type": "string" },
+          "rating": { "type": "number" },
+          "review_count": { "type": "integer" },
+          "is_available": { "type": "boolean" },
+          "in_stock": { "type": "boolean" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "BuyWhere API key. Get one at https://buywhere.ai/developers"
+      }
+    }
+  },
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ]
+}

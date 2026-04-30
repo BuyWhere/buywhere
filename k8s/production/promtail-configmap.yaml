@@ -1,0 +1,146 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+  namespace: production
+  labels:
+    app: promtail
+    environment: production
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: 3101
+      grpc_listen_port: 9095
+
+    positions:
+      filename: /var/log/promtail/positions.yaml
+
+    client:
+      url: http://loki:3100/loki/api/v1/push
+      tenant_id: production
+      batchwait: 10s
+      batchsize: 102400
+
+    scrape_configs:
+      - job_name: buywhere-api
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - production
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: buywhere-api
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            target_label: service
+          - source_labels: [__meta_kubernetes_pod_label_environment]
+            target_label: environment
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            target_label: container
+          - regex: /var/log/promtail/.*
+            replacement: /var/log/promtail/
+            source_labels: [__meta_kubernetes_pod_log_path]
+            target_label: __path__
+        static_configs:
+          - targets:
+              - localhost
+            labels:
+              job: buywhere-api
+              __path__: /var/log/containers/*.log
+
+      - job_name: mcp-service
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - production
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: mcp
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            target_label: service
+          - source_labels: [__meta_kubernetes_pod_label_environment]
+            target_label: environment
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            target_label: container
+          - regex: '/var/log/promtail/.*'
+            replacement: /var/log/promtail/
+            source_labels: [__meta_kubernetes_pod_log_path]
+            target_label: __path__
+        static_configs:
+          - targets:
+              - localhost
+            labels:
+              job: mcp-service
+              __path__: /var/log/containers/*.log
+
+      - job_name: scraper-fleet
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - production
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: scraper.*
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            target_label: service
+          - source_labels: [__meta_kubernetes_pod_label_environment]
+            target_label: environment
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            target_label: container
+          - regex: '/var/log/promtail/.*'
+            replacement: /var/log/promtail/
+            source_labels: [__meta_kubernetes_pod_log_path]
+            target_label: __path__
+        static_configs:
+          - targets:
+              - localhost
+            labels:
+              job: scraper-fleet
+              __path__: /var/log/containers/*.log
+
+      - job_name: all-services
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - production
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            target_label: container
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            target_label: service
+          - source_labels: [__meta_kubernetes_pod_label_environment]
+            target_label: environment
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - action: replace
+            replacement: /var/log/containers/$1.log
+            source_labels: [__meta_kubernetes_pod_container_log_path]
+            target_label: __path__
+        static_configs:
+          - targets:
+              - localhost
+            labels:
+              job: all-services
+              __path__: /var/log/containers/*.log

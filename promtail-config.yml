@@ -1,0 +1,61 @@
+server:
+  http_listen_port: 3101
+  grpc_listen_port: 9095
+
+positions:
+  filename: /var/log/promtail/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    tenant_id: production
+
+scrape_configs:
+  - job_name: buywhere-api
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: label
+            values: ["com.docker.compose.service"]
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/?(.*)'
+        target_label: container
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        regex: '(.*)'
+        target_label: service
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        regex: '(.*)'
+        target_label: project
+      - source_labels: ['__meta_docker_container_label_environment']
+        regex: '(.*)'
+        target_label: environment
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: logstream
+      - source_labels: ['__meta_docker_container_log_path']
+        regex: '(.*)'
+        target_label: __path__
+
+  - job_name: all-services
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/?(.*)'
+        target_label: container
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        regex: '(.*)'
+        target_label: service
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        regex: '(.*)'
+        target_label: project
+      - source_labels: ['__meta_docker_container_label_environment']
+        regex: '(.*)'
+        target_label: environment
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: logstream
+      - source_labels: ['__meta_docker_container_log_path']
+        regex: '(.*)'
+        target_label: __path__
+

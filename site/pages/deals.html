@@ -1,0 +1,96 @@
+{% set title = "Deals" %}
+{% set description = "Browse current BuyWhere deal discovery paths." %}
+{% extends "base.html" %}
+
+{% block content %}
+<section class="recovery-page">
+    <div class="container">
+        <div class="recovery-hero">
+            <p class="recovery-kicker">Deals</p>
+            <h1>Find the best current deals without leaving the funnel</h1>
+            <p>Use the catalog for live search, jump into this week’s editorial picks, or inspect the deals endpoint if you are integrating programmatically.</p>
+        </div>
+        <div class="recovery-grid">
+            <a href="/catalog?category=electronics&country=SG" class="recovery-card">
+                <h2>Browse live catalog deals</h2>
+                <p>Start with electronics and high-intent product searches in Singapore.</p>
+            </a>
+            <a href="/blog/top-electronics-deals" class="recovery-card">
+                <h2>Read this week’s picks</h2>
+                <p>Editorial round-up of standout discounts from tracked marketplaces.</p>
+            </a>
+            <a href="/docs/api-reference#deals" class="recovery-card">
+                <h2>Use the deals API</h2>
+                <p>Pull discounted listings into your own app or agent workflow.</p>
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.recovery-page {
+    padding: var(--bw-spacing-20) 0;
+    background: linear-gradient(180deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%);
+}
+
+.recovery-hero {
+    max-width: 760px;
+    margin: 0 auto var(--bw-spacing-12);
+    text-align: center;
+}
+
+.recovery-kicker {
+    color: var(--bw-color-primary);
+    font-weight: var(--bw-font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: var(--bw-font-size-sm);
+    margin-bottom: var(--bw-spacing-3);
+}
+
+.recovery-hero h1 {
+    margin-bottom: var(--bw-spacing-4);
+    font-size: clamp(2.25rem, 4.5vw, 4rem);
+}
+
+.recovery-hero p {
+    color: var(--bw-color-text-secondary);
+    font-size: var(--bw-font-size-lg);
+}
+
+.recovery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--bw-spacing-6);
+}
+
+.recovery-card {
+    display: block;
+    padding: var(--bw-spacing-8);
+    border-radius: 24px;
+    background: #ffffff;
+    border: 1px solid var(--bw-color-border);
+    box-shadow: var(--bw-shadow-md);
+    text-decoration: none;
+}
+
+.recovery-card h2 {
+    margin-bottom: var(--bw-spacing-3);
+    font-size: var(--bw-font-size-xl);
+}
+
+.recovery-card p {
+    color: var(--bw-color-text-secondary);
+}
+
+@media (hover: hover) {
+    .recovery-card:hover {
+        border-color: var(--bw-color-primary);
+        text-decoration: none;
+        transform: translateY(-2px);
+    }
+}
+</style>
+{% endblock %}

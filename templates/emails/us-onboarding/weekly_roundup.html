@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Weekly BuyWhere Roundup — {{ week_date }}</title>
+    <!--[if mso]>
+    <style type="text/css">
+        table {border-collapse: collapse;}
+        .button {padding: 12px 24px !important;}
+    </style>
+    <![endif]-->
+</head>
+<body style="margin: 0; padding: 0; background-color: #f9fafb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+    
+    <!-- Email Wrapper Table -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f9fafb;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                
+                <!-- Main Email Container -->
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                    
+                    <!-- Header -->
+                    <tr>
+                        <td style="padding: 32px 40px 24px; border-bottom: 1px solid #e5e7eb;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                                <tr>
+                                    <td align="left">
+                                        <a href="https://buywhere.ai" style="display: inline-block; text-decoration: none;">
+                                            <img src="https://buywhere.ai/favicon.ico" alt="BuyWhere" width="32" height="32" style="display: block; border: 0;">
+                                        </a>
+                                    </td>
+                                    <td align="right">
+                                        <span style="font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">
+                                            BuyWhere
+                                        </span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- Email Body -->
+                    <tr>
+                        <td style="padding: 40px;">
+                            
+                            <!-- Greeting -->
+                            <h1 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #111827; line-height: 1.3;">
+                                Hi {{ first_name }},
+                            </h1>
+                            
+                                 <!-- Intro Text -->
+                                 <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #374151;">
+                                 Here's your weekly roundup of trending products, price drops, and shopping insights from the BuyWhere catalog covering Southeast Asian retailers.
+                                 </p>
+                            
+                            <!-- Trending Products Section -->
+                            <div style="margin-bottom: 32px;">
+                                <h2 style="margin: 0 0 16px; font-size: 20px; font-weight: 600; color: #111827;">🔥 Trending This Week</h2>
+                                
+                                {% for product in trending_products %}
+                                <div style="background-color: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 12px; border-left: 3px solid #4f46e5;">
+                                    <div style="display: flex; align-items: flex-start; gap: 12px;">
+                                        {% if product.image_url %}
+                                        <img src="{{ product.image_url }}" alt="{{ product.name }}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px;">
+                                        {% endif %}
+                                        <div style="flex: 1;">
+                                            <h3 style="margin: 0 0 4px; font-size: 16px; font-weight: 600; color: #111827; line-height: 1.4;">
+                                                {{ product.name }}
+                                            </h3>
+                                            <p style="margin: 0 0 8px; font-size: 14px; color: #6b7280; line-height: 1.5;">
+                                                {{ product.description }}
+                                            </p>
+                                            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                                                {% if product.price %}
+                                                <span style="font-size: 16px; font-weight: 600; color: #10b981;">
+                                                    {{ product.currency }}{{ product.price }}
+                                                </span>
+                                                {% endif %}
+                                                {% if product.source %}
+                                                <span style="background-color: #eff6ff; color: #1e40af; padding: 2px 6px; border-radius: 4px; font-size: 12px;">
+                                                    {{ product.source }}
+                                                </span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            
+                            <!-- Price Drops Section -->
+                            <div style="margin-bottom: 32px;">
+                                <h2 style="margin: 0 0 16px; font-size: 20px; font-weight: 600; color: #111827;">📉 Significant Price Drops</h2>
+                                
+                                {% for drop in price_drops %}
+                                <div style="background-color: #f0fdf4; border-radius: 8px; padding: 16px; margin-bottom: 12px; border-left: 3px solid #10b981;">
+                                    <div style="display: flex; align-items: flex-start; gap: 12px;">
+                                        {% if drop.image_url %}
+                                        <img src="{{ drop.image_url }}" alt="{{ drop.name }}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px;">
+                                        {% endif %}
+                                        <div style="flex: 1;">
+                                            <h3 style="margin: 0 0 4px; font-size: 16px; font-weight: 600; color: #111827; line-height: 1.4;">
+                                                {{ drop.name }}
+                                            </h3>
+                                            <p style="margin: 0 0 8px; font-size: 14px; color: #6b7280; line-height: 1.5;">
+                                                Price dropped from <span style="text-decoration: line-through; color: #9ca3af;">{{ drop.original_currency }}{{ drop.original_price }}</span> to <span style="font-weight: 600; color: #10b981;">{{ drop.current_currency }}{{ drop.current_price }}</span> ({{ drop.discount_percentage }}% off)
+                                            </p>
+                                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                                {% if drop.source %}
+                                                <span style="background-color: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px; font-size: 12px;">
+                                                    {{ drop.source }}
+                                                </span>
+                                                {% endif %}
+                                                <span style="background-color: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 12px;">
+                                                    {{ drop.retailers_count }} retailers
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            
+                            <!-- Shopping Insights Section -->
+                            <div style="margin-bottom: 32px;">
+                                <h2 style="margin: 0 0 16px; font-size: 20px; font-weight: 600; color: #111827;">💡 Shopping Insights</h2>
+                                
+                                {% for insight in insights %}
+                                <div style="background-color: #fffbeb; border-radius: 8px; padding: 16px; margin-bottom: 12px; border-left: 3px solid #f59e0b;">
+                                    <h3 style="margin: 0 0 8px; font-size: 16px; font-weight: 600; color: #92400e;">
+                                        {{ insight.title }}
+                                    </h3>
+                                    <p style="margin: 0; font-size: 14px; color: #78350f; line-height: 1.6;">
+                                        {{ insight.content }}
+                                    </p>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            
+                            <!-- Action Button -->
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 32px 0;">
+                                <tr>
+                                    <td align="center">
+                                        <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="https://buywhere.ai/trending" style="height:48px;v-text-anchor:middle;width:200px;" arcsize="7%" stroke="f" fillcolor="#4f46e5"><w:anchorlock/><center style="color:#ffffff;font-family:sans-serif;font-size:16px;font-weight:600;">Explore Trends</center></v:roundrect><![endif]-->
+                                        <!--[if !mso]><!-->
+                                        <a href="https://buywhere.ai/trending" class="button" style="display: inline-block; padding: 14px 32px; background-color: #4f46e5; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; border-radius: 8px; mso-padding-alt: 0; text-anchor: middle;">
+                                            <!--<![endif]-->
+                                            Explore Trends
+                                            <!--[if !mso]><!-->
+                                        </a>
+                                        <!--<![endif]-->
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Secondary Text -->
+                            <p style="margin: 0 0 16px; font-size: 14px; line-height: 1.6; color: #6b7280;">
+                                Want more personalized insights? Update your preferences in the <a href="https://buywhere.ai/dashboard/preferences" style="color: #4f46e5; text-decoration: underline;">dashboard</a> to tell us what categories you're interested in.
+                            </p>
+                            
+                            <!-- Closing -->
+                            <p style="margin: 32px 0 0; font-size: 16px; line-height: 1.6; color: #374151;">
+                                Happy shopping,<br>
+                                The BuyWhere Team
+                            </p>
+                            
+                        </td>
+                    </tr>
+                    
+                    <!-- Divider -->
+                    <tr>
+                        <td style="padding: 0 40px;">
+                            <div style="height: 1px; background-color: #e5e7eb;"></div>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 24px 40px 32px;">
+                            <p style="margin: 0 0 8px; font-size: 14px; color: #6b7280; text-align: center;">
+                                This email was sent to <a href="mailto:{{ recipient_email }}" style="color: #4f46e5; text-decoration: underline;">{{ recipient_email }}</a>
+                            </p>
+                            <p style="margin: 0 0 16px; font-size: 14px; color: #6b7280; text-align: center;">
+                                <a href="https://buywhere.ai/dashboard" style="color: #4f46e5; text-decoration: underline;">Dashboard</a> · 
+                                <a href="https://buywhere.ai/docs" style="color: #4f46e5; text-decoration: underline;">Documentation</a> · 
+                                <a href="https://buywhere.ai/privacy" style="color: #4f46e5; text-decoration: underline;">Privacy Policy</a>
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #9ca3af; text-align: center;">
+                                &copy; {{ current_year }} BuyWhere. All rights reserved.<br>
+                                123 Marina Boulevard, Singapore 018989
+                            </p>
+                            
+                            <!-- Unsubscribe Link -->
+                            <p style="margin: 16px 0 0; font-size: 12px; color: #9ca3af; text-align: center;">
+                                <a href="{{ unsubscribe_url }}" style="color: #9ca3af; text-decoration: underline;">
+                                    Unsubscribe from weekly roundup
+                                </a>
+                            </p>
+                        </td>
+                    </tr>
+                    
+                </table>
+                <!-- End Main Email Container -->
+                
+                <!-- Spacer -->
+                <div style="height: 40px;"></div>
+                
+            </td>
+        </tr>
+    </table>
+    
+</body>
+</html>

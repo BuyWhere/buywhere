@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: promtail
+  namespace: production
+  labels:
+    app: promtail
+    environment: production
+spec:
+  selector:
+    matchLabels:
+      app: promtail
+      environment: production
+  template:
+    metadata:
+      labels:
+        app: promtail
+        environment: production
+      annotations:
+        prometheus.io/scrape: "false"
+    spec:
+      serviceAccountName: promtail
+      containers:
+        - name: promtail
+          image: grafana/promtail:2.9.4
+          imagePullPolicy: IfNotPresent
+          args:
+            - -config.file=/etc/promtail/promtail.yaml
+            - -client.external-labels=environment=production
+          ports:
+            - containerPort: 3101
+              name: http
+              protocol: TCP
+          volumeMounts:
+            - name: promtail-config
+              mountPath: /etc/promtail/promtail.yaml
+              subPath: promtail.yaml
+            - name: var-log
+              mountPath: /var/log
+              readOnly: true
+            - name: docker-logs
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: run
+              mountPath: /var/run
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3101
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          securityContext:
+            readOnlyRootFilesystem: true
+            runAsUser: 0
+            runAsGroup: 0
+      volumes:
+        - name: promtail-config
+          configMap:
+            name: promtail-config
+        - name: var-log
+          hostPath:
+            path: /var/log
+        - name: docker-logs
+          hostPath:
+            path: /var/lib/docker/containers
+        - name: run
+          hostPath:
+            path: /var/run
+      restartPolicy: Always

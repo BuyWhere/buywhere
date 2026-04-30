@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="container">
+        <h1>For Merchants</h1>
+        <p class="page-subtitle">Reach AI agents that are actively researching products on behalf of users across Singapore and Southeast Asia.</p>
+    </div>
+</section>
+
+<section class="value-props">
+    <div class="container">
+        <h2>Why List with BuyWhere?</h2>
+        <div class="prop-grid">
+            <div class="prop-card">
+                <div class="prop-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 6v6l4 2"/>
+                    </svg>
+                </div>
+                <h3>Agent-Native Distribution</h3>
+                <p>AI agents query BuyWhere on behalf of users who are ready to buy. Your products get in front of purchase-intent queries automatically.</p>
+            </div>
+            <div class="prop-card">
+                <div class="prop-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                    </svg>
+                </div>
+                <h3>Unified Catalog</h3>
+                <p>List once, reach all major SEA platforms through a single API integration. Shopee, Lazada, Carousell, and more — covered.</p>
+            </div>
+            <div class="prop-card">
+                <div class="prop-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                    </svg>
+                </div>
+                <h3>Real-Time Data</h3>
+                <p>Prices, stock levels, and product data refresh continuously. Your listings always reflect the current state.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="integration">
+    <div class="container">
+        <h2>Integration Options</h2>
+        <div class="integration-grid">
+            <div class="integration-card">
+                <h3>API Feed</h3>
+                <p>Push your product catalog via our REST API. Supports JSON, CSV bulk upload, and real-time webhooks for inventory updates.</p>
+                <pre><code>POST /v1/products/bulk
+Content-Type: application/json
+X-API-Key: bw_live_xxx</code></pre>
+            </div>
+            <div class="integration-card">
+                <h3>Affiliate Program</h3>
+                <p>Earn commissions when AI agents recommend your products and users purchase through affiliate links.</p>
+                <a href="/affiliates" class="btn btn-secondary">Learn More</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="cta">
+    <div class="container">
+        <h2>Get Started</h2>
+        <p>Apply for merchant enrollment and start reaching AI agents today.</p>
+        <div class="cta-actions">
+            <a href="/register" class="btn btn-primary btn-lg">Apply as Merchant</a>
+            <a href="/contact" class="btn btn-secondary btn-lg">Contact Us</a>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.page-hero {
+    padding: var(--bw-spacing-20) 0;
+    background: linear-gradient(135deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%);
+    text-align: center;
+}
+.page-hero h1 { font-size: var(--bw-font-size-4xl); margin-bottom: var(--bw-spacing-4); }
+.page-subtitle {
+    font-size: var(--bw-font-size-xl);
+    color: var(--bw-color-text-secondary);
+    max-width: 600px;
+    margin: 0 auto;
+}
+.value-props { padding: var(--bw-spacing-24) 0; }
+.value-props h2 { text-align: center; margin-bottom: var(--bw-spacing-12); }
+.prop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--bw-spacing-8);
+}
+.prop-card {
+    padding: var(--bw-spacing-6);
+    background: var(--bw-color-bg-primary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+}
+.prop-icon {
+    width: 48px;
+    height: 48px;
+    background: var(--bw-color-bg-tertiary);
+    border-radius: var(--bw-radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bw-color-secondary);
+    margin-bottom: var(--bw-spacing-4);
+}
+.prop-card h3 { font-size: var(--bw-font-size-lg); margin-bottom: var(--bw-spacing-2); }
+.prop-card p { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-sm); }
+.integration { padding: var(--bw-spacing-24) 0; background: var(--bw-color-bg-secondary); }
+.integration h2 { text-align: center; margin-bottom: var(--bw-spacing-12); }
+.integration-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--bw-spacing-8); }
+.integration-card {
+    padding: var(--bw-spacing-6);
+    background: var(--bw-color-bg-primary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+}
+.integration-card h3 { margin-bottom: var(--bw-spacing-3); }
+.integration-card p { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-sm); margin-bottom: var(--bw-spacing-4); }
+.cta { padding: var(--bw-spacing-24) 0; text-align: center; }
+.cta h2 { margin-bottom: var(--bw-spacing-4); }
+.cta p { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-lg); margin-bottom: var(--bw-spacing-8); }
+.cta-actions { display: flex; gap: var(--bw-spacing-4); justify-content: center; }
+@media (max-width: 768px) {
+    .cta-actions { flex-direction: column; align-items: stretch; }
+}
+</style>
+{% endblock %}

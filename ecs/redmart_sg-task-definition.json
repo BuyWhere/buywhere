@@ -1,0 +1,88 @@
+{
+  "family": "buywhere-scraper-redmart_sg",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "512",
+  "memory": "1024",
+  "containerDefinitions": [
+    {
+      "name": "redmart-sg-scraper",
+      "image": "buywhere/scraper:latest",
+      "essential": true,
+      "command": [
+        "python",
+        "-m",
+        "scrapers.redmart_sg"
+      ],
+      "environment": [
+        {
+          "name": "SCRAPER_TYPE",
+          "value": "shopee"
+        },
+        {
+          "name": "REDIS_URL",
+          "value": "redis://redis.buywhere:6379/0"
+        },
+        {
+          "name": "DATABASE_URL",
+          "value": "postgresql+asyncpg://buywhere:buywhere@db.buywhere:5432/catalog"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "value": "INFO"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "PRODUCT_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:123456789:secret:buywhere/product-api-key:PRODUCT_API_KEY::"
+        },
+        {
+          "name": "SCRAPER_USER_AGENT",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:123456789:secret:buywhere/scraper-agents:SHOPEE_USER_AGENT::"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/buywhere/scrapers",
+          "awslogs-region": "ap-southeast-1",
+          "awslogs-stream-prefix": "shopee"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:8000/health || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      },
+      "portMappings": [],
+      "mountPoints": [],
+      "volumesFrom": []
+    }
+  ],
+  "executionRoleArn": "arn:aws:iam::123456789:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::123456789:role/ecsScraperTaskRole",
+  "volumes": [],
+  "placementConstraints": [],
+  "tags": [
+    {
+      "key": "Environment",
+      "value": "production"
+    },
+    {
+      "key": "Project",
+      "value": "BuyWhere"
+    },
+    {
+      "key": "Scraper",
+      "value": "redmart_sg"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+[Unit]
+Description=SSL Certificate Exporter Timer
+After=network-online.target
+Wants=network-online.target
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

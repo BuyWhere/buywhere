@@ -1,0 +1,135 @@
+.hero {
+  display: grid;
+  gap: var(--bw-space-6);
+  padding: var(--bw-space-6);
+  background: var(--bw-color-surface-3);
+  border-radius: var(--bw-radius-xl);
+  margin-bottom: var(--bw-space-6);
+}
+
+@media (min-width: 768px) {
+  .hero {
+    grid-template-columns: 300px 1fr;
+    align-items: start;
+  }
+}
+
+.imageContainer {
+  position: relative;
+  aspect-ratio: 1;
+  background: var(--bw-color-surface-1);
+  border-radius: var(--bw-radius-lg);
+  overflow: hidden;
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.aiBadge {
+  position: absolute;
+  top: var(--bw-space-2);
+  right: var(--bw-space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--bw-space-1);
+  padding: var(--bw-space-1) var(--bw-space-2);
+  background: var(--bw-color-accent);
+  color: white;
+  border-radius: var(--bw-radius-full);
+  font-size: var(--bw-font-size-00);
+  font-weight: var(--bw-font-weight-semibold);
+}
+
+.aiBadge svg {
+  width: 12px;
+  height: 12px;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bw-space-3);
+}
+
+.brand {
+  font-size: var(--bw-font-size-0);
+  font-weight: var(--bw-font-weight-medium);
+  color: var(--bw-color-ink-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.title {
+  font-size: var(--bw-font-size-3);
+  font-weight: var(--bw-font-weight-bold);
+  line-height: 1.3;
+  color: var(--bw-color-ink-primary);
+  margin: 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+@media (min-width: 480px) {
+  .title {
+    font-size: var(--bw-font-size-3);
+  }
+}
+
+.lowestPrice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--bw-space-2);
+  padding: var(--bw-space-3);
+  background: var(--bw-color-surface-1);
+  border-radius: var(--bw-radius-lg);
+  border: 2px solid var(--bw-color-success);
+}
+
+@media (max-width: 480px) {
+  .lowestPrice {
+    padding: var(--bw-space-2);
+    gap: var(--bw-space-1);
+  }
+
+  .lowestPriceValue {
+    font-size: var(--bw-font-size-2);
+  }
+
+  .lowestPriceLabel,
+  .lowestPriceRetailer {
+    font-size: var(--bw-font-size-00);
+  }
+}
+
+.lowestPriceLabel {
+  font-size: var(--bw-font-size-0);
+  color: var(--bw-color-ink-secondary);
+}
+
+.lowestPriceValue {
+  font-size: var(--bw-font-size-3);
+  font-weight: var(--bw-font-weight-bold);
+  color: var(--bw-color-success);
+}
+
+.lowestPriceRetailer {
+  font-size: var(--bw-font-size-0);
+  color: var(--bw-color-ink-secondary);
+}
+
+.retailerCount {
+  display: flex;
+  align-items: center;
+  gap: var(--bw-space-2);
+  font-size: var(--bw-font-size-0);
+  color: var(--bw-color-ink-secondary);
+}
+
+.retailerCount svg {
+  width: 16px;
+  height: 16px;
+}

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="careers-hero">
+    <div class="container">
+        <h1>Join BuyWhere</h1>
+        <p class="lead">We're building the future of agent-native commerce. Come help us build it.</p>
+    </div>
+</section>
+
+<section class="careers-values">
+    <div class="container">
+        <h2>Why BuyWhere?</h2>
+        <div class="values-grid">
+            <div class="value">
+                <h3>Mission-Driven</h3>
+                <p>We're solving a real problem: making product information accessible to AI agents and the humans they serve.</p>
+            </div>
+            <div class="value">
+                <h3>Small Team, Big Impact</h3>
+                <p>Every team member has meaningful ownership and direct impact on our product and direction.</p>
+            </div>
+            <div class="value">
+                <h3>Remote-First</h3>
+                <p>We're a distributed team working across multiple time zones. We care about outcomes, not hours.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="careers-positions">
+    <div class="container">
+        <h2>Open Positions</h2>
+        <div class="positions-list">
+            <div class="position">
+                <h3>Senior Backend Engineer</h3>
+                <p>Build and scale our product catalog API. Python, PostgreSQL, Redis. Remote.</p>
+                <a href="/contact" class="btn btn-secondary">Apply</a>
+            </div>
+            <div class="position">
+                <h3>Frontend Engineer</h3>
+                <p>Create beautiful, fast interfaces for our developer portal and dashboard. React, TypeScript. Remote.</p>
+                <a href="/contact" class="btn btn-secondary">Apply</a>
+            </div>
+            <div class="position">
+                <h3>DevOps Engineer</h3>
+                <p>Manage our infrastructure on AWS. Kubernetes, Terraform, CI/CD. Remote.</p>
+                <a href="/contact" class="btn btn-secondary">Apply</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="careers-cta">
+    <div class="container">
+        <h2>Don't See a Fit?</h2>
+        <p>We're always looking for talented people. Send us your resume and tell us how you'd like to contribute.</p>
+        <a href="/contact" class="btn btn-primary btn-lg">Get in Touch</a>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.careers-hero { padding: var(--bw-spacing-20) 0; text-align: center; background: linear-gradient(135deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%); }
+.careers-hero h1 { margin-bottom: var(--bw-spacing-4); }
+.careers-hero .lead { font-size: var(--bw-font-size-xl); color: var(--bw-color-text-secondary); }
+
+.careers-values { padding: var(--bw-spacing-16) 0; }
+.careers-values h2 { text-align: center; margin-bottom: var(--bw-spacing-10); }
+.values-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--bw-spacing-8); }
+.value h3 { font-size: var(--bw-font-size-lg); margin-bottom: var(--bw-spacing-2); }
+.value p { color: var(--bw-color-text-secondary); }
+
+.careers-positions { padding: var(--bw-spacing-16) 0; background: var(--bw-color-bg-secondary); }
+.careers-positions h2 { text-align: center; margin-bottom: var(--bw-spacing-10); }
+.positions-list { display: flex; flex-direction: column; gap: var(--bw-spacing-4); max-width: 600px; margin: 0 auto; }
+.position { background: var(--bw-color-bg-primary); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-xl); padding: var(--bw-spacing-6); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--bw-spacing-4); }
+.position h3 { font-size: var(--bw-font-size-lg); margin-bottom: var(--bw-spacing-1); }
+.position p { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-sm); }
+
+.careers-cta { padding: var(--bw-spacing-16) 0; text-align: center; }
+.careers-cta h2 { margin-bottom: var(--bw-spacing-4); }
+.careers-cta p { color: var(--bw-color-text-secondary); margin-bottom: var(--bw-spacing-8); }
+</style>
+{% endblock %}

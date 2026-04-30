@@ -1,0 +1,1653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0A0E1A">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>BuyWhere | BuyWhere</title>
+    <meta name="description" content="The agent-native product catalog API">
+    <link rel="canonical" href="https://buywhere.ai/">
+    
+    <meta name="geo.region" content="US" id="geo-region">
+    <meta name="geo.placename" content="United States" id="geo-placename">
+    <script>
+    (function(){
+      var regionMap = {
+        'Asia/Singapore': {region: 'SG', name: 'Singapore'},
+        'Asia/Kuala_Lumpur': {region: 'MY', name: 'Malaysia'},
+        'Asia/Bangkok': {region: 'TH', name: 'Thailand'},
+        'Asia/Jakarta': {region: 'ID', name: 'Indonesia'},
+        'Asia/Manila': {region: 'PH', name: 'Philippines'},
+        'Asia/Hong_Kong': {region: 'HK', name: 'Hong Kong'},
+        'Asia/Taipei': {region: 'TW', name: 'Taiwan'},
+        'Asia/Tokyo': {region: 'JP', name: 'Japan'},
+        'Asia/Seoul': {region: 'KR', name: 'South Korea'},
+        'Asia/Shanghai': {region: 'CN', name: 'China'},
+        'Asia/Dubai': {region: 'AE', name: 'United Arab Emirates'},
+        'Europe/London': {region: 'GB', name: 'United Kingdom'},
+        'Europe/Paris': {region: 'FR', name: 'France'},
+        'Europe/Berlin': {region: 'DE', name: 'Germany'},
+        'Europe/Amsterdam': {region: 'NL', name: 'Netherlands'},
+        'America/New_York': {region: 'US', name: 'United States'},
+        'America/Los_Angeles': {region: 'US', name: 'United States'},
+        'America/Chicago': {region: 'US', name: 'United States'},
+        'America/Toronto': {region: 'CA', name: 'Canada'},
+        'America/Vancouver': {region: 'CA', name: 'Canada'},
+        'America/Sao_Paulo': {region: 'BR', name: 'Brazil'},
+        'America/Mexico_City': {region: 'MX', name: 'Mexico'},
+        'Australia/Sydney': {region: 'AU', name: 'Australia'},
+        'Australia/Perth': {region: 'AU', name: 'Australia'}
+      };
+      var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      var info = regionMap[tz] || {region: 'US', name: 'United States'};
+      var metaRegion = document.getElementById('geo-region');
+      var metaPlacename = document.getElementById('geo-placename');
+      if (metaRegion) metaRegion.setAttribute('content', info.region);
+      if (metaPlacename) metaPlacename.setAttribute('content', info.name);
+    })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/design-system.css">
+    <script>
+    window.BW_CONFIG = {
+      posthogKey: "phc_placeholder",
+      posthogHost: "https://app.posthog.com"
+    };
+    </script>
+    
+<style>
+.hero {
+    padding: var(--bw-spacing-20) 0;
+    background: linear-gradient(135deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%);
+    text-align: center;
+}
+
+.hero-content {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.hero h1 {
+    font-size: var(--bw-font-size-5xl);
+    margin-bottom: var(--bw-spacing-6);
+    background: linear-gradient(135deg, var(--bw-color-primary) 0%, var(--bw-color-secondary) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.hero-subtitle {
+    font-size: var(--bw-font-size-xl);
+    color: var(--bw-color-text-secondary);
+    margin-bottom: var(--bw-spacing-8);
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.hero-actions {
+    display: flex;
+    gap: var(--bw-spacing-4);
+    justify-content: center;
+    margin-bottom: var(--bw-spacing-6);
+}
+
+.btn-lg {
+    padding: var(--bw-spacing-4) var(--bw-spacing-8);
+    font-size: var(--bw-font-size-base);
+}
+
+.hero-code {
+    text-align: left;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.hero-search {
+    margin-bottom: var(--bw-spacing-10);
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.hero-search-input {
+    width: 100%;
+    padding: var(--bw-spacing-4) var(--bw-spacing-5);
+    font-size: var(--bw-font-size-base);
+    border: 2px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+    background: var(--bw-color-bg-primary);
+    color: var(--bw-color-text-primary);
+    transition: border-color var(--bw-transition-fast), box-shadow var(--bw-transition-fast);
+    min-height: 52px;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.hero-search-input:focus {
+    outline: none;
+    border-color: var(--bw-color-primary);
+    box-shadow: 0 0 0 4px rgba(0, 102, 255, 0.15);
+}
+
+.hero-search-input::placeholder {
+    color: var(--bw-color-text-muted);
+}
+
+.features {
+    padding: var(--bw-spacing-24) 0;
+}
+
+.features h2 {
+    text-align: center;
+    margin-bottom: var(--bw-spacing-12);
+}
+
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--bw-spacing-8);
+}
+
+.feature-card {
+    padding: var(--bw-spacing-6);
+    background: var(--bw-color-bg-primary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+    transition: all var(--bw-transition-normal);
+}
+
+.feature-card:active {
+    border-color: var(--bw-color-primary);
+    box-shadow: var(--bw-shadow-lg);
+    transform: scale(0.98);
+}
+
+@media (hover: hover) {
+    .feature-card:hover {
+        border-color: var(--bw-color-primary);
+        box-shadow: var(--bw-shadow-lg);
+        transform: translateY(-4px);
+    }
+}
+
+.feature-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bw-color-bg-tertiary);
+    border-radius: var(--bw-radius-lg);
+    color: var(--bw-color-primary);
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.feature-card h3 {
+    font-size: var(--bw-font-size-lg);
+    margin-bottom: var(--bw-spacing-2);
+}
+
+.feature-card p {
+    color: var(--bw-color-text-secondary);
+    font-size: var(--bw-font-size-sm);
+}
+
+.retailers {
+    padding: var(--bw-spacing-24) 0;
+    background: var(--bw-color-bg-secondary);
+}
+
+.retailers h2 {
+    text-align: center;
+    margin-bottom: var(--bw-spacing-2);
+}
+
+.retailers-subtitle {
+    text-align: center;
+    color: var(--bw-color-text-secondary);
+    margin-bottom: var(--bw-spacing-12);
+    font-size: var(--bw-font-size-lg);
+}
+
+.retailers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--bw-spacing-6);
+}
+
+.retailer-card {
+    background: var(--bw-color-bg-primary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+    padding: var(--bw-spacing-6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--bw-spacing-4);
+    transition: all var(--bw-transition-normal);
+}
+
+.retailer-card:active {
+    border-color: var(--bw-color-primary);
+    box-shadow: var(--bw-shadow-lg);
+    transform: scale(0.98);
+}
+
+@media (hover: hover) {
+    .retailer-card:hover {
+        border-color: var(--bw-color-primary);
+        box-shadow: var(--bw-shadow-lg);
+        transform: translateY(-4px);
+    }
+}
+
+.retailer-logo {
+    display: flex;
+    align-items: center;
+    gap: var(--bw-spacing-3);
+    font-weight: var(--bw-font-weight-semibold);
+    font-size: var(--bw-font-size-lg);
+    color: var(--bw-color-text-primary);
+}
+
+.amazon-logo svg {
+    color: #FF9900;
+}
+
+.walmart-logo svg {
+    color: #0071CE;
+}
+
+.target-logo svg {
+    color: #CC0000;
+}
+
+.bestbuy-logo svg {
+    color: #0046BE;
+}
+
+.retailer-stats {
+    text-align: center;
+}
+
+.retailer-count {
+    display: block;
+    font-size: var(--bw-font-size-2xl);
+    font-weight: var(--bw-font-weight-bold);
+    color: var(--bw-color-primary);
+}
+
+.retailer-label {
+    display: block;
+    font-size: var(--bw-font-size-sm);
+    color: var(--bw-color-text-muted);
+    margin-top: var(--bw-spacing-1);
+}
+
+.stats {
+    padding: var(--bw-spacing-16) 0;
+    background: var(--bw-color-bg-dark);
+    color: var(--bw-color-text-inverse);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--bw-spacing-8);
+    text-align: center;
+}
+
+.stat-value {
+    display: block;
+    font-size: var(--bw-font-size-4xl);
+    font-weight: var(--bw-font-weight-bold);
+    color: var(--bw-color-primary-light);
+}
+
+.stat-label {
+    display: block;
+    font-size: var(--bw-font-size-sm);
+    color: var(--bw-color-text-muted);
+    margin-top: var(--bw-spacing-2);
+}
+
+.cta {
+    padding: var(--bw-spacing-24) 0;
+    text-align: center;
+    background: linear-gradient(135deg, var(--bw-color-primary) 0%, var(--bw-color-primary-dark) 100%);
+    color: var(--bw-color-text-inverse);
+}
+
+.cta h2 {
+    color: var(--bw-color-text-inverse);
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.cta p {
+    font-size: var(--bw-font-size-lg);
+    opacity: 0.9;
+    margin-bottom: var(--bw-spacing-8);
+}
+
+.cta .btn-primary {
+    background: var(--bw-color-text-inverse);
+    color: var(--bw-color-primary);
+}
+
+.cta .btn-primary:hover {
+    background: var(--bw-color-bg-secondary);
+}
+
+.cta-actions {
+    display: flex;
+    gap: var(--bw-spacing-4);
+    justify-content: center;
+}
+
+.site-header {
+    background: var(--bw-color-bg-primary);
+    border-bottom: 1px solid var(--bw-color-border);
+    padding: var(--bw-spacing-4) 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.nav-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: var(--bw-spacing-3);
+    font-weight: var(--bw-font-weight-bold);
+    font-size: var(--bw-font-size-lg);
+    color: var(--bw-color-text-primary);
+}
+
+.logo:hover {
+    text-decoration: none;
+}
+
+.nav-links {
+    display: flex;
+    gap: var(--bw-spacing-8);
+    list-style: none;
+}
+
+.nav-links a {
+    color: var(--bw-color-text-secondary);
+    font-weight: var(--bw-font-weight-medium);
+}
+
+.nav-links a:hover {
+    color: var(--bw-color-text-primary);
+}
+
+.nav-actions {
+    display: flex;
+    gap: var(--bw-spacing-3);
+}
+
+.site-footer {
+    background: var(--bw-color-bg-secondary);
+    padding: var(--bw-spacing-16) 0 var(--bw-spacing-8);
+    margin-top: auto;
+}
+
+.footer-grid {
+    display: grid;
+    grid-template-columns: 2fr repeat(3, 1fr);
+    gap: var(--bw-spacing-12);
+    margin-bottom: var(--bw-spacing-12);
+}
+
+.footer-tagline {
+    color: var(--bw-color-text-secondary);
+    margin-top: var(--bw-spacing-4);
+    font-size: var(--bw-font-size-sm);
+}
+
+.footer-links h4 {
+    font-size: var(--bw-font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--bw-color-text-muted);
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.footer-links ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--bw-spacing-3);
+}
+
+.footer-links a {
+    color: var(--bw-color-text-secondary);
+    font-size: var(--bw-font-size-sm);
+}
+
+.footer-bottom {
+    padding-top: var(--bw-spacing-8);
+    border-top: 1px solid var(--bw-color-border);
+    text-align: center;
+    color: var(--bw-color-text-muted);
+    font-size: var(--bw-font-size-sm);
+}
+
+.trending-deals {
+    padding: var(--bw-spacing-24) 0;
+    background: var(--bw-color-bg-secondary);
+}
+
+.trending-deals h2 {
+    text-align: center;
+    margin-bottom: var(--bw-spacing-12);
+}
+
+.trending-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--bw-spacing-6);
+}
+
+.trending-card {
+    display: block;
+    padding: var(--bw-spacing-6);
+    background: var(--bw-color-bg-primary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+    text-decoration: none;
+    transition: all var(--bw-transition-normal);
+}
+
+.trending-card:active {
+    border-color: var(--bw-color-primary);
+    box-shadow: var(--bw-shadow-lg);
+    transform: scale(0.98);
+}
+
+@media (hover: hover) {
+    .trending-card:hover {
+        border-color: var(--bw-color-primary);
+        box-shadow: var(--bw-shadow-lg);
+        transform: translateY(-2px);
+    }
+}
+
+.trending-source {
+    display: inline-block;
+    font-size: var(--bw-font-size-xs);
+    font-weight: var(--bw-font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: var(--bw-spacing-1) var(--bw-spacing-3);
+    border-radius: var(--bw-radius-full);
+    background: var(--bw-color-bg-tertiary);
+    color: var(--bw-color-text-secondary);
+    margin-bottom: var(--bw-spacing-3);
+}
+
+.trending-source.shopee { background: #fff3e0; color: #f57c00; }
+.trending-source.lazada { background: #e3f2fd; color: #1976d2; }
+.trending-source.fairprice { background: #e8f5e9; color: #388e3c; }
+.trending-source.carousell { background: #fce4ec; color: #c2185b; }
+
+.trending-name {
+    font-size: var(--bw-font-size-base);
+    font-weight: var(--bw-font-weight-medium);
+    color: var(--bw-color-text-primary);
+    margin-bottom: var(--bw-spacing-2);
+    line-height: 1.4;
+}
+
+.trending-price {
+    font-size: var(--bw-font-size-lg);
+    font-weight: var(--bw-font-weight-bold);
+    color: var(--bw-color-text-primary);
+    margin-bottom: var(--bw-spacing-2);
+}
+
+.trending-merchant {
+    font-size: var(--bw-font-size-sm);
+    color: var(--bw-color-text-muted);
+}
+
+.deal-badge {
+    display: inline-block;
+    font-size: var(--bw-font-size-xs);
+    font-weight: var(--bw-font-weight-semibold);
+    padding: 2px 8px;
+    border-radius: var(--bw-radius-full);
+    margin-left: var(--bw-spacing-2);
+    vertical-align: middle;
+}
+
+.badge-great { background: #ffeb3b; color: #f57c00; }
+.badge-good { background: #c8e6c9; color: #388e3c; }
+.badge-fair { background: #e0e0e0; color: #616161; }
+.badge-high { background: #ffcdd2; color: #c62828; }
+
+.trending-loading,
+.trending-error,
+.trending-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: var(--bw-spacing-8);
+    color: var(--bw-color-text-secondary);
+}
+
+@media (max-width: 768px) {
+    .nav-links {
+        display: none;
+    }
+    .hero h1 {
+        font-size: var(--bw-font-size-3xl);
+    }
+    .hero-actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--bw-spacing-3);
+    }
+    .hero-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+    .footer-grid {
+        grid-template-columns: 1fr;
+        gap: var(--bw-spacing-8);
+    }
+    .cta-actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--bw-spacing-3);
+    }
+    .cta-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+.hero-search {
+    margin-bottom: var(--bw-spacing-6);
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.hero-search-label {
+    display: block;
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-semibold);
+    color: var(--bw-color-text-secondary);
+    margin-bottom: var(--bw-spacing-2);
+    text-align: left;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.hero-search .hero-search-input {
+    width: 100%;
+    padding: var(--bw-spacing-4) var(--bw-spacing-5);
+    font-size: var(--bw-font-size-base);
+    border: 2px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+    background: var(--bw-color-bg-primary);
+    color: var(--bw-color-text-primary);
+    transition: border-color var(--bw-transition-fast), box-shadow var(--bw-transition-fast);
+    min-height: 52px;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.hero-search .hero-search-input:focus {
+    outline: none;
+    border-color: var(--bw-color-primary);
+    box-shadow: 0 0 0 4px rgba(0, 102, 255, 0.15);
+}
+
+.hero-search .hero-search-input::placeholder {
+    color: var(--bw-color-text-muted);
+}
+
+.hero-search .btn {
+    margin-top: var(--bw-spacing-3);
+    width: 100%;
+}
+
+.hero-simulator-output {
+    max-width: 600px;
+    margin: 0 auto;
+    text-align: left;
+}
+
+.simulator-label {
+    display: flex;
+    align-items: center;
+    gap: var(--bw-spacing-2);
+    font-size: var(--bw-font-size-xs);
+    font-weight: var(--bw-font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--bw-color-text-muted);
+    margin-bottom: var(--bw-spacing-2);
+}
+
+.simulator-json {
+    background: var(--bw-color-bg-dark);
+    color: #a5d6ff;
+    padding: var(--bw-spacing-4);
+    border-radius: var(--bw-radius-lg);
+    font-size: 12px;
+    overflow-x: auto;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.simulator-loading {
+    color: var(--bw-color-text-muted);
+    font-style: italic;
+}
+
+.simulator-error {
+    color: #ff6b6b;
+}
+
+.reliability {
+    padding: var(--bw-spacing-24) 0;
+    background: var(--bw-color-bg-secondary);
+}
+
+.reliability h2 {
+    text-align: center;
+    margin-bottom: var(--bw-spacing-12);
+}
+
+.reliability-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--bw-spacing-8);
+}
+
+.reliability-card {
+    background: var(--bw-color-bg-primary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+    padding: var(--bw-spacing-8);
+    text-align: center;
+}
+
+.reliability-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bw-color-bg-tertiary);
+    border-radius: var(--bw-radius-lg);
+    color: var(--bw-color-primary);
+    margin: 0 auto var(--bw-spacing-4);
+}
+
+.reliability-card h3 {
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-semibold);
+    color: var(--bw-color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.reliability-metrics {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bw-spacing-2);
+}
+
+.metric-row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--bw-spacing-2) var(--bw-spacing-4);
+    background: var(--bw-color-bg-tertiary);
+    border-radius: var(--bw-radius-md);
+}
+
+.metric-label {
+    color: var(--bw-color-text-muted);
+    font-size: var(--bw-font-size-sm);
+}
+
+.metric-value {
+    font-weight: var(--bw-font-weight-bold);
+    color: var(--bw-color-primary);
+}
+
+.reliability-value {
+    font-size: var(--bw-font-size-3xl);
+    font-weight: var(--bw-font-weight-bold);
+    color: var(--bw-color-primary);
+}
+
+.reliability-sub {
+    font-size: var(--bw-font-size-xs);
+    color: var(--bw-color-text-muted);
+    margin-top: var(--bw-spacing-2);
+}
+
+.trust-layer {
+    padding: var(--bw-spacing-16) 0;
+    background: var(--bw-color-bg-primary);
+}
+
+.trust-content {
+    max-width: 600px;
+    margin: 0 auto;
+    background: var(--bw-color-bg-secondary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+    padding: var(--bw-spacing-8);
+}
+
+.trust-header {
+    display: flex;
+    align-items: center;
+    gap: var(--bw-spacing-3);
+    margin-bottom: var(--bw-spacing-6);
+}
+
+.trust-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.3);
+}
+
+.trust-header h3 {
+    font-size: var(--bw-font-size-lg);
+    font-weight: var(--bw-font-weight-semibold);
+    margin: 0;
+}
+
+.trust-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bw-spacing-3);
+}
+
+.trust-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--bw-font-size-sm);
+}
+
+.trust-key {
+    color: var(--bw-color-text-muted);
+}
+
+.trust-val {
+    font-weight: var(--bw-font-weight-medium);
+    color: var(--bw-color-text-primary);
+}
+
+.trust-val a {
+    color: var(--bw-color-primary);
+}
+
+.why-not-scraping {
+    padding: var(--bw-spacing-24) 0;
+    background: var(--bw-color-bg-secondary);
+}
+
+.why-not-scraping h2 {
+    text-align: center;
+    margin-bottom: var(--bw-spacing-2);
+}
+
+.why-subtitle {
+    text-align: center;
+    color: var(--bw-color-text-secondary);
+    margin-bottom: var(--bw-spacing-12);
+}
+
+.comparison-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--bw-spacing-8);
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+@media (max-width: 640px) {
+    .comparison-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.comparison-col {
+    background: var(--bw-color-bg-primary);
+    border-radius: var(--bw-radius-xl);
+    padding: var(--bw-spacing-8);
+    border: 1px solid var(--bw-color-border);
+}
+
+.comparison-heading {
+    font-size: var(--bw-font-size-lg);
+    font-weight: var(--bw-font-weight-bold);
+    margin-bottom: var(--bw-spacing-6);
+    text-align: center;
+}
+
+.comparison-heading.scraping {
+    color: #ef4444;
+}
+
+.comparison-heading.buywhere {
+    color: var(--bw-color-primary);
+}
+
+.comparison-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--bw-spacing-3);
+}
+
+.comparison-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--bw-spacing-3);
+    font-size: var(--bw-font-size-sm);
+    line-height: 1.5;
+}
+
+.comparison-item svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.comparison-item.broken {
+    color: #ef4444;
+}
+
+.comparison-item.broken svg {
+    stroke: #ef4444;
+}
+
+.comparison-item.fixed {
+    color: #22c55e;
+}
+
+.comparison-item.fixed svg {
+    stroke: #22c55e;
+}
+</style>
+
+    <style>
+    .currency-selector {
+        display: flex;
+        align-items: center;
+    }
+    .currency-select {
+        background: var(--bw-color-bg-primary);
+        border: 1px solid var(--bw-color-border);
+        border-radius: var(--bw-radius-md);
+        padding: var(--bw-spacing-1) var(--bw-spacing-3);
+        font-size: var(--bw-font-size-xs);
+        color: var(--bw-color-text-primary);
+        cursor: pointer;
+        min-height: 32px;
+    }
+    .currency-select:hover {
+        border-color: var(--bw-color-primary);
+    }
+    .nav-user-menu { position: relative; }
+    .nav-user-btn { display: flex; align-items: center; gap: var(--bw-spacing-2); background: none; border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-lg); padding: var(--bw-spacing-1) var(--bw-spacing-3); cursor: pointer; font-size: var(--bw-font-size-sm); color: var(--bw-color-text-primary); }
+    .nav-user-btn:hover { border-color: var(--bw-color-primary); }
+    .nav-user-btn svg { width: 16px; height: 16px; }
+    .nav-user-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--bw-color-primary); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: var(--bw-font-size-xs); }
+    .nav-user-email { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .nav-user-dropdown { display: none; position: absolute; top: calc(100% + var(--bw-spacing-1)); right: 0; min-width: 180px; background: var(--bw-color-bg-primary); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-lg); box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; list-style: none; margin: 0; padding: var(--bw-spacing-2) 0; }
+    .nav-user-dropdown.is-open { display: block; }
+    .nav-user-dropdown li a { display: block; padding: var(--bw-spacing-2) var(--bw-spacing-4); font-size: var(--bw-font-size-sm); color: var(--bw-color-text-primary); text-decoration: none; }
+    .nav-user-dropdown li a:hover { background: var(--bw-color-bg-secondary); }
+    .nav-divider { border-top: 1px solid var(--bw-color-border); margin: var(--bw-spacing-2) 0; }
+    .nav-mobile-link { display: block; padding: var(--bw-spacing-3) var(--bw-spacing-4); font-size: var(--bw-font-size-base); color: var(--bw-color-text-primary); text-decoration: none; border-bottom: 1px solid var(--bw-color-border); }
+    .nav-mobile-link:hover { background: var(--bw-color-bg-secondary); }
+    </style>
+</head>
+<body>
+    <header class="nav-header">
+        <div class="nav-container">
+            <a href="/" class="nav-logo">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="32" height="32" rx="8" fill="#0A0E1A"/>
+                    <path d="M10 16C10 12.686 12.686 10 16 10C19.314 10 22 12.686 22 16C22 19.314 19.314 22 16 22" stroke="#00D4C8" stroke-width="2.5" stroke-linecap="round"/>
+                    <circle cx="16" cy="16" r="2.5" fill="#00D4C8"/>
+                    <path d="M8 16L6 16M8 16L9.5 14.5" stroke="#F5A623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>BuyWhere</span>
+            </a>
+            <div class="nav-desktop">
+                <ul class="nav-links">
+                    <li class="nav-dropdown">
+                        <button class="nav-dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+                            Documentation
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                        <ul class="nav-dropdown-menu">
+                            <li class="nav-dropdown-item"><a href="/docs/quickstart">Quickstart</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/api-reference">API Reference</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/authentication">Authentication</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/errors">Errors</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/mcp-integration">MCP Integration</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/examples">Examples</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="/pricing" class="nav-link">Pricing</a></li>
+                    <li><a href="/blog" class="nav-link">Blog</a></li>
+                </ul>
+                <div class="nav-actions">
+                    <div class="currency-selector" data-bw-currency-selector>
+                        <select class="currency-select" title="Select currency" aria-label="Select preferred currency">
+                            <option value="SGD">SGD</option>
+                            <option value="USD">USD</option>
+                            <option value="VND">VND</option>
+                            <option value="MYR">MYR</option>
+                            <option value="GBP">GBP</option>
+                        </select>
+                    </div>
+                    <a href="/login" class="nav-btn nav-btn-secondary">Sign In</a>
+                    <a href="/register" class="nav-btn nav-btn-primary">Get API Key</a>
+                </div>
+            </div>
+            <button class="nav-mobile-toggle" aria-label="Toggle navigation" aria-expanded="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <nav class="nav-mobile-menu" aria-label="Mobile navigation">
+            <ul class="nav-mobile-links">
+                <li class="nav-mobile-dropdown">
+                    <button class="nav-mobile-dropdown-trigger" aria-expanded="false">
+                        Documentation
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </button>
+                    <ul class="nav-mobile-dropdown-menu">
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/quickstart">Quickstart</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/api-reference">API Reference</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/authentication">Authentication</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/errors">Errors</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/mcp-integration">MCP Integration</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/examples">Examples</a></li>
+                    </ul>
+                </li>
+                <li><a href="/pricing" class="nav-mobile-link">Pricing</a></li>
+                <li><a href="/blog" class="nav-mobile-link">Blog</a></li>
+            </ul>
+            <div class="nav-mobile-actions">
+                <a href="/login" class="nav-btn nav-btn-secondary">Sign In</a>
+                <a href="/register" class="nav-btn nav-btn-primary">Get API Key</a>
+            </div>
+        </nav>
+        <div class="nav-backdrop"></div>
+    </header>
+
+    <main class="site-main">
+        
+<section class="hero">
+    <div class="container">
+        <div class="hero-content">
+            <h1>The Product Catalog API for AI Agents</h1>
+            <p class="hero-subtitle">BuyWhere gives AI agents a structured REST surface for searching, comparing, and retrieving product data from Singapore's top e-commerce platforms.</p>
+            <div class="hero-actions">
+                <a href="/docs/quickstart" class="btn btn-primary btn-lg">Get Started</a>
+                <a href="/docs/api-reference" class="btn btn-secondary btn-lg">View API Reference</a>
+            </div>
+            <div class="hero-search">
+                <label for="hero-search-input" class="hero-search-label">Simulate an agent query</label>
+                <input
+                    type="text"
+                    id="hero-search-input"
+                    class="hero-search-input"
+                    placeholder="Try: wireless headphones under $100"
+                    autocomplete="off"
+                />
+                <button type="button" id="hero-search-btn" class="btn btn-primary">Search</button>
+            </div>
+            <div class="hero-simulator-output" id="hero-simulator-output" style="display:none;">
+                <div class="simulator-label">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    API Response
+                </div>
+                <pre class="simulator-json" id="simulator-json"></pre>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="features">
+    <div class="container">
+        <h2>Built for Agent Commerce</h2>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <path d="m21 21-4.35-4.35"/>
+                    </svg>
+                </div>
+                <h3>Natural Language Search</h3>
+                <p>Query products using natural language. Our semantic search understands what your agents are looking for.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                    </svg>
+                </div>
+                <h3>Multi-Platform Coverage</h3>
+                <p>Amazon, Walmart, Target, Best Buy, and more. One API to rule them all.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5"/>
+                        <path d="M2 12l10 5 10-5"/>
+                    </svg>
+                </div>
+                <h3>Normalized Data</h3>
+                <p>Consistent schema across all platforms. No more dealing with retailer-specific formats.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                </div>
+                <h3>MCP Native</h3>
+                <p>First-class Model Context Protocol support. Connect directly to Claude, Cursor, and other AI agents.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="retailers">
+    <div class="container">
+        <h2>SEA Retailer Coverage</h2>
+        <p class="retailers-subtitle">Real-time product data from Singapore and Southeast Asia's top e-commerce platforms</p>
+        <div class="retailers-grid">
+            <div class="retailer-card">
+                <div class="retailer-logo shopee-logo">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21.98 10.41c-.14-.49-.73-.71-1.2-.43-1.08.62-2.37.97-3.66.97-1.5 0-2.87-.35-4.12-1.03-.49-.28-1.1-.14-1.38.31-.28.45-.14 1.1.31 1.38 1.01.54 2.18.83 3.43.83 1.12 0 2.26-.23 3.32-.67.52-.21.79-.76.65-1.28l-.65-.08zm3.58.12c-.31-.52-1.01-.67-1.55-.36l-3.01 1.71c-.52.31-.67 1.01-.36 1.55l.11.21c.31.52 1.01.67 1.55.36l3.01-1.71c.52-.31.67-1.01.36-1.55l-.11-.21zm-15.56 1.9c-.52-.31-1.1-.17-1.38.31-.62 1.08-.97 2.37-.97 3.66 0 1.5.35 2.87 1.03 4.12.28.49.9.63 1.38.31.49-.28.63-.9.31-1.38-.54-1.01-.83-2.18-.83-3.43 0-1.12.23-2.26.67-3.32.21-.52.03-1.08-.49-1.31l.28.04zm.87 4.63c0 1.66.76 3.18 1.96 4.22.52.45.59 1.26.14 1.8-.45.52-1.26.59-1.8.14-1.64-1.42-2.66-3.52-2.66-5.78 0-2.04.82-3.92 2.18-5.26.49-.49 1.29-.52 1.8-.03.49.49.52 1.29.03 1.8-1.03 1.01-1.65 2.42-1.65 4.11zm7.07 1.58c-.45.52-1.26.59-1.8.14-.52-.45-.59-1.26-.14-1.8 1.42-1.64 3.52-2.66 5.78-2.66 2.04 0 3.92.82 5.26 2.18.49.49.52 1.29.03 1.8-.49.49-1.29.52-1.8.03-1.01-1.03-2.42-1.65-4.11-1.65-1.66 0-3.18.76-4.22 1.96z"/>
+                    </svg>
+                    <span>Shopee</span>
+                </div>
+                <div class="retailer-stats">
+                    <span class="retailer-count">200K+</span>
+                    <span class="retailer-label">Products</span>
+                </div>
+            </div>
+            <div class="retailer-card">
+                <div class="retailer-logo lazada-logo">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-2h2v2zm0-4h-2V7h2v6zm4 4h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                    </svg>
+                    <span>Lazada</span>
+                </div>
+                <div class="retailer-stats">
+                    <span class="retailer-count">150K+</span>
+                    <span class="retailer-label">Products</span>
+                </div>
+            </div>
+            <div class="retailer-card">
+                <div class="retailer-logo fairprice-logo">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/>
+                    </svg>
+                    <span>FairPrice</span>
+                </div>
+                <div class="retailer-stats">
+                    <span class="retailer-count">80K+</span>
+                    <span class="retailer-label">Products</span>
+                </div>
+            </div>
+            <div class="retailer-card">
+                <div class="retailer-logo carousell-logo">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="12" cy="12" r="10" stroke-width="2" fill="none" stroke="currentColor"/>
+                        <path d="M8 12h8M12 8v8" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <span>Carousell</span>
+                </div>
+                <div class="retailer-stats">
+                    <span class="retailer-count">50K+</span>
+                    <span class="retailer-label">Products</span>
+                </div>
+                <div class="retailer-stats">
+                    <span class="retailer-count">50K+</span>
+                    <span class="retailer-label">Products</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="trending-deals">
+    <div class="container">
+        <h2>Trending Deals</h2>
+        <div class="trending-grid" id="trending-grid">
+            <div class="trending-loading"><div class="spinner"></div><p>Loading deals...</p></div>
+        </div>
+    </div>
+</section>
+
+<section class="stats">
+    <div class="container">
+        <div class="stats-grid" id="live-stats">
+            <div class="stat-item">
+                <span class="stat-value" data-stat="total_products">—</span>
+                <span class="stat-label">Products Indexed</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" data-stat="markets">—</span>
+                <span class="stat-label">Markets</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" data-stat="retailers">—</span>
+                <span class="stat-label">Retailers</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">99.9%</span>
+                <span class="stat-label">API Uptime</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="reliability">
+    <div class="container">
+        <h2>Proof of Reliability</h2>
+        <div class="reliability-grid">
+            <div class="reliability-card">
+                <div class="reliability-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                </div>
+                <h3>API Latency</h3>
+                <div class="reliability-metrics">
+                    <div class="metric-row">
+                        <span class="metric-label">P50</span>
+                        <span class="metric-value" id="latency-p50">—</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">P95</span>
+                        <span class="metric-value" id="latency-p95">—</span>
+                    </div>
+                </div>
+            </div>
+            <div class="reliability-card">
+                <div class="reliability-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                </div>
+                <h3>Uptime</h3>
+                <div class="reliability-value" id="uptime-value">99.9%</div>
+                <p class="reliability-sub">Last 90 days</p>
+            </div>
+            <div class="reliability-card">
+                <div class="reliability-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                </div>
+                <h3>Data Freshness</h3>
+                <div class="reliability-value" id="data-freshness">—</div>
+                <p class="reliability-sub">Last updated</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="trust-layer">
+    <div class="container">
+        <div class="trust-content">
+            <div class="trust-header">
+                <span class="trust-status-dot" id="api-status-dot"></span>
+                <h3>API Status</h3>
+            </div>
+            <div class="trust-details">
+                <div class="trust-row">
+                    <span class="trust-key">Version</span>
+                    <span class="trust-val" id="api-version">v1</span>
+                </div>
+                <div class="trust-row">
+                    <span class="trust-key">Status</span>
+                    <span class="trust-val" id="api-status-text">Operational</span>
+                </div>
+                <div class="trust-row">
+                    <span class="trust-key">Support</span>
+                    <span class="trust-val"><a href="mailto:api@buywhere.io">api@buywhere.io</a></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="why-not-scraping">
+    <div class="container">
+        <h2>Why Not Scraping?</h2>
+        <p class="why-subtitle">Traditional web scraping is fragile and high-maintenance. BuyWhere provides a structured alternative.</p>
+        <div class="comparison-grid">
+            <div class="comparison-col comparison-scraping">
+                <h4 class="comparison-heading scraping">Scraping</h4>
+                <ul class="comparison-list">
+                    <li class="comparison-item broken">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        Fragile — breaks when sites change layouts
+                    </li>
+                    <li class="comparison-item broken">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        Unstructured data — every retailer is different
+                    </li>
+                    <li class="comparison-item broken">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        High maintenance — constant breakage monitoring
+                    </li>
+                    <li class="comparison-item broken">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        Rate limited or blocked by retailers
+                    </li>
+                    <li class="comparison-item broken">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        No semantic understanding of products
+                    </li>
+                </ul>
+            </div>
+            <div class="comparison-col comparison-buywhere">
+                <h4 class="comparison-heading buywhere">BuyWhere</h4>
+                <ul class="comparison-list">
+                    <li class="comparison-item fixed">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        Stable — normalized API, no layout dependency
+                    </li>
+                    <li class="comparison-item fixed">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        Structured — consistent schema across all retailers
+                    </li>
+                    <li class="comparison-item fixed">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        Low maintenance — we handle the data plumbing
+                    </li>
+                    <li class="comparison-item fixed">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        Reliable — enterprise SLA and dedicated infrastructure
+                    </li>
+                    <li class="comparison-item fixed">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        Semantic — natural language and structured search
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="cta">
+    <div class="container">
+        <h2>Start Building Today</h2>
+        <p>Get your API key and make your first query in under 60 seconds.</p>
+        <div class="cta-actions">
+            <a href="/register" class="btn btn-primary btn-lg">Get API Key</a>
+            <a href="/docs/quickstart" class="btn btn-secondary btn-lg">Read the Docs</a>
+        </div>
+    </div>
+</section>
+
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="/" class="logo">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="32" height="32" rx="8" fill="#0A0E1A"/>
+                            <path d="M10 16C10 12.686 12.686 10 16 10C19.314 10 22 12.686 22 16C22 19.314 19.314 22 16 22" stroke="#00D4C8" stroke-width="2.5" stroke-linecap="round"/>
+                            <circle cx="16" cy="16" r="2.5" fill="#00D4C8"/>
+                            <path d="M8 16L6 16M8 16L9.5 14.5" stroke="#F5A623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>BuyWhere</span>
+                    </a>
+                    <p class="footer-tagline">The agent-native product catalog API for Singapore and Southeast Asia.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="/docs/quickstart">Quickstart</a></li>
+                        <li><a href="/docs/api-reference">API Reference</a></li>
+                        <li><a href="/docs/mcp-integration">MCP Integration</a></li>
+                        <li><a href="/examples">Examples</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="/about">About</a></li>
+                        <li><a href="/blog">Blog</a></li>
+                        <li><a href="/careers">Careers</a></li>
+                        <li><a href="/contact">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="/privacy">Privacy</a></li>
+                        <li><a href="/terms">Terms</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 ZHC Labs Pte. Ltd. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+    !function(t,e){var n=document.createElement("script");n.type="text/javascript",n.async=!0,n.src=e;var o=document.getElementsByTagName("script")[0];o.parentNode.insertBefore(n,o),t.posthog=t.posthog||{},t.posthog.people=t.posthog.people||[],t.posthog.people.toString=function(){var t=[];return Object.keys(this).forEach(function(e){t.push(e+" = "+this[e])}),t.join(", ")};var r=function(){var t=e;t._ush=t._ush||[];for(var n=["init","capture","identify","alias","people.set","people.set_once","register","unregister"],o=0;o<n.length;o++)!function(){var e=n[o];t.posthog[e]=t.posthog[e]||function(){t._ush.push([e,arguments])}}()};return r}(window,document);if(window.BW_CONFIG.posthogKey&&window.BW_CONFIG.posthogKey!=='phc_placeholder'){try{posthog.init(window.BW_CONFIG.posthogKey,{api_host:window.BW_CONFIG.posthogHost})}catch(e){}}
+    </script>
+    <script src="/assets/js/utm.js"></script>
+    <script src="/assets/js/auth.js" defer></script>
+    <script>
+    window.addEventListener('DOMContentLoaded', function() {
+        if (typeof Auth !== 'undefined') {
+            Auth.init();
+            updateNavAuthState();
+        }
+    });
+
+    function updateNavAuthState() {
+        var isLoggedIn = Auth.isLoggedIn();
+        var user = Auth.user;
+        var actionsDiv = document.querySelector('.nav-actions');
+        var mobileActionsDiv = document.querySelector('.nav-mobile-actions');
+        if (!actionsDiv) return;
+
+        if (isLoggedIn && user) {
+            var email = user.email || user.name || 'Account';
+            var initial = email.charAt(1).toUpperCase() || email.charAt(0).toUpperCase() || 'A';
+            actionsDiv.innerHTML =
+                '<div class="nav-user-menu">' +
+                    '<button class="nav-user-btn" aria-expanded="false" aria-haspopup="true">' +
+                        '<span class="nav-user-avatar">' + initial + '</span>' +
+                        '<span class="nav-user-email">' + email + '</span>' +
+                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
+                    '</button>' +
+                    '<ul class="nav-user-dropdown">' +
+                        '<li><a href="/alerts">My Alerts</a></li>' +
+                        '<li><a href="/wishlist">My Wishlist</a></li>' +
+                        '<li><a href="/saved-searches">Saved Searches</a></li>' +
+                        '<li><a href="/account/billing">Billing</a></li>' +
+                        '<li class="nav-divider"></li>' +
+                        '<li><a href="#" id="navSignOut">Sign Out</a></li>' +
+                    '</ul>' +
+                '</div>';
+            if (mobileActionsDiv) {
+                mobileActionsDiv.innerHTML =
+                    '<a href="/alerts" class="nav-mobile-link">My Alerts</a>' +
+                    '<a href="/wishlist" class="nav-mobile-link">My Wishlist</a>' +
+                    '<a href="/saved-searches" class="nav-mobile-link">Saved Searches</a>' +
+                    '<a href="/account/billing" class="nav-mobile-link">Billing</a>' +
+                    '<a href="#" id="mobileNavSignOut" class="nav-btn nav-btn-secondary">Sign Out</a>';
+            }
+            var signOutBtn = document.getElementById('navSignOut');
+            if (signOutBtn) signOutBtn.addEventListener('click', function(e) { e.preventDefault(); Auth.logout(); });
+            var mobileSignOutBtn = document.getElementById('mobileNavSignOut');
+            if (mobileSignOutBtn) mobileSignOutBtn.addEventListener('click', function(e) { e.preventDefault(); Auth.logout(); });
+            var userBtn = actionsDiv.querySelector('.nav-user-btn');
+            if (userBtn) {
+                userBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var isOpen = userBtn.getAttribute('aria-expanded') === 'true';
+                    userBtn.setAttribute('aria-expanded', !isOpen);
+                    userBtn.nextElementSibling.classList.toggle('is-open');
+                });
+            }
+        } else {
+            actionsDiv.innerHTML =
+                '<a href="/login" class="nav-btn nav-btn-secondary">Sign In</a>' +
+                '<a href="/register" class="nav-btn nav-btn-primary">Get API Key</a>';
+            if (mobileActionsDiv) {
+                mobileActionsDiv.innerHTML =
+                    '<a href="/login" class="nav-btn nav-btn-secondary">Sign In</a>' +
+                    '<a href="/register" class="nav-btn nav-btn-primary">Get API Key</a>';
+            }
+        }
+    }
+    </script>
+    <script src="/assets/js/toast.js"></script>
+    <script src="/assets/js/main.js"></script>
+    <script src="/assets/js/currency-converter.js"></script>
+    
+<script src="/assets/js/autocomplete.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var searchInput = document.getElementById('hero-search-input');
+    if (searchInput && window.BwAutocomplete) {
+        new BwAutocomplete(searchInput, {
+            onSelect: function(product) {
+                if (product.source_url) {
+                    window.location.href = product.source_url;
+                } else if (product.product_id) {
+                    window.location.href = '/products/' + product.product_id;
+                }
+            }
+        });
+    }
+
+    var searchBtn = document.getElementById('hero-search-btn');
+    if (searchBtn) {
+        searchBtn.addEventListener('click', runAgentSimulation);
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') runAgentSimulation();
+        });
+    }
+
+    async function runAgentSimulation() {
+        var query = searchInput.value.trim();
+        if (!query) return;
+        var output = document.getElementById('hero-simulator-output');
+        var jsonEl = document.getElementById('simulator-json');
+        output.style.display = 'block';
+        jsonEl.innerHTML = '<span class="simulator-loading">Querying API...</span>';
+        try {
+            var resp = await fetch('/v1/products/search?q=' + encodeURIComponent(query) + '&country=SG&limit=3');
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            var data = await resp.json();
+            jsonEl.textContent = JSON.stringify(data, null, 2);
+        } catch (e) {
+            jsonEl.innerHTML = '<span class="simulator-error">Error: ' + escapeHtml(e.message) + '</span>';
+        }
+    }
+
+    var trendingGrid = document.getElementById('trending-grid');
+    if (trendingGrid) {
+        fetchTrendingDeals();
+    }
+
+    fetchLiveStats();
+
+    async function fetchLiveStats() {
+        var statsSection = document.getElementById('live-stats');
+        if (!statsSection) return;
+        try {
+            var response = await fetch('/v1/stats/public');
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            var data = await response.json();
+            var fmt = function(n) {
+                if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+                if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+                return String(n);
+            };
+            var cells = statsSection.querySelectorAll('[data-stat]');
+            cells.forEach(function(cell) {
+                var key = cell.dataset.stat;
+                if (data[key] !== undefined) {
+                    cell.textContent = fmt(data[key]);
+                }
+            });
+        } catch (e) {
+            console.warn('[stats] failed to load live stats', e);
+        }
+
+        var latencyP50 = document.getElementById('latency-p50');
+        var latencyP95 = document.getElementById('latency-p95');
+        if (latencyP50 || latencyP95) {
+            fetchLatencyMetrics().catch(function(e) {
+                console.warn('[latency] failed to load', e);
+            });
+        }
+
+        var dataFreshness = document.getElementById('data-freshness');
+        if (dataFreshness) {
+            fetchDataFreshness().catch(function(e) {
+                console.warn('[freshness] failed to load', e);
+            });
+        }
+    }
+
+    async function fetchLatencyMetrics() {
+        try {
+            var resp = await fetch('/v1/stats/performance');
+            if (!resp.ok) return;
+            var data = await resp.json();
+            if (document.getElementById('latency-p50')) {
+                document.getElementById('latency-p50').textContent = (data.p50_ms || '—') + 'ms';
+            }
+            if (document.getElementById('latency-p95')) {
+                document.getElementById('latency-p95').textContent = (data.p95_ms || '—') + 'ms';
+            }
+        } catch (e) {}
+    }
+
+    async function fetchDataFreshness() {
+        try {
+            var resp = await fetch('/v1/stats/public');
+            if (!resp.ok) return;
+            var data = await resp.json();
+            var freshnessEl = document.getElementById('data-freshness');
+            if (freshnessEl && data.last_updated) {
+                freshnessEl.textContent = timeAgo(data.last_updated);
+            }
+        } catch (e) {}
+    }
+
+    function timeAgo(dateStr) {
+        if (!dateStr) return '—';
+        var date = new Date(dateStr);
+        var now = new Date();
+        var diffMs = now.getTime() - date.getTime();
+        var diffMins = Math.floor(diffMs / 60000);
+        if (diffMins < 60) return diffMins + 'm ago';
+        var diffHours = Math.floor(diffMins / 60);
+        if (diffHours < 24) return diffHours + 'h ago';
+        return date.toLocaleDateString();
+    }
+
+    async function fetchTrendingDeals() {
+        try {
+            var response = await fetch('/v1/products/search?q=&country=SG&limit=6&sort=deal_score');
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            var payload = await response.json();
+            var items = payload.results || payload.products || payload.data || [];
+            renderTrendingDeals(items);
+        } catch (error) {
+            trendingGrid.innerHTML = '<p class="trending-error">Unable to load trending deals.</p>';
+        }
+    }
+
+    function escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function formatPrice(amount, currency) {
+        var curr = currency || 'SGD';
+        try {
+            return new Intl.NumberFormat('en-SG', {
+                style: 'currency',
+                currency: curr,
+                maximumFractionDigits: 2
+            }).format(amount);
+        } catch (e) {
+            return curr + ' ' + amount.toFixed(2);
+        }
+    }
+
+    function renderDealBadge(dealScore) {
+        if (!dealScore || !dealScore.has_sufficient_history) return '';
+        var pct = Math.abs(dealScore.percent_vs_avg);
+        var cls = dealScore.score === 'great_deal' ? 'badge-great' :
+                  dealScore.score === 'good_deal' ? 'badge-good' :
+                  dealScore.score === 'high_price' ? 'badge-high' : 'badge-fair';
+        var label = dealScore.score === 'great_deal' ? '🔥 -' + pct + '%' :
+                    dealScore.score === 'good_deal' ? '✓ Good Deal' :
+                    dealScore.score === 'high_price' ? '⚠ +' + pct + '%' : 'Fair Price';
+        return '<span class="deal-badge ' + cls + '">' + label + '</span>';
+    }
+
+    function platformClass(platform) {
+        return String(platform || 'buywhere').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    }
+
+    function renderTrendingDeals(items) {
+        if (!items.length) {
+            trendingGrid.innerHTML = '<p class="trending-empty">No trending deals available right now.</p>';
+            return;
+        }
+        trendingGrid.innerHTML = items.map(function(product) {
+            var title = product.title || product.name || 'Untitled product';
+            var merchant = product.merchant && product.merchant.name ? product.merchant.name : '';
+            var platform = product.merchant && product.merchant.platform ? product.merchant.platform : (product.retailer || 'BuyWhere');
+            var href = product.source_url || (product.product_id ? '/product?product_id=' + encodeURIComponent(product.product_id) : '#');
+            var dealBadge = renderDealBadge(product.deal_score);
+            return '' +
+                '<a class="trending-card product-card-link" href="' + escapeHtml(href) + '">' +
+                    '<div class="trending-source ' + platformClass(platform) + '">' + escapeHtml(platform) + '</div>' +
+                    '<h3 class="trending-name">' + escapeHtml(title) + '</h3>' +
+                    '<p class="trending-price">' + escapeHtml(formatPrice(product.price.amount, product.price.currency)) + dealBadge + '</p>' +
+                    (merchant ? '<p class="trending-merchant">' + escapeHtml(merchant) + '</p>' : '') +
+                '</a>';
+        }).join('');
+    }
+});
+</script>
+
+</body>
+</html>

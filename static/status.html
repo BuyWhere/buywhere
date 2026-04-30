@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BuyWhere API Status</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #0f1117;
+            color: #e6edf3;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: #8b949e;
+            margin-bottom: 40px;
+        }
+        .status-banner {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 24px;
+            background: #161b22;
+            border-radius: 12px;
+            margin-bottom: 32px;
+        }
+        .status-indicator {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .status-indicator.healthy {
+            background: #3fb950;
+            box-shadow: 0 0 12px rgba(63, 185, 80, 0.5);
+        }
+        .status-indicator.degraded {
+            background: #d29922;
+            box-shadow: 0 0 12px rgba(210, 153, 34, 0.5);
+        }
+        .status-indicator.unhealthy {
+            background: #f85149;
+            box-shadow: 0 0 12px rgba(248, 81, 73, 0.5);
+        }
+        .status-text h2 {
+            font-size: 22px;
+            font-weight: 600;
+        }
+        .status-text p {
+            color: #8b949e;
+            font-size: 14px;
+            margin-top: 4px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+        .card {
+            background: #161b22;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .card-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #8b949e;
+        }
+        .card-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .card-indicator.ok {
+            background: #3fb950;
+        }
+        .card-indicator.error {
+            background: #f85149;
+        }
+        .card-value {
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .card-subtext {
+            font-size: 13px;
+            color: #8b949e;
+        }
+        .services {
+            background: #161b22;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 32px;
+        }
+        .services h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        .service-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #21262d;
+        }
+        .service-row:last-child {
+            border-bottom: none;
+        }
+        .service-name {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .service-status {
+            font-size: 13px;
+            color: #8b949e;
+        }
+        .last-check {
+            text-align: center;
+            color: #8b949e;
+            font-size: 13px;
+            margin-top: 20px;
+        }
+        .error-message {
+            background: rgba(248, 81, 73, 0.1);
+            border: 1px solid rgba(248, 81, 73, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+            color: #f85149;
+            margin-bottom: 20px;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .loading {
+            animation: pulse 1.5s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>BuyWhere API Status</h1>
+        <p class="subtitle">Real-time health monitoring</p>
+
+        <div id="error-banner" class="error-message" style="display: none;">
+            Unable to reach the API. Last successful check was <span id="last-success"></span>.
+        </div>
+
+        <div class="status-banner">
+            <div id="main-indicator" class="status-indicator loading"></div>
+            <div class="status-text">
+                <h2 id="main-status">Loading...</h2>
+                <p id="main-desc">Checking API health</p>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">API Version</span>
+                    <div id="api-indicator" class="card-indicator ok"></div>
+                </div>
+                <div id="version" class="card-value">—</div>
+                <div class="card-subtext">BuyWhere Catalog API</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Active Products</span>
+                    <div id="products-indicator" class="card-indicator ok"></div>
+                </div>
+                <div id="product-count" class="card-value">—</div>
+                <div class="card-subtext">In catalog</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Uptime</span>
+                    <div id="uptime-indicator" class="card-indicator ok"></div>
+                </div>
+                <div id="uptime" class="card-value">—</div>
+                <div class="card-subtext">Since last restart</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Response Time</span>
+                    <div id="response-indicator" class="card-indicator ok"></div>
+                </div>
+                <div id="response-time" class="card-value">—</div>
+                <div class="card-subtext">Last health check</div>
+            </div>
+        </div>
+
+        <div class="services">
+            <h3>Service Dependencies</h3>
+            <div class="service-row">
+                <div class="service-name">
+                    <span class="card-indicator" id="db-indicator"></span>
+                    <span>Database</span>
+                </div>
+                <span id="db-status" class="service-status">—</span>
+            </div>
+            <div class="service-row">
+                <div class="service-name">
+                    <span class="card-indicator" id="cache-indicator"></span>
+                    <span>Cache (Redis)</span>
+                </div>
+                <span id="cache-status" class="service-status">—</span>
+            </div>
+            <div class="service-row">
+                <div class="service-name">
+                    <span class="card-indicator" id="scrapers-indicator"></span>
+                    <span>Scrapers</span>
+                </div>
+                <span id="scrapers-status" class="service-status">—</span>
+            </div>
+            <div class="service-row">
+                <div class="service-name">
+                    <span class="card-indicator" id="disk-indicator"></span>
+                    <span>Disk Space</span>
+                </div>
+                <span id="disk-status" class="service-status">—</span>
+            </div>
+        </div>
+
+        <p id="last-check" class="last-check">Last checked: —</p>
+    </div>
+
+    <script>
+        const API_URL = window.location.origin;
+        const SIMPLE_HEALTH_URL = `${API_URL}/api/v1/health`;
+        const DETAILED_HEALTH_URL = `${API_URL}/api/v1/health/detailed`;
+        let lastSuccessfulCheck = null;
+
+        function formatUptime(seconds) {
+            if (!seconds || seconds <= 0) return '—';
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            if (days > 0) return `${days}d ${hours}h`;
+            if (hours > 0) return `${hours}h ${minutes}m`;
+            return `${minutes}m`;
+        }
+
+        function formatTime(date) {
+            return new Date(date).toLocaleTimeString();
+        }
+
+        function setIndicator(elementId, isOk) {
+            const el = document.getElementById(elementId);
+            el.className = 'card-indicator ' + (isOk ? 'ok' : 'error');
+        }
+
+        function setStatusIndicator(indicatorId, status) {
+            const el = document.getElementById(indicatorId);
+            el.className = 'status-indicator';
+            if (status === 'healthy' || status === 'ok') {
+                el.classList.add('healthy');
+            } else if (status === 'degraded') {
+                el.classList.add('degraded');
+            } else {
+                el.classList.add('unhealthy');
+            }
+        }
+
+        function setServiceRow(indicatorId, statusId, isOk, text) {
+            setIndicator(indicatorId, isOk);
+            document.getElementById(statusId).textContent = text;
+        }
+
+        async function fetchJson(url) {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status} from ${url}`);
+            }
+
+            return response.json();
+        }
+
+        async function checkHealth() {
+            try {
+                const startTime = performance.now();
+                const [simple, detailed] = await Promise.all([
+                    fetchJson(SIMPLE_HEALTH_URL),
+                    fetchJson(DETAILED_HEALTH_URL).catch(() => null)
+                ]);
+                const responseTime = Math.round(performance.now() - startTime);
+                lastSuccessfulCheck = new Date();
+                document.getElementById('error-banner').style.display = 'none';
+
+                const overallStatus =
+                    simple.status === 'ok' ? 'healthy' :
+                    simple.status === 'degraded' ? 'degraded' : 'unhealthy';
+
+                document.getElementById('main-status').textContent = 
+                    overallStatus === 'healthy' ? 'All Systems Operational' :
+                    overallStatus === 'degraded' ? 'Degraded Performance' : 'Service Disruption';
+                document.getElementById('main-desc').textContent = 
+                    `Last check: ${formatTime(lastSuccessfulCheck)}`;
+                setStatusIndicator('main-indicator', overallStatus);
+
+                document.getElementById('version').textContent = simple.version || '—';
+                document.getElementById('response-time').textContent = `${responseTime}ms`;
+                document.getElementById('product-count').textContent = 
+                    typeof simple.product_count === 'number' ? simple.product_count.toLocaleString() : '—';
+
+                document.getElementById('uptime').textContent = 
+                    formatUptime(simple.uptime_seconds);
+
+                setIndicator('api-indicator', simple.status !== 'down');
+                setIndicator('products-indicator', typeof simple.product_count === 'number');
+                setIndicator('uptime-indicator', typeof simple.uptime_seconds === 'number' && simple.uptime_seconds > 0);
+                setIndicator('response-indicator', responseTime < 1000);
+
+                const dbOk = simple.database_connected ?? detailed?.db?.ok ?? false;
+                setServiceRow('db-indicator', 'db-status', dbOk, dbOk ? 'Connected' : 'Disconnected');
+
+                const cacheOk = simple.cache_connected ?? detailed?.cache?.ok ?? false;
+                setServiceRow('cache-indicator', 'cache-status', cacheOk, cacheOk ? 'Connected' : 'Disconnected');
+
+                if (detailed?.db || detailed?.cache) {
+                    const dependencyHealthy = (detailed.db?.ok ?? false) && (detailed.cache?.ok ?? false);
+                    const dependencyText = [
+                        detailed.db ? `DB ${Math.round(detailed.db.latency_ms)}ms` : null,
+                        detailed.cache ? `Cache ${Math.round(detailed.cache.latency_ms)}ms` : null
+                    ].filter(Boolean).join(' · ');
+                    setServiceRow('scrapers-indicator', 'scrapers-status', dependencyHealthy, dependencyText || 'Dependency timings available');
+                } else {
+                    setServiceRow('scrapers-indicator', 'scrapers-status', false, 'Detailed dependency metrics unavailable');
+                }
+
+                if (simple.last_ingestion_time) {
+                    setServiceRow(
+                        'disk-indicator',
+                        'disk-status',
+                        true,
+                        `Last ingestion ${formatTime(simple.last_ingestion_time)}`
+                    );
+                } else {
+                    setServiceRow('disk-indicator', 'disk-status', false, 'No ingestion timestamp available');
+                }
+
+                document.getElementById('last-check').textContent = 
+                    `Last checked: ${formatTime(lastSuccessfulCheck)}`;
+
+            } catch (error) {
+                console.error('Health check failed:', error);
+                document.getElementById('error-banner').style.display = 'block';
+                document.getElementById('last-success').textContent = 
+                    lastSuccessfulCheck ? formatTime(lastSuccessfulCheck) : 'never';
+
+                document.getElementById('main-status').textContent = 'Unable to Connect';
+                document.getElementById('main-desc').textContent = error.message;
+                setStatusIndicator('main-indicator', 'unhealthy');
+
+                ['api-indicator', 'products-indicator', 'uptime-indicator', 'response-indicator',
+                 'db-indicator', 'cache-indicator', 'scrapers-indicator', 'disk-indicator'].forEach(id => {
+                    setIndicator(id, false);
+                });
+            }
+        }
+
+        checkHealth();
+        setInterval(checkHealth, 30000);
+    </script>
+</body>
+</html>

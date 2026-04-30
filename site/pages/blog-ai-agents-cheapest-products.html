@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="blog-hero">
+    <div class="container">
+        <div class="post-meta">
+            <span class="post-date">April 14, 2026</span>
+            <span class="post-tag">Guide</span>
+        </div>
+        <h1>How AI Agents Can Find the Cheapest Products in Singapore</h1>
+        <p class="lead">Singapore shoppers are well-trained comparison buyers. AI shopping agents are changing this — instead of opening five tabs, you ask once.</p>
+    </div>
+</section>
+
+<section class="blog-content">
+    <div class="container">
+        <div class="prose">
+<p>Singapore shoppers are well-trained comparison buyers. Before buying a laptop, a phone, or even a kitchen appliance, most will check Lazada, Shopee, and Qoo10 — often in parallel tabs. It works, but it is slow and manual.</p>
+
+<p>AI shopping agents are changing this. Instead of opening five tabs, you ask once. The agent searches, compares, and gives you the best option with a direct link to buy.</p>
+
+<h2>The problem with single-platform search</h2>
+
+<p>Most AI assistants are connected to one data source. Ask a generic chatbot "where can I buy a Dyson V15 cheapest in Singapore?" and you might get:</p>
+
+<ul>
+<li>An outdated answer from the model's training data</li>
+<li>A Lazada-only result (if the assistant has a Lazada integration)</li>
+<li>A generic answer with no live pricing</li>
+</ul>
+
+<p>None of these are useful for actual purchasing decisions. Price changes daily. Stock runs out. Flash sales appear and disappear in hours.</p>
+
+<h2>What AI agents do differently</h2>
+
+<p>A properly built AI shopping agent does not guess. It queries live data, compares it, and reasons over it:</p>
+
+<ol>
+<li><strong>Real-time search</strong> across Lazada, Shopee, Qoo10, and other Singapore merchants</li>
+<li><strong>Price normalisation</strong> — accounting for shipping, vouchers, and bundle pricing</li>
+<li><strong>Availability filtering</strong> — only returning in-stock items</li>
+<li><strong>Plain-language summary</strong> — explaining the spread and recommending the best option</li>
+</ol>
+
+<h2>Example: Finding the cheapest air purifier in Singapore</h2>
+
+<p>Here is what a BuyWhere-powered agent session looks like:</p>
+
+<blockquote>
+<p><strong>You:</strong> I need an air purifier for a 40sqm room, under SGD 250.</p>
+
+<p><strong>Agent:</strong> I found 8 matching listings across Lazada, Shopee, and Qoo10. The best option in your budget is the Xiaomi Air Purifier 4 at SGD 189 on Shopee (free shipping, in stock, last updated 2 hours ago). The Levoit Core 300 is available at SGD 229 on Lazada — slightly better for sensitive households but above your ceiling. Want me to set a price alert if the Levoit drops?</p>
+</blockquote>
+
+<p>That answer required querying structured catalog data, filtering by specs and availability, ranking by value, and surfacing a follow-up action. BuyWhere handles the catalog layer; the LLM handles the reasoning.</p>
+
+<h2>Why Singapore is ahead</h2>
+
+<p>Singapore's e-commerce market is small, dense, and digitally mature — which makes it the ideal launch market for this kind of product:</p>
+
+<ul>
+<li>Merchants update listings frequently (sometimes hourly for flash deals)</li>
+<li>Consumers are price-sensitive and research-driven</li>
+<li>The developer ecosystem is strong enough to build and adopt API-first tools quickly</li>
+</ul>
+
+<p>BuyWhere indexes Singapore merchants continuously, meaning agents built on our API give answers grounded in what is actually available to buy, right now.</p>
+
+<h2>Try it yourself</h2>
+
+<p>BuyWhere is in beta. Developers can sign up for free API access at <a href="https://buywhere.io/developers">buywhere.io/developers</a>. The free tier covers 1,000 queries/month — enough to build and test a shopping agent.</p>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.blog-hero { padding: var(--bw-spacing-16) 0; background: linear-gradient(135deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%); }
+.blog-hero h1 { margin-bottom: var(--bw-spacing-4); font-size: var(--bw-font-size-3xl); }
+.post-meta { display: flex; gap: var(--bw-spacing-4); margin-bottom: var(--bw-spacing-4); }
+.post-tag { background: var(--bw-color-accent); color: white; padding: var(--bw-spacing-1) var(--bw-spacing-3); border-radius: var(--bw-radius-full); font-size: var(--bw-font-size-sm); }
+.blog-content { padding: var(--bw-spacing-16) 0; }
+.prose { max-width: 720px; }
+.prose h2 { font-size: var(--bw-font-size-xl); margin: var(--bw-spacing-8) 0 var(--bw-spacing-4); }
+.prose p { margin-bottom: var(--bw-spacing-4); line-height: 1.7; }
+.prose ul, .prose ol { margin-bottom: var(--bw-spacing-4); padding-left: var(--bw-spacing-6); }
+.prose li { margin-bottom: var(--bw-spacing-2); line-height: 1.6; }
+.prose blockquote { border-left: 4px solid var(--bw-color-primary); padding-left: var(--bw-spacing-4); margin: var(--bw-spacing-6) 0; font-style: italic; color: var(--bw-color-text-secondary); }
+.prose a { color: var(--bw-color-primary); }
+</style>
+{% endblock %}

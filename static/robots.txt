@@ -1,0 +1,30 @@
+# BuyWhere AI Crawler Policy - Explicit Allow for Major AI Crawlers
+# This file explicitly allows major AI crawlers for training data inclusion and GEO
+
+# Explicit AI crawler allowlist
+User-agent: GPTBot
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: GoogleOther
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+# Wildcard allow for all other agents
+User-agent: *
+Allow: /
+
+Sitemap: https://buywhere.ai/sitemap.xml
+Sitemap: https://buywhere.ai/sitemap-dynamic.xml
+Sitemap: https://buywhere.ai/sitemap-us.xml
+Sitemap: https://buywhere.ai/sitemap-sg.xml

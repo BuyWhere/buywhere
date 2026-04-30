@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="billing-hero">
+    <div class="container">
+        <h1>Billing & Usage</h1>
+        <p class="subtitle">Manage your plan and monitor your API usage.</p>
+    </div>
+</section>
+
+<section class="billing-content">
+    <div class="container">
+        <!-- Payment Failure Alert -->
+        <div class="payment-failure-alert" id="paymentFailureAlert" style="display: none;">
+            <div class="alert-content">
+                <span class="alert-icon">⚠️</span>
+                <div class="alert-text">
+                    <strong>Payment Failed</strong>
+                    <p>We couldn't process your payment. Please update your payment method to keep your service active.</p>
+                </div>
+                <button class="btn btn-secondary btn-sm" id="manageBillingBtn" style="display: none;">Update Payment Method</button>
+            </div>
+        </div>
+
+        <div class="billing-grid">
+            <div class="billing-main">
+                <div class="billing-card">
+                    <h2>Current Plan</h2>
+                    <div class="current-plan">
+                        <div class="plan-badge" id="planBadge">Loading...</div>
+                        <p class="plan-renewal">Renews on <span id="renewalDate">--</span></p>
+                    </div>
+                    <button class="btn btn-secondary btn-full" id="manageBillingBtn" style="display: none; margin-top: var(--bw-spacing-4);">Manage Billing</button>
+                </div>
+
+                <div class="billing-card">
+                    <h2>API Usage This Period</h2>
+                    <div class="usage-display">
+                        <div class="usage-number">
+                            <span id="currentUsage">--</span>
+                            <span class="usage-separator">/</span>
+                            <span id="quotaLimit">--</span>
+                            <span class="usage-label">requests</span>
+                        </div>
+                        <div class="usage-bar-container">
+                            <div class="usage-bar" id="usageBar" style="width: 0%"></div>
+                        </div>
+                        <p class="usage-note">Resets on <span id="resetDate">--</span></p>
+                    </div>
+                </div>
+
+                <div class="billing-card" id="upgradeCard">
+                    <h2>Upgrade Your Plan</h2>
+                    <p class="upgrade-description">Get more API requests and unlock premium features.</p>
+                    <div class="upgrade-options">
+                        <div class="upgrade-option" id="proUpgrade">
+                            <div class="upgrade-plan">Pro</div>
+                            <div class="upgrade-price">$49<span>/month</span></div>
+                            <ul class="upgrade-features">
+                                <li>100,000 API requests/month</li>
+                                <li>Full product search + compare</li>
+                                <li>US + Singapore coverage</li>
+                                <li>Priority support</li>
+                                <li>MCP integration</li>
+                            </ul>
+                            <button class="btn btn-primary btn-lg btn-full" id="upgradeProBtn">Upgrade to Pro</button>
+                        </div>
+                        <div class="upgrade-option" id="enterpriseUpgrade">
+                            <div class="upgrade-plan">Enterprise</div>
+                            <div class="upgrade-price">Custom</div>
+                            <ul class="upgrade-features">
+                                <li>Unlimited API requests</li>
+                                <li>All countries</li>
+                                <li>Dedicated support</li>
+                                <li>Custom integrations</li>
+                                <li>SLA guarantee</li>
+                            </ul>
+                            <a href="/contact" class="btn btn-secondary btn-lg btn-full">Contact Sales</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="billing-sidebar">
+                <div class="billing-card">
+                    <h3>Need Help?</h3>
+                    <p>Contact our support team for billing questions or enterprise inquiries.</p>
+                    <a href="/contact" class="btn btn-secondary btn-full">Contact Support</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.billing-hero { padding: var(--bw-spacing-16) 0 var(--bw-spacing-8); text-align: center; background: linear-gradient(135deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%); }
+.billing-hero h1 { font-size: var(--bw-font-size-3xl); margin-bottom: var(--bw-spacing-4); }
+.billing-hero .subtitle { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-lg); }
+
+.billing-content { padding: var(--bw-spacing-12) 0 var(--bw-spacing-16); }
+
+.billing-grid { display: grid; grid-template-columns: 1fr 320px; gap: var(--bw-spacing-8); }
+@media (max-width: 768px) { .billing-grid { grid-template-columns: 1fr; } }
+
+.billing-main { display: flex; flex-direction: column; gap: var(--bw-spacing-6); }
+
+.billing-card { background: var(--bw-color-bg-primary); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-2xl); padding: var(--bw-spacing-6); }
+.billing-card h2 { font-size: var(--bw-font-size-xl); margin-bottom: var(--bw-spacing-4); }
+.billing-card h3 { font-size: var(--bw-font-size-lg); margin-bottom: var(--bw-spacing-3); }
+
+.current-plan { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--bw-spacing-4); }
+.plan-badge { display: inline-flex; padding: var(--bw-spacing-2) var(--bw-spacing-4); border-radius: var(--bw-radius-full); font-weight: 600; font-size: var(--bw-font-size-sm); }
+.plan-badge.free { background: rgba(107, 114, 128, 0.15); color: var(--bw-color-text-secondary); }
+.plan-badge.pro { background: rgba(0, 102, 255, 0.15); color: var(--bw-color-primary); }
+.plan-badge.enterprise { background: rgba(139, 92, 246, 0.15); color: #8B5CF6; }
+.plan-renewal { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-sm); }
+
+.usage-display { text-align: center; padding: var(--bw-spacing-4) 0; }
+.usage-number { font-size: var(--bw-font-size-3xl); font-weight: var(--bw-font-weight-bold); color: var(--bw-color-text-primary); }
+.usage-separator { color: var(--bw-color-text-muted); margin: 0 var(--bw-spacing-1); }
+.usage-label { font-size: var(--bw-font-size-lg); font-weight: 400; color: var(--bw-color-text-secondary); }
+
+.usage-bar-container { background: var(--bw-color-bg-secondary); border-radius: var(--bw-radius-full); height: 12px; margin: var(--bw-spacing-6) 0; overflow: hidden; }
+.usage-bar { background: linear-gradient(90deg, var(--bw-color-primary) 0%, #00D4C8 100%); height: 100%; border-radius: var(--bw-radius-full); transition: width 0.5s ease; }
+.usage-bar.warning { background: linear-gradient(90deg, #F5A623 0%, #DC2626 100%); }
+.usage-bar.critical { background: #DC2626; }
+
+.usage-note { color: var(--bw-color-text-muted); font-size: var(--bw-font-size-sm); }
+
+.upgrade-description { color: var(--bw-color-text-secondary); margin-bottom: var(--bw-spacing-6); }
+.upgrade-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--bw-spacing-4); }
+
+.upgrade-option { background: var(--bw-color-bg-secondary); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-xl); padding: var(--bw-spacing-6); text-align: center; }
+.upgrade-plan { font-size: var(--bw-font-size-xl); font-weight: 600; margin-bottom: var(--bw-spacing-2); }
+.upgrade-price { font-size: var(--bw-font-size-2xl); font-weight: var(--bw-font-weight-bold); color: var(--bw-color-primary); margin-bottom: var(--bw-spacing-4); }
+.upgrade-price span { font-size: var(--bw-font-size-sm); font-weight: 400; color: var(--bw-color-text-muted); }
+.upgrade-features { list-style: none; padding: 0; margin: 0 0 var(--bw-spacing-6); text-align: left; }
+.upgrade-features li { padding: var(--bw-spacing-1) 0; font-size: var(--bw-font-size-sm); color: var(--bw-color-text-secondary); }
+.upgrade-features li::before { content: "✓"; color: var(--bw-color-primary); margin-right: var(--bw-spacing-2); }
+
+.btn-full { width: 100%; justify-content: center; }
+
+.billing-sidebar .billing-card { background: var(--bw-color-bg-secondary); }
+.billing-sidebar p { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-sm); margin-bottom: var(--bw-spacing-4); }
+
+.payment-failure-alert { background: rgba(220, 38, 38, 0.1); border-left: 4px solid #DC2626; border-radius: var(--bw-radius-lg); padding: var(--bw-spacing-4) var(--bw-spacing-6); margin-bottom: var(--bw-spacing-6); }
+.alert-content { display: flex; align-items: center; gap: var(--bw-spacing-4); }
+.alert-icon { font-size: var(--bw-font-size-2xl); }
+.alert-text { flex: 1; }
+.alert-text strong { color: #DC2626; display: block; margin-bottom: var(--bw-spacing-1); }
+.alert-text p { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-sm); margin: 0; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script src="/assets/js/billing.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    Billing.init();
+});
+</script>
+{% endblock %}

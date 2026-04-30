@@ -1,0 +1,24 @@
+Requirement already satisfied: pywebpush in /usr/local/lib/python3.12/site-packages (2.3.0)
+Requirement already satisfied: aiohttp in /usr/local/lib/python3.12/site-packages (from pywebpush) (3.11.18)
+Requirement already satisfied: cryptography>=2.6.1 in /usr/local/lib/python3.12/site-packages (from pywebpush) (46.0.7)
+Requirement already satisfied: http-ece>=1.1.0 in /usr/local/lib/python3.12/site-packages (from pywebpush) (1.2.1)
+Requirement already satisfied: requests>=2.21.0 in /usr/local/lib/python3.12/site-packages (from pywebpush) (2.33.1)
+Requirement already satisfied: py-vapid>=1.7.0 in /usr/local/lib/python3.12/site-packages (from pywebpush) (1.9.4)
+Requirement already satisfied: cffi>=2.0.0 in /usr/local/lib/python3.12/site-packages (from cryptography>=2.6.1->pywebpush) (2.0.0)
+Requirement already satisfied: charset_normalizer<4,>=2 in /usr/local/lib/python3.12/site-packages (from requests>=2.21.0->pywebpush) (3.4.7)
+Requirement already satisfied: idna<4,>=2.5 in /usr/local/lib/python3.12/site-packages (from requests>=2.21.0->pywebpush) (3.11)
+Requirement already satisfied: urllib3<3,>=1.26 in /usr/local/lib/python3.12/site-packages (from requests>=2.21.0->pywebpush) (2.6.3)
+Requirement already satisfied: certifi>=2023.5.7 in /usr/local/lib/python3.12/site-packages (from requests>=2.21.0->pywebpush) (2026.2.25)
+Requirement already satisfied: aiohappyeyeballs>=2.3.0 in /usr/local/lib/python3.12/site-packages (from aiohttp->pywebpush) (2.6.1)
+Requirement already satisfied: aiosignal>=1.1.2 in /usr/local/lib/python3.12/site-packages (from aiohttp->pywebpush) (1.4.0)
+Requirement already satisfied: attrs>=17.3.0 in /usr/local/lib/python3.12/site-packages (from aiohttp->pywebpush) (26.1.0)
+Requirement already satisfied: frozenlist>=1.1.1 in /usr/local/lib/python3.12/site-packages (from aiohttp->pywebpush) (1.8.0)
+Requirement already satisfied: multidict<7.0,>=4.5 in /usr/local/lib/python3.12/site-packages (from aiohttp->pywebpush) (6.7.1)
+Requirement already satisfied: propcache>=0.2.0 in /usr/local/lib/python3.12/site-packages (from aiohttp->pywebpush) (0.4.1)
+Requirement already satisfied: yarl<2.0,>=1.17.0 in /usr/local/lib/python3.12/site-packages (from aiohttp->pywebpush) (1.23.0)
+Requirement already satisfied: typing-extensions>=4.2 in /usr/local/lib/python3.12/site-packages (from aiosignal>=1.1.2->aiohttp->pywebpush) (4.15.0)
+Requirement already satisfied: pycparser in /usr/local/lib/python3.12/site-packages (from cffi>=2.0.0->cryptography>=2.6.1->pywebpush) (3.0)
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.0.1 -> 26.1
+[notice] To update, run: pip install --upgrade pip

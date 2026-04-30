@@ -1,0 +1,557 @@
+.section {
+  margin-bottom: var(--bw-space-8);
+}
+
+.card {
+  border: var(--bw-border-width) solid var(--bw-color-line-strong);
+  border-radius: var(--bw-radius-xl);
+  background: var(--bw-color-surface-2);
+  overflow: hidden;
+}
+
+.cardHeader {
+  padding: var(--bw-space-4) var(--bw-space-5);
+  border-bottom: var(--bw-border-width) solid var(--bw-color-line-soft);
+  background: var(--bw-color-surface-3);
+}
+
+.titleRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--bw-space-4);
+  margin-bottom: var(--bw-space-3);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-family: var(--bw-font-display);
+  font-size: var(--bw-font-size-3);
+  font-weight: var(--bw-font-weight-semibold);
+  margin: 0;
+  color: var(--bw-color-ink-primary);
+}
+
+.freshness {
+  font-size: var(--bw-font-size-0);
+  color: var(--bw-color-ink-secondary);
+}
+
+.statsBar {
+  display: flex;
+  gap: var(--bw-space-6);
+  margin-bottom: var(--bw-space-3);
+  padding: var(--bw-space-3) var(--bw-space-4);
+  background: var(--bw-color-surface-3);
+  border-radius: var(--bw-radius-md);
+}
+
+.statItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bw-space-1);
+}
+
+.statLabel {
+  font-size: var(--bw-font-size-00);
+  color: var(--bw-color-ink-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.statValue {
+  font-size: var(--bw-font-size-1);
+  font-weight: var(--bw-font-weight-bold);
+  color: var(--bw-color-ink-primary);
+}
+
+.sortPills {
+  display: flex;
+  gap: var(--bw-space-2);
+  flex-wrap: wrap;
+}
+
+.sortPill {
+  padding: var(--bw-space-1) var(--bw-space-3);
+  border: var(--bw-border-width) solid var(--bw-color-line-soft);
+  border-radius: var(--bw-radius-sm);
+  background: var(--bw-color-surface-1);
+  font-family: var(--bw-font-body);
+  font-size: var(--bw-font-size-0);
+  font-weight: var(--bw-font-weight-medium);
+  color: var(--bw-color-ink-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sortPill:hover {
+  border-color: var(--bw-color-brand-primary);
+  color: var(--bw-color-brand-primary);
+}
+
+.sortPillActive {
+  background: var(--bw-color-brand-primary);
+  border-color: var(--bw-color-brand-primary);
+  color: white;
+}
+
+.sortPillActive:hover {
+  background: var(--bw-color-brand-primary-hover);
+  border-color: var(--bw-color-brand-primary-hover);
+  color: white;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 640px;
+}
+
+.table th {
+  text-align: left;
+  padding: var(--bw-space-3) var(--bw-space-4);
+  background: var(--bw-color-surface-3);
+  font-family: var(--bw-font-body);
+  font-size: var(--bw-font-size-00);
+  font-weight: var(--bw-font-weight-semibold);
+  color: var(--bw-color-ink-secondary);
+  border-bottom: var(--bw-border-width) solid var(--bw-color-line-soft);
+  text-transform: uppercase;
+  letter-spacing: var(--bw-letterspacing-eyebrow);
+}
+
+.retailerHeader {
+  width: 22%;
+}
+
+.regionHeader {
+  width: 14%;
+}
+
+.availabilityHeader {
+  width: 16%;
+}
+
+.priceHeader {
+  width: 18%;
+  text-align: right;
+}
+
+.deliveryHeader {
+  width: 20%;
+}
+
+.buyHeader {
+  width: 10%;
+}
+
+.table td {
+  padding: var(--bw-space-4);
+  border-bottom: 1px solid var(--bw-color-line-soft);
+  vertical-align: middle;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.row {
+  transition: background 0.15s ease;
+}
+
+.row:hover {
+  background: var(--bw-color-surface-3);
+}
+
+.lowestRow {
+  background: var(--bw-color-brand-primary-soft);
+  outline: var(--bw-border-width) solid var(--bw-color-brand-primary);
+  outline-offset: -2px;
+}
+
+.lowestRow:hover {
+  background: var(--bw-color-brand-primary-soft);
+}
+
+.retailerCell {
+  vertical-align: middle;
+}
+
+.retailerInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--bw-space-3);
+}
+
+.retailerLogo {
+  width: auto;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.retailerName {
+  font-size: var(--bw-font-size-0);
+  font-weight: var(--bw-font-weight-medium);
+  color: var(--bw-color-ink-primary);
+}
+
+.rankingBadge {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bw-space-1);
+  margin-bottom: var(--bw-space-2);
+}
+
+.badgePill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bw-space-1);
+  padding: var(--bw-space-1) var(--bw-space-2);
+  border-radius: var(--bw-radius-sm);
+  font-size: 10px;
+  font-weight: var(--bw-font-weight-bold);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.badgeIcon {
+  width: 10px;
+  height: 10px;
+}
+
+.cheapestBadge {
+  background: var(--bw-color-success);
+  color: white;
+}
+
+.bestRatedBadge {
+  background: #f59e0b;
+  color: white;
+}
+
+.fastestBadge {
+  background: var(--bw-color-info);
+  color: white;
+}
+
+.regionCell {
+  vertical-align: middle;
+}
+
+.regionBadge {
+  display: inline-block;
+  padding: var(--bw-space-1) var(--bw-space-2);
+  border-radius: var(--bw-radius-sm);
+  font-size: var(--bw-font-size-00);
+  font-weight: var(--bw-font-weight-medium);
+  background: var(--bw-color-bg-muted);
+  color: var(--bw-color-ink-secondary);
+}
+
+.regionBadge[data-region="sg"] {
+  background: var(--bw-region-sg-bg);
+  color: var(--bw-region-sg-fg);
+}
+
+.regionBadge[data-region="us"] {
+  background: var(--bw-region-us-bg);
+  color: var(--bw-region-us-fg);
+}
+
+.regionBadge[data-region="vn"] {
+  background: var(--bw-region-vn-bg);
+  color: var(--bw-region-vn-fg);
+}
+
+.regionBadge[data-region="th"] {
+  background: var(--bw-region-th-bg);
+  color: var(--bw-region-th-fg);
+}
+
+.regionBadge[data-region="my"] {
+  background: var(--bw-region-my-bg);
+  color: var(--bw-region-my-fg);
+}
+
+.availabilityCell {
+  vertical-align: middle;
+}
+
+.badge {
+  display: inline-block;
+  padding: var(--bw-space-1) var(--bw-space-2);
+  border-radius: var(--bw-radius-sm);
+  font-size: var(--bw-font-size-00);
+  font-weight: var(--bw-font-weight-medium);
+}
+
+.inStock {
+  background: var(--bw-availability-in-stock-bg);
+  color: var(--bw-availability-in-stock-fg);
+}
+
+.lowStock {
+  background: var(--bw-availability-low-stock-bg);
+  color: var(--bw-availability-low-stock-fg);
+}
+
+.outOfStock {
+  background: var(--bw-availability-out-of-stock-bg);
+  color: var(--bw-availability-out-of-stock-fg);
+}
+
+.refreshPending {
+  background: var(--bw-availability-pending-bg);
+  color: var(--bw-availability-pending-fg);
+}
+
+.priceCell {
+  text-align: right;
+  vertical-align: middle;
+}
+
+.price {
+  font-size: var(--bw-font-size-2);
+  font-weight: var(--bw-font-weight-bold);
+  color: var(--bw-color-ink-primary);
+  display: block;
+}
+
+.bestPriceLabel {
+  font-size: var(--bw-font-size-00);
+  font-weight: var(--bw-font-weight-semibold);
+  color: var(--bw-color-brand-primary);
+  display: block;
+  margin-top: var(--bw-space-1);
+}
+
+.priceDelta {
+  font-size: var(--bw-font-size-00);
+  color: var(--bw-color-ink-secondary);
+  display: block;
+  margin-top: var(--bw-space-1);
+}
+
+.deliveryCell {
+  vertical-align: middle;
+}
+
+.deliveryNote {
+  font-size: var(--bw-font-size-0);
+  color: var(--bw-color-ink-secondary);
+}
+
+.buyCell {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--bw-space-2) var(--bw-space-4);
+  border-radius: var(--bw-radius-md);
+  font-size: var(--bw-font-size-0);
+  font-weight: var(--bw-font-weight-semibold);
+  text-decoration: none;
+  transition: all 0.15s ease;
+  background: var(--bw-color-surface-2);
+  color: var(--bw-color-ink-primary);
+  border: var(--bw-border-width) solid var(--bw-color-line-strong);
+  min-width: 100px;
+}
+
+.cta:hover {
+  background: var(--bw-color-ink-primary);
+  color: var(--bw-color-ink-inverse);
+}
+
+.ctaPrimary {
+  background: var(--bw-color-brand-primary);
+  color: white;
+  border-color: var(--bw-color-brand-primary);
+}
+
+.ctaPrimary:hover {
+  background: var(--bw-color-brand-primary-hover);
+  border-color: var(--bw-color-brand-primary-hover);
+  color: white;
+}
+
+.disclosure {
+  padding: var(--bw-space-3) var(--bw-space-4);
+  font-size: var(--bw-font-size-00);
+  color: var(--bw-color-ink-secondary);
+  background: var(--bw-color-surface-3);
+  border-top: 1px solid var(--bw-color-line-soft);
+}
+
+.mobileCards {
+  display: none;
+}
+
+@media (max-width: 639px) {
+  .tableWrapper {
+    display: none;
+  }
+
+  .mobileCards {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bw-space-3);
+    margin-top: var(--bw-space-4);
+  }
+
+  .mobileCard {
+    border: var(--bw-border-width) solid var(--bw-color-line-soft);
+    border-radius: var(--bw-radius-lg);
+    background: var(--bw-color-surface-2);
+    padding: var(--bw-space-4);
+    position: relative;
+  }
+
+  .mobileBadges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--bw-space-1);
+    margin-bottom: var(--bw-space-2);
+  }
+
+  .mobileBadge {
+    display: inline-block;
+    padding: 2px var(--bw-space-2);
+    border-radius: var(--bw-radius-sm);
+    font-size: 10px;
+    font-weight: var(--bw-font-weight-bold);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .mobileCardBest {
+    border-color: var(--bw-color-brand-primary);
+    background: var(--bw-color-brand-primary-soft);
+  }
+
+  .bestPriceBanner {
+    position: absolute;
+    top: calc(-1 * var(--bw-border-width));
+    left: var(--bw-space-4);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--bw-space-1);
+    padding: var(--bw-space-1) var(--bw-space-3);
+    background: var(--bw-color-brand-primary);
+    color: white;
+    font-size: var(--bw-font-size-00);
+    font-weight: var(--bw-font-weight-semibold);
+    border-radius: var(--bw-radius-sm);
+  }
+
+  .bestPriceBanner svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .mobileCardHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--bw-space-2);
+  }
+
+  .mobileLogo {
+    width: auto;
+    height: 20px;
+    object-fit: contain;
+  }
+
+  .mobilePrice {
+    font-size: var(--bw-font-size-3);
+    font-weight: var(--bw-font-weight-bold);
+    color: var(--bw-color-ink-primary);
+  }
+
+  .mobileCardMeta {
+    display: flex;
+    align-items: center;
+    gap: var(--bw-space-2);
+    margin-bottom: var(--bw-space-2);
+  }
+
+  .mobileRegion {
+    font-size: var(--bw-font-size-00);
+    color: var(--bw-color-ink-secondary);
+  }
+
+  .mobileDelivery {
+    font-size: var(--bw-font-size-0);
+    color: var(--bw-color-ink-secondary);
+    margin: 0 0 var(--bw-space-3) 0;
+  }
+
+  .mobileCta {
+    display: block;
+    width: 100%;
+    padding: var(--bw-space-3);
+    border-radius: var(--bw-radius-md);
+    font-size: var(--bw-font-size-0);
+    font-weight: var(--bw-font-weight-semibold);
+    text-align: center;
+    text-decoration: none;
+    background: var(--bw-color-surface-3);
+    color: var(--bw-color-ink-primary);
+    border: var(--bw-border-width) solid var(--bw-color-line-strong);
+    transition: all 0.15s ease;
+  }
+
+  .mobileCta:hover {
+    background: var(--bw-color-ink-primary);
+    color: var(--bw-color-ink-inverse);
+  }
+
+  .mobileCtaPrimary {
+    background: var(--bw-color-brand-primary);
+    color: white;
+    border-color: var(--bw-color-brand-primary);
+  }
+
+  .mobileCtaPrimary:hover {
+    background: var(--bw-color-brand-primary-hover);
+    border-color: var(--bw-color-brand-primary-hover);
+    color: white;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1024px) {
+  .cardHeader {
+    padding: var(--bw-space-3) var(--bw-space-4);
+  }
+
+  .table td {
+    padding: var(--bw-space-3);
+  }
+
+  .retailerLogo {
+    height: 24px;
+  }
+
+  .retailerName {
+    font-size: var(--bw-font-size-00);
+  }
+
+  .price {
+    font-size: var(--bw-font-size-1);
+  }
+
+  .cta {
+    padding: var(--bw-space-2) var(--bw-space-3);
+    font-size: var(--bw-font-size-00);
+    min-width: 80px;
+  }
+}

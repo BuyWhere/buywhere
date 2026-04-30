@@ -1,0 +1,220 @@
+{% set title = "Page not found" %}
+{% set description = "A branded BuyWhere 404 page with search and recovery navigation." %}
+{% set robots = "noindex, nofollow" %}
+{% extends "base.html" %}
+
+{% block content %}
+<section class="error-shell error-shell-404">
+    <div class="container">
+        <div class="error-panel">
+            <p class="error-kicker">404</p>
+            <h1>This page doesn't exist — but the deal might!</h1>
+            <p class="error-copy">Maybe try searching for what you were looking for?</p>
+
+            <form id="error-search-form" class="error-search" action="/catalog" method="get">
+                <div class="bw-autocomplete">
+                    <input
+                        type="search"
+                        id="error-search-input"
+                        class="error-search-input"
+                        name="q"
+                        placeholder="Search products, brands, or categories"
+                        aria-label="Search the BuyWhere catalog"
+                        autocomplete="off"
+                        autofocus
+                    />
+                    <ul class="bw-autocomplete-listbox" hidden></ul>
+                </div>
+                <input type="hidden" name="country" value="SG" />
+                <button type="submit" class="btn btn-primary">Search catalog</button>
+            </form>
+
+            <div class="error-links">
+                <a href="/" class="btn btn-secondary">Back to homepage</a>
+                <a href="/deals" class="btn btn-secondary">Browse deals</a>
+                <a href="/compare" class="btn btn-secondary">Compare options</a>
+            </div>
+
+            <div class="popular-categories">
+                <h2>Popular categories</h2>
+                <div class="category-pills">
+                    <a href="/catalog?category=electronics&country=SG">Electronics</a>
+                    <a href="/catalog?category=home&country=SG">Home &amp; Living</a>
+                    <a href="/catalog?category=beauty&country=SG">Beauty</a>
+                    <a href="/catalog?category=grocery&country=SG">Grocery</a>
+                    <a href="/catalog?category=fashion&country=SG">Fashion</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/assets/js/autocomplete.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('error-search-form');
+    var searchInput = document.getElementById('error-search-input');
+
+    if (searchInput) {
+        searchInput.focus();
+        searchInput.select();
+    }
+
+    if (searchInput && window.BwAutocomplete) {
+        new BwAutocomplete(searchInput, {
+            country: 'SG',
+            apiUrl: '/v1/products/search',
+            onSelect: function(product) {
+                if (product.source_url) {
+                    window.location.href = product.source_url;
+                } else if (product.product_id) {
+                    window.location.href = '/product?product_id=' + encodeURIComponent(product.product_id);
+                } else {
+                    form.submit();
+                }
+            }
+        });
+    }
+
+    form.addEventListener('submit', function(event) {
+        if (!searchInput.value.trim()) {
+            event.preventDefault();
+            searchInput.focus();
+        }
+    });
+});
+</script>
+{% endblock %}
+
+{% block head %}
+<style>
+.error-shell {
+    min-height: calc(100vh - 220px);
+    padding: var(--bw-spacing-20) 0;
+    background:
+        radial-gradient(circle at top left, rgba(0, 212, 200, 0.18), transparent 32%),
+        radial-gradient(circle at top right, rgba(245, 166, 35, 0.2), transparent 28%),
+        linear-gradient(180deg, #f8fbff 0%, #ffffff 58%, #f4f8ff 100%);
+}
+
+.error-panel {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: var(--bw-spacing-16);
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(10, 14, 26, 0.08);
+    border-radius: 28px;
+    box-shadow: 0 30px 80px rgba(10, 14, 26, 0.12);
+    text-align: center;
+}
+
+.error-kicker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 72px;
+    padding: var(--bw-spacing-2) var(--bw-spacing-4);
+    border-radius: var(--bw-radius-full);
+    background: rgba(0, 102, 255, 0.1);
+    color: var(--bw-color-primary);
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-bold);
+    letter-spacing: 0.12em;
+}
+
+.error-panel h1 {
+    margin: var(--bw-spacing-6) auto var(--bw-spacing-4);
+    max-width: 12ch;
+    font-size: clamp(2.5rem, 5vw, 4.5rem);
+}
+
+.error-copy {
+    max-width: 40rem;
+    margin: 0 auto var(--bw-spacing-10);
+    color: var(--bw-color-text-secondary);
+    font-size: var(--bw-font-size-xl);
+}
+
+.error-search {
+    display: flex;
+    gap: var(--bw-spacing-3);
+    align-items: stretch;
+    margin-bottom: var(--bw-spacing-8);
+}
+
+.error-search .bw-autocomplete {
+    flex: 1;
+}
+
+.error-search-input {
+    min-height: 56px;
+    font-size: var(--bw-font-size-base);
+}
+
+.error-links {
+    display: flex;
+    justify-content: center;
+    gap: var(--bw-spacing-3);
+    flex-wrap: wrap;
+    margin-bottom: var(--bw-spacing-12);
+}
+
+.popular-categories {
+    padding-top: var(--bw-spacing-8);
+    border-top: 1px solid var(--bw-color-border);
+}
+
+.popular-categories h2 {
+    margin-bottom: var(--bw-spacing-5);
+    font-size: var(--bw-font-size-xl);
+}
+
+.category-pills {
+    display: flex;
+    justify-content: center;
+    gap: var(--bw-spacing-3);
+    flex-wrap: wrap;
+}
+
+.category-pills a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: var(--bw-spacing-3) var(--bw-spacing-5);
+    border-radius: var(--bw-radius-full);
+    background: var(--bw-color-bg-secondary);
+    border: 1px solid var(--bw-color-border);
+    color: var(--bw-color-text-primary);
+    text-decoration: none;
+    transition: all var(--bw-transition-fast);
+}
+
+@media (hover: hover) {
+    .category-pills a:hover {
+        border-color: var(--bw-color-primary);
+        color: var(--bw-color-primary);
+        transform: translateY(-1px);
+    }
+}
+
+@media (max-width: 768px) {
+    .error-shell {
+        padding: var(--bw-spacing-12) 0;
+    }
+
+    .error-panel {
+        padding: var(--bw-spacing-10);
+    }
+
+    .error-search {
+        flex-direction: column;
+    }
+
+    .error-search .btn {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}

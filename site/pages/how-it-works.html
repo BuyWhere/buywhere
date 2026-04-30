@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="container">
+        <h1>How It Works</h1>
+        <p class="page-subtitle">BuyWhere gives AI agents a unified API to search, compare, and retrieve product data across Singapore's top e-commerce platforms.</p>
+    </div>
+</section>
+
+<section class="how-steps">
+    <div class="container">
+        <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+                <h2>Query the API</h2>
+                <p>Your AI agent sends a natural language or structured query to BuyWhere's REST API. Specify the country code (SG, MY, TH, ID, PH) to target specific SEA markets.</p>
+                <pre><code>curl -s "https://api.buywhere.io/v1/products/search?q=wireless+headphones&country=SG" \
+  -H "X-API-Key: bw_live_xxx"</code></pre>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+                <h2>Get Normalized Results</h2>
+                <p>BuyWhere searches across Shopee, Lazada, FairPrice, Carousell, Qoo10, and other platforms — and returns a consistent JSON schema regardless of the source.</p>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+                <h2>Agent Takes Action</h2>
+                <p>Your agent can compare prices, check availability, or redirect users to the purchase URL — all without scraping or site-specific logic.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="code-example">
+    <div class="container">
+        <h2>Full Example</h2>
+        <div class="example-grid">
+            <div class="example-code">
+                <pre><code>import requests
+
+url = "https://api.buywhere.io/v1/products/search"
+headers = {"X-API-Key": "bw_live_xxx"}
+params = {
+    "q": "samsung galaxy s25",
+    "country": "SG",
+    "limit": 10
+}
+
+response = requests.get(url, headers=headers, params=params)
+products = response.json()["products"]
+
+for p in products:
+    print(f"{p['name']} — {p['price']} at {p['source']}")</code></pre>
+            </div>
+            <div class="example-response">
+                <h3>Response</h3>
+                <pre><code>{
+  "products": [
+    {
+      "product_id": "sg_samsung_s25_001",
+      "name": "Samsung Galaxy S25 Ultra 256GB",
+      "price": 1449.00,
+      "currency": "SGD",
+      "source": "shopee",
+      "url": "https://shopee.sg/product/...",
+      "rating": 4.8,
+      "in_stock": true
+    },
+    ...
+  ],
+  "total": 2847,
+  "page": 1
+}</code></pre>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="mcp-section">
+    <div class="container">
+        <h2>MCP Native</h2>
+        <p>BuyWhere also works via the Model Context Protocol — connect directly to Claude, Cursor, and other MCP-compatible AI agents with zero custom code.</p>
+        <div class="cta-actions">
+            <a href="/docs/mcp-integration" class="btn btn-primary">MCP Integration Guide</a>
+            <a href="/docs/quickstart" class="btn btn-secondary">Quickstart</a>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.page-hero {
+    padding: var(--bw-spacing-20) 0;
+    background: linear-gradient(135deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%);
+    text-align: center;
+}
+.page-hero h1 {
+    font-size: var(--bw-font-size-4xl);
+    margin-bottom: var(--bw-spacing-4);
+}
+.page-subtitle {
+    font-size: var(--bw-font-size-xl);
+    color: var(--bw-color-text-secondary);
+    max-width: 600px;
+    margin: 0 auto;
+}
+.how-steps {
+    padding: var(--bw-spacing-24) 0;
+}
+.step {
+    display: flex;
+    gap: var(--bw-spacing-8);
+    margin-bottom: var(--bw-spacing-12);
+    align-items: flex-start;
+}
+.step-number {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--bw-color-secondary);
+    color: var(--bw-color-text-inverse);
+    font-size: var(--bw-font-size-2xl);
+    font-weight: var(--bw-font-weight-bold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.step-content {
+    flex: 1;
+}
+.step-content h2 {
+    margin-bottom: var(--bw-spacing-3);
+}
+.step-content p {
+    color: var(--bw-color-text-secondary);
+    margin-bottom: var(--bw-spacing-4);
+}
+.code-example {
+    padding: var(--bw-spacing-24) 0;
+    background: var(--bw-color-bg-secondary);
+}
+.code-example h2 {
+    text-align: center;
+    margin-bottom: var(--bw-spacing-12);
+}
+.example-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--bw-spacing-8);
+}
+.example-code pre, .example-response pre {
+    margin: 0;
+}
+.example-response h3 {
+    font-size: var(--bw-font-size-sm);
+    color: var(--bw-color-text-muted);
+    margin-bottom: var(--bw-spacing-3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.mcp-section {
+    padding: var(--bw-spacing-24) 0;
+    text-align: center;
+}
+.mcp-section h2 {
+    margin-bottom: var(--bw-spacing-4);
+}
+.mcp-section p {
+    color: var(--bw-color-text-secondary);
+    font-size: var(--bw-font-size-lg);
+    max-width: 600px;
+    margin: 0 auto var(--bw-spacing-8);
+}
+.cta-actions {
+    display: flex;
+    gap: var(--bw-spacing-4);
+    justify-content: center;
+}
+@media (max-width: 768px) {
+    .step {
+        flex-direction: column;
+        gap: var(--bw-spacing-4);
+    }
+    .example-grid {
+        grid-template-columns: 1fr;
+    }
+    .cta-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+</style>
+{% endblock %}

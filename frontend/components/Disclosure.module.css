@@ -1,0 +1,12 @@
+.disclosure {
+  padding: var(--space-4);
+  text-align: center;
+  border-top: 1px solid var(--border-color-subtle);
+  margin-top: var(--space-8);
+}
+
+.text {
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+  margin: 0;
+}

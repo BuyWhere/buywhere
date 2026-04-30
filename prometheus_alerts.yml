@@ -1,0 +1,291 @@
+groups:
+  - name: buywhere_api_alerts
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_errors_total[5m])) / sum(rate(http_requests_total[5m])) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High 5xx error rate on BuyWhere API"
+          description: "5xx error rate is {{ $value | humanizePercentage }} (threshold: 1%)"
+
+      - alert: HighLatencyP95
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint)) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High P95 latency on BuyWhere API"
+          description: "P95 latency for {{ $labels.endpoint }} is {{ $value }}s (threshold: 1s)"
+
+      - alert: HighLatencyP99
+        expr: |
+          histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint)) > 2.5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical P99 latency on BuyWhere API"
+          description: "P99 latency for {{ $labels.endpoint }} is {{ $value }}s (threshold: 2.5s)"
+
+      - alert: DiskSpaceHigh
+        expr: disk_usage_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High disk usage on BuyWhere API server"
+          description: "Disk usage is {{ $value }}% (threshold: 80%)"
+
+      - alert: DiskSpaceCritical
+        expr: disk_usage_percent > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical disk usage on BuyWhere API server"
+          description: "Disk usage is {{ $value }}% (threshold: 90%)"
+
+      - alert: DatabasePoolExhausted
+        expr: db_connection_pool_checked_out / db_connection_pool_size >= 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "{{ $value | humanizePercentage }} of connections in use"
+
+      - alert: APIDown
+        expr: up{job="buywhere-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "BuyWhere API is down"
+          description: "The BuyWhere API has been unreachable for more than 2 minutes"
+
+      - alert: ExternalAPIDown
+        expr: up{job="blackbox", service="api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "External API endpoint (api.buywhere.ai) is down"
+          description: "api.buywhere.ai has been unreachable for more than 2 minutes"
+
+      - alert: MCPServerDown
+        expr: up{job="blackbox-mcp", service="mcp"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MCP endpoint is down"
+          description: "MCP server at api.buywhere.ai/mcp/v1/tools/call has been unreachable for more than 2 minutes"
+
+      - alert: SSLCertExpiringSoon
+        expr: ssl_cert_expiry_seconds{job="blackbox"} < 2592000
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "SSL certificate expiring soon on {{ $labels.instance }}"
+          description: "SSL certificate for {{ $labels.instance }} expires in {{ $value | humanizeDuration }}"
+
+      - alert: SSLCertExpired
+        expr: ssl_cert_expiry_seconds{job="blackbox"} < 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SSL certificate expired on {{ $labels.instance }}"
+          description: "SSL certificate for {{ $labels.instance }} has expired!"
+
+      - alert: WebsiteDown
+        expr: up{job="blackbox-website", service="website"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "BuyWhere website (buywhere.ai) is down"
+          description: "buywhere.ai has been unreachable for more than 2 minutes"
+
+      - alert: HighRequestVolume
+        expr: |
+          sum(rate(http_requests_total[5m])) by (endpoint) > 1000
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "High request volume on {{ $labels.endpoint }}"
+          description: "Endpoint {{ $labels.endpoint }} is receiving {{ $value }} req/min"
+
+      - alert: ComparePageIngestionStale
+        expr: |
+          (time() - avg by (job) (last_over_time(buywhere_last_ingestion_timestamp[1h]))) > 7200
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Compare page data is stale — no ingestion in 2h"
+          description: "Last completed ingestion was {{ $value | humanizeDuration }} ago. Compare experience may show outdated prices/availability."
+
+      - alert: CompareCacheHitRateLow
+        expr: |
+          sum(rate(buywhere_cache_hits_total{endpoint="/compare"}[15m]))
+          /
+          sum(rate(buywhere_cache_requests_total{endpoint="/compare"}[15m])) < 0.5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Compare cache hit rate below 50%"
+          description: "Cache hit rate is {{ $value | humanizePercentage }} — possible cache flush or cold start."
+
+      - alert: CompareMatchQualityDrop
+        expr: |
+          sum(rate(buywhere_compare_zero_matches_total[30m]))
+          /
+          sum(rate(buywhere_compare_requests_total[30m])) > 0.3
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Compare match quality drop — >30% requests return 0 matches"
+          description: "{{ $value | humanizePercentage }} of compare requests returned no matches. Possible ingestion stall or matching logic issue."
+
+      - alert: FleetErrorStateConcentration
+        expr: |
+          sum(buywhere_scraper_status{state="error"})
+          /
+          count(buywhere_scraper_status) > 0.25
+        for: 5m
+        labels:
+          severity: critical
+          trigger_type: auto_heartbeat_first_class
+        annotations:
+          summary: "Fleet error-state concentration exceeds 25%"
+          description: "{{ $value | humanizePercentage }} of scrapers are in error state. Fleet-wide issue requires immediate attention."
+
+      - alert: ScraperFleetUnhealthyRatio
+        expr: |
+          sum(buywhere_scraper_healthy == 1)
+          /
+          count(buywhere_scraper_status) < 0.5
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Less than 50% of scrapers healthy"
+          description: "{{ $value | humanizePercentage }} of scrapers are healthy. Compare experience will have reduced coverage."
+
+      - alert: ProductCountFlat
+        expr: |
+          (avg(buywhere_product_count) - avg(buywhere_product_count offset 6h)) == 0
+        for: 6h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Product count unchanged for 6 hours"
+          description: "Product count has been flat for 6h — possible ingestion stall. Check bulk_ingest.py and scraper scheduler."
+
+  - name: database_replication_alerts
+    rules:
+      - alert: ReplicationLagHigh
+        expr: pg_replication_lag_seconds > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL replication lag is high"
+          description: "Replication lag is {{ $value }}s (threshold: 2s)"
+
+      - alert: ReplicationLagCritical
+        expr: pg_replication_lag_seconds > 5
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL replication lag is critical"
+          description: "Replication lag is {{ $value }}s (threshold: 5s). Failover may be impaired."
+
+      - alert: ReplicationDisconnected
+        expr: pg_replication_status == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL replica is disconnected"
+          description: "The replica is not connected to the primary for replication."
+
+      - alert: ReplicationStale
+        expr: pg_last_xact_replay_timestamp < (time() - 60)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL replica has stale replay timestamp"
+          description: "No transaction replayed in the last 60 seconds. Current lag may be infinite."
+
+  - name: backup_alerts
+    rules:
+      - alert: BackupVerificationFailed
+        expr: buywhere_backup_verification_failed == 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database backup verification failed"
+          description: "Automated backup verification has failed. Backups may be corrupted or missing. Check backup-cron service and /var/log/backup_verify.log."
+
+      - alert: BackupMissing
+        expr: buywhere_backup_exists == 0
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "No database backup found"
+          description: "No backup files exist in {{ $labels.backup_dir }}. Database backups may have failed or been deleted."
+
+      - alert: BackupTooOld
+        expr: buywhere_backup_age_seconds > 604800
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database backup is older than 7 days"
+          description: "The latest backup is {{ $value | humanizeDuration }} old. This exceeds the 7-day retention policy."
+
+  - name: agent_utilization_alerts
+    rules:
+      - alert: AgentIdleWithOpenQueue
+        expr: buywhere_agent_utilization_violation == 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Agent idle with open queue"
+          description: "Agent {{ $labels.agent_name }} has remained idle while holding open work past the configured utilization threshold. Check if the agent is stuck or needs intervention."
+
+      - alert: MultipleAgentsIdleWithOpenQueue
+        expr: buywhere_idle_agents_total >= 3
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Multiple agents idle with open queues"
+          description: "{{ $value }} agents are idle with open assigned work. Company utilization is being impacted."
+
+      - alert: AgentUtilizationLow
+        expr: |
+          (buywhere_total_agents_total - buywhere_idle_agents_total)
+          /
+          buywhere_total_agents_total < 0.5
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Company agent utilization below 50%"
+          description: "Only {{ $value | humanizePercentage }} of agents are active. Immediate attention required."

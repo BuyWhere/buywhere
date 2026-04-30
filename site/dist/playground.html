@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0A0E1A">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>BuyWhere | BuyWhere</title>
+    <meta name="description" content="The agent-native product catalog API">
+    
+    
+    <meta name="geo.region" content="US" id="geo-region">
+    <meta name="geo.placename" content="United States" id="geo-placename">
+    <script>
+    (function(){
+      var regionMap = {
+        'Asia/Singapore': {region: 'SG', name: 'Singapore'},
+        'Asia/Kuala_Lumpur': {region: 'MY', name: 'Malaysia'},
+        'Asia/Bangkok': {region: 'TH', name: 'Thailand'},
+        'Asia/Jakarta': {region: 'ID', name: 'Indonesia'},
+        'Asia/Manila': {region: 'PH', name: 'Philippines'},
+        'Asia/Hong_Kong': {region: 'HK', name: 'Hong Kong'},
+        'Asia/Taipei': {region: 'TW', name: 'Taiwan'},
+        'Asia/Tokyo': {region: 'JP', name: 'Japan'},
+        'Asia/Seoul': {region: 'KR', name: 'South Korea'},
+        'Asia/Shanghai': {region: 'CN', name: 'China'},
+        'Asia/Dubai': {region: 'AE', name: 'United Arab Emirates'},
+        'Europe/London': {region: 'GB', name: 'United Kingdom'},
+        'Europe/Paris': {region: 'FR', name: 'France'},
+        'Europe/Berlin': {region: 'DE', name: 'Germany'},
+        'Europe/Amsterdam': {region: 'NL', name: 'Netherlands'},
+        'America/New_York': {region: 'US', name: 'United States'},
+        'America/Los_Angeles': {region: 'US', name: 'United States'},
+        'America/Chicago': {region: 'US', name: 'United States'},
+        'America/Toronto': {region: 'CA', name: 'Canada'},
+        'America/Vancouver': {region: 'CA', name: 'Canada'},
+        'America/Sao_Paulo': {region: 'BR', name: 'Brazil'},
+        'America/Mexico_City': {region: 'MX', name: 'Mexico'},
+        'Australia/Sydney': {region: 'AU', name: 'Australia'},
+        'Australia/Perth': {region: 'AU', name: 'Australia'}
+      };
+      var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      var info = regionMap[tz] || {region: 'US', name: 'United States'};
+      var metaRegion = document.getElementById('geo-region');
+      var metaPlacename = document.getElementById('geo-placename');
+      if (metaRegion) metaRegion.setAttribute('content', info.region);
+      if (metaPlacename) metaPlacename.setAttribute('content', info.name);
+    })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/design-system.css">
+    <script>
+    window.BW_CONFIG = {
+      posthogKey: "phc_placeholder",
+      posthogHost: "https://app.posthog.com"
+    };
+    </script>
+    
+<style>
+.playground-layout {
+    max-width: var(--bw-container-max);
+    margin: 0 auto;
+    padding: var(--bw-spacing-8) var(--bw-container-padding);
+}
+
+.playground-header {
+    margin-bottom: var(--bw-spacing-8);
+}
+
+.playground-header h1 {
+    font-size: var(--bw-font-size-3xl);
+    font-weight: var(--bw-font-weight-bold);
+    color: var(--bw-color-text-primary);
+    margin-bottom: var(--bw-spacing-2);
+}
+
+.playground-header p {
+    color: var(--bw-color-text-secondary);
+    font-size: var(--bw-font-size-base);
+}
+
+.playground-workspace {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: var(--bw-spacing-6);
+}
+
+.playground-sidebar {
+    background: var(--bw-color-bg-secondary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+    padding: var(--bw-spacing-4);
+    height: fit-content;
+}
+
+.playground-sidebar h3 {
+    font-size: var(--bw-font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--bw-color-text-muted);
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.endpoint-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--bw-spacing-1);
+}
+
+.endpoint-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: var(--bw-spacing-2);
+    padding: var(--bw-spacing-2) var(--bw-spacing-3);
+    background: none;
+    border: 1px solid transparent;
+    border-radius: var(--bw-radius-md);
+    cursor: pointer;
+    text-align: left;
+    transition: all var(--bw-transition-fast);
+    font-size: var(--bw-font-size-sm);
+}
+
+.endpoint-item:hover {
+    background: var(--bw-color-bg-tertiary);
+}
+
+.endpoint-item.active {
+    background: var(--bw-color-primary);
+    color: white;
+}
+
+.endpoint-item .method {
+    font-size: var(--bw-font-size-xs);
+    font-weight: var(--bw-font-weight-semibold);
+    padding: 2px 6px;
+    border-radius: var(--bw-radius-sm);
+    background: var(--bw-color-success);
+    color: white;
+}
+
+.endpoint-item .path {
+    font-family: var(--bw-font-family-mono);
+    font-size: var(--bw-font-size-xs);
+    color: inherit;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.playground-main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bw-spacing-4);
+}
+
+.request-builder {
+    background: var(--bw-color-bg-primary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+    padding: var(--bw-spacing-6);
+}
+
+.request-line {
+    display: flex;
+    align-items: center;
+    gap: var(--bw-spacing-3);
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.method-badge {
+    padding: var(--bw-spacing-2) var(--bw-spacing-4);
+    background: var(--bw-color-success);
+    color: white;
+    font-weight: var(--bw-font-weight-bold);
+    font-size: var(--bw-font-size-sm);
+    border-radius: var(--bw-radius-md);
+    min-width: 60px;
+    text-align: center;
+}
+
+#endpoint-input {
+    flex: 1;
+    padding: var(--bw-spacing-3) var(--bw-spacing-4);
+    font-family: var(--bw-font-family-mono);
+    font-size: var(--bw-font-size-sm);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-md);
+    background: var(--bw-color-bg-secondary);
+    color: var(--bw-color-text-primary);
+}
+
+#endpoint-input:focus {
+    outline: none;
+    border-color: var(--bw-color-primary);
+}
+
+.request-params {
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.params-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--bw-spacing-3);
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-semibold);
+    color: var(--bw-color-text-secondary);
+}
+
+.btn-add-param {
+    background: none;
+    border: none;
+    color: var(--bw-color-primary);
+    font-size: var(--bw-font-size-sm);
+    cursor: pointer;
+    padding: var(--bw-spacing-1) var(--bw-spacing-2);
+}
+
+.btn-add-param:hover {
+    text-decoration: underline;
+}
+
+.params-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bw-spacing-2);
+}
+
+.param-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: var(--bw-spacing-2);
+    align-items: center;
+}
+
+.param-key, .param-value {
+    padding: var(--bw-spacing-2) var(--bw-spacing-3);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-md);
+    font-size: var(--bw-font-size-sm);
+    background: var(--bw-color-bg-primary);
+    color: var(--bw-color-text-primary);
+}
+
+.param-key:focus, .param-value:focus {
+    outline: none;
+    border-color: var(--bw-color-primary);
+}
+
+.btn-remove-param {
+    width: 28px;
+    height: 28px;
+    background: none;
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-md);
+    cursor: pointer;
+    color: var(--bw-color-text-muted);
+    font-size: var(--bw-font-size-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-remove-param:hover {
+    background: var(--bw-color-error);
+    color: white;
+    border-color: var(--bw-color-error);
+}
+
+.no-params {
+    color: var(--bw-color-text-muted);
+    font-size: var(--bw-font-size-sm);
+    padding: var(--bw-spacing-3);
+    text-align: center;
+    background: var(--bw-color-bg-secondary);
+    border-radius: var(--bw-radius-md);
+}
+
+.request-meta {
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.meta-row {
+    display: flex;
+    align-items: center;
+    gap: var(--bw-spacing-3);
+}
+
+.meta-row label {
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-medium);
+    color: var(--bw-color-text-secondary);
+    min-width: 80px;
+}
+
+.meta-row input {
+    flex: 1;
+    padding: var(--bw-spacing-2) var(--bw-spacing-3);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-md);
+    font-family: var(--bw-font-family-mono);
+    font-size: var(--bw-font-size-sm);
+    background: var(--bw-color-bg-primary);
+    color: var(--bw-color-text-primary);
+}
+
+.meta-row input:focus {
+    outline: none;
+    border-color: var(--bw-color-primary);
+}
+
+.request-actions {
+    display: flex;
+    gap: var(--bw-spacing-3);
+}
+
+.btn-send {
+    padding: var(--bw-spacing-3) var(--bw-spacing-6);
+    background: var(--bw-color-primary);
+    color: white;
+    border: none;
+    border-radius: var(--bw-radius-md);
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-semibold);
+    cursor: pointer;
+    transition: background var(--bw-transition-fast);
+}
+
+.btn-send:hover:not(:disabled) {
+    background: var(--bw-color-primary-dark);
+}
+
+.btn-send:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-clear {
+    padding: var(--bw-spacing-3) var(--bw-spacing-6);
+    background: none;
+    color: var(--bw-color-text-secondary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-md);
+    font-size: var(--bw-font-size-sm);
+    cursor: pointer;
+}
+
+.btn-clear:hover {
+    background: var(--bw-color-bg-secondary);
+}
+
+.response-panel {
+    background: var(--bw-color-bg-primary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+    overflow: hidden;
+}
+
+.response-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--bw-spacing-4) var(--bw-spacing-6);
+    background: var(--bw-color-bg-secondary);
+    border-bottom: 1px solid var(--bw-color-border);
+}
+
+.response-title {
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-semibold);
+    color: var(--bw-color-text-primary);
+}
+
+.response-status {
+    font-family: var(--bw-font-family-mono);
+    font-size: var(--bw-font-size-xs);
+    padding: var(--bw-spacing-1) var(--bw-spacing-2);
+    border-radius: var(--bw-radius-sm);
+    background: var(--bw-color-text-muted);
+    color: white;
+}
+
+.response-status.success {
+    background: var(--bw-color-success);
+}
+
+.response-status.error {
+    background: var(--bw-color-error);
+}
+
+.response-status.loading {
+    background: var(--bw-color-info);
+}
+
+.response-meta {
+    padding: var(--bw-spacing-3) var(--bw-spacing-6);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--bw-spacing-4);
+    border-bottom: 1px solid var(--bw-color-border);
+    font-size: var(--bw-font-size-xs);
+}
+
+.meta-item {
+    display: flex;
+    gap: var(--bw-spacing-1);
+}
+
+.meta-label {
+    color: var(--bw-color-text-muted);
+    font-weight: var(--bw-font-weight-medium);
+}
+
+.meta-value {
+    font-family: var(--bw-font-family-mono);
+    color: var(--bw-color-text-primary);
+}
+
+.response-body {
+    padding: var(--bw-spacing-6);
+    max-height: 400px;
+    overflow: auto;
+}
+
+.response-body pre {
+    margin: 0;
+    font-family: var(--bw-font-family-mono);
+    font-size: var(--bw-font-size-sm);
+    line-height: var(--bw-line-height-relaxed);
+    color: var(--bw-color-text-primary);
+}
+
+.response-body code.error {
+    color: var(--bw-color-error);
+}
+
+@media (max-width: 768px) {
+    .playground-workspace {
+        grid-template-columns: 1fr;
+    }
+
+    .playground-sidebar {
+        order: 2;
+    }
+
+    .endpoint-list {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .endpoint-item {
+        flex: 0 0 auto;
+    }
+
+    .param-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+    <style>
+    .currency-selector {
+        display: flex;
+        align-items: center;
+    }
+    .currency-select {
+        background: var(--bw-color-bg-primary);
+        border: 1px solid var(--bw-color-border);
+        border-radius: var(--bw-radius-md);
+        padding: var(--bw-spacing-1) var(--bw-spacing-3);
+        font-size: var(--bw-font-size-xs);
+        color: var(--bw-color-text-primary);
+        cursor: pointer;
+        min-height: 32px;
+    }
+    .currency-select:hover {
+        border-color: var(--bw-color-primary);
+    }
+    .nav-user-menu { position: relative; }
+    .nav-user-btn { display: flex; align-items: center; gap: var(--bw-spacing-2); background: none; border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-lg); padding: var(--bw-spacing-1) var(--bw-spacing-3); cursor: pointer; font-size: var(--bw-font-size-sm); color: var(--bw-color-text-primary); }
+    .nav-user-btn:hover { border-color: var(--bw-color-primary); }
+    .nav-user-btn svg { width: 16px; height: 16px; }
+    .nav-user-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--bw-color-primary); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: var(--bw-font-size-xs); }
+    .nav-user-email { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .nav-user-dropdown { display: none; position: absolute; top: calc(100% + var(--bw-spacing-1)); right: 0; min-width: 180px; background: var(--bw-color-bg-primary); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-lg); box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; list-style: none; margin: 0; padding: var(--bw-spacing-2) 0; }
+    .nav-user-dropdown.is-open { display: block; }
+    .nav-user-dropdown li a { display: block; padding: var(--bw-spacing-2) var(--bw-spacing-4); font-size: var(--bw-font-size-sm); color: var(--bw-color-text-primary); text-decoration: none; }
+    .nav-user-dropdown li a:hover { background: var(--bw-color-bg-secondary); }
+    .nav-divider { border-top: 1px solid var(--bw-color-border); margin: var(--bw-spacing-2) 0; }
+    .nav-mobile-link { display: block; padding: var(--bw-spacing-3) var(--bw-spacing-4); font-size: var(--bw-font-size-base); color: var(--bw-color-text-primary); text-decoration: none; border-bottom: 1px solid var(--bw-color-border); }
+    .nav-mobile-link:hover { background: var(--bw-color-bg-secondary); }
+    </style>
+</head>
+<body>
+    <header class="nav-header">
+        <div class="nav-container">
+            <a href="/" class="nav-logo">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="32" height="32" rx="8" fill="#0A0E1A"/>
+                    <path d="M10 16C10 12.686 12.686 10 16 10C19.314 10 22 12.686 22 16C22 19.314 19.314 22 16 22" stroke="#00D4C8" stroke-width="2.5" stroke-linecap="round"/>
+                    <circle cx="16" cy="16" r="2.5" fill="#00D4C8"/>
+                    <path d="M8 16L6 16M8 16L9.5 14.5" stroke="#F5A623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>BuyWhere</span>
+            </a>
+            <div class="nav-desktop">
+                <ul class="nav-links">
+                    <li class="nav-dropdown">
+                        <button class="nav-dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+                            Documentation
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                        <ul class="nav-dropdown-menu">
+                            <li class="nav-dropdown-item"><a href="/docs/quickstart">Quickstart</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/api-reference">API Reference</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/authentication">Authentication</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/errors">Errors</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/mcp-integration">MCP Integration</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/examples">Examples</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="/pricing" class="nav-link">Pricing</a></li>
+                    <li><a href="/blog" class="nav-link">Blog</a></li>
+                </ul>
+                <div class="nav-actions">
+                    <div class="currency-selector" data-bw-currency-selector>
+                        <select class="currency-select" title="Select currency" aria-label="Select preferred currency">
+                            <option value="SGD">SGD</option>
+                            <option value="USD">USD</option>
+                            <option value="VND">VND</option>
+                            <option value="MYR">MYR</option>
+                            <option value="GBP">GBP</option>
+                        </select>
+                    </div>
+                    <a href="/login" class="nav-btn nav-btn-secondary">Sign In</a>
+                    <a href="/register" class="nav-btn nav-btn-primary">Get API Key</a>
+                </div>
+            </div>
+            <button class="nav-mobile-toggle" aria-label="Toggle navigation" aria-expanded="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <nav class="nav-mobile-menu" aria-label="Mobile navigation">
+            <ul class="nav-mobile-links">
+                <li class="nav-mobile-dropdown">
+                    <button class="nav-mobile-dropdown-trigger" aria-expanded="false">
+                        Documentation
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </button>
+                    <ul class="nav-mobile-dropdown-menu">
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/quickstart">Quickstart</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/api-reference">API Reference</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/authentication">Authentication</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/errors">Errors</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/mcp-integration">MCP Integration</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/examples">Examples</a></li>
+                    </ul>
+                </li>
+                <li><a href="/pricing" class="nav-mobile-link">Pricing</a></li>
+                <li><a href="/blog" class="nav-mobile-link">Blog</a></li>
+            </ul>
+            <div class="nav-mobile-actions">
+                <a href="/login" class="nav-btn nav-btn-secondary">Sign In</a>
+                <a href="/register" class="nav-btn nav-btn-primary">Get API Key</a>
+            </div>
+        </nav>
+        <div class="nav-backdrop"></div>
+    </header>
+
+    <main class="site-main">
+        
+<div class="playground-layout">
+    <div class="playground-header">
+        <h1>API Playground</h1>
+        <p>Test BuyWhere API endpoints interactively — no authentication required for public endpoints.</p>
+    </div>
+
+    <div class="playground-workspace">
+        <div class="playground-sidebar">
+            <h3>Endpoints</h3>
+            <ul class="endpoint-list" id="endpoint-list">
+                <li>
+                    <button class="endpoint-item active" data-method="GET" data-path="/health" data-requires-auth="false">
+                        <span class="method get">GET</span>
+                        <span class="path">/health</span>
+                    </button>
+                </li>
+                <li>
+                    <button class="endpoint-item" data-method="GET" data-path="/v1/categories" data-requires-auth="false">
+                        <span class="method get">GET</span>
+                        <span class="path">/v1/categories</span>
+                    </button>
+                </li>
+                <li>
+                    <button class="endpoint-item" data-method="GET" data-path="/v1/products/search" data-requires-auth="false">
+                        <span class="method get">GET</span>
+                        <span class="path">/v1/products/search</span>
+                    </button>
+                </li>
+                <li>
+                    <button class="endpoint-item" data-method="GET" data-path="/v1/products/deals" data-requires-auth="false">
+                        <span class="method get">GET</span>
+                        <span class="path">/v1/products/deals</span>
+                    </button>
+                </li>
+                <li>
+                    <button class="endpoint-item" data-method="GET" data-path="/v1/products/{product_id}" data-requires-auth="false">
+                        <span class="method get">GET</span>
+                        <span class="path">/v1/products/{id}</span>
+                    </button>
+                </li>
+                <li>
+                    <button class="endpoint-item" data-method="GET" data-path="/v1/products/compare" data-requires-auth="false">
+                        <span class="method get">GET</span>
+                        <span class="path">/v1/products/compare</span>
+                    </button>
+                </li>
+                <li>
+                    <button class="endpoint-item" data-method="GET" data-path="/v1/products/{product_id}/prices" data-requires-auth="false">
+                        <span class="method get">GET</span>
+                        <span class="path">/v1/products/{id}/prices</span>
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        <div class="playground-main">
+            <div class="request-builder">
+                <div class="request-line">
+                    <span class="method-badge" id="method-badge">GET</span>
+                    <input type="text" id="endpoint-input" value="https://api.buywhere.io/health" placeholder="https://api.buywhere.io/endpoint">
+                </div>
+
+                <div class="request-params" id="request-params">
+                    <div class="params-header">
+                        <span>Query Parameters</span>
+                        <button type="button" class="btn-add-param" id="add-param">+ Add Parameter</button>
+                    </div>
+                    <div class="params-list" id="params-list">
+                        <div class="param-row">
+                            <input type="text" class="param-key" placeholder="param" value="q">
+                            <input type="text" class="param-value" placeholder="value" value="sony headphones">
+                            <button type="button" class="btn-remove-param">×</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="request-meta">
+                    <div class="meta-row">
+                        <label>API Key (optional)</label>
+                        <input type="text" id="api-key-input" placeholder="bw_live_...">
+                    </div>
+                </div>
+
+                <div class="request-actions">
+                    <button type="button" class="btn-send" id="send-request">Send Request</button>
+                    <button type="button" class="btn-clear" id="clear-response">Clear</button>
+                </div>
+            </div>
+
+            <div class="response-panel" id="response-panel">
+                <div class="response-header">
+                    <span class="response-title">Response</span>
+                    <span class="response-status" id="response-status"></span>
+                </div>
+                <div class="response-meta" id="response-meta"></div>
+                <div class="response-body" id="response-body">
+                    <pre><code id="response-code">Send a request to see the response here.</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="/" class="logo">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="32" height="32" rx="8" fill="#0A0E1A"/>
+                            <path d="M10 16C10 12.686 12.686 10 16 10C19.314 10 22 12.686 22 16C22 19.314 19.314 22 16 22" stroke="#00D4C8" stroke-width="2.5" stroke-linecap="round"/>
+                            <circle cx="16" cy="16" r="2.5" fill="#00D4C8"/>
+                            <path d="M8 16L6 16M8 16L9.5 14.5" stroke="#F5A623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>BuyWhere</span>
+                    </a>
+                    <p class="footer-tagline">The agent-native product catalog API for Singapore and Southeast Asia.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="/docs/quickstart">Quickstart</a></li>
+                        <li><a href="/docs/api-reference">API Reference</a></li>
+                        <li><a href="/docs/mcp-integration">MCP Integration</a></li>
+                        <li><a href="/examples">Examples</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="/about">About</a></li>
+                        <li><a href="/blog">Blog</a></li>
+                        <li><a href="/careers">Careers</a></li>
+                        <li><a href="/contact">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="/privacy">Privacy</a></li>
+                        <li><a href="/terms">Terms</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 ZHC Labs Pte. Ltd. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+    !function(t,e){var n=document.createElement("script");n.type="text/javascript",n.async=!0,n.src=e;var o=document.getElementsByTagName("script")[0];o.parentNode.insertBefore(n,o),t.posthog=t.posthog||{},t.posthog.people=t.posthog.people||[],t.posthog.people.toString=function(){var t=[];return Object.keys(this).forEach(function(e){t.push(e+" = "+this[e])}),t.join(", ")};var r=function(){var t=e;t._ush=t._ush||[];for(var n=["init","capture","identify","alias","people.set","people.set_once","register","unregister"],o=0;o<n.length;o++)!function(){var e=n[o];t.posthog[e]=t.posthog[e]||function(){t._ush.push([e,arguments])}}()};return r}(window,document);if(window.BW_CONFIG.posthogKey&&window.BW_CONFIG.posthogKey!=='phc_placeholder'){try{posthog.init(window.BW_CONFIG.posthogKey,{api_host:window.BW_CONFIG.posthogHost})}catch(e){}}
+    </script>
+    <script src="/assets/js/utm.js"></script>
+    <script src="/assets/js/auth.js" defer></script>
+    <script>
+    window.addEventListener('DOMContentLoaded', function() {
+        if (typeof Auth !== 'undefined') {
+            Auth.init();
+            updateNavAuthState();
+        }
+    });
+
+    function updateNavAuthState() {
+        var isLoggedIn = Auth.isLoggedIn();
+        var user = Auth.user;
+        var actionsDiv = document.querySelector('.nav-actions');
+        var mobileActionsDiv = document.querySelector('.nav-mobile-actions');
+        if (!actionsDiv) return;
+
+        if (isLoggedIn && user) {
+            var email = user.email || user.name || 'Account';
+            var initial = email.charAt(1).toUpperCase() || email.charAt(0).toUpperCase() || 'A';
+            actionsDiv.innerHTML =
+                '<div class="nav-user-menu">' +
+                    '<button class="nav-user-btn" aria-expanded="false" aria-haspopup="true">' +
+                        '<span class="nav-user-avatar">' + initial + '</span>' +
+                        '<span class="nav-user-email">' + email + '</span>' +
+                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
+                    '</button>' +
+                    '<ul class="nav-user-dropdown">' +
+                        '<li><a href="/alerts">My Alerts</a></li>' +
+                        '<li><a href="/wishlist">My Wishlist</a></li>' +
+                        '<li><a href="/saved-searches">Saved Searches</a></li>' +
+                        '<li><a href="/account/billing">Billing</a></li>' +
+                        '<li class="nav-divider"></li>' +
+                        '<li><a href="#" id="navSignOut">Sign Out</a></li>' +
+                    '</ul>' +
+                '</div>';
+            if (mobileActionsDiv) {
+                mobileActionsDiv.innerHTML =
+                    '<a href="/alerts" class="nav-mobile-link">My Alerts</a>' +
+                    '<a href="/wishlist" class="nav-mobile-link">My Wishlist</a>' +
+                    '<a href="/saved-searches" class="nav-mobile-link">Saved Searches</a>' +
+                    '<a href="/account/billing" class="nav-mobile-link">Billing</a>' +
+                    '<a href="#" id="mobileNavSignOut" class="nav-btn nav-btn-secondary">Sign Out</a>';
+            }
+            var signOutBtn = document.getElementById('navSignOut');
+            if (signOutBtn) signOutBtn.addEventListener('click', function(e) { e.preventDefault(); Auth.logout(); });
+            var mobileSignOutBtn = document.getElementById('mobileNavSignOut');
+            if (mobileSignOutBtn) mobileSignOutBtn.addEventListener('click', function(e) { e.preventDefault(); Auth.logout(); });
+            var userBtn = actionsDiv.querySelector('.nav-user-btn');
+            if (userBtn) {
+                userBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var isOpen = userBtn.getAttribute('aria-expanded') === 'true';
+                    userBtn.setAttribute('aria-expanded', !isOpen);
+                    userBtn.nextElementSibling.classList.toggle('is-open');
+                });
+            }
+        } else {
+            actionsDiv.innerHTML =
+                '<a href="/login" class="nav-btn nav-btn-secondary">Sign In</a>' +
+                '<a href="/register" class="nav-btn nav-btn-primary">Get API Key</a>';
+            if (mobileActionsDiv) {
+                mobileActionsDiv.innerHTML =
+                    '<a href="/login" class="nav-btn nav-btn-secondary">Sign In</a>' +
+                    '<a href="/register" class="nav-btn nav-btn-primary">Get API Key</a>';
+            }
+        }
+    }
+    </script>
+    <script src="/assets/js/toast.js"></script>
+    <script src="/assets/js/main.js"></script>
+    <script src="/assets/js/currency-converter.js"></script>
+    
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const API_BASE = 'https://api.buywhere.io';
+    const methodBadge = document.getElementById('method-badge');
+    const endpointInput = document.getElementById('endpoint-input');
+    const paramsList = document.getElementById('params-list');
+    const addParamBtn = document.getElementById('add-param');
+    const apiKeyInput = document.getElementById('api-key-input');
+    const sendBtn = document.getElementById('send-request');
+    const clearBtn = document.getElementById('clear-response');
+    const responseStatus = document.getElementById('response-status');
+    const responseMeta = document.getElementById('response-meta');
+    const responseCode = document.getElementById('response-code');
+    const endpointList = document.getElementById('endpoint-list');
+
+    const endpointConfigs = {
+        '/health': { params: [], requiresAuth: false },
+        '/v1/categories': { params: [], requiresAuth: false },
+        '/v1/products/search': {
+            params: [
+                { key: 'q', label: 'Search query', value: 'sony headphones', required: true },
+                { key: 'country', label: 'Country', value: 'SG', required: false },
+                { key: 'limit', label: 'Limit', value: '5', required: false }
+            ],
+            requiresAuth: false
+        },
+        '/v1/products/deals': {
+            params: [
+                { key: 'limit', label: 'Limit', value: '5', required: false },
+                { key: 'min_discount_pct', label: 'Min discount %', value: '10', required: false }
+            ],
+            requiresAuth: false
+        },
+        '/v1/products/{product_id}': {
+            params: [
+                { key: 'product_id', label: 'Product ID', value: 'prod_shopee_sony_wh1000xm5_sg', required: true }
+            ],
+            requiresAuth: false
+        },
+        '/v1/products/compare': {
+            params: [
+                { key: 'ids', label: 'Product IDs (comma-separated)', value: 'prod_shopee_sony_wh1000xm5_sg,prod_lazada_bose_qc45_sg', required: true }
+            ],
+            requiresAuth: false
+        },
+        '/v1/products/{product_id}/prices': {
+            params: [
+                { key: 'product_id', label: 'Product ID', value: 'prod_shopee_sony_wh1000xm5_sg', required: true }
+            ],
+            requiresAuth: false
+        }
+    };
+
+    function renderParams(path) {
+        const config = endpointConfigs[path];
+        if (!config) return;
+
+        paramsList.innerHTML = '';
+        config.params.forEach(function(p) {
+            const row = document.createElement('div');
+            row.className = 'param-row';
+            row.innerHTML =
+                '<input type="text" class="param-key" placeholder="param" value="' + p.key + '">' +
+                '<input type="text" class="param-value" placeholder="value" value="' + p.value + '">' +
+                '<button type="button" class="btn-remove-param">×</button>';
+            paramsList.appendChild(row);
+        });
+
+        if (config.params.length === 0) {
+            paramsList.innerHTML = '<div class="no-params">No parameters for this endpoint</div>';
+        }
+    }
+
+    function selectEndpoint(method, path) {
+        document.querySelectorAll('.endpoint-item').forEach(function(el) {
+            el.classList.remove('active');
+        });
+        event.currentTarget.classList.add('active');
+
+        methodBadge.textContent = method;
+        const fullUrl = API_BASE + path;
+        endpointInput.value = fullUrl;
+        renderParams(path);
+    }
+
+    endpointList.addEventListener('click', function(e) {
+        const item = e.target.closest('.endpoint-item');
+        if (!item) return;
+
+        const method = item.dataset.method;
+        const path = item.dataset.path;
+        selectEndpoint(method, path);
+    });
+
+    addParamBtn.addEventListener('click', function() {
+        const rows = paramsList.querySelectorAll('.param-row');
+        const lastKey = rows.length > 0 ? rows[rows.length - 1].querySelector('.param-key').value : '';
+        const row = document.createElement('div');
+        row.className = 'param-row';
+        row.innerHTML =
+            '<input type="text" class="param-key" placeholder="param" value="">' +
+            '<input type="text" class="param-value" placeholder="value">' +
+            '<button type="button" class="btn-remove-param">×</button>';
+        paramsList.appendChild(row);
+    });
+
+    paramsList.addEventListener('click', function(e) {
+        if (e.target.classList.contains('btn-remove-param')) {
+            const row = e.target.closest('.param-row');
+            if (row && paramsList.querySelectorAll('.param-row').length > 1) {
+                row.remove();
+            }
+        }
+    });
+
+    function buildUrl() {
+        let url = endpointInput.value.trim();
+        if (!url) return null;
+
+        const params = [];
+        paramsList.querySelectorAll('.param-row').forEach(function(row) {
+            const key = row.querySelector('.param-key').value.trim();
+            const value = row.querySelector('.param-value').value.trim();
+            if (key && value) {
+                params.push(encodeURIComponent(key) + '=' + encodeURIComponent(value));
+            }
+        });
+
+        if (params.length > 0) {
+            const separator = url.includes('?') ? '&' : '?';
+            url += separator + params.join('&');
+        }
+
+        return url;
+    }
+
+    function formatJson(str) {
+        try {
+            const obj = JSON.parse(str);
+            return JSON.stringify(obj, null, 2);
+        } catch (e) {
+            return str;
+        }
+    }
+
+    function showResponse(status, meta, body, isError) {
+        responseStatus.textContent = status;
+        responseStatus.className = 'response-status ' + (isError ? 'error' : 'success');
+        responseMeta.innerHTML = meta;
+        responseCode.textContent = formatJson(body);
+        responseCode.className = isError ? 'language-json error' : 'language-json';
+    }
+
+    sendBtn.addEventListener('click', async function() {
+        const url = buildUrl();
+        if (!url) {
+            showResponse('Error', '', 'Please enter a valid URL', true);
+            return;
+        }
+
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'Sending...';
+        responseStatus.textContent = 'Loading...';
+        responseStatus.className = 'response-status loading';
+        responseCode.textContent = 'Sending request...';
+
+        const headers = {};
+        const apiKey = apiKeyInput.value.trim();
+        if (apiKey) {
+            headers['X-API-Key'] = apiKey;
+        }
+        headers['Accept'] = 'application/json';
+
+        const startTime = Date.now();
+        try {
+            const response = await fetch(url, { headers: headers });
+            const elapsed = Date.now() - startTime;
+            const body = await response.text();
+
+            let metaHtml = '<div class="meta-item"><span class="meta-label">Status:</span> <span class="meta-value">' + response.status + ' ' + response.statusText + '</span></div>';
+            metaHtml += '<div class="meta-item"><span class="meta-label">Time:</span> <span class="meta-value">' + elapsed + 'ms</span></div>';
+
+            response.headers.forEach(function(value, key) {
+                if (key.toLowerCase().startsWith('x-ratelimit') || key.toLowerCase() === 'content-type') {
+                    metaHtml += '<div class="meta-item"><span class="meta-label">' + key + ':</span> <span class="meta-value">' + value + '</span></div>';
+                }
+            });
+
+            showResponse(
+                response.status + ' ' + response.statusText,
+                metaHtml,
+                body,
+                !response.ok
+            );
+        } catch (err) {
+            showResponse('Network Error', '', err.message, true);
+        } finally {
+            sendBtn.disabled = false;
+            sendBtn.textContent = 'Send Request';
+        }
+    });
+
+    clearBtn.addEventListener('click', function() {
+        responseStatus.textContent = '';
+        responseStatus.className = 'response-status';
+        responseMeta.innerHTML = '';
+        responseCode.textContent = 'Send a request to see the response here.';
+    });
+
+    renderParams('/health');
+});
+</script>
+
+</body>
+</html>

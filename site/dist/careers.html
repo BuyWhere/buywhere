@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0A0E1A">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>BuyWhere | BuyWhere</title>
+    <meta name="description" content="The agent-native product catalog API">
+    <link rel="canonical" href="https://buywhere.ai/careers">
+    
+    <meta name="geo.region" content="US" id="geo-region">
+    <meta name="geo.placename" content="United States" id="geo-placename">
+    <script>
+    (function(){
+      var regionMap = {
+        'Asia/Singapore': {region: 'SG', name: 'Singapore'},
+        'Asia/Kuala_Lumpur': {region: 'MY', name: 'Malaysia'},
+        'Asia/Bangkok': {region: 'TH', name: 'Thailand'},
+        'Asia/Jakarta': {region: 'ID', name: 'Indonesia'},
+        'Asia/Manila': {region: 'PH', name: 'Philippines'},
+        'Asia/Hong_Kong': {region: 'HK', name: 'Hong Kong'},
+        'Asia/Taipei': {region: 'TW', name: 'Taiwan'},
+        'Asia/Tokyo': {region: 'JP', name: 'Japan'},
+        'Asia/Seoul': {region: 'KR', name: 'South Korea'},
+        'Asia/Shanghai': {region: 'CN', name: 'China'},
+        'Asia/Dubai': {region: 'AE', name: 'United Arab Emirates'},
+        'Europe/London': {region: 'GB', name: 'United Kingdom'},
+        'Europe/Paris': {region: 'FR', name: 'France'},
+        'Europe/Berlin': {region: 'DE', name: 'Germany'},
+        'Europe/Amsterdam': {region: 'NL', name: 'Netherlands'},
+        'America/New_York': {region: 'US', name: 'United States'},
+        'America/Los_Angeles': {region: 'US', name: 'United States'},
+        'America/Chicago': {region: 'US', name: 'United States'},
+        'America/Toronto': {region: 'CA', name: 'Canada'},
+        'America/Vancouver': {region: 'CA', name: 'Canada'},
+        'America/Sao_Paulo': {region: 'BR', name: 'Brazil'},
+        'America/Mexico_City': {region: 'MX', name: 'Mexico'},
+        'Australia/Sydney': {region: 'AU', name: 'Australia'},
+        'Australia/Perth': {region: 'AU', name: 'Australia'}
+      };
+      var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      var info = regionMap[tz] || {region: 'US', name: 'United States'};
+      var metaRegion = document.getElementById('geo-region');
+      var metaPlacename = document.getElementById('geo-placename');
+      if (metaRegion) metaRegion.setAttribute('content', info.region);
+      if (metaPlacename) metaPlacename.setAttribute('content', info.name);
+    })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/design-system.css">
+    <script>
+    window.BW_CONFIG = {
+      posthogKey: "phc_placeholder",
+      posthogHost: "https://app.posthog.com"
+    };
+    </script>
+    
+<style>
+.careers-hero { padding: var(--bw-spacing-20) 0; text-align: center; background: linear-gradient(135deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%); }
+.careers-hero h1 { margin-bottom: var(--bw-spacing-4); }
+.careers-hero .lead { font-size: var(--bw-font-size-xl); color: var(--bw-color-text-secondary); }
+
+.careers-values { padding: var(--bw-spacing-16) 0; }
+.careers-values h2 { text-align: center; margin-bottom: var(--bw-spacing-10); }
+.values-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--bw-spacing-8); }
+.value h3 { font-size: var(--bw-font-size-lg); margin-bottom: var(--bw-spacing-2); }
+.value p { color: var(--bw-color-text-secondary); }
+
+.careers-positions { padding: var(--bw-spacing-16) 0; background: var(--bw-color-bg-secondary); }
+.careers-positions h2 { text-align: center; margin-bottom: var(--bw-spacing-10); }
+.positions-list { display: flex; flex-direction: column; gap: var(--bw-spacing-4); max-width: 600px; margin: 0 auto; }
+.position { background: var(--bw-color-bg-primary); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-xl); padding: var(--bw-spacing-6); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--bw-spacing-4); }
+.position h3 { font-size: var(--bw-font-size-lg); margin-bottom: var(--bw-spacing-1); }
+.position p { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-sm); }
+
+.careers-cta { padding: var(--bw-spacing-16) 0; text-align: center; }
+.careers-cta h2 { margin-bottom: var(--bw-spacing-4); }
+.careers-cta p { color: var(--bw-color-text-secondary); margin-bottom: var(--bw-spacing-8); }
+</style>
+
+    <style>
+    .currency-selector {
+        display: flex;
+        align-items: center;
+    }
+    .currency-select {
+        background: var(--bw-color-bg-primary);
+        border: 1px solid var(--bw-color-border);
+        border-radius: var(--bw-radius-md);
+        padding: var(--bw-spacing-1) var(--bw-spacing-3);
+        font-size: var(--bw-font-size-xs);
+        color: var(--bw-color-text-primary);
+        cursor: pointer;
+        min-height: 32px;
+    }
+    .currency-select:hover {
+        border-color: var(--bw-color-primary);
+    }
+    .nav-user-menu { position: relative; }
+    .nav-user-btn { display: flex; align-items: center; gap: var(--bw-spacing-2); background: none; border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-lg); padding: var(--bw-spacing-1) var(--bw-spacing-3); cursor: pointer; font-size: var(--bw-font-size-sm); color: var(--bw-color-text-primary); }
+    .nav-user-btn:hover { border-color: var(--bw-color-primary); }
+    .nav-user-btn svg { width: 16px; height: 16px; }
+    .nav-user-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--bw-color-primary); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: var(--bw-font-size-xs); }
+    .nav-user-email { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .nav-user-dropdown { display: none; position: absolute; top: calc(100% + var(--bw-spacing-1)); right: 0; min-width: 180px; background: var(--bw-color-bg-primary); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-lg); box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; list-style: none; margin: 0; padding: var(--bw-spacing-2) 0; }
+    .nav-user-dropdown.is-open { display: block; }
+    .nav-user-dropdown li a { display: block; padding: var(--bw-spacing-2) var(--bw-spacing-4); font-size: var(--bw-font-size-sm); color: var(--bw-color-text-primary); text-decoration: none; }
+    .nav-user-dropdown li a:hover { background: var(--bw-color-bg-secondary); }
+    .nav-divider { border-top: 1px solid var(--bw-color-border); margin: var(--bw-spacing-2) 0; }
+    .nav-mobile-link { display: block; padding: var(--bw-spacing-3) var(--bw-spacing-4); font-size: var(--bw-font-size-base); color: var(--bw-color-text-primary); text-decoration: none; border-bottom: 1px solid var(--bw-color-border); }
+    .nav-mobile-link:hover { background: var(--bw-color-bg-secondary); }
+    </style>
+</head>
+<body>
+    <header class="nav-header">
+        <div class="nav-container">
+            <a href="/" class="nav-logo">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="32" height="32" rx="8" fill="#0A0E1A"/>
+                    <path d="M10 16C10 12.686 12.686 10 16 10C19.314 10 22 12.686 22 16C22 19.314 19.314 22 16 22" stroke="#00D4C8" stroke-width="2.5" stroke-linecap="round"/>
+                    <circle cx="16" cy="16" r="2.5" fill="#00D4C8"/>
+                    <path d="M8 16L6 16M8 16L9.5 14.5" stroke="#F5A623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>BuyWhere</span>
+            </a>
+            <div class="nav-desktop">
+                <ul class="nav-links">
+                    <li class="nav-dropdown">
+                        <button class="nav-dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+                            Documentation
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                        <ul class="nav-dropdown-menu">
+                            <li class="nav-dropdown-item"><a href="/docs/quickstart">Quickstart</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/api-reference">API Reference</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/authentication">Authentication</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/errors">Errors</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/mcp-integration">MCP Integration</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/examples">Examples</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="/pricing" class="nav-link">Pricing</a></li>
+                    <li><a href="/blog" class="nav-link">Blog</a></li>
+                </ul>
+                <div class="nav-actions">
+                    <div class="currency-selector" data-bw-currency-selector>
+                        <select class="currency-select" title="Select currency" aria-label="Select preferred currency">
+                            <option value="SGD">SGD</option>
+                            <option value="USD">USD</option>
+                            <option value="VND">VND</option>
+                            <option value="MYR">MYR</option>
+                            <option value="GBP">GBP</option>
+                        </select>
+                    </div>
+                    <a href="/login" class="nav-btn nav-btn-secondary">Sign In</a>
+                    <a href="/register" class="nav-btn nav-btn-primary">Get API Key</a>
+                </div>
+            </div>
+            <button class="nav-mobile-toggle" aria-label="Toggle navigation" aria-expanded="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <nav class="nav-mobile-menu" aria-label="Mobile navigation">
+            <ul class="nav-mobile-links">
+                <li class="nav-mobile-dropdown">
+                    <button class="nav-mobile-dropdown-trigger" aria-expanded="false">
+                        Documentation
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </button>
+                    <ul class="nav-mobile-dropdown-menu">
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/quickstart">Quickstart</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/api-reference">API Reference</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/authentication">Authentication</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/errors">Errors</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/mcp-integration">MCP Integration</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/examples">Examples</a></li>
+                    </ul>
+                </li>
+                <li><a href="/pricing" class="nav-mobile-link">Pricing</a></li>
+                <li><a href="/blog" class="nav-mobile-link">Blog</a></li>
+            </ul>
+            <div class="nav-mobile-actions">
+                <a href="/login" class="nav-btn nav-btn-secondary">Sign In</a>
+                <a href="/register" class="nav-btn nav-btn-primary">Get API Key</a>
+            </div>
+        </nav>
+        <div class="nav-backdrop"></div>
+    </header>
+
+    <main class="site-main">
+        
+<section class="careers-hero">
+    <div class="container">
+        <h1>Join BuyWhere</h1>
+        <p class="lead">We're building the future of agent-native commerce. Come help us build it.</p>
+    </div>
+</section>
+
+<section class="careers-values">
+    <div class="container">
+        <h2>Why BuyWhere?</h2>
+        <div class="values-grid">
+            <div class="value">
+                <h3>Mission-Driven</h3>
+                <p>We're solving a real problem: making product information accessible to AI agents and the humans they serve.</p>
+            </div>
+            <div class="value">
+                <h3>Small Team, Big Impact</h3>
+                <p>Every team member has meaningful ownership and direct impact on our product and direction.</p>
+            </div>
+            <div class="value">
+                <h3>Remote-First</h3>
+                <p>We're a distributed team working across multiple time zones. We care about outcomes, not hours.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="careers-positions">
+    <div class="container">
+        <h2>Open Positions</h2>
+        <div class="positions-list">
+            <div class="position">
+                <h3>Senior Backend Engineer</h3>
+                <p>Build and scale our product catalog API. Python, PostgreSQL, Redis. Remote.</p>
+                <a href="/contact" class="btn btn-secondary">Apply</a>
+            </div>
+            <div class="position">
+                <h3>Frontend Engineer</h3>
+                <p>Create beautiful, fast interfaces for our developer portal and dashboard. React, TypeScript. Remote.</p>
+                <a href="/contact" class="btn btn-secondary">Apply</a>
+            </div>
+            <div class="position">
+                <h3>DevOps Engineer</h3>
+                <p>Manage our infrastructure on AWS. Kubernetes, Terraform, CI/CD. Remote.</p>
+                <a href="/contact" class="btn btn-secondary">Apply</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="careers-cta">
+    <div class="container">
+        <h2>Don't See a Fit?</h2>
+        <p>We're always looking for talented people. Send us your resume and tell us how you'd like to contribute.</p>
+        <a href="/contact" class="btn btn-primary btn-lg">Get in Touch</a>
+    </div>
+</section>
+
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="/" class="logo">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="32" height="32" rx="8" fill="#0A0E1A"/>
+                            <path d="M10 16C10 12.686 12.686 10 16 10C19.314 10 22 12.686 22 16C22 19.314 19.314 22 16 22" stroke="#00D4C8" stroke-width="2.5" stroke-linecap="round"/>
+                            <circle cx="16" cy="16" r="2.5" fill="#00D4C8"/>
+                            <path d="M8 16L6 16M8 16L9.5 14.5" stroke="#F5A623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>BuyWhere</span>
+                    </a>
+                    <p class="footer-tagline">The agent-native product catalog API for Singapore and Southeast Asia.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="/docs/quickstart">Quickstart</a></li>
+                        <li><a href="/docs/api-reference">API Reference</a></li>
+                        <li><a href="/docs/mcp-integration">MCP Integration</a></li>
+                        <li><a href="/examples">Examples</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="/about">About</a></li>
+                        <li><a href="/blog">Blog</a></li>
+                        <li><a href="/careers">Careers</a></li>
+                        <li><a href="/contact">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="/privacy">Privacy</a></li>
+                        <li><a href="/terms">Terms</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 ZHC Labs Pte. Ltd. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+    !function(t,e){var n=document.createElement("script");n.type="text/javascript",n.async=!0,n.src=e;var o=document.getElementsByTagName("script")[0];o.parentNode.insertBefore(n,o),t.posthog=t.posthog||{},t.posthog.people=t.posthog.people||[],t.posthog.people.toString=function(){var t=[];return Object.keys(this).forEach(function(e){t.push(e+" = "+this[e])}),t.join(", ")};var r=function(){var t=e;t._ush=t._ush||[];for(var n=["init","capture","identify","alias","people.set","people.set_once","register","unregister"],o=0;o<n.length;o++)!function(){var e=n[o];t.posthog[e]=t.posthog[e]||function(){t._ush.push([e,arguments])}}()};return r}(window,document);if(window.BW_CONFIG.posthogKey&&window.BW_CONFIG.posthogKey!=='phc_placeholder'){try{posthog.init(window.BW_CONFIG.posthogKey,{api_host:window.BW_CONFIG.posthogHost})}catch(e){}}
+    </script>
+    <script src="/assets/js/utm.js"></script>
+    <script src="/assets/js/auth.js" defer></script>
+    <script>
+    window.addEventListener('DOMContentLoaded', function() {
+        if (typeof Auth !== 'undefined') {
+            Auth.init();
+            updateNavAuthState();
+        }
+    });
+
+    function updateNavAuthState() {
+        var isLoggedIn = Auth.isLoggedIn();
+        var user = Auth.user;
+        var actionsDiv = document.querySelector('.nav-actions');
+        var mobileActionsDiv = document.querySelector('.nav-mobile-actions');
+        if (!actionsDiv) return;
+
+        if (isLoggedIn && user) {
+            var email = user.email || user.name || 'Account';
+            var initial = email.charAt(1).toUpperCase() || email.charAt(0).toUpperCase() || 'A';
+            actionsDiv.innerHTML =
+                '<div class="nav-user-menu">' +
+                    '<button class="nav-user-btn" aria-expanded="false" aria-haspopup="true">' +
+                        '<span class="nav-user-avatar">' + initial + '</span>' +
+                        '<span class="nav-user-email">' + email + '</span>' +
+                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
+                    '</button>' +
+                    '<ul class="nav-user-dropdown">' +
+                        '<li><a href="/alerts">My Alerts</a></li>' +
+                        '<li><a href="/wishlist">My Wishlist</a></li>' +
+                        '<li><a href="/saved-searches">Saved Searches</a></li>' +
+                        '<li><a href="/account/billing">Billing</a></li>' +
+                        '<li class="nav-divider"></li>' +
+                        '<li><a href="#" id="navSignOut">Sign Out</a></li>' +
+                    '</ul>' +
+                '</div>';
+            if (mobileActionsDiv) {
+                mobileActionsDiv.innerHTML =
+                    '<a href="/alerts" class="nav-mobile-link">My Alerts</a>' +
+                    '<a href="/wishlist" class="nav-mobile-link">My Wishlist</a>' +
+                    '<a href="/saved-searches" class="nav-mobile-link">Saved Searches</a>' +
+                    '<a href="/account/billing" class="nav-mobile-link">Billing</a>' +
+                    '<a href="#" id="mobileNavSignOut" class="nav-btn nav-btn-secondary">Sign Out</a>';
+            }
+            var signOutBtn = document.getElementById('navSignOut');
+            if (signOutBtn) signOutBtn.addEventListener('click', function(e) { e.preventDefault(); Auth.logout(); });
+            var mobileSignOutBtn = document.getElementById('mobileNavSignOut');
+            if (mobileSignOutBtn) mobileSignOutBtn.addEventListener('click', function(e) { e.preventDefault(); Auth.logout(); });
+            var userBtn = actionsDiv.querySelector('.nav-user-btn');
+            if (userBtn) {
+                userBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var isOpen = userBtn.getAttribute('aria-expanded') === 'true';
+                    userBtn.setAttribute('aria-expanded', !isOpen);
+                    userBtn.nextElementSibling.classList.toggle('is-open');
+                });
+            }
+        } else {
+            actionsDiv.innerHTML =
+                '<a href="/login" class="nav-btn nav-btn-secondary">Sign In</a>' +
+                '<a href="/register" class="nav-btn nav-btn-primary">Get API Key</a>';
+            if (mobileActionsDiv) {
+                mobileActionsDiv.innerHTML =
+                    '<a href="/login" class="nav-btn nav-btn-secondary">Sign In</a>' +
+                    '<a href="/register" class="nav-btn nav-btn-primary">Get API Key</a>';
+            }
+        }
+    }
+    </script>
+    <script src="/assets/js/toast.js"></script>
+    <script src="/assets/js/main.js"></script>
+    <script src="/assets/js/currency-converter.js"></script>
+    
+</body>
+</html>

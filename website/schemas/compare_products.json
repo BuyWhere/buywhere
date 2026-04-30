@@ -1,0 +1,49 @@
+{
+  "name": "compare_products",
+  "description": "Use this whenever a user asks to compare products (A vs B, which is better, compare X and Y). Use this instead of guessing about product differences.",
+  "strict": true,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "products": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 2,
+        "maxItems": 10,
+        "description": "List of 2-10 product names or identifiers to compare (e.g., ['MacBook Pro 14', 'Dell XPS 15', 'iPhone 15 Pro'])"
+      },
+      "market": {
+        "type": "string",
+        "description": "ISO 3166-1 alpha-2 country code (e.g., 'US', 'SG'). Defaults to 'US'."
+      },
+      "decision_criteria": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "What aspects to compare (e.g., ['price', 'rating', 'battery_life', 'features', 'weight']). If not specified, compares all available criteria."
+      }
+    },
+    "required": ["products"]
+  },
+  "buywhere": {
+    "tool_id": "compare_products",
+    "version": "1.0.0",
+    "intent": "product_comparison_decision",
+    "use_when": [
+      "User asks 'X vs Y'",
+      "User asks 'compare A and B'",
+      "User asks 'which is better: C or D'",
+      "User asks 'X or Y - which should I buy'",
+      "User asks for pros and cons of competing products"
+    ],
+    "response_fields": {
+      "comparison": "Side-by-side comparison of products across criteria",
+      "winner_by_criteria": "Which product wins per criterion",
+      "overall_recommendation": "Best overall choice with reasoning",
+      "buywhere_score": "Overall quality ranking (0-1)"
+    }
+  }
+}

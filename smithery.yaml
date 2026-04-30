@@ -1,0 +1,45 @@
+name: buywhere
+display_name: BuyWhere
+description: >
+  Agent-native product catalog API for Singapore and global e-commerce.
+  Search, compare prices, find deals, and browse categories across
+  Shopee, Lazada, Amazon, Walmart, and 20+ platforms.
+icon: https://buywhere.ai/assets/icon.png
+homepage: https://buywhere.ai
+repository: https://github.com/buywhere/buywhere-api
+license: proprietary
+
+server:
+  command: python
+  args: [mcp_server.py]
+  env:
+    BUYWHERE_API_KEY:
+      description: Your BuyWhere API key (get one at https://buywhere.ai/developers)
+      required: true
+    BUYWHERE_API_URL:
+      description: BuyWhere API base URL
+      default: https://api.buywhere.ai
+
+tools:
+  - name: search_products
+    description: Full-text search across 1.5M+ products from 20+ e-commerce platforms
+  - name: get_product
+    description: Get full product details by BuyWhere product ID
+  - name: compare_prices
+    description: Compare prices for a product across all platforms, sorted by price
+  - name: get_deals
+    description: Find products with active discounts, sorted by discount depth
+  - name: browse_categories
+    description: Browse the product category taxonomy tree
+  - name: get_category_products
+    description: Get products within a specific category
+
+categories:
+  - shopping
+  - e-commerce
+  - price-comparison
+
+regions:
+  - Singapore
+  - Southeast Asia
+  - United States

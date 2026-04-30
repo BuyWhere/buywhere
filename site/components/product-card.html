@@ -1,0 +1,180 @@
+<!-- Product Card Component -->
+<!-- Usage: <include src="components/product-card.html" product="{...}" -->
+
+<div class="product-card" data-product-id="{{ product.id }}">
+    <div class="product-card__image">
+        <img src="{{ product.image }}" alt="{{ product.title }}" loading="lazy">
+        {% if product.badge %}
+        <span class="product-card__badge">{{ product.badge }}</span>
+        {% endif %}
+    </div>
+    <div class="product-card__content">
+        <h3 class="product-card__title">
+            <a href="/products/{{ product.id }}">{{ product.title }}</a>
+        </h3>
+        <div class="product-card__meta">
+            {% if product.merchant %}
+            <span class="product-card__merchant">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                    <polyline points="9,22 9,12 15,12 15,22"/>
+                </svg>
+                {{ product.merchant }}
+            </span>
+            {% endif %}
+            {% if product.platform %}
+            <span class="product-card__platform">{{ product.platform }}</span>
+            {% endif %}
+        </div>
+        <div class="product-card__footer">
+            <div class="product-card__price">
+                <span class="product-card__amount" data-price="{{ product.price }}" data-currency="{{ product.currency | default('SGD') }}">{{ product.price }}</span>
+                {% if product.originalPrice %}
+                <span class="product-card__original" data-price="{{ product.originalPrice }}" data-currency="{{ product.currency | default('SGD') }}">{{ product.originalPrice }}</span>
+                {% endif %}
+            </div>
+            <a href="{{ product.url }}" class="btn btn-primary btn-sm" target="_blank" rel="noopener">
+                View
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+.product-card {
+    background: var(--bw-color-bg-primary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+    overflow: hidden;
+    transition: all var(--bw-transition-normal);
+}
+
+.product-card:active {
+    border-color: var(--bw-color-primary);
+    box-shadow: var(--bw-shadow-lg);
+    transform: scale(0.98);
+}
+
+@media (hover: hover) {
+    .product-card:hover {
+        border-color: var(--bw-color-primary);
+        box-shadow: var(--bw-shadow-lg);
+        transform: translateY(-2px);
+    }
+}
+
+.product-card__image {
+    position: relative;
+    aspect-ratio: 4/3;
+    background: var(--bw-color-bg-tertiary);
+    overflow: hidden;
+}
+
+.product-card__image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.product-card__badge {
+    position: absolute;
+    top: var(--bw-spacing-3);
+    left: var(--bw-spacing-3);
+    padding: var(--bw-spacing-1) var(--bw-spacing-3);
+    background: var(--bw-color-secondary);
+    color: var(--bw-color-text-inverse);
+    font-size: var(--bw-font-size-xs);
+    font-weight: var(--bw-font-weight-semibold);
+    border-radius: var(--bw-radius-full);
+}
+
+.product-card__content {
+    padding: var(--bw-spacing-4);
+}
+
+.product-card__title {
+    font-size: var(--bw-font-size-base);
+    font-weight: var(--bw-font-weight-semibold);
+    margin-bottom: var(--bw-spacing-2);
+    line-height: var(--bw-line-height-tight);
+}
+
+.product-card__title a {
+    color: var(--bw-color-text-primary);
+}
+
+.product-card__title a:hover {
+    color: var(--bw-color-primary);
+}
+
+.product-card__meta {
+    display: flex;
+    align-items: center;
+    gap: var(--bw-spacing-4);
+    margin-bottom: var(--bw-spacing-4);
+    font-size: var(--bw-font-size-xs);
+    color: var(--bw-color-text-muted);
+    flex-wrap: wrap;
+}
+
+.product-card__merchant {
+    display: flex;
+    align-items: center;
+    gap: var(--bw-spacing-1);
+    min-width: 0;
+}
+
+.product-card__platform {
+    text-transform: capitalize;
+}
+
+.product-card__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--bw-spacing-3);
+}
+
+.product-card__price {
+    display: flex;
+    flex-direction: column;
+}
+
+.product-card__amount {
+    font-size: var(--bw-font-size-lg);
+    font-weight: var(--bw-font-weight-bold);
+    color: var(--bw-color-primary);
+}
+
+.product-card__original {
+    font-size: var(--bw-font-size-sm);
+    color: var(--bw-color-text-muted);
+    text-decoration: line-through;
+}
+
+.btn-sm {
+    padding: var(--bw-spacing-2) var(--bw-spacing-4);
+    font-size: var(--bw-font-size-xs);
+    min-height: 44px;
+    min-width: 44px;
+}
+
+@media (max-width: 420px) {
+    .product-card__content {
+        padding: var(--bw-spacing-3);
+    }
+
+    .product-card__footer {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .product-card__title {
+        font-size: var(--bw-font-size-sm);
+    }
+
+    .btn-sm {
+        width: 100%;
+    }
+}
+</style>

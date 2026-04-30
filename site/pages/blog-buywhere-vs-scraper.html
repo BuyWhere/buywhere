@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="blog-hero">
+    <div class="container">
+        <div class="post-meta">
+            <span class="post-date">April 14, 2026</span>
+            <span class="post-tag">Comparison</span>
+        </div>
+        <h1>BuyWhere vs Building Your Own Scraper</h1>
+        <p class="lead">What AI developers need to know about the true cost of DIY product data collection.</p>
+    </div>
+</section>
+
+<section class="blog-content">
+    <div class="container">
+        <div class="prose">
+<p>If you are building an AI agent that needs Singapore product data, you have two choices: scrape it yourself, or use BuyWhere. Having spent time on both sides of this decision, here is an honest comparison.</p>
+
+<h2>What scraping looks like in practice</h2>
+
+<p>Building a scraper for Lazada and Shopee sounds straightforward. It is not.</p>
+
+<p><strong>Week 1:</strong> The first scraper works. You write a Python script using Playwright. It pulls product titles, prices, and URLs for a given search query. You feel good.</p>
+
+<p><strong>Week 2:</strong> It breaks. Shopee added a new anti-bot layer. Your requests are now returning CAPTCHAs. You add browser fingerprinting rotation. It sort of works.</p>
+
+<p><strong>Week 3:</strong> Lazada restructures its HTML. Your CSS selectors no longer match. You update them. It works again.</p>
+
+<p><strong>Month 2:</strong> You have scrapers for 3 platforms. Each requires a different approach. Maintaining all three is a part-time job. Your main agent project has not moved.</p>
+
+<p><strong>Month 3:</strong> You are hiring a scraping engineer. Or you are just using stale, cached data and hoping no one notices.</p>
+
+<p>This is the reality of DIY catalog scraping. It is not an engineering problem you solve once — it is an operational problem you solve continuously.</p>
+
+<h2>What BuyWhere gives you instead</h2>
+
+<p>The BuyWhere API is a single endpoint. You send a search query, you get structured product listings back. No scraping, no maintenance, no anti-bot arms race.</p>
+
+<pre><code>GET https://api.buywhere.io/v1/search?q=Sony+WH-1000XM5&region=SG
+Authorization: Bearer your-api-key
+
+{
+  "results": [
+    {
+      "title": "Sony WH-1000XM5 Wireless Headphones",
+      "price": 329.00,
+      "merchant": "lazada",
+      "url": "https://lazada.sg/...",
+      "availability": "in_stock",
+      "updated_at": "2026-04-14T08:32:00Z"
+    }
+  ]
+}</code></pre>
+
+<p>We handle:</p>
+<ul>
+<li><strong>Crawling</strong> across Lazada, Shopee, Qoo10, and growing merchant coverage</li>
+<li><strong>Freshness</strong> — listings updated continuously, not daily</li>
+<li><strong>Schema normalisation</strong> — price is always a float in SGD</li>
+<li><strong>Availability signals</strong> — not just "listed" but actually in stock</li>
+<li><strong>Legal compliance</strong> — we operate within platform terms of service</li>
+</ul>
+
+<h2>The real cost comparison</h2>
+
+<table>
+<thead>
+<tr><th>Factor</th><th>DIY scraping</th><th>BuyWhere API</th></tr>
+</thead>
+<tbody>
+<tr><td>Initial build time</td><td>2–4 weeks</td><td>1 day (integration)</td></tr>
+<tr><td>Ongoing maintenance</td><td>5–10 hrs/month</td><td>Zero</td></tr>
+<tr><td>Data freshness</td><td>As good as your cron job</td><td>Continuously updated</td></tr>
+<tr><td>Coverage</td><td>What you build</td><td>Lazada, Shopee, Qoo10 + growing</td></tr>
+<tr><td>Anti-bot failures</td><td>Frequent</td><td>Not your problem</td></tr>
+<tr><td>Cost</td><td>Engineering time + infra</td><td>API pricing (free tier: 1K queries/month)</td></tr>
+</tbody>
+</table>
+
+<p>For a solo developer or small team, the opportunity cost of scraping infrastructure is the main project not getting built.</p>
+
+<h2>When to consider DIY</h2>
+
+<p>There are legitimate cases for building your own data pipeline:</p>
+
+<ul>
+<li>You need a platform we do not cover (we are SG-focused for now)</li>
+<li>You need product attributes we do not expose (e.g. detailed spec sheets)</li>
+<li>You are building a business that specifically needs proprietary catalog data as a moat</li>
+</ul>
+
+<p>For everything else — building a shopping agent, a price alert tool, a deal finder, or a procurement assistant — BuyWhere is the faster path.</p>
+
+<h2>Get started</h2>
+
+<p>Free tier: 1,000 queries/month, no credit card required.</p>
+
+<p><a href="https://buywhere.io/developers">Get your API key at buywhere.io/developers</a></p>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.blog-hero { padding: var(--bw-spacing-16) 0; background: linear-gradient(135deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%); }
+.blog-hero h1 { margin-bottom: var(--bw-spacing-4); font-size: var(--bw-font-size-3xl); }
+.post-meta { display: flex; gap: var(--bw-spacing-4); margin-bottom: var(--bw-spacing-4); }
+.post-tag { background: var(--bw-color-primary); color: white; padding: var(--bw-spacing-1) var(--bw-spacing-3); border-radius: var(--bw-radius-full); font-size: var(--bw-font-size-sm); }
+.blog-content { padding: var(--bw-spacing-16) 0; }
+.prose { max-width: 720px; }
+.prose h2 { font-size: var(--bw-font-size-xl); margin: var(--bw-spacing-8) 0 var(--bw-spacing-4); }
+.prose p { margin-bottom: var(--bw-spacing-4); line-height: 1.7; }
+.prose ul, .prose ol { margin-bottom: var(--bw-spacing-4); padding-left: var(--bw-spacing-6); }
+.prose li { margin-bottom: var(--bw-spacing-2); line-height: 1.6; }
+.prose pre { background: var(--bw-color-bg-dark); color: #e2e8f0; padding: var(--bw-spacing-4); border-radius: var(--bw-radius-lg); overflow-x: auto; margin-bottom: var(--bw-spacing-6); font-size: var(--bw-font-size-sm); }
+.prose table { width: 100%; border-collapse: collapse; margin-bottom: var(--bw-spacing-6); }
+.prose th, .prose td { border: 1px solid var(--bw-color-border); padding: var(--bw-spacing-3); text-align: left; }
+.prose th { background: var(--bw-color-bg-secondary); font-weight: 600; }
+.prose a { color: var(--bw-color-primary); }
+</style>
+{% endblock %}

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Price Alert - {{ product_name }} is now {{ current_price }}</title>
+    <!--[if mso]>
+    <style type="text/css">
+        table {border-collapse: collapse;}
+        .button {padding: 12px 24px !important;}
+    </style>
+    <![endif]-->
+</head>
+<body style="margin: 0; padding: 0; background-color: #f9fafb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+    
+    <!-- Email Wrapper Table -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f9fafb;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                
+                <!-- Main Email Container -->
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                    
+                    <!-- Header -->
+                    <tr>
+                        <td style="padding: 32px 40px 24px; border-bottom: 1px solid #e5e7eb;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                                <tr>
+                                    <td align="left">
+                                        <a href="https://buywhere.ai" style="display: inline-block; text-decoration: none;">
+                                            <img src="https://buywhere.ai/favicon.ico" alt="BuyWhere" width="32" height="32" style="display: block; border: 0;">
+                                        </a>
+                                    </td>
+                                    <td align="right">
+                                        <span style="font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">
+                                            BuyWhere
+                                        </span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- Email Body -->
+                    <tr>
+                        <td style="padding: 40px;">
+                            
+                            <!-- Greeting -->
+                            <h1 style="margin: 0 0 16px; font-size: 24px; font-weight: 700; color: #111827; line-height: 1.3;">
+                                Good news!
+                            </h1>
+                            
+                            <!-- Intro Text -->
+                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #374151;">
+                                The price for a product you&apos;re watching has dropped below your target price.
+                            </p>
+                            
+                            <!-- Product Deal Block -->
+                            <div style="background-color: #f9fafb; border-radius: 8px; padding: 24px; margin-bottom: 24px; border: 1px solid #e5e7eb;">
+                                <!-- Product Image -->
+                                {% if product_image_url %}
+                                <div style="text-align: center; margin-bottom: 16px;">
+                                    <img src="{{ product_image_url }}" alt="{{ product_name }}" style="max-width: 100%; height: auto; border-radius: 8px; max-height: 200px;">
+                                </div>
+                                {% endif %}
+                                
+                                <!-- Product Name -->
+                                <h2 style="margin: 0 0 12px; font-size: 20px; font-weight: 600; color: #111827; line-height: 1.4;">
+                                    {{ product_name }}
+                                </h2>
+                                
+                                <!-- Price Comparison -->
+                                <div style="display: flex; align-items: center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap;">
+                                    <span style="text-decoration: line-through; color: #9ca3af; font-size: 16px;">{{ currency }}{{ price_at_add }}</span>
+                                    <span style="font-size: 24px; font-weight: 700; color: #10b981;">{{ currency }}{{ current_price }}</span>
+                                    
+                                    {% if savings_from_original_pct %}
+                                    <span style="background-color: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 4px; font-size: 14px; font-weight: 600;">
+                                        {{ savings_from_original_pct }}% OFF
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Alert Details -->
+                                <div style="display: flex; align-items: center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap;">
+                                    <span style="font-size: 14px; color: #6b7280;">Your target: {{ currency }}{{ target_price }}</span>
+                                    <span style="color: #10b981; font-size: 14px;">✓ Price reached!</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Action Button -->
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 32px 0;">
+                                <tr>
+                                    <td align="center">
+                                        <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ product_url }}" style="height:48px;v-text-anchor:middle;width:200px;" arcsize="7%" stroke="f" fillcolor="#10b981"><w:anchorlock/><center style="color:#ffffff;font-family:sans-serif;font-size:16px;font-weight:600;">Shop Now</center></v:roundrect><![endif]-->
+                                        <!--[if !mso]><!-->
+                                        <a href="{{ product_url }}" class="button" style="display: inline-block; padding: 14px 32px; background-color: #10b981; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; border-radius: 8px; mso-padding-alt: 0; text-anchor: middle;">
+                                            <!--<![endif]-->
+                                            Shop Now
+                                            <!--[if !mso]><!-->
+                                        </a>
+                                        <!--<![endif]-->
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Details List -->
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin: 24px 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+                                <tr>
+                                    <td style="padding: 12px 16px; font-size: 14px; color: #6b7280; border-bottom: 1px solid #e5e7eb;">
+                                        Original Price
+                                    </td>
+                                    <td style="padding: 12px 16px; font-size: 14px; font-weight: 600; color: #9ca3af; text-decoration: line-through; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                        {{ currency }}{{ price_at_add }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 16px; font-size: 14px; color: #6b7280; border-bottom: 1px solid #e5e7eb;">
+                                        Your Target Price
+                                    </td>
+                                    <td style="padding: 12px 16px; font-size: 14px; font-weight: 600; color: #111827; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                        {{ currency }}{{ target_price }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 16px; font-size: 14px; color: #6b7280; border-bottom: 1px solid #e5e7eb;">
+                                        Current Price
+                                    </td>
+                                    <td style="padding: 12px 16px; font-size: 14px; font-weight: 600; color: #10b981; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                        {{ currency }}{{ current_price }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 16px; font-size: 14px; color: #6b7280;">
+                                        Alert Triggered
+                                    </td>
+                                    <td style="padding: 12px 16px; font-size: 14px; font-weight: 600; color: #111827; text-align: right;">
+                                        {{ triggered_at }}
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Alert/Notice Box -->
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin: 24px 0;">
+                                <tr>
+                                    <td style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 0 8px 8px 0;">
+                                        <p style="margin: 0; font-size: 14px; color: #92400e;">
+                                            <strong>Manage Your Alerts</strong><br>
+                                            To edit or delete this alert, visit your <a href="https://buywhere.ai/alerts" style="color: #4f46e5; text-decoration: underline;">alerts dashboard</a>.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Closing -->
+                            <p style="margin: 32px 0 0; font-size: 16px; line-height: 1.6; color: #374151;">
+                                Happy shopping,<br>
+                                The BuyWhere Team
+                            </p>
+                            
+                        </td>
+                    </tr>
+                    
+                    <!-- Divider -->
+                    <tr>
+                        <td style="padding: 0 40px;">
+                            <div style="height: 1px; background-color: #e5e7eb;"></div>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 24px 40px 32px;">
+                            <p style="margin: 0 0 8px; font-size: 14px; color: #6b7280; text-align: center;">
+                                This email was sent to <a href="mailto:{{ recipient_email }}" style="color: #4f46e5; text-decoration: underline;">{{ recipient_email }}</a>
+                            </p>
+                            <p style="margin: 0 0 16px; font-size: 14px; color: #6b7280; text-align: center;">
+                                <a href="https://buywhere.ai/alerts" style="color: #4f46e5; text-decoration: underline;">Manage Alerts</a> · 
+                                <a href="https://buywhere.ai/privacy" style="color: #4f46e5; text-decoration: underline;">Privacy Policy</a>
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #9ca3af; text-align: center;">
+                                &copy; {{ current_year }} BuyWhere. All rights reserved.<br>
+                                123 Marina Boulevard, Singapore 018989
+                            </p>
+                        </td>
+                    </tr>
+                    
+                </table>
+                <!-- End Main Email Container -->
+                
+                <!-- Spacer -->
+                <div style="height: 40px;"></div>
+                
+            </td>
+        </tr>
+    </table>
+    
+</body>
+</html>

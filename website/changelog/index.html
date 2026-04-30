@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Changelog – BuyWhere</title>
+  <meta name="description" content="BuyWhere API changelog. Track updates to the product catalog API for AI agents." />
+  <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f7f3ec;
+      --surface: #fffdf8;
+      --surface-strong: #fff7eb;
+      --ink: #1f2933;
+      --muted: #52606d;
+      --line: #e5d8c7;
+      --accent: #c75b12;
+      --accent-dark: #8f3e08;
+      --accent-soft: #f4dfc7;
+      --max-w: 800px;
+      --radius: 18px;
+      --radius-sm: 12px;
+    }
+    body {
+      font-family: Georgia, "Times New Roman", serif;
+      background:
+        radial-gradient(circle at top left, rgba(199, 91, 18, 0.08), transparent 28%),
+        linear-gradient(180deg, #fbf6ee 0%, var(--bg) 100%);
+      color: var(--ink);
+      line-height: 1.75;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent-dark); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .container { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; }
+    nav {
+      border-bottom: 1px solid rgba(31, 41, 51, 0.08);
+      background: rgba(255, 253, 248, 0.9);
+      backdrop-filter: blur(10px);
+    }
+    .nav-inner {
+      min-height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .brand {
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .nav-links { display: flex; gap: 20px; list-style: none; font-size: 0.95rem; }
+    .page-header { padding: 64px 0 40px; }
+    .eyebrow {
+      display: inline-block;
+      margin-bottom: 18px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent-dark);
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 700;
+      font-family: sans-serif;
+    }
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 12px;
+    }
+    .page-sub {
+      color: var(--muted);
+      font-size: 1.05rem;
+      margin-bottom: 32px;
+    }
+    .changelog-list { list-style: none; }
+    .changelog-entry {
+      padding: 24px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .changelog-entry:last-child { border-bottom: none; }
+    .entry-date {
+      font-family: sans-serif;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+    .entry-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .entry-body { color: var(--muted); font-size: 0.95rem; }
+    .entry-body ul { padding-left: 18px; margin-top: 8px; }
+    .entry-body li { margin-bottom: 4px; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-family: sans-serif;
+      margin-right: 6px;
+    }
+    .tag-new { background: #dcfce7; color: #166534; }
+    .tag-improved { background: #dbeafe; color: #1e40af; }
+    .tag-fixed { background: #fee2e2; color: #991b1b; }
+    .tag-breaking { background: #fef3c7; color: #92400e; }
+    footer {
+      padding: 36px 0 54px;
+      border-top: 1px solid rgba(31, 41, 51, 0.08);
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="container nav-inner">
+      <a class="brand" href="/">BuyWhere</a>
+      <ul class="nav-links">
+        <li><a href="/">Home</a></li>
+        <li><a href="/docs/tutorials/first-query">Quickstart</a></li>
+        <li><a href="/contact">Contact</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main>
+    <div class="container page-header">
+      <div class="eyebrow">Product Updates</div>
+      <h1>Changelog</h1>
+      <p class="page-sub">API updates, new endpoints, and improvements. We announce breaking changes 90 days in advance.</p>
+    </div>
+
+    <div class="container">
+      <ul class="changelog-list">
+
+        <li class="changelog-entry">
+          <div class="entry-date">April 27, 2026</div>
+          <div class="entry-title"><span class="tag tag-new">New</span>Product search with semantic relevance scoring</div>
+          <div class="entry-body">
+            <p>Added <code>relevance_score</code> field to all search results. Scores range 0-100 and reflect semantic match quality against the query intent.</p>
+            <ul>
+              <li>New field: <code>relevance_score</code> (integer, 0-100)</li>
+              <li>Default behavior unchanged — results still ranked by composite score</li>
+              <li>Use <code>sort=relevance</code> to sort purely by semantic relevance</li>
+            </ul>
+          </div>
+        </li>
+
+        <li class="changelog-entry">
+          <div class="entry-date">April 20, 2026</div>
+          <div class="entry-title"><span class="tag tag-improved">Improved</span>Hourly freshness guarantee for Singapore merchants</div>
+          <div class="entry-body">
+            <p>All Singapore merchant product data now refreshes hourly. Previously, refresh intervals varied by merchant tier.</p>
+            <ul>
+              <li>Price, stock, and metadata updates now within 60 minutes of source change</li>
+              <li>New <code>last_fetched_at</code> field on all product responses</li>
+            </ul>
+          </div>
+        </li>
+
+        <li class="changelog-entry">
+          <div class="entry-date">April 14, 2026</div>
+          <div class="entry-title"><span class="tag tag-new">New</span>Price comparison endpoint</div>
+          <div class="entry-body">
+            <p>New <code>POST /v1/products/compare</code> endpoint accepts product IDs and returns a structured price comparison across platforms.</p>
+            <ul>
+              <li>Returns cheapest, most expensive, average price</li>
+              <li>Includes per-platform affiliate links</li>
+              <li>Available in private beta — contact hello@buywhere.ai for access</li>
+            </ul>
+          </div>
+        </li>
+
+        <li class="changelog-entry">
+          <div class="entry-date">April 8, 2026</div>
+          <div class="entry-title"><span class="tag tag-breaking">Breaking</span>Response shape v2 migration complete</div>
+          <div class="entry-body">
+            <p>Legacy v1 response shape removed. All endpoints return v2 shape as documented. Migration guide available in docs.</p>
+            <ul>
+              <li>Top-level <code>results</code> array replaced with <code>data</code></li>
+              <li>Pagination cursor renamed from <code>next_page</code> to <code>next_cursor</code></li>
+              <li>v1 endpoints decommissioned — requests to v1 routes now return 410 Gone</li>
+            </ul>
+          </div>
+        </li>
+
+      </ul>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      BuyWhere Technologies Pte. Ltd. · Singapore · <a href="mailto:hello@buywhere.ai">hello@buywhere.ai</a>
+    </div>
+  </footer>
+</body>
+</html>

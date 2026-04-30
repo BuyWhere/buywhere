@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Best Headphones Under $200 — BuyWhere</title>
+  <meta name="description" content="Find the best headphones under $200. AI agent product recommendations with current prices and availability." />
+  <link rel="canonical" href="https://www.buywhere.ai/queries/best-headphones-under-200" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": {
+      "@type": "Question",
+      "name": "What are the best headphones under $200?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Use BuyWhere's resolve_product_query tool to get AI-curated headphone recommendations under $200."
+      }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": "Headphones",
+    "description": "Over-ear and on-ear headphones for music and calls",
+    "offers": {
+      "@type": "AggregateOffer",
+      "lowPrice": "50",
+      "highPrice": "199",
+      "priceCurrency": "USD",
+      "availability": "https://schema.org/InStock"
+    }
+  }
+  </script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #fff; color: #0F172A; line-height: 1.6; }
+    .container { max-width: 900px; margin: 0 auto; padding: 48px 24px; }
+    header { margin-bottom: 48px; }
+    h1 { font-size: 2.5rem; font-weight: 700; margin-bottom: 16px; letter-spacing: -0.02em; }
+    .subtitle { font-size: 1.25rem; color: #475569; }
+    .query-badge { display: inline-block; background: #F1F5F9; padding: 8px 16px; border-radius: 20px; font-size: 0.875rem; margin-bottom: 24px; }
+    .tool-call { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 24px; margin: 32px 0; }
+    .tool-call h3 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; }
+    pre { background: #0F172A; color: #E2E8F0; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 0.875rem; }
+    .product-grid { display: grid; gap: 20px; margin: 32px 0; }
+    .product-card { border: 1px solid #E2E8F0; border-radius: 12px; padding: 24px; }
+    .product-card.top-pick { border-color: #059669; background: #F0FDF4; }
+    .product-card h3 { font-size: 1.125rem; margin-bottom: 8px; }
+    .score { display: inline-block; background: #059669; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; margin-left: 8px; }
+    .price { font-size: 1.25rem; font-weight: 700; color: #059669; }
+    .was-price { text-decoration: line-through; color: #64748B; margin-left: 8px; }
+    .specs { display: flex; gap: 16px; margin: 12px 0; font-size: 0.875rem; color: #475569; }
+    .spec { background: #F1F5F9; padding: 4px 8px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <span class="query-badge">Product Recommendation Example</span>
+      <h1>Best Headphones Under $200</h1>
+      <p class="subtitle">AI-curated product recommendations for budget-conscious buyers</p>
+    </header>
+
+    <section class="tool-call">
+      <h3>Agent Tool Call Example — resolve_product_query</h3>
+      <pre>{
+  "name": "resolve_product_query",
+  "arguments": {
+    "query": "best headphones for music and calls",
+    "budget": { "max": 200, "currency": "USD" },
+    "constraints": ["noise cancellation", "wireless", "comfortable"],
+    "sort_by": "best_value",
+    "market": "US"
+  }
+}</pre>
+    </section>
+
+    <section style="margin-bottom: 48px;">
+      <h2 style="font-size: 1.5rem; margin-bottom: 24px;">Example API Response</h2>
+      <pre>{
+  "query": "best headphones under $200 for music and calls",
+  "summary": "Found 6 options under $200 with noise cancellation",
+  "total_results": 6,
+  "products": [
+    {
+      "product_id": "bw_hp_001",
+      "title": "Sony WH-CH720N",
+      "description": "Wireless over-ear, 35-hour battery, ANC, multipoint connection",
+      "price": { "current": 148.00, "currency": "USD", "was": 179.99 },
+      "merchant": { "name": "Amazon", "reliability_score": 0.95 },
+      "availability": "in_stock",
+      "buywhere_score": 0.94,
+      "confidence": 0.91,
+      "reason_for_rank": "Best balance of ANC quality and battery life at this price",
+      "purchase_url": "https://partner.buywhere.ai/click/bw_hp_001",
+      "specs": { "battery": "35 hours", "anc": "Yes", "type": "Over-ear" }
+    },
+    {
+      "product_id": "bw_hp_002",
+      "title": "Sennheiser HD 450SE",
+      "description": "Wireless over-ear, 30-hour battery, ANC, aptX support",
+      "price": { "current": 179.95, "currency": "USD" },
+      "merchant": { "name": "B&H Photo", "reliability_score": 0.92 },
+      "availability": "in_stock",
+      "buywhere_score": 0.91,
+      "confidence": 0.88,
+      "reason_for_rank": "Superior audio quality for music enthusiasts",
+      "purchase_url": "https://partner.buywhere.ai/click/bw_hp_002",
+      "specs": { "battery": "30 hours", "anc": "Yes", "type": "Over-ear" }
+    },
+    {
+      "product_id": "bw_hp_003",
+      "title": "JBL Tune 770NC",
+      "description": "Wireless over-ear, 70-hour battery, ANC, folded design",
+      "price": { "current": 129.95, "currency": "USD", "was": 149.99 },
+      "merchant": { "name": "Best Buy", "reliability_score": 0.93 },
+      "availability": "in_stock",
+      "buywhere_score": 0.87,
+      "confidence": 0.85,
+      "reason_for_rank": "Exceptional battery life, great value",
+      "purchase_url": "https://partner.buywhere.ai/click/bw_hp_003",
+      "specs": { "battery": "70 hours", "anc": "Yes", "type": "Over-ear" }
+    }
+  ],
+  "agent_guidance": {
+    "recommended_answer_style": "show_top_3_with_scores",
+    "next_best_action": "ask_about_on-ear_vs_over-ear_preference",
+    "disclaimers": ["prices may change", "specs vary by color option"]
+  },
+  "metadata": {
+    "latency_ms": 125,
+    "freshness": "2026-04-27T12:00:00Z",
+    "market": "US"
+  }
+}</pre>
+    </section>
+
+    <section class="product-grid">
+      <div class="product-card top-pick">
+        <h3>Sony WH-CH720N <span class="score">0.94 Top Pick</span></h3>
+        <div class="price">$148.00 <span class="was-price">$179.99</span></div>
+        <p style="margin: 12px 0; color: #475569;">Best balance of ANC quality and battery life at this price. 35-hour battery, multipoint connection.</p>
+        <div class="specs">
+          <span class="spec">35hr battery</span>
+          <span class="spec">ANC</span>
+          <span class="spec">Over-ear</span>
+        </div>
+        <p class="merchant">Amazon — reliability 0.95</p>
+      </div>
+      <div class="product-card">
+        <h3>Sennheiser HD 450SE <span class="score">0.91</span></h3>
+        <div class="price">$179.95</div>
+        <p style="margin: 12px 0; color: #475569;">Superior audio quality for music enthusiasts. aptX support for high-quality wireless audio.</p>
+        <div class="specs">
+          <span class="spec">30hr battery</span>
+          <span class="spec">ANC</span>
+          <span class="spec">aptX</span>
+        </div>
+        <p class="merchant">B&H Photo — reliability 0.92</p>
+      </div>
+      <div class="product-card">
+        <h3>JBL Tune 770NC <span class="score">0.87</span></h3>
+        <div class="price">$129.95 <span class="was-price">$149.99</span></div>
+        <p style="margin: 12px 0; color: #475569;">Exceptional 70-hour battery life. Great value with reliable ANC performance.</p>
+        <div class="specs">
+          <span class="spec">70hr battery</span>
+          <span class="spec">ANC</span>
+          <span class="spec">Foldable</span>
+        </div>
+        <p class="merchant">Best Buy — reliability 0.93</p>
+      </div>
+    </section>
+
+    <section style="margin-bottom: 48px; padding: 24px; background: #F8FAFC; border-radius: 12px;">
+      <h2 style="font-size: 1.25rem; margin-bottom: 16px;">buywhere_score Interpretation</h2>
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid #E2E8F0;">
+          <td style="padding: 8px 0;"><strong>0.90+</strong></td>
+          <td>Excellent match — recommend as top pick</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #E2E8F0;">
+          <td style="padding: 8px 0;"><strong>0.80-0.89</strong></td>
+          <td>Good match — include in recommendations</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0;"><strong>0.70-0.79</strong></td>
+          <td>Partial match — show with caveats</td>
+        </tr>
+      </table>
+    </section>
+
+    <footer style="margin-top: 64px; padding-top: 32px; border-top: 1px solid #E2E8F0; color: #64748B; font-size: 0.875rem;">
+      <p>Powered by <a href="https://www.buywhere.ai">BuyWhere</a> — Product resolution API for AI agents</p>
+      <p style="margin-top: 8px;">Tool schemas: <a href="/schemas/resolve_product_query.json">OpenAI</a> | <a href="/schemas/mcp/resolve_product_query.json">MCP</a></p>
+    </footer>
+  </div>
+</body>
+</html>

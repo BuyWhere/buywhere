@@ -1,0 +1,115 @@
+.page {
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+
+  max-width: var(--container-xl);
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+.header {
+  padding: var(--space-8) 0;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+  margin-bottom: var(--space-8);
+}
+
+.headerContent {
+  max-width: 600px;
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-primary, #111827);
+}
+
+.description {
+  font-size: 1.125rem;
+  color: var(--color-text-secondary, #6b7280);
+  margin: 0;
+  line-height: 1.6;
+}
+
+.categoryGrid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: var(--space-6);
+}
+
+@media (min-width: 640px) {
+  .categoryGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .categoryGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.categoryCard {
+  display: block;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 12px;
+  text-decoration: none;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.categoryCard:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: var(--color-primary, #4f46e5);
+}
+
+.categoryIcon {
+  font-size: 2rem;
+  margin-bottom: var(--space-4);
+}
+
+.categoryInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.categoryName {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-text-primary, #111827);
+}
+
+.categoryCount {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary, #6b7280);
+  margin: 0;
+}
+
+.categoryDescription {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary, #6b7280);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.error {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--color-error, #dc2626);
+}
+
+.empty {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--color-text-secondary, #6b7280);
+}
+
+.regionFilter {
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border, #e5e7eb);
+}

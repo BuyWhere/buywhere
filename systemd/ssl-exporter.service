@@ -1,0 +1,13 @@
+[Unit]
+Description=SSL Certificate Exporter Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/ubuntu/scripts/ssl_exporter.sh
+User=root
+PrivateTmp=false
+
+[Install]
+WantedBy=multi-user.target

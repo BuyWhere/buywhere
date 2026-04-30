@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quickstart | BuyWhere</title>
+    <meta name="description" content="Get started with the BuyWhere API in minutes">
+    <link rel="canonical" href="https://buywhere.ai/docs/quickstart">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/design-system.css">
+    <style>
+        .docs-layout { display: grid; grid-template-columns: 240px 1fr; gap: 40px; max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+        .docs-sidebar { position: sticky; top: 80px; height: fit-content; }
+        .docs-nav__section { margin-bottom: 24px; }
+        .docs-nav__section h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 8px; font-weight: 600; }
+        .docs-nav__section ul { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+        .docs-nav__section a { display: block; padding: 6px 10px; color: #475569; font-size: 14px; border-radius: 6px; text-decoration: none; transition: all 0.15s; }
+        .docs-nav__section a:hover { background: #f1f5f9; color: #0f172a; }
+        .docs-nav__section a.active { background: #0066FF; color: #fff; }
+        .docs-content { min-width: 0; }
+        .docs-content h1 { font-size: 32px; font-weight: 700; margin-bottom: 16px; color: #0f172a; }
+        .docs-content h2 { font-size: 22px; font-weight: 600; margin-top: 40px; margin-bottom: 16px; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+        .docs-content h3 { font-size: 18px; font-weight: 600; margin-top: 24px; margin-bottom: 12px; color: #1e293b; }
+        .docs-content p { color: #475569; line-height: 1.7; margin-bottom: 16px; }
+        .docs-content a { color: #0066FF; text-decoration: none; }
+        .docs-content a:hover { text-decoration: underline; }
+        .docs-content code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 13px; font-family: 'JetBrains Mono', monospace; }
+        .docs-content pre { background: #0f172a; color: #e2e8f0; padding: 20px; border-radius: 8px; overflow-x: auto; margin-bottom: 20px; }
+        .docs-content pre code { background: none; padding: 0; color: inherit; font-size: 13px; }
+        .docs-content table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .docs-content th, .docs-content td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        .docs-content th { font-weight: 600; font-size: 13px; color: #475569; }
+        .docs-content td { font-size: 14px; color: #64748b; }
+        .docs-content blockquote { border-left: 4px solid #0066FF; padding-left: 16px; margin: 20px 0; color: #64748b; font-style: italic; }
+        .docs-content ul, .docs-content ol { padding-left: 24px; margin-bottom: 16px; color: #475569; }
+        .docs-content li { margin-bottom: 8px; line-height: 1.6; }
+        .docs-content hr { border: none; border-top: 1px solid #e2e8f0; margin: 32px 0; }
+        .docs-content strong { font-weight: 600; color: #0f172a; }
+        .endpoint { margin-bottom: 48px; padding-bottom: 48px; border-bottom: 1px solid #e2e8f0; }
+        .endpoint:last-child { border-bottom: none; }
+        .endpoint__header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+        .endpoint__method { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+        .endpoint__method.get { background: #10B981; color: white; }
+        .endpoint__method.post { background: #3B82F6; color: white; }
+        .endpoint__path { font-family: 'JetBrains Mono', monospace; font-size: 16px; color: #0f172a; }
+        .endpoint__description { color: #64748b; margin-bottom: 20px; line-height: 1.6; }
+        .code-block { position: relative; margin-bottom: 20px; }
+        @media (max-width: 768px) { .docs-layout { grid-template-columns: 1fr; } .docs-sidebar { position: static; border-bottom: 1px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 20px; } }
+    </style>
+</head>
+<body>
+    <header class="nav-header">
+        <div class="nav-container">
+            <a href="/" class="nav-logo">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="#0066FF"/><path d="M8 16L14 22L24 10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>BuyWhere</span>
+            </a>
+            <div class="nav-desktop">
+                <ul class="nav-links">
+                    <li class="nav-dropdown">
+                        <button class="nav-dropdown-trigger" aria-expanded="false" aria-haspopup="true">Documentation <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+                        <ul class="nav-dropdown-menu">
+                            <li class="nav-dropdown-item"><a href="/docs/quickstart">Quickstart</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/api-reference">API Reference</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/authentication">Authentication</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/errors">Error Handling</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/mcp-integration">MCP Integration</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="/pricing" class="nav-link">Pricing</a></li>
+                    <li><a href="/blog" class="nav-link">Blog</a></li>
+                </ul>
+                <div class="nav-actions">
+                    <a href="/login" class="nav-btn nav-btn-secondary">Sign In</a>
+                    <a href="/register" class="nav-btn nav-btn-primary">Get API Key</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="site-main">
+        <div class="docs-layout">
+            <aside class="docs-sidebar">
+                <nav class="docs-nav">
+                    <div class="docs-nav__section">
+                        <h3>Getting Started</h3>
+                        <ul>
+                            <li><a href="/docs/quickstart" class=&#34;active&#34;>Quickstart</a></li>
+                            <li><a href="/docs/authentication" >Authentication</a></li>
+                            <li><a href="/docs/errors" >Error Handling</a></li>
+                        </ul>
+                    </div>
+                    <div class="docs-nav__section">
+                        <h3>API Reference</h3>
+                        <ul>
+                            <li><a href="/docs/api-reference" >API Reference</a></li>
+                        </ul>
+                    </div>
+                    <div class="docs-nav__section">
+                        <h3>Integrations</h3>
+                        <ul>
+                            <li><a href="/docs/mcp-integration" >MCP Integration</a></li>
+                        </ul>
+                    </div>
+                </nav>
+            </aside>
+            <div class="docs-content">
+                <h1 id="quickstart-query-singapore-products-in-5-minutes">Quickstart: Query Singapore Products in 5 Minutes</h1>
+<p>Get your first API response in under 5 minutes. This guide gets developers with no prior BuyWhere knowledge from zero to their first successful API call.</p>
+<h2 id="prerequisites">Prerequisites</h2>
+<ul>
+<li>An API key from <a href="https://buywhere.ai/developers">buywhere.ai/developers</a></li>
+<li>curl, Python 3.8+, or any HTTP client</li>
+</ul>
+<h2 id="step-1-get-your-api-key">Step 1: Get Your API Key</h2>
+<ol>
+<li>Sign up at <a href="https://buywhere.ai/developers">buywhere.ai/developers</a></li>
+<li>Create a new API key from your dashboard</li>
+<li>Copy your key — it starts with <code>bw_live_</code>:</li>
+</ol>
+<pre><code>bw_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+</code></pre>
+<h2 id="step-2-make-your-first-search">Step 2: Make Your First Search</h2>
+<p>Search Singapore products using the <code>/v1/search</code> endpoint. Filter by country using the <code>source</code> parameter (e.g., <code>shopee_sg</code>, <code>lazada_sg</code>).</p>
+<h3 id="using-curl">Using curl</h3>
+<pre><code class="language-bash">curl -X GET &quot;https://api.buywhere.ai/v1/search?q=wireless+headphones&amp;source=shopee_sg&amp;limit=5&quot; \
+  -H &quot;Authorization: Bearer bw_live_xxxxx&quot; \
+  -H &quot;Accept: application/json&quot;
+</code></pre>
+<p><strong>Response:</strong></p>
+<pre><code class="language-json">{
+  &quot;total&quot;: 248,
+  &quot;limit&quot;: 5,
+  &quot;offset&quot;: 0,
+  &quot;has_more&quot;: true,
+  &quot;items&quot;: [
+    {
+      &quot;id&quot;: 78234,
+      &quot;sku&quot;: &quot;SHOPEE-SG-HEP-001&quot;,
+      &quot;source&quot;: &quot;shopee_sg&quot;,
+      &quot;merchant_id&quot;: &quot;shop_abc123&quot;,
+      &quot;name&quot;: &quot;Sony WH-1000XM5 Wireless Headphones&quot;,
+      &quot;description&quot;: &quot;Industry-leading noise cancellation...&quot;,
+      &quot;price&quot;: &quot;449.00&quot;,
+      &quot;currency&quot;: &quot;SGD&quot;,
+      &quot;buy_url&quot;: &quot;https://shopee.sg/product/12345&quot;,
+      &quot;affiliate_url&quot;: &quot;https://buywhere.ai/track/abc123&quot;,
+      &quot;image_url&quot;: &quot;https://...jpg&quot;,
+      &quot;brand&quot;: &quot;Sony&quot;,
+      &quot;category&quot;: &quot;Headphones&quot;,
+      &quot;category_path&quot;: [&quot;Electronics&quot;, &quot;Audio&quot;, &quot;Headphones&quot;],
+      &quot;rating&quot;: &quot;4.8&quot;,
+      &quot;is_available&quot;: true,
+      &quot;last_checked&quot;: &quot;2026-04-03T12:00:00Z&quot;,
+      &quot;updated_at&quot;: &quot;2026-04-03T14:30:00Z&quot;
+    }
+  ]
+}
+</code></pre>
+<p><strong>Key response fields:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>Unique BuyWhere product ID</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>Product title</td>
+</tr>
+<tr>
+<td><code>price</code></td>
+<td>Price in <code>currency</code></td>
+</tr>
+<tr>
+<td><code>currency</code></td>
+<td>Currency code (e.g., <code>SGD</code>)</td>
+</tr>
+<tr>
+<td><code>source</code></td>
+<td>Platform (e.g., <code>shopee_sg</code>, <code>lazada_sg</code>)</td>
+</tr>
+<tr>
+<td><code>affiliate_url</code></td>
+<td>Tracked link — use this to send traffic and earn commission</td>
+</tr>
+</tbody>
+</table>
+<h3 id="using-python">Using Python</h3>
+<pre><code class="language-python">from buywhere_sdk import BuyWhere
+
+client = BuyWhere(api_key=&quot;bw_live_xxxxx&quot;)
+
+# Search Singapore products
+results = client.search(
+    query=&quot;wireless headphones&quot;,
+    source=&quot;shopee_sg&quot;,
+    limit=5
+)
+
+for product in results.items:
+    print(f&quot;{product.name}&quot;)
+    print(f&quot;  Price: {product.currency} {product.price}&quot;)
+    print(f&quot;  Source: {product.source}&quot;)
+    print(f&quot;  Buy: {product.affiliate_url}&quot;)
+    print()
+</code></pre>
+<h3 id="using-javascript-nodejs">Using JavaScript (Node.js)</h3>
+<pre><code class="language-javascript">import BuyWhere from '@buywhere/sdk';
+
+const client = new BuyWhere({ apiKey: 'bw_live_xxxxx' });
+
+const results = await client.search({
+  query: 'wireless headphones',
+  source: 'shopee_sg',
+  limit: 5
+});
+
+for (const product of results.items) {
+  console.log(`${product.name} - ${product.currency} ${product.price}`);
+  console.log(`  Buy: ${product.affiliate_url}`);
+}
+</code></pre>
+<h2 id="step-3-use-in-a-python-ai-agent">Step 3: Use in a Python AI Agent</h2>
+<p>The BuyWhere LangChain toolkit lets AI agents search products, get details, and find the best prices.</p>
+<pre><code class="language-python">from langchain.agents import AgentExecutor, create_openai_functions_agent
+from langchain_openai import ChatOpenAI
+from buywhere_sdk.langchain import BuyWhereToolkit
+
+# Initialize the toolkit with your API key
+toolkit = BuyWhereToolkit(api_key=&quot;bw_live_xxxxx&quot;)
+tools = toolkit.get_tools()
+
+# Create an agent with BuyWhere tools
+llm = ChatOpenAI(model=&quot;gpt-4&quot;, temperature=0)
+agent = create_openai_functions_agent(llm, tools, prompt)
+agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+# Run the agent
+result = agent_executor.invoke({
+    &quot;input&quot;: &quot;Find the cheapest PS5 bundle in Singapore and compare prices across platforms&quot;
+})
+print(result[&quot;output&quot;])
+</code></pre>
+<p><strong>What the agent can do:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>buywhere_search</code></td>
+<td>Search products by query, category, price range</td>
+</tr>
+<tr>
+<td><code>buywhere_get_product</code></td>
+<td>Get product details by BuyWhere ID</td>
+</tr>
+<tr>
+<td><code>buywhere_best_price</code></td>
+<td>Find the cheapest listing across all platforms</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example tool output:</strong></p>
+<pre><code>Best Price Found: Sony WH-1000XM5 Wireless Headphones
+Price: SGD 449.00
+Source: shopee_sg
+Buy URL: https://shopee.sg/product/12345
+</code></pre>
+<h2 id="step-4-find-the-best-price">Step 4: Find the Best Price</h2>
+<pre><code class="language-bash">curl -X GET &quot;https://api.buywhere.ai/v1/products/best-price?q=nintendo%20switch%20oled&quot; \
+  -H &quot;Authorization: Bearer bw_live_xxxxx&quot;
+</code></pre>
+<pre><code class="language-python">cheapest = client.best_price(&quot;nintendo switch oled&quot;)
+print(f&quot;Cheapest: {cheapest.name} at {cheapest.currency} {cheapest.price}&quot;)
+print(f&quot;From: {cheapest.source}&quot;)
+</code></pre>
+<h2 id="step-5-compare-prices-across-platforms">Step 5: Compare Prices Across Platforms</h2>
+<pre><code class="language-bash">curl -X GET &quot;https://api.buywhere.ai/v1/products/compare?product_id=12345&quot; \
+  -H &quot;Authorization: Bearer bw_live_xxxxx&quot;
+</code></pre>
+<pre><code class="language-python">comparison = client.compare_prices(&quot;nintendo switch oled&quot;)
+print(f&quot;Found {comparison.total_matches} listings across platforms&quot;)
+
+for match in comparison.matches:
+    print(f&quot;  {match.source}: {match.currency} {match.price} (score: {match.match_score})&quot;)
+</code></pre>
+<h2 id="step-6-browse-categories">Step 6: Browse Categories</h2>
+<pre><code class="language-bash">curl -X GET &quot;https://api.buywhere.ai/v1/categories&quot; \
+  -H &quot;Authorization: Bearer bw_live_xxxxx&quot;
+</code></pre>
+<pre><code class="language-python">categories = client.list_categories()
+
+for cat in categories.categories[:10]:
+    print(f&quot;{cat.name}: {cat.count} products&quot;)
+</code></pre>
+<h2 id="common-use-cases">Common Use Cases</h2>
+<h3 id="filter-by-price-range">Filter by Price Range</h3>
+<pre><code class="language-bash">curl &quot;https://api.buywhere.ai/v1/search?q=laptop&amp;min_price=500&amp;max_price=2000&quot; \
+  -H &quot;Authorization: Bearer bw_live_xxxxx&quot;
+</code></pre>
+<h3 id="filter-by-platform">Filter by Platform</h3>
+<pre><code class="language-bash">curl &quot;https://api.buywhere.ai/v1/search?q=iphone&amp;source=shopee_sg&quot; \
+  -H &quot;Authorization: Bearer bw_live_xxxxx&quot;
+</code></pre>
+<h3 id="filter-by-category">Filter by Category</h3>
+<pre><code class="language-bash">curl &quot;https://api.buywhere.ai/v1/search?q=camera&amp;category=Electronics&quot; \
+  -H &quot;Authorization: Bearer bw_live_xxxxx&quot;
+</code></pre>
+<h2 id="next-steps">Next Steps</h2>
+<ul>
+<li><a href="api-reference/index.md">API Reference</a> — Full endpoint documentation</li>
+<li><a href="guides/authentication.md">Authentication Guide</a> — Rate limits, error codes</li>
+<li><a href="samples/index.md">Code Samples</a> — LangChain, OpenAI tools, CrewAI examples</li>
+<li><a href="https://github.com/buywhere/sdk">SDK Reference</a> — Python SDK source</li>
+</ul>
+            </div>
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 BuyWhere. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+    <script src="/assets/js/main.js"></script>
+</body>
+</html>

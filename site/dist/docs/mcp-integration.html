@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Integration | BuyWhere</title>
+    <meta name="description" content="Connect BuyWhere to AI agents via MCP">
+    <link rel="canonical" href="https://buywhere.ai/docs/mcp-integration">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/design-system.css">
+    <style>
+        .docs-layout { display: grid; grid-template-columns: 240px 1fr; gap: 40px; max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+        .docs-sidebar { position: sticky; top: 80px; height: fit-content; }
+        .docs-nav__section { margin-bottom: 24px; }
+        .docs-nav__section h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 8px; font-weight: 600; }
+        .docs-nav__section ul { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+        .docs-nav__section a { display: block; padding: 6px 10px; color: #475569; font-size: 14px; border-radius: 6px; text-decoration: none; transition: all 0.15s; }
+        .docs-nav__section a:hover { background: #f1f5f9; color: #0f172a; }
+        .docs-nav__section a.active { background: #0066FF; color: #fff; }
+        .docs-content { min-width: 0; }
+        .docs-content h1 { font-size: 32px; font-weight: 700; margin-bottom: 16px; color: #0f172a; }
+        .docs-content h2 { font-size: 22px; font-weight: 600; margin-top: 40px; margin-bottom: 16px; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+        .docs-content h3 { font-size: 18px; font-weight: 600; margin-top: 24px; margin-bottom: 12px; color: #1e293b; }
+        .docs-content p { color: #475569; line-height: 1.7; margin-bottom: 16px; }
+        .docs-content a { color: #0066FF; text-decoration: none; }
+        .docs-content a:hover { text-decoration: underline; }
+        .docs-content code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 13px; font-family: 'JetBrains Mono', monospace; }
+        .docs-content pre { background: #0f172a; color: #e2e8f0; padding: 20px; border-radius: 8px; overflow-x: auto; margin-bottom: 20px; }
+        .docs-content pre code { background: none; padding: 0; color: inherit; font-size: 13px; }
+        .docs-content table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .docs-content th, .docs-content td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        .docs-content th { font-weight: 600; font-size: 13px; color: #475569; }
+        .docs-content td { font-size: 14px; color: #64748b; }
+        .docs-content blockquote { border-left: 4px solid #0066FF; padding-left: 16px; margin: 20px 0; color: #64748b; font-style: italic; }
+        .docs-content ul, .docs-content ol { padding-left: 24px; margin-bottom: 16px; color: #475569; }
+        .docs-content li { margin-bottom: 8px; line-height: 1.6; }
+        .docs-content hr { border: none; border-top: 1px solid #e2e8f0; margin: 32px 0; }
+        .docs-content strong { font-weight: 600; color: #0f172a; }
+        .endpoint { margin-bottom: 48px; padding-bottom: 48px; border-bottom: 1px solid #e2e8f0; }
+        .endpoint:last-child { border-bottom: none; }
+        .endpoint__header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+        .endpoint__method { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+        .endpoint__method.get { background: #10B981; color: white; }
+        .endpoint__method.post { background: #3B82F6; color: white; }
+        .endpoint__path { font-family: 'JetBrains Mono', monospace; font-size: 16px; color: #0f172a; }
+        .endpoint__description { color: #64748b; margin-bottom: 20px; line-height: 1.6; }
+        .code-block { position: relative; margin-bottom: 20px; }
+        @media (max-width: 768px) { .docs-layout { grid-template-columns: 1fr; } .docs-sidebar { position: static; border-bottom: 1px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 20px; } }
+    </style>
+</head>
+<body>
+    <header class="nav-header">
+        <div class="nav-container">
+            <a href="/" class="nav-logo">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="#0066FF"/><path d="M8 16L14 22L24 10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>BuyWhere</span>
+            </a>
+            <div class="nav-desktop">
+                <ul class="nav-links">
+                    <li class="nav-dropdown">
+                        <button class="nav-dropdown-trigger" aria-expanded="false" aria-haspopup="true">Documentation <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+                        <ul class="nav-dropdown-menu">
+                            <li class="nav-dropdown-item"><a href="/docs/quickstart">Quickstart</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/api-reference">API Reference</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/authentication">Authentication</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/errors">Error Handling</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/mcp-integration">MCP Integration</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="/pricing" class="nav-link">Pricing</a></li>
+                    <li><a href="/blog" class="nav-link">Blog</a></li>
+                </ul>
+                <div class="nav-actions">
+                    <a href="/login" class="nav-btn nav-btn-secondary">Sign In</a>
+                    <a href="/register" class="nav-btn nav-btn-primary">Get API Key</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="site-main">
+        <div class="docs-layout">
+            <aside class="docs-sidebar">
+                <nav class="docs-nav">
+                    <div class="docs-nav__section">
+                        <h3>Getting Started</h3>
+                        <ul>
+                            <li><a href="/docs/quickstart" >Quickstart</a></li>
+                            <li><a href="/docs/authentication" >Authentication</a></li>
+                            <li><a href="/docs/errors" >Error Handling</a></li>
+                        </ul>
+                    </div>
+                    <div class="docs-nav__section">
+                        <h3>API Reference</h3>
+                        <ul>
+                            <li><a href="/docs/api-reference" >API Reference</a></li>
+                        </ul>
+                    </div>
+                    <div class="docs-nav__section">
+                        <h3>Integrations</h3>
+                        <ul>
+                            <li><a href="/docs/mcp-integration" class=&#34;active&#34;>MCP Integration</a></li>
+                        </ul>
+                    </div>
+                </nav>
+            </aside>
+            <div class="docs-content">
+                
+            </div>
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 BuyWhere. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+    <script src="/assets/js/main.js"></script>
+</body>
+</html>

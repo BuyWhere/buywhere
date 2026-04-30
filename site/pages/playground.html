@@ -1,0 +1,729 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="playground-layout">
+    <div class="playground-header">
+        <h1>API Playground</h1>
+        <p>Test BuyWhere API endpoints interactively — no authentication required for public endpoints.</p>
+    </div>
+
+    <div class="playground-workspace">
+        <div class="playground-sidebar">
+            <h3>Endpoints</h3>
+            <ul class="endpoint-list" id="endpoint-list">
+                <li>
+                    <button class="endpoint-item active" data-method="GET" data-path="/health" data-requires-auth="false">
+                        <span class="method get">GET</span>
+                        <span class="path">/health</span>
+                    </button>
+                </li>
+                <li>
+                    <button class="endpoint-item" data-method="GET" data-path="/v1/categories" data-requires-auth="false">
+                        <span class="method get">GET</span>
+                        <span class="path">/v1/categories</span>
+                    </button>
+                </li>
+                <li>
+                    <button class="endpoint-item" data-method="GET" data-path="/v1/products/search" data-requires-auth="false">
+                        <span class="method get">GET</span>
+                        <span class="path">/v1/products/search</span>
+                    </button>
+                </li>
+                <li>
+                    <button class="endpoint-item" data-method="GET" data-path="/v1/products/deals" data-requires-auth="false">
+                        <span class="method get">GET</span>
+                        <span class="path">/v1/products/deals</span>
+                    </button>
+                </li>
+                <li>
+                    <button class="endpoint-item" data-method="GET" data-path="/v1/products/{product_id}" data-requires-auth="false">
+                        <span class="method get">GET</span>
+                        <span class="path">/v1/products/{id}</span>
+                    </button>
+                </li>
+                <li>
+                    <button class="endpoint-item" data-method="GET" data-path="/v1/products/compare" data-requires-auth="false">
+                        <span class="method get">GET</span>
+                        <span class="path">/v1/products/compare</span>
+                    </button>
+                </li>
+                <li>
+                    <button class="endpoint-item" data-method="GET" data-path="/v1/products/{product_id}/prices" data-requires-auth="false">
+                        <span class="method get">GET</span>
+                        <span class="path">/v1/products/{id}/prices</span>
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        <div class="playground-main">
+            <div class="request-builder">
+                <div class="request-line">
+                    <span class="method-badge" id="method-badge">GET</span>
+                    <input type="text" id="endpoint-input" value="https://api.buywhere.io/health" placeholder="https://api.buywhere.io/endpoint">
+                </div>
+
+                <div class="request-params" id="request-params">
+                    <div class="params-header">
+                        <span>Query Parameters</span>
+                        <button type="button" class="btn-add-param" id="add-param">+ Add Parameter</button>
+                    </div>
+                    <div class="params-list" id="params-list">
+                        <div class="param-row">
+                            <input type="text" class="param-key" placeholder="param" value="q">
+                            <input type="text" class="param-value" placeholder="value" value="sony headphones">
+                            <button type="button" class="btn-remove-param">×</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="request-meta">
+                    <div class="meta-row">
+                        <label>API Key (optional)</label>
+                        <input type="text" id="api-key-input" placeholder="bw_live_...">
+                    </div>
+                </div>
+
+                <div class="request-actions">
+                    <button type="button" class="btn-send" id="send-request">Send Request</button>
+                    <button type="button" class="btn-clear" id="clear-response">Clear</button>
+                </div>
+            </div>
+
+            <div class="response-panel" id="response-panel">
+                <div class="response-header">
+                    <span class="response-title">Response</span>
+                    <span class="response-status" id="response-status"></span>
+                </div>
+                <div class="response-meta" id="response-meta"></div>
+                <div class="response-body" id="response-body">
+                    <pre><code id="response-code">Send a request to see the response here.</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const API_BASE = 'https://api.buywhere.io';
+    const methodBadge = document.getElementById('method-badge');
+    const endpointInput = document.getElementById('endpoint-input');
+    const paramsList = document.getElementById('params-list');
+    const addParamBtn = document.getElementById('add-param');
+    const apiKeyInput = document.getElementById('api-key-input');
+    const sendBtn = document.getElementById('send-request');
+    const clearBtn = document.getElementById('clear-response');
+    const responseStatus = document.getElementById('response-status');
+    const responseMeta = document.getElementById('response-meta');
+    const responseCode = document.getElementById('response-code');
+    const endpointList = document.getElementById('endpoint-list');
+
+    const endpointConfigs = {
+        '/health': { params: [], requiresAuth: false },
+        '/v1/categories': { params: [], requiresAuth: false },
+        '/v1/products/search': {
+            params: [
+                { key: 'q', label: 'Search query', value: 'sony headphones', required: true },
+                { key: 'country', label: 'Country', value: 'SG', required: false },
+                { key: 'limit', label: 'Limit', value: '5', required: false }
+            ],
+            requiresAuth: false
+        },
+        '/v1/products/deals': {
+            params: [
+                { key: 'limit', label: 'Limit', value: '5', required: false },
+                { key: 'min_discount_pct', label: 'Min discount %', value: '10', required: false }
+            ],
+            requiresAuth: false
+        },
+        '/v1/products/{product_id}': {
+            params: [
+                { key: 'product_id', label: 'Product ID', value: 'prod_shopee_sony_wh1000xm5_sg', required: true }
+            ],
+            requiresAuth: false
+        },
+        '/v1/products/compare': {
+            params: [
+                { key: 'ids', label: 'Product IDs (comma-separated)', value: 'prod_shopee_sony_wh1000xm5_sg,prod_lazada_bose_qc45_sg', required: true }
+            ],
+            requiresAuth: false
+        },
+        '/v1/products/{product_id}/prices': {
+            params: [
+                { key: 'product_id', label: 'Product ID', value: 'prod_shopee_sony_wh1000xm5_sg', required: true }
+            ],
+            requiresAuth: false
+        }
+    };
+
+    function renderParams(path) {
+        const config = endpointConfigs[path];
+        if (!config) return;
+
+        paramsList.innerHTML = '';
+        config.params.forEach(function(p) {
+            const row = document.createElement('div');
+            row.className = 'param-row';
+            row.innerHTML =
+                '<input type="text" class="param-key" placeholder="param" value="' + p.key + '">' +
+                '<input type="text" class="param-value" placeholder="value" value="' + p.value + '">' +
+                '<button type="button" class="btn-remove-param">×</button>';
+            paramsList.appendChild(row);
+        });
+
+        if (config.params.length === 0) {
+            paramsList.innerHTML = '<div class="no-params">No parameters for this endpoint</div>';
+        }
+    }
+
+    function selectEndpoint(method, path) {
+        document.querySelectorAll('.endpoint-item').forEach(function(el) {
+            el.classList.remove('active');
+        });
+        event.currentTarget.classList.add('active');
+
+        methodBadge.textContent = method;
+        const fullUrl = API_BASE + path;
+        endpointInput.value = fullUrl;
+        renderParams(path);
+    }
+
+    endpointList.addEventListener('click', function(e) {
+        const item = e.target.closest('.endpoint-item');
+        if (!item) return;
+
+        const method = item.dataset.method;
+        const path = item.dataset.path;
+        selectEndpoint(method, path);
+    });
+
+    addParamBtn.addEventListener('click', function() {
+        const rows = paramsList.querySelectorAll('.param-row');
+        const lastKey = rows.length > 0 ? rows[rows.length - 1].querySelector('.param-key').value : '';
+        const row = document.createElement('div');
+        row.className = 'param-row';
+        row.innerHTML =
+            '<input type="text" class="param-key" placeholder="param" value="">' +
+            '<input type="text" class="param-value" placeholder="value">' +
+            '<button type="button" class="btn-remove-param">×</button>';
+        paramsList.appendChild(row);
+    });
+
+    paramsList.addEventListener('click', function(e) {
+        if (e.target.classList.contains('btn-remove-param')) {
+            const row = e.target.closest('.param-row');
+            if (row && paramsList.querySelectorAll('.param-row').length > 1) {
+                row.remove();
+            }
+        }
+    });
+
+    function buildUrl() {
+        let url = endpointInput.value.trim();
+        if (!url) return null;
+
+        const params = [];
+        paramsList.querySelectorAll('.param-row').forEach(function(row) {
+            const key = row.querySelector('.param-key').value.trim();
+            const value = row.querySelector('.param-value').value.trim();
+            if (key && value) {
+                params.push(encodeURIComponent(key) + '=' + encodeURIComponent(value));
+            }
+        });
+
+        if (params.length > 0) {
+            const separator = url.includes('?') ? '&' : '?';
+            url += separator + params.join('&');
+        }
+
+        return url;
+    }
+
+    function formatJson(str) {
+        try {
+            const obj = JSON.parse(str);
+            return JSON.stringify(obj, null, 2);
+        } catch (e) {
+            return str;
+        }
+    }
+
+    function showResponse(status, meta, body, isError) {
+        responseStatus.textContent = status;
+        responseStatus.className = 'response-status ' + (isError ? 'error' : 'success');
+        responseMeta.innerHTML = meta;
+        responseCode.textContent = formatJson(body);
+        responseCode.className = isError ? 'language-json error' : 'language-json';
+    }
+
+    sendBtn.addEventListener('click', async function() {
+        const url = buildUrl();
+        if (!url) {
+            showResponse('Error', '', 'Please enter a valid URL', true);
+            return;
+        }
+
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'Sending...';
+        responseStatus.textContent = 'Loading...';
+        responseStatus.className = 'response-status loading';
+        responseCode.textContent = 'Sending request...';
+
+        const headers = {};
+        const apiKey = apiKeyInput.value.trim();
+        if (apiKey) {
+            headers['X-API-Key'] = apiKey;
+        }
+        headers['Accept'] = 'application/json';
+
+        const startTime = Date.now();
+        try {
+            const response = await fetch(url, { headers: headers });
+            const elapsed = Date.now() - startTime;
+            const body = await response.text();
+
+            let metaHtml = '<div class="meta-item"><span class="meta-label">Status:</span> <span class="meta-value">' + response.status + ' ' + response.statusText + '</span></div>';
+            metaHtml += '<div class="meta-item"><span class="meta-label">Time:</span> <span class="meta-value">' + elapsed + 'ms</span></div>';
+
+            response.headers.forEach(function(value, key) {
+                if (key.toLowerCase().startsWith('x-ratelimit') || key.toLowerCase() === 'content-type') {
+                    metaHtml += '<div class="meta-item"><span class="meta-label">' + key + ':</span> <span class="meta-value">' + value + '</span></div>';
+                }
+            });
+
+            showResponse(
+                response.status + ' ' + response.statusText,
+                metaHtml,
+                body,
+                !response.ok
+            );
+        } catch (err) {
+            showResponse('Network Error', '', err.message, true);
+        } finally {
+            sendBtn.disabled = false;
+            sendBtn.textContent = 'Send Request';
+        }
+    });
+
+    clearBtn.addEventListener('click', function() {
+        responseStatus.textContent = '';
+        responseStatus.className = 'response-status';
+        responseMeta.innerHTML = '';
+        responseCode.textContent = 'Send a request to see the response here.';
+    });
+
+    renderParams('/health');
+});
+</script>
+{% endblock %}
+
+{% block head %}
+<style>
+.playground-layout {
+    max-width: var(--bw-container-max);
+    margin: 0 auto;
+    padding: var(--bw-spacing-8) var(--bw-container-padding);
+}
+
+.playground-header {
+    margin-bottom: var(--bw-spacing-8);
+}
+
+.playground-header h1 {
+    font-size: var(--bw-font-size-3xl);
+    font-weight: var(--bw-font-weight-bold);
+    color: var(--bw-color-text-primary);
+    margin-bottom: var(--bw-spacing-2);
+}
+
+.playground-header p {
+    color: var(--bw-color-text-secondary);
+    font-size: var(--bw-font-size-base);
+}
+
+.playground-workspace {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: var(--bw-spacing-6);
+}
+
+.playground-sidebar {
+    background: var(--bw-color-bg-secondary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+    padding: var(--bw-spacing-4);
+    height: fit-content;
+}
+
+.playground-sidebar h3 {
+    font-size: var(--bw-font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--bw-color-text-muted);
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.endpoint-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--bw-spacing-1);
+}
+
+.endpoint-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: var(--bw-spacing-2);
+    padding: var(--bw-spacing-2) var(--bw-spacing-3);
+    background: none;
+    border: 1px solid transparent;
+    border-radius: var(--bw-radius-md);
+    cursor: pointer;
+    text-align: left;
+    transition: all var(--bw-transition-fast);
+    font-size: var(--bw-font-size-sm);
+}
+
+.endpoint-item:hover {
+    background: var(--bw-color-bg-tertiary);
+}
+
+.endpoint-item.active {
+    background: var(--bw-color-primary);
+    color: white;
+}
+
+.endpoint-item .method {
+    font-size: var(--bw-font-size-xs);
+    font-weight: var(--bw-font-weight-semibold);
+    padding: 2px 6px;
+    border-radius: var(--bw-radius-sm);
+    background: var(--bw-color-success);
+    color: white;
+}
+
+.endpoint-item .path {
+    font-family: var(--bw-font-family-mono);
+    font-size: var(--bw-font-size-xs);
+    color: inherit;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.playground-main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bw-spacing-4);
+}
+
+.request-builder {
+    background: var(--bw-color-bg-primary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+    padding: var(--bw-spacing-6);
+}
+
+.request-line {
+    display: flex;
+    align-items: center;
+    gap: var(--bw-spacing-3);
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.method-badge {
+    padding: var(--bw-spacing-2) var(--bw-spacing-4);
+    background: var(--bw-color-success);
+    color: white;
+    font-weight: var(--bw-font-weight-bold);
+    font-size: var(--bw-font-size-sm);
+    border-radius: var(--bw-radius-md);
+    min-width: 60px;
+    text-align: center;
+}
+
+#endpoint-input {
+    flex: 1;
+    padding: var(--bw-spacing-3) var(--bw-spacing-4);
+    font-family: var(--bw-font-family-mono);
+    font-size: var(--bw-font-size-sm);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-md);
+    background: var(--bw-color-bg-secondary);
+    color: var(--bw-color-text-primary);
+}
+
+#endpoint-input:focus {
+    outline: none;
+    border-color: var(--bw-color-primary);
+}
+
+.request-params {
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.params-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--bw-spacing-3);
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-semibold);
+    color: var(--bw-color-text-secondary);
+}
+
+.btn-add-param {
+    background: none;
+    border: none;
+    color: var(--bw-color-primary);
+    font-size: var(--bw-font-size-sm);
+    cursor: pointer;
+    padding: var(--bw-spacing-1) var(--bw-spacing-2);
+}
+
+.btn-add-param:hover {
+    text-decoration: underline;
+}
+
+.params-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bw-spacing-2);
+}
+
+.param-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: var(--bw-spacing-2);
+    align-items: center;
+}
+
+.param-key, .param-value {
+    padding: var(--bw-spacing-2) var(--bw-spacing-3);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-md);
+    font-size: var(--bw-font-size-sm);
+    background: var(--bw-color-bg-primary);
+    color: var(--bw-color-text-primary);
+}
+
+.param-key:focus, .param-value:focus {
+    outline: none;
+    border-color: var(--bw-color-primary);
+}
+
+.btn-remove-param {
+    width: 28px;
+    height: 28px;
+    background: none;
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-md);
+    cursor: pointer;
+    color: var(--bw-color-text-muted);
+    font-size: var(--bw-font-size-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-remove-param:hover {
+    background: var(--bw-color-error);
+    color: white;
+    border-color: var(--bw-color-error);
+}
+
+.no-params {
+    color: var(--bw-color-text-muted);
+    font-size: var(--bw-font-size-sm);
+    padding: var(--bw-spacing-3);
+    text-align: center;
+    background: var(--bw-color-bg-secondary);
+    border-radius: var(--bw-radius-md);
+}
+
+.request-meta {
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.meta-row {
+    display: flex;
+    align-items: center;
+    gap: var(--bw-spacing-3);
+}
+
+.meta-row label {
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-medium);
+    color: var(--bw-color-text-secondary);
+    min-width: 80px;
+}
+
+.meta-row input {
+    flex: 1;
+    padding: var(--bw-spacing-2) var(--bw-spacing-3);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-md);
+    font-family: var(--bw-font-family-mono);
+    font-size: var(--bw-font-size-sm);
+    background: var(--bw-color-bg-primary);
+    color: var(--bw-color-text-primary);
+}
+
+.meta-row input:focus {
+    outline: none;
+    border-color: var(--bw-color-primary);
+}
+
+.request-actions {
+    display: flex;
+    gap: var(--bw-spacing-3);
+}
+
+.btn-send {
+    padding: var(--bw-spacing-3) var(--bw-spacing-6);
+    background: var(--bw-color-primary);
+    color: white;
+    border: none;
+    border-radius: var(--bw-radius-md);
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-semibold);
+    cursor: pointer;
+    transition: background var(--bw-transition-fast);
+}
+
+.btn-send:hover:not(:disabled) {
+    background: var(--bw-color-primary-dark);
+}
+
+.btn-send:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-clear {
+    padding: var(--bw-spacing-3) var(--bw-spacing-6);
+    background: none;
+    color: var(--bw-color-text-secondary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-md);
+    font-size: var(--bw-font-size-sm);
+    cursor: pointer;
+}
+
+.btn-clear:hover {
+    background: var(--bw-color-bg-secondary);
+}
+
+.response-panel {
+    background: var(--bw-color-bg-primary);
+    border: 1px solid var(--bw-color-border);
+    border-radius: var(--bw-radius-xl);
+    overflow: hidden;
+}
+
+.response-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--bw-spacing-4) var(--bw-spacing-6);
+    background: var(--bw-color-bg-secondary);
+    border-bottom: 1px solid var(--bw-color-border);
+}
+
+.response-title {
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-semibold);
+    color: var(--bw-color-text-primary);
+}
+
+.response-status {
+    font-family: var(--bw-font-family-mono);
+    font-size: var(--bw-font-size-xs);
+    padding: var(--bw-spacing-1) var(--bw-spacing-2);
+    border-radius: var(--bw-radius-sm);
+    background: var(--bw-color-text-muted);
+    color: white;
+}
+
+.response-status.success {
+    background: var(--bw-color-success);
+}
+
+.response-status.error {
+    background: var(--bw-color-error);
+}
+
+.response-status.loading {
+    background: var(--bw-color-info);
+}
+
+.response-meta {
+    padding: var(--bw-spacing-3) var(--bw-spacing-6);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--bw-spacing-4);
+    border-bottom: 1px solid var(--bw-color-border);
+    font-size: var(--bw-font-size-xs);
+}
+
+.meta-item {
+    display: flex;
+    gap: var(--bw-spacing-1);
+}
+
+.meta-label {
+    color: var(--bw-color-text-muted);
+    font-weight: var(--bw-font-weight-medium);
+}
+
+.meta-value {
+    font-family: var(--bw-font-family-mono);
+    color: var(--bw-color-text-primary);
+}
+
+.response-body {
+    padding: var(--bw-spacing-6);
+    max-height: 400px;
+    overflow: auto;
+}
+
+.response-body pre {
+    margin: 0;
+    font-family: var(--bw-font-family-mono);
+    font-size: var(--bw-font-size-sm);
+    line-height: var(--bw-line-height-relaxed);
+    color: var(--bw-color-text-primary);
+}
+
+.response-body code.error {
+    color: var(--bw-color-error);
+}
+
+@media (max-width: 768px) {
+    .playground-workspace {
+        grid-template-columns: 1fr;
+    }
+
+    .playground-sidebar {
+        order: 2;
+    }
+
+    .endpoint-list {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .endpoint-item {
+        flex: 0 0 auto;
+    }
+
+    .param-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

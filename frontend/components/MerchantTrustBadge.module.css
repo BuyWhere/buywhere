@@ -1,0 +1,97 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bw-space-1, 0.25rem);
+  padding: var(--bw-space-1, 0.25rem) var(--bw-space-2, 0.5rem);
+  border-radius: var(--bw-radius-sm, 4px);
+  font-size: var(--bw-font-size-00, 0.625rem);
+  font-weight: var(--bw-font-weight-semibold, 600);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.badge.sm {
+  padding: 2px 4px;
+}
+
+.badge.md {
+  padding: var(--bw-space-1, 0.25rem) var(--bw-space-2, 0.5rem);
+  font-size: var(--bw-font-size-00, 0.75rem);
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.badge.md .icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.label {
+  display: none;
+}
+
+.badge.md .label {
+  display: inline;
+}
+
+.row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bw-space-1, 0.25rem);
+}
+
+.verified {
+  background: var(--bw-color-success-soft, #d1fae5);
+  color: var(--bw-color-success, #10b981);
+}
+
+.secure {
+  background: var(--bw-color-info-soft, #cffafe);
+  color: var(--bw-color-info, #0891b2);
+}
+
+.fastShipping {
+  background: var(--bw-color-primary-soft, #dbeafe);
+  color: var(--bw-color-brand-primary, #2563eb);
+}
+
+.topRated {
+  background: var(--bw-color-accent-soft, #fef3c7);
+  color: var(--bw-color-accent, #f59e0b);
+}
+
+.priceMatch {
+  background: var(--bw-color-secondary-soft, #ecfdf5);
+  color: var(--bw-color-secondary, #10b981);
+}
+
+.official {
+  background: var(--bw-color-brand-primary-soft, #dbeafe);
+  color: var(--bw-color-brand-primary, #2563eb);
+}
+
+.moreBadge {
+  background: var(--bw-color-bg-secondary, #f3f4f6);
+  color: var(--bw-color-ink-secondary, #4b5563);
+}
+
+@media (max-width: 639px) {
+  .badge {
+    padding: 2px 4px;
+  }
+  
+  .icon svg {
+    width: 10px;
+    height: 10px;
+  }
+}

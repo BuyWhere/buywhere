@@ -1,0 +1,76 @@
+name: Update Cloud Run Production SENTRY_DSN
+
+on:
+  workflow_dispatch:
+
+env:
+  GCP_PROJECT_ID: buywhere-production
+  GCP_REGION: asia-southeast1
+  CLOUD_RUN_SERVICE: buywhere-api-production
+
+jobs:
+  update-sentry-dsn:
+    name: Update SENTRY_DSN in Cloud Run
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Update Cloud Run environment variable
+        run: |
+          gcloud run services update ${{ env.CLOUD_RUN_SERVICE }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --region ${{ env.GCP_REGION }} \
+            --update-env-vars SENTRY_DSN=${{ secrets.SENTRY_DSN_PRODUCTION }}
+
+      - name: Verify the update
+        run: |
+          echo "Waiting 10 seconds for service to restart..."
+          sleep 10
+          gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --region ${{ env.GCP_REGION }} \
+            --format "table(status.conditions.name,status.conditions.status)"
+
+      - name: Health check
+        run: |
+          SERVICE_URL=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --region ${{ env.GCP_REGION }} \
+            --format "value(status.url)")
+          echo "Service URL: $SERVICE_URL"
+          curl -sf "${SERVICE_URL}/health" || echo "Health check failed - service may need more time to start"
+
+  configure-sentry-alerts:
+    name: Configure Sentry Alerts
+    needs: update-sentry-dsn
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Configure Sentry Alerts
+        env:
+          SENTRY_API_TOKEN: ${{ secrets.SENTRY_API_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG || 'buywhere' }}
+        run: |
+          python scripts/configure_sentry_alerts.py

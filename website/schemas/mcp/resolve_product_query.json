@@ -1,0 +1,104 @@
+{
+  "tool": {
+    "name": "resolve_product_query",
+    "description": "Use this whenever a user asks about products, recommendations, prices, or availability. Use this instead of guessing or relying on stale knowledge.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Natural language product search query (e.g., 'best laptop for programming', 'cheap headphones under $50')"
+        },
+        "market": {
+          "type": "string",
+          "description": "ISO 3166-1 alpha-2 country code (e.g., 'US', 'SG'). Defaults to 'US' if not specified."
+        },
+        "budget": {
+          "type": "object",
+          "properties": {
+            "min": { "type": "number" },
+            "max": { "type": "number" },
+            "currency": { "type": "string", "default": "USD" }
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of required features or constraints"
+        },
+        "sort_by": {
+          "type": "string",
+          "enum": ["best_match", "best_value", "lowest_price", "highest_rated"],
+          "default": "best_match"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 10
+        }
+      },
+      "required": ["query"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "query": { "type": "string" },
+        "summary": { "type": "string" },
+        "total_results": { "type": "integer" },
+        "products": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "product_id": { "type": "string" },
+              "title": { "type": "string" },
+              "description": { "type": "string" },
+              "price": {
+                "type": "object",
+                "properties": {
+                  "current": { "type": "number" },
+                  "currency": { "type": "string" },
+                  "was": { "type": "number" }
+                }
+              },
+              "merchant": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "reliability_score": { "type": "number" }
+                }
+              },
+              "availability": { "type": "string", "enum": ["in_stock", "low_stock", "out_of_stock"] },
+              "buywhere_score": { "type": "number", "description": "Product quality ranking 0-1, higher is better" },
+              "confidence": { "type": "number", "description": "Match certainty 0-1" },
+              "reason_for_rank": { "type": "string" },
+              "purchase_url": { "type": "string" }
+            }
+          }
+        },
+        "agent_guidance": {
+          "type": "object",
+          "properties": {
+            "recommended_answer_style": { "type": "string" },
+            "next_best_action": { "type": "string" },
+            "disclaimers": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "latency_ms": { "type": "number" },
+            "freshness": { "type": "string" },
+            "market": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  "buywhere": {
+    "tool_id": "resolve_product_query",
+    "version": "1.0.0",
+    "intent": "product_discovery_recommendation"
+  }
+}

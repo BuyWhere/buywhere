@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "name": "buywhere-ai",
+  "builds": [
+    { "src": "index.html", "use": "@vercel/static" },
+    { "src": "privacy/index.html", "use": "@vercel/static" },
+    { "src": "contact/index.html", "use": "@vercel/static" },
+    { "src": "terms/index.html", "use": "@vercel/static" },
+    { "src": "llms.txt", "use": "@vercel/static" },
+    { "src": "ai.txt", "use": "@vercel/static" },
+    { "src": "schemas/**/*.json", "use": "@vercel/static" },
+    { "src": "agent/**", "use": "@vercel/static" },
+    { "src": "queries/**", "use": "@vercel/static" },
+    { "src": "developer-beta/**", "use": "@vercel/static" },
+    { "src": "changelog/**", "use": "@vercel/static" },
+    { "src": "roadmap/**", "use": "@vercel/static" },
+    { "src": "docs/**", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/privacy/?", "dest": "/privacy/index.html" },
+    { "src": "/contact/?", "dest": "/contact/index.html" },
+    { "src": "/terms/?", "dest": "/terms/index.html" },
+    { "src": "/llms.txt", "dest": "/llms.txt" },
+    { "src": "/ai.txt", "dest": "/ai.txt" },
+    { "src": "/schemas/(.*)", "dest": "/schemas/$1" },
+    { "src": "/agent/?", "dest": "/agent/usage-guide.md" },
+    { "src": "/agent/metrics/?", "dest": "/agent/metrics.html" },
+    { "src": "/queries/(.*)", "dest": "/queries/$1" },
+    { "src": "/changelog/?", "dest": "/changelog/index.html" },
+    { "src": "/roadmap/?", "dest": "/roadmap/index.html" },
+    { "src": "/docs/(.*)", "dest": "/docs/$1" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-XSS-Protection", "value": "1; mode=block" }
+      ]
+    },
+    {
+      "source": "/llms.txt",
+      "headers": [
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" }
+      ]
+    },
+    {
+      "source": "/ai.txt",
+      "headers": [
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" }
+      ]
+    },
+    {
+      "source": "/schemas/**/*.json",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+      ]
+    }
+  ]
+}

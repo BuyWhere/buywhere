@@ -1,0 +1,39 @@
+{
+  "name": "buywhere-js",
+  "version": "1.0.0",
+  "description": "TypeScript SDK for BuyWhere API - Agent-native product catalog API for AI agent commerce",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "buywhere",
+    "ecommerce",
+    "singapore",
+    "product-catalog",
+    "api",
+    "ai-agents",
+    "shopping"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0"
+  }
+}

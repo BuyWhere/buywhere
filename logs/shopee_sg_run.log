@@ -1,0 +1,119 @@
+Output: /home/paperclip/buywhere-api/data/shopee-main/products_20260427_113807.jsonl
+Shopee SG Scraper (Eng21) starting...
+Mode: scrape only
+Batch size: 100, Delay: 1.0s
+Output: /home/paperclip/buywhere-api/data/shopee-main/products_20260427_113807.jsonl
+Categories: 18 verticals
+Verticals: Electronics, Home Appliances, Food & Beverages, Health, Pet Supplies
+Target: 500K products
+
+[Electronics / Phones] Starting scrape...
+  Page 1... No products found.
+  Page 2... No products found.
+  Page 3... No products found.
+  [Electronics / Phones] Done: {'scraped': 0, 'ingested': 0, 'updated': 0, 'failed': 0}
+
+[Electronics / Laptops] Starting scrape...
+  Page 1... No products found.
+  Page 2... No products found.
+  Page 3... No products found.
+  [Electronics / Laptops] Done: {'scraped': 0, 'ingested': 0, 'updated': 0, 'failed': 0}
+
+[Electronics / Audio] Starting scrape...
+  Page 1... No products found.
+  Page 2... No products found.
+  Page 3... No products found.
+  [Electronics / Audio] Done: {'scraped': 0, 'ingested': 0, 'updated': 0, 'failed': 0}
+
+[Electronics / Cameras] Starting scrape...
+  Page 1... No products found.
+  Page 2... No products found.
+  Page 3... No products found.
+  [Electronics / Cameras] Done: {'scraped': 0, 'ingested': 0, 'updated': 0, 'failed': 0}
+
+[Electronics / Accessories] Starting scrape...
+  Page 1... No products found.
+  Page 2... No products found.
+  Page 3... No products found.
+  [Electronics / Accessories] Done: {'scraped': 0, 'ingested': 0, 'updated': 0, 'failed': 0}
+
+[Home Appliances / Kitchen] Starting scrape...
+  Page 1... No products found.
+  Page 2... No products found.
+  Page 3... No products found.
+  [Home Appliances / Kitchen] Done: {'scraped': 0, 'ingested': 0, 'updated': 0, 'failed': 0}
+
+[Home Appliances / Cleaning] Starting scrape...
+  Page 1... No products found.
+  Page 2... No products found.
+  Page 3... No products found.
+  [Home Appliances / Cleaning] Done: {'scraped': 0, 'ingested': 0, 'updated': 0, 'failed': 0}
+
+[Home Appliances / Air Conditioners] Starting scrape...
+  Page 1... No products found.
+  Page 2... No products found.
+  Page 3... No products found.
+  [Home Appliances / Air Conditioners] Done: {'scraped': 0, 'ingested': 0, 'updated': 0, 'failed': 0}
+
+[Home Appliances / Fans] Starting scrape...
+  Page 1... No products found.
+  Page 2... No products found.
+  Page 3... No products found.
+  [Home Appliances / Fans] Done: {'scraped': 0, 'ingested': 0, 'updated': 0, 'failed': 0}
+
+[Food & Beverages / Groceries] Starting scrape...
+  Page 1... No products found.
+  Page 2... No products found.
+  Page 3... No products found.
+  [Food & Beverages / Groceries] Done: {'scraped': 0, 'ingested': 0, 'updated': 0, 'failed': 0}
+
+[Food & Beverages / Snacks] Starting scrape...
+  Page 1... No products found.
+  Page 2... No products found.
+  Page 3... No products found.
+  [Food & Beverages / Snacks] Done: {'scraped': 0, 'ingested': 0, 'updated': 0, 'failed': 0}
+
+[Food & Beverages / Drinks] Starting scrape...
+  Page 1... No products found.
+  Page 2... No products found.
+  Page 3... No products found.
+  [Food & Beverages / Drinks] Done: {'scraped': 0, 'ingested': 0, 'updated': 0, 'failed': 0}
+
+[Health / Supplements] Starting scrape...
+  Page 1... No products found.
+  Page 2... No products found.
+  Page 3... No products found.
+  [Health / Supplements] Done: {'scraped': 0, 'ingested': 0, 'updated': 0, 'failed': 0}
+
+[Health / Personal Care] Starting scrape...
+  Page 1... No products found.
+  Page 2... No products found.
+  Page 3... No products found.
+  [Health / Personal Care] Done: {'scraped': 0, 'ingested': 0, 'updated': 0, 'failed': 0}
+
+[Health / Pharmacy] Starting scrape...
+  Page 1... No products found.
+  Page 2... No products found.
+  Page 3... No products found.
+  [Health / Pharmacy] Done: {'scraped': 0, 'ingested': 0, 'updated': 0, 'failed': 0}
+
+[Pet Supplies / Pet Food] Starting scrape...
+  Page 1... No products found.
+  Page 2... No products found.
+  Page 3... No products found.
+  [Pet Supplies / Pet Food] Done: {'scraped': 0, 'ingested': 0, 'updated': 0, 'failed': 0}
+
+[Pet Supplies / Pet Accessories] Starting scrape...
+  Page 1... No products found.
+  Page 2... No products found.
+  Page 3... No products found.
+  [Pet Supplies / Pet Accessories] Done: {'scraped': 0, 'ingested': 0, 'updated': 0, 'failed': 0}
+
+[Pet Supplies / Pet Grooming] Starting scrape...
+  Page 1... No products found.
+  Page 2... No products found.
+  Page 3... No products found.
+  [Pet Supplies / Pet Grooming] Done: {'scraped': 0, 'ingested': 0, 'updated': 0, 'failed': 0}
+
+Scraper complete: {'elapsed_seconds': 234.8, 'total_scraped': 0, 'total_ingested': 0, 'total_updated': 0, 'total_failed': 0, 'output_file': '/home/paperclip/buywhere-api/data/shopee-main/products_20260427_113807.jsonl'}
+Done: {'elapsed_seconds': 234.8, 'total_scraped': 0, 'total_ingested': 0, 'total_updated': 0, 'total_failed': 0, 'output_file': '/home/paperclip/buywhere-api/data/shopee-main/products_20260427_113807.jsonl'}

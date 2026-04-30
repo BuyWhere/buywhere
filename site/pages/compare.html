@@ -1,0 +1,96 @@
+{% set title = "Compare" %}
+{% set description = "Compare products and merchants with BuyWhere." %}
+{% extends "base.html" %}
+
+{% block content %}
+<section class="recovery-page">
+    <div class="container">
+        <div class="recovery-hero">
+            <p class="recovery-kicker">Compare</p>
+            <h1>Compare products, prices, and merchants faster</h1>
+            <p>Start from the live catalog, inspect the product comparison API, or review the integration docs for agent-native compare flows.</p>
+        </div>
+        <div class="recovery-grid">
+            <a href="/catalog?country=SG" class="recovery-card">
+                <h2>Search the catalog</h2>
+                <p>Find the product first, then branch into detail and pricing flows.</p>
+            </a>
+            <a href="/docs/api-reference#compare" class="recovery-card">
+                <h2>Read compare API docs</h2>
+                <p>See request and response shapes for compare workflows.</p>
+            </a>
+            <a href="/docs/mcp-integration" class="recovery-card">
+                <h2>Build agent compare flows</h2>
+                <p>Use the MCP integration path for side-by-side recommendations.</p>
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.recovery-page {
+    padding: var(--bw-spacing-20) 0;
+    background: linear-gradient(180deg, var(--bw-color-bg-secondary) 0%, var(--bw-color-bg-primary) 100%);
+}
+
+.recovery-hero {
+    max-width: 760px;
+    margin: 0 auto var(--bw-spacing-12);
+    text-align: center;
+}
+
+.recovery-kicker {
+    color: var(--bw-color-secondary-dark);
+    font-weight: var(--bw-font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: var(--bw-font-size-sm);
+    margin-bottom: var(--bw-spacing-3);
+}
+
+.recovery-hero h1 {
+    margin-bottom: var(--bw-spacing-4);
+    font-size: clamp(2.25rem, 4.5vw, 4rem);
+}
+
+.recovery-hero p {
+    color: var(--bw-color-text-secondary);
+    font-size: var(--bw-font-size-lg);
+}
+
+.recovery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--bw-spacing-6);
+}
+
+.recovery-card {
+    display: block;
+    padding: var(--bw-spacing-8);
+    border-radius: 24px;
+    background: #ffffff;
+    border: 1px solid var(--bw-color-border);
+    box-shadow: var(--bw-shadow-md);
+    text-decoration: none;
+}
+
+.recovery-card h2 {
+    margin-bottom: var(--bw-spacing-3);
+    font-size: var(--bw-font-size-xl);
+}
+
+.recovery-card p {
+    color: var(--bw-color-text-secondary);
+}
+
+@media (hover: hover) {
+    .recovery-card:hover {
+        border-color: var(--bw-color-secondary);
+        text-decoration: none;
+        transform: translateY(-2px);
+    }
+}
+</style>
+{% endblock %}

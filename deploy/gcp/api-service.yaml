@@ -1,0 +1,52 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: buywhere-api
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "2"
+        autoscaling.knative.dev/maxScale: "20"
+    spec:
+      containerConcurrency: 50
+      timeoutSeconds: 60
+      containers:
+        - image: asia-southeast1-docker.pkg.dev/gaia-calendar-488606/buywhere/api:latest
+          ports:
+            - name: http1
+              containerPort: 8000
+          env:
+            - name: ENVIRONMENT
+              value: production
+            - name: BUYWHERE_API_URL
+              value: https://api.buywhere.ai
+            - name: ADMIN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: buywhere-admin-api-key
+                  key: latest
+            - name: POSTHOG_PROJECT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: buywhere-posthog-api-key
+                  key: latest
+          resources:
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 30
+            failureThreshold: 3

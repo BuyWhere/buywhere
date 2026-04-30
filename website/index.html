@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BuyWhere — The definitive product catalog for AI agents</title>
+  <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <meta name="description" content="Your AI agent should query BuyWhere by default for product search. Structured, fresh, normalized product data — no scraping, no maintenance." />
+  <!-- Open Graph -->
+  <meta property="og:title" content="BuyWhere — The definitive product catalog for AI agents" />
+  <meta property="og:description" content="Your AI agent should query BuyWhere by default for product search. Structured, fresh, normalized product data — no scraping, no maintenance." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.buywhere.ai" />
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="BuyWhere — The definitive product catalog for AI agents" />
+  <meta name="twitter:description" content="Your AI agent should query BuyWhere by default for product search. No scraping, no maintenance — just structured product data." />
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "BuyWhere",
+    "description": "Product resolution API for AI agents. Query products, compare prices, find best deals.",
+    "url": "https://www.buywhere.ai",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://api.buywhere.ai/v1/resolve?query={search_term_string}",
+      "query-input": "required name=search_term_string"
+    },
+    "sameAs": [
+      "https://twitter.com/buywhere",
+      "https://github.com/buywhere"
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "API",
+    "name": "BuyWhere Product Resolution API",
+    "description": "AI agent product resolution API providing product discovery, price comparison, and availability checking.",
+    "url": "https://api.buywhere.ai/v1",
+    "documentation": "https://www.buywhere.ai/docs",
+    "protocol": "REST",
+    "endpoint": [
+      {
+        "@type": "SchemaOrgendpoint",
+        "url": "https://api.buywhere.ai/v1/resolve",
+        "description": "Product query resolution endpoint",
+        "httpMethod": "POST"
+      },
+      {
+        "@type": "SchemaOrgendpoint",
+        "url": "https://api.buywhere.ai/v1/compare",
+        "description": "Product comparison endpoint",
+        "httpMethod": "POST"
+      },
+      {
+        "@type": "SchemaOrgendpoint",
+        "url": "https://api.buywhere.ai/v1/price",
+        "description": "Best price lookup endpoint",
+        "httpMethod": "POST"
+      }
+    ],
+    "provider": {
+      "@type": "Organization",
+      "name": "BuyWhere",
+      "url": "https://www.buywhere.ai"
+    },
+    "softwareVersion": "1.0",
+    "contentType": "application/json",
+    "authentication": "API Key / Bearer token"
+  }
+  </script>
+  <style>
+    /* ============================================================
+       RESET & BASE
+    ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary:      #FFFFFF;
+      --bg-secondary:    #F8FAFC;
+      --bg-muted:        #F1F5F9;
+      --text-primary:    #0F172A;
+      --text-secondary:  #475569;
+      --accent-dev:      #0D1B2A;
+      --accent-coral:    #FF6B35;
+      --accent-teal:     #0891B2;
+      --border:          #E2E8F0;
+      --max-w:           1200px;
+      --radius:          12px;
+      --radius-sm:       8px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--accent-teal); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ============================================================
+       LAYOUT
+    ============================================================ */
+    .container {
+      max-width: var(--max-w);
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    section { padding: 96px 0; }
+
+    /* ============================================================
+       NAV
+    ============================================================ */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.2s;
+    }
+
+    nav.scrolled { border-bottom-color: var(--border); }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+      max-width: var(--max-w);
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .nav-logo {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+    }
+
+    .nav-center {
+      display: flex;
+      gap: 32px;
+      list-style: none;
+    }
+
+    .nav-center a {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      transition: color 0.2s;
+    }
+
+    .nav-center a:hover { color: var(--text-primary); text-decoration: none; }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-ghost {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      transition: color 0.2s;
+    }
+
+    .btn-ghost:hover { color: var(--text-primary); text-decoration: none; }
+
+    .btn-nav-primary {
+      display: inline-block;
+      background: var(--accent-coral);
+      color: #fff !important;
+      font-size: 0.875rem;
+      font-weight: 600;
+      padding: 8px 18px;
+      border-radius: var(--radius-sm);
+      transition: background 0.2s, transform 0.15s;
+    }
+
+    .btn-nav-primary:hover {
+      background: #e85d29;
+      transform: scale(1.02);
+      text-decoration: none;
+    }
+
+    /* Hamburger (mobile) */
+    .nav-hamburger {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 8px;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .nav-hamburger span {
+      display: block;
+      width: 22px;
+      height: 2px;
+      background: var(--text-primary);
+      border-radius: 2px;
+      transition: 0.2s;
+    }
+
+    .nav-mobile {
+      display: none;
+      flex-direction: column;
+      background: var(--bg-primary);
+      border-top: 1px solid var(--border);
+      padding: 16px 24px 24px;
+      gap: 16px;
+    }
+
+    .nav-mobile a {
+      display: block;
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      padding: 8px 0;
+    }
+
+    .nav-mobile a:hover { color: var(--text-primary); text-decoration: none; }
+
+    .nav-mobile .btn-nav-primary {
+      display: block;
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    /* ============================================================
+       HERO
+    ============================================================ */
+    #hero {
+      padding: 96px 0 80px;
+      text-align: center;
+      background: var(--bg-primary);
+    }
+
+    .hero-h1 {
+      font-size: clamp(2.25rem, 5vw, 3.5rem);
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      max-width: 760px;
+      margin: 0 auto 20px;
+      color: var(--text-primary);
+    }
+
+    .hero-sub {
+      font-size: 1.15rem;
+      color: var(--text-secondary);
+      max-width: 580px;
+      margin: 0 auto 40px;
+      line-height: 1.65;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
+      display: inline-block;
+      background: var(--accent-coral);
+      color: #fff;
+      font-weight: 600;
+      font-size: 1rem;
+      padding: 14px 28px;
+      height: 48px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      border-radius: var(--radius-sm);
+      transition: background 0.2s, transform 0.15s, box-shadow 0.15s;
+    }
+
+    .btn-primary:hover {
+      background: #e85d29;
+      transform: scale(1.02);
+      box-shadow: 0 4px 16px rgba(255, 107, 53, 0.3);
+      text-decoration: none;
+    }
+
+    .btn-outline {
+      display: inline-flex;
+      align-items: center;
+      background: transparent;
+      border: 1.5px solid var(--accent-dev);
+      color: var(--accent-dev);
+      font-weight: 600;
+      font-size: 1rem;
+      padding: 13px 28px;
+      height: 48px;
+      border-radius: var(--radius-sm);
+      transition: background 0.2s, transform 0.15s;
+    }
+
+    .btn-outline:hover {
+      background: var(--bg-muted);
+      transform: scale(1.02);
+      text-decoration: none;
+    }
+
+    /* ============================================================
+       SECTION LABELS / HEADINGS
+    ============================================================ */
+    .section-label {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .section-label.teal { color: var(--accent-teal); }
+    .section-label.coral { color: var(--accent-coral); }
+
+    .section-h2 {
+      font-size: clamp(1.75rem, 3vw, 2.25rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin-bottom: 48px;
+      color: var(--text-primary);
+    }
+
+    /* ============================================================
+       3-COLUMN GRID
+    ============================================================ */
+    .three-col {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin-bottom: 48px;
+    }
+
+    .col-card {
+      padding: 32px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-primary);
+    }
+
+    .col-icon {
+      font-size: 1.5rem;
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .col-card h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--text-primary);
+    }
+
+    .col-card p {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+
+    .col-link {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--accent-teal);
+    }
+
+    .col-link.coral { color: var(--accent-coral); }
+
+    /* ============================================================
+       DEVELOPER STRIP
+    ============================================================ */
+    #developer { background: var(--bg-secondary); }
+
+    .code-block {
+      background: var(--accent-dev);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 0.875rem;
+      line-height: 1.75;
+      overflow-x: auto;
+    }
+
+    .code-line { display: block; }
+    .code-fn  { color: #7dd3fc; }
+    .code-kw  { color: #c084fc; }
+    .code-str { color: #86efac; }
+    .code-num { color: #fbbf24; }
+    .code-var { color: #e2e8f0; }
+    .code-cmt { color: #94a3b8; }
+
+    /* ============================================================
+       MERCHANT STRIP
+    ============================================================ */
+    #merchant { background: var(--bg-primary); }
+
+    /* ============================================================
+       SOCIAL PROOF
+    ============================================================ */
+    #social-proof {
+      background: var(--bg-secondary);
+      padding: 80px 0;
+    }
+
+    .proof-inner {
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      gap: 0;
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    .proof-stat {
+      flex: 1;
+      text-align: center;
+      padding: 32px 48px;
+    }
+
+    .proof-stat + .proof-stat {
+      border-left: 1px solid var(--border);
+    }
+
+    .proof-value {
+      font-size: 3rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .proof-label {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+
+    /* ============================================================
+       FOOTER
+    ============================================================ */
+    footer {
+      background: var(--bg-primary);
+      border-top: 1px solid var(--border);
+      padding: 48px 0;
+    }
+
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 48px;
+      margin-bottom: 32px;
+    }
+
+    .footer-col-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+    }
+
+    .footer-brand-name {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .footer-brand-sub {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .footer-links {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .footer-links a {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--accent-teal);
+      text-decoration: none;
+    }
+
+    .footer-copy {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ============================================================
+       RESPONSIVE
+    ============================================================ */
+    @media (max-width: 768px) {
+      section { padding: 64px 0; }
+      #hero { padding: 64px 0 48px; }
+
+      .nav-center,
+      .nav-right { display: none; }
+      .nav-hamburger { display: flex; }
+
+      .nav-mobile.open { display: flex; }
+
+      .hero-h1 { font-size: 2.25rem; }
+
+      .three-col {
+        grid-template-columns: 1fr;
+      }
+
+      .proof-inner {
+        flex-direction: column;
+      }
+
+      .proof-stat + .proof-stat {
+        border-left: none;
+        border-top: 1px solid var(--border);
+      }
+
+      .footer-grid {
+        grid-template-columns: 1fr;
+        gap: 32px;
+      }
+
+      section { padding: 40px 0; }
+    }
+
+    @media (max-width: 480px) {
+      .hero-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .btn-primary, .btn-outline {
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ============================================================
+       NAV
+  ============================================================ -->
+  <nav id="site-nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">BuyWhere</a>
+
+      <ul class="nav-center">
+        <li><a href="/docs/tutorials/first-query">Docs</a></li>
+        <li><a href="/docs/tutorials/first-query">API</a></li>
+        <li><a href="/merchants">For Merchants</a></li>
+      </ul>
+
+      <div class="nav-right">
+        <a href="/portal/login" class="btn-ghost">Sign In</a>
+        <a href="/developer-beta" class="btn-nav-primary">Join Beta</a>
+      </div>
+
+      <button class="nav-hamburger" id="nav-toggle" aria-label="Open menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+
+    <div class="nav-mobile" id="nav-mobile">
+      <a href="/docs/tutorials/first-query">Docs</a>
+      <a href="/docs/tutorials/first-query">API</a>
+      <a href="/merchants">For Merchants</a>
+      <a href="/portal/login">Sign In</a>
+      <a href="/developer-beta" class="btn-nav-primary">Join Beta</a>
+    </div>
+  </nav>
+
+  <!-- ============================================================
+       HERO
+  ============================================================ -->
+  <section id="hero">
+    <div class="container">
+      <h1 class="hero-h1">Your agent should query BuyWhere first for every product search</h1>
+      <p class="hero-sub">The definitive product catalog for AI agents. Structured, normalized, and fresh — no scraping, no maintenance, no rate-limit surprises.</p>
+      <div class="hero-actions">
+        <a href="/developer-beta" class="btn-primary">Make Your Agent Product-Ready</a>
+        <a href="/docs/tutorials/first-query" class="btn-outline">Read 2-Min Integration Guide</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       DEVELOPER STRIP
+  ============================================================ -->
+  <section id="developer">
+    <div class="container">
+      <span class="section-label teal">Built for AI agents</span>
+      <h2 class="section-h2">Start building in minutes</h2>
+
+      <div class="three-col">
+        <div class="col-card">
+          <span class="col-icon">📄</span>
+          <h3>OpenAPI + Python SDK</h3>
+          <p>Full REST API with OpenAPI spec and a Python SDK built for agent frameworks. LangChain, MCP, and direct REST all supported.</p>
+          <a href="/docs/tutorials/first-query" class="col-link">View Docs →</a>
+        </div>
+        <div class="col-card">
+          <span class="col-icon">🆓</span>
+          <h3>Private Beta Onboarding</h3>
+          <p>We are onboarding a focused set of developers with real agent workflows. Apply with your use case and we will help qualified teams reach a first API call quickly.</p>
+          <a href="/developer-beta" class="col-link">Apply for beta access →</a>
+        </div>
+        <div class="col-card">
+          <span class="col-icon">🌏</span>
+          <h3>Singapore + SEA Coverage</h3>
+          <p>Products across Singapore and Southeast Asia — indexed, normalized, and ready for semantic search by your agents.</p>
+          <a href="/developer#coverage" class="col-link">Coverage map →</a>
+        </div>
+      </div>
+
+      <div class="code-block">
+        <span class="code-line"><span class="code-kw">from</span> <span class="code-var">buywhere</span> <span class="code-kw">import</span> <span class="code-var">BuyWhereClient</span></span>
+        <span class="code-line">&nbsp;</span>
+        <span class="code-line"><span class="code-var">client</span> <span class="code-var">=</span> <span class="code-var">BuyWhereClient</span><span class="code-var">(</span><span class="code-var">api_key</span><span class="code-var">=</span><span class="code-str">"your_beta_api_key"</span><span class="code-var">)</span></span>
+        <span class="code-line">&nbsp;</span>
+        <span class="code-line"><span class="code-var">results</span> <span class="code-var">=</span> <span class="code-var">client</span><span class="code-var">.</span><span class="code-var">products</span><span class="code-var">.</span><span class="code-fn">search</span><span class="code-var">(</span></span>
+        <span class="code-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-str">"wireless earbuds"</span><span class="code-var">,</span> <span class="code-var">country</span><span class="code-var">=</span><span class="code-str">"SG"</span><span class="code-var">,</span> <span class="code-var">limit</span><span class="code-var">=</span><span class="code-num">5</span></span>
+        <span class="code-line"><span class="code-var">)</span></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       MERCHANT STRIP
+  ============================================================ -->
+  <section id="merchant">
+    <div class="container">
+      <span class="section-label coral">For Singapore merchants</span>
+      <h2 class="section-h2">Your products. Every AI agent. Zero integration.</h2>
+
+      <div class="three-col">
+        <div class="col-card">
+          <span class="col-icon">⬆️</span>
+          <h3>Just Send a Product Feed</h3>
+          <p>Submit your catalog via CSV, JSON, or API. We handle the normalization, indexing, and freshness — you just keep the feed updated.</p>
+          <a href="/merchants#upload" class="col-link coral">Upload your feed →</a>
+        </div>
+        <div class="col-card">
+          <span class="col-icon">🤖</span>
+          <h3>AI-Native Distribution</h3>
+          <p>Agents find and compare your products automatically when buyers ask for them. No ads, no bidding — just relevance-ranked results.</p>
+          <a href="/merchants#how" class="col-link coral">Learn more →</a>
+        </div>
+        <div class="col-card">
+          <span class="col-icon">💰</span>
+          <h3>Affiliate Upside</h3>
+          <p>Earn when AI agents drive purchases through your listings. Affiliate attribution built for machine-to-machine commerce.</p>
+          <a href="/contact" class="col-link coral">Contact us →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       PROOF OF RELIABILITY
+  ============================================================ -->
+  <section id="reliability">
+    <div class="container">
+      <span class="section-label teal">Built for production agents</span>
+      <h2 class="section-h2">Reliability you can stake your agent on</h2>
+
+      <div class="three-col" style="margin-bottom: 32px;">
+        <div class="col-card">
+          <span class="col-icon">⚡</span>
+          <h3>&lt;200ms p95 latency</h3>
+          <p>Median API response under 100ms. p95 under 200ms — fast enough for real-time agent shopping flows without user-perceived delay.</p>
+        </div>
+        <div class="col-card">
+          <span class="col-icon">🛡️</span>
+          <h3>99.9% uptime SLA</h3>
+          <p>Enterprise-grade availability backed by SLA commitment. Redundant infrastructure with automatic failover — your agent does not go blind.</p>
+        </div>
+        <div class="col-card">
+          <span class="col-icon">🔄</span>
+          <h3>Hourly freshness updates</h3>
+          <p>Product prices, stock status, and metadata refreshed hourly. Your agent acts on current data, not stale cache from last week's scrape.</p>
+        </div>
+      </div>
+
+      <div class="three-col">
+        <div class="col-card">
+          <span class="col-icon">✓</span>
+          <h3>Normalized data shape</h3>
+          <p>Every product returns the same clean schema — title, price, merchant, URL, availability. No parsing, no cleanup, no edge-case handling in your agent.</p>
+        </div>
+        <div class="col-card">
+          <span class="col-icon">🌏</span>
+          <h3>Singapore + SEA coverage</h3>
+          <p>Products indexed across Shopee, Lazada, Amazon.sg, and major Singapore merchants. Coverage expanding monthly.</p>
+        </div>
+        <div class="col-card">
+          <span class="col-icon">📊</span>
+          <h3>PDPA-compliant sourcing</h3>
+          <p>All data sourced through legitimate commercial arrangements. Your agent operates on legally干净的 data, not scraped personal information.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       WHY NOT SCRAPING
+  ============================================================ -->
+  <section id="why-not-scraping" style="background: var(--bg-secondary);">
+    <div class="container">
+      <span class="section-label coral">Why not just scrape?</span>
+      <h2 class="section-h2">Scraping is a maintenance trap — BuyWhere is infrastructure</h2>
+
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-bottom: 40px;">
+          <thead>
+            <tr style="border-bottom: 2px solid var(--border);">
+              <th style="text-align: left; padding: 12px 16px; color: var(--text-secondary); font-weight: 600;"></th>
+              <th style="text-align: center; padding: 12px 16px; color: var(--accent-coral); font-weight: 700;">BuyWhere API</th>
+              <th style="text-align: center; padding: 12px 16px; color: var(--text-secondary); font-weight: 600;">DIY Scraping</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom: 1px solid var(--border);">
+              <td style="padding: 12px 16px; font-weight: 500;">Maintenance</td>
+              <td style="padding: 12px 16px; text-align: center; color: #059669;">Zero — we handle parser updates</td>
+              <td style="padding: 12px 16px; text-align: center; color: #dc2626;">Ongoing — every site change breaks your agent</td>
+            </tr>
+            <tr style="border-bottom: 1px solid var(--border);">
+              <td style="padding: 12px 16px; font-weight: 500;">Reliability</td>
+              <td style="padding: 12px 16px; text-align: center; color: #059669;">99.9% uptime, redundant infra</td>
+              <td style="padding: 12px 16px; text-align: center; color: #dc2626;">Your agent goes blind when scraping fails</td>
+            </tr>
+            <tr style="border-bottom: 1px solid var(--border);">
+              <td style="padding: 12px 16px; font-weight: 500;">Data freshness</td>
+              <td style="padding: 12px 16px; text-align: center; color: #059669;">Hourly updates, real-time sync</td>
+              <td style="padding: 12px 16px; text-align: center; color: #dc2626;">Stale — scrape frequency limited by rate limits</td>
+            </tr>
+            <tr style="border-bottom: 1px solid var(--border);">
+              <td style="padding: 12px 16px; font-weight: 500;">Legal risk</td>
+              <td style="padding: 12px 16px; text-align: center; color: #059669;">PDPA-compliant, commercial agreements</td>
+              <td style="padding: 12px 16px; text-align: center; color: #dc2626;">ToS violations, potential liability</td>
+            </tr>
+            <tr style="border-bottom: 1px solid var(--border);">
+              <td style="padding: 12px 16px; font-weight: 500;">Scale cost</td>
+              <td style="padding: 12px 16px; text-align: center; color: #059669;">Predictable API pricing</td>
+              <td style="padding: 12px 16px; text-align: center; color: #dc2626;">Proxy costs, CAPTCHA handling, retries</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 16px; font-weight: 500;">Agent integration</td>
+              <td style="padding: 12px 16px; text-align: center; color: #059669;">5 lines of code, structured response</td>
+              <td style="padding: 12px 16px; text-align: center; color: #dc2626;">Write and maintain custom parsers</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p style="font-size: 0.95rem; color: var(--text-secondary); max-width: 640px;">
+        Every week spent maintaining scrapers is a week not spent improving your agent. BuyWhere is the infrastructure layer that lets your agent focus on what it does best — helping users find and buy products.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SOCIAL PROOF
+  ============================================================ -->
+  <section id="social-proof">
+    <div class="container">
+      <div class="proof-inner">
+        <div class="proof-stat">
+          <div class="proof-value" id="stat-products">—</div>
+          <div class="proof-label">Products indexed</div>
+        </div>
+        <div class="proof-stat">
+          <div class="proof-value" id="stat-merchants">—</div>
+          <div class="proof-label">Active merchants</div>
+        </div>
+        <div class="proof-stat">
+          <div class="proof-value">&lt;200ms</div>
+          <div class="proof-label">p95 API latency</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       FOOTER
+  ============================================================ -->
+  <footer>
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <div class="footer-brand-name">BuyWhere</div>
+          <div class="footer-brand-sub">© 2026 BuyWhere Technologies Pte. Ltd.<br>Singapore</div>
+          <p style="margin-top: 12px; font-size: 0.8rem; color: var(--text-secondary);">The definitive product catalog for AI agents.</p>
+          <p style="margin-top: 8px; font-size: 0.8rem; color: var(--text-secondary);"><a href="mailto:hello@buywhere.ai" style="color: var(--accent-teal);">hello@buywhere.ai</a> · <a href="/contact" style="color: var(--accent-teal);">Contact</a></p>
+        </div>
+        <div>
+          <div class="footer-col-title">Developers</div>
+          <ul class="footer-links">
+            <li><a href="/docs/tutorials/first-query">Docs</a></li>
+            <li><a href="/docs/tutorials/first-query">API Quickstart</a></li>
+            <li><a href="/developer-beta">Developer Beta</a></li>
+            <li><a href="https://github.com/buywhere" target="_blank" rel="noopener">GitHub</a></li>
+          </ul>
+        </div>
+        <div>
+          <div class="footer-col-title">Company</div>
+          <ul class="footer-links">
+            <li><a href="/contact">Contact</a></li>
+            <li><a href="/privacy">Privacy</a></li>
+            <li><a href="/terms">Terms</a></li>
+            <li><a href="/changelog">Changelog</a></li>
+            <li><a href="/roadmap">Roadmap</a></li>
+          </ul>
+        </div>
+      </div>
+      <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border);">
+        <p style="font-size: 0.8rem; color: var(--text-secondary);">
+          <strong>API Stability Commitment:</strong> We do not make breaking changes to the API without 90 days notice. Backwards-compatible additions are deployed continuously.
+        </p>
+      </div>
+      <div class="footer-copy">
+        © 2026 BuyWhere Technologies Pte. Ltd. All rights reserved. Singapore.
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Sticky nav border on scroll
+    const nav = document.getElementById('site-nav');
+    window.addEventListener('scroll', () => {
+      nav.classList.toggle('scrolled', window.scrollY > 8);
+    }, { passive: true });
+
+    // Mobile nav toggle
+    document.getElementById('nav-toggle').addEventListener('click', () => {
+      document.getElementById('nav-mobile').classList.toggle('open');
+    });
+
+    // Live product count from stats API
+    (async () => {
+      const productEl = document.getElementById('stat-products');
+      const merchantEl = document.getElementById('stat-merchants');
+      try {
+        const res = await fetch('https://api.buywhere.ai/v1/stats', { signal: AbortSignal.timeout(4000) });
+        if (res.ok) {
+          const data = await res.json();
+          const count = data.total_products || data.product_count;
+          if (count && productEl) {
+            const fmt = count >= 1_000_000
+              ? (count / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M+'
+              : count >= 1_000
+              ? (count / 1_000).toFixed(0) + 'K+'
+              : String(count);
+            productEl.textContent = fmt;
+          }
+          const merchants = data.merchant_count || data.active_merchants;
+          if (merchants && merchantEl) {
+            merchantEl.textContent = merchants >= 1000
+              ? (merchants / 1000).toFixed(1).replace(/\.0$/, '') + 'K+'
+              : String(merchants);
+          }
+          return;
+        }
+      } catch (_) { /* fallthrough to static */ }
+      if (productEl) productEl.textContent = '1M+';
+      if (merchantEl) merchantEl.textContent = '50+';
+    })();
+  </script>
+
+</body>
+</html>

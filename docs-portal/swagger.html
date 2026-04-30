@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BuyWhere API Documentation</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css">
+    <style>
+        :root {
+            --buywhere-primary: #FF6B35;
+            --buywhere-secondary: #1A1A2E;
+            --buywhere-accent: #16213E;
+            --buywhere-bg: #F7F7F7;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--buywhere-bg);
+        }
+
+        .docs-shell {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px 20px 0;
+        }
+
+        .docs-hero {
+            background: linear-gradient(135deg, #fff7f3 0%, #ffffff 100%);
+            border: 1px solid rgba(255, 107, 53, 0.18);
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: 0 18px 40px rgba(26, 26, 46, 0.08);
+            margin-bottom: 24px;
+        }
+
+        .docs-hero-eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--buywhere-primary);
+            margin-bottom: 12px;
+        }
+
+        .docs-hero h1 {
+            font-size: 34px;
+            line-height: 1.1;
+            color: var(--buywhere-secondary);
+            margin-bottom: 12px;
+        }
+
+        .docs-hero p {
+            color: #4f5565;
+            font-size: 16px;
+            line-height: 1.65;
+            max-width: 860px;
+        }
+
+        .docs-hero-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .docs-hero-actions a {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary {
+            background: white;
+            color: var(--buywhere-secondary);
+            border: 1px solid rgba(26, 26, 46, 0.15);
+        }
+
+        .btn-secondary:hover {
+            background: #f7f7f7;
+            transform: translateY(-1px);
+        }
+
+        .demo-key-banner {
+            background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+            border: 1px solid rgba(46, 125, 50, 0.15);
+            border-radius: 10px;
+            padding: 14px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .demo-icon {
+            width: 32px;
+            height: 32px;
+            background: var(--buywhere-primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .demo-text {
+            font-size: 14px;
+            color: #2e7d32;
+        }
+
+        .demo-text code {
+            background: rgba(0,0,0,0.08);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'SFMono-Regular', Consolas, monospace;
+            font-size: 13px;
+        }
+
+        .buywhere-footer {
+            background: var(--buywhere-secondary);
+            color: rgba(255,255,255,0.7);
+            padding: 32px 20px;
+            margin-top: 40px;
+            text-align: center;
+            border-radius: 0 0 12px 12px;
+        }
+
+        .buywhere-footer a {
+            color: var(--buywhere-primary);
+            text-decoration: none;
+        }
+
+        .buywhere-footer a:hover {
+            text-decoration: underline;
+        }
+
+        .swagger-ui .topbar { display: none; }
+        .swagger-ui .info { margin: 20px 0; }
+        .swagger-ui .scheme-container {
+            padding: 20px 0;
+            box-shadow: none;
+            background: transparent;
+        }
+    </style>
+</head>
+<body>
+    <div class="docs-shell">
+        <div class="docs-hero">
+            <div class="docs-hero-eyebrow">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 1l2 5h5l-4 3.5 1.5 5-4.5-3-4.5 3 1.5-5L1 6h5l2-5z" fill="currentColor"/>
+                </svg>
+                API Documentation
+            </div>
+            <h1>BuyWhere Catalog API</h1>
+            <p>Agent-native product catalog API for AI agent commerce. Query millions of products across Southeast Asia.</p>
+            <div class="docs-hero-actions">
+                <a href="/docs-portal/" class="btn-secondary">← Back to Portal</a>
+                <a href="https://buywhere.ai" class="btn-secondary">BuyWhere Home</a>
+            </div>
+        </div>
+
+        <div class="demo-key-banner">
+            <div class="demo-icon">&#10003;</div>
+            <div class="demo-text">
+                <strong>Demo API Key Active</strong><br>
+                Try endpoints with: <code>demo_key_buywhere_2024</code>
+            </div>
+        </div>
+
+        <div id="swagger-ui"></div>
+
+        <div class="buywhere-footer">
+            <p>BuyWhere Catalog API &mdash; Agent-native product search</p>
+            <p style="margin-top: 8px;">
+                <a href="/api/v1">API Root</a> &nbsp;|&nbsp;
+                <a href="/api/redoc">ReDoc</a> &nbsp;|&nbsp;
+                <a href="https://buywhere.ai">BuyWhere Home</a>
+            </p>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-standalone-preset.js"></script>
+    <script>
+        window.onload = function() {
+            SwaggerUIBundle({
+                url: "/openapi.json",
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIStandalonePreset
+                ],
+                plugins: [SwaggerUIBundle.plugins.DownloadUrl],
+                layout: "StandaloneLayout",
+                tryItOutEnabled: true,
+                displayRequestDuration: true,
+                docExpansion: 'list',
+                filter: true,
+                onComplete: function() {
+                    var authBtn = document.querySelector('.btn-authorize');
+                    if (authBtn) {
+                        authBtn.click();
+                        setTimeout(function() {
+                            var input = document.querySelector('input[type="password"]');
+                            if (input) {
+                                input.value = 'demo_key_buywhere_2024';
+                                input.dispatchEvent(new Event('input', {bubbles:true}));
+                            }
+                            var authorize = document.querySelector('.auth-btn-wrapper .btn');
+                            if (authorize && authorize.textContent.trim() === 'Authorize') {
+                                authorize.click();
+                            }
+                        }, 300);
+                    }
+                }
+            });
+        };
+    </script>
+</body>
+</html>

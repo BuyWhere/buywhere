@@ -1,0 +1,16 @@
+[Unit]
+Description=BuyWhere API synthetic health check
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=paperclip
+WorkingDirectory=/home/paperclip/buywhere-api
+EnvironmentFile=-/etc/buywhere/api-healthcheck.env
+ExecStart=/usr/bin/env python3 /home/paperclip/buywhere-api/scripts/healthcheck.py --once
+StandardOutput=append:/home/paperclip/buywhere-api/logs/healthcheck/systemd.log
+StandardError=append:/home/paperclip/buywhere-api/logs/healthcheck/systemd.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,63 @@
+.container {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.header {
+  margin-bottom: 16px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+}
+
+.skeleton {
+  animation: pulse 1.5s infinite;
+}
+
+.skeletonChart {
+  height: 280px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.skeletonStats {
+  display: flex;
+  gap: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.skeletonStat {
+  height: 40px;
+  width: 100px;
+  background: #f3f4f6;
+  border-radius: 6px;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding: 16px;
+  }
+
+  .skeletonStats {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .skeletonStat {
+    width: 80px;
+  }
+}

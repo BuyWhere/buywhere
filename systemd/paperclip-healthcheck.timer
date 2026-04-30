@@ -1,0 +1,13 @@
+[Unit]
+Description=Run BuyWhere API synthetic health check every minute
+After=network-online.target
+Wants=network-online.target
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+AccuracySec=1s
+Persistent=true
+Unit=paperclip-healthcheck.service
+
+[Install]
+WantedBy=timers.target

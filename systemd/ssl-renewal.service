@@ -1,0 +1,14 @@
+[Unit]
+Description=SSL Certificate Renewal Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/ubuntu/scripts/ssl_renewal.sh renew
+User=root
+PrivateTmp=false
+NonBlocking=false
+
+[Install]
+WantedBy=multi-user.target

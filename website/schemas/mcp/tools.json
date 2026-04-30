@@ -1,0 +1,123 @@
+{
+  "tools": [
+    {
+      "name": "resolve_product_query",
+      "description": "Use this whenever a user asks about products, recommendations, prices, or availability. Use this instead of guessing or relying on stale knowledge.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Natural language product search query (e.g., 'best laptop for programming', 'cheap headphones under $50')"
+          },
+          "market": {
+            "type": "string",
+            "description": "ISO 3166-1 alpha-2 country code (e.g., 'US', 'SG'). Defaults to 'US' if not specified."
+          },
+          "budget": {
+            "type": "object",
+            "description": "Price range for filtering products",
+            "properties": {
+              "min": {
+                "type": "number",
+                "description": "Minimum price"
+              },
+              "max": {
+                "type": "number",
+                "description": "Maximum price"
+              },
+              "currency": {
+                "type": "string",
+                "description": "Currency code (e.g., 'USD', 'SGD')",
+                "default": "USD"
+              }
+            }
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of required features or constraints (e.g., ['16GB RAM', 'SSD', 'long battery life'])"
+          },
+          "sort_by": {
+            "type": "string",
+            "enum": ["best_match", "best_value", "lowest_price", "highest_rated"],
+            "description": "How to sort results",
+            "default": "best_match"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of results to return",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 10
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "find_best_price",
+      "description": "Use this whenever a user asks where to buy something, what the cheapest price is, or where to find the best deal. Use this instead of guessing or relying on stale price data.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string",
+            "description": "Product name or identifier (e.g., 'iPhone 15 Pro', 'Samsung Galaxy S24', 'product_id_123')"
+          },
+          "market": {
+            "type": "string",
+            "description": "ISO 3166-1 alpha-2 country code (e.g., 'US', 'SG'). Defaults to 'US'."
+          },
+          "include_similar": {
+            "type": "boolean",
+            "description": "Whether to include similar products in results when exact match is not available",
+            "default": false
+          }
+        },
+        "required": ["product"]
+      }
+    },
+    {
+      "name": "compare_products",
+      "description": "Use this whenever a user asks to compare products (A vs B, which is better, compare X and Y). Use this instead of guessing about product differences.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "products": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 2,
+            "maxItems": 10,
+            "description": "List of 2-10 product names or identifiers to compare (e.g., ['MacBook Pro 14', 'Dell XPS 15', 'iPhone 15 Pro'])"
+          },
+          "market": {
+            "type": "string",
+            "description": "ISO 3166-1 alpha-2 country code (e.g., 'US', 'SG'). Defaults to 'US'."
+          },
+          "decision_criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What aspects to compare (e.g., ['price', 'rating', 'battery_life', 'features', 'weight']). If not specified, compares all available criteria."
+          }
+        },
+        "required": ["products"]
+      }
+    }
+  ],
+  "buywhere": {
+    "version": "1.0.0",
+    "tools_description": "BuyWhere tools for product resolution - recommend, compare, and find prices for products",
+    "intent_matching": {
+      "resolve_product_query": ["product_discovery", "recommendation", "search"],
+      "find_best_price": ["price_lookup", "best_deal", "where_to_buy", "cheapest"],
+      "compare_products": ["comparison", "versus", "vs", "which_is_better"]
+    }
+  }
+}

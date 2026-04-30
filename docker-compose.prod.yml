@@ -1,0 +1,554 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: buywhere-api:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+      - "8002:8002"
+      - "8003:8003"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_REPLICA_URL: ${DATABASE_REPLICA_URL}
+      PGBOUNCER_URL: ${PGBOUNCER_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-1000}
+      APP_VERSION: ${APP_VERSION:-1.0.0}
+      ENVIRONMENT: production
+      DEBUG: "false"
+      BUYWHERE_API_URL: ${BUYWHERE_API_URL:-http://api:8000}
+      USD_DEFAULT: ${USD_DEFAULT:-true}
+      US_REGION: ${US_REGION:-us}
+      AFFILIATE_TAG: ${AFFILIATE_TAG:-buywhere-20}
+    volumes:
+      - api_pm2_data:/app/data
+      - api_pm2_logs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
+      db_replica:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service,environment"
+    labels:
+      - "service=api"
+      - "environment=production"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+           cpus: "1"
+           memory: 1G
+ 
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: buywhere-api:latest
+    command: alembic upgrade head
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service,environment"
+    labels:
+      - "service=migrate"
+      - "environment=production"
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: catalog
+      POSTGRES_USER: ${POSTGRES_USER:-buywhere}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-buywhere}
+      POSTGRES_HOSTNAME: primary
+      REPLICA_USER: ${POSTGRES_USER:-buywhere}
+      REPLICA_PASSWORD: ${POSTGRES_PASSWORD:-buywhere}
+      REPLICA_SLOT_NAME: ${REPLICA_SLOT_NAME:-replica_slot}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/postgresql_primary.conf:/etc/postgresql/postgresql.conf:ro
+      - ./scripts/setup_replication.sh:/docker-entrypoint-initdb.d/10_setup_replication.sh:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-buywhere} -d catalog"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service,environment"
+    labels:
+      - "service=db"
+      - "environment=production"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+
+  db_replica:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: catalog
+      POSTGRES_USER: ${POSTGRES_USER:-buywhere}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-buywhere}
+      POSTGRES_HOSTNAME: replica
+      REPLICA_USER: ${POSTGRES_USER:-buywhere}
+      REPLICA_PASSWORD: ${POSTGRES_PASSWORD:-buywhere}
+      REPLICA_SLOT_NAME: ${REPLICA_SLOT_NAME:-replica_slot}
+    volumes:
+      - postgres_replica_data:/var/lib/postgresql/data
+      - ./scripts/postgresql_replica.conf:/etc/postgresql/postgresql.conf:ro
+      - ./scripts/setup_replica.sh:/usr/local/bin/setup_replica.sh:ro
+    entrypoint: ["/bin/bash", "/usr/local/bin/setup_replica.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-buywhere} -d catalog"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service,environment"
+    labels:
+      - "service=db_replica"
+      - "environment=production"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    restart: unless-stopped
+    ports:
+      - "5435:5432"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-buywhere}:${POSTGRES_PASSWORD:-buywhere}@db:5432/catalog
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "1000"
+      DEFAULT_POOL_SIZE: "100"
+      MIN_POOL_SIZE: "20"
+      RESERVE_POOL_SIZE: "30"
+      RESERVE_POOL_TIMEOUT: "10"
+      SERVER_RESET_ON_RETURN: "kludge"
+      SERVER_LIFETIME: "3600"
+      SERVER_IDLE_TIMEOUT: "600"
+    depends_on:
+      db:
+        condition: service_healthy
+      db_replica:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U buywhere || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service,environment"
+    labels:
+      - "service=pgbouncer"
+      - "environment=production"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service,environment"
+    labels:
+      - "service=redis"
+      - "environment=production"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  scraper-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: buywhere-api:latest
+    restart: unless-stopped
+    command: ["python", "-m", "scrapers.scheduler"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      SCRAPER_INTERVAL_MINUTES: ${SCRAPER_INTERVAL_MINUTES:-60}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service,environment"
+    labels:
+      - "service=scraper-scheduler"
+      - "environment=production"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  backup-cron:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: buywhere-api:latest
+    restart: unless-stopped
+    command: ["sh", "-c", "while true; do /app/scripts/backup.sh backup daily; sleep 86400; done"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      BACKUP_DIR: ${BACKUP_DIR:-/var/backups/buywhere}
+      POSTGRES_USER: ${POSTGRES_USER:-buywhere}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-buywhere}
+    volumes:
+      - backup_data:/var/backups/buywhere
+    depends_on:
+      db:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service,environment"
+    labels:
+      - "service=backup-cron"
+      - "environment=production"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+  backup-verify-cron:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: buywhere-api:latest
+    restart: unless-stopped
+    command: ["sh", "-c", "while true; do sleep 604800; /app/scripts/verify_backup.sh verify all && /app/scripts/verify_backup.sh verify-new; done"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      BACKUP_DIR: ${BACKUP_DIR:-/var/backups/buywhere}
+      POSTGRES_USER: ${POSTGRES_USER:-buywhere}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-buywhere}
+      LOG_FILE: /var/log/backup_verify.log
+      MAX_BACKUP_AGE_HOURS: 168
+    volumes:
+      - backup_data:/var/backups/buywhere
+      - backup_verify_logs:/var/log
+      - buywhere_new_backup_data:/tmp/backups/buywhere_new
+    depends_on:
+      db:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service,environment"
+    labels:
+      - "service=backup-verify-cron"
+      - "environment=production"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+  logrotate-cron:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: buywhere-api:latest
+    restart: unless-stopped
+    command: ["sh", "-c", "while true; do sleep 86400; /app/scripts/logrotate.sh; done"]
+    volumes:
+      - ./config/logrotate.conf:/app/config/logrotate.conf:ro
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - app_state:/var/lib/logrotate
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service,environment"
+    labels:
+      - "service=logrotate-cron"
+      - "environment=production"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 64M
+
+  price-alert-cron:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: buywhere-api:latest
+    restart: unless-stopped
+    command: ["sh", "-c", "while true; do sleep 86400; python scripts/price_alert_email_cron.py --once; done"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      SMTP_HOST: ${SMTP_HOST:-localhost}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-alerts@buywhere.ai}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-BuyWhere}
+    depends_on:
+      db:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service,environment"
+    labels:
+      - "service=price-alert-cron"
+      - "environment=production"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+  sitemap-cron:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: buywhere-api:latest
+    restart: unless-stopped
+    command: ["sh", "-c", "while true; do sleep 86400; /app/scripts/sitemap_cron.sh; done"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      SITE_BASE_URL: ${SITE_BASE_URL:-https://buywhere.com}
+      S3_BUCKET: ${SITEMAP_S3_BUCKET:-}
+      SCRAPER_INTERVAL_MINUTES: ${SCRAPER_INTERVAL_MINUTES:-60}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./static:/app/static
+    depends_on:
+      db:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service,environment"
+    labels:
+      - "service=sitemap-cron"
+      - "environment=production"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    image: buywhere-mcp:latest
+    restart: unless-stopped
+    ports:
+      - "8082:8080"
+    environment:
+      BUYWHERE_API_URL: ${BUYWHERE_API_URL:-http://api:8000}
+      BUYWHERE_API_KEY: ${BUYWHERE_API_KEY}
+      BUYWHERE_MCP_HTTP_PORT: 8080
+      BUYWHERE_REDIS_URL: ${BUYWHERE_REDIS_URL:-redis://redis:6379/0}
+      BUYWHERE_LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service,environment"
+    labels:
+      - "com.docker.compose.service=mcp"
+      - "com.docker.compose.project=buywhere"
+      - "environment=production"
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+
+  browser:
+    build:
+      context: ./browser_service
+      dockerfile: Dockerfile
+    image: buywhere-browser:latest
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      BUYWHERE_API_URL: ${BUYWHERE_API_URL:-http://api:8000}
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8090/health\")'"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+           cpus: "1"
+           memory: 1G
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.25.0
+    restart: unless-stopped
+    ports:
+      - "9115:9115"
+    command:
+      - '--config.file=/config/blackbox.yml'
+      - '--web.listen-address=:9115'
+    volumes:
+      - ./blackbox.yml:/config/blackbox.yml:ro
+    networks:
+      - monitoring
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service,environment"
+    labels:
+      - "service=blackbox"
+      - "environment=production"
+    depends_on:
+      - api
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+volumes:
+  postgres_data:
+  postgres_replica_data:
+  redis_data:
+  backup_data:
+  backup_verify_logs:
+  prometheus_data:
+  loki_data:
+  grafana_data:
+  app_state:
+  buywhere_new_backup_data:
+  api_pm2_data:
+  api_pm2_logs:
+  alertmanager_data:
+  fluent_bit_data:

@@ -1,0 +1,16 @@
+[Unit]
+Description=BuyWhere Carousell SG Continuous Scraper
+After=network.target
+
+[Service]
+Type=simple
+User=paperclip
+WorkingDirectory=/home/paperclip/buywhere-api
+ExecStart=/home/paperclip/buywhere-api/venv/bin/python -m scripts.carousell_continuous --scrape-only
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/paperclip/buywhere-api/data/carousell-sg/continuous_run.log
+StandardError=append:/home/paperclip/buywhere-api/data/carousell-sg/continuous_run.log
+
+[Install]
+WantedBy=multi-user.target

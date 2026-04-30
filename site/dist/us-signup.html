@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0A0E1A">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>BuyWhere | BuyWhere</title>
+    <meta name="description" content="The agent-native product catalog API">
+    <link rel="canonical" href="https://buywhere.ai/us-signup">
+    
+    <meta name="geo.region" content="US" id="geo-region">
+    <meta name="geo.placename" content="United States" id="geo-placename">
+    <script>
+    (function(){
+      var regionMap = {
+        'Asia/Singapore': {region: 'SG', name: 'Singapore'},
+        'Asia/Kuala_Lumpur': {region: 'MY', name: 'Malaysia'},
+        'Asia/Bangkok': {region: 'TH', name: 'Thailand'},
+        'Asia/Jakarta': {region: 'ID', name: 'Indonesia'},
+        'Asia/Manila': {region: 'PH', name: 'Philippines'},
+        'Asia/Hong_Kong': {region: 'HK', name: 'Hong Kong'},
+        'Asia/Taipei': {region: 'TW', name: 'Taiwan'},
+        'Asia/Tokyo': {region: 'JP', name: 'Japan'},
+        'Asia/Seoul': {region: 'KR', name: 'South Korea'},
+        'Asia/Shanghai': {region: 'CN', name: 'China'},
+        'Asia/Dubai': {region: 'AE', name: 'United Arab Emirates'},
+        'Europe/London': {region: 'GB', name: 'United Kingdom'},
+        'Europe/Paris': {region: 'FR', name: 'France'},
+        'Europe/Berlin': {region: 'DE', name: 'Germany'},
+        'Europe/Amsterdam': {region: 'NL', name: 'Netherlands'},
+        'America/New_York': {region: 'US', name: 'United States'},
+        'America/Los_Angeles': {region: 'US', name: 'United States'},
+        'America/Chicago': {region: 'US', name: 'United States'},
+        'America/Toronto': {region: 'CA', name: 'Canada'},
+        'America/Vancouver': {region: 'CA', name: 'Canada'},
+        'America/Sao_Paulo': {region: 'BR', name: 'Brazil'},
+        'America/Mexico_City': {region: 'MX', name: 'Mexico'},
+        'Australia/Sydney': {region: 'AU', name: 'Australia'},
+        'Australia/Perth': {region: 'AU', name: 'Australia'}
+      };
+      var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      var info = regionMap[tz] || {region: 'US', name: 'United States'};
+      var metaRegion = document.getElementById('geo-region');
+      var metaPlacename = document.getElementById('geo-placename');
+      if (metaRegion) metaRegion.setAttribute('content', info.region);
+      if (metaPlacename) metaPlacename.setAttribute('content', info.name);
+    })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/design-system.css">
+    <script>
+    window.BW_CONFIG = {
+      posthogKey: "phc_placeholder",
+      posthogHost: "https://app.posthog.com"
+    };
+    </script>
+    
+<style>
+.us-signup-hero {
+    padding: var(--bw-spacing-24) 0 var(--bw-spacing-16);
+    background: linear-gradient(135deg, var(--bw-color-bg-dark) 0%, #1a2744 100%);
+    color: var(--bw-color-text-inverse);
+    text-align: center;
+}
+
+.us-signup-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--bw-spacing-2);
+    padding: var(--bw-spacing-2) var(--bw-spacing-4);
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: var(--bw-radius-full);
+    color: var(--bw-color-secondary);
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-semibold);
+    margin-bottom: var(--bw-spacing-8);
+}
+
+.us-signup-hero h1 {
+    font-size: var(--bw-font-size-5xl);
+    color: var(--bw-color-text-inverse);
+    margin-bottom: var(--bw-spacing-6);
+    line-height: 1.1;
+}
+
+.us-signup-hero .hero-subtitle {
+    font-size: var(--bw-font-size-xl);
+    color: rgba(255, 255, 255, 0.75);
+    max-width: 600px;
+    margin: 0 auto var(--bw-spacing-10);
+    line-height: var(--bw-line-height-relaxed);
+}
+
+.signup-form-container {
+    max-width: 520px;
+    margin: 0 auto;
+}
+
+.signup-form .form-row {
+    display: flex;
+    gap: var(--bw-spacing-3);
+}
+
+.email-input {
+    flex: 1;
+    padding: var(--bw-spacing-4) var(--bw-spacing-5);
+    font-size: var(--bw-font-size-base);
+    font-family: var(--bw-font-family-sans);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--bw-radius-xl);
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--bw-color-text-inverse);
+    min-height: 52px;
+    transition: all var(--bw-transition-fast);
+}
+
+.email-input::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.email-input:focus {
+    outline: none;
+    border-color: var(--bw-color-primary-light);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.signup-btn {
+    min-width: 160px;
+    white-space: nowrap;
+}
+
+.form-note {
+    font-size: var(--bw-font-size-sm);
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: var(--bw-spacing-3);
+}
+
+.form-error {
+    color: var(--bw-color-error);
+    font-size: var(--bw-font-size-sm);
+    margin-top: var(--bw-spacing-3);
+    padding: var(--bw-spacing-3);
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: var(--bw-radius-md);
+}
+
+.thank-you-state {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: var(--bw-spacing-8);
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: var(--bw-radius-2xl);
+}
+
+.thank-you-icon {
+    color: var(--bw-color-secondary);
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.thank-you-state h2 {
+    color: var(--bw-color-text-inverse);
+    margin-bottom: var(--bw-spacing-3);
+}
+
+.thank-you-state p {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.product-count-section {
+    padding: var(--bw-spacing-16) 0;
+    background: var(--bw-color-bg-secondary);
+}
+
+.count-card {
+    text-align: center;
+    padding: var(--bw-spacing-8);
+}
+
+.count-number {
+    font-size: var(--bw-font-size-5xl);
+    font-weight: var(--bw-font-weight-bold);
+    color: var(--bw-color-primary);
+    margin-bottom: var(--bw-spacing-2);
+}
+
+.count-value {
+    font-variant-numeric: tabular-nums;
+}
+
+.count-label {
+    font-size: var(--bw-font-size-lg);
+    font-weight: var(--bw-font-weight-semibold);
+    color: var(--bw-color-text-primary);
+    margin-bottom: var(--bw-spacing-2);
+}
+
+.count-note {
+    font-size: var(--bw-font-size-sm);
+    color: var(--bw-color-text-muted);
+}
+
+.retailers-section {
+    padding: var(--bw-spacing-20) 0;
+    background: var(--bw-color-bg-primary);
+    text-align: center;
+}
+
+.section-eyebrow {
+    font-size: var(--bw-font-size-sm);
+    font-weight: var(--bw-font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--bw-color-primary);
+    margin-bottom: var(--bw-spacing-4);
+}
+
+.retailers-section h2 {
+    margin-bottom: var(--bw-spacing-12);
+}
+
+.retailer-logos {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--bw-spacing-12);
+    flex-wrap: wrap;
+}
+
+.retailer-logo {
+    color: var(--bw-color-text-muted);
+    transition: color var(--bw-transition-fast);
+}
+
+.retailer-logo:hover {
+    color: var(--bw-color-text-secondary);
+}
+
+.retailer-logo svg {
+    height: 28px;
+    width: auto;
+}
+
+.features-section {
+    padding: var(--bw-spacing-24) 0;
+    background: var(--bw-color-bg-secondary);
+}
+
+.features-section h2 {
+    text-align: center;
+    margin-bottom: var(--bw-spacing-12);
+}
+
+.spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@media (max-width: 640px) {
+    .us-signup-hero h1 {
+        font-size: var(--bw-font-size-3xl);
+    }
+    .signup-form .form-row {
+        flex-direction: column;
+    }
+    .signup-btn {
+        width: 100%;
+    }
+    .retailer-logos {
+        gap: var(--bw-spacing-8);
+    }
+    .retailer-logo svg {
+        height: 22px;
+    }
+}
+</style>
+
+    <style>
+    .currency-selector {
+        display: flex;
+        align-items: center;
+    }
+    .currency-select {
+        background: var(--bw-color-bg-primary);
+        border: 1px solid var(--bw-color-border);
+        border-radius: var(--bw-radius-md);
+        padding: var(--bw-spacing-1) var(--bw-spacing-3);
+        font-size: var(--bw-font-size-xs);
+        color: var(--bw-color-text-primary);
+        cursor: pointer;
+        min-height: 32px;
+    }
+    .currency-select:hover {
+        border-color: var(--bw-color-primary);
+    }
+    .nav-user-menu { position: relative; }
+    .nav-user-btn { display: flex; align-items: center; gap: var(--bw-spacing-2); background: none; border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-lg); padding: var(--bw-spacing-1) var(--bw-spacing-3); cursor: pointer; font-size: var(--bw-font-size-sm); color: var(--bw-color-text-primary); }
+    .nav-user-btn:hover { border-color: var(--bw-color-primary); }
+    .nav-user-btn svg { width: 16px; height: 16px; }
+    .nav-user-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--bw-color-primary); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: var(--bw-font-size-xs); }
+    .nav-user-email { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .nav-user-dropdown { display: none; position: absolute; top: calc(100% + var(--bw-spacing-1)); right: 0; min-width: 180px; background: var(--bw-color-bg-primary); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-lg); box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; list-style: none; margin: 0; padding: var(--bw-spacing-2) 0; }
+    .nav-user-dropdown.is-open { display: block; }
+    .nav-user-dropdown li a { display: block; padding: var(--bw-spacing-2) var(--bw-spacing-4); font-size: var(--bw-font-size-sm); color: var(--bw-color-text-primary); text-decoration: none; }
+    .nav-user-dropdown li a:hover { background: var(--bw-color-bg-secondary); }
+    .nav-divider { border-top: 1px solid var(--bw-color-border); margin: var(--bw-spacing-2) 0; }
+    .nav-mobile-link { display: block; padding: var(--bw-spacing-3) var(--bw-spacing-4); font-size: var(--bw-font-size-base); color: var(--bw-color-text-primary); text-decoration: none; border-bottom: 1px solid var(--bw-color-border); }
+    .nav-mobile-link:hover { background: var(--bw-color-bg-secondary); }
+    </style>
+</head>
+<body>
+    <header class="nav-header">
+        <div class="nav-container">
+            <a href="/" class="nav-logo">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="32" height="32" rx="8" fill="#0A0E1A"/>
+                    <path d="M10 16C10 12.686 12.686 10 16 10C19.314 10 22 12.686 22 16C22 19.314 19.314 22 16 22" stroke="#00D4C8" stroke-width="2.5" stroke-linecap="round"/>
+                    <circle cx="16" cy="16" r="2.5" fill="#00D4C8"/>
+                    <path d="M8 16L6 16M8 16L9.5 14.5" stroke="#F5A623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>BuyWhere</span>
+            </a>
+            <div class="nav-desktop">
+                <ul class="nav-links">
+                    <li class="nav-dropdown">
+                        <button class="nav-dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+                            Documentation
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                        <ul class="nav-dropdown-menu">
+                            <li class="nav-dropdown-item"><a href="/docs/quickstart">Quickstart</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/api-reference">API Reference</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/authentication">Authentication</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/errors">Errors</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/mcp-integration">MCP Integration</a></li>
+                            <li class="nav-dropdown-item"><a href="/docs/examples">Examples</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="/pricing" class="nav-link">Pricing</a></li>
+                    <li><a href="/blog" class="nav-link">Blog</a></li>
+                </ul>
+                <div class="nav-actions">
+                    <div class="currency-selector" data-bw-currency-selector>
+                        <select class="currency-select" title="Select currency" aria-label="Select preferred currency">
+                            <option value="SGD">SGD</option>
+                            <option value="USD">USD</option>
+                            <option value="VND">VND</option>
+                            <option value="MYR">MYR</option>
+                            <option value="GBP">GBP</option>
+                        </select>
+                    </div>
+                    <a href="/login" class="nav-btn nav-btn-secondary">Sign In</a>
+                    <a href="/register" class="nav-btn nav-btn-primary">Get API Key</a>
+                </div>
+            </div>
+            <button class="nav-mobile-toggle" aria-label="Toggle navigation" aria-expanded="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <nav class="nav-mobile-menu" aria-label="Mobile navigation">
+            <ul class="nav-mobile-links">
+                <li class="nav-mobile-dropdown">
+                    <button class="nav-mobile-dropdown-trigger" aria-expanded="false">
+                        Documentation
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </button>
+                    <ul class="nav-mobile-dropdown-menu">
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/quickstart">Quickstart</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/api-reference">API Reference</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/authentication">Authentication</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/errors">Errors</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/mcp-integration">MCP Integration</a></li>
+                        <li class="nav-mobile-dropdown-item"><a href="/docs/examples">Examples</a></li>
+                    </ul>
+                </li>
+                <li><a href="/pricing" class="nav-mobile-link">Pricing</a></li>
+                <li><a href="/blog" class="nav-mobile-link">Blog</a></li>
+            </ul>
+            <div class="nav-mobile-actions">
+                <a href="/login" class="nav-btn nav-btn-secondary">Sign In</a>
+                <a href="/register" class="nav-btn nav-btn-primary">Get API Key</a>
+            </div>
+        </nav>
+        <div class="nav-backdrop"></div>
+    </header>
+
+    <main class="site-main">
+        
+<section class="us-signup-hero">
+    <div class="container">
+        <div class="us-signup-badge">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                <path d="M2 17l10 5 10-5"/>
+                <path d="M2 12l10 5 10-5"/>
+            </svg>
+            Coming Soon to the US
+        </div>
+        <h1>Be First to Access<br>America's Product Catalog API</h1>
+        <p class="hero-subtitle">BuyWhere is launching in the US. Join the waitlist to get early access, exclusive pricing, and a head start building agent-native commerce.</p>
+        
+        <div class="signup-form-container" id="signupFormContainer">
+            <form class="signup-form" id="signupForm">
+                <div class="form-row">
+                    <input 
+                        type="email" 
+                        name="email" 
+                        id="emailInput"
+                        class="email-input" 
+                        placeholder="Enter your work email" 
+                        required
+                        autocomplete="email"
+                    >
+                    <button type="submit" class="btn btn-primary btn-lg signup-btn" id="submitBtn">
+                        <span class="btn-text">Join Waitlist</span>
+                        <span class="btn-loading" hidden>
+                            <svg class="spinner" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+                                <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
+                            </svg>
+                        </span>
+                    </button>
+                </div>
+                <p class="form-note">No spam. Launch updates only.</p>
+                <p class="form-error" id="formError" hidden></p>
+            </form>
+        </div>
+
+        <div class="thank-you-state" id="thankYouState" hidden>
+            <div class="thank-you-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="m9 12 2 2 4-4"/>
+                </svg>
+            </div>
+            <h2>You're on the list!</h2>
+            <p>We'll email you as soon as BuyWhere launches in the US. Check your inbox for a confirmation.</p>
+        </div>
+    </div>
+</section>
+
+<section class="product-count-section">
+    <div class="container">
+        <div class="count-card">
+            <div class="count-number" id="productCount">
+                <span class="count-value">--</span>
+                <span class="count-loading" hidden>
+                    <svg class="spinner" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+                        <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
+                    </svg>
+                </span>
+            </div>
+            <p class="count-label">Products Indexed (US Launch)</p>
+            <p class="count-note">Live count as we build out US coverage</p>
+        </div>
+    </div>
+</section>
+
+<section class="retailers-section">
+    <div class="container">
+        <p class="section-eyebrow">Launch Partners</p>
+        <h2>Covering America's Top Retailers</h2>
+        <div class="retailer-logos">
+            <div class="retailer-logo">
+                <svg viewBox="0 0 60 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Amazon">
+                    <text x="0" y="18" font-family="Inter, sans-serif" font-size="18" font-weight="700" fill="currentColor">amazon</text>
+                </svg>
+            </div>
+            <div class="retailer-logo">
+                <svg viewBox="0 0 80 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Walmart">
+                    <text x="0" y="18" font-family="Inter, sans-serif" font-size="18" font-weight="700" fill="currentColor">Walmart</text>
+                </svg>
+            </div>
+            <div class="retailer-logo">
+                <svg viewBox="0 0 70 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Target">
+                    <text x="0" y="18" font-family="Inter, sans-serif" font-size="18" font-weight="700" fill="currentColor">Target</text>
+                </svg>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="features-section">
+    <div class="container">
+        <h2>Built for AI Agents and Developers</h2>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                </div>
+                <h3>Lightning-Fast Search</h3>
+                <p>Sub-100ms product search across millions of US products. Semantic understanding built in.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        <path d="M3 9h18"/>
+                        <path d="M9 21V9"/>
+                    </svg>
+                </div>
+                <h3>Normalized Schema</h3>
+                <p>One unified data format across all retailers. No more parsing Amazon vs Walmart vs Target APIs.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                </div>
+                <h3>MCP Native</h3>
+                <p>First-class Model Context Protocol support. Connect directly to Claude, Cursor, and any MCP-compatible agent.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="/" class="logo">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="32" height="32" rx="8" fill="#0A0E1A"/>
+                            <path d="M10 16C10 12.686 12.686 10 16 10C19.314 10 22 12.686 22 16C22 19.314 19.314 22 16 22" stroke="#00D4C8" stroke-width="2.5" stroke-linecap="round"/>
+                            <circle cx="16" cy="16" r="2.5" fill="#00D4C8"/>
+                            <path d="M8 16L6 16M8 16L9.5 14.5" stroke="#F5A623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>BuyWhere</span>
+                    </a>
+                    <p class="footer-tagline">The agent-native product catalog API for Singapore and Southeast Asia.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="/docs/quickstart">Quickstart</a></li>
+                        <li><a href="/docs/api-reference">API Reference</a></li>
+                        <li><a href="/docs/mcp-integration">MCP Integration</a></li>
+                        <li><a href="/examples">Examples</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="/about">About</a></li>
+                        <li><a href="/blog">Blog</a></li>
+                        <li><a href="/careers">Careers</a></li>
+                        <li><a href="/contact">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="/privacy">Privacy</a></li>
+                        <li><a href="/terms">Terms</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 ZHC Labs Pte. Ltd. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+    !function(t,e){var n=document.createElement("script");n.type="text/javascript",n.async=!0,n.src=e;var o=document.getElementsByTagName("script")[0];o.parentNode.insertBefore(n,o),t.posthog=t.posthog||{},t.posthog.people=t.posthog.people||[],t.posthog.people.toString=function(){var t=[];return Object.keys(this).forEach(function(e){t.push(e+" = "+this[e])}),t.join(", ")};var r=function(){var t=e;t._ush=t._ush||[];for(var n=["init","capture","identify","alias","people.set","people.set_once","register","unregister"],o=0;o<n.length;o++)!function(){var e=n[o];t.posthog[e]=t.posthog[e]||function(){t._ush.push([e,arguments])}}()};return r}(window,document);if(window.BW_CONFIG.posthogKey&&window.BW_CONFIG.posthogKey!=='phc_placeholder'){try{posthog.init(window.BW_CONFIG.posthogKey,{api_host:window.BW_CONFIG.posthogHost})}catch(e){}}
+    </script>
+    <script src="/assets/js/utm.js"></script>
+    <script src="/assets/js/auth.js" defer></script>
+    <script>
+    window.addEventListener('DOMContentLoaded', function() {
+        if (typeof Auth !== 'undefined') {
+            Auth.init();
+            updateNavAuthState();
+        }
+    });
+
+    function updateNavAuthState() {
+        var isLoggedIn = Auth.isLoggedIn();
+        var user = Auth.user;
+        var actionsDiv = document.querySelector('.nav-actions');
+        var mobileActionsDiv = document.querySelector('.nav-mobile-actions');
+        if (!actionsDiv) return;
+
+        if (isLoggedIn && user) {
+            var email = user.email || user.name || 'Account';
+            var initial = email.charAt(1).toUpperCase() || email.charAt(0).toUpperCase() || 'A';
+            actionsDiv.innerHTML =
+                '<div class="nav-user-menu">' +
+                    '<button class="nav-user-btn" aria-expanded="false" aria-haspopup="true">' +
+                        '<span class="nav-user-avatar">' + initial + '</span>' +
+                        '<span class="nav-user-email">' + email + '</span>' +
+                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
+                    '</button>' +
+                    '<ul class="nav-user-dropdown">' +
+                        '<li><a href="/alerts">My Alerts</a></li>' +
+                        '<li><a href="/wishlist">My Wishlist</a></li>' +
+                        '<li><a href="/saved-searches">Saved Searches</a></li>' +
+                        '<li><a href="/account/billing">Billing</a></li>' +
+                        '<li class="nav-divider"></li>' +
+                        '<li><a href="#" id="navSignOut">Sign Out</a></li>' +
+                    '</ul>' +
+                '</div>';
+            if (mobileActionsDiv) {
+                mobileActionsDiv.innerHTML =
+                    '<a href="/alerts" class="nav-mobile-link">My Alerts</a>' +
+                    '<a href="/wishlist" class="nav-mobile-link">My Wishlist</a>' +
+                    '<a href="/saved-searches" class="nav-mobile-link">Saved Searches</a>' +
+                    '<a href="/account/billing" class="nav-mobile-link">Billing</a>' +
+                    '<a href="#" id="mobileNavSignOut" class="nav-btn nav-btn-secondary">Sign Out</a>';
+            }
+            var signOutBtn = document.getElementById('navSignOut');
+            if (signOutBtn) signOutBtn.addEventListener('click', function(e) { e.preventDefault(); Auth.logout(); });
+            var mobileSignOutBtn = document.getElementById('mobileNavSignOut');
+            if (mobileSignOutBtn) mobileSignOutBtn.addEventListener('click', function(e) { e.preventDefault(); Auth.logout(); });
+            var userBtn = actionsDiv.querySelector('.nav-user-btn');
+            if (userBtn) {
+                userBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var isOpen = userBtn.getAttribute('aria-expanded') === 'true';
+                    userBtn.setAttribute('aria-expanded', !isOpen);
+                    userBtn.nextElementSibling.classList.toggle('is-open');
+                });
+            }
+        } else {
+            actionsDiv.innerHTML =
+                '<a href="/login" class="nav-btn nav-btn-secondary">Sign In</a>' +
+                '<a href="/register" class="nav-btn nav-btn-primary">Get API Key</a>';
+            if (mobileActionsDiv) {
+                mobileActionsDiv.innerHTML =
+                    '<a href="/login" class="nav-btn nav-btn-secondary">Sign In</a>' +
+                    '<a href="/register" class="nav-btn nav-btn-primary">Get API Key</a>';
+            }
+        }
+    }
+    </script>
+    <script src="/assets/js/toast.js"></script>
+    <script src="/assets/js/main.js"></script>
+    <script src="/assets/js/currency-converter.js"></script>
+    
+<script>
+(function() {
+    const API_BASE = window.BASE_URL || 'http://localhost:3001';
+    
+    const form = document.getElementById('signupForm');
+    const emailInput = document.getElementById('emailInput');
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = submitBtn.querySelector('.btn-text');
+    const btnLoading = submitBtn.querySelector('.btn-loading');
+    const formError = document.getElementById('formError');
+    const signupContainer = document.getElementById('signupFormContainer');
+    const thankYouState = document.getElementById('thankYouState');
+    const productCountEl = document.getElementById('productCount');
+    const countValue = productCountEl.querySelector('.count-value');
+    const countLoading = productCountEl.querySelector('.count-loading');
+
+    async function loadProductCount() {
+        countLoading.hidden = false;
+        countValue.hidden = true;
+        try {
+            const res = await fetch(API_BASE + '/v1/stats/products-count', {
+                headers: { 'Authorization': 'Bearer ' + window.API_KEY }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                countValue.textContent = (data.count || 0).toLocaleString();
+            } else {
+                countValue.textContent = '250K+';
+            }
+        } catch {
+            countValue.textContent = '250K+';
+        }
+        countLoading.hidden = true;
+        countValue.hidden = false;
+    }
+
+    async function handleSubmit(e) {
+        e.preventDefault();
+        const email = emailInput.value.trim();
+        
+        if (!email || !email.includes('@')) {
+            formError.textContent = 'Please enter a valid email address.';
+            formError.hidden = false;
+            return;
+        }
+
+        btnText.hidden = true;
+        btnLoading.hidden = false;
+        submitBtn.disabled = true;
+        formError.hidden = true;
+
+        try {
+            const res = await fetch(API_BASE + '/v1/signup/email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + window.API_KEY
+                },
+                body: JSON.stringify({ email, source: 'us-waitlist' })
+            });
+
+            if (res.ok || res.status === 409) {
+                signupContainer.hidden = true;
+                thankYouState.hidden = false;
+            } else {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.message || 'Something went wrong');
+            }
+        } catch (err) {
+            formError.textContent = err.message || 'Failed to join waitlist. Please try again.';
+            formError.hidden = false;
+            btnText.hidden = false;
+            btnLoading.hidden = true;
+            submitBtn.disabled = false;
+        }
+    }
+
+    form.addEventListener('submit', handleSubmit);
+    
+    if (window.productCountDisabled !== true) {
+        loadProductCount();
+    }
+})();
+</script>
+
+</body>
+</html>
