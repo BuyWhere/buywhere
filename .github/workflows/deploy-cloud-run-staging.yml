@@ -130,7 +130,6 @@ jobs:
             --set-env-vars "SENTRY_DSN=${{ secrets.SENTRY_DSN_STAGING }}" \
             --set-secrets "POSTHOG_PROJECT_KEY=buywhere-posthog-api-key:latest" \
             --port 8000 \
-            --cpu-boost \
             --memory 1Gi \
             --cpu 2 \
             --min-instances 1 \
