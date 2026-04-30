@@ -29,12 +29,19 @@ jobs:
     name: Build Docker Image
     runs-on: ubuntu-latest
     outputs:
-      image_tag: ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
+      image_tag: ${{ steps.image_meta.outputs.image_tag }}
       deployment_id: ${{ steps.deploy_info.outputs.deployment_id }}
       version: ${{ steps.deploy_info.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set lowercase image name and tag
+        id: image_meta
+        run: |
+          REPO_LOWER="${GITHUB_REPOSITORY,,}"
+          echo "image_name=ghcr.io/${REPO_LOWER}" >> "$GITHUB_OUTPUT"
+          echo "image_tag=ghcr.io/${REPO_LOWER}:sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -51,7 +58,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/${{ github.repository }}
+            ${{ steps.image_meta.outputs.image_name }}
           tags: |
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
@@ -63,7 +70,7 @@ jobs:
           file: Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
+            ${{ steps.image_meta.outputs.image_tag }}
             ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
