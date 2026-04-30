@@ -136,10 +136,11 @@ jobs:
             --concurrency 80 \
             --timeout 60s || (
               echo "=== DEPLOY FAILED — fetching container logs ===" &&
-              gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=${{ env.CLOUD_RUN_SERVICE }} AND severity>=WARNING" \
+              gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=${{ env.CLOUD_RUN_SERVICE }}" \
                 --project ${{ env.GCP_PROJECT_ID }} \
                 --limit 50 \
-                --format "value(timestamp,textPayload)" 2>/dev/null || true &&
+                --freshness 5m \
+                --format "value(timestamp,severity,textPayload,jsonPayload)" 2>/dev/null || true &&
               exit 1
             )
 
