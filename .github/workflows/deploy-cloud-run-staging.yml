@@ -101,6 +101,11 @@ jobs:
       - name: Deploy to Cloud Run
         run: |
           echo "Deploying to Cloud Run staging..."
+          # Remove DATABASE_URL secret reference if it exists (type mismatch guard)
+          gcloud run services update ${{ env.CLOUD_RUN_SERVICE }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --region ${{ env.GCP_REGION }} \
+            --remove-secrets DATABASE_URL 2>/dev/null || true
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
             --project ${{ env.GCP_PROJECT_ID }} \
             --region ${{ env.GCP_REGION }} \
