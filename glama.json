@@ -4,7 +4,7 @@
   "description": "Agent-native product catalog API. Search 1.5M+ products across Shopee, Lazada, Amazon, Walmart, and 20+ e-commerce platforms. Compare prices, find deals, browse categories.",
   "icon_url": "https://buywhere.ai/assets/icon.png",
   "homepage_url": "https://buywhere.ai",
-  "repository_url": "https://github.com/buywhere/buywhere-api",
+  "repository_url": "https://github.com/BuyWhere/buywhere",
   "server": {
     "transport": "stdio",
     "command": "python",
