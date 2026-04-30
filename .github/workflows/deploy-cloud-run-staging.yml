@@ -130,12 +130,20 @@ jobs:
             --set-env-vars "SENTRY_DSN=${{ secrets.SENTRY_DSN_STAGING }}" \
             --set-secrets "POSTHOG_PROJECT_KEY=buywhere-posthog-api-key:latest" \
             --port 8000 \
+            --startup-cpu-boost \
             --memory 1Gi \
             --cpu 2 \
             --min-instances 1 \
             --max-instances 10 \
             --concurrency 80 \
-            --timeout 60s
+            --timeout 60s || (
+              echo "=== DEPLOY FAILED — fetching container logs ===" &&
+              gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=${{ env.CLOUD_RUN_SERVICE }} AND severity>=WARNING" \
+                --project ${{ env.GCP_PROJECT_ID }} \
+                --limit 50 \
+                --format "value(timestamp,textPayload)" 2>/dev/null || true &&
+              exit 1
+            )
 
       - name: Wait for service to stabilize
         run: |
