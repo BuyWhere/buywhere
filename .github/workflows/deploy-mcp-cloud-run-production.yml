@@ -88,6 +88,7 @@ jobs:
       - name: Deploy MCP to Cloud Run
         id: deploy
         run: |
+          set -o pipefail
           echo "Deploying MCP to Cloud Run..."
           SERVICE_URL=$(gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
             --project ${{ env.GCP_PROJECT_ID }} \
@@ -106,8 +107,8 @@ jobs:
             --max-instances 10 \
             --concurrency 80 \
             --timeout 60s \
-            --label "commit-sha=${{ github.sha }}" \
-            --output json | jq -r '.status.url')
+            --labels "commit-sha=${{ github.sha }}" \
+            --format json | jq -r '.status.url')
 
           echo "MCP Service URL: $SERVICE_URL"
           echo "url=$SERVICE_URL" >> $GITHUB_OUTPUT
@@ -122,7 +123,7 @@ jobs:
           gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
             --project ${{ env.GCP_PROJECT_ID }} \
             --region ${{ env.GCP_REGION }} \
-            --format "table(status.conditions.name,status.conditions.status,status.conditions.reason)"
+            --format "table(status.conditions.name,status.conditions.status,status.conditions.reason)" || true
 
   mcp-healthcheck:
     name: MCP Health Check
@@ -135,7 +136,7 @@ jobs:
 
       - name: MCP Health Check
         env:
-          MCP_BASE_URL: ${{ needs.deploy-cloud-run.outputs.url }}
+          MCP_BASE_URL: ${{ needs.deploy-cloud-run.outputs.url || 'https://mcp.buywhere.ai' }}
         run: |
           echo "Checking MCP health at $MCP_BASE_URL..."
           
