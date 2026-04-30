@@ -21,37 +21,53 @@ concurrency:
 
 permissions:
   contents: read
-  packages: write
+  id-token: write
 
 env:
-  REGISTRY: ghcr.io
   GCP_PROJECT_ID: gaia-calendar-488606
   GCP_REGION: asia-southeast1
   CLOUD_RUN_SERVICE: buywhere-site-production
+  AR_REPO: buywhere
+  AR_IMAGE: asia-southeast1-docker.pkg.dev/gaia-calendar-488606/buywhere/site
 
 jobs:
   build:
-    name: Build Site Docker Image
+    name: Build and Push Site Image
     runs-on: ubuntu-latest
+    environment: production
     outputs:
       image_tag: ${{ steps.image_meta.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set lowercase image name and tag
-        id: image_meta
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PROD || secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Ensure Artifact Registry repository exists
         run: |
-          REPO_LOWER="${GITHUB_REPOSITORY,,}"
-          echo "image_name=ghcr.io/${REPO_LOWER}-site" >> "$GITHUB_OUTPUT"
-          echo "image_tag=ghcr.io/${REPO_LOWER}-site:sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          gcloud artifacts repositories describe ${{ env.AR_REPO }} \
+            --location=${{ env.GCP_REGION }} \
+            --project=${{ env.GCP_PROJECT_ID }} \
+            --format="value(name)" 2>/dev/null || \
+          gcloud artifacts repositories create ${{ env.AR_REPO }} \
+            --repository-format=docker \
+            --location=${{ env.GCP_REGION }} \
+            --project=${{ env.GCP_PROJECT_ID }} \
+            --description="BuyWhere container images"
+
+      - name: Set image tag
+        id: image_meta
+        run: echo "image_tag=${{ env.AR_IMAGE }}:sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push site image
         uses: docker/build-push-action@v5
@@ -110,3 +126,6 @@ jobs:
           HTTP=$(curl -sf -o /dev/null -w "%{http_code}" \
             "${{ steps.deploy.outputs.url }}" --max-time 15 || echo "000")
           echo "Cloud Run site health: HTTP ${HTTP}"
+          if [[ "$HTTP" != "200" ]]; then
+            echo "WARN: Cloud Run returned ${HTTP} — check service logs"
+          fi
