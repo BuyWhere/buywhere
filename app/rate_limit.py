@@ -165,9 +165,14 @@ class RedisPerMinuteRateLimitMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         import json
-        
-        identifier = get_key_identifier(request)
+
         path = request.url.path
+
+        # Skip Redis for health/probe endpoints — startup probe must not block on Redis
+        if path.startswith('/health') or path == '/':
+            return await call_next(request)
+
+        identifier = get_key_identifier(request)
         method = request.method
         
         # Determine key_suffix and US flag for headers and Redis key
