@@ -148,6 +148,23 @@ describe('GET /v1/products/search', () => {
     expect(firstCallParams[0]).toBe('SGD');
   });
 
+  it('normalizes lowercase region param to uppercase (BUY-4844)', async () => {
+    mockDbQuery
+      .mockResolvedValueOnce({ rows: [{ count: '1' }] })
+      .mockResolvedValueOnce({ rows: [makeProductRow()] });
+
+    const app = buildApp();
+    const res = await request(app).get('/v1/products/search?q=laptop&region=us');
+
+    expect(res.status).toBe(200);
+    // Verify the DB was called with 'US' (uppercase), not 'us'
+    const allCalls = mockDbQuery.mock.calls;
+    const regionUsed = allCalls.some((call) =>
+      (call[1] as unknown[]).includes('US') && !(call[1] as unknown[]).includes('us')
+    );
+    expect(regionUsed).toBe(true);
+  });
+
   it('infers currency from country_code when currency not given', async () => {
     mockDbQuery
       .mockResolvedValueOnce({ rows: [{ count: '0' }] })

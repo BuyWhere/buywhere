@@ -19,7 +19,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const start = Date.now();
     const q = req.query.q || '';
     const domain = req.query.domain;
-    const region = req.query.region;
+    const region = req.query.region?.toUpperCase() || undefined;
     // country_code is the canonical param; `country` is kept as a backward-compat alias
     const countryCode = (req.query.country_code || req.query.country)?.toUpperCase() || undefined;
     const minPrice = req.query.min_price ? parseFloat(req.query.min_price) : undefined;

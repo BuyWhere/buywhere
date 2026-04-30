@@ -29,7 +29,7 @@ router.get(
 
     const q = (req.query.q as string) || '';
     const domain = req.query.domain as string | undefined;
-    const region = req.query.region as string | undefined;
+    const region = (req.query.region as string | undefined)?.toUpperCase() || undefined;
     // country_code is the canonical param; `country` is kept as a backward-compat alias
     const countryCode = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
     const minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
