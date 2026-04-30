@@ -84,8 +84,18 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure Docker auth for GHCR
-        run: gcloud auth configure-docker ghcr.io --quiet
+      - name: Configure Docker auth for GHCR and Artifact Registry
+        run: |
+          gcloud auth configure-docker ghcr.io --quiet
+          gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
+
+      - name: Pull GHCR image and retag for Artifact Registry
+        run: |
+          docker pull ${{ needs.build.outputs.image_tag }}
+          AR_IMAGE="asia-southeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/buywhere/${{ env.CLOUD_RUN_SERVICE }}:sha-${{ github.sha }}"
+          docker tag ${{ needs.build.outputs.image_tag }} $AR_IMAGE
+          docker push $AR_IMAGE
+          echo "AR_IMAGE=$AR_IMAGE" >> $GITHUB_ENV
 
       - name: Create GCP Secret Manager secret for PostHog
         run: |
@@ -109,7 +119,7 @@ jobs:
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
             --project ${{ env.GCP_PROJECT_ID }} \
             --region ${{ env.GCP_REGION }} \
-            --image ${{ needs.build.outputs.image_tag }} \
+            --image $AR_IMAGE \
             --platform managed \
             --allow-unauthenticated \
             --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
