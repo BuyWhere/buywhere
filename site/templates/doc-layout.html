@@ -119,6 +119,31 @@
             </div>
         </div>
     </footer>
+    <script src="/assets/js/auth.js" defer></script>
     <script src="/assets/js/main.js"></script>
+    <script>
+    // Nav auth state: start with static "Sign In" (never a loading string),
+    // then replace with email if the user is already authenticated via localStorage.
+    window.addEventListener('DOMContentLoaded', function() {
+        if (typeof Auth === 'undefined') return;
+        Auth.init();
+        var isLoggedIn = Auth.isLoggedIn();
+        var user = Auth.user;
+        var actionsDiv = document.querySelector('.nav-actions');
+        if (!actionsDiv || !isLoggedIn || !user) return;
+
+        var email = user.email || user.name || 'Account';
+        var initial = email.charAt(0).toUpperCase() || 'A';
+        actionsDiv.innerHTML =
+            '<div style="display:flex;align-items:center;gap:8px">' +
+                '<span style="width:28px;height:28px;border-radius:50%;background:#0066FF;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:11px;flex-shrink:0">' + initial + '</span>' +
+                '<span style="font-size:14px;color:#0f172a;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + email + '</span>' +
+                '<a href="/account/billing" style="margin-left:4px;font-size:13px;color:#0066FF;text-decoration:none">Dashboard</a>' +
+                '<a href="#" id="docNavSignOut" style="font-size:13px;color:#64748b;text-decoration:none">Sign out</a>' +
+            '</div>';
+        var signOut = document.getElementById('docNavSignOut');
+        if (signOut) signOut.addEventListener('click', function(e) { e.preventDefault(); if (typeof Auth !== 'undefined') Auth.logout(); });
+    });
+    </script>
 </body>
 </html>

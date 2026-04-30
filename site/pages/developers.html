@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="dev-hero">
+    <div class="container">
+        <h1>Developer Portal</h1>
+        <p class="subtitle">Build AI shopping agents with the BuyWhere Product Catalog API.</p>
+        <div class="dev-hero-actions">
+            <a href="/register" class="nav-btn nav-btn-primary">Get API Key — Free</a>
+            <a href="/docs/quickstart" class="nav-btn nav-btn-secondary">Read the Docs</a>
+        </div>
+    </div>
+</section>
+
+<section class="dev-features">
+    <div class="container">
+        <div class="dev-grid">
+            <div class="dev-card">
+                <h3>Quickstart</h3>
+                <p>Make your first API call in under 5 minutes. Code examples in Python, JavaScript, and cURL.</p>
+                <a href="/docs/quickstart">Get started →</a>
+            </div>
+            <div class="dev-card">
+                <h3>API Reference</h3>
+                <p>Search, compare, and retrieve 5M+ products from 40+ retailers across Southeast Asia and beyond.</p>
+                <a href="/docs/api-reference">View reference →</a>
+            </div>
+            <div class="dev-card">
+                <h3>MCP Integration</h3>
+                <p>Connect BuyWhere to Claude, GPT, and other AI agents via the Model Context Protocol.</p>
+                <a href="/docs/mcp-integration">Set up MCP →</a>
+            </div>
+            <div class="dev-card">
+                <h3>API Keys</h3>
+                <p>Manage your keys, view usage quotas, and upgrade your plan from the API keys page.</p>
+                <a href="/api-keys">Manage keys →</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.dev-hero { padding: var(--bw-spacing-16) 0 var(--bw-spacing-8); text-align: center; }
+.dev-hero h1 { font-size: var(--bw-font-size-3xl); margin-bottom: var(--bw-spacing-4); }
+.dev-hero .subtitle { color: var(--bw-color-text-secondary); margin-bottom: var(--bw-spacing-8); }
+.dev-hero-actions { display: flex; gap: var(--bw-spacing-4); justify-content: center; flex-wrap: wrap; }
+
+.dev-features { padding: var(--bw-spacing-12) 0 var(--bw-spacing-16); }
+.dev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--bw-spacing-6); }
+.dev-card { background: var(--bw-color-bg-primary); border: 1px solid var(--bw-color-border); border-radius: var(--bw-radius-xl); padding: var(--bw-spacing-6); }
+.dev-card h3 { font-size: var(--bw-font-size-lg); margin-bottom: var(--bw-spacing-2); }
+.dev-card p { color: var(--bw-color-text-secondary); font-size: var(--bw-font-size-sm); margin-bottom: var(--bw-spacing-4); }
+.dev-card a { color: var(--bw-color-primary); font-size: var(--bw-font-size-sm); text-decoration: none; }
+.dev-card a:hover { text-decoration: underline; }
+</style>
+{% endblock %}

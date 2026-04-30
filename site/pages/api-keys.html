@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Unauthenticated state: shown before auth.js runs (default render) -->
+<section id="apiKeysGuest" class="apikeys-section">
+    <div class="container">
+        <h1>API Keys</h1>
+        <p class="subtitle">Sign in to manage your API keys, or create a free account to get started.</p>
+        <div class="apikeys-actions">
+            <a href="/login" class="nav-btn nav-btn-primary">Sign In</a>
+            <a href="/register" class="nav-btn nav-btn-secondary">Create Free Account</a>
+        </div>
+    </div>
+</section>
+
+<!-- Authenticated state: shown after auth.js confirms session -->
+<section id="apiKeysDashboard" class="apikeys-section" style="display:none">
+    <div class="container">
+        <h1>Your API Keys</h1>
+        <p class="subtitle">Manage your keys and monitor usage.</p>
+        <div class="apikeys-links">
+            <a href="/account/billing" class="nav-btn nav-btn-primary">Go to Dashboard</a>
+            <a href="/docs/authentication" class="nav-btn nav-btn-secondary">Authentication Docs</a>
+        </div>
+        <div class="apikeys-info">
+            <p>Your API keys are managed in the <a href="/account/billing">billing dashboard</a>. Use them as a Bearer token:</p>
+            <pre><code>Authorization: Bearer bw_live_your_key_here</code></pre>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block head %}
+<style>
+.apikeys-section { padding: var(--bw-spacing-16) 0; text-align: center; }
+.apikeys-section h1 { font-size: var(--bw-font-size-3xl); margin-bottom: var(--bw-spacing-4); }
+.apikeys-section .subtitle { color: var(--bw-color-text-secondary); margin-bottom: var(--bw-spacing-8); }
+.apikeys-actions, .apikeys-links { display: flex; gap: var(--bw-spacing-4); justify-content: center; flex-wrap: wrap; margin-bottom: var(--bw-spacing-8); }
+.apikeys-info { max-width: 560px; margin: 0 auto; text-align: left; }
+.apikeys-info p { color: var(--bw-color-text-secondary); margin-bottom: var(--bw-spacing-3); }
+.apikeys-info a { color: var(--bw-color-primary); }
+.apikeys-info pre { background: var(--bw-color-bg-dark); border-radius: var(--bw-radius-lg); padding: var(--bw-spacing-4); overflow-x: auto; }
+.apikeys-info code { font-size: var(--bw-font-size-sm); color: var(--bw-color-text-inverse); }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Show the right content section based on auth state.
+// Nav state is handled by base.html (shows "Sign In" by default, updates to email if logged in).
+// Never show a loading string — start with the guest view, swap to dashboard if authenticated.
+window.addEventListener('DOMContentLoaded', function() {
+    if (typeof Auth === 'undefined') return;
+    Auth.init();
+    if (Auth.isLoggedIn()) {
+        var guest = document.getElementById('apiKeysGuest');
+        var dash = document.getElementById('apiKeysDashboard');
+        if (guest) guest.style.display = 'none';
+        if (dash) dash.style.display = '';
+    }
+});
+</script>
+{% endblock %}

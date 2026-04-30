@@ -50,6 +50,8 @@ PAGE_CANONICALS = {
     "terms.html": f"{CANONICAL_BASE}/terms",
     "us-signup.html": f"{CANONICAL_BASE}/us-signup",
     "widget-demo.html": f"{CANONICAL_BASE}/widget-demo",
+    "developers.html": f"{CANONICAL_BASE}/developers",
+    "api-keys.html": f"{CANONICAL_BASE}/api-keys",
 }
 
 def md_to_html(filename):
