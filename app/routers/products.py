@@ -642,12 +642,101 @@ async def best_price(
 @limiter.limit(rate_limit_from_request)
 async def compare_product_search(
     request: Request,
-    q: str = Query(..., min_length=2, description="Product search query (e.g. iphone 15)"),
+    q: Optional[str] = Query(None, min_length=2, description="Product search query (e.g. iphone 15)"),
+    ids: Optional[str] = Query(None, description="Comma-separated product IDs to compare directly (e.g. 123,456)"),
     limit: int = Query(10, ge=1, le=50, description="Max seed products from search to find matches for"),
     db: AsyncSession = Depends(get_db),
     api_key: ApiKey = Depends(get_current_api_key),
 ) -> CompareSearchResponse:
     request.state.api_key = api_key
+
+    if ids is None and q is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Either 'q' or 'ids' query parameter is required")
+
+    # IDs path: look up products directly by ID, no search/matching needed
+    if ids is not None:
+        try:
+            id_list = [int(i.strip()) for i in ids.split(",") if i.strip()]
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="'ids' must be a comma-separated list of integers")
+        if not id_list:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="'ids' must contain at least one product ID")
+
+        cache_key = cache.build_cache_key("products:compare_ids", ids=sorted(id_list))
+        cached = await cache.cache_get(cache_key)
+        if cached:
+            return CompareSearchResponse(**cached)
+
+        result = await db.execute(
+            select(Product).where(Product.id.in_(id_list), Product.is_active == True)
+        )
+        products = list(result.scalars().all())
+
+        if not products:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No products found for the provided IDs")
+
+        items = []
+        cheapest_id: Optional[int] = None
+        best_rated_id: Optional[int] = None
+        fastest_shipping_id: Optional[int] = None
+        cheapest_price: Optional[Decimal] = None
+        best_rating: Optional[Decimal] = None
+        fastest_shipping_days: Optional[int] = None
+
+        for product in products:
+            item = CompareSearchMatch(
+                id=product.id,
+                sku=product.sku,
+                source=product.source,
+                merchant_id=product.merchant_id,
+                name=product.title,
+                description=product.description,
+                price=product.price,
+                currency=product.currency,
+                buy_url=product.url,
+                affiliate_url=get_affiliate_url(product.source, product.url) if product.url else None,
+                image_url=product.image_url,
+                brand=product.brand,
+                category=product.category,
+                category_path=product.category_path,
+                rating=product.rating,
+                is_available=product.is_available,
+                last_checked=product.last_checked,
+                metadata=product.metadata_,
+                updated_at=product.updated_at,
+                match_score=1.0,
+            )
+            items.append(item)
+
+            if cheapest_price is None or product.price < cheapest_price:
+                cheapest_price = product.price
+                cheapest_id = product.id
+
+            if product.rating is not None and (best_rating is None or product.rating > best_rating):
+                best_rating = product.rating
+                best_rated_id = product.id
+
+            if product.metadata_ and isinstance(product.metadata_, dict):
+                shipping = product.metadata_.get("shipping_days") or product.metadata_.get("shipping")
+                if shipping is not None:
+                    try:
+                        shipping_int = int(shipping)
+                        if fastest_shipping_days is None or shipping_int < fastest_shipping_days:
+                            fastest_shipping_days = shipping_int
+                            fastest_shipping_id = product.id
+                    except (ValueError, TypeError):
+                        pass
+
+        response = CompareSearchResponse(
+            query=f"ids:{ids}",
+            items=items,
+            total=len(items),
+            cheapest_product_id=cheapest_id,
+            best_rated_product_id=best_rated_id,
+            fastest_shipping_product_id=fastest_shipping_id,
+        )
+        await cache.cache_set(cache_key, response.model_dump(mode="json"), ttl_seconds=300)
+        return response
 
     cache_key = cache.build_cache_key(
         "products:compare_search",
