@@ -19,7 +19,7 @@
                 apiUrl: '/v1/products',
                 categoriesUrl: '/v1/categories',
                 trendingSearchesUrl: '/api/v1/trending-searches',
-                country: 'US',
+                country: (function() { try { return sessionStorage.getItem('bw_detected_country') || 'US'; } catch(e) { return 'US'; } })(),
                 sources: ['products', 'retailers', 'categories'],
                 limit: 5,
                 sourceLimit: 3,
