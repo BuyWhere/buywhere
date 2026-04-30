@@ -496,9 +496,6 @@ async def search_products(
         base_query = base_query.where(Product.country_code.in_(country_codes))
     if region is not None:
         region_codes = [r.strip().lower() for r in region.split(",")]
-        invalid = [r for r in region_codes if r not in REGION_NAMES]
-        if invalid:
-            raise HTTPException(status_code=422, detail=f"Invalid region code(s): {', '.join(invalid)}. Supported: {', '.join(REGION_NAMES.keys())}")
         base_query = base_query.where(Product.region.in_(region_codes))
 
     if offset == 0:
