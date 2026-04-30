@@ -18,7 +18,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ${{ github.repository_owner }}/${{ github.event.repository.name }}
   GCP_PROJECT_ID: buywhere-production
   GCP_REGION: asia-southeast1
   CLOUD_RUN_SERVICE: buywhere-api-production
@@ -51,19 +51,18 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/${{ github.repository }}
+            ghcr.io/${{ env.IMAGE_NAME }}
           tags: |
-            type=sha,prefix={{branch}}-
+            type=sha,prefix={{branch}}-,suffix=-{{sha}}
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push API image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: Dockerfile
+          context: ./api
+          file: ./api/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
             ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -107,19 +106,7 @@ jobs:
       - name: Create GCP Secret Manager secrets and deploy
         id: deploy
         run: |
-          echo "Creating/updating GCP Secret Manager secrets..."
-          echo -n "${{ secrets.ADMIN_API_KEY_PRODUCTION }}" | gcloud secrets versions add buywhere-admin-api-key --data-file=- --project ${{ env.GCP_PROJECT_ID }} 2>/dev/null || \
-            gcloud secrets create buywhere-admin-api-key --data-file=- --project ${{ env.GCP_PROJECT_ID }} <<< "${{ secrets.ADMIN_API_KEY_PRODUCTION }}"
-          echo -n "${{ secrets.POSTHOG_API_KEY_PRODUCTION }}" | gcloud secrets versions add buywhere-posthog-api-key --data-file=- --project ${{ env.GCP_PROJECT_ID }} 2>/dev/null || \
-            gcloud secrets create buywhere-posthog-api-key --data-file=- --project ${{ env.GCP_PROJECT_ID }} <<< "${{ secrets.POSTHOG_API_KEY_PRODUCTION }}"
-          
-          echo "Granting secretAccessor role to Cloud Run service account..."
-          GCP_SA=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} --region ${{ env.GCP_REGION }} --project ${{ env.GCP_PROJECT_ID }} --format "value(spec.template.spec.serviceAccountName)" 2>/dev/null || echo "")
-          [ -z "$GCP_SA" ] && GCP_SA="${{ env.GCP_PROJECT_ID }}-sa@${{ env.GCP_PROJECT_ID }}.iam.gserviceaccount.com"
-          gcloud secrets add-iam-policy-binding buywhere-admin-api-key --member "serviceAccount:$GCP_SA" --role "roles/secretmanager.secretAccessor" --project ${{ env.GCP_PROJECT_ID }} 2>/dev/null || true
-          gcloud secrets add-iam-policy-binding buywhere-posthog-api-key --member "serviceAccount:$GCP_SA" --role "roles/secretmanager.secretAccessor" --project ${{ env.GCP_PROJECT_ID }} 2>/dev/null || true
-
-          echo "Deploying to Cloud Run..."
+          echo "Deploying to Cloud Run with direct env var secrets..."
           SERVICE_URL=$(gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
             --project ${{ env.GCP_PROJECT_ID }} \
             --region ${{ env.GCP_REGION }} \
@@ -128,21 +115,21 @@ jobs:
             --allow-unauthenticated \
             --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
             --port 8000 \
-            --set-env-vars "ENVIRONMENT=production,DATABASE_URL=${{ secrets.CLOUD_SQL_PRODUCTION_CONNECTION_STRING }}" \
+            --set-env-vars "ENVIRONMENT=production" \
+            --set-env-vars "DATABASE_URL=${{ secrets.CLOUD_SQL_PRODUCTION_CONNECTION_STRING }}" \
             --set-env-vars "REDIS_URL=${{ secrets.REDIS_PRODUCTION_URL }}" \
             --set-env-vars "API_KEY_SECRET=${{ secrets.API_KEY_SECRET_PRODUCTION }}" \
             --set-env-vars "SENTRY_DSN=${{ secrets.SENTRY_DSN_PRODUCTION }}" \
-            --set-secrets "ADMIN_API_KEY=buywhere-admin-api-key:latest,POSTHOG_PROJECT_KEY=buywhere-posthog-api-key:latest" \
+            --set-env-vars "ADMIN_API_KEY=${{ secrets.ADMIN_API_KEY_PRODUCTION }}" \
+            --set-env-vars "POSTHOG_PROJECT_KEY=${{ secrets.POSTHOG_API_KEY_PRODUCTION }}" \
             --memory 1Gi \
             --cpu 2 \
             --min-instances 2 \
             --max-instances 20 \
             --concurrency 50 \
             --timeout 60s \
-            --label "deployment-id=${{ needs.build.outputs.deployment_id }}" \
-            --label "version=${{ needs.build.outputs.version }}" \
-            --label "commit-sha=${{ github.sha }}" \
-            --output json | jq -r '.status.url')
+            --labels "deployment-id=${{ needs.build.outputs.deployment_id }},version=${{ needs.build.outputs.version }},commit-sha=${{ github.sha }}" \
+            --format json | jq -r '.status.url')
 
           echo "Service URL: $SERVICE_URL"
           echo "url=$SERVICE_URL" >> $GITHUB_OUTPUT
