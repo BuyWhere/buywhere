@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +9,10 @@ from app.database import get_db
 from app.models.product import ApiKey, Product
 from app.rate_limit import limiter
 from app.schemas.product import CategoryNode, CategoryResponse
+
+
+def _category_slug(name: str) -> str:
+    return re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-') or 'other'
 
 router = APIRouter(prefix="/v1/categories", tags=["categories"])
 
@@ -29,6 +35,14 @@ async def list_categories(
     )
     rows = result.all()
 
-    nodes = [CategoryNode(name=row.category, count=row.count) for row in rows]
+    nodes = [
+        CategoryNode(
+            id=_category_slug(row.category),
+            name=row.category,
+            slug=_category_slug(row.category),
+            count=row.count,
+        )
+        for row in rows
+    ]
 
     return CategoryResponse(categories=nodes, total=len(nodes))

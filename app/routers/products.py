@@ -672,8 +672,7 @@ async def compare_product_search(
         )
         products = list(result.scalars().all())
 
-        if not products:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No products found for the provided IDs")
+        product_map = {p.id: p for p in products}
 
         items = []
         cheapest_id: Optional[int] = None
@@ -683,7 +682,11 @@ async def compare_product_search(
         best_rating: Optional[Decimal] = None
         fastest_shipping_days: Optional[int] = None
 
-        for product in products:
+        for pid in id_list:
+            product = product_map.get(pid)
+            if product is None:
+                items.append(None)
+                continue
             item = CompareSearchMatch(
                 id=product.id,
                 sku=product.sku,
@@ -1614,7 +1617,7 @@ async def get_product_deals(
         total=total,
         limit=limit,
         offset=offset,
-        items=[_to_deal_item(p, click_counts.get(p.id, 0)) for p in products],
+        items=[_to_deal_item(p) for p in products],
     )
 
 
