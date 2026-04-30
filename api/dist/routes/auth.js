@@ -36,7 +36,8 @@ router.post('/register', async (req, res) => {
         utmSource || null,
     ]);
     // Fire PostHog registration event (async, non-blocking)
-    (0, posthog_1.trackRegistration)(rawKey, agent_name, signupChannel, utmSource || null);
+    // Use hashed key to avoid sending raw API key to third-party analytics
+    (0, posthog_1.trackRegistration)(hashKey(rawKey), agent_name, signupChannel, utmSource || null);
     res.status(201).json({
         api_key: rawKey,
         tier: 'free',

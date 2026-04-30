@@ -2,7 +2,7 @@ apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
   name: buywhere-mcp
-  namespace: default
+  namespace: gaia-calendar-488606
   annotations:
     run.googleapis.com/ingress: all
     run.googleapis.com/launch-stage: GA
@@ -24,8 +24,6 @@ spec:
           ports:
             - containerPort: 8081
           env:
-            - name: PORT
-              value: "8081"
             - name: MCP_PORT
               value: "8081"
             - name: API_BASE_URL

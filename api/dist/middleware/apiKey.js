@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.hashKey = hashKey;
 exports.requireApiKey = requireApiKey;
 exports.checkRateLimit = checkRateLimit;
 const crypto_1 = require("crypto");

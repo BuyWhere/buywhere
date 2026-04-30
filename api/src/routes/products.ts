@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db, redis } from '../config';
-import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
+import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackApiQuery } from '../analytics/posthog';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -260,7 +260,7 @@ router.get(
     // PostHog event (fire-and-forget)
     if (req.apiKeyRecord) {
       trackApiQuery({
-        apiKey: req.apiKeyRecord.key,
+        apiKey: hashKey(req.apiKeyRecord.key),
         agentFramework: req.agentInfo?.framework || 'unknown',
         agentVersion: req.agentInfo?.version || '',
         sdkLanguage: req.agentInfo?.sdkLanguage || 'unknown',
@@ -669,7 +669,7 @@ router.get(
 
     if (req.apiKeyRecord) {
       trackApiQuery({
-        apiKey: req.apiKeyRecord.key,
+        apiKey: hashKey(req.apiKeyRecord.key),
         agentFramework: req.agentInfo?.framework || 'unknown',
         agentVersion: req.agentInfo?.version || '',
         sdkLanguage: req.agentInfo?.sdkLanguage || 'unknown',

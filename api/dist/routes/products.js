@@ -238,7 +238,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // PostHog event (fire-and-forget)
     if (req.apiKeyRecord) {
         (0, posthog_1.trackApiQuery)({
-            apiKey: req.apiKeyRecord.key,
+            apiKey: (0, apiKey_1.hashKey)(req.apiKeyRecord.key),
             agentFramework: req.agentInfo?.framework || 'unknown',
             agentVersion: req.agentInfo?.version || '',
             sdkLanguage: req.agentInfo?.sdkLanguage || 'unknown',
@@ -541,7 +541,7 @@ router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, 
     };
     if (req.apiKeyRecord) {
         (0, posthog_1.trackApiQuery)({
-            apiKey: req.apiKeyRecord.key,
+            apiKey: (0, apiKey_1.hashKey)(req.apiKeyRecord.key),
             agentFramework: req.agentInfo?.framework || 'unknown',
             agentVersion: req.agentInfo?.version || '',
             sdkLanguage: req.agentInfo?.sdkLanguage || 'unknown',

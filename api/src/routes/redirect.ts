@@ -1,6 +1,11 @@
 import { Router, Request, Response } from 'express';
+import { createHash } from 'crypto';
 import { db } from '../config';
 import { trackAffiliateClick } from '../analytics/posthog';
+
+function hashKey(rawKey: string): string {
+  return createHash('sha256').update(rawKey).digest('hex');
+}
 
 const router = Router();
 
@@ -85,8 +90,9 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
   );
 
   // PostHog event (fire-and-forget)
+  // Hash API key before sending to third-party analytics
   trackAffiliateClick({
-    apiKey,
+    apiKey: apiKey ? hashKey(apiKey) : null,
     productId,
     merchantId,
     affiliateLinkId,

@@ -1,8 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
+const crypto_1 = require("crypto");
 const config_1 = require("../config");
 const posthog_1 = require("../analytics/posthog");
+function hashKey(rawKey) {
+    return (0, crypto_1.createHash)('sha256').update(rawKey).digest('hex');
+}
 const router = (0, express_1.Router)();
 const DEFAULT_ALLOWED_DOMAINS = [
     'lazada.sg',
@@ -66,8 +70,9 @@ router.get('/:affiliateSlug/:productId', async (req, res) => {
        (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url)
      VALUES ($1,$2,$3,$4,$5,$6,$7)`, [apiKey, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl]);
     // PostHog event (fire-and-forget)
+    // Hash API key before sending to third-party analytics
     (0, posthog_1.trackAffiliateClick)({
-        apiKey,
+        apiKey: apiKey ? hashKey(apiKey) : null,
         productId,
         merchantId,
         affiliateLinkId,

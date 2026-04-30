@@ -1,0 +1,126 @@
+name: Deploy TypeScript API to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to deploy (default: git SHA)'
+        required: false
+
+env:
+  GCP_PROJECT_ID: gaia-calendar-488606
+  GCP_REGION: asia-southeast1
+  ARTIFACT_REGISTRY: asia-southeast1-docker.pkg.dev
+  IMAGE_REPO: buywhere
+  SERVICE_NAME: buywhere-api
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }} --quiet
+
+      - name: Set image tag
+        id: tag
+        run: |
+          TAG="${{ github.event.inputs.image_tag || github.sha }}"
+          echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          FULL_IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.IMAGE_REPO }}/api:${TAG}"
+          echo "full_image=${FULL_IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push API image
+        env:
+          FULL_IMAGE: ${{ steps.tag.outputs.full_image }}
+        run: |
+          docker build -t "$FULL_IMAGE" ./api
+          docker push "$FULL_IMAGE"
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PRODUCTION_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.PRODUCTION_SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy API on production VM
+        env:
+          FULL_IMAGE: ${{ steps.tag.outputs.full_image }}
+          IMAGE_TAG: ${{ steps.tag.outputs.image_tag }}
+          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          APP_DIR: ${{ secrets.PRODUCTION_APP_DIR || '/opt/buywhere' }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 "${SSH_USER}@${SSH_HOST}" \
+            env FULL_IMAGE="${FULL_IMAGE}" IMAGE_TAG="${IMAGE_TAG}" APP_DIR="${APP_DIR}" \
+            bash -s <<'REMOTE'
+          set -euo pipefail
+          echo "api-deploy: image=${FULL_IMAGE} tag=${IMAGE_TAG}"
+
+          # Pull the new image
+          docker pull "${FULL_IMAGE}"
+
+          # Update and restart the API container (docker-compose)
+          cd "${APP_DIR}"
+          # Tag as latest for docker-compose
+          docker tag "${FULL_IMAGE}" buywhere-api:latest
+
+          # Restart only the api service (zero-downtime: compose will replace container)
+          docker compose up -d --no-deps api
+
+          echo "API container restarted — waiting for health check..."
+          sleep 5
+
+          # Verify health
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health)
+          echo "GET /health → HTTP ${HTTP}"
+          if [[ "$HTTP" != "200" ]]; then
+            echo "ERROR: API health check failed with ${HTTP}"
+            exit 1
+          fi
+          echo "API healthy (${IMAGE_TAG})"
+          REMOTE
+
+      - name: Smoke test agent-readiness headers
+        run: |
+          sleep 3
+
+          echo "=== Smoke testing agent-readiness ==="
+
+          # Content-Signal on robots.txt
+          CS=$(curl -sI https://api.buywhere.ai/robots.txt | grep -i "content-signal" || echo "MISSING")
+          echo "Content-Signal: ${CS}"
+
+          # Link header on /
+          LINK=$(curl -sI https://api.buywhere.ai/ | grep -i "^link:" || echo "MISSING")
+          echo "Link (on /): ${LINK}"
+
+          # Markdown negotiation on /
+          CT=$(curl -sI -H "Accept: text/markdown" https://api.buywhere.ai/ | grep -i "content-type" || echo "MISSING")
+          echo "Content-Type (markdown req): ${CT}"
+
+          # Markdown on /docs/guides/mcp
+          CT_DOCS=$(curl -sI -H "Accept: text/markdown" https://api.buywhere.ai/docs/guides/mcp | grep -i "content-type" || echo "MISSING")
+          echo "Content-Type /docs/guides/mcp: ${CT_DOCS}"
+
+          # Fail if any are missing
+          if echo "${CS}${LINK}${CT}${CT_DOCS}" | grep -q "MISSING"; then
+            echo "ERROR: one or more agent-readiness headers missing after deploy"
+            exit 1
+          fi
+          echo "All agent-readiness checks passed."

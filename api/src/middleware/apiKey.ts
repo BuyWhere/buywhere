@@ -8,7 +8,7 @@ const TIER_LIMITS: Record<string, { rpm: number; daily: number }> = {
   enterprise: { rpm: 1000, daily: 100000 },
 };
 
-function hashKey(rawKey: string): string {
+export function hashKey(rawKey: string): string {
   return createHash('sha256').update(rawKey).digest('hex');
 }
 
