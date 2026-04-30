@@ -30,7 +30,7 @@ def init_sentry():
         integrations=[
             FastApiIntegration(transaction_style="endpoint"),
             RedisIntegration(),
-            SqlAlchemyIntegration(),
+            SqlalchemyIntegration(),
         ],
         traces_sample_rate=0.1,
         profiles_sample_rate=0.05,
