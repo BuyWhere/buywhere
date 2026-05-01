@@ -1,0 +1,123 @@
+name: Deploy Python API to Production VM
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to deploy'
+        required: false
+        default: 'release'
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  APP_DIR: /srv/buywhere-api
+
+jobs:
+  deploy:
+    name: Deploy to Production VM
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PRODUCTION_DEPLOY_SSH_KEY }}
+
+      - name: Trust production host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}" -H "${{ secrets.PRODUCTION_DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Pull, migrate, restart
+        env:
+          DEPLOY_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
+          DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+          BRANCH: ${{ inputs.branch || 'release' }}
+        run: |
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "BRANCH=$BRANCH bash -s" << 'ENDSSH'
+            set -euo pipefail
+            echo "=== BuyWhere Python API deploy starting ==="
+
+            # Find the app directory
+            APP_DIR=""
+            for candidate in /srv/buywhere-api /srv/buywhere /opt/buywhere-api /opt/buywhere /home/ubuntu/buywhere /home/buywhere; do
+              if [ -f "$candidate/app/main.py" ]; then
+                APP_DIR="$candidate"
+                break
+              fi
+            done
+
+            if [ -z "$APP_DIR" ]; then
+              echo "ERROR: Could not find app/main.py in any candidate directory"
+              exit 1
+            fi
+            echo "App directory: $APP_DIR"
+
+            cd "$APP_DIR"
+
+            # Pull latest code
+            echo "=== git pull origin $BRANCH ==="
+            git fetch origin
+            git checkout "$BRANCH"
+            git pull origin "$BRANCH"
+            echo "HEAD: $(git log --oneline -1)"
+
+            # Run any pending Alembic migrations
+            echo "=== alembic upgrade head ==="
+            if command -v alembic &>/dev/null; then
+              alembic upgrade head
+            elif [ -f ".venv/bin/alembic" ]; then
+              .venv/bin/alembic upgrade head
+            elif [ -f "venv/bin/alembic" ]; then
+              venv/bin/alembic upgrade head
+            else
+              echo "WARNING: alembic not found in PATH or venv — skipping migration"
+            fi
+
+            # Restart service
+            echo "=== restarting service ==="
+            if systemctl list-unit-files 2>/dev/null | grep -qE 'buywhere-api|buywhere\.service'; then
+              SERVICE=$(systemctl list-units --type=service --all 2>/dev/null | grep -iE 'buywhere-api|buywhere' | awk '{print $1}' | head -1)
+              echo "Restarting systemd service: $SERVICE"
+              systemctl restart "$SERVICE"
+              sleep 3
+              systemctl is-active "$SERVICE" && echo "Service is active" || echo "WARNING: service may not be running"
+            elif command -v supervisorctl &>/dev/null && supervisorctl status 2>/dev/null | grep -qiE 'buywhere|uvicorn'; then
+              PROC=$(supervisorctl status | grep -iE 'buywhere|uvicorn' | awk '{print $1}' | head -1)
+              echo "Restarting supervisor process: $PROC"
+              supervisorctl restart "$PROC"
+            elif command -v pm2 &>/dev/null && pm2 list 2>/dev/null | grep -qiE 'buywhere|api'; then
+              PROC=$(pm2 list | grep -iE 'buywhere|api' | awk '{print $2}' | head -1)
+              echo "Restarting PM2 process: $PROC"
+              pm2 restart "$PROC"
+            else
+              echo "WARNING: Could not detect service manager — service must be restarted manually"
+            fi
+
+            echo "=== Deploy complete ==="
+          ENDSSH
+
+      - name: Health check
+        env:
+          DEPLOY_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
+          DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+        run: |
+          echo "Waiting 10s for service to come up..."
+          sleep 10
+          # Check health endpoint
+          for i in 1 2 3 4 5; do
+            HTTP=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://api.buywhere.ai/health || echo "000")
+            if [ "$HTTP" = "200" ]; then
+              echo "Health check passed (attempt $i) — HTTP $HTTP"
+              exit 0
+            fi
+            echo "Health check attempt $i: HTTP $HTTP"
+            sleep 5
+          done
+          echo "WARNING: Health check did not return 200 — check service manually"
+          exit 1
