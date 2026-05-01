@@ -49,15 +49,13 @@ spec:
               cpu: "1"
               memory: "512Mi"
           livenessProbe:
-            httpGet:
-              path: /health
-              port: 8081
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          startupProbe:
-            httpGet:
-              path: /health
+            tcpSocket:
               port: 8081
             initialDelaySeconds: 10
+            periodSeconds: 10
+          startupProbe:
+            tcpSocket:
+              port: 8081
+            initialDelaySeconds: 15
             periodSeconds: 10
             failureThreshold: 30
