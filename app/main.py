@@ -511,12 +511,17 @@ async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
         # If we can't extract retry info, use default
         pass
     
-    details = {"retry_after": retry_after}
+    details = {
+        "retry_after": retry_after,
+        "upgrade_url": "https://api.buywhere.ai/v1/billing/upgrade",
+        "upgrade_tiers_url": "https://api.buywhere.ai/v1/billing/tiers",
+        "cta": "Upgrade to Pro for 600 req/min — S$49/month",
+    }
     return error_response(
-        "RATE_LIMIT_EXCEEDED", 
-        "Rate limit exceeded", 
-        details=details, 
-        status_code=429
+        "RATE_LIMIT_EXCEEDED",
+        "Rate limit exceeded",
+        details=details,
+        status_code=429,
     )
 
 

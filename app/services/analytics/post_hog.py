@@ -136,6 +136,32 @@ def track_affiliate_click(
     track_event("affiliate_click", properties=properties, distinct_id=distinct_id)
 
 
+def track_upgrade_intent(
+    developer_id: str,
+    current_tier: str,
+    api_key_id: str,
+    endpoint: Optional[str] = None,
+) -> None:
+    properties: dict[str, Any] = {
+        "current_tier": current_tier,
+        "api_key_id": api_key_id,
+    }
+    if endpoint:
+        properties["endpoint"] = endpoint
+    track_event("upgrade_intent", properties=properties, distinct_id=developer_id)
+
+
+def track_upgrade_completed(
+    developer_id: str,
+    stripe_session_id: str,
+) -> None:
+    track_event(
+        "upgrade_completed",
+        properties={"stripe_session_id": stripe_session_id},
+        distinct_id=developer_id,
+    )
+
+
 def shutdown() -> None:
     global _client
     if _client is not None:

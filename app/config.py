@@ -96,6 +96,14 @@ class Settings(BaseSettings):
 
     scraper_api_key: str = Field(default="", validation_alias="SCRAPERAPI_KEY")
     scraper_refresh_url: str = Field(default="", validation_alias="SCRAPER_REFRESH_URL")
+
+    # Stripe Billing
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_pro_price_id: str = ""
+    stripe_success_url: str = "https://buywhere.ai/upgrade/success"
+    stripe_cancel_url: str = "https://buywhere.ai/upgrade/cancel"
+
     model_config = {"env_file": ".env", "case_sensitive": False, "extra": "allow"}
 
 
