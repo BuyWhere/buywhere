@@ -1,0 +1,50 @@
+{
+  "name": "BuyWhere Product Catalog",
+  "description": "The only agent-native product catalog API built for Southeast Asia. Real-time search, price comparison, and deal discovery across 1M+ products from Shopee, Lazada, Amazon SG, and 50+ Singapore merchants.",
+  "version": "1.0.0",
+  "contact": {
+    "email": "api@buywhere.ai",
+    "url": "https://buywhere.ai"
+  },
+  "license": {
+    "name": "Commercial",
+    "url": "https://buywhere.ai/terms"
+  },
+  "servers": [
+    {
+      "url": "https://api.buywhere.ai/mcp",
+      "description": "Production MCP endpoint (Singapore)",
+      "transport": ["streamable-http", "sse"]
+    }
+  ],
+  "tools": [
+    {
+      "name": "search_products",
+      "description": "Full-text product search with price, category, merchant, and region filters across 1M+ Singapore products"
+    },
+    {
+      "name": "get_product",
+      "description": "Get a specific product by ID including full details and current price"
+    },
+    {
+      "name": "compare_products",
+      "description": "Compare multiple products side-by-side: price, brand, rating, category"
+    },
+    {
+      "name": "get_deals",
+      "description": "Get discounted products sorted by discount percentage, optionally filtered by region/country"
+    },
+    {
+      "name": "list_categories",
+      "description": "List top-level product categories available in the BuyWhere catalog"
+    }
+  ],
+  "authentication": {
+    "required": true,
+    "type": "bearer",
+    "register_url": "https://api.buywhere.ai/v1/auth/register",
+    "description": "Register for a free API key. Free tier: 1,000 calls/month."
+  },
+  "documentation": "https://api.buywhere.ai/docs/guides/mcp",
+  "homepage": "https://buywhere.ai"
+}

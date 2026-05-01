@@ -596,6 +596,53 @@ async def glama_json():
     )
 
 
+AI_PLUGIN_JSON_PATH = _Path(__file__).parent.parent / "ai-plugin.json"
+
+
+@app.get("/.well-known/ai-plugin.json", include_in_schema=False, summary="OpenAI plugin manifest")
+async def ai_plugin_json():
+    return JSONResponse(
+        content=_json.loads(AI_PLUGIN_JSON_PATH.read_text()),
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+MCP_JSON_PATH = _Path(__file__).parent.parent / "mcp.json"
+
+
+@app.get("/.well-known/mcp.json", include_in_schema=False, summary="MCP server discovery manifest")
+async def mcp_json():
+    return JSONResponse(
+        content=_json.loads(MCP_JSON_PATH.read_text()),
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+MCP_SERVER_CARD_JSON_PATH = _Path(__file__).parent.parent / "mcp-server-card.json"
+
+
+@app.get("/.well-known/mcp/server-card.json", include_in_schema=False, summary="Smithery server card")
+async def mcp_server_card_json():
+    return JSONResponse(
+        content=_json.loads(MCP_SERVER_CARD_JSON_PATH.read_text()),
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+OPENAPI_JSON_PATH = _Path(__file__).parent.parent / "openapi.yaml"
+
+
+@app.get("/openapi.json", include_in_schema=False, summary="OpenAPI specification")
+async def openapi_json():
+    import yaml
+    with OPENAPI_JSON_PATH.open("r") as f:
+        content = yaml.safe_load(f)
+    return JSONResponse(
+        content=content,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 @app.get("/v1/health", response_model=ComprehensiveHealthReport, tags=["system"], summary="Comprehensive health check with dependency status")
 async def health_check(request: Request):
     from app.database import AsyncSessionLocal
