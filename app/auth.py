@@ -261,6 +261,9 @@ async def resolve_paperclip_agent_key(token: str, db: AsyncSession) -> Optional[
 
 
 async def upsert_paperclip_agent_key(token: str, db: AsyncSession) -> Optional[ApiKey]:
+    # Native BuyWhere API keys (bw_ prefix) are never Paperclip agent tokens; skip the remote call.
+    if token.startswith("bw_"):
+        return None
     payload = await _verify_paperclip_token_with_api(token)
     if not payload:
         return None
