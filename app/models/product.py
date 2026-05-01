@@ -92,9 +92,9 @@ class Product(Base):
         Index("idx_products_active_region_category", "is_active", "region", "category"),
         Index("idx_products_active_region_available", "is_active", "region", "is_available"),
         Index("idx_products_active_source_region", "is_active", "source", "region"),
-        # Composite indexes for agent-native API performance - optimize common query patterns
-        Index("idx_products_title_search", "title_search_vector"),
-        Index("idx_products_search_vector", "search_vector"),
+        # GIN indexes for full-text search — required for @@ operator on TSVECTOR columns
+        Index("idx_products_search_vector_gin", "search_vector", postgresql_using="gin"),
+        Index("idx_products_title_search_vector_gin", "title_search_vector", postgresql_using="gin"),
     )
 
 

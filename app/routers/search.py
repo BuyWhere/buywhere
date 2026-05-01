@@ -59,6 +59,28 @@ async def _log_search_query_async(query: str, region: str, result_count: int, re
     except Exception as e:
         logger.warning(f"Failed to log search query: {e}")
 
+
+async def _log_search_history_async(
+    developer_id: str,
+    api_key_id: str,
+    query: Optional[str],
+    filters: dict,
+    result_count: int,
+) -> None:
+    try:
+        async with AsyncSessionLocal() as session:
+            entry = SearchHistory(
+                developer_id=developer_id,
+                api_key_id=api_key_id,
+                query=query,
+                filters=filters,
+                result_count=result_count,
+            )
+            session.add(entry)
+            await session.commit()
+    except Exception as e:
+        logger.warning(f"Failed to log search history: {e}")
+
 SOURCE_TO_COUNTRY = {
     "shopee_sg": "SG",
     "lazada_sg": "SG",
@@ -499,9 +521,33 @@ async def search_products(
         base_query = base_query.where(Product.region.in_(region_codes))
 
     if offset == 0:
-        count_query = select(func.count()).select_from(base_query.subquery())
-        total_result = await db.execute(count_query)
-        total = total_result.scalar_one()
+        # Use a direct COUNT on products instead of wrapping the ranked query in a
+        # subquery — this lets the GIN index on search_vector do the heavy lifting
+        # without the ORDER BY + ts_rank overhead.
+        count_conditions = [Product.is_active == True]
+        if q:
+            count_conditions.append(
+                text("search_vector @@ websearch_to_tsquery('english', :cq)").bindparams(cq=q)
+            )
+        if category:
+            count_conditions.append(Product.category.ilike(f"%{category}%"))
+        if min_price is not None:
+            count_conditions.append(Product.price >= min_price)
+        if max_price is not None:
+            count_conditions.append(Product.price <= max_price)
+        if platform is not None:
+            count_conditions.append(Product.source == platform)
+        if in_stock is not None:
+            count_conditions.append(Product.in_stock == in_stock)
+        if country is not None:
+            country_codes_count = [c.strip().upper() for c in country.split(",")]
+            count_conditions.append(Product.country_code.in_(country_codes_count))
+        if region is not None:
+            region_codes_count = [r.strip().lower() for r in region.split(",")]
+            count_conditions.append(Product.region.in_(region_codes_count))
+        count_query = select(func.count(Product.id)).where(*count_conditions)
+        count_result = await db.execute(count_query)
+        total = count_result.scalar_one()
     else:
         total = None
 
@@ -661,23 +707,24 @@ async def search_products(
         if rate_header:
             request.state.response_headers = {"X-Currency-Rate": f"{default_currency}->{target_currency}:{rate_header}"}
 
-    search_history_entry = SearchHistory(
-        developer_id=api_key.developer_id,
-        api_key_id=api_key.id,
-        query=q,
-        filters={
-            "category": category,
-            "min_price": str(min_price) if min_price is not None else None,
-            "max_price": str(max_price) if max_price is not None else None,
-            "platform": platform,
-            "region": region,
-            "country": country,
-            "in_stock": in_stock,
-        },
-        result_count=effective_total,
+    # Log search history asynchronously — do not block the response on this write.
+    asyncio.create_task(
+        _log_search_history_async(
+            developer_id=api_key.developer_id,
+            api_key_id=api_key.id,
+            query=q,
+            filters={
+                "category": category,
+                "min_price": str(min_price) if min_price is not None else None,
+                "max_price": str(max_price) if max_price is not None else None,
+                "platform": platform,
+                "region": region,
+                "country": country,
+                "in_stock": in_stock,
+            },
+            result_count=effective_total,
+        )
     )
-    db.add(search_history_entry)
-    await db.flush()
 
     if q:
         asyncio.create_task(
