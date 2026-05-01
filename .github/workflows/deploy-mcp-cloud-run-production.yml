@@ -75,8 +75,8 @@ jobs:
       - name: Smoke test MCP health
         run: |
           sleep 5
-          HTTP=$(curl -s -o /dev/null -w "%{http_code}" https://mcp.buywhere.ai/health)
-          echo "GET /health → HTTP ${HTTP}"
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" https://mcp.buywhere.ai/healthz)
+          echo "GET /healthz → HTTP ${HTTP}"
           if [[ "$HTTP" != "200" ]]; then
             echo "ERROR: MCP health check failed with ${HTTP}"
             exit 1
