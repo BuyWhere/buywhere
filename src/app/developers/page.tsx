@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import { TrustLayer } from "@/components/TrustLayer";
 
 export const metadata: Metadata = {
   title: "Developer Portal — BuyWhere MCP & API for AI Agents",
   description:
-    "BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff across the US and Southeast Asia.",
+    "BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff starting in Singapore, expanding across Southeast Asia.",
   alternates: {
     canonical: "https://buywhere.ai/developers",
   },
@@ -41,7 +42,7 @@ export default function DevelopersPage() {
             Launch your shopping agent with one clear setup path.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-slate-300">
-            BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff across the US and Southeast Asia.
+            BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff starting in Singapore, expanding across Southeast Asia.
           </p>
           <p className="mt-4 max-w-2xl text-base leading-7 text-slate-400">
             Start with one API request, then add the published MCP package when you want BuyWhere tools inside Claude Desktop, Cursor, or another MCP client.
@@ -57,8 +58,15 @@ export default function DevelopersPage() {
               href="/quickstart"
               className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
             >
-              See 5-minute quickstart
+              Start in 5 minutes
             </Link>
+          </div>
+          <div className="mt-6 flex items-center gap-4 text-sm text-slate-400">
+            <span>3.7M+ products</span>
+            <span className="text-slate-600">·</span>
+            <span>7 SG retailers</span>
+            <span className="text-slate-600">·</span>
+            <span>Real-time pricing</span>
           </div>
         </div>
       </section>
@@ -111,6 +119,8 @@ export default function DevelopersPage() {
           </div>
         </div>
       </section>
+
+      <TrustLayer />
 
       <Footer />
     </div>

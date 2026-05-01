@@ -1,14 +1,15 @@
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import { TrustLayer } from "@/components/TrustLayer";
 
 const audiences = [
   {
     icon: "🤖",
     title: "AI Agent Developers",
-    desc: "Query a structured, normalized product catalog from your agent. One API, one schema, cross-market product discovery for the US and Southeast Asia.",
-    cta: "Start building",
-    ctaHref: "/quickstart",
+    desc: "Query a structured, normalized product catalog from your agent. One API, one schema, cross-market product discovery for Singapore and Southeast Asia.",
+    cta: "Read the docs",
+    ctaHref: "/developers",
   },
   {
     icon: "🏪",
@@ -33,7 +34,7 @@ const valueProps = [
   },
   {
     title: "Commerce-ready regional coverage",
-    desc: "Start with region-aware coverage across the US and Southeast Asia so your agent can answer market-specific shopping and availability questions without rebuilding the stack for each geography.",
+    desc: "Start with region-aware coverage across Singapore and Southeast Asia so your agent can answer market-specific shopping and availability questions without rebuilding the stack for each geography.",
   },
   {
     title: "Faster than scraping",
@@ -133,33 +134,33 @@ export default function HomePage() {
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 bg-white/10 text-white/90 text-sm font-medium px-3 py-1 rounded-full mb-6">
               <span className="w-2 h-2 bg-green-400 rounded-full"></span>
-              Now in developer beta · US + Southeast Asia
+              Now in developer beta · SG + Southeast Asia
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
               The product catalog API built for AI agents.
             </h1>
             <p className="text-xl text-indigo-200 mb-10 leading-relaxed">
-              Give your agents real products, live merchant data, and structured catalog search for US and Southeast Asia commerce workflows with one API.
+              Give your agents real products, live merchant data, and structured catalog search               for Singapore and Southeast Asia commerce workflows with one API.
             </p>
             <p className="text-base text-indigo-100/90 mb-8 leading-relaxed max-w-2xl">
               BuyWhere helps AI assistants and agentic apps discover products, compare options, and power commerce experiences without scraping storefronts or stitching together unreliable feeds.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
-              <Link
-                href="/api-keys"
-                className="inline-flex items-center justify-center px-6 py-3 bg-white text-indigo-700 font-semibold rounded-xl hover:bg-indigo-50 transition-colors"
-              >
-                Get API access →
-              </Link>
-              <Link
-                href="/quickstart"
-                className="inline-flex items-center justify-center px-6 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-colors border border-white/20"
-              >
-                View quickstart
-              </Link>
-            </div>
+<div className="flex flex-col sm:flex-row gap-4 mb-6">
+                <Link
+                  href="/api-keys"
+                  className="inline-flex items-center justify-center px-6 py-3 bg-white text-indigo-700 font-semibold rounded-xl hover:bg-indigo-50 transition-colors"
+                >
+                  Get API key →
+                </Link>
+                <Link
+                  href="/developers"
+                  className="inline-flex items-center justify-center px-6 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-colors border border-white/20"
+                >
+                  View docs
+                </Link>
+              </div>
             <p className="text-sm text-indigo-100/80">
-              Built for agentic commerce, product search, merchant discovery, and real-world buying workflows across the US and Southeast Asia.
+              Built for agentic commerce, product search, merchant discovery, and real-world buying workflows across Singapore and Southeast Asia.
             </p>
           </div>
         </div>
@@ -222,6 +223,9 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Trust strip */}
+      <TrustLayer />
 
       {/* Code demo */}
       <section className="bg-gray-900 py-16">
@@ -291,7 +295,7 @@ export default function HomePage() {
                Platform APIs surface their own inventory first. Shopee returns Shopee products. Lazada returns Lazada products. For an AI agent trying to find the best match across the market, that is a sales channel — not a catalog.
              </p>
              <p className="text-gray-600 leading-relaxed mb-8">
-               BuyWhere has no inventory to sell and no platform to favour. We index products across the US and Southeast Asia into a single, structured API so AI agents get a broader market view instead of one platform&rsquo;s version of it.
+                BuyWhere has no inventory to sell and no platform to favour. We index products across Singapore, the US, and Southeast Asia into a single, structured API so AI agents get a broader market view instead of one platform&rsquo;s version of it.
              </p>
              <Link
                href="/about"
@@ -328,7 +332,7 @@ export default function HomePage() {
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-3xl font-bold mb-4">Launch product-aware agents without building a catalog pipeline.</h2>
           <p className="text-indigo-200 mb-8 text-lg">
-            If your agent needs to answer &ldquo;what should I buy?&rdquo;, &ldquo;where can I get it?&rdquo;, or &ldquo;what are the best options in the US, Singapore, or Southeast Asia?&rdquo; BuyWhere gives you the product layer to ship faster.
+            If your agent needs to answer &ldquo;what should I buy?&rdquo;, &ldquo;where can I get it?&rdquo;, or &ldquo;what are the best options in Singapore, the US, or Southeast Asia?&rdquo; BuyWhere gives you the product layer to ship faster.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
