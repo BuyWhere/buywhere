@@ -189,6 +189,7 @@ class ShopeeScraper:
                 "description": "",
                 "price": price,
                 "currency": "SGD",
+                "region": "sg",
                 "url": product_url,
                 "image_url": image_url,
                 "category": category["name"],
