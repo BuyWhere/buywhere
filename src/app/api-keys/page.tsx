@@ -164,8 +164,8 @@ export default function ApiKeysPage() {
                   <ul className="space-y-2 text-sm text-gray-600">
                     {[
                       "Instant API key — no waiting",
-                      "Access to GET /v1/products/search",
-                      "Product catalog across US and Southeast Asia",
+                      "Access to /v1/products/search and /v1/products",
+                      "1M+ Singapore products indexed",
                       "Free usage during beta",
                       "Email support at hello@buywhere.ai",
                     ].map((item) => (
