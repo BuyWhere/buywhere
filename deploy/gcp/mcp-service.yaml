@@ -26,6 +26,8 @@ spec:
           env:
             - name: MCP_PORT
               value: "8081"
+            - name: APP_BASE_URL
+              value: "https://api.buywhere.ai"
             - name: API_BASE_URL
               value: "https://api.buywhere.ai"
             - name: PG_POOL_MAX
@@ -48,14 +50,14 @@ spec:
               memory: "512Mi"
           livenessProbe:
             httpGet:
-              path: /health
+              path: /healthz
               port: 8081
-            initialDelaySeconds: 5
+            initialDelaySeconds: 10
             periodSeconds: 10
           startupProbe:
             httpGet:
-              path: /health
+              path: /healthz
               port: 8081
-            initialDelaySeconds: 5
-            periodSeconds: 5
-            failureThreshold: 6
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 30
