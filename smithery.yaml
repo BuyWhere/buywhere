@@ -12,7 +12,7 @@ license: MIT
 
 mcp:
   transport: http
-  url: https://api.buywhere.ai/mcp
+  url: https://mcp.buywhere.ai/mcp
   authentication:
     type: bearer
     description: >
