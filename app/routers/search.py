@@ -360,6 +360,7 @@ async def search_products(
     price_range: Optional[str] = Query(None, max_length=100, description="USD price range filter: under_25,25_50,50_100,100_250,250_plus"),
     region: Optional[str] = Query(None, description="Filter by region code(s), comma-separated (e.g., US,SG)"),
     country: Optional[str] = Query(None, description="Filter by country code(s), comma-separated (e.g., SG,MY)"),
+    country_code: Optional[str] = Query(None, description="Alias for country"),
     in_stock: Optional[bool] = Query(None, description="Filter by availability"),
     currency: Optional[str] = Query(None, description=f"Target currency for price conversion. Supported: {', '.join(SUPPORTED_CURRENCIES)}"),
     limit: int = Query(20, ge=1, le=100, description="Results per page (1-100)"),
@@ -376,6 +377,8 @@ async def search_products(
         max_price = price_max
     if source is not None:
         platform = source
+    if country_code is not None:
+        country = country_code
 
     if q and len(q) > 500:
         suggested_query = q[:500]
@@ -912,10 +915,14 @@ async def search_suggestions(
     q: str = Query(..., min_length=1, description="Search query prefix"),
     limit: int = Query(10, ge=1, le=20, description="Max suggestions to return"),
     country: Optional[str] = Query(None, description="Filter by country code(s), comma-separated (e.g., US,SG)"),
+    country_code: Optional[str] = Query(None, description="Alias for country"),
     db: AsyncSession = Depends(get_db),
     api_key: ApiKey = Depends(get_current_api_key),
 ) -> AutocompleteResponse:
     request.state.api_key = api_key
+
+    if country_code is not None:
+        country = country_code
 
     if country is not None:
         country_codes = [c.strip().upper() for c in country.split(",")]
