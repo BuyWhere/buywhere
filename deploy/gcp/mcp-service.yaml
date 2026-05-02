@@ -48,13 +48,13 @@ spec:
               memory: "512Mi"
           livenessProbe:
             httpGet:
-              path: /health
+              path: /healthz
               port: 8081
             initialDelaySeconds: 5
             periodSeconds: 10
           startupProbe:
             httpGet:
-              path: /health
+              path: /healthz
               port: 8081
             initialDelaySeconds: 5
             periodSeconds: 5
