@@ -114,18 +114,12 @@ jobs:
             # then restart the server from .next-fresh/standalone/server.js.
             echo "=== temporarily overriding distDir to .next-fresh ==="
             cp next.config.mjs next.config.mjs.bak
-            python3 - << 'PYEOF'
-import re, sys
-with open('next.config.mjs', 'r') as f:
-    content = f.read()
-# Replace distDir value
-updated = re.sub(r"distDir:\s*['\"][^'\"]*['\"]", "distDir: '.next-fresh'", content)
-if 'distDir' not in updated:
-    updated = content.replace('output:', "distDir: '.next-fresh',\n  output:")
-with open('next.config.mjs', 'w') as f:
-    f.write(updated)
-print("next.config.mjs patched")
-PYEOF
+            if grep -q "distDir" next.config.mjs; then
+              sed -i "s|distDir: *'[^']*'|distDir: '.next-fresh'|" next.config.mjs
+            else
+              sed -i "s|output:|distDir: '.next-fresh',\n  output:|" next.config.mjs
+            fi
+            echo "next.config.mjs patched"
             grep "distDir" next.config.mjs
 
             # Build Next.js — required to compile the updated route handler
