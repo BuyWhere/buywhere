@@ -170,7 +170,7 @@ async def _handle_search_products(args: dict[str, Any]) -> CallToolResult:
             params[key] = args[key]
 
     try:
-        data = await _api_get("/v1/products", params)
+        data = await _api_get("/v1/products/search", params)
     except Exception as exc:
         logger.exception("search_products API error for %r", query)
         return CallToolResult(
