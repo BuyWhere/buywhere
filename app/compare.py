@@ -3,7 +3,10 @@ from typing import List
 
 
 class ProductMatcher:
-    def find_matches(self, product_id: str, limit: int = 5) -> List:
+    def __init__(self, db=None):
+        self.db = db
+
+    async def find_matches(self, product, min_price=None, max_price=None, limit: int = 5) -> List:
         return []
 
 
