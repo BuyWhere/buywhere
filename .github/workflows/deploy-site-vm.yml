@@ -107,6 +107,19 @@ jobs:
             echo "HEAD: $(git log --oneline -1)"
             echo "route.ts content: $(head -5 src/app/openapi.json/route.ts)"
 
+            # Pre-build cleanup: remove old standalone output that has root-owned files
+            # (previous root build left files we can't unlink via Next.js's own cleanup)
+            echo "=== pre-build cleanup of standalone output ==="
+            STANDALONE="$SITE_DIR/.next-deploy/standalone/.next-deploy"
+            if [ -d "$STANDALONE" ]; then
+              rm -rf "$STANDALONE" 2>/dev/null && echo "Removed $STANDALONE" || {
+                echo "WARNING: rm -rf $STANDALONE failed — trying targeted cleanup"
+                # Try to make individual dirs/files writable before deletion
+                find "$STANDALONE" -type d -exec chmod u+w {} \; 2>/dev/null || true
+                rm -rf "$STANDALONE" 2>/dev/null && echo "Removed after chmod" || echo "WARN: cleanup incomplete, build may fail"
+              }
+            fi
+
             # Build Next.js — required to compile the updated route handler
             echo "=== npm run build ==="
             if command -v npm &>/dev/null; then
@@ -119,40 +132,57 @@ jobs:
               echo "ERROR: neither npm nor pnpm found"
               exit 1
             fi
+            echo "Build complete: HEAD=$(git log --oneline -1)"
 
-            # Clear Next.js ISR / data cache so the new route is served immediately
-            echo "=== clearing .next/cache ==="
-            rm -rf .next/cache || true
-
-            # Restart the site process
-            echo "=== restarting site process ==="
-            if systemctl list-unit-files 2>/dev/null | grep -qiE 'buywhere-site|next'; then
-              SERVICE=$(systemctl list-units --type=service --all 2>/dev/null | grep -iE 'buywhere-site|next' | awk '{print $1}' | head -1)
-              echo "Restarting systemd service: $SERVICE"
-              systemctl restart "$SERVICE"
-              sleep 3
-              systemctl is-active "$SERVICE" && echo "Service is active" || echo "WARNING: service may not be running"
-            elif command -v pm2 &>/dev/null && pm2 list 2>/dev/null | grep -qiE 'buywhere|next|site'; then
-              PROC=$(pm2 list | grep -iE 'buywhere|next|site' | awk '{print $2}' | head -1)
-              echo "Restarting PM2 process: $PROC"
-              pm2 restart "$PROC"
-              sleep 3
-              pm2 status "$PROC"
-            elif command -v supervisorctl &>/dev/null && supervisorctl status 2>/dev/null | grep -qiE 'buywhere|next'; then
-              PROC=$(supervisorctl status | grep -iE 'buywhere|next' | awk '{print $1}' | head -1)
-              echo "Restarting supervisor process: $PROC"
-              supervisorctl restart "$PROC"
-            else
-              echo "WARNING: Could not detect site service manager — attempting direct process signal"
-              # Try to find and SIGHUP the next process
-              NEXT_PID=$(pgrep -f "next start" | head -1 || true)
-              if [ -n "$NEXT_PID" ]; then
-                echo "Sending SIGTERM to next start (pid $NEXT_PID)"
-                kill -TERM "$NEXT_PID" || true
-              else
-                echo "ERROR: Could not find 'next start' process — restart manually"
-                exit 1
+            # Restart the site process.
+            # Diagnostic confirmed: runs as nohup, NOT systemd (service not installed yet).
+            # PID is stored in .runtime/buywhere-site.pid.
+            echo "=== restarting nohup site process ==="
+            PID_FILE="$SITE_DIR/.runtime/buywhere-site.pid"
+            if [ -f "$PID_FILE" ]; then
+              OLD_PID=$(cat "$PID_FILE" 2>/dev/null || echo "")
+              if [ -n "$OLD_PID" ]; then
+                echo "Killing old process PID=$OLD_PID"
+                kill "$OLD_PID" 2>/dev/null && echo "Killed PID $OLD_PID" || echo "Process $OLD_PID already gone"
+                sleep 2
               fi
+            fi
+
+            # Read start env from service file if it exists (for PORT, HOSTNAME, etc.)
+            SERVICE_FILE="$SITE_DIR/deploy/buywhere-site.service"
+            START_ENV="PORT=3006 HOSTNAME=127.0.0.1"
+            if [ -f "$SERVICE_FILE" ]; then
+              # Extract Environment= lines from systemd unit
+              EXTRA=$(grep "^Environment=" "$SERVICE_FILE" 2>/dev/null | sed 's/^Environment=//' | tr '\n' ' ')
+              if [ -n "$EXTRA" ]; then
+                START_ENV="$EXTRA"
+              fi
+              echo "Using env from service file: $START_ENV"
+            fi
+
+            mkdir -p "$SITE_DIR/.runtime"
+            LOG_FILE="$SITE_DIR/.runtime/buywhere-site.log"
+            ENTRY="$SITE_DIR/.next-deploy/standalone/server.js"
+            if [ ! -f "$ENTRY" ]; then
+              echo "ERROR: standalone server.js not found at $ENTRY after build"
+              exit 1
+            fi
+
+            # Start new nohup process
+            env $START_ENV nohup node "$ENTRY" > "$LOG_FILE" 2>&1 &
+            NEW_PID=$!
+            echo $NEW_PID > "$PID_FILE"
+            echo "Started new process PID=$NEW_PID"
+            sleep 5
+
+            # Verify new process is running
+            if kill -0 "$NEW_PID" 2>/dev/null; then
+              echo "Process $NEW_PID is running"
+              curl -sf http://127.0.0.1:3006/ -o /dev/null && echo "Port 3006 responded OK" || echo "WARN: port 3006 not yet responding"
+            else
+              echo "ERROR: Process $NEW_PID died. Last log lines:"
+              tail -20 "$LOG_FILE" || true
+              exit 1
             fi
 
             echo "=== VM site deploy complete ==="
