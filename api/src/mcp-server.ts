@@ -13,6 +13,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Knative liveness probe — lightweight, no DB dependency
+app.get('/healthz', (_req, res) => {
+  res.json({ status: 'ok' });
+});
+
 app.get('/health', async (_req, res) => {
   try {
     const result = await db.query('SELECT COUNT(*) FROM products');
@@ -31,6 +36,11 @@ app.use('/mcp', mcpRouter);
 
 // JSON-RPC root alias — allow POST / as shorthand for POST /mcp
 app.use('/', mcpRouter);
+
+// 404 fallback
+app.use((_req, res) => {
+  res.status(404).json({ error: 'not found' });
+});
 
 const server = app.listen(MCP_PORT, () => {
   console.log(`BuyWhere MCP server listening on :${MCP_PORT}`);
