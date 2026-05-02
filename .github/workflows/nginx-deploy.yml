@@ -89,15 +89,15 @@ jobs:
 
           # Validate before touching live config
           nginx -t -c /etc/nginx/nginx.conf 2>&1 || true
-          cp "${SRC}" "${DEST}"
-          nginx -t
+          sudo cp "${SRC}" "${DEST}"
+          sudo nginx -t
 
           if [[ "${DRY_RUN}" == "true" ]]; then
             echo "DRY RUN: config validated OK, skipping reload"
             exit 0
           fi
 
-          nginx -s reload
+          sudo nginx -s reload
           echo "nginx reloaded — ${CONFIG_NAME} is live (sha ${DEPLOY_SHA})"
 
           # Cleanup tmp
