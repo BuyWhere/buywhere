@@ -37,6 +37,44 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p "${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}" -H "${{ secrets.PRODUCTION_DEPLOY_HOST }}" >> ~/.ssh/known_hosts
 
+      - name: Diagnose VM state
+        env:
+          DEPLOY_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
+          DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+        run: |
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" bash -s << 'ENDSSH'
+            echo "=== nginx config for buywhere.ai ==="
+            cat /etc/nginx/sites-enabled/buywhere.ai 2>/dev/null || cat /etc/nginx/sites-enabled/buywhere.ai.conf 2>/dev/null || echo "FILE NOT FOUND in sites-enabled"
+            echo ""
+            echo "=== sites-enabled listing ==="
+            ls -la /etc/nginx/sites-enabled/ 2>/dev/null || echo "N/A"
+            echo ""
+            echo "=== nginx proxy_cache_path in main conf ==="
+            grep -r "proxy_cache" /etc/nginx/nginx.conf /etc/nginx/conf.d/ 2>/dev/null | head -10 || echo "no proxy_cache in nginx.conf"
+            echo ""
+            echo "=== Port 3000 listeners ==="
+            ss -tlnp 2>/dev/null | grep :3000 || echo "nothing on 3000"
+            echo ""
+            echo "=== next/node processes ==="
+            pgrep -a -f "next\|node.*3000" 2>/dev/null | head -5 || echo "no next/node processes"
+            echo ""
+            echo "=== pm2 list ==="
+            pm2 list 2>/dev/null || echo "pm2 not found"
+            echo ""
+            echo "=== systemd site services ==="
+            systemctl list-units --type=service 2>/dev/null | grep -iE "buywhere|next|site" || echo "no matching systemd services"
+            echo ""
+            echo "=== find next.config anywhere ==="
+            find / -maxdepth 6 -name "next.config*" 2>/dev/null | grep -v proc | head -10 || echo "none"
+            echo ""
+            echo "=== nginx cache dir ==="
+            ls -lah /var/cache/nginx/ 2>/dev/null | head -10 || echo "no /var/cache/nginx"
+            echo ""
+            echo "=== whoami / home ==="
+            whoami && echo "HOME=$HOME" && ls "$HOME/" | head -10
+          ENDSSH
+
       - name: Pull, build, restart
         env:
           DEPLOY_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
@@ -48,9 +86,10 @@ jobs:
             set -euo pipefail
             echo "=== BuyWhere Next.js site VM deploy starting ==="
 
-            # Find the site directory (same candidates as the Python API deploy)
+            # Find the site directory — broad search including home dirs
             SITE_DIR=""
-            for candidate in /srv/buywhere /srv/buywhere-site /opt/buywhere /home/ubuntu/buywhere /home/buywhere; do
+            DEPLOY_HOME=$(eval echo ~"$(whoami)")
+            for candidate in /srv/buywhere /srv/buywhere-site /opt/buywhere /home/ubuntu/buywhere /home/buywhere "$DEPLOY_HOME/buywhere" "$DEPLOY_HOME"; do
               if [ -f "$candidate/next.config.mjs" ] || [ -f "$candidate/next.config.js" ]; then
                 SITE_DIR="$candidate"
                 break
@@ -59,6 +98,7 @@ jobs:
 
             if [ -z "$SITE_DIR" ]; then
               echo "ERROR: Could not find next.config.mjs in any candidate directory"
+              echo "Run the 'Diagnose VM state' step output to find the correct path"
               exit 1
             fi
             echo "Site directory: $SITE_DIR"
