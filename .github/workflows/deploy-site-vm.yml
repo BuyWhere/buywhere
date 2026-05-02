@@ -44,35 +44,23 @@ jobs:
           DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
         run: |
           ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" bash -s << 'ENDSSH'
-            echo "=== nginx config for buywhere.ai ==="
-            cat /etc/nginx/sites-enabled/buywhere.ai 2>/dev/null || cat /etc/nginx/sites-enabled/buywhere.ai.conf 2>/dev/null || echo "FILE NOT FOUND in sites-enabled"
-            echo ""
-            echo "=== sites-enabled listing ==="
-            ls -la /etc/nginx/sites-enabled/ 2>/dev/null || echo "N/A"
-            echo ""
-            echo "=== nginx proxy_cache_path in main conf ==="
-            grep -r "proxy_cache" /etc/nginx/nginx.conf /etc/nginx/conf.d/ 2>/dev/null | head -10 || echo "no proxy_cache in nginx.conf"
-            echo ""
-            echo "=== Port 3000 listeners ==="
-            ss -tlnp 2>/dev/null | grep :3000 || echo "nothing on 3000"
+            echo "=== Port 3006 listeners (nginx proxies buywhere.ai here) ==="
+            ss -tlnp 2>/dev/null | grep :3006 || echo "nothing on 3006"
             echo ""
             echo "=== next/node processes ==="
-            pgrep -a -f "next\|node.*3000" 2>/dev/null | head -5 || echo "no next/node processes"
+            pgrep -a -f "next\|node.*3006\|next start" 2>/dev/null | head -10 || echo "no next/node processes"
             echo ""
             echo "=== pm2 list ==="
             pm2 list 2>/dev/null || echo "pm2 not found"
             echo ""
-            echo "=== systemd site services ==="
-            systemctl list-units --type=service 2>/dev/null | grep -iE "buywhere|next|site" || echo "no matching systemd services"
+            echo "=== buywhere-site dir ==="
+            ls -la "$HOME/buywhere-site/" 2>/dev/null | head -10 || echo "no ~/buywhere-site"
             echo ""
-            echo "=== find next.config anywhere ==="
-            find / -maxdepth 6 -name "next.config*" 2>/dev/null | grep -v proc | head -10 || echo "none"
+            echo "=== buywhere-site git status ==="
+            git -C "$HOME/buywhere-site" log --oneline -3 2>/dev/null || echo "not a git repo or not found"
             echo ""
-            echo "=== nginx cache dir ==="
-            ls -lah /var/cache/nginx/ 2>/dev/null | head -10 || echo "no /var/cache/nginx"
-            echo ""
-            echo "=== whoami / home ==="
-            whoami && echo "HOME=$HOME" && ls "$HOME/" | head -10
+            echo "=== /tmp/main-site git status ==="
+            git -C /tmp/main-site log --oneline -3 2>/dev/null || echo "not found"
           ENDSSH
 
       - name: Pull, build, restart
@@ -86,10 +74,12 @@ jobs:
             set -euo pipefail
             echo "=== BuyWhere Next.js site VM deploy starting ==="
 
-            # Find the site directory — broad search including home dirs
+            # Find the site directory.
+            # Diagnostic run confirmed: buywhere-site is at $HOME/buywhere-site
+            # (proxy_pass http://127.0.0.1:3006 in the live nginx config)
             SITE_DIR=""
-            DEPLOY_HOME=$(eval echo ~"$(whoami)")
-            for candidate in /srv/buywhere /srv/buywhere-site /opt/buywhere /home/ubuntu/buywhere /home/buywhere "$DEPLOY_HOME/buywhere" "$DEPLOY_HOME"; do
+            DEPLOY_HOME="$HOME"
+            for candidate in "$DEPLOY_HOME/buywhere-site" "$DEPLOY_HOME/buywhere-api" /tmp/main-site /srv/buywhere /srv/buywhere-site /opt/buywhere; do
               if [ -f "$candidate/next.config.mjs" ] || [ -f "$candidate/next.config.js" ]; then
                 SITE_DIR="$candidate"
                 break
@@ -98,7 +88,6 @@ jobs:
 
             if [ -z "$SITE_DIR" ]; then
               echo "ERROR: Could not find next.config.mjs in any candidate directory"
-              echo "Run the 'Diagnose VM state' step output to find the correct path"
               exit 1
             fi
             echo "Site directory: $SITE_DIR"
