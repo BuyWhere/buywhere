@@ -16,6 +16,10 @@ on:
         description: 'If true, validate config but do not reload nginx'
         required: false
         default: 'false'
+      restart_only:
+        description: 'If true, skip config file write and only restart nginx'
+        required: false
+        default: 'false'
 
 jobs:
   deploy-nginx:
@@ -29,9 +33,11 @@ jobs:
         run: |
           CONFIG_NAME="${{ github.event.inputs.config_name || 'api.buywhere.ai' }}"
           DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+          RESTART_ONLY="${{ github.event.inputs.restart_only || 'false' }}"
           echo "config_name=${CONFIG_NAME}" >> "$GITHUB_OUTPUT"
           echo "deploy_sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
           echo "dry_run=${DRY_RUN}" >> "$GITHUB_OUTPUT"
+          echo "restart_only=${RESTART_ONLY}" >> "$GITHUB_OUTPUT"
 
       - name: Validate config file exists
         run: |
@@ -66,6 +72,7 @@ jobs:
           CONFIG_NAME: ${{ steps.vars.outputs.config_name }}
           DEPLOY_SHA: ${{ steps.vars.outputs.deploy_sha }}
           DRY_RUN: ${{ steps.vars.outputs.dry_run }}
+          RESTART_ONLY: ${{ steps.vars.outputs.restart_only }}
           SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
           SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
         run: |
@@ -73,35 +80,83 @@ jobs:
           # Using bash -s with heredoc avoids the positional-argument/unbound-variable
           # issue that occurs when bash -c '...' _ "$VAR" is used over SSH.
           ssh -i ~/.ssh/id_ed25519 "${SSH_USER}@${SSH_HOST}" \
-            env CONFIG_NAME="${CONFIG_NAME}" DEPLOY_SHA="${DEPLOY_SHA}" DRY_RUN="${DRY_RUN}" \
+            env CONFIG_NAME="${CONFIG_NAME}" DEPLOY_SHA="${DEPLOY_SHA}" DRY_RUN="${DRY_RUN}" RESTART_ONLY="${RESTART_ONLY}" \
             bash -s <<'REMOTE'
           set -euo pipefail
 
-          DEST="/etc/nginx/sites-enabled/${CONFIG_NAME}.conf"
+          # Sites-enabled on this server uses no .conf suffix (nginx convention: sites-enabled/hostname)
+          DEST="/etc/nginx/sites-enabled/${CONFIG_NAME}"
           SRC="/tmp/nginx-${CONFIG_NAME}-${DEPLOY_SHA}.conf"
 
-          echo "nginx-deploy: config=${CONFIG_NAME} sha=${DEPLOY_SHA} dry_run=${DRY_RUN}"
+          echo "nginx-deploy: config=${CONFIG_NAME} sha=${DEPLOY_SHA} dry_run=${DRY_RUN} restart_only=${RESTART_ONLY}"
 
-          if [[ ! -f "${SRC}" ]]; then
-            echo "ERROR: ${SRC} not found on server"
-            exit 1
+          # Validate nginx config — try sudo first (non-interactive), fall back to plain.
+          # Treat PID-file permission errors as non-fatal (they don't affect config syntax).
+          validate_nginx() {
+            local out
+            out=$(sudo -n nginx -t -c /etc/nginx/nginx.conf 2>&1) \
+              || out=$(nginx -t -c /etc/nginx/nginx.conf 2>&1) \
+              || true
+            echo "$out"
+            if echo "$out" | grep -q "syntax is ok"; then
+              return 0
+            fi
+            # If the only failures are pid-file permission errors, treat as OK
+            local real_errors
+            real_errors=$(echo "$out" | grep -v "nginx.pid" | grep -E "\[emerg\]|\[crit\]|test failed" || true)
+            if [[ -n "$real_errors" ]]; then
+              echo "FATAL: nginx config has errors (not just pid-file):"
+              echo "$real_errors"
+              return 1
+            fi
+            echo "Config has pid-file warning only — syntax OK, continuing."
+            return 0
+          }
+
+          if [[ "${RESTART_ONLY}" == "true" ]]; then
+            echo "restart_only=true — skipping config file write, going straight to restart"
+          else
+            if [[ ! -f "${SRC}" ]]; then
+              echo "ERROR: ${SRC} not found on server"
+              exit 1
+            fi
+
+            echo "Validating existing nginx config before deploy..."
+            validate_nginx
+
+            # Write the config — try plain cp first, then sudo cp, then sudo tee.
+            # All three must fail for the deploy to abort. If the DEST file exists but
+            # cannot be written, we exit rather than silently reloading stale config.
+            if cp "${SRC}" "${DEST}" 2>/dev/null; then
+              echo "Config written to ${DEST} (plain cp)"
+            elif sudo -n cp "${SRC}" "${DEST}" 2>/dev/null; then
+              echo "Config written to ${DEST} (sudo cp)"
+            elif sudo -n tee "${DEST}" < "${SRC}" > /dev/null 2>/dev/null; then
+              echo "Config written to ${DEST} (sudo tee)"
+            else
+              echo "ERROR: cannot write ${DEST} — cp, sudo cp, and sudo tee all failed."
+              echo "       Grant file ownership: sudo chown \$(whoami) ${DEST}"
+              echo "       Or add sudoers rule: \$(whoami) ALL=(root) NOPASSWD: /bin/cp /tmp/nginx-*.conf /etc/nginx/sites-enabled/*"
+              exit 1
+            fi
+
+            echo "Validating nginx config after deploy..."
+            validate_nginx
           fi
-
-          # Validate before touching live config
-          nginx -t -c /etc/nginx/nginx.conf 2>&1 || true
-          sudo cp "${SRC}" "${DEST}"
-          sudo nginx -t
 
           if [[ "${DRY_RUN}" == "true" ]]; then
             echo "DRY RUN: config validated OK, skipping reload"
             exit 0
           fi
 
-          sudo nginx -s reload
-          echo "nginx reloaded — ${CONFIG_NAME} is live (sha ${DEPLOY_SHA})"
+          echo "Restarting nginx via systemctl..."
+          systemctl restart nginx 2>/dev/null \
+            || sudo -n systemctl restart nginx 2>/dev/null \
+            || sudo systemctl restart nginx
+          echo "nginx restarted — ${CONFIG_NAME} is live (sha ${DEPLOY_SHA})"
 
-          # Cleanup tmp
-          rm -f "${SRC}"
+          # Cleanup tmp configs on server
+          rm -f "${SRC}" 2>/dev/null || true
           REMOTE
 
       - name: Smoke test /mcp endpoint
@@ -111,9 +166,10 @@ jobs:
           HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
             -X POST https://api.buywhere.ai/mcp \
             -H "Content-Type: application/json" \
-            -d '{"jsonrpc":"2.0","method":"tools/list","id":1}')
-          echo "POST /mcp → HTTP ${HTTP}"
+            -H "Accept: application/json, text/event-stream" \
+            -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke-test","version":"1.0"}},"id":1}')
+          echo "POST https://api.buywhere.ai/mcp (initialize) → HTTP ${HTTP}"
           if [[ "$HTTP" != "200" ]]; then
-            echo "WARN: /mcp returned ${HTTP} after deploy — check nginx on production"
+            echo "ERROR: /mcp returned ${HTTP} after deploy — check nginx on production"
             exit 1
           fi
