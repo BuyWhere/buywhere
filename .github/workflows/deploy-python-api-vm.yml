@@ -37,8 +37,9 @@ jobs:
           DEPLOY_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
           DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
           BRANCH: ${{ inputs.branch || 'release' }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "BRANCH=$BRANCH bash -s" << 'ENDSSH'
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "BRANCH=$BRANCH GH_TOKEN=$GH_TOKEN bash -s" << 'ENDSSH'
             set -euo pipefail
             echo "=== BuyWhere Python API deploy starting ==="
 
@@ -52,8 +53,15 @@ jobs:
             done
 
             if [ -z "$APP_DIR" ]; then
-              echo "ERROR: Could not find app/main.py in any candidate directory"
-              exit 1
+              echo "No existing checkout found — cloning repo to /tmp/buywhere-release"
+              rm -rf /tmp/buywhere-release
+              git clone --depth 1 --branch "$BRANCH" "https://x-access-token:${GH_TOKEN}@github.com/BuyWhere/buywhere.git" /tmp/buywhere-release
+              if [ -f "/tmp/buywhere-release/app/main.py" ]; then
+                APP_DIR="/tmp/buywhere-release"
+              else
+                echo "ERROR: Cloned repo does not contain app/main.py on branch $BRANCH"
+                exit 1
+              fi
             fi
             echo "App directory: $APP_DIR"
 
