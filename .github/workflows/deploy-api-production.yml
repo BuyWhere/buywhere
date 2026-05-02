@@ -99,7 +99,9 @@ jobs:
             NETLABEL=$(docker network inspect "${NET}" --format '{{index .Labels "com.docker.compose.network"}}' 2>/dev/null || true)
             if [ -z "${NETLABEL}" ]; then
               echo "Network ${NET} missing compose labels — performing full stack restart to fix"
-              docker compose down --remove-orphans || true
+              docker compose down --remove-orphans 2>/dev/null || true
+              # Force-remove any containers that may still be running (orphans not in compose file)
+              docker ps -a --filter "name=${PROJ}-" --format "{{.Names}}" | xargs -r docker rm -f 2>/dev/null || true
               docker network rm "${NET}" 2>/dev/null || true
               docker compose up -d
               echo "Full stack restarted — skipping targeted api restart"
