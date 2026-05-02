@@ -109,11 +109,17 @@ jobs:
               echo "Full stack restarted — skipping targeted api restart"
               # Jump straight to health check
               echo "API container restarted — waiting for health check..."
-              sleep 10
-              HTTP=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health)
-              echo "GET /health → HTTP ${HTTP}"
+              sleep 15
+              HTTP="000"
+              for i in 1 2 3 4 5 6; do
+                HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 http://localhost:8000/health 2>/dev/null || echo "000")
+                echo "GET /health (attempt ${i}) → HTTP ${HTTP}"
+                if [[ "$HTTP" == "200" ]]; then break; fi
+                sleep 5
+              done
               if [[ "$HTTP" != "200" ]]; then
-                echo "ERROR: API health check failed with ${HTTP}"
+                echo "ERROR: API health check failed after retries (last HTTP ${HTTP})"
+                docker logs buywhere-api-1 --tail 50 2>/dev/null || true
                 exit 1
               fi
               echo "API healthy (${IMAGE_TAG})"
@@ -128,13 +134,19 @@ jobs:
           docker compose up -d --no-deps api
 
           echo "API container restarted — waiting for health check..."
-          sleep 5
+          sleep 10
 
-          # Verify health
-          HTTP=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health)
-          echo "GET /health → HTTP ${HTTP}"
+          # Verify health with retry (API may take time to initialize DB/Redis connections)
+          HTTP="000"
+          for i in 1 2 3 4 5 6; do
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 http://localhost:8000/health 2>/dev/null || echo "000")
+            echo "GET /health (attempt ${i}) → HTTP ${HTTP}"
+            if [[ "$HTTP" == "200" ]]; then break; fi
+            sleep 5
+          done
           if [[ "$HTTP" != "200" ]]; then
-            echo "ERROR: API health check failed with ${HTTP}"
+            echo "ERROR: API health check failed after retries (last HTTP ${HTTP})"
+            docker logs buywhere-api-1 --tail 50 2>/dev/null || true
             exit 1
           fi
           echo "API healthy (${IMAGE_TAG})"
