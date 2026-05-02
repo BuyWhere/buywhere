@@ -144,8 +144,17 @@ jobs:
             # Diagnostic confirmed: runs as nohup, NOT systemd (service not installed yet).
             # PID is stored in .runtime/buywhere-site.pid.
             echo "=== restarting nohup site process ==="
+            mkdir -p "$SITE_DIR/.runtime"
             PID_FILE="$SITE_DIR/.runtime/buywhere-site.pid"
-            # Kill by PID file first, then by port to handle stale PID files
+            LOG_FILE="$SITE_DIR/.runtime/buywhere-site.log"
+            ENTRY="$SITE_DIR/.next-fresh/standalone/server.js"
+
+            if [ ! -f "$ENTRY" ]; then
+              echo "ERROR: standalone server.js not found at $ENTRY after build"
+              exit 1
+            fi
+
+            # Kill old process by PID file (ignore failures — stale PIDs are normal)
             if [ -f "$PID_FILE" ]; then
               OLD_PID=$(cat "$PID_FILE" 2>/dev/null || echo "")
               if [ -n "$OLD_PID" ]; then
@@ -153,84 +162,61 @@ jobs:
                 kill "$OLD_PID" 2>/dev/null && echo "Killed PID $OLD_PID" || echo "Process $OLD_PID already gone"
               fi
             fi
-            # Force-kill anything on port 3006 by process inspection
-            # lsof/fuser may not see root-owned procs; grep ps directly
-            PORT_PID=$(lsof -t -i:3006 2>/dev/null || fuser 3006/tcp 2>/dev/null || \
-              ps aux | grep -E "node.*/server\.js|next.*start" | grep -v grep | awk '{print $2}' | head -5)
+            # Kill anything visible on port 3006 (|| true prevents set -e if none found)
+            PORT_PID=$(lsof -t -i:3006 2>/dev/null || fuser 3006/tcp 2>/dev/null || true)
             if [ -n "$PORT_PID" ]; then
               echo "Force-killing PID(s) on port 3006: $PORT_PID"
               for P in $PORT_PID; do kill "$P" 2>/dev/null || true; done
+              sleep 2
+            fi
+
+            # Attempt to start the new process on port 3006.
+            # If port is held by a root-owned process we can't see/kill, the process
+            # will fail to bind and exit within a few seconds — we detect that and
+            # fall back to the nginx port-swap path.
+            echo "Starting new process on port 3006"
+            env NODE_ENV=production PORT=3006 HOSTNAME=127.0.0.1 nohup node "$ENTRY" > "$LOG_FILE" 2>&1 &
+            NEW_PID=$!
+            echo "$NEW_PID" > "$PID_FILE"
+            echo "Started PID=$NEW_PID"
+            sleep 6
+
+            if kill -0 "$NEW_PID" 2>/dev/null; then
+              echo "Process $NEW_PID is running on port 3006"
+              curl -sf http://127.0.0.1:3006/ -o /dev/null && echo "Port 3006 responded OK" || echo "WARN: port 3006 not yet responding (still starting)"
+              echo "=== VM site deploy complete ==="
             else
-              echo "WARN: Cannot identify process on port 3006 — port may be root-owned"
-              echo "Attempting nginx port-swap workaround: start on 3007, reload nginx"
-              # Try starting on an alternate port and swap nginx proxy
+              echo "Process $NEW_PID died — port 3006 may be root-owned. Trying nginx port-swap to 3007."
+              tail -20 "$LOG_FILE" || true
+
               NGINX_SITE=""
               for f in /etc/nginx/sites-enabled/buywhere.ai /etc/nginx/sites-available/buywhere.ai \
                         /etc/nginx/conf.d/buywhere.ai.conf; do
                 [ -f "$f" ] && NGINX_SITE="$f" && break
               done
-              if [ -n "$NGINX_SITE" ]; then
-                SWAP_PORT=3007
-                echo "Starting new process on port $SWAP_PORT"
-                ENTRY_SWAP="$SITE_DIR/.next-fresh/standalone/server.js"
-                LOG_FILE_SWAP="$SITE_DIR/.runtime/buywhere-site.log"
-                mkdir -p "$SITE_DIR/.runtime"
-                env NODE_ENV=production PORT=$SWAP_PORT HOSTNAME=127.0.0.1 nohup node "$ENTRY_SWAP" > "$LOG_FILE_SWAP" 2>&1 &
-                SWAP_PID=$!
-                echo $SWAP_PID > "$SITE_DIR/.runtime/buywhere-site.pid"
-                sleep 4
-                if kill -0 "$SWAP_PID" 2>/dev/null; then
-                  echo "Process $SWAP_PID running on $SWAP_PORT — updating nginx proxy_pass"
-                  sudo sed -i "s|proxy_pass http://127\.0\.0\.1:[0-9]\+|proxy_pass http://127.0.0.1:$SWAP_PORT|g" "$NGINX_SITE"
-                  sudo /usr/bin/systemctl reload nginx && echo "nginx reloaded to port $SWAP_PORT"
-                  exit 0
-                else
-                  echo "ERROR: swap process also failed"
-                fi
+
+              if [ -z "$NGINX_SITE" ]; then
+                echo "ERROR: no nginx site config found. Deploy user cannot kill root-owned process on 3006. Escalate to Ops."
+                exit 1
               fi
-              echo "Port swap failed — deploy user cannot kill root-owned process. Escalate to Ops."
-              exit 1
-            fi
-            sleep 2
 
-            # Read start env from service file if it exists (for PORT, HOSTNAME, etc.)
-            SERVICE_FILE="$SITE_DIR/deploy/buywhere-site.service"
-            START_ENV="PORT=3006 HOSTNAME=127.0.0.1"
-            if [ -f "$SERVICE_FILE" ]; then
-              # Extract Environment= lines from systemd unit
-              EXTRA=$(grep "^Environment=" "$SERVICE_FILE" 2>/dev/null | sed 's/^Environment=//' | tr '\n' ' ')
-              if [ -n "$EXTRA" ]; then
-                START_ENV="$EXTRA"
+              SWAP_PORT=3007
+              echo "Starting new process on port $SWAP_PORT"
+              env NODE_ENV=production PORT=$SWAP_PORT HOSTNAME=127.0.0.1 nohup node "$ENTRY" >> "$LOG_FILE" 2>&1 &
+              SWAP_PID=$!
+              echo "$SWAP_PID" > "$PID_FILE"
+              sleep 5
+              if kill -0 "$SWAP_PID" 2>/dev/null; then
+                echo "Process $SWAP_PID running on $SWAP_PORT — updating nginx proxy_pass"
+                sudo sed -i "s|proxy_pass http://127\.0\.0\.1:[0-9]\+|proxy_pass http://127.0.0.1:$SWAP_PORT|g" "$NGINX_SITE"
+                sudo /usr/bin/systemctl reload nginx && echo "nginx reloaded to proxy port $SWAP_PORT"
+                echo "=== VM site deploy complete (port-swapped to $SWAP_PORT) ==="
+              else
+                echo "ERROR: swap process also failed on port $SWAP_PORT. Last log:"
+                tail -20 "$LOG_FILE" || true
+                exit 1
               fi
-              echo "Using env from service file: $START_ENV"
             fi
-
-            mkdir -p "$SITE_DIR/.runtime"
-            LOG_FILE="$SITE_DIR/.runtime/buywhere-site.log"
-            ENTRY="$SITE_DIR/.next-fresh/standalone/server.js"
-            if [ ! -f "$ENTRY" ]; then
-              echo "ERROR: standalone server.js not found at $ENTRY after build"
-              exit 1
-            fi
-
-            # Start new nohup process
-            env $START_ENV nohup node "$ENTRY" > "$LOG_FILE" 2>&1 &
-            NEW_PID=$!
-            echo $NEW_PID > "$PID_FILE"
-            echo "Started new process PID=$NEW_PID"
-            sleep 5
-
-            # Verify new process is running
-            if kill -0 "$NEW_PID" 2>/dev/null; then
-              echo "Process $NEW_PID is running"
-              curl -sf http://127.0.0.1:3006/ -o /dev/null && echo "Port 3006 responded OK" || echo "WARN: port 3006 not yet responding"
-            else
-              echo "ERROR: Process $NEW_PID died. Last log lines:"
-              tail -20 "$LOG_FILE" || true
-              exit 1
-            fi
-
-            echo "=== VM site deploy complete ==="
           ENDSSH
 
       - name: Smoke test buywhere.ai/openapi.json
