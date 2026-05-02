@@ -145,3 +145,45 @@ export async function shutdownPostHog(): Promise<void> {
     await client.shutdown();
   }
 }
+
+export interface ProductSearchEvent {
+  apiKey: string;
+  queryText: string;
+  resultCount: number;
+  responseTimeMs: number;
+}
+
+export function trackProductSearch(event: ProductSearchEvent): void {
+  const ph = getClient();
+  if (!ph) return;
+  ph.capture({
+    distinctId: event.apiKey,
+    event: 'product_search',
+    properties: {
+      query_text: event.queryText,
+      result_count: event.resultCount,
+      response_time_ms: event.responseTimeMs,
+    },
+  });
+}
+
+export interface ProductViewEvent {
+  apiKey: string;
+  productId: string;
+  retailer: string;
+  category: string | null;
+}
+
+export function trackProductView(event: ProductViewEvent): void {
+  const ph = getClient();
+  if (!ph) return;
+  ph.capture({
+    distinctId: event.apiKey,
+    event: 'product_view',
+    properties: {
+      product_id: event.productId,
+      retailer: event.retailer,
+      category: event.category,
+    },
+  });
+}
