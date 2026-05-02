@@ -107,21 +107,29 @@ jobs:
             echo "HEAD: $(git log --oneline -1)"
             echo "route.ts content: $(head -5 src/app/openapi.json/route.ts)"
 
-            # Pre-build cleanup: remove old standalone output that has root-owned files
-            # (previous root build left files we can't unlink via Next.js's own cleanup)
-            echo "=== pre-build cleanup of standalone output ==="
-            STANDALONE="$SITE_DIR/.next-deploy/standalone/.next-deploy"
-            if [ -d "$STANDALONE" ]; then
-              rm -rf "$STANDALONE" 2>/dev/null && echo "Removed $STANDALONE" || {
-                echo "WARNING: rm -rf $STANDALONE failed — trying targeted cleanup"
-                # Try to make individual dirs/files writable before deletion
-                find "$STANDALONE" -type d -exec chmod u+w {} \; 2>/dev/null || true
-                rm -rf "$STANDALONE" 2>/dev/null && echo "Removed after chmod" || echo "WARN: cleanup incomplete, build may fail"
-              }
-            fi
+            # Build into .next-fresh to avoid the root-owned files in .next-deploy/standalone/
+            # The .next-deploy directory has root-owned files from a previous root build
+            # that the deploy user cannot remove, causing Next.js's cleanup to fail.
+            # Workaround: override distDir to .next-fresh (a new directory) for this build,
+            # then restart the server from .next-fresh/standalone/server.js.
+            echo "=== temporarily overriding distDir to .next-fresh ==="
+            cp next.config.mjs next.config.mjs.bak
+            python3 - << 'PYEOF'
+import re, sys
+with open('next.config.mjs', 'r') as f:
+    content = f.read()
+# Replace distDir value
+updated = re.sub(r"distDir:\s*['\"][^'\"]*['\"]", "distDir: '.next-fresh'", content)
+if 'distDir' not in updated:
+    updated = content.replace('output:', "distDir: '.next-fresh',\n  output:")
+with open('next.config.mjs', 'w') as f:
+    f.write(updated)
+print("next.config.mjs patched")
+PYEOF
+            grep "distDir" next.config.mjs
 
             # Build Next.js — required to compile the updated route handler
-            echo "=== npm run build ==="
+            echo "=== npm run build (into .next-fresh) ==="
             if command -v npm &>/dev/null; then
               npm ci --prefer-offline 2>/dev/null || npm install
               npm run build
@@ -130,9 +138,13 @@ jobs:
               pnpm run build
             else
               echo "ERROR: neither npm nor pnpm found"
+              cp next.config.mjs.bak next.config.mjs  # restore on error
               exit 1
             fi
-            echo "Build complete: HEAD=$(git log --oneline -1)"
+
+            # Restore original next.config.mjs (keep .next-fresh for runtime, restore config for future builds)
+            cp next.config.mjs.bak next.config.mjs
+            echo "Build complete into .next-fresh: HEAD=$(git log --oneline -1)"
 
             # Restart the site process.
             # Diagnostic confirmed: runs as nohup, NOT systemd (service not installed yet).
@@ -162,7 +174,7 @@ jobs:
 
             mkdir -p "$SITE_DIR/.runtime"
             LOG_FILE="$SITE_DIR/.runtime/buywhere-site.log"
-            ENTRY="$SITE_DIR/.next-deploy/standalone/server.js"
+            ENTRY="$SITE_DIR/.next-fresh/standalone/server.js"
             if [ ! -f "$ENTRY" ]; then
               echo "ERROR: standalone server.js not found at $ENTRY after build"
               exit 1
