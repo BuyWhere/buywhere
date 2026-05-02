@@ -102,6 +102,8 @@ jobs:
               docker compose down --remove-orphans 2>/dev/null || true
               # Force-remove any containers that may still be running (orphans not in compose file)
               docker ps -a --filter "name=${PROJ}-" --format "{{.Names}}" | xargs -r docker rm -f 2>/dev/null || true
+              # Also free any container holding port 8000 (may have a different name)
+              docker ps -q --filter "publish=8000" | xargs -r docker rm -f 2>/dev/null || true
               docker network rm "${NET}" 2>/dev/null || true
               docker compose up -d
               echo "Full stack restarted — skipping targeted api restart"
