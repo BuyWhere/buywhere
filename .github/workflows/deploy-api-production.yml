@@ -121,6 +121,9 @@ jobs:
             fi
           fi
 
+          # Free port 8000 if occupied by a stale/mismatched container
+          docker ps -q --filter "publish=8000" | xargs -r docker rm -f 2>/dev/null || true
+
           # Restart only the api service (zero-downtime: compose will replace container)
           docker compose up -d --no-deps api
 
