@@ -153,11 +153,43 @@ jobs:
                 kill "$OLD_PID" 2>/dev/null && echo "Killed PID $OLD_PID" || echo "Process $OLD_PID already gone"
               fi
             fi
-            # Force-kill anything still on port 3006 (handles stale PID files)
-            PORT_PID=$(lsof -t -i:3006 2>/dev/null || fuser 3006/tcp 2>/dev/null || echo "")
+            # Force-kill anything on port 3006 by process inspection
+            # lsof/fuser may not see root-owned procs; grep ps directly
+            PORT_PID=$(lsof -t -i:3006 2>/dev/null || fuser 3006/tcp 2>/dev/null || \
+              ps aux | grep -E "node.*/server\.js|next.*start" | grep -v grep | awk '{print $2}' | head -5)
             if [ -n "$PORT_PID" ]; then
               echo "Force-killing PID(s) on port 3006: $PORT_PID"
-              kill $PORT_PID 2>/dev/null || true
+              for P in $PORT_PID; do kill "$P" 2>/dev/null || true; done
+            else
+              echo "WARN: Cannot identify process on port 3006 — port may be root-owned"
+              echo "Attempting nginx port-swap workaround: start on 3007, reload nginx"
+              # Try starting on an alternate port and swap nginx proxy
+              NGINX_SITE=""
+              for f in /etc/nginx/sites-enabled/buywhere.ai /etc/nginx/sites-available/buywhere.ai \
+                        /etc/nginx/conf.d/buywhere.ai.conf; do
+                [ -f "$f" ] && NGINX_SITE="$f" && break
+              done
+              if [ -n "$NGINX_SITE" ]; then
+                SWAP_PORT=3007
+                echo "Starting new process on port $SWAP_PORT"
+                ENTRY_SWAP="$SITE_DIR/.next-fresh/standalone/server.js"
+                LOG_FILE_SWAP="$SITE_DIR/.runtime/buywhere-site.log"
+                mkdir -p "$SITE_DIR/.runtime"
+                env NODE_ENV=production PORT=$SWAP_PORT HOSTNAME=127.0.0.1 nohup node "$ENTRY_SWAP" > "$LOG_FILE_SWAP" 2>&1 &
+                SWAP_PID=$!
+                echo $SWAP_PID > "$SITE_DIR/.runtime/buywhere-site.pid"
+                sleep 4
+                if kill -0 "$SWAP_PID" 2>/dev/null; then
+                  echo "Process $SWAP_PID running on $SWAP_PORT — updating nginx proxy_pass"
+                  sudo sed -i "s|proxy_pass http://127\.0\.0\.1:[0-9]\+|proxy_pass http://127.0.0.1:$SWAP_PORT|g" "$NGINX_SITE"
+                  sudo /usr/bin/systemctl reload nginx && echo "nginx reloaded to port $SWAP_PORT"
+                  exit 0
+                else
+                  echo "ERROR: swap process also failed"
+                fi
+              fi
+              echo "Port swap failed — deploy user cannot kill root-owned process. Escalate to Ops."
+              exit 1
             fi
             sleep 2
 
