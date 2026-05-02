@@ -94,12 +94,16 @@ jobs:
 
             cd "$SITE_DIR"
 
-            # Pull latest code
-            echo "=== git pull origin $BRANCH ==="
+            # Update to latest origin — force-sync to handle diverged local changes.
+            # The VM's local main has modifications to src/app/openapi.json/route.ts
+            # (and others) that diverge from origin. We hard-reset to get the
+            # BUY-7473 fix (308 redirect) deployed. Local changes are discarded.
+            echo "=== git fetch + reset --hard origin/$BRANCH ==="
             git fetch origin
-            git checkout "$BRANCH"
-            git pull origin "$BRANCH"
+            git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "origin/$BRANCH"
+            git reset --hard "origin/$BRANCH"
             echo "HEAD: $(git log --oneline -1)"
+            echo "route.ts content: $(head -5 src/app/openapi.json/route.ts)"
 
             # Build Next.js — required to compile the updated route handler
             echo "=== npm run build ==="
