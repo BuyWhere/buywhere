@@ -374,6 +374,7 @@ async def v1_product_search(
     price_max: Optional[Decimal] = Query(None, ge=0, description="Maximum price filter"),
     platform: Optional[str] = Query(None, max_length=100, description="Filter by platform/source"),
     country: Optional[str] = Query(None, max_length=2, description="Filter by country code (e.g., SG, US, VN)"),
+    country_code: Optional[str] = Query(None, max_length=2, description="Alias for country"),
     sort_by: Optional[str] = Query(None, description="Sort order: relevance, price_asc, price_desc, newest"),
     limit: int = Query(20, ge=1, le=100, description="Results per page (1-100)"),
     offset: int = Query(0, ge=0, le=10000, description="Pagination offset (0-10000)"),
@@ -383,6 +384,9 @@ async def v1_product_search(
     api_key: ApiKey = Depends(get_current_api_key),
 ) -> ProductListResponse:
     request.state.api_key = api_key
+
+    if country_code:
+        country = country_code
 
     if q and len(q) > 500:
         raise HTTPException(
