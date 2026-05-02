@@ -1,0 +1,155 @@
+name: Deploy Next.js Site to Production VM
+
+# Deploys the Next.js site to the production VM where the live nginx
+# for buywhere.ai proxies to a local Next.js process (localhost:3000).
+# This is separate from the Cloud Run deploy (deploy-site-production.yml)
+# which targets the buywhere-site-production Cloud Run service used once
+# the buywhere.ai nginx conf is updated to point at Cloud Run.
+#
+# Use this workflow to update the locally-running Next.js site until the
+# nginx config deployment permission issue is resolved.
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to deploy (default: main)'
+        required: false
+        default: 'main'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy Next.js site to VM
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PRODUCTION_DEPLOY_SSH_KEY }}
+
+      - name: Trust production host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}" -H "${{ secrets.PRODUCTION_DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Pull, build, restart
+        env:
+          DEPLOY_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
+          DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+          BRANCH: ${{ inputs.branch || 'main' }}
+        run: |
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "BRANCH=$BRANCH bash -s" << 'ENDSSH'
+            set -euo pipefail
+            echo "=== BuyWhere Next.js site VM deploy starting ==="
+
+            # Find the site directory (same candidates as the Python API deploy)
+            SITE_DIR=""
+            for candidate in /srv/buywhere /srv/buywhere-site /opt/buywhere /home/ubuntu/buywhere /home/buywhere; do
+              if [ -f "$candidate/next.config.mjs" ] || [ -f "$candidate/next.config.js" ]; then
+                SITE_DIR="$candidate"
+                break
+              fi
+            done
+
+            if [ -z "$SITE_DIR" ]; then
+              echo "ERROR: Could not find next.config.mjs in any candidate directory"
+              exit 1
+            fi
+            echo "Site directory: $SITE_DIR"
+
+            cd "$SITE_DIR"
+
+            # Pull latest code
+            echo "=== git pull origin $BRANCH ==="
+            git fetch origin
+            git checkout "$BRANCH"
+            git pull origin "$BRANCH"
+            echo "HEAD: $(git log --oneline -1)"
+
+            # Build Next.js — required to compile the updated route handler
+            echo "=== npm run build ==="
+            if command -v npm &>/dev/null; then
+              npm ci --prefer-offline 2>/dev/null || npm install
+              npm run build
+            elif command -v pnpm &>/dev/null; then
+              pnpm install --frozen-lockfile
+              pnpm run build
+            else
+              echo "ERROR: neither npm nor pnpm found"
+              exit 1
+            fi
+
+            # Clear Next.js ISR / data cache so the new route is served immediately
+            echo "=== clearing .next/cache ==="
+            rm -rf .next/cache || true
+
+            # Restart the site process
+            echo "=== restarting site process ==="
+            if systemctl list-unit-files 2>/dev/null | grep -qiE 'buywhere-site|next'; then
+              SERVICE=$(systemctl list-units --type=service --all 2>/dev/null | grep -iE 'buywhere-site|next' | awk '{print $1}' | head -1)
+              echo "Restarting systemd service: $SERVICE"
+              systemctl restart "$SERVICE"
+              sleep 3
+              systemctl is-active "$SERVICE" && echo "Service is active" || echo "WARNING: service may not be running"
+            elif command -v pm2 &>/dev/null && pm2 list 2>/dev/null | grep -qiE 'buywhere|next|site'; then
+              PROC=$(pm2 list | grep -iE 'buywhere|next|site' | awk '{print $2}' | head -1)
+              echo "Restarting PM2 process: $PROC"
+              pm2 restart "$PROC"
+              sleep 3
+              pm2 status "$PROC"
+            elif command -v supervisorctl &>/dev/null && supervisorctl status 2>/dev/null | grep -qiE 'buywhere|next'; then
+              PROC=$(supervisorctl status | grep -iE 'buywhere|next' | awk '{print $1}' | head -1)
+              echo "Restarting supervisor process: $PROC"
+              supervisorctl restart "$PROC"
+            else
+              echo "WARNING: Could not detect site service manager — attempting direct process signal"
+              # Try to find and SIGHUP the next process
+              NEXT_PID=$(pgrep -f "next start" | head -1 || true)
+              if [ -n "$NEXT_PID" ]; then
+                echo "Sending SIGTERM to next start (pid $NEXT_PID)"
+                kill -TERM "$NEXT_PID" || true
+              else
+                echo "ERROR: Could not find 'next start' process — restart manually"
+                exit 1
+              fi
+            fi
+
+            echo "=== VM site deploy complete ==="
+          ENDSSH
+
+      - name: Smoke test buywhere.ai/openapi.json
+        run: |
+          echo "Waiting 15s for site to come up..."
+          sleep 15
+          # Follow redirect to verify the chain works end-to-end
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" -L \
+            https://buywhere.ai/openapi.json --max-time 15 || echo "000")
+          REDIRECT=$(curl -s -o /dev/null -w "%{redirect_url}" \
+            https://buywhere.ai/openapi.json --max-time 15 || echo "")
+          echo "GET https://buywhere.ai/openapi.json → HTTP $HTTP (redirect: $REDIRECT)"
+          # Primary check: redirect to canonical
+          DIRECT=$(curl -s -o /dev/null -w "%{http_code}" \
+            https://buywhere.ai/openapi.json --max-time 15 --max-redirs 0 || echo "000")
+          echo "No-follow: HTTP $DIRECT"
+          if [[ "$DIRECT" == "308" ]] || [[ "$DIRECT" == "301" ]] || [[ "$DIRECT" == "302" ]]; then
+            echo "PASS: buywhere.ai/openapi.json correctly redirects (HTTP $DIRECT)"
+          elif [[ "$HTTP" == "200" ]]; then
+            # Verify it's the canonical spec, not the stale .io spec
+            CONTENT=$(curl -s https://buywhere.ai/openapi.json -L --max-time 15 | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('servers',[{}])[0].get('url','UNKNOWN'))" 2>/dev/null || echo "PARSE_ERROR")
+            echo "Final spec server URL: $CONTENT"
+            if echo "$CONTENT" | grep -q "buywhere.ai"; then
+              echo "PASS: resolves to canonical .ai spec"
+            else
+              echo "FAIL: spec still points to $CONTENT"
+              exit 1
+            fi
+          else
+            echo "FAIL: unexpected HTTP $DIRECT / $HTTP"
+            exit 1
+          fi
