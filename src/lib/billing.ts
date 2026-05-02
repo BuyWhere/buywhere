@@ -28,8 +28,8 @@ export const FALLBACK_BILLING_TIERS: BillingTierDefinition[] = [
   },
   {
     name: "pro",
-    price_monthly: 29,
-    currency: "USD",
+    price_monthly: 49,
+    currency: "SGD",
     requests_per_day: 50000,
     description: "Pro plan for production integrations",
   },

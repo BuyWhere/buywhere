@@ -15,13 +15,22 @@ const betaFeatures = [
   "Semantic natural-language search",
   "Price comparison across merchants",
   "Real-time availability data",
-  "Rate-limited API access",
+  "Rate-limited API access (100 req/day)",
+];
+
+const proFeatures = [
+  "Everything in Free",
+  "50,000 API requests per day",
+  "Priority support SLA",
+  "Webhooks and bulk ingestion",
+  "Data retention (30 days)",
+  "SLA guarantee",
 ];
 
 const faqs = [
   {
     q: "Is BuyWhere free during the beta?",
-    a: "Yes. During developer beta, API access is free with rate limits. We want developers building on BuyWhere before we finalize pricing. When we introduce paid tiers, existing beta users will get advance notice and transition support.",
+    a: "Yes. The Free tier gives you full catalog access with rate limits at no cost. When you need production scale, the Pro tier (S$49/mo) is available with 50,000 requests per day. Beta users upgrading to Pro get the same published pricing — no lock-in.",
   },
   {
     q: "What exactly counts as an API query?",
@@ -29,11 +38,11 @@ const faqs = [
   },
   {
     q: "How does BuyWhere make money?",
-    a: "BuyWhere's business model is built around referral fees, merchant partnerships, and demand routing economics. When AI agents use our catalog to match buyers with products, we participate in the commerce economics of that transaction. We are not a subscription API business — we succeed when merchants get qualified demand.",
+    a: "BuyWhere's business model combines subscription API access with referral fees, merchant partnerships, and demand routing economics. The Pro tier (S$49/mo) gives developers production-scale access. When AI agents route buyers to merchants via our catalog, we also participate in the commerce economics of those transactions.",
   },
   {
-    q: "Will there be paid tiers later?",
-    a: "We expect to offer tiered access for high-volume use cases as the platform matures. Pricing details will be shared when they are finalized and aligned with our partners. For now, focus on building — the beta is free.",
+    q: "What is included in the Pro tier?",
+    a: "Pro is S$49/month and includes 50,000 API requests per day, priority support, webhooks, bulk ingestion, and a 30-day data retention window. You can subscribe directly from the billing page once you have an API key.",
   },
   {
     q: "I'm a merchant. Is there a cost to list my catalog?",
@@ -71,36 +80,72 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* Beta plan */}
+      {/* Plans */}
       <section className="py-16 bg-gray-50">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6">
-          <div className="bg-white rounded-2xl border border-indigo-200 shadow-lg shadow-indigo-50 p-8">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="font-bold text-gray-900 text-xl">Developer Beta</h3>
-                <p className="text-gray-500 text-sm">Full catalog access with rate limits</p>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6">
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Free / Beta */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-8">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-xl">Free</h3>
+                  <p className="text-gray-500 text-sm">Full catalog access with rate limits</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-3xl font-bold text-gray-900">Free</span>
+                  <p className="text-gray-400 text-xs">forever</p>
+                </div>
               </div>
-              <div className="text-right">
-                <span className="text-3xl font-bold text-gray-900">Free</span>
-                <p className="text-gray-400 text-xs">during beta</p>
-              </div>
+
+              <ul className="space-y-3 text-sm text-gray-600 mb-8">
+                {betaFeatures.map((f) => (
+                  <li key={f} className="flex items-start gap-2">
+                    <CheckIcon />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+
+              <Link
+                href="/api-keys"
+                className="block w-full text-center py-3 bg-gray-100 text-gray-800 rounded-xl font-semibold hover:bg-gray-200 transition-colors"
+              >
+                Get your API key →
+              </Link>
             </div>
 
-            <ul className="space-y-3 text-sm text-gray-600 mb-8">
-              {betaFeatures.map((f) => (
-                <li key={f} className="flex items-start gap-2">
-                  <CheckIcon />
-                  {f}
-                </li>
-              ))}
-            </ul>
+            {/* Pro */}
+            <div className="bg-white rounded-2xl border border-indigo-200 shadow-lg shadow-indigo-50 p-8 relative">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                <span className="bg-indigo-600 text-white text-xs font-semibold px-3 py-1 rounded-full">Most popular</span>
+              </div>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-xl">Pro</h3>
+                  <p className="text-gray-500 text-sm">Production-scale integrations</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-3xl font-bold text-gray-900">S$49</span>
+                  <p className="text-gray-400 text-xs">per month</p>
+                </div>
+              </div>
 
-            <Link
-              href="/api-keys"
-              className="block w-full text-center py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-colors"
-            >
-              Get your API key →
-            </Link>
+              <ul className="space-y-3 text-sm text-gray-600 mb-8">
+                {proFeatures.map((f) => (
+                  <li key={f} className="flex items-start gap-2">
+                    <CheckIcon />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+
+              <Link
+                href="/checkout?plan=pro"
+                className="block w-full text-center py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-colors"
+              >
+                Subscribe to Pro →
+              </Link>
+            </div>
           </div>
         </div>
       </section>
@@ -112,12 +157,12 @@ export default function PricingPage() {
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-4">For developers</h2>
               <p className="text-gray-600 leading-relaxed mb-4">
-                We expect to offer tiered API access as the platform matures — with free tiers for
-                experimentation and paid tiers for production-scale usage. Details will be shared when
-                pricing is finalized.
+                Start on the Free tier during beta and upgrade to Pro (S$49/mo) when you&rsquo;re
+                ready for production scale. Pro gives you 50,000 requests per day, priority support,
+                webhooks, and bulk ingestion.
               </p>
               <p className="text-gray-500 text-sm">
-                Beta users will get advance notice and fair transition terms.
+                For higher volumes or custom data needs, contact us about enterprise options.
               </p>
             </div>
             <div>
