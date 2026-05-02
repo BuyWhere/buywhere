@@ -51,6 +51,13 @@ jobs:
           docker build -t "$FULL_IMAGE" ./api
           docker push "$FULL_IMAGE"
 
+      - name: Generate Artifact Registry auth token
+        id: gar_token
+        run: |
+          TOKEN=$(gcloud auth print-access-token)
+          echo "::add-mask::${TOKEN}"
+          echo "token=${TOKEN}" >> $GITHUB_OUTPUT
+
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh
@@ -65,12 +72,16 @@ jobs:
           SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
           SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
           APP_DIR: ${{ secrets.PRODUCTION_APP_DIR || '/opt/buywhere' }}
+          GAR_TOKEN: ${{ steps.gar_token.outputs.token }}
         run: |
           ssh -i ~/.ssh/id_ed25519 "${SSH_USER}@${SSH_HOST}" \
-            env FULL_IMAGE="${FULL_IMAGE}" IMAGE_TAG="${IMAGE_TAG}" APP_DIR="${APP_DIR}" \
+            env FULL_IMAGE="${FULL_IMAGE}" IMAGE_TAG="${IMAGE_TAG}" APP_DIR="${APP_DIR}" GAR_TOKEN="${GAR_TOKEN}" \
             bash -s <<'REMOTE'
           set -euo pipefail
           echo "api-deploy: image=${FULL_IMAGE} tag=${IMAGE_TAG}"
+
+          # Authenticate Docker to Artifact Registry using CI-generated token
+          echo "${GAR_TOKEN}" | docker login -u oauth2accesstoken --password-stdin asia-southeast1-docker.pkg.dev
 
           # Pull the new image
           docker pull "${FULL_IMAGE}"
