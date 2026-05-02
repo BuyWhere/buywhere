@@ -45,7 +45,7 @@ jobs:
 
             # Find the app directory
             APP_DIR=""
-            for candidate in /srv/buywhere-api /srv/buywhere /opt/buywhere-api /opt/buywhere /home/ubuntu/buywhere /home/buywhere; do
+            for candidate in /srv/buywhere-api /srv/buywhere /opt/buywhere-api /opt/buywhere /home/ubuntu/buywhere /home/buywhere /tmp/buywhere-release; do
               if [ -f "$candidate/app/main.py" ]; then
                 APP_DIR="$candidate"
                 break
@@ -75,13 +75,21 @@ jobs:
             echo "HEAD: $(git log --oneline -1)"
 
             # Run any pending Alembic migrations
+            # Always prefer venv alembic over system alembic (correct deps + env context).
+            # Use 127.0.0.1 for host-side DB access; container IPs are not reachable from host.
             echo "=== alembic upgrade head ==="
-            if command -v alembic &>/dev/null; then
-              alembic upgrade head
-            elif [ -f ".venv/bin/alembic" ]; then
-              .venv/bin/alembic upgrade head
-            elif [ -f "venv/bin/alembic" ]; then
-              venv/bin/alembic upgrade head
+            ALEMBIC_BIN=""
+            if   [ -f "venv/bin/alembic" ];          then ALEMBIC_BIN="venv/bin/alembic"
+            elif [ -f ".venv/bin/alembic" ];          then ALEMBIC_BIN=".venv/bin/alembic"
+            elif [ -f "${APP_DIR}/venv/bin/alembic" ]; then ALEMBIC_BIN="${APP_DIR}/venv/bin/alembic"
+            elif command -v alembic &>/dev/null;      then ALEMBIC_BIN="alembic"
+            fi
+            if [ -n "$ALEMBIC_BIN" ]; then
+              # Export host-reachable DATABASE_URL; app may override via env, so set it here.
+              export DATABASE_URL="${DATABASE_URL:-postgresql+asyncpg://buywhere:buywhere@127.0.0.1:5432/catalog}"
+              "$ALEMBIC_BIN" upgrade head \
+                && echo "Migrations applied" \
+                || echo "WARNING: alembic migration failed — verify DB connectivity and re-run manually"
             else
               echo "WARNING: alembic not found in PATH or venv — skipping migration"
             fi
@@ -102,6 +110,62 @@ jobs:
               PROC=$(pm2 list | grep -iE 'buywhere|api' | awk '{print $2}' | head -1)
               echo "Restarting PM2 process: $PROC"
               pm2 restart "$PROC"
+            elif command -v docker &>/dev/null && [ -f "${APP_DIR}/Dockerfile" ]; then
+              echo "No service manager found — using Docker-based deploy"
+
+              # Find the container currently bound to port 8000 (the API slot)
+              EXISTING=$(docker ps -q --filter "publish=8000" 2>/dev/null | head -1)
+              [ -z "$EXISTING" ] && EXISTING=$(docker ps -q --filter "name=buywhere-api-api-1" 2>/dev/null | head -1)
+              [ -z "$EXISTING" ] && EXISTING=$(docker ps -q --filter "name=working-api" 2>/dev/null | head -1)
+
+              # Build the Python API image
+              echo "Building Python API image from ${APP_DIR}..."
+              docker build -t buywhere-python-api:deploy "${APP_DIR}" 2>&1 | tail -10
+
+              # Capture run config from existing container (networks, env, restart policy)
+              if [ -n "$EXISTING" ]; then
+                OLD_NAME=$(docker inspect "$EXISTING" --format '{{.Name}}' | sed 's|^/||')
+                docker inspect "$EXISTING" --format '{{json .Config.Env}}' \
+                  | python3 -c "import json,sys; [print(e) for e in json.load(sys.stdin)]" > /tmp/api-env-swap.txt
+                NETS=$(docker inspect "$EXISTING" --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}')
+                RESTART_POL=$(docker inspect "$EXISTING" --format '{{.HostConfig.RestartPolicy.Name}}')
+                [ -z "$RESTART_POL" ] || [ "$RESTART_POL" = "no" ] && RESTART_POL="unless-stopped"
+                docker stop "$EXISTING" || true
+                docker rm "$EXISTING" || true
+              else
+                OLD_NAME="buywhere-api"
+                NETS="buywhere_default"
+                RESTART_POL="unless-stopped"
+                echo "" > /tmp/api-env-swap.txt
+              fi
+
+              # Supplement env from APP_DIR/.env if present
+              if [ -f "${APP_DIR}/.env" ]; then
+                while IFS= read -r line || [ -n "$line" ]; do
+                  [[ "$line" =~ ^[[:space:]]*# ]] && continue
+                  [[ -z "${line// /}" ]] && continue
+                  varname="${line%%=*}"
+                  grep -q "^${varname}=" /tmp/api-env-swap.txt 2>/dev/null || echo "$line" >> /tmp/api-env-swap.txt
+                done < "${APP_DIR}/.env"
+              fi
+
+              NETWORK_FLAGS=""
+              for net in $NETS; do
+                NETWORK_FLAGS="${NETWORK_FLAGS} --network ${net}"
+              done
+              [ -z "${NETWORK_FLAGS// /}" ] && NETWORK_FLAGS="--network buywhere_default"
+
+              echo "Starting Python API container: name=${OLD_NAME} restart=${RESTART_POL}"
+              # shellcheck disable=SC2086
+              docker run -d \
+                --name "$OLD_NAME" \
+                --env-file /tmp/api-env-swap.txt \
+                ${NETWORK_FLAGS} \
+                -p 8000:8000 \
+                --restart "${RESTART_POL}" \
+                buywhere-python-api:deploy
+              rm -f /tmp/api-env-swap.txt
+              echo "Python API container started"
             else
               echo "WARNING: Could not detect service manager — service must be restarted manually"
             fi
