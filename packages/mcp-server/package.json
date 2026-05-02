@@ -1,0 +1,41 @@
+{
+  "name": "@buywhere/mcp-server",
+  "version": "0.1.6",
+  "description": "BuyWhere MCP server — search and compare products from Singapore, SEA, and US markets via Model Context Protocol",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "buywhere-mcp": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "npx tsx src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.9.3",
+    "zod": "^3.25.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "buywhere",
+    "shopping",
+    "products",
+    "price-comparison",
+    "singapore",
+    "sea"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/buywhere/mcp-server"
+  }
+}

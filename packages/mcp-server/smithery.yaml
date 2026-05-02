@@ -1,0 +1,23 @@
+name: buywhere
+displayName: BuyWhere
+description: Search and compare products from Singapore, Southeast Asia, and US markets. Access 500K+ products from Lazada, Shopee, Amazon SG, and more via 5 MCP tools.
+license: MIT
+version: 0.1.6
+homepage: https://buywhere.ai
+repository: https://github.com/buywhere/mcp-server
+
+startCommand:
+  type: stdio
+  configSchema:
+    properties:
+      apiKey:
+        type: string
+        description: BuyWhere API key (get one free at https://buywhere.ai/developers)
+    required:
+      - apiKey
+  commandFunction: |
+    (config) => ({
+      command: "npx",
+      args: ["-y", "@buywhere/mcp-server@latest"],
+      env: { BUYWHERE_API_KEY: config.apiKey }
+    })
