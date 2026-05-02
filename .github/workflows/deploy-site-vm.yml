@@ -44,23 +44,25 @@ jobs:
           DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
         run: |
           ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" bash -s << 'ENDSSH'
-            echo "=== Port 3006 listeners (nginx proxies buywhere.ai here) ==="
+            echo "=== Port 3006 (ss with -p shows pid if owned by current user) ==="
             ss -tlnp 2>/dev/null | grep :3006 || echo "nothing on 3006"
             echo ""
-            echo "=== next/node processes ==="
-            pgrep -a -f "next\|node.*3006\|next start" 2>/dev/null | head -10 || echo "no next/node processes"
+            echo "=== fuser 3006/tcp (shows PID owning port) ==="
+            fuser 3006/tcp 2>/dev/null || echo "fuser failed or no output"
             echo ""
-            echo "=== pm2 list ==="
-            pm2 list 2>/dev/null || echo "pm2 not found"
+            echo "=== ALL systemd services ==="
+            systemctl list-units --type=service --all 2>/dev/null | head -50
             echo ""
-            echo "=== buywhere-site dir ==="
-            ls -la "$HOME/buywhere-site/" 2>/dev/null | head -10 || echo "no ~/buywhere-site"
+            echo "=== BUY-7302 commit (documents runtime/restart path) ==="
+            git -C "$HOME/buywhere-site" show e4d2aaa09 --stat 2>/dev/null || echo "commit not found"
+            git -C "$HOME/buywhere-site" show e4d2aaa09 -- "*.md" 2>/dev/null | head -80 || true
             echo ""
-            echo "=== buywhere-site git status ==="
-            git -C "$HOME/buywhere-site" log --oneline -3 2>/dev/null || echo "not a git repo or not found"
+            echo "=== sudo -n available commands ==="
+            sudo -n -l 2>/dev/null || echo "no passwordless sudo or sudo not available"
             echo ""
-            echo "=== /tmp/main-site git status ==="
-            git -C /tmp/main-site log --oneline -3 2>/dev/null || echo "not found"
+            echo "=== .next-deploy permissions deep ==="
+            ls -la "$HOME/buywhere-site/.next-deploy/" 2>/dev/null | head -5
+            ls -la "$HOME/buywhere-site/.next-deploy/standalone/" 2>/dev/null | head -5
           ENDSSH
 
       - name: Pull, build, restart
