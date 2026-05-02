@@ -91,6 +91,32 @@ jobs:
           # Tag as latest for docker-compose
           docker tag "${FULL_IMAGE}" buywhere-api:latest
 
+          # Fix: if the default compose network exists without proper labels (pre-compose
+          # creation), docker compose up will fail. Detect and fix by doing a full restart.
+          PROJ=$(basename "${APP_DIR}")
+          NET="${PROJ}_default"
+          if docker network inspect "${NET}" >/dev/null 2>&1; then
+            NETLABEL=$(docker network inspect "${NET}" --format '{{index .Labels "com.docker.compose.network"}}' 2>/dev/null || true)
+            if [ -z "${NETLABEL}" ]; then
+              echo "Network ${NET} missing compose labels — performing full stack restart to fix"
+              docker compose down --remove-orphans || true
+              docker network rm "${NET}" 2>/dev/null || true
+              docker compose up -d
+              echo "Full stack restarted — skipping targeted api restart"
+              # Jump straight to health check
+              echo "API container restarted — waiting for health check..."
+              sleep 10
+              HTTP=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health)
+              echo "GET /health → HTTP ${HTTP}"
+              if [[ "$HTTP" != "200" ]]; then
+                echo "ERROR: API health check failed with ${HTTP}"
+                exit 1
+              fi
+              echo "API healthy (${IMAGE_TAG})"
+              exit 0
+            fi
+          fi
+
           # Restart only the api service (zero-downtime: compose will replace container)
           docker compose up -d --no-deps api
 
