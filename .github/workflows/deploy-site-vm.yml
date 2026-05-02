@@ -145,14 +145,21 @@ jobs:
             # PID is stored in .runtime/buywhere-site.pid.
             echo "=== restarting nohup site process ==="
             PID_FILE="$SITE_DIR/.runtime/buywhere-site.pid"
+            # Kill by PID file first, then by port to handle stale PID files
             if [ -f "$PID_FILE" ]; then
               OLD_PID=$(cat "$PID_FILE" 2>/dev/null || echo "")
               if [ -n "$OLD_PID" ]; then
                 echo "Killing old process PID=$OLD_PID"
                 kill "$OLD_PID" 2>/dev/null && echo "Killed PID $OLD_PID" || echo "Process $OLD_PID already gone"
-                sleep 2
               fi
             fi
+            # Force-kill anything still on port 3006 (handles stale PID files)
+            PORT_PID=$(lsof -t -i:3006 2>/dev/null || fuser 3006/tcp 2>/dev/null || echo "")
+            if [ -n "$PORT_PID" ]; then
+              echo "Force-killing PID(s) on port 3006: $PORT_PID"
+              kill $PORT_PID 2>/dev/null || true
+            fi
+            sleep 2
 
             # Read start env from service file if it exists (for PORT, HOSTNAME, etc.)
             SERVICE_FILE="$SITE_DIR/deploy/buywhere-site.service"
