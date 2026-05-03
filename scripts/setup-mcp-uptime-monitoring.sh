@@ -2,26 +2,26 @@
 set -euo pipefail
 
 MCP_URL="${1:-https://mcp.buywhere.ai/health}"
-WEB_ROOT="${2:-/var/www/mcp-uptime}"
 SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
-LOG_DIR="/var/log/buywhere"
 
-USE_SUDO=false
-if command -v sudo &>/dev/null && sudo -n true 2>/dev/null; then
-  USE_SUDO=true
+# Determine if we can write to system directories (root or sudo NOPASSWD)
+USE_SYSTEM=false
+if [ "$(id -u)" = 0 ] 2>/dev/null; then
+  USE_SYSTEM=true
+elif command -v sudo &>/dev/null; then
+  if sudo -n true 2>/dev/null || sudo true 2>/dev/null; then
+    USE_SYSTEM=true
+  fi
 fi
 
-if [ "$USE_SUDO" = true ]; then
+if [ "$USE_SYSTEM" = true ]; then
   BIN_DIR="/usr/local/bin"
-  CRON_DIR="/etc/cron.d"
   LOG_DIR="/var/log/buywhere"
   WEB_ROOT="/var/www/mcp-uptime"
 else
   BIN_DIR="${HOME:-/tmp}/.local/bin"
-  CRON_DIR="${HOME:-/tmp}/.cron"
   LOG_DIR="${HOME:-/tmp}/mcp-uptime/logs"
   WEB_ROOT="${HOME:-/tmp}/mcp-uptime/www"
-  mkdir -p "$BIN_DIR" "$CRON_DIR" "$LOG_DIR" "$WEB_ROOT"
 fi
 
 echo "=== Installing MCP uptime monitoring ==="
@@ -29,28 +29,28 @@ echo "MCP URL:    $MCP_URL"
 echo "Web root:   $WEB_ROOT"
 echo "Log dir:    $LOG_DIR"
 echo "Scripts:    $SCRIPTS_DIR"
-echo "Sudo mode:  $USE_SUDO"
+echo "System mod: $USE_SYSTEM"
 
-if [ "$USE_SUDO" = true ]; then
-  sudo mkdir -p "$LOG_DIR"
-  sudo mkdir -p "$WEB_ROOT"
-  sudo cp "$SCRIPTS_DIR/check-mcp-uptime.sh" "$BIN_DIR/check-mcp-uptime.sh"
-  sudo cp "$SCRIPTS_DIR/report-mcp-uptime.sh" "$BIN_DIR/report-mcp-uptime.sh"
-  sudo cp "$SCRIPTS_DIR/mcp-uptime-dashboard.html" "$WEB_ROOT/index.html"
-  sudo chmod +x "$BIN_DIR/check-mcp-uptime.sh" "$BIN_DIR/report-mcp-uptime.sh"
+if [ "$USE_SYSTEM" = true ]; then
+  [ "$(id -u)" = 0 ] && SUDO="" || SUDO="sudo"
+  $SUDO mkdir -p "$LOG_DIR" "$WEB_ROOT"
+  $SUDO cp "$SCRIPTS_DIR/check-mcp-uptime.sh" "$BIN_DIR/check-mcp-uptime.sh"
+  $SUDO cp "$SCRIPTS_DIR/report-mcp-uptime.sh" "$BIN_DIR/report-mcp-uptime.sh"
+  $SUDO cp "$SCRIPTS_DIR/mcp-uptime-dashboard.html" "$WEB_ROOT/index.html"
+  $SUDO chmod +x "$BIN_DIR/check-mcp-uptime.sh" "$BIN_DIR/report-mcp-uptime.sh"
 
-  CRON_FILE="${CRON_DIR}/buywhere-mcp-uptime"
+  CRON_FILE="/etc/cron.d/buywhere-mcp-uptime"
   printf '%s\n' \
     "# MCP uptime check (BUY-8992)" \
     "* * * * * root ${BIN_DIR}/check-mcp-uptime.sh >> ${LOG_DIR}/check.log 2>&1" \
     "" \
     "# Generate dashboard report" \
     "*/5 * * * * root ${BIN_DIR}/report-mcp-uptime.sh ${WEB_ROOT} >> ${LOG_DIR}/report.log 2>&1" \
-    | sudo tee "$CRON_FILE" > /dev/null
-  sudo chmod 644 "$CRON_FILE"
+    | $SUDO tee "$CRON_FILE" > /dev/null
+  $SUDO chmod 644 "$CRON_FILE"
 
   if command -v systemctl &>/dev/null; then
-    sudo systemctl restart cron 2>/dev/null || true
+    $SUDO systemctl restart cron 2>/dev/null || true
   fi
 
   NGINX_CONF="/etc/nginx/sites-enabled/mcp-uptime.conf"
@@ -63,7 +63,7 @@ if [ "$USE_SUDO" = true ]; then
       "    add_header Cache-Control \"no-cache, max-age=0\";" \
       "    add_header X-Frame-Options \"SAMEORIGIN\";" \
       "}" \
-      | sudo tee "$NGINX_CONF" > /dev/null
+      | $SUDO tee "$NGINX_CONF" > /dev/null
     echo "nginx config written to $NGINX_CONF"
   else
     echo "nginx config already exists at $NGINX_CONF — skipping"
@@ -78,7 +78,7 @@ else
   (crontab -l 2>/dev/null || true; echo "LOG_DIR=${LOG_DIR} WEB_ROOT=${WEB_ROOT} * * * * * ${BIN_DIR}/check-mcp-uptime.sh >> ${LOG_DIR}/check.log 2>&1") | crontab -
   (crontab -l 2>/dev/null || true; echo "LOG_DIR=${LOG_DIR} * */5 * * * * ${BIN_DIR}/report-mcp-uptime.sh ${WEB_ROOT} >> ${LOG_DIR}/report.log 2>&1") | crontab -
 
-  echo "NOTE: nginx config not installed — run these commands manually as root:"
+  echo "NOTE: nginx config not installed — run manually as root:"
   echo "  cat > /etc/nginx/sites-enabled/mcp-uptime.conf <<'EOF'"
   echo "  location /mcp-uptime {"
   echo "      alias ${WEB_ROOT};"
@@ -90,13 +90,11 @@ else
   echo "  nginx -t && nginx -s reload"
 fi
 
-export LOG_DIR="$LOG_DIR"
-export WEB_ROOT="$WEB_ROOT"
 if [ -f "$BIN_DIR/report-mcp-uptime.sh" ]; then
-  if [ "$USE_SUDO" = true ]; then
-    sudo "$BIN_DIR/report-mcp-uptime.sh" "$WEB_ROOT" || true
+  if [ "$USE_SYSTEM" = true ]; then
+    $SUDO "$BIN_DIR/report-mcp-uptime.sh" "$WEB_ROOT" || echo "WARNING: initial report failed"
   else
-    "$BIN_DIR/report-mcp-uptime.sh" "$WEB_ROOT" || true
+    "$BIN_DIR/report-mcp-uptime.sh" "$WEB_ROOT" || echo "WARNING: initial report failed"
   fi
 fi
 
@@ -106,4 +104,4 @@ echo "Dashboard:  ${WEB_ROOT}/index.html"
 echo "Log file:   ${LOG_DIR}/mcp-uptime.ndjson"
 echo "Report:     ${WEB_ROOT}/uptime.json"
 echo "Bin dir:    $BIN_DIR"
-echo "Sudo mode:  $USE_SUDO"
+echo "System mod: $USE_SYSTEM"
