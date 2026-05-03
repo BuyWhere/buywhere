@@ -17,46 +17,46 @@ echo "Log dir:    $LOG_DIR"
 echo "Scripts:    $SCRIPTS_DIR"
 
 # Create directories
-mkdir -p "$LOG_DIR"
-mkdir -p "$WEB_ROOT"
+sudo mkdir -p "$LOG_DIR"
+sudo mkdir -p "$WEB_ROOT"
 
 # Copy scripts
-cp "$SCRIPTS_DIR/check-mcp-uptime.sh" /usr/local/bin/check-mcp-uptime.sh
-cp "$SCRIPTS_DIR/report-mcp-uptime.sh" /usr/local/bin/report-mcp-uptime.sh
-cp "$SCRIPTS_DIR/mcp-uptime-dashboard.html" "$WEB_ROOT/index.html"
-chmod +x /usr/local/bin/check-mcp-uptime.sh /usr/local/bin/report-mcp-uptime.sh
+sudo cp "$SCRIPTS_DIR/check-mcp-uptime.sh" /usr/local/bin/check-mcp-uptime.sh
+sudo cp "$SCRIPTS_DIR/report-mcp-uptime.sh" /usr/local/bin/report-mcp-uptime.sh
+sudo cp "$SCRIPTS_DIR/mcp-uptime-dashboard.html" "$WEB_ROOT/index.html"
+sudo chmod +x /usr/local/bin/check-mcp-uptime.sh /usr/local/bin/report-mcp-uptime.sh
 
 # Install cron job (check every 60s)
 CRON_FILE="/etc/cron.d/buywhere-mcp-uptime"
-cat > "$CRON_FILE" <<CRONEOF
-# MCP uptime check — every 60 seconds (BUY-8992)
-* * * * * root /usr/local/bin/check-mcp-uptime.sh >> ${LOG_DIR}/check.log 2>&1
-
-# Generate dashboard report — every 5 minutes
-*/5 * * * * root /usr/local/bin/report-mcp-uptime.sh ${WEB_ROOT} >> ${LOG_DIR}/report.log 2>&1
-CRONEOF
-chmod 644 "$CRON_FILE"
+printf '%s\n' \
+  "# MCP uptime check — every 60 seconds (BUY-8992)" \
+  "* * * * * root /usr/local/bin/check-mcp-uptime.sh >> ${LOG_DIR}/check.log 2>&1" \
+  "" \
+  "# Generate dashboard report — every 5 minutes" \
+  "*/5 * * * * root /usr/local/bin/report-mcp-uptime.sh ${WEB_ROOT} >> ${LOG_DIR}/report.log 2>&1" \
+  | sudo tee "$CRON_FILE" > /dev/null
+sudo chmod 644 "$CRON_FILE"
 
 # Reload cron
 if command -v systemctl &>/dev/null; then
-  systemctl restart cron 2>/dev/null || true
+  sudo systemctl restart cron 2>/dev/null || true
 fi
 
 # Generate initial report
-/usr/local/bin/report-mcp-uptime.sh "$WEB_ROOT" || true
+sudo /usr/local/bin/report-mcp-uptime.sh "$WEB_ROOT" || true
 
 # Add nginx config for dashboard
 NGINX_CONF="/etc/nginx/sites-enabled/mcp-uptime.conf"
 if [ ! -f "$NGINX_CONF" ]; then
-  cat > "$NGINX_CONF" <<NGINXEOF
-# MCP uptime dashboard (BUY-8992)
-location /mcp-uptime {
-    alias ${WEB_ROOT};
-    index index.html;
-    add_header Cache-Control "no-cache, max-age=0";
-    add_header X-Frame-Options "SAMEORIGIN";
-}
-NGINXEOF
+  printf '%s\n' \
+    "# MCP uptime dashboard (BUY-8992)" \
+    "location /mcp-uptime {" \
+    "    alias ${WEB_ROOT};" \
+    "    index index.html;" \
+    "    add_header Cache-Control \"no-cache, max-age=0\";" \
+    "    add_header X-Frame-Options \"SAMEORIGIN\";" \
+    "}" \
+    | sudo tee "$NGINX_CONF" > /dev/null
   echo "nginx config written to $NGINX_CONF"
   echo "Run 'nginx -s reload' to activate (or use the snippet in your main config)"
 else
