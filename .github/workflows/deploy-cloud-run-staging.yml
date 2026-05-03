@@ -106,7 +106,7 @@ jobs:
         run: |
           echo "Deploying to Cloud Run staging..."
           echo "Using image: $AR_IMAGE"
-          SERVICE_URL=$(gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
+          gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
             --project ${{ env.GCP_PROJECT_ID }} \
             --region ${{ env.GCP_REGION }} \
             --image $AR_IMAGE \
@@ -127,9 +127,12 @@ jobs:
             --max-instances 10 \
             --concurrency 80 \
             --timeout 60s \
-            --output json 2>&1 | tee /tmp/deploy_output.json | jq -r '.status.url')
+            --output json > /tmp/deploy_output.json 2>/tmp/deploy_stderr.txt
           echo "Full deploy output:"
           cat /tmp/deploy_output.json
+          echo "Deploy stderr:"
+          cat /tmp/deploy_stderr.txt
+          SERVICE_URL=$(jq -r '.status.url' /tmp/deploy_output.json)
           if [ -z "$SERVICE_URL" ] || [ "$SERVICE_URL" = "null" ]; then
             echo "ERROR: Deploy failed, no URL captured"
             echo "Checking service status..."
