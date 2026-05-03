@@ -61,14 +61,44 @@ jobs:
           ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
             "cd /tmp/mcp-uptime-install && chmod +x *.sh && ./setup-mcp-uptime-monitoring.sh '${MCP_URL}'"
 
-      - name: Reload nginx (skip if no sudo)
+      - name: Install nginx config and reload
         env:
           SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
           SSH_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
           SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
-        continue-on-error: true
         run: |
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "sudo -n nginx -t && sudo -n nginx -s reload" 2>&1 || echo "nginx reload skipped (no passwordless sudo)"
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -s <<'REMOTE'
+          set -euo pipefail
+          WEB_ROOT="$(echo $HOME)/mcp-uptime/www"
+          NGINX_CONF="/etc/nginx/sites-enabled/mcp-uptime.conf"
+
+          if [ -f "$NGINX_CONF" ]; then
+            echo "nginx config already exists — skipping write"
+          else
+            CONTENT="location /mcp-uptime {
+                alias ${WEB_ROOT};
+                index index.html;
+                add_header Cache-Control \"no-cache, max-age=0\";
+                add_header X-Frame-Options \"SAMEORIGIN\";
+            }"
+            echo "$CONTENT" | cp /dev/stdin "$NGINX_CONF" 2>/dev/null \
+              || echo "$CONTENT" | sudo -n tee "$NGINX_CONF" > /dev/null 2>/dev/null \
+              || echo "$CONTENT" | sudo tee "$NGINX_CONF" > /dev/null 2>/dev/null \
+              || { echo "ERROR: cannot write nginx config"; exit 1; }
+            echo "nginx config written to $NGINX_CONF"
+          fi
+
+          nginx -t 2>&1 || sudo -n nginx -t 2>&1 || sudo nginx -t 2>&1 || { echo "ERROR: nginx config test failed"; exit 1; }
+          echo "nginx config syntax OK"
+
+          nginx -s reload 2>/dev/null \
+            || sudo -n nginx -s reload 2>/dev/null \
+            || sudo nginx -s reload 2>/dev/null \
+            || systemctl reload nginx 2>/dev/null \
+            || sudo -n systemctl reload nginx 2>/dev/null \
+            || echo "WARNING: nginx reload failed — reload manually"
+          echo "nginx reloaded"
+          REMOTE
 
       - name: Verify installation
         run: |
