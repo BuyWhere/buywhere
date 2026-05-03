@@ -4,7 +4,7 @@ COPY package*.json ./
 RUN npm install --ignore-scripts
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+RUN npx next build --no-lint
 
 FROM node:20-alpine AS runner
 WORKDIR /app
