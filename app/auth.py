@@ -19,7 +19,7 @@ from app.database import AsyncSessionLocal, get_db
 from app.models.product import ApiKey
 from app.models.user import User
 
-PAPERCLIP_API_URL = os.environ.get("PAPERCLIP_API_URL", "https://paperclip.ai")
+PAPERCLIP_API_URL = os.environ.get("PAPERCLIP_API_URL", "https://api.paperclip.ai")
 
 
 async def _verify_paperclip_token_with_api(token: str) -> Optional[dict]:
