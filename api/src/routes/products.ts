@@ -4,6 +4,7 @@ import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackApiQuery } from '../analytics/posthog';
 import { queryLogMiddleware } from '../middleware/queryLog';
+import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 
 const SEARCH_CACHE_TTL_SECONDS = 60;
 
@@ -31,7 +32,7 @@ router.get(
     const domain = req.query.domain as string | undefined;
     const region = (req.query.region as string | undefined)?.toUpperCase() || undefined;
     // country_code is the canonical param; `country` is kept as a backward-compat alias
-    const countryCode = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
+    let countryCode = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
     const minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
     const maxPrice = req.query.max_price ? parseFloat(req.query.max_price as string) : undefined;
     // Infer default currency from country_code when not explicitly provided.
@@ -41,9 +42,17 @@ router.get(
     const offset = parseInt((req.query.offset as string) || '0');
     const sourcePage = req.query.source_page as string | undefined;
     const compact = req.query.compact === 'true';
+    let sort = req.query.sort as string | undefined;
+
+    const preprocessed = preprocessSearchQuery(q, minPrice, maxPrice, countryCode);
+    const ftsQuery = q && preprocessed.cleanedQuery ? preprocessed.cleanedQuery : q;
+    if (minPrice === undefined && preprocessed.extractedMinPrice !== undefined) minPrice = preprocessed.extractedMinPrice;
+    if (maxPrice === undefined && preprocessed.extractedMaxPrice !== undefined) maxPrice = preprocessed.extractedMaxPrice;
+    if (countryCode === undefined && preprocessed.extractedCountryCode !== undefined) countryCode = preprocessed.extractedCountryCode;
+    if (!sort && preprocessed.sortIntent) sort = preprocessed.sortIntent;
 
     // Check Redis cache for this exact query (60s TTL)
-    const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${compact ? 'c' : 'f'}`;
+    const cacheKey = `fts:${ftsQuery}:${domain || ''}:${region || ''}:${countryCode || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${compact ? 'c' : 'f'}:${sort || ''}`;
     try {
       const cached = await redis.get(cacheKey);
       if (cached) {
@@ -68,12 +77,10 @@ router.get(
     let idx = 2;
     let ftsParamIdx = 0;
 
-    if (q) {
-      // Use full-text search via GIN-indexed search_vector only.
-      // The ILIKE fallback was removed: it defeats the GIN index and causes full table scans (3s vs 130ms).
+    if (ftsQuery) {
       ftsParamIdx = idx;
       conditions.push(`search_vector @@ plainto_tsquery('english', $${idx})`);
-      params.push(q);
+      params.push(ftsQuery);
       idx++;
     }
     if (domain) {
@@ -118,8 +125,27 @@ router.get(
     // then return the top N. This gives relevance ordering at a fraction of the cost.
     // For small result sets (<= 1000 rows), ts_rank over all matches is fast.
     const CANDIDATE_LIMIT = Math.max(500, (limit + offset) * 10);
+    const orderByCol = sort === 'price_asc' ? 'ORDER BY price ASC NULLS LAST'
+      : sort === 'price_desc' ? 'ORDER BY price DESC NULLS LAST'
+      : sort === 'rating_desc' ? 'ORDER BY avg_rating DESC NULLS LAST, updated_at DESC'
+      : undefined;
     let dataQuery: string;
-    if (ftsParamIdx && approxCount <= 1000) {
+    if (ftsParamIdx && orderByCol) {
+      // Explicit sort + FTS: fetch candidates via GIN, then sort by the requested column
+      dataQuery = `
+        SELECT id, source_id, domain, url, title, price, currency, image_url, metadata, updated_at, region, country_code
+        FROM (
+          SELECT id, sku AS source_id, source AS domain, url,
+                 title, price, currency, image_url, metadata, updated_at,
+                 region, country_code
+          FROM products
+          ${whereClause}
+          LIMIT ${CANDIDATE_LIMIT}
+        ) _candidates
+        ${orderByCol}
+        LIMIT $${idx} OFFSET $${idx + 1}
+      `;
+    } else if (ftsParamIdx && approxCount <= 1000) {
       // Small result set: ts_rank over all matches is fast, gives best relevance
       dataQuery = `
         SELECT id, sku AS source_id, source AS domain, url,
@@ -150,14 +176,14 @@ router.get(
         LIMIT $${idx} OFFSET $${idx + 1}
       `;
     } else {
-      // No FTS query (e.g. filter-only) — sort by recency
+      // No FTS query — sort by recency or explicit sort
       dataQuery = `
         SELECT id, sku AS source_id, source AS domain, url,
                title, price, currency, image_url, metadata, updated_at,
                region, country_code
         FROM products
         ${whereClause}
-        ORDER BY updated_at DESC
+        ${orderByCol || 'ORDER BY updated_at DESC'}
         LIMIT $${idx} OFFSET $${idx + 1}
       `;
     }
