@@ -58,8 +58,8 @@ jobs:
             echo "  ssh -p $SSH_PORT $SSH_USER@$SSH_HOST 'cd /tmp/mcp-uptime-install && sudo ./setup-mcp-uptime-monitoring.sh $MCP_URL'"
             exit 0
           fi
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "cd /tmp/mcp-uptime-install && chmod +x *.sh && sudo ./setup-mcp-uptime-monitoring.sh '${MCP_URL}'"
+          ssh -tt -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "cd /tmp/mcp-uptime-install && chmod +x *.sh && echo '' | sudo -S ./setup-mcp-uptime-monitoring.sh '${MCP_URL}'; exit"
 
       - name: Reload nginx
         env:
@@ -67,7 +67,7 @@ jobs:
           SSH_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
           SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
         run: |
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "sudo nginx -t && sudo nginx -s reload"
+          ssh -tt -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "echo '' | sudo -S nginx -t && echo '' | sudo -S nginx -s reload; exit"
 
       - name: Verify installation
         run: |
