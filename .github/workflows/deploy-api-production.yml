@@ -107,6 +107,22 @@ jobs:
           echo "API healthy (${IMAGE_TAG})"
           REMOTE
 
+      - name: Run database migration
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+          APP_DIR: ${{ secrets.PRODUCTION_APP_DIR || '/opt/buywhere' }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 "${SSH_USER}@${SSH_HOST}" \
+            env APP_DIR="${APP_DIR}" \
+            bash -s <<'REMOTE'
+          set -euo pipefail
+          echo "Running database migration..."
+          cd "${APP_DIR}"
+          docker compose exec -T api node dist/migrate.js
+          echo "Migration complete."
+          REMOTE
+
       - name: Smoke test agent-readiness headers
         run: |
           sleep 3

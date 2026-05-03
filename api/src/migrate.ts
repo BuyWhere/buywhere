@@ -191,6 +191,42 @@ CREATE TABLE IF NOT EXISTS clicks (
 CREATE INDEX IF NOT EXISTS idx_clicks_product    ON clicks(product_id);
 CREATE INDEX IF NOT EXISTS idx_clicks_merchant   ON clicks(merchant_id);
 CREATE INDEX IF NOT EXISTS idx_clicks_clicked_at ON clicks(clicked_at);
+
+-- Merchants onboarding table (BUY-6932)
+CREATE TABLE IF NOT EXISTS merchants (
+  id              TEXT        PRIMARY KEY,
+  name            TEXT        NOT NULL,
+  source          TEXT        NOT NULL,
+  country         VARCHAR(2)  NOT NULL DEFAULT 'SG',
+  domain          TEXT,
+  contact_email   TEXT,
+  contact_phone   TEXT,
+  scraping_priority TEXT     DEFAULT 'medium',
+  is_active       BOOLEAN    NOT NULL DEFAULT true,
+  onboarding_stage TEXT      NOT NULL DEFAULT 'interested',
+  first_indexed_at TIMESTAMPTZ,
+  products_count  INTEGER,
+  last_scraped_at  TIMESTAMPTZ,
+  scrape_error    TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_merchants_source ON merchants(source);
+CREATE INDEX IF NOT EXISTS idx_merchants_onboarding_stage ON merchants(onboarding_stage);
+CREATE INDEX IF NOT EXISTS idx_merchants_country ON merchants(country);
+
+-- Merchant events log (BUY-6932)
+CREATE TABLE IF NOT EXISTS merchant_events (
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  merchant_id     TEXT        NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+  event_type      TEXT        NOT NULL,
+  event_data      JSONB,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_merchant_events_merchant_id ON merchant_events(merchant_id);
+CREATE INDEX IF NOT EXISTS idx_merchant_events_event_type ON merchant_events(event_type);
 `;
 
 async function migrate() {
