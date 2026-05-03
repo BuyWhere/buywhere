@@ -114,6 +114,7 @@ jobs:
             --allow-unauthenticated \
             --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
             --set-env-vars "ENVIRONMENT=staging" \
+            --set-env-vars "PG_POOL_MAX=50" \
             --set-env-vars "DATABASE_URL=${{ secrets.CLOUD_SQL_STAGING_CONNECTION_STRING }}" \
             --set-env-vars "REDIS_URL=${{ secrets.REDIS_STAGING_URL }}" \
             --set-env-vars "API_KEY_SECRET=${{ secrets.API_KEY_SECRET_STAGING }}" \
