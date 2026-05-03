@@ -7,10 +7,6 @@ on:
         description: 'MCP health endpoint URL'
         required: false
         default: 'https://mcp.buywhere.ai/health'
-      dry_run:
-        description: 'If true, validate steps without making changes'
-        required: false
-        default: 'false'
 
 permissions:
   contents: read
@@ -33,33 +29,25 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p "${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}" -H "${{ secrets.PRODUCTION_DEPLOY_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Upload scripts to VM
-        env:
-          SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
-          SSH_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
-          SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
-        run: |
-          REMOTE_TMP="/tmp/mcp-uptime-install"
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "mkdir -p $REMOTE_TMP"
-          for f in scripts/setup-mcp-uptime-monitoring.sh scripts/check-mcp-uptime.sh scripts/report-mcp-uptime.sh scripts/mcp-uptime-dashboard.html; do
-            scp -P "$SSH_PORT" "$f" "$SSH_USER@$SSH_HOST:$REMOTE_TMP/"
-          done
-
-      - name: Run setup script
+      - name: Upload and install
         env:
           SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
           SSH_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
           SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
           MCP_URL: ${{ github.event.inputs.mcp_url }}
-          DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
-          if [ "$DRY_RUN" = "true" ]; then
-            echo "DRY RUN would execute:"
-            echo "  ssh -p $SSH_PORT $SSH_USER@$SSH_HOST 'cd /tmp/mcp-uptime-install && sudo ./setup-mcp-uptime-monitoring.sh $MCP_URL'"
-            exit 0
-          fi
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "cd /tmp/mcp-uptime-install && chmod +x *.sh && ./setup-mcp-uptime-monitoring.sh '${MCP_URL}'"
+          set -e
+          REMOTE_TMP="/tmp/mcp-uptime-install"
+
+          # Upload scripts
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "mkdir -p $REMOTE_TMP"
+          for f in scripts/setup-mcp-uptime-monitoring.sh scripts/check-mcp-uptime.sh scripts/report-mcp-uptime.sh scripts/mcp-uptime-dashboard.html; do
+            scp -P "$SSH_PORT" "$f" "$SSH_USER@$SSH_HOST:$REMOTE_TMP/"
+          done
+
+          # Run setup via sudo with TTY
+          ssh -tt -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "cd $REMOTE_TMP && chmod +x *.sh && echo '' | sudo -S ./setup-mcp-uptime-monitoring.sh '${MCP_URL}'; exit"
 
       - name: Reload nginx
         env:
@@ -67,23 +55,17 @@ jobs:
           SSH_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
           SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
         run: |
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "nginx -t && nginx -s reload"
+          ssh -tt -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "echo '' | sudo -S nginx -t && echo '' | sudo -S nginx -s reload; exit"
 
-      - name: Verify installation
+      - name: Verify
         run: |
           echo "=== Verifying MCP uptime monitoring ==="
-          sleep 10
+          sleep 15
           HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
             https://api.buywhere.ai/mcp-uptime/uptime.json 2>/dev/null || echo "000")
           echo "GET /mcp-uptime/uptime.json -> HTTP ${HTTP}"
           if [ "$HTTP" = "200" ]; then
             echo "SUCCESS: Dashboard is live"
           else
-            echo "WARNING: Dashboard returned ${HTTP} - may need a moment to generate first report"
+            echo "WARNING: Dashboard returned ${HTTP}"
           fi
-
-      - name: Summary
-        run: |
-          echo "=== MCP Uptime Monitoring Install Summary ==="
-          echo "Dashboard: https://api.buywhere.ai/mcp-uptime"
-          echo "Status: $(curl -s https://api.buywhere.ai/mcp-uptime/uptime.json | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("status","unknown"))' 2>/dev/null || echo 'pending')"
