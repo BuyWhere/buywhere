@@ -15,6 +15,9 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS is_active      BOOLEAN NOT NULL DE
 ALTER TABLE products ADD COLUMN IF NOT EXISTS search_vector  TSVECTOR;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS region         VARCHAR(10);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS country_code   VARCHAR(2);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS gtin                VARCHAR(14);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS mpn                 VARCHAR(100);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS canonical_group_id  TEXT;
 
 -- Full-text search support on products table
 CREATE INDEX IF NOT EXISTS idx_products_search_vector ON products USING GIN(search_vector);
@@ -23,6 +26,29 @@ CREATE INDEX IF NOT EXISTS idx_products_search_vector ON products USING GIN(sear
 DROP TRIGGER IF EXISTS products_search_vector_trig ON products;
 DROP FUNCTION IF EXISTS products_search_vector_update();
 
+-- Weighted search_vector trigger: title (A) > brand (B) > description (C) (BUY-8859)
+CREATE OR REPLACE FUNCTION products_search_vector_update() RETURNS trigger AS $$
+BEGIN
+  NEW.search_vector :=
+    setweight(to_tsvector('english', COALESCE(NEW.title, '')), 'A') ||
+    setweight(to_tsvector('english', COALESCE(NEW.brand, '')), 'B') ||
+    setweight(to_tsvector('english', COALESCE(NEW.description, '')), 'C');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER products_search_vector_trig
+  BEFORE INSERT OR UPDATE OF title, brand, description ON products
+  FOR EACH ROW
+  EXECUTE FUNCTION products_search_vector_update();
+
+-- Backfill search_vector for existing rows (BUY-8859)
+UPDATE products SET search_vector =
+  setweight(to_tsvector('english', COALESCE(title, '')), 'A') ||
+  setweight(to_tsvector('english', COALESCE(brand, '')), 'B') ||
+  setweight(to_tsvector('english', COALESCE(description, '')), 'C')
+WHERE search_vector IS NULL;
+
 -- GEO indexes (now safe — is_active, region, country_code columns exist above)
 CREATE INDEX IF NOT EXISTS idx_products_is_active     ON products(is_active);
 CREATE INDEX IF NOT EXISTS idx_products_region        ON products(region);
@@ -30,6 +56,9 @@ CREATE INDEX IF NOT EXISTS idx_products_country_code  ON products(country_code);
 CREATE INDEX IF NOT EXISTS idx_products_region_active ON products(region, is_active) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_products_search_region  ON products USING gin(search_vector, region);
 CREATE INDEX IF NOT EXISTS idx_products_search_country ON products USING gin(search_vector, country_code);
+CREATE INDEX IF NOT EXISTS idx_products_currency     ON products(currency);
+CREATE INDEX IF NOT EXISTS idx_products_category_path ON products USING GIN(category_path);
+CREATE INDEX IF NOT EXISTS idx_products_canonical_group_id ON products(canonical_group_id);
 
 -- api_keys: create if not exists, then add any missing columns
 CREATE TABLE IF NOT EXISTS api_keys (
