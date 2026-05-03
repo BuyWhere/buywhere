@@ -499,7 +499,12 @@ async def search_products(
         base_query = base_query.order_by(Product.updated_at.desc())
 
     if category:
-        base_query = base_query.where(Product.category.ilike(f"%{category}%"))
+        base_query = base_query.where(
+            or_(
+                Product.category.ilike(f"%{category}%"),
+                text("EXISTS (SELECT 1 FROM unnest(category_path) AS _cp WHERE _cp ILIKE :cat_ptn)").bindparams(cat_ptn=f"%{category}%"),
+            )
+        )
     if min_price is not None:
         base_query = base_query.where(Product.price >= min_price)
     if max_price is not None:
@@ -530,7 +535,12 @@ async def search_products(
                 text("search_vector @@ websearch_to_tsquery('english', :cq)").bindparams(cq=q)
             )
         if category:
-            count_conditions.append(Product.category.ilike(f"%{category}%"))
+            count_conditions.append(
+                or_(
+                    Product.category.ilike(f"%{category}%"),
+                    text("EXISTS (SELECT 1 FROM unnest(category_path) AS _cp WHERE _cp ILIKE :cat_ptn_c)").bindparams(cat_ptn_c=f"%{category}%"),
+                )
+            )
         if min_price is not None:
             count_conditions.append(Product.price >= min_price)
         if max_price is not None:
@@ -587,7 +597,12 @@ async def search_products(
                 text("search_vector @@ websearch_to_tsquery('english', :fq)").bindparams(fq=q)
             )
         if category:
-            facet_base_query = facet_base_query.where(Product.category.ilike(f"%{category}%"))
+            facet_base_query = facet_base_query.where(
+                or_(
+                    Product.category.ilike(f"%{category}%"),
+                    text("EXISTS (SELECT 1 FROM unnest(category_path) AS _cp WHERE _cp ILIKE :cat_ptn_f)").bindparams(cat_ptn_f=f"%{category}%"),
+                )
+            )
         if min_price is not None:
             facet_base_query = facet_base_query.where(Product.price >= min_price)
         if max_price is not None:
