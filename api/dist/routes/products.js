@@ -6,6 +6,7 @@ const apiKey_1 = require("../middleware/apiKey");
 const agentDetect_1 = require("../middleware/agentDetect");
 const posthog_1 = require("../analytics/posthog");
 const queryLog_1 = require("../middleware/queryLog");
+const queryPreprocessor_1 = require("../lib/queryPreprocessor");
 const SEARCH_CACHE_TTL_SECONDS = 60;
 // Maps ISO country code to native currency — used for both query inference and ingest defaults.
 const COUNTRY_CURRENCY = { SG: 'SGD', US: 'USD', VN: 'VND', TH: 'THB', MY: 'MYR' };
@@ -31,8 +32,19 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const offset = parseInt(req.query.offset || '0');
     const sourcePage = req.query.source_page;
     const compact = req.query.compact === 'true';
+    // NL query preprocessing: extract price, country, category from natural language (BUY-8713)
+    let nlParsed = { cleanedQuery: q };
+    if (q && q.length > 2) {
+        nlParsed = (0, queryPreprocessor_1.preprocessSearchQuery)(q);
+    }
+    const cleanedQ = nlParsed.cleanedQuery || q;
+    // NL-extracted params fill in when explicit ones are not provided
+    const effectiveCountryCode = countryCode || nlParsed.extractedCountryCode || undefined;
+    const effectiveMinPrice = minPrice ?? nlParsed.extractedMinPrice;
+    const effectiveMaxPrice = maxPrice ?? nlParsed.extractedMaxPrice;
+    const effectiveSort = req.query.sort || nlParsed.sortIntent || undefined;
     // Check Redis cache for this exact query (60s TTL)
-    const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${compact ? 'c' : 'f'}`;
+    const cacheKey = `fts:${cleanedQ}:${domain || ''}:${region || ''}:${effectiveCountryCode || ''}:${currency}:${effectiveMinPrice ?? ''}:${effectiveMaxPrice ?? ''}:${effectiveSort || ''}:${limit}:${offset}:${compact ? 'c' : 'f'}`;
     try {
         const cached = await config_1.redis.get(cacheKey);
         if (cached) {
@@ -57,12 +69,10 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const params = [currency];
     let idx = 2;
     let ftsParamIdx = 0;
-    if (q) {
-        // Use full-text search via GIN-indexed search_vector only.
-        // The ILIKE fallback was removed: it defeats the GIN index and causes full table scans (3s vs 130ms).
+    if (cleanedQ) {
         ftsParamIdx = idx;
         conditions.push(`search_vector @@ plainto_tsquery('english', $${idx})`);
-        params.push(q);
+        params.push(cleanedQ);
         idx++;
     }
     if (domain) {
@@ -75,19 +85,19 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         params.push(region);
         idx++;
     }
-    if (countryCode) {
+    if (effectiveCountryCode) {
         conditions.push(`country_code = $${idx}`);
-        params.push(countryCode);
+        params.push(effectiveCountryCode);
         idx++;
     }
-    if (minPrice !== undefined) {
+    if (effectiveMinPrice !== undefined) {
         conditions.push(`price >= $${idx}`);
-        params.push(minPrice);
+        params.push(effectiveMinPrice);
         idx++;
     }
-    if (maxPrice !== undefined) {
+    if (effectiveMaxPrice !== undefined) {
         conditions.push(`price <= $${idx}`);
-        params.push(maxPrice);
+        params.push(effectiveMaxPrice);
         idx++;
     }
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -104,8 +114,32 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // then return the top N. This gives relevance ordering at a fraction of the cost.
     // For small result sets (<= 1000 rows), ts_rank over all matches is fast.
     const CANDIDATE_LIMIT = Math.max(500, (limit + offset) * 10);
+    const sortOrder = (() => {
+        switch (effectiveSort) {
+            case 'price_asc': return 'price ASC, updated_at DESC';
+            case 'price_desc': return 'price DESC, updated_at DESC';
+            case 'rating_desc': return 'avg_rating DESC NULLS LAST, updated_at DESC';
+            default: return null;
+        }
+    })();
     let dataQuery;
-    if (ftsParamIdx && approxCount <= 1000) {
+    if (ftsParamIdx && sortOrder) {
+        dataQuery = `
+        SELECT id, source_id, domain, url, title, price, currency, image_url, metadata, updated_at, region, country_code
+        FROM (
+          SELECT id, sku AS source_id, source AS domain, url,
+                 title, price, currency, image_url, metadata, updated_at,
+                 region, country_code,
+                 ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+          FROM products
+          ${whereClause}
+          LIMIT ${CANDIDATE_LIMIT}
+        ) _candidates
+        ORDER BY ${sortOrder}
+        LIMIT $${idx} OFFSET $${idx + 1}
+      `;
+    }
+    else if (ftsParamIdx && approxCount <= 1000) {
         // Small result set: ts_rank over all matches is fast, gives best relevance
         dataQuery = `
         SELECT id, sku AS source_id, source AS domain, url,
@@ -119,9 +153,6 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     }
     else if (ftsParamIdx) {
         // Large result set: GIN index fetches CANDIDATE_LIMIT rows using bitmap scan, then ranks.
-        // No ORDER BY in the inner query — this lets PostgreSQL stop the heap scan after
-        // CANDIDATE_LIMIT rows (vs scanning all 25k+ matching rows to sort by rank first).
-        // 12x faster for broad queries (14ms vs 170ms for "headphones" on 2M product corpus).
         dataQuery = `
         SELECT id, source_id, domain, url, title, price, currency, image_url, metadata, updated_at, region, country_code
         FROM (
@@ -138,16 +169,28 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
       `;
     }
     else {
-        // No FTS query (e.g. filter-only) — sort by recency
-        dataQuery = `
-        SELECT id, sku AS source_id, source AS domain, url,
-               title, price, currency, image_url, metadata, updated_at,
-               region, country_code
-        FROM products
-        ${whereClause}
-        ORDER BY updated_at DESC
-        LIMIT $${idx} OFFSET $${idx + 1}
-      `;
+        if (sortOrder) {
+            dataQuery = `
+          SELECT id, sku AS source_id, source AS domain, url,
+                 title, price, currency, image_url, metadata, updated_at,
+                 region, country_code
+          FROM products
+          ${whereClause}
+          ORDER BY ${sortOrder}
+          LIMIT $${idx} OFFSET $${idx + 1}
+        `;
+        }
+        else {
+            dataQuery = `
+          SELECT id, sku AS source_id, source AS domain, url,
+                 title, price, currency, image_url, metadata, updated_at,
+                 region, country_code
+          FROM products
+          ${whereClause}
+          ORDER BY updated_at DESC
+          LIMIT $${idx} OFFSET $${idx + 1}
+        `;
+        }
     }
     params.push(limit, offset);
     const dataResult = await config_1.db.query(dataQuery, params);
@@ -242,7 +285,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             agentFramework: req.agentInfo?.framework || 'unknown',
             agentVersion: req.agentInfo?.version || '',
             sdkLanguage: req.agentInfo?.sdkLanguage || 'unknown',
-            queryIntent: inferQueryIntent(q, domain, minPrice, maxPrice),
+            queryIntent: inferQueryIntent(cleanedQ, domain, effectiveMinPrice, effectiveMaxPrice),
             productCategories: categories,
             resultCount: products.length,
             responseTimeMs,
