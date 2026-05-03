@@ -21,8 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.9.0
@@ -34,239 +33,57 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p "${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}" -H "${{ secrets.PRODUCTION_DEPLOY_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Install MCP uptime monitoring
+      - name: Upload scripts to VM
         env:
-          DEPLOY_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
-          DEPLOY_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
-          DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+          SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          SSH_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
+          SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+        run: |
+          REMOTE_TMP="/tmp/mcp-uptime-install"
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "mkdir -p $REMOTE_TMP"
+          for f in scripts/setup-mcp-uptime-monitoring.sh scripts/check-mcp-uptime.sh scripts/report-mcp-uptime.sh scripts/mcp-uptime-dashboard.html; do
+            scp -P "$SSH_PORT" "$f" "$SSH_USER@$SSH_HOST:$REMOTE_TMP/"
+          done
+
+      - name: Run setup script
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          SSH_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
+          SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
           MCP_URL: ${{ github.event.inputs.mcp_url }}
           DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
-          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
-            "MCP_URL='${MCP_URL}' DRY_RUN='${DRY_RUN}' bash -s" << 'SETUPEOF'
-          set -euo pipefail
-
-          MCP_URL="${MCP_URL:-https://mcp.buywhere.ai/health}"
-          DRY_RUN="${DRY_RUN:-false}"
-          SCRIPTS_DIR="/tmp/mcp-uptime-scripts"
-          WEB_ROOT="/var/www/mcp-uptime"
-          LOG_DIR="/var/log/buywhere"
-
-          echo "=== Installing MCP uptime monitoring ==="
-          echo "MCP URL:  $MCP_URL"
-          echo "Web root: $WEB_ROOT"
-          echo "Log dir:  $LOG_DIR"
-          echo "Dry run:  $DRY_RUN"
-
           if [ "$DRY_RUN" = "true" ]; then
-            echo "DRY RUN: would create dirs, copy scripts, install cron, and configure nginx"
-            echo "DRY RUN: complete — no changes made"
+            echo "DRY RUN would execute:"
+            echo "  ssh -p $SSH_PORT $SSH_USER@$SSH_HOST 'cd /tmp/mcp-uptime-install && sudo ./setup-mcp-uptime-monitoring.sh $MCP_URL'"
             exit 0
           fi
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "cd /tmp/mcp-uptime-install && sudo chmod +x *.sh && sudo ./setup-mcp-uptime-monitoring.sh '${MCP_URL}'"
 
-          # Create directories
-          mkdir -p "$LOG_DIR"
-          mkdir -p "$WEB_ROOT"
-
-          # Write check-mcp-uptime.sh
-          cat > /usr/local/bin/check-mcp-uptime.sh << 'CHECKEOF'
-#!/usr/bin/env bash
-MCP_URL="${MCP_URL:-https://mcp.buywhere.ai/health}"
-LOG_FILE="${LOG_FILE:-${LOG_DIR:-/var/log/buywhere}/mcp-uptime.ndjson}"
-TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-mkdir -p "$(dirname "$LOG_FILE")"
-START_NS=$(date +%s%N)
-HTTP_CODE=$(curl -s -o /tmp/mcp-health-response.json -w "%{http_code}" --max-time 10 "$MCP_URL" 2>/dev/null || echo "000")
-END_NS=$(date +%s%N)
-LATENCY_MS=$(( (END_NS - START_NS) / 1000000 ))
-if [ "$HTTP_CODE" = "200" ]; then
-  BODY_STATUS=$(python3 -c "import json; print(json.load(open('/tmp/mcp-health-response.json')).get('status','unknown'))" 2>/dev/null || echo "unknown")
-  TOTAL_PRODUCTS=$(python3 -c "import json; print(json.load(open('/tmp/mcp-health-response.json')).get('catalog',{}).get('total_products',0))" 2>/dev/null || echo "0")
-  if [ "$BODY_STATUS" = "ok" ]; then RESULT="up"; else RESULT="degraded"; fi
-else
-  RESULT="down"; BODY_STATUS="error"; TOTAL_PRODUCTS=0
-fi
-echo "{\"ts\":\"$TS\",\"result\":\"$RESULT\",\"http_code\":$HTTP_CODE,\"latency_ms\":$LATENCY_MS,\"body_status\":\"$BODY_STATUS\",\"total_products\":$TOTAL_PRODUCTS}" >> "$LOG_FILE"
-tail -n 129600 "$LOG_FILE" > "${LOG_FILE}.tmp" && mv "${LOG_FILE}.tmp" "$LOG_FILE"
-echo "[$TS] MCP=$RESULT http=$HTTP_CODE latency=${LATENCY_MS}ms products=$TOTAL_PRODUCTS"
-CHECKEOF
-
-          # Write report-mcp-uptime.sh
-          cat > /usr/local/bin/report-mcp-uptime.sh << 'REPORTEOF'
-#!/usr/bin/env bash
-LOG_FILE="${LOG_FILE:-${LOG_DIR:-/var/log/buywhere}/mcp-uptime.ndjson}"
-OUTPUT_DIR="${1:-${OUTPUT_DIR:-/var/www/mcp-uptime}}"
-MCP_URL="${MCP_URL:-https://mcp.buywhere.ai}"
-TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-if [ ! -f "$LOG_FILE" ]; then
-  echo "ERROR: log file not found: $LOG_FILE" >&2; exit 1
-fi
-mkdir -p "$OUTPUT_DIR"
-python3 - "$LOG_FILE" "$OUTPUT_DIR" "$MCP_URL" <<'PYEOF'
-import json, os, sys, statistics
-from datetime import datetime, timezone, timedelta
-log_file = sys.argv[1]; output_dir = sys.argv[2]; mcp_url = sys.argv[3]
-with open(log_file) as f: lines = [json.loads(l) for l in f if l.strip()]
-if not lines: print("ERROR: no data in log file"); sys.exit(1)
-now = datetime.now(timezone.utc)
-five_min_ago = now - timedelta(minutes=5)
-thirty_days_ago = now - timedelta(days=30)
-window_5m = [e for e in lines if datetime.fromisoformat(e["ts"]) >= five_min_ago]
-window_30d = [e for e in lines if datetime.fromisoformat(e["ts"]) >= thirty_days_ago]
-def calc_metrics(entries, label):
-  total = len(entries); up = sum(1 for e in entries if e["result"] == "up")
-  down = sum(1 for e in entries if e["result"] == "down"); degraded = sum(1 for e in entries if e["result"] == "degraded")
-  uptime_pct = round((up / total * 100), 4) if total > 0 else 0; error_rate = round((down / total * 100), 4) if total > 0 else 0
-  latencies = sorted([e["latency_ms"] for e in entries])
-  p95 = latencies[int(len(latencies) * 0.95)] if latencies else 0; p99 = latencies[int(len(latencies) * 0.99)] if latencies else 0
-  avg_latency = round(statistics.mean(latencies), 1) if latencies else 0; max_latency = max(latencies) if latencies else 0
-  return {"label": label, "total_checks": total, "up": up, "down": down, "degraded": degraded, "uptime_pct": uptime_pct, "error_rate": error_rate, "p95_latency_ms": p95, "p99_latency_ms": p99, "avg_latency_ms": avg_latency, "max_latency_ms": max_latency, "window_entries": total}
-metrics_5m = calc_metrics(window_5m, "5m"); metrics_30d = calc_metrics(window_30d, "30d")
-latest = lines[-1]; alert = None
-if metrics_5m["uptime_pct"] < 99.9 and metrics_5m["total_checks"] >= 3:
-  alert = {"level": "CRITICAL", "message": f"Uptime {metrics_5m['uptime_pct']}% below 99.9% threshold in last 5 minutes", "window": "5m", "threshold": 99.9, "actual": metrics_5m["uptime_pct"]}
-hourly_trend = []
-for h in range(23, -1, -1):
-  hour_start = now - timedelta(hours=h+1); hour_end = now - timedelta(hours=h)
-  hour_entries = [e for e in lines if hour_start <= datetime.fromisoformat(e["ts"]) < hour_end]
-  if hour_entries:
-    up = sum(1 for e in hour_entries if e["result"] == "up"); total = len(hour_entries)
-    hourly_trend.append({"hour": hour_start.strftime("%Y-%m-%dT%H:00:00Z"), "uptime_pct": round(up / total * 100, 2) if total > 0 else 0, "checks": total, "avg_latency_ms": round(statistics.mean([e["latency_ms"] for e in hour_entries]), 1)})
-latency_trend = []
-for m in range(287, -1, -1):
-  bucket_start = now - timedelta(minutes=m+5); bucket_end = now - timedelta(minutes=m)
-  bucket = [e for e in lines if bucket_start <= datetime.fromisoformat(e["ts"]) < bucket_end]
-  if bucket:
-    latencies = [e["latency_ms"] for e in bucket]; latencies.sort(); p95 = latencies[int(len(latencies) * 0.95)] if latencies else 0
-    latency_trend.append({"ts": bucket_start.strftime("%Y-%m-%dT%H:%M:00Z"), "p95_ms": p95, "avg_ms": round(statistics.mean(latencies), 1), "samples": len(bucket)})
-report = {"generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "mcp_url": mcp_url, "latest": latest, "metrics_5m": metrics_5m, "metrics_30d": metrics_30d, "hourly_trend": hourly_trend, "latency_trend": latency_trend, "alert": alert, "status": "alert" if alert else "healthy"}
-report_path = os.path.join(output_dir, "uptime.json")
-with open(report_path, "w") as f: json.dump(report, f, indent=2)
-print(f"Report written to {report_path}")
-print(f"  30d uptime: {metrics_30d['uptime_pct']}%  | 5m uptime: {metrics_5m['uptime_pct']}%")
-print(f"  p95: {metrics_5m['p95_latency_ms']}ms  |  p99: {metrics_5m['p99_latency_ms']}ms  |  avg: {metrics_5m['avg_latency_ms']}ms")
-if alert: print(f"  ALERT: {alert['message']}")
-print(f"  Status: {report['status']}")
-PYEOF
-REPORTEOF
-
-          chmod +x /usr/local/bin/check-mcp-uptime.sh /usr/local/bin/report-mcp-uptime.sh
-
-          # Write dashboard HTML
-          cat > /usr/local/bin/mcp-uptime-dashboard.html << 'DASHEOF'
-<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>MCP Uptime Dashboard</title>
-<style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0f172a;color:#e2e8f0;margin:0;padding:20px;max-width:1200px;margin:0 auto}
-h1{color:#38bdf8}.status-badge{display:inline-block;padding:4px 12px;border-radius:9999px;font-weight:600;font-size:14px}
-.status-healthy{background:#166534;color:#86efac}.status-alert{background:#991b1b;color:#fca5a5}
-.metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin:20px 0}
-.metric-card{background:#1e293b;border-radius:12px;padding:16px;border:1px solid #334155}
-.metric-label{font-size:12px;text-transform:uppercase;color:#94a3b8;letter-spacing:.05em}
-.metric-value{font-size:28px;font-weight:700;margin-top:4px}
-canvas{background:#1e293b;border-radius:12px;padding:16px;border:1px solid #334155;margin:12px 0;width:100%!important;height:auto!important}
-.latest-info{background:#1e293b;border-radius:12px;padding:16px;border:1px solid #334155;margin:20px 0}
-.latest-info pre{overflow-x:auto;font-size:13px}.alert-box{background:#991b1b;border:1px solid #dc2626;border-radius:12px;padding:16px;margin:20px 0;color:#fca5a5}
-#last-updated{color:#64748b;font-size:13px;text-align:center;margin-top:24px}
-@media(max-width:640px){.metrics-grid{grid-template-columns:1fr 1fr}}
-</style></head>
-<body><h1>MCP Uptime Dashboard</h1>
-<div id="status"></div><div id="alert"></div>
-<div class="metrics-grid" id="metrics"></div>
-<h2>Hourly Uptime (24h)</h2><canvas id="uptimeChart"></canvas>
-<h2>Latency (p95, 24h)</h2><canvas id="latencyChart"></canvas>
-<div class="latest-info"><h3>Latest Check</h3><pre id="latest"></pre></div>
-<div id="last-updated">Loading...</div>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-<script>
-async function loadData(){try{
-const r=await fetch('uptime.json');if(!r.ok)throw new Error('HTTP '+r.status);
-const d=await r.json();
-document.getElementById('last-updated').textContent='Last updated: '+d.generated_at+' UTC';
-const sb=document.getElementById('status');
-sb.innerHTML='<span class="status-badge '+(d.status==='healthy'?'status-healthy':'status-alert')+'">'+d.status.toUpperCase()+'</span>';
-if(d.alert){const a=document.getElementById('alert');
-a.innerHTML='<div class="alert-box"><strong>'+d.alert.level+':</strong> '+d.alert.message+'</div>'}
-const m=document.getElementById('metrics');
-m.innerHTML='';
-const cards=[{label:'30d Uptime',val:d.metrics_30d.uptime_pct+'%'},{label:'5m Uptime',val:d.metrics_5m.uptime_pct+'%'},
-{label:'p95 Latency',val:d.metrics_5m.p95_latency_ms+'ms'},{label:'p99 Latency',val:d.metrics_5m.p99_latency_ms+'ms'},
-{label:'Avg Latency',val:d.metrics_5m.avg_latency_ms+'ms'},{label:'Total Checks (30d)',val:d.metrics_30d.total_checks}];
-cards.forEach(c=>{m.innerHTML+='<div class="metric-card"><div class="metric-label">'+c.label+'</div><div class="metric-value">'+c.val+'</div></div>'});
-document.getElementById('latest').textContent=JSON.stringify(d.latest,null,2);
-if(d.hourly_trend&&d.hourly_trend.length){const labels=d.hourly_trend.map(h=>{const p=h.hour.indexOf('T');return h.hour.substring(p+1,p+6)});
-const uptime=d.hourly_trend.map(h=>h.uptime_pct);const checks=d.hourly_trend.map(h=>h.checks);
-new Chart(document.getElementById('uptimeChart'),{type:'bar',data:{labels,datasets:[{label:'Uptime %',data:uptime,backgroundColor:uptime.map(v=>v>=99.9?'rgba(34,197,94,0.7)':v>=99?'rgba(234,179,8,0.7)':'rgba(239,68,68,0.7)'),borderColor:uptime.map(v=>v>=99.9?'rgb(34,197,94)':v>=99?'rgb(234,179,8)':'rgb(239,68,68)'),borderWidth:1},{label:'Checks',data:checks,backgroundColor:'rgba(56,189,248,0.2)',borderColor:'rgb(56,189,248)',borderWidth:1,yAxisID:'y1'}]},options:{responsive:true,scales:{y:{beginAtZero:true,max:100,title:{display:true,text:'Uptime %'}},y1:{position:'right',beginAtZero:true,title:{display:true,text:'Checks'},grid:{drawOnChartArea:false}}},plugins:{legend:{labels:{color:'#94a3b8'}}}}})}
-if(d.latency_trend&&d.latency_trend.length){const labels2=d.latency_trend.map(h=>{const p=h.ts.indexOf('T');return h.ts.substring(p+1,p+6)});
-const p95=d.latency_trend.map(h=>h.p95_ms);const avg=d.latency_trend.map(h=>h.avg_ms);
-new Chart(document.getElementById('latencyChart'),{type:'line',data:{labels:labels2,datasets:[{label:'p95 (ms)',data:p95,borderColor:'rgb(239,68,68)',backgroundColor:'rgba(239,68,68,0.1)',fill:true,tension:0.3},{label:'Avg (ms)',data:avg,borderColor:'rgb(56,189,248)',backgroundColor:'rgba(56,189,248,0.1)',fill:true,tension:0.3}]},options:{responsive:true,scales:{y:{beginAtZero:true,title:{display:true,text:'Latency (ms)'}}},plugins:{legend:{labels:{color:'#94a3b8'}}}}})}
-}catch(e){document.getElementById('last-updated').textContent='Error: '+e.message}}
-loadData();setInterval(loadData,30000);
-</script></body></html>
-DASHEOF
-
-          cp /usr/local/bin/mcp-uptime-dashboard.html "$WEB_ROOT/index.html"
-
-          # Install cron jobs
-          cat > /etc/cron.d/buywhere-mcp-uptime << CRONEOF
-# MCP uptime check — every 60 seconds (BUY-9233)
-* * * * * root /usr/local/bin/check-mcp-uptime.sh >> ${LOG_DIR}/check.log 2>&1
-
-# Generate dashboard report — every 5 minutes
-*/5 * * * * root /usr/local/bin/report-mcp-uptime.sh ${WEB_ROOT} >> ${LOG_DIR}/report.log 2>&1
-CRONEOF
-          chmod 644 /etc/cron.d/buywhere-mcp-uptime
-
-          systemctl restart cron 2>/dev/null || true
-
-          # Generate initial report
-          /usr/local/bin/report-mcp-uptime.sh "$WEB_ROOT" || true
-
-          # Add nginx config
-          if [ ! -f /etc/nginx/sites-enabled/mcp-uptime.conf ]; then
-            cat > /etc/nginx/sites-enabled/mcp-uptime.conf << NGINXEOF
-location /mcp-uptime {
-    alias ${WEB_ROOT};
-    index index.html;
-    add_header Cache-Control "no-cache, max-age=0";
-    add_header X-Frame-Options "SAMEORIGIN";
-}
-NGINXEOF
-            echo "nginx config written"
-          else
-            echo "nginx config already exists — skipping"
-          fi
-
-          nginx -t && nginx -s reload
-          echo "nginx reloaded"
-
-          echo ""
-          echo "=== Installation complete ==="
-          echo "Dashboard URL: https://api.buywhere.ai/mcp-uptime"
-          echo "Log file:      ${LOG_DIR}/mcp-uptime.ndjson"
-          echo "Report file:   ${WEB_ROOT}/uptime.json"
-          SETUPEOF
+      - name: Reload nginx
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          SSH_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
+          SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+        run: |
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "sudo nginx -t && sudo nginx -s reload"
 
       - name: Verify installation
-        env:
-          MCP_URL: ${{ github.event.inputs.mcp_url }}
         run: |
           echo "=== Verifying MCP uptime monitoring ==="
-          sleep 5
+          sleep 10
           HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
             https://api.buywhere.ai/mcp-uptime/uptime.json 2>/dev/null || echo "000")
-          echo "GET /mcp-uptime/uptime.json → HTTP ${HTTP}"
+          echo "GET /mcp-uptime/uptime.json -> HTTP ${HTTP}"
           if [ "$HTTP" = "200" ]; then
             echo "SUCCESS: Dashboard is live"
           else
-            echo "WARNING: Dashboard returned ${HTTP} — may need a moment to generate first report"
+            echo "WARNING: Dashboard returned ${HTTP} - may need a moment to generate first report"
           fi
 
       - name: Summary
         run: |
           echo "=== MCP Uptime Monitoring Install Summary ==="
-          echo "Workflow: install-mcp-uptime.yml"
-          echo "Scripts:  check-mcp-uptime.sh, report-mcp-uptime.sh"
           echo "Dashboard: https://api.buywhere.ai/mcp-uptime"
-          echo "Status:   $(curl -s https://api.buywhere.ai/mcp-uptime/uptime.json | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("status","unknown"))' 2>/dev/null || echo 'pending')"
+          echo "Status: $(curl -s https://api.buywhere.ai/mcp-uptime/uptime.json | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("status","unknown"))' 2>/dev/null || echo 'pending')"
