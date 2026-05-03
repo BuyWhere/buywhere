@@ -1,0 +1,22 @@
+# Buywhere.ai Agent Declaration
+# Format: https://datatracker.ietf.org/doc/draft-srijal-agents-policy/
+
+Agent-Name: Buywhere Product Catalog
+Agent-Type: service
+Agent-Version: 1.0.0
+Description: Cross-border product discovery with market matching and affiliate attribution
+
+Protocols: MCP, A2A, HTTP/REST
+MCP-Endpoint: https://api.buywhere.ai/mcp/sse
+A2A-Endpoint: https://api.buywhere.ai/a2a
+REST-Endpoint: https://api.buywhere.ai/v1
+
+Capabilities: product-search, cross-border-match, price-history, merchant-discovery, affiliate-attribution
+
+Authentication: apiKey, oauth2
+Rate-Limit: 100/min-free, 1000/min-partner
+
+Contact: agents@buywhere.ai
+Status-Page: https://status.buywhere.ai
+Trust-Score: 0.95
+Last-Updated: 2026-05-03
