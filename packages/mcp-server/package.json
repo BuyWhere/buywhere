@@ -1,7 +1,7 @@
 {
   "name": "@buywhere/mcp-server",
-  "version": "0.1.4",
-  "description": "BuyWhere MCP server — stdio transport for Claude, Cursor, and other MCP clients",
+  "version": "0.3.3",
+  "description": "BuyWhere MCP server — search and compare products from Singapore, SEA, and US markets via Model Context Protocol. Cross-border e-commerce product catalog for AI agents.",
   "type": "module",
   "bin": {
     "buywhere-mcp-server": "./dist/index.js"
@@ -17,13 +17,22 @@
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
+  "mcpName": "ai.buywhere/buywhere-mcp",
   "keywords": [
     "buywhere",
     "mcp",
     "model-context-protocol",
     "product-search",
     "price-comparison",
-    "shopping"
+    "shopping",
+    "ai-agent",
+    "claude",
+    "cursor",
+    "stdio",
+    "product-catalog",
+    "ecommerce",
+    "singapore",
+    "cross-border"
   ],
   "author": "BuyWhere",
   "license": "MIT",
