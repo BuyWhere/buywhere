@@ -71,12 +71,19 @@ function parseBlogPost(fileName: string): BlogPost | null {
 }
 
 export function getAllBlogPosts(): BlogPost[] {
-  return fs
-    .readdirSync(blogDirectory)
-    .filter((fileName) => fileName.endsWith(".md"))
-    .map(parseBlogPost)
-    .filter((post): post is BlogPost => post !== null)
-    .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt));
+  try {
+    if (!fs.existsSync(blogDirectory)) {
+      return [];
+    }
+    return fs
+      .readdirSync(blogDirectory)
+      .filter((fileName) => fileName.endsWith(".md"))
+      .map(parseBlogPost)
+      .filter((post): post is BlogPost => post !== null)
+      .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt));
+  } catch {
+    return [];
+  }
 }
 
 export function getBlogPostBySlug(slug: string): BlogPost | undefined {

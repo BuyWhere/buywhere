@@ -1,6 +1,18 @@
 import { getAllBlogPosts } from "@/lib/blog";
 import { PRODUCT_TAXONOMY, US_CATEGORY_META } from "@/lib/taxonomy";
 import { getUSProducts, type USProductForSitemap } from "@/lib/us-products";
+import fs from "node:fs";
+
+function safeGetBlogPosts() {
+  try {
+    if (fs.existsSync(process.cwd() + "/content/blog")) {
+      return getAllBlogPosts();
+    }
+  } catch {
+    // blog directory not available at runtime
+  }
+  return [];
+}
 
 export const SITEMAP_BASE_URL = "https://buywhere.ai";
 export const MAX_URLS_PER_SITEMAP = 50_000;
@@ -52,9 +64,11 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/pricing/", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/about/", priority: 0.6, changeFrequency: "monthly" as const },
   { path: "/contact/", priority: 0.5, changeFrequency: "monthly" as const },
+  { path: "/air-purifier-singapore/", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/best-gaming-laptops-us/", priority: 0.9, changeFrequency: "weekly" as const },
-  { path: "/iphone-16-price-singapore/", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/best-robot-vacuums-2026/", priority: 0.9, changeFrequency: "weekly" as const },
+  { path: "/iphone-16-price-singapore/", priority: 0.9, changeFrequency: "weekly" as const },
+  { path: "/laptop-singapore/", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/privacy/", priority: 0.3, changeFrequency: "yearly" as const },
   { path: "/terms/", priority: 0.3, changeFrequency: "yearly" as const },
 ] as const;
@@ -121,7 +135,7 @@ export function renderSitemapIndex(urls: Array<{ url: string; lastModified: Date
 
 export function getStaticSitemapEntries(): SitemapUrlEntry[] {
   const now = new Date();
-  const blogPosts = getAllBlogPosts();
+  const blogPosts = safeGetBlogPosts();
 
   return [
     ...STATIC_SITEMAP_ROUTES.map(({ path, priority, changeFrequency }) => ({
