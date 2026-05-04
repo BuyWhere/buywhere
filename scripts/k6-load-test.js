@@ -2,19 +2,19 @@
 // k6 load test for BuyWhere API latency validation.
 // Usage:
 //   k6 run scripts/k6-load-test.js
-//   K6_API_BASE_URL=https://staging... k6 run scripts/k6-load-test.js
-//   K6_API_KEY=your_key K6_API_BASE_URL=https://api.buywhere.ai k6 run scripts/k6-load-test.js
+//   TEST_API_BASE_URL=https://staging... k6 run scripts/k6-load-test.js
+//   TEST_API_KEY=your_key TEST_API_BASE_URL=https://api.buywhere.ai k6 run scripts/k6-load-test.js
 
 import http from 'k6/http';
 import { Rate, Trend, Counter } from 'k6/metrics';
 import { check } from 'k6';
 
-const API_BASE_URL = __ENV.K6_API_BASE_URL || 'http://localhost:8000';
-const API_KEY = __ENV.K6_API_KEY || '';
-const TARGET_VUS = parseInt(__ENV.K6_TARGET_VUS || '1000', 10);
-const DURATION = __ENV.K6_DURATION || '5m';
-const THRESHOLD_P95_MS = parseInt(__ENV.K6_THRESHOLD_P95_MS || '200', 10);
-const THRESHOLD_P99_MS = parseInt(__ENV.K6_THRESHOLD_P99_MS || '300', 10);
+const API_BASE_URL = __ENV.TEST_API_BASE_URL || 'http://localhost:8000';
+const API_KEY = __ENV.TEST_API_KEY || '';
+const TARGET_VUS = parseInt(__ENV.TEST_TARGET_VUS || '1000', 10);
+const DURATION = __ENV.TEST_DURATION || '5m';
+const THRESHOLD_P95_MS = parseInt(__ENV.TEST_THRESHOLD_P95_MS || '200', 10);
+const THRESHOLD_P99_MS = parseInt(__ENV.TEST_THRESHOLD_P99_MS || '300', 10);
 
 const errorRate = new Rate('errors');
 const latencyTrend = new Trend('latency_ms');
@@ -95,10 +95,10 @@ export default function () {
   errorRate.add(!v1HealthOk, { endpoint: '/v1/health' });
 
   if (v1HealthRes.status === 401 && !API_KEY) {
-    console.log('WARNING: /v1/health returned 401 — set K6_API_KEY env var to test authenticated endpoints');
+    console.log('WARNING: /v1/health returned 401 — set TEST_API_KEY env var to test authenticated endpoints');
   }
 
-  if (__ENV.K6_VERBOSE === 'true') {
+  if (__ENV.TEST_VERBOSE === 'true') {
     console.log(`VU ${__VU} iter ${__ITER}: search=${searchRes.status} product=${productRes.status} compare=${compareRes.status} health=${healthRes.status}`);
   }
 }

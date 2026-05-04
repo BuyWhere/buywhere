@@ -181,13 +181,12 @@ jobs:
 
       - name: Run k6 load test
         env:
-          API_BASE_URL: ${{ needs.deploy-cloud-run.outputs.url }}
-          K6_API_KEY: ${{ secrets.K6_API_KEY_STAGING }}
-          K6_TARGET_VUS: 1000
-          K6_DURATION: 5m
-          K6_THRESHOLD_P95_MS: 200
-          K6_THRESHOLD_P99_MS: 300
-          K6_API_BASE_URL: ${{ needs.deploy-cloud-run.outputs.url }}
+          TEST_API_KEY: ${{ secrets.K6_API_KEY_STAGING }}
+          TEST_TARGET_VUS: 1000
+          TEST_DURATION: 5m
+          TEST_THRESHOLD_P95_MS: 200
+          TEST_THRESHOLD_P99_MS: 300
+          TEST_API_BASE_URL: ${{ needs.deploy-cloud-run.outputs.url }}
         run: |
           k6 run scripts/k6-load-test.js \
             --out json=k6-results.json
