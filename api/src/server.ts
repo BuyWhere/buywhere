@@ -22,6 +22,7 @@ import merchantsRouter from './routes/merchants';
 import ingestRouter from './routes/ingest';
 import catalogRouter from './routes/catalog';
 import keysRouter from './routes/keys';
+import webhooksRouter from './routes/webhooks';
 import { db } from './config';
 
 export function createApp() {
@@ -75,6 +76,9 @@ export function createApp() {
 
   // MCP JSON-RPC endpoint (Model Context Protocol)
   app.use('/mcp', mcpRouter);
+
+  // Webhook receivers (UptimeRobot, etc.)
+  app.use('/webhooks', webhooksRouter);
 
   // v1 API
   app.use('/v1/auth', authRouter);

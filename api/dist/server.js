@@ -28,6 +28,7 @@ const merchants_1 = __importDefault(require("./routes/merchants"));
 const ingest_1 = __importDefault(require("./routes/ingest"));
 const catalog_1 = __importDefault(require("./routes/catalog"));
 const keys_1 = __importDefault(require("./routes/keys"));
+const webhooks_1 = __importDefault(require("./routes/webhooks"));
 function createApp() {
     const app = (0, express_1.default)();
     app.use((0, cors_1.default)({
@@ -70,6 +71,8 @@ function createApp() {
     app.get('/quickstart', aiCrawlerHeaders, (_req, res) => res.redirect(301, '/docs/guides/mcp'));
     // MCP JSON-RPC endpoint (Model Context Protocol)
     app.use('/mcp', mcp_1.default);
+    // Webhook receivers (UptimeRobot, etc.)
+    app.use('/webhooks', webhooks_1.default);
     // v1 API
     app.use('/v1/auth', auth_1.default);
     app.use('/v1/products', products_1.default);
