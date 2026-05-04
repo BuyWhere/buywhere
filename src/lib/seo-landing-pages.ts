@@ -698,4 +698,255 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
     ],
   },
+  "airpods-singapore": {
+    slug: "airpods-singapore",
+    title: "Best AirPods Deals in Singapore 2026 | Compare Prices Across SG Retailers",
+    description:
+      "Find the best AirPods deals in Singapore with live BuyWhere prices, retailer comparisons, and buying advice across Apple, Shopee, Lazada, Courts, and Challenger.",
+    heroEyebrow: "Singapore Audio Guide",
+    heroTitle: "Best AirPods Deals in Singapore",
+    heroBody:
+      "AirPods are among the most searched audio products in Singapore. This page combines the latest AirPods deals across Apple Store, Shopee, Lazada, and local electronics retailers with practical buying guidance so you can find the lowest real price.",
+    canonicalPath: "/airpods-singapore",
+    country: "SG",
+    currency: "SGD",
+    locale: "en_SG",
+    searchQuery: "AirPods",
+    refreshedLabel: "Updated May 4, 2026",
+    productSectionTitle: "Live AirPods offers across Singapore",
+    comparisonSectionTitle: "Popular AirPods picks at a glance",
+    comparisonColumns: ["Model", "Price", "Battery", "ANC", "Best For"],
+    comparisonRows: [
+      { Model: "AirPods Pro 2", Price: "S$349", Battery: "6h", ANC: "Yes", "Best For": "Best overall" },
+      { Model: "AirPods 4", Price: "S$199", Battery: "5h", ANC: "No", "Best For": "Best value" },
+      { Model: "AirPods Max", Price: "S$699", Battery: "20h", ANC: "Yes", "Best For": "Best over-ear" },
+    ],
+    highlightSectionTitle: "What Singapore buyers check before buying",
+    highlights: [
+      {
+        title: "Apple Store vs marketplace pricing",
+        body: "Apple Store Official sells at fixed RRP. Shopee Mall and LazMall often undercut Apple pricing by 10-20% during campaign windows.",
+      },
+      {
+        title: "Warranty matters for AirPods",
+        body: "Verify the seller is an Apple Authorised Reseller. Non-authorised gray-market units may not be covered by Apple Singapore warranty.",
+      },
+      {
+        title: "Campaign vouchers move prices",
+        body: "5.5, 9.9, 11.11, and 12.12 usually deliver the lowest AirPods prices on Shopee and Lazada through stackable vouchers.",
+      },
+    ],
+    adviceSectionTitle: "How to choose the right AirPods",
+    advicePoints: [
+      "For commuters and office workers, AirPods Pro 2 with ANC is the best everyday choice.",
+      "If you do not need noise cancellation, AirPods 4 deliver solid audio at a lower price point.",
+      "Check whether the listing includes international warranty or only local Apple Singapore coverage.",
+      "Marketplace prices during 5.5, 9.9, and 11.11 can beat Apple Store by S$40 to S$80 or more.",
+    ],
+    faqSectionTitle: "AirPods Singapore FAQ",
+    faqs: [
+      {
+        question: "Where is the cheapest place to buy AirPods in Singapore?",
+        answer:
+          "Shopee Mall and LazMall authorised resellers often have the lowest AirPods prices during campaign days (5.5, 9.9, 11.11). Apple Store is more consistent but rarely the cheapest.",
+      },
+      {
+        question: "Is AirPods Pro 2 worth buying in 2026?",
+        answer:
+          "Yes. AirPods Pro 2 remains the best wireless earbuds for iPhone users in 2026 with excellent ANC, transparency mode, and tight Apple ecosystem integration.",
+      },
+      {
+        question: "How do I verify AirPods are genuine in Singapore?",
+        answer:
+          "Buy from Apple Store, Apple Authorised Resellers, or verified Shopee Mall / LazMall stores. Avoid unbranded marketplace sellers at prices significantly below market.",
+      },
+    ],
+    shopperCta: {
+      title: "Compare AirPods prices in Singapore",
+      body: "Find the lowest AirPods price across Apple Store, Shopee, Lazada, Courts, and Challenger in one search view.",
+      href: "/search?q=AirPods&country=sg",
+      label: "Shop AirPods",
+    },
+    developerCta: {
+      title: "Build Singapore electronics price trackers",
+      body: "Use BuyWhere APIs to monitor AirPods pricing and availability across SG retailers in real time.",
+      href: "/developers",
+      label: "Explore the API",
+    },
+    fallbackProducts: [
+      { id: "ap1", name: "Apple AirPods Pro 2", price: 349, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=AirPods+Pro+2&country=sg", brand: "Apple", category: "Audio" },
+      { id: "ap2", name: "Apple AirPods 4", price: 199, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=AirPods+4&country=sg", brand: "Apple", category: "Audio" },
+      { id: "ap3", name: "Apple AirPods Max", price: 699, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=AirPods+Max&country=sg", brand: "Apple", category: "Audio" },
+      { id: "ap4", name: "Apple AirPods Pro 2", price: 339, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=AirPods+Pro+2&country=sg", brand: "Apple", category: "Audio" },
+      { id: "ap5", name: "Apple AirPods 4", price: 189, currency: "SGD", merchant: "Courts", imageUrl: null, href: "/search?q=AirPods+4&country=sg", brand: "Apple", category: "Audio" },
+    ],
+  },
+  "best-gaming-laptop-singapore": {
+    slug: "best-gaming-laptop-singapore",
+    title: "Best Gaming Laptops in Singapore 2026 | Compare RTX Gaming Laptop Deals",
+    description:
+      "Compare the best gaming laptops in Singapore with live BuyWhere search results, price benchmarks, and buying advice across ASUS ROG, Lenovo Legion, Alienware, HP Omen, and Acer Predator.",
+    heroEyebrow: "Singapore Laptop Guide",
+    heroTitle: "Best Gaming Laptops in Singapore",
+    heroBody:
+      "Gaming laptops in Singapore in 2026 handle competitive play, AAA releases, streaming, and creative workloads. This page combines editorial recommendations with live BuyWhere search results so you can compare specs and pricing across SG retailers in one view.",
+    canonicalPath: "/best-gaming-laptop-singapore",
+    country: "SG",
+    currency: "SGD",
+    locale: "en_SG",
+    searchQuery: "gaming laptop",
+    refreshedLabel: "Updated May 4, 2026",
+    productSectionTitle: "Live gaming laptop deals across Singapore",
+    comparisonSectionTitle: "Top gaming laptop picks at a glance",
+    comparisonColumns: ["Model", "Price", "GPU", "CPU", "Best For"],
+    comparisonRows: [
+      { Model: "ASUS ROG Zephyrus G16", Price: "S$2,899", GPU: "RTX 5070", CPU: "Intel Core Ultra 9", "Best For": "Best overall" },
+      { Model: "Lenovo Legion Pro 7i", Price: "S$3,299", GPU: "RTX 5080", CPU: "Intel Core Ultra 9", "Best For": "Best performance" },
+      { Model: "HP Omen Transcend 14", Price: "S$2,499", GPU: "RTX 5070", CPU: "Intel Core Ultra 7", "Best For": "Best portable" },
+      { Model: "Acer Predator Helios Neo 16", Price: "S$2,199", GPU: "RTX 5060", CPU: "Intel Core i9", "Best For": "Best value" },
+      { Model: "ASUS TUF Gaming A15", Price: "S$1,799", GPU: "RTX 4060", CPU: "AMD Ryzen 9", "Best For": "Best under S$2,000" },
+    ],
+    highlightSectionTitle: "What Singapore buyers care about",
+    highlights: [
+      {
+        title: "Local warranty and support matter",
+        body: "Gaming laptops are expensive. Buy from authorised Singapore retailers with clear local warranty terms and service center access.",
+      },
+      {
+        title: "Marketplace vouchers can move prices",
+        body: "Shopee and Lazada gaming laptop listings during 5.5, 9.9, and 11.11 can beat Challenger or Courts pricing by S$200 to S$500 with stackable vouchers.",
+      },
+      {
+        title: "Thermal performance matters in SG climate",
+        body: "Singapore's ambient heat means cooling matters more than in temperate markets. Look for reviews that test sustained gaming in warm rooms.",
+      },
+    ],
+    adviceSectionTitle: "How to choose a gaming laptop in Singapore",
+    advicePoints: [
+      "For most SG buyers, RTX 5060 and 5070-class laptops offer the best balance of price and enough performance for modern 1440p gaming.",
+      "Check whether the listed price depends on stackable vouchers, bank card promos, or student discounts before checking out.",
+      "For gaming laptops, 16GB RAM is the practical minimum and 32GB is better for buyers who stream or edit video.",
+      "Best SG discount windows: 5.5, 6.6, 9.9, 11.11, 12.12, and GSS sales.",
+    ],
+    faqSectionTitle: "Gaming laptop Singapore FAQ",
+    faqs: [
+      {
+        question: "What is the best gaming laptop in Singapore right now?",
+        answer:
+          "For most SG buyers, the ASUS ROG Zephyrus G16 offers the best balance of performance, build quality, portability, and local warranty support.",
+      },
+      {
+        question: "Is RTX 4060 still good for gaming in 2026?",
+        answer:
+          "Yes. RTX 4060 gaming laptops are still a strong fit for 1080p gaming, esports titles, and many AAA games on high settings at sensible prices.",
+      },
+      {
+        question: "Where is the cheapest place to buy a gaming laptop in Singapore?",
+        answer:
+          "Shopee and Lazada during campaign days often have the lowest prices. Challenger, Courts, and Harvey Norman are better for installment plans and in-store pickup.",
+      },
+    ],
+    shopperCta: {
+      title: "Compare gaming laptop prices in Singapore",
+      body: "Find ASUS ROG, Lenovo Legion, Alienware, HP Omen, and Acer Predator deals across SG retailers in one search view.",
+      href: "/search?q=gaming+laptop&country=sg",
+      label: "Shop gaming laptops",
+    },
+    developerCta: {
+      title: "Build gaming laptop price trackers",
+      body: "Use BuyWhere APIs to monitor gaming laptop pricing, availability, and campaign deal swings across SG retailers.",
+      href: "/developers",
+      label: "Explore the API",
+    },
+    fallbackProducts: [
+      { id: "g1", name: "ASUS ROG Zephyrus G16", price: 2899, currency: "SGD", merchant: "ASUS Singapore", imageUrl: null, href: "/search?q=ASUS+ROG+Zephyrus+G16&country=sg", brand: "ASUS", category: "Gaming Laptops" },
+      { id: "g2", name: "Lenovo Legion Pro 7i", price: 3299, currency: "SGD", merchant: "Lenovo", imageUrl: null, href: "/search?q=Lenovo+Legion+Pro+7i&country=sg", brand: "Lenovo", category: "Gaming Laptops" },
+      { id: "g3", name: "HP Omen Transcend 14", price: 2499, currency: "SGD", merchant: "HP", imageUrl: null, href: "/search?q=HP+Omen+Transcend+14&country=sg", brand: "HP", category: "Gaming Laptops" },
+      { id: "g4", name: "Acer Predator Helios Neo 16", price: 2199, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=Acer+Predator+Helios+Neo+16&country=sg", brand: "Acer", category: "Gaming Laptops" },
+      { id: "g5", name: "ASUS TUF Gaming A15", price: 1799, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=ASUS+TUF+Gaming+A15&country=sg", brand: "ASUS", category: "Gaming Laptops" },
+    ],
+  },
+  "macbook-air-singapore": {
+    slug: "macbook-air-singapore",
+    title: "Cheapest MacBook Air in Singapore 2026 | Compare M3 & M4 Prices",
+    description:
+      "Find the cheapest MacBook Air in Singapore with live BuyWhere search results, retailer pricing benchmarks, and buying advice across Apple Store, Shopee, Lazada, and local retailers.",
+    heroEyebrow: "Singapore Laptop Guide",
+    heroTitle: "Cheapest MacBook Air in Singapore",
+    heroBody:
+      "MacBook Air remains the most popular ultraportable in Singapore for students, professionals, and everyday users. This page helps buyers find the lowest real price across Apple Store, authorised resellers, and marketplace campaigns.",
+    canonicalPath: "/macbook-air-singapore",
+    country: "SG",
+    currency: "SGD",
+    locale: "en_SG",
+    searchQuery: "MacBook Air",
+    refreshedLabel: "Updated May 4, 2026",
+    productSectionTitle: "Live MacBook Air offers across Singapore",
+    comparisonSectionTitle: "MacBook Air models at a glance",
+    comparisonColumns: ["Model", "Price", "Chip", "RAM", "Best For"],
+    comparisonRows: [
+      { Model: "MacBook Air 13 M4", Price: "S$1,599", Chip: "Apple M4", RAM: "16GB", "Best For": "Best overall" },
+      { Model: "MacBook Air 13 M3", Price: "S$1,499", Chip: "Apple M3", RAM: "16GB", "Best For": "Best value" },
+      { Model: "MacBook Air 15 M4", Price: "S$1,899", Chip: "Apple M4", RAM: "16GB", "Best For": "Best large screen" },
+    ],
+    highlightSectionTitle: "Where to find the lowest price",
+    highlights: [
+      {
+        title: "Apple Store vs authorised resellers",
+        body: "Apple Store pricing is fixed but includes the cleanest warranty path. Shopee Mall and LazMall authorised resellers often undercut Apple by S$100 to S$200 during campaigns.",
+      },
+      {
+        title: "Education pricing and student discounts",
+        body: "Apple Education Store offers S$100 to S$150 off for students and educators. Some authorised resellers match education pricing year-round.",
+      },
+      {
+        title: "Campaign timing matters",
+        body: "5.5, 9.9, and 11.11 are the strongest discount windows for MacBook Air in Singapore through marketplace vouchers.",
+      },
+    ],
+    adviceSectionTitle: "How to choose the right MacBook Air",
+    advicePoints: [
+      "For most buyers, the 13-inch M3 or M4 with 16GB RAM is the best everyday choice for studies, work, and travel.",
+      "Choose the 15-inch model if you regularly work with large spreadsheets, presentations, or creative apps and want more screen.",
+      "Verify the seller is an Apple Authorised Reseller before purchasing from a marketplace.",
+      "Check whether the listing includes AppleCare+ or only standard warranty coverage.",
+    ],
+    faqSectionTitle: "MacBook Air Singapore FAQ",
+    faqs: [
+      {
+        question: "What is the cheapest MacBook Air price in Singapore right now?",
+        answer:
+          "The MacBook Air 13 M3 starts from S$1,499 at Apple Store, but Shopee Mall and LazMall authorised resellers often list it from S$1,299 to S$1,399 during campaigns.",
+      },
+      {
+        question: "Is MacBook Air or MacBook Pro better for Singapore users?",
+        answer:
+          "For most Singapore users (students, office work, browsing, media), MacBook Air is the better choice: lighter, fanless, cheaper, and powerful enough with M3/M4 chips.",
+      },
+      {
+        question: "Should I buy MacBook Air from Shopee or Apple Store?",
+        answer:
+          "Apple Store gives you the cleanest purchase and warranty experience. Shopee Mall authorised resellers can save you S$100 to S$200 during campaigns but verify seller ratings carefully.",
+      },
+    ],
+    shopperCta: {
+      title: "Compare MacBook Air prices in Singapore",
+      body: "Find the lowest MacBook Air price across Apple Store, Shopee, Lazada, Amazon.sg, and local electronics retailers.",
+      href: "/search?q=MacBook+Air&country=sg",
+      label: "Shop MacBook Air",
+    },
+    developerCta: {
+      title: "Build Singapore laptop price trackers",
+      body: "Use BuyWhere APIs to track MacBook Air pricing and availability across SG retailers in real time.",
+      href: "/developers",
+      label: "Explore the API",
+    },
+    fallbackProducts: [
+      { id: "m1", name: "Apple MacBook Air 13 M4", price: 1599, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=MacBook+Air+13+M4&country=sg", brand: "Apple", category: "Laptops" },
+      { id: "m2", name: "Apple MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=MacBook+Air+13+M3&country=sg", brand: "Apple", category: "Laptops" },
+      { id: "m3", name: "Apple MacBook Air 15 M4", price: 1899, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=MacBook+Air+15+M4&country=sg", brand: "Apple", category: "Laptops" },
+      { id: "m4", name: "Apple MacBook Air 13 M3", price: 1399, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=MacBook+Air+13+M3&country=sg", brand: "Apple", category: "Laptops" },
+      { id: "m5", name: "Apple MacBook Air 13 M4", price: 1499, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=MacBook+Air+13+M4&country=sg", brand: "Apple", category: "Laptops" },
+    ],
+  },
 };
