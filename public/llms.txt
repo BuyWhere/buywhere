@@ -1,4 +1,4 @@
-# BuyWhere — Agent-Native Product Catalog API
+# BuyWhere
 
 > BuyWhere is a product catalog API for AI agents. Supports semantic search, normalized pricing, and real-time availability across Singapore retailers.
 
@@ -31,5 +31,7 @@ Growth: 300 req/min, 1M queries/month
 ## MCP Server
 
 npx -y @buywhere/mcp-server
+
 ## Support
+
 BuyWhere Pte. Ltd. — hello@buywhere.ai

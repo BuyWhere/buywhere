@@ -1,4 +1,4 @@
-# BuyWhere — Agent-Native Product Catalog API (Full Reference)
+# BuyWhere
 
 > BuyWhere is a product catalog API for AI agents. Provides semantic search, normalized pricing, and availability across Singapore retailers with 1.5M+ products.
 
