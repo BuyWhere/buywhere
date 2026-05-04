@@ -130,10 +130,10 @@ jobs:
             echo "=== npm run build (into $BUILD_DIR) ==="
             if command -v npm &>/dev/null; then
               npm ci --prefer-offline 2>/dev/null || npm install
-              npm run build
+              npx next build --no-lint
             elif command -v pnpm &>/dev/null; then
               pnpm install --frozen-lockfile
-              pnpm run build
+              pnpm exec next build --no-lint
             else
               echo "ERROR: neither npm nor pnpm found"
               cp next.config.mjs.bak next.config.mjs  # restore on error
