@@ -2,6 +2,18 @@ import { getAllBlogPosts } from "@/lib/blog";
 import { PRODUCT_TAXONOMY, US_CATEGORY_META } from "@/lib/taxonomy";
 import { getUSProducts, type USProductForSitemap } from "@/lib/us-products";
 import { getSGProducts, type SGProductForSitemap } from "@/lib/sg-products";
+import fs from "node:fs";
+
+function safeGetBlogPosts() {
+  try {
+    if (fs.existsSync(process.cwd() + "/content/blog")) {
+      return getAllBlogPosts();
+    }
+  } catch {
+    // blog directory not available at runtime
+  }
+  return [];
+}
 
 export const SITEMAP_BASE_URL = "https://buywhere.ai";
 export const MAX_URLS_PER_SITEMAP = 50_000;
@@ -124,7 +136,7 @@ export function renderSitemapIndex(urls: Array<{ url: string; lastModified: Date
 
 export function getStaticSitemapEntries(): SitemapUrlEntry[] {
   const now = new Date();
-  const blogPosts = getAllBlogPosts();
+  const blogPosts = safeGetBlogPosts();
 
   return [
     ...STATIC_SITEMAP_ROUTES.map(({ path, priority, changeFrequency }) => ({
