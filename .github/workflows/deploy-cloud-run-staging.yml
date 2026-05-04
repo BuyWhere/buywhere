@@ -176,11 +176,8 @@ jobs:
 
       - name: Install k6
         run: |
-          sudo gpg -k
-          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver keyserver.ubuntu.com --recv-keys C5AD17C5C7B3759B332F72376E6821B1A45C7495 2>/dev/null || true
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq k6
+          curl -L -o /tmp/k6.tar.gz https://github.com/grafana/k6/releases/download/v0.57.0/k6-v0.57.0-linux-amd64.tar.gz
+          sudo tar -xzf /tmp/k6.tar.gz -C /usr/local/bin --strip-components=1 k6-v0.57.0-linux-amd64/k6
 
       - name: Run k6 load test
         env:
