@@ -1,0 +1,71 @@
+const AGENT_JSON = {
+  name: 'Buywhere Product Catalog',
+  description:
+    'Cross-border product discovery with intelligent market matching, price comparison, and affiliate attribution across Singapore, China, and global markets.',
+  url: 'https://buywhere.ai',
+  version: '1.0.0',
+  capabilities: {
+    streaming: true,
+    pushNotifications: false,
+    stateTransitionHistory: true,
+  },
+  authentication: {
+    schemes: ['apiKey', 'oauth2'],
+  },
+  defaultInputModes: ['text'],
+  defaultOutputModes: ['text', 'json'],
+  skills: [
+    {
+      id: 'product-search',
+      name: 'Product Search',
+      description:
+        'Search products by keyword, category, price range, and market',
+      tags: ['e-commerce', 'search', 'products'],
+      examples: [
+        'Find Dyson hair dryer under 400 SGD in Singapore',
+        'Organic shampoo in China under 100 CNY',
+      ],
+    },
+    {
+      id: 'cross-border-match',
+      name: 'Cross-Border Product Matching',
+      description:
+        'Find equivalent products across different markets with price and spec comparison',
+      tags: ['cross-border', 'matching', 'price-comparison', 'affiliate'],
+      examples: [
+        'What is the China equivalent of this Singapore shampoo?',
+        'Find the cheapest market for iPhone 16 Pro Max',
+      ],
+    },
+    {
+      id: 'price-history',
+      name: 'Price History & Alerts',
+      description:
+        'Retrieve historical price data and set up price drop alerts',
+      tags: ['pricing', 'history', 'alerts'],
+      examples: [
+        'Show me 30-day price history for this product',
+        'Alert me when this drops below 50 SGD',
+      ],
+    },
+    {
+      id: 'merchant-discovery',
+      name: 'Merchant & Affiliate Discovery',
+      description:
+        'Discover merchants selling a product and retrieve affiliate links',
+      tags: ['merchants', 'affiliate', 'deals'],
+      examples: [
+        'Which merchants sell this product in China?',
+        'Get affiliate link for this Singapore merchant',
+      ],
+    },
+  ],
+};
+
+export function GET() {
+  return Response.json(AGENT_JSON, {
+    headers: {
+      'Cache-Control': 'public, max-age=86400',
+    },
+  });
+}
