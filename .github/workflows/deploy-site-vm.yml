@@ -107,6 +107,11 @@ jobs:
             echo "HEAD: $(git log --oneline -1)"
             echo "route.ts content: $(head -5 src/app/openapi.json/route.ts)"
 
+            # Clean stale build artifacts that may reference deleted source files
+            echo "=== cleaning stale build artifacts ==="
+            rm -rf .next .next-deploy .next-deploy-* .next-fresh 2>/dev/null || true
+            echo "Build artifacts cleaned"
+
             # Build into a fresh timestamped directory to avoid root-owned files
             # from previous builds that the deploy user cannot remove.
             export BUILD_DIR=".next-deploy-$(date +%s)"
