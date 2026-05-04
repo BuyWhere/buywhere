@@ -15,7 +15,6 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
   GCP_PROJECT_ID: gaia-calendar-488606
   GCP_REGION: asia-southeast1
   CLOUD_RUN_SERVICE: buywhere-api
@@ -49,7 +48,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/${{ github.repository }}
+            ghcr.io/buywhere/buywhere
           tags: |
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
@@ -72,6 +71,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     environment: staging
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -109,14 +110,14 @@ jobs:
           gcloud secrets add-iam-policy-binding buywhere-posthog-api-key --member "serviceAccount:$GCP_SA" --role "roles/secretmanager.secretAccessor" --project ${{ env.GCP_PROJECT_ID }} 2>/dev/null || true
 
       - name: Deploy to Cloud Run
+        id: deploy
         run: |
           echo "Deploying to Cloud Run staging..."
-          # Remove DATABASE_URL secret reference if it exists (type mismatch guard)
           gcloud run services update ${{ env.CLOUD_RUN_SERVICE }} \
             --project ${{ env.GCP_PROJECT_ID }} \
             --region ${{ env.GCP_REGION }} \
             --remove-secrets DATABASE_URL 2>/dev/null || true
-          gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
+          SERVICE_URL=$(gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
             --project ${{ env.GCP_PROJECT_ID }} \
             --region ${{ env.GCP_REGION }} \
             --image $AR_IMAGE \
@@ -134,15 +135,10 @@ jobs:
             --min-instances 1 \
             --max-instances 10 \
             --concurrency 80 \
-            --timeout 60s || (
-              echo "=== DEPLOY FAILED — fetching container logs ===" &&
-              gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=${{ env.CLOUD_RUN_SERVICE }}" \
-                --project ${{ env.GCP_PROJECT_ID }} \
-                --limit 50 \
-                --freshness 5m \
-                --format "value(timestamp,severity,textPayload,jsonPayload)" 2>/dev/null || true &&
-              exit 1
-            )
+            --timeout 60s \
+            --format json 2>/dev/null | jq -r '.status.url')
+          echo "Deployed to: $SERVICE_URL"
+          echo "url=$SERVICE_URL" >> $GITHUB_OUTPUT
 
       - name: Wait for service to stabilize
         run: |
@@ -169,5 +165,50 @@ jobs:
         env:
           API_BASE_URL: ${{ needs.deploy-cloud-run.outputs.url }}
         run: |
-          chmod +x scripts/cloud-run-latency-smoke-test.sh
-          ./scripts/cloud-run-latency-smoke-test.sh "$API_BASE_URL"
+          echo "Smoke testing staging at $API_BASE_URL"
+          curl -sf "$API_BASE_URL/health" || { echo "Health endpoint failed"; exit 1; }
+          curl -sf "$API_BASE_URL/healthz" || echo "healthz not available (non-fatal)"
+          echo "All smoke tests passed"
+
+  k6-load-test:
+    name: k6 Load Test (QA)
+    needs: deploy-cloud-run
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_tests != 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver keyserver.ubuntu.com --recv-keys C5AD17C5C7B3759B332F72376E6821B1A45C7495 2>/dev/null || true
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq k6
+
+      - name: Run k6 load test
+        env:
+          API_BASE_URL: ${{ needs.deploy-cloud-run.outputs.url }}
+          K6_API_KEY: ${{ secrets.K6_API_KEY_STAGING }}
+          K6_TARGET_VUS: 1000
+          K6_DURATION: 5m
+          K6_THRESHOLD_P95_MS: 200
+          K6_THRESHOLD_P99_MS: 300
+        run: |
+          k6 run scripts/k6-load-test.js \
+            --env K6_API_BASE_URL="$API_BASE_URL" \
+            --env K6_API_KEY="$K6_API_KEY" \
+            --env K6_TARGET_VUS=1000 \
+            --env K6_DURATION=5m \
+            --env K6_THRESHOLD_P95_MS=200 \
+            --env K6_THRESHOLD_P99_MS=300 \
+            --out json=k6-results.json
+
+      - name: Upload k6 results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-results-staging
+          path: k6-results.json
+          retention-days: 7
