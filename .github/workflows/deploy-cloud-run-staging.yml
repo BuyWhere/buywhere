@@ -117,14 +117,14 @@ jobs:
             --set-env-vars "DATABASE_URL=${{ secrets.CLOUD_SQL_STAGING_CONNECTION_STRING }}" \
             --set-env-vars "REDIS_URL=${{ secrets.REDIS_STAGING_URL }}" \
             --set-env-vars "API_KEY_SECRET=${{ secrets.API_KEY_SECRET_STAGING }}" \
-            --set-env-vars "SENTRY_DSN=${{ secrets.SENTRY_DSN_STAGING }}" \
-            --set-env-vars "POSTHOG_PROJECT_KEY=${{ secrets.POSTHOG_API_KEY_PRODUCTION }}" \
-            --port 8000 \
-            --memory 1Gi \
-            --cpu 2 \
-            --min-instances 1 \
-            --max-instances 10 \
-            --concurrency 80 \
+          --set-env-vars "SENTRY_DSN=${{ secrets.SENTRY_DSN_STAGING }}" \
+          --set-secrets "POSTHOG_PROJECT_KEY=buywhere-posthog-api-key:latest" \
+          --port 8000 \
+          --memory 1Gi \
+          --cpu 2 \
+          --min-instances 2 \
+          --max-instances 10 \
+          --concurrency 50 \
             --timeout 60s \
             --format json | tee /tmp/deploy_output.json | jq -r '.status.url')
           echo "Full deploy output:"
