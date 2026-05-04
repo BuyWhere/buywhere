@@ -18,6 +18,7 @@ import revenueRouter from './routes/revenue';
 import sitemapCompareRouter from './routes/sitemapCompare';
 import landingRouter from './routes/landing';
 import clicksRouter from './routes/clicks';
+import agentCatalogRouter from './routes/agentCatalog';
 import { db } from './config';
 
 export function createApp() {
@@ -74,6 +75,7 @@ export function createApp() {
   app.use('/v1/products', productsRouter);
   // v2 alias — same router, extends v1 contract with country_code + multi-region currency inference
   app.use('/v2/products', productsRouter);
+  app.use('/v2/agent-catalog', agentCatalogRouter);
   app.use('/v1/categories', categoriesRouter);
 
   // Backward-compat alias: /v1/search → /v1/products/search

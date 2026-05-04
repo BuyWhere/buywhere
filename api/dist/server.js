@@ -24,6 +24,7 @@ const revenue_1 = __importDefault(require("./routes/revenue"));
 const sitemapCompare_1 = __importDefault(require("./routes/sitemapCompare"));
 const landing_1 = __importDefault(require("./routes/landing"));
 const clicks_1 = __importDefault(require("./routes/clicks"));
+const agentCatalog_1 = __importDefault(require("./routes/agentCatalog"));
 function createApp() {
     const app = (0, express_1.default)();
     app.use((0, cors_1.default)({
@@ -69,6 +70,7 @@ function createApp() {
     app.use('/v1/products', products_1.default);
     // v2 alias — same router, extends v1 contract with country_code + multi-region currency inference
     app.use('/v2/products', products_1.default);
+    app.use('/v2/agent-catalog', agentCatalog_1.default);
     app.use('/v1/categories', categories_1.default);
     // Backward-compat alias: /v1/search → /v1/products/search
     app.get("/v1/search", (req, res) => {
