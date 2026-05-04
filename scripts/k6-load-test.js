@@ -11,7 +11,7 @@ const authHeaders = API_KEY
   ? { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' }
   : {};
 
-export let options = {
+export const options = {
   stages: [
     { duration: '30s', target: 5 },
     { duration: '30s', target: 1000 },
