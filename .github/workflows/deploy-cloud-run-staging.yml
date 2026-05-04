@@ -181,10 +181,10 @@ jobs:
 
       - name: Install k6
         run: |
-          K6_VERSION=$(curl -s https://api.github.com/repos/grafana/k6/releases/latest | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*//')
+          K6_VERSION=$(curl -s https://api.github.com/repos/grafana/k6/releases/latest | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
           K6_VERSION=${K6_VERSION:-v0.54.0}
           curl -L -o /tmp/k6.tar.gz "https://github.com/grafana/k6/releases/download/${K6_VERSION}/k6-${K6_VERSION}-linux-amd64.tar.gz"
-          sudo tar -xzf /tmp/k6.tar.gz -C /usr/local/bin --strip-components=1 "k6-${K6_VERSION}-linux-amd64/k6"
+          sudo tar -xzf /tmp/k6.tar.gz -C /usr/local/bin --strip-components=1 --strip-components=1 "k6-${K6_VERSION}-linux-amd64/k6"
           k6 version
 
       - name: Run k6 load test
