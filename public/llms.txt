@@ -1,48 +1,35 @@
-# Buywhere.ai
+# BuyWhere — Agent-Native Product Catalog API
 
-> Cross-border product discovery with intelligent market matching. We aggregate products from Singapore, China, and global markets, then match equivalent items across borders with real-time price comparison and affiliate attribution.
+> BuyWhere is a product catalog API for AI agents. Supports semantic search, normalized pricing, and real-time availability across Singapore retailers.
 
-## Product Catalog
+## API Endpoints
 
-- Search products: `GET https://api.buywhere.ai/v1/search?q={query}&market={market}&max_price={max}&currency={currency}&limit={limit}`
-- Get product details: `GET https://api.buywhere.ai/v1/products/{product_id}?include_history=true`
-- Cross-border match: `POST https://api.buywhere.ai/v1/match` with body `{source_product_id, target_market, match_criteria}`
-- Check availability: `GET https://api.buywhere.ai/v1/products/{product_id}/availability?market={market}`
-- Price history: `GET https://api.buywhere.ai/v1/products/{product_id}/prices?days={days}`
+- Search: https://api.buywhere.ai/v1/search
+- Product Detail: https://api.buywhere.ai/v1/products/{id}
+- Best Price: https://api.buywhere.ai/v1/products/best-price
+- Deals: https://api.buywhere.ai/v1/deals
+- Categories: https://api.buywhere.ai/v1/categories
 
 ## Authentication
 
-API key required in header: `X-Buywhere-Key: your_api_key`
-OAuth 2.0 also supported: `Authorization: Bearer {token}`
+Authorization: Bearer bw_live_YOUR_API_KEY
+Get key: https://buywhere.ai/quickstart
 
 ## Rate Limits
 
-- Free tier: 100 requests/minute
-- Partner tier: 1,000 requests/minute
-- Enterprise: Custom limits
+Free: 10 req/min, 1K queries/month
+Starter: 60 req/min, 100K queries/month
+Growth: 300 req/min, 1M queries/month
 
-## Response Format
+## Documentation
 
-All responses are JSON with these standard fields:
-- `success` (boolean)
-- `data` (object or array)
-- `meta` (pagination, query info)
-- `affiliate_links` (when applicable)
+- API Reference: https://api.buywhere.ai/docs
+- Quickstart Guide: https://buywhere.ai/quickstart
+- Pricing: https://buywhere.ai/pricing
+- GitHub: https://github.com/BuyWhere/buywhere
 
 ## MCP Server
 
-Install: `npx -y @buywhere/mcp-server`
-Or: `pip install buywhere-mcp`
-Config: Add to Claude Desktop, Cursor, Windsurf, or any MCP host
-
-## A2A Endpoint
-
-Agent Card: `https://buywhere.ai/.well-known/agent.json`
-Task endpoint: `https://api.buywhere.ai/a2a/tasks`
-Supports streaming via Server-Sent Events
-
-## Contact & Support
-
-- API docs: https://docs.buywhere.ai
-- Status: https://status.buywhere.ai
-- Support: agents@buywhere.ai
+npx -y @buywhere/mcp-server
+## Support
+BuyWhere Pte. Ltd. — hello@buywhere.ai
