@@ -1,10 +1,4 @@
 import http from "k6/http";
-export const options = {
-  stages: [
-    { duration: "10s", target: 5 },
-    { duration: "10s", target: 0 },
-  ],
-};
 export default function () {
-  http.get("http://localhost:8000/health");
+  http.get(__ENV.K6_API_BASE_URL + "/health");
 }
