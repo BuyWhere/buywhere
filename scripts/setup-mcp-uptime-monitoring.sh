@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MCP_URL="${1:-https://mcp.buywhere.ai/health}"
+MCP_URL="${1:-https://api.buywhere.ai/mcp}"
 SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Determine if we can write to system directories (root or sudo NOPASSWD)

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       mcp_url:
-        description: 'MCP health endpoint URL'
+        description: 'MCP tools/list URL'
         required: false
         default: 'https://mcp.buywhere.ai/health'
       dry_run:
@@ -62,6 +62,7 @@ jobs:
             "cd /tmp/mcp-uptime-install && chmod +x *.sh && ./setup-mcp-uptime-monitoring.sh '${MCP_URL}'"
 
       - name: Install nginx config and reload
+        continue-on-error: true
         env:
           SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
           SSH_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
