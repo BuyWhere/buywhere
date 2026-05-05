@@ -1,0 +1,217 @@
+name: Deploy Next.js Site to Production VM
+
+# Deploys the Next.js site to the production VM where the live nginx
+# for buywhere.ai proxies to a local Next.js process (localhost:3000).
+# This is separate from the Cloud Run deploy (deploy-site-production.yml)
+# which targets the buywhere-site-production Cloud Run service used once
+# the buywhere.ai nginx conf is updated to point at Cloud Run.
+#
+# Use this workflow to update the locally-running Next.js site until the
+# nginx config deployment permission issue is resolved.
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to deploy (default: main)'
+        required: false
+        default: 'main'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy Next.js site to VM
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PRODUCTION_DEPLOY_SSH_KEY }}
+
+      - name: Trust production host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}" -H "${{ secrets.PRODUCTION_DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Diagnose VM state
+        env:
+          DEPLOY_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
+          DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+        run: |
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" bash -s << 'ENDSSH'
+            echo "=== Port 3006 (ss with -p shows pid if owned by current user) ==="
+            ss -tlnp 2>/dev/null | grep :3006 || echo "nothing on 3006"
+            echo ""
+            echo "=== fuser 3006/tcp (shows PID owning port) ==="
+            fuser 3006/tcp 2>/dev/null || echo "fuser failed or no output"
+            echo ""
+            echo "=== ALL systemd services ==="
+            systemctl list-units --type=service --all 2>/dev/null | head -50
+            echo ""
+            echo "=== BUY-7302 commit (documents runtime/restart path) ==="
+            git -C "$HOME/buywhere-site" show e4d2aaa09 --stat 2>/dev/null || echo "commit not found"
+            git -C "$HOME/buywhere-site" show e4d2aaa09 -- "*.md" 2>/dev/null | head -80 || true
+            echo ""
+            echo "=== sudo -n available commands ==="
+            sudo -n -l 2>/dev/null || echo "no passwordless sudo or sudo not available"
+            echo ""
+            echo "=== .next-deploy permissions deep ==="
+            ls -la "$HOME/buywhere-site/.next-deploy/" 2>/dev/null | head -5
+            ls -la "$HOME/buywhere-site/.next-deploy/standalone/" 2>/dev/null | head -5
+          ENDSSH
+
+      - name: Pull, build, restart
+        env:
+          DEPLOY_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
+          DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+          BRANCH: ${{ inputs.branch || 'main' }}
+        run: |
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "BRANCH=$BRANCH bash -s" << 'ENDSSH'
+            set -euo pipefail
+            echo "=== BuyWhere Next.js site VM deploy starting ==="
+
+            # Find the site directory.
+            SITE_DIR=""
+            DEPLOY_HOME="$HOME"
+            for candidate in "$DEPLOY_HOME/buywhere-site" "$DEPLOY_HOME/buywhere-api" /tmp/main-site /srv/buywhere /srv/buywhere-site /opt/buywhere; do
+              if [ -f "$candidate/next.config.mjs" ] || [ -f "$candidate/next.config.js" ]; then
+                SITE_DIR="$candidate"
+                break
+              fi
+            done
+
+            if [ -z "$SITE_DIR" ]; then
+              echo "ERROR: Could not find next.config.mjs in any candidate directory"
+              exit 1
+            fi
+            echo "Site directory: $SITE_DIR"
+
+            cd "$SITE_DIR"
+
+            echo "=== git fetch + reset --hard origin/$BRANCH ==="
+            git fetch origin
+            git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "origin/$BRANCH"
+            git reset --hard "origin/$BRANCH"
+            echo "HEAD: $(git log --oneline -1)"
+            echo "route.ts content: $(head -5 src/app/openapi.json/route.ts)"
+
+            # Clean stale build artifacts that may reference deleted source files
+            echo "=== cleaning stale build artifacts ==="
+            rm -rf .next .next-deploy .next-deploy-* .next-fresh 2>/dev/null || true
+            echo "Build artifacts cleaned"
+
+            # Build into a fresh timestamped directory to avoid root-owned files
+            # from previous builds that the deploy user cannot remove.
+            export BUILD_DIR=".next-deploy-$(date +%s)"
+            echo "=== using build dir: $BUILD_DIR ==="
+            cp next.config.mjs next.config.mjs.bak
+            python3 - << 'PYEOF'
+          import re, sys, os
+          build_dir = os.environ.get('BUILD_DIR', '.next-fresh')
+          with open('next.config.mjs', 'r') as f:
+              content = f.read()
+          updated = re.sub(r"distDir:\s*['\"][^'\"]*['\"]", f"distDir: '{build_dir}'", content)
+          if 'distDir' not in updated:
+              updated = content.replace('output:', f"distDir: '{build_dir}',\n  output:")
+          with open('next.config.mjs', 'w') as f:
+              f.write(updated)
+          print(f"next.config.mjs patched to distDir={build_dir}")
+          PYEOF
+            grep "distDir" next.config.mjs
+
+            # Build Next.js — required to compile the updated route handler
+            echo "=== npm run build (into $BUILD_DIR) ==="
+            if command -v npm &>/dev/null; then
+              npm ci --prefer-offline 2>/dev/null || npm install
+              npx next build --no-lint
+            elif command -v pnpm &>/dev/null; then
+              pnpm install --frozen-lockfile
+              pnpm exec next build --no-lint
+            else
+              echo "ERROR: neither npm nor pnpm found"
+              cp next.config.mjs.bak next.config.mjs
+              exit 1
+            fi
+
+            # Restore original next.config.mjs (keep .next-fresh for runtime, restore config for future builds)
+            cp next.config.mjs.bak next.config.mjs
+            echo "Build complete into .next-fresh: HEAD=$(git log --oneline -1)"
+
+            # Restart the site process — use fuser to kill whatever is on port 3006
+            echo "=== restarting site process ==="
+            fuser -k 3006/tcp 2>/dev/null && echo "Killed process on port 3006" || echo "No process on port 3006"
+            sleep 3
+
+            # Read start env from service file if it exists
+            SERVICE_FILE="$SITE_DIR/deploy/buywhere-site.service"
+            START_ENV="PORT=3006 HOSTNAME=127.0.0.1"
+            if [ -f "$SERVICE_FILE" ]; then
+              EXTRA=$(grep "^Environment=" "$SERVICE_FILE" 2>/dev/null | sed 's/^Environment=//' | tr '\n' ' ')
+              if [ -n "$EXTRA" ]; then
+                START_ENV="$EXTRA"
+              fi
+              echo "Using env from service file: $START_ENV"
+            fi
+
+            mkdir -p "$SITE_DIR/.runtime"
+            PID_FILE="$SITE_DIR/.runtime/buywhere-site.pid"
+            LOG_FILE="$SITE_DIR/.runtime/buywhere-site.log"
+            ENTRY="$SITE_DIR/$BUILD_DIR/standalone/server.js"
+            if [ ! -f "$ENTRY" ]; then
+              echo "ERROR: standalone server.js not found at $ENTRY after build"
+              exit 1
+            fi
+
+            # Start new nohup process
+            env $START_ENV nohup node "$ENTRY" > "$LOG_FILE" 2>&1 &
+            NEW_PID=$!
+            echo $NEW_PID > "$PID_FILE"
+            echo "Started new process PID=$NEW_PID"
+            sleep 5
+
+            # Verify new process is running
+            if kill -0 "$NEW_PID" 2>/dev/null; then
+              echo "Process $NEW_PID is running"
+              curl -sf http://127.0.0.1:3006/ -o /dev/null && echo "Port 3006 responded OK" || echo "WARN: port 3006 not yet responding"
+            else
+              echo "ERROR: Process $NEW_PID died. Last log lines:"
+              tail -20 "$LOG_FILE" || true
+              exit 1
+            fi
+
+            echo "=== VM site deploy complete ==="
+          ENDSSH
+
+      - name: Smoke test buywhere.ai/openapi.json
+        run: |
+          echo "Waiting 15s for site to come up..."
+          sleep 15
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" -L \
+            https://buywhere.ai/openapi.json --max-time 15 || echo "000")
+          REDIRECT=$(curl -s -o /dev/null -w "%{redirect_url}" \
+            https://buywhere.ai/openapi.json --max-time 15 || echo "")
+          echo "GET https://buywhere.ai/openapi.json → HTTP $HTTP (redirect: $REDIRECT)"
+          DIRECT=$(curl -s -o /dev/null -w "%{http_code}" \
+            https://buywhere.ai/openapi.json --max-time 15 --max-redirs 0 || echo "000")
+          echo "No-follow: HTTP $DIRECT"
+          if [[ "$DIRECT" == "308" ]] || [[ "$DIRECT" == "301" ]] || [[ "$DIRECT" == "302" ]]; then
+            echo "PASS: buywhere.ai/openapi.json correctly redirects (HTTP $DIRECT)"
+          elif [[ "$HTTP" == "200" ]]; then
+            CONTENT=$(curl -s https://buywhere.ai/openapi.json -L --max-time 15 | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('servers',[{}])[0].get('url','UNKNOWN'))" 2>/dev/null || echo "PARSE_ERROR")
+            echo "Final spec server URL: $CONTENT"
+            if echo "$CONTENT" | grep -q "buywhere.ai"; then
+              echo "PASS: resolves to canonical .ai spec"
+            else
+              echo "FAIL: spec still points to $CONTENT"
+              exit 1
+            fi
+          else
+            echo "FAIL: unexpected HTTP $DIRECT / $HTTP"
+            exit 1
+          fi
