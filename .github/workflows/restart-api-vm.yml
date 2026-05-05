@@ -1,0 +1,80 @@
+name: Restart API on Production VM
+
+on:
+  workflow_dispatch:
+
+jobs:
+  restart:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PRODUCTION_DEPLOY_SSH_KEY }}
+
+      - name: Trust host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}" -H "${{ secrets.PRODUCTION_DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Restart API
+        env:
+          DEPLOY_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
+          DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+        run: |
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" bash -s << 'ENDSSH'
+            set -euo pipefail
+            echo "=== Diagnosing API ==="
+            echo "Port 8000:"
+            ss -tlnp 2>/dev/null | grep :8000 || echo "nothing on port 8000"
+            echo ""
+            echo "=== Checking PM2 ==="
+            pm2 list 2>/dev/null || echo "PM2 not available"
+            echo ""
+            echo "=== systemd services ==="
+            systemctl list-units --type=service --all 2>/dev/null | grep -i "api\|node\|buywhere" | head -10 || echo "No matching services"
+            echo ""
+            echo "=== buywhere-api process ==="
+            ps aux | grep -i "buywhere-api\|dist/index" | grep -v grep || echo "No buywhere-api process found"
+            echo ""
+            echo "=== Attempting restart ==="
+            # Try systemd
+            if systemctl is-active --quiet buywhere-api 2>/dev/null; then
+              echo "Restarting buywhere-api via systemd..."
+              sudo systemctl restart buywhere-api
+              echo "Done"
+            elif systemctl list-units --type=service --all 2>/dev/null | grep -q "buywhere"; then
+              SERVICE=$(systemctl list-units --type=service --all 2>/dev/null | grep "buywhere" | head -1 | awk '{print $1}')
+              echo "Restarting service: $SERVICE"
+              sudo systemctl restart "$SERVICE"
+            else
+              echo "No systemd service found. Checking PM2..."
+              if command -v pm2 &>/dev/null; then
+                pm2 restart buywhere-api 2>/dev/null || pm2 restart 0 2>/dev/null || echo "PM2 restart failed"
+              fi
+              echo "Checking for running node process in buywhere-api..."
+              API_DIR=$(find /home -name "buywhere-api" -type d 2>/dev/null | head -1)
+              if [ -n "$API_DIR" ] && [ -f "$API_DIR/api/dist/index.js" ]; then
+                echo "Found API directory: $API_DIR"
+                cd "$API_DIR/api"
+                nohup node dist/index.js > /tmp/buywhere-api.log 2>&1 &
+                echo "Started API with PID $!"
+              fi
+            fi
+            echo ""
+            echo "=== Post-restart status ==="
+            sleep 5
+            ss -tlnp 2>/dev/null | grep :8000 || echo "still nothing on port 8000"
+            ps aux | grep "dist/index" | grep -v grep | head -3 || echo "No API process"
+          ENDSSH
+
+      - name: Verify API
+        run: |
+          sleep 10
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" "https://api.buywhere.ai/health" --max-time 10 || echo "000")
+          echo "GET https://api.buywhere.ai/health → HTTP $HTTP"
+          if [ "$HTTP" != "200" ]; then
+            echo "WARNING: API health check returned $HTTP (not 200)"
+          fi
