@@ -13,6 +13,7 @@ export type BlogPost = {
   canonicalUrl?: string;
   coverImage?: string;
   tags: string[];
+  jsonLd?: string;
   body: string;
 };
 
@@ -25,6 +26,7 @@ type Frontmatter = {
   canonicalUrl?: string;
   coverImage?: string;
   tags?: string[];
+  jsonLd?: string;
 };
 
 function parseBlogPost(fileName: string): BlogPost | null {
@@ -66,6 +68,7 @@ function parseBlogPost(fileName: string): BlogPost | null {
     canonicalUrl: frontmatter.canonicalUrl,
     coverImage: frontmatter.coverImage,
     tags: frontmatter.tags ?? [],
+    jsonLd: frontmatter.jsonLd,
     body: content.trim(),
   };
 }

@@ -60,8 +60,16 @@ export default function BlogPostPage({ params }: PageProps) {
     notFound();
   }
 
+  const jsonLd = post.jsonLd ? (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: post.jsonLd }}
+    />
+  ) : null;
+
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
+      {jsonLd}
       <Nav />
 
       <main className="flex-1">
