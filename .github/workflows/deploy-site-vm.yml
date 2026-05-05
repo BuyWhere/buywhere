@@ -96,7 +96,6 @@ jobs:
 
             echo "=== git fetch + reset --hard origin/$BRANCH ==="
             git fetch origin
-            git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "origin/$BRANCH"
             git reset --hard "origin/$BRANCH"
             echo "HEAD: $(git log --oneline -1)"
             echo "route.ts content: $(head -5 src/app/openapi.json/route.ts)"
