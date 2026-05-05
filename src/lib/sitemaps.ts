@@ -71,6 +71,7 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/air-purifier-singapore/", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/best-robot-vacuums-2026/", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/mcp-ecommerce/", priority: 0.9, changeFrequency: "weekly" as const },
+  { path: "/challenge/", priority: 0.9, changeFrequency: "daily" as const },
   { path: "/privacy/", priority: 0.3, changeFrequency: "yearly" as const },
   { path: "/terms/", priority: 0.3, changeFrequency: "yearly" as const },
 ] as const;

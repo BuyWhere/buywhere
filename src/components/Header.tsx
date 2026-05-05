@@ -24,6 +24,7 @@ export default function Header() {
           <Link href="/compare" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Compare</Link>
           <Link href="/blog" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Blog</Link>
           <Link href="/quickstart" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Quickstart</Link>
+          <Link href="/challenge" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Challenge</Link>
           <Link href="/merchants" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Merchants</Link>
           <Link href="/partners" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Partners</Link>
           <Link href="/pricing" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Pricing</Link>
@@ -87,6 +88,7 @@ export default function Header() {
           <Link href="/compare" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Compare</Link>
           <Link href="/blog" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Blog</Link>
           <Link href="/quickstart" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Quickstart</Link>
+          <Link href="/challenge" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Challenge</Link>
           <Link href="/merchants" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Merchants</Link>
           <Link href="/partners" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Partners</Link>
           <Link href="/pricing" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Pricing</Link>
