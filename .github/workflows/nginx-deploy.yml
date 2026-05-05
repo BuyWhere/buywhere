@@ -1,6 +1,5 @@
 name: Deploy nginx config
 
-# Triggers: push to deploy/nginx/ on main, or manual dispatch
 on:
   push:
     branches: [main]
@@ -17,7 +16,7 @@ on:
         required: false
         default: 'false'
       restart_only:
-        description: 'If true, skip config file upload/write and just restart nginx (useful to pick up new upstream)'
+        description: 'If true, skip config file upload/write and just restart nginx'
         required: false
         default: 'false'
 
@@ -126,7 +125,7 @@ jobs:
             elif sudo -n tee "${DEST}" < "${SRC}" > /dev/null 2>/dev/null; then
               echo "Config written to ${DEST} (sudo tee)"
             else
-              echo "ERROR: cannot write ${DEST} — cp, sudo cp, and sudo tee all failed."
+              echo "ERROR: cannot write ${DEST} — all write methods failed."
               exit 1
             fi
 
@@ -143,17 +142,18 @@ jobs:
           if systemctl restart nginx 2>/dev/null || sudo -n systemctl restart nginx 2>/dev/null; then
             echo "nginx restarted via systemctl (sha ${DEPLOY_SHA})"
           else
-            echo "systemctl restart failed — trying nginx -s reload..."
-            if nginx -s reload 2>/dev/null || sudo -n nginx -s reload 2>/dev/null; then
-              echo "nginx reloaded via -s reload (sha ${DEPLOY_SHA})"
+            echo "systemctl restart failed — trying kill old + start new..."
+            # kill existing nginx
+            sudo -n fuser -k 80/tcp 443/tcp 2>/dev/null || true
+            sleep 1
+            # try nginx reload
+            if sudo -n nginx -s reload 2>/dev/null; then
+              echo "nginx reloaded via -s reload after kill"
+            elif sudo nginx 2>/dev/null; then
+              echo "nginx started fresh via sudo nginx"
             else
-              echo "WARN: nginx reload also failed — trying kill -HUP..."
-              PID=$(cat /var/run/nginx.pid 2>/dev/null || cat /run/nginx.pid 2>/dev/null || echo "")
-              if [ -n "$PID" ] && kill -HUP "$PID" 2>/dev/null; then
-                echo "nginx reloaded via kill -HUP $PID"
-              else
-                echo "WARN: could not reload nginx — config written to disk, manual reload needed"
-              fi
+              echo "WARN: could not start nginx — config written, manual reload needed"
+              echo "Try: sudo nginx -s reload"
             fi
           fi
 
