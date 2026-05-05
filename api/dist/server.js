@@ -53,6 +53,10 @@ function createApp() {
             ts: new Date().toISOString(),
         });
     });
+    // MCP lightweight health check — no DB, no auth (BUY-12338)
+    app.get('/mcp/health', (_req, res) => {
+        res.json({ status: 'ok', server: 'mcp' });
+    });
     // Redis health check - required by UptimeRobot monitoring (BUY-10100)
     app.get('/health/redis', async (_req, res) => {
         try {

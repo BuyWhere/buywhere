@@ -49,6 +49,11 @@ app.get('/health', async (_req, res) => {
   }
 });
 
+// Pre-flight health endpoint — lightweight, no DB
+app.get('/mcp/health', (_req, res) => {
+  res.json({ status: 'ok', server: 'mcp' });
+});
+
 app.use('/mcp', mcpRouter);
 
 // JSON-RPC root alias — allow POST / as shorthand for POST /mcp
