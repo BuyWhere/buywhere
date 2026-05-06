@@ -26,11 +26,25 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Set deploy variables
         id: vars
         run: |
-          CONFIG_NAME="${{ github.event.inputs.config_name || 'api.buywhere.ai' }}"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            CONFIG_NAME="${{ github.event.inputs.config_name || 'api.buywhere.ai' }}"
+          else
+            # On push: detect which config file changed in deploy/nginx/
+            CHANGED=$(git diff --name-only HEAD~1 HEAD -- deploy/nginx/*.conf 2>/dev/null | head -1)
+            if [[ -n "$CHANGED" ]]; then
+              CONFIG_NAME=$(basename "$CHANGED" .conf)
+              echo "Detected changed config: ${CONFIG_NAME}"
+            else
+              CONFIG_NAME="api.buywhere.ai"
+              echo "No config change detected, defaulting to: ${CONFIG_NAME}"
+            fi
+          fi
           DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
           RESTART_ONLY="${{ github.event.inputs.restart_only || 'false' }}"
           echo "config_name=${CONFIG_NAME}" >> "$GITHUB_OUTPUT"
@@ -63,9 +77,7 @@ jobs:
           SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
         run: |
           REMOTE_TMP="/tmp/nginx-${CONFIG_NAME}-${DEPLOY_SHA}.conf"
-          scp -i ~/.ssh/id_ed25519 \
-            "deploy/nginx/${CONFIG_NAME}.conf" \
-            "${SSH_USER}@${SSH_HOST}:${REMOTE_TMP}"
+          scp -i ~/.ssh/id_ed25519             "deploy/nginx/${CONFIG_NAME}.conf"             "${SSH_USER}@${SSH_HOST}:${REMOTE_TMP}"
           echo "Uploaded to ${SSH_HOST}:${REMOTE_TMP}"
 
       - name: Deploy and reload nginx
@@ -77,9 +89,7 @@ jobs:
           SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
           SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
         run: |
-          ssh -i ~/.ssh/id_ed25519 "${SSH_USER}@${SSH_HOST}" \
-            env CONFIG_NAME="${CONFIG_NAME}" DEPLOY_SHA="${DEPLOY_SHA}" DRY_RUN="${DRY_RUN}" RESTART_ONLY="${RESTART_ONLY}" \
-            bash -s <<'REMOTE'
+          ssh -i ~/.ssh/id_ed25519 "${SSH_USER}@${SSH_HOST}"             env CONFIG_NAME="${CONFIG_NAME}" DEPLOY_SHA="${DEPLOY_SHA}" DRY_RUN="${DRY_RUN}" RESTART_ONLY="${RESTART_ONLY}"             bash -s <<'REMOTE'
           set -euo pipefail
 
           DEST="/etc/nginx/sites-enabled/${CONFIG_NAME}"
@@ -89,15 +99,13 @@ jobs:
 
           validate_nginx() {
             local out
-            out=$(sudo -n nginx -t -c /etc/nginx/nginx.conf 2>&1) \
-              || out=$(nginx -t -c /etc/nginx/nginx.conf 2>&1) \
-              || true
+            out=$(sudo -n nginx -t -c /etc/nginx/nginx.conf 2>&1)               || out=$(nginx -t -c /etc/nginx/nginx.conf 2>&1)               || true
             echo "$out"
             if echo "$out" | grep -q "syntax is ok"; then
               return 0
             fi
             local real_errors
-            real_errors=$(echo "$out" | grep -v "nginx.pid" | grep -E "\[emerg\]|\[crit\]|test failed" || true)
+            real_errors=$(echo "$out" | grep -v "nginx.pid" | grep -E "\\[emerg\\]|\\[crit\\]|test failed" || true)
             if [[ -n "$real_errors" ]]; then
               echo "FATAL: nginx config has errors (not just pid-file):"
               echo "$real_errors"
@@ -164,11 +172,7 @@ jobs:
         if: steps.vars.outputs.dry_run != 'true'
         run: |
           sleep 2
-          HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST https://api.buywhere.ai/mcp \
-            -H "Content-Type: application/json" \
-            -H "Accept: application/json, text/event-stream" \
-            -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke-test","version":"1.0"}},"id":1}')
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}"             -X POST https://api.buywhere.ai/mcp             -H "Content-Type: application/json"             -H "Accept: application/json, text/event-stream"             -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke-test","version":"1.0"}},"id":1}')
           echo "POST https://api.buywhere.ai/mcp (initialize) → HTTP ${HTTP}"
           if [[ "$HTTP" != "200" ]]; then
             echo "ERROR: /mcp returned ${HTTP} after deploy — check nginx on production"
