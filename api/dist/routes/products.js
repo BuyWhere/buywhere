@@ -430,10 +430,10 @@ router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, 
     const { id } = req.params;
     let result;
     try {
-        result = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
-                title, price, currency, image_url, metadata, updated_at,
-                region, country_code, brand, category_path, avg_rating AS rating, review_count
-         FROM products WHERE id = $1`, [id]);
+        result = await config_1.db.query(`SELECT id, source AS domain, url, title, price, currency,
+                image_url, metadata, updated_at, region, country_code
+         FROM products
+         WHERE id::text = $1`, [id]);
     }
     catch {
         res.status(500).json({ error: 'Internal server error' });
@@ -463,7 +463,9 @@ router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, 
             apiKey: (0, apiKey_1.hashKey)(req.apiKeyRecord.key),
             productId: row.id,
             retailer: row.domain,
-            category: (row.category_path ? row.category_path.split(' > ')[0] : null),
+            category: (row.metadata && typeof row.metadata === 'object' && typeof row.metadata.category === 'string'
+                ? row.metadata.category
+                : null),
         });
     }
     const responseBody = (0, response_1.buildSearchResponse)([product], 1, 1, 0, Date.now() - start, false);

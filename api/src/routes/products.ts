@@ -656,11 +656,10 @@ router.get(
     let result;
     try {
       result = await db.query(
-        `SELECT id, sku AS source_id, source AS domain, url,
-                title, price, currency, image_url, metadata, updated_at,
-                region, country_code, created_at, description, brand, mpn, gtin,
-                category_path, category, merchant_id, avg_rating, review_count
-         FROM products WHERE id = $1`,
+        `SELECT id, source AS domain, url, title, price, currency,
+                image_url, metadata, updated_at, region, country_code
+         FROM products
+         WHERE id::text = $1`,
         [id]
       );
     } catch {
@@ -694,7 +693,9 @@ router.get(
         apiKey: hashKey(req.apiKeyRecord.key),
         productId: row.id,
         retailer: row.domain,
-        category: (row.category_path ? row.category_path.split(' > ')[0] : null) as string | null,
+        category: (row.metadata && typeof row.metadata === 'object' && typeof (row.metadata as { category?: unknown }).category === 'string'
+          ? (row.metadata as { category: string }).category
+          : null),
       });
     }
 

@@ -238,11 +238,10 @@ async function handleGetProduct(args) {
         throw { code: -32602, message: 'id is required' };
     let result;
     try {
-        result = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
-              title, price, currency, image_url, metadata, updated_at,
-              region, country_code, created_at, description, brand, mpn, gtin,
-              category_path, category, merchant_id, avg_rating, review_count
-       FROM products WHERE id = $1`, [id]);
+        result = await config_1.db.query(`SELECT id, source AS domain, url, title, price, currency,
+              image_url, metadata, updated_at, region, country_code
+       FROM products
+       WHERE id::text = $1`, [id]);
     }
     catch {
         throw { code: -32001, message: 'Product not found' };
@@ -257,11 +256,10 @@ async function handleCompareProducts(args) {
     const ids = extractProductIds(args);
     if (!ids || ids.length < 2)
         throw { code: -32602, message: 'Provide at least 2 product IDs' };
-    const result = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
-            title, price, currency, image_url, metadata,
-            category_path, brand, avg_rating AS rating, review_count, updated_at, region, country_code
+    const result = await config_1.db.query(`SELECT id, source AS domain, url, title, price, currency,
+            image_url, metadata, updated_at, region, country_code
      FROM products
-     WHERE id = ANY($1::text[])
+     WHERE id::text = ANY($1::text[])
      ORDER BY array_position($1::text[], id::text)`, [ids]);
     const products = result.rows.map((r) => (0, response_1.buildProduct)(r, 'SGD', false));
     const uniqueCurrencies = [...new Set(result.rows.map((r) => r.currency).filter((currency) => typeof currency === 'string' && currency.length > 0))];
