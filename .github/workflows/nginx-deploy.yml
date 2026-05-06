@@ -152,9 +152,22 @@ jobs:
           fi
 
           echo "Restarting nginx via systemctl..."
-          systemctl restart nginx 2>/dev/null \
+          if systemctl restart nginx 2>/dev/null \
             || sudo -n systemctl restart nginx 2>/dev/null \
-            || sudo systemctl restart nginx
+            || sudo systemctl restart nginx; then
+            echo "nginx restart succeeded"
+          else
+            echo "nginx restart failed; collecting diagnostics"
+            sudo -n systemctl status nginx.service --no-pager -l || true
+            sudo -n journalctl -xeu nginx.service --no-pager -n 120 || true
+            echo "--- server_name buywhere.ai inventory ---"
+            sudo -n rg -n "server_name .*buywhere.ai|ssl_certificate .*buywhere.ai|ssl_certificate .*api.buywhere.ai" /etc/nginx /etc/nginx/sites-enabled /etc/nginx/sites-available || true
+            echo "--- current /etc/nginx/nginx.conf snippet ---"
+            sudo -n sed -n '1,220p' /etc/nginx/nginx.conf || true
+            echo "--- deployed /etc/nginx/sites-enabled/buywhere.ai ---"
+            sudo -n sed -n '1,220p' /etc/nginx/sites-enabled/buywhere.ai || true
+            exit 1
+          fi
           echo "nginx restarted — config drift resolved (sha ${DEPLOY_SHA})"
 
           # Cleanup tmp configs on server
