@@ -1,0 +1,187 @@
+name: SSL Certificate Renewal
+
+on:
+  schedule:
+    - cron: '0 */12 * * *'
+  workflow_dispatch:
+    inputs:
+      force_renewal:
+        description: 'Force certificate renewal regardless of expiry'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  CERT_DOMAIN: api.buywhere.ai
+  ADDITIONAL_DOMAINS: us.buywhere.com
+
+jobs:
+  renew-ssl:
+    name: Renew SSL Certificates
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-1
+
+      - name: Get production instance IP
+        id: instance
+        run: |
+          INSTANCE_IP=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=buywhere-prod" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' \
+            --output text)
+          echo "Production host: $INSTANCE_IP"
+          echo "INSTANCE_IP=$INSTANCE_IP" >> $GITHUB_ENV
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ env.INSTANCE_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy certbot renewal configs
+        run: |
+          echo "Ensuring certbot renewal configs are deployed..."
+          # Deploy api.buywhere.ai config
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            certbot/renewal/api.buywhere.ai.conf \
+            ubuntu@${{ env.INSTANCE_IP }}:/tmp/api.buywhere.ai.conf
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ env.INSTANCE_IP }} \
+            "sudo mkdir -p /etc/letsencrypt/renewal && sudo cp /tmp/api.buywhere.ai.conf /etc/letsencrypt/renewal/api.buywhere.ai.conf && rm /tmp/api.buywhere.ai.conf"
+
+          # Deploy buywhere.ai apex/www config
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            certbot/renewal/buywhere.ai.conf \
+            ubuntu@${{ env.INSTANCE_IP }}:/tmp/buywhere.ai.conf
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ env.INSTANCE_IP }} \
+            "sudo cp /tmp/buywhere.ai.conf /etc/letsencrypt/renewal/buywhere.ai.conf && rm /tmp/buywhere.ai.conf"
+          
+          # Deploy us.buywhere.com config if ADDITIONAL_DOMAINS is set
+          if [[ -n "${{ env.ADDITIONAL_DOMAINS }}" ]]; then
+            scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+              certbot/renewal/us.buywhere.com.conf \
+              ubuntu@${{ env.INSTANCE_IP }}:/tmp/us.buywhere.com.conf
+            ssh -o StrictHostKeyChecking=no ubuntu@${{ env.INSTANCE_IP }} \
+              "sudo cp /tmp/us.buywhere.com.conf /etc/letsencrypt/renewal/us.buywhere.com.conf && rm /tmp/us.buywhere.com.conf"
+          fi
+          
+          echo "Certbot renewal configs deployed"
+
+      - name: Ensure webroot directory exists
+        run: |
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ env.INSTANCE_IP }} \
+            "sudo mkdir -p /var/www/html /var/www/certbot"
+          echo "Webroot directory ready"
+
+      - name: Ensure buywhere.ai apex certificate exists
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=60 \
+            ubuntu@${{ env.INSTANCE_IP }} \
+            'if sudo test -f /etc/letsencrypt/live/buywhere.ai/fullchain.pem; then
+               echo "buywhere.ai certificate already present"
+             else
+               echo "Issuing buywhere.ai/www certificate via webroot"
+               sudo certbot certonly --webroot -w /var/www/certbot \
+                 -d buywhere.ai -d www.buywhere.ai \
+                 --non-interactive --agree-tos \
+                 -m partners@buywhere.ai \
+                 --keep-until-expiring
+             fi'
+
+      - name: Deploy SSL renewal scripts
+        run: |
+          echo "Deploying SSL renewal scripts..."
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            scripts/ssl_renewal.sh \
+            scripts/ssl_exporter.sh \
+            ubuntu@${{ env.INSTANCE_IP }}:/tmp/
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ env.INSTANCE_IP }} \
+            "sudo mkdir -p /home/ubuntu/scripts && sudo cp /tmp/ssl_renewal.sh /home/ubuntu/scripts/ && sudo cp /tmp/ssl_exporter.sh /home/ubuntu/scripts/ && sudo chmod +x /home/ubuntu/scripts/ssl_renewal.sh /home/ubuntu/scripts/ssl_exporter.sh && rm /tmp/ssl_renewal.sh /tmp/ssl_exporter.sh"
+          echo "SSL renewal scripts deployed"
+
+      - name: Check certificate status
+        id: check
+        run: |
+          echo "Checking certificate status for ${{ env.CERT_DOMAIN }}..."
+          CHECK_OUTPUT=$(ssh -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=10 \
+            ubuntu@${{ env.INSTANCE_IP }} \
+            "bash /home/ubuntu/scripts/ssl_renewal.sh check" 2>&1) || true
+          echo "$CHECK_OUTPUT"
+          echo "check_output=$CHECK_OUTPUT" >> $GITHUB_OUTPUT
+
+      - name: Determine if renewal needed
+        id: decision
+        run: |
+          FORCE=${{ github.event.inputs.force_renewal }}
+          CHECK_OUTPUT="${{ steps.check.outputs.check_output }}"
+
+          if [[ "$FORCE" == "true" ]]; then
+            echo "Force renewal requested"
+            echo "should_renew=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          if echo "$CHECK_OUTPUT" | grep -q "Certificate file not found"; then
+            echo "Certificate file not found - renewal needed"
+            echo "should_renew=true" >> $GITHUB_OUTPUT
+          else
+            DAYS=$(echo "$CHECK_OUTPUT" | tail -1 | tr -d '[:space:]')
+            echo "Certificate expires in $DAYS days"
+            if [[ -n "$DAYS" && "$DAYS" =~ ^[0-9]+$ && "$DAYS" -lt 30 ]]; then
+              echo "Renewal needed (expires in $DAYS days)"
+              echo "should_renew=true" >> $GITHUB_OUTPUT
+            else
+              echo "No renewal needed"
+              echo "should_renew=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Renew certificate
+        if: steps.decision.outputs.should_renew == 'true'
+        run: |
+          echo "Running certificate renewal..."
+          ssh -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=60 \
+            ubuntu@${{ env.INSTANCE_IP }} \
+            "bash /home/ubuntu/scripts/ssl_renewal.sh renew" 2>&1
+
+      - name: Verify certificate
+        run: |
+          echo "Verifying certificate for ${{ env.CERT_DOMAIN }}..."
+          CERT_EXPIRY=$(echo | openssl s_client -servername ${{ env.CERT_DOMAIN }} -connect ${{ env.CERT_DOMAIN }}:443 2>/dev/null \
+            | openssl x509 -noout -dates 2>/dev/null | grep notAfter | cut -d= -f2)
+          echo "Certificate expires: $CERT_EXPIRY"
+          APEX_SUBJECT=$(echo | openssl s_client -servername buywhere.ai -connect buywhere.ai:443 2>/dev/null \
+            | openssl x509 -noout -subject -ext subjectAltName 2>/dev/null)
+          echo "$APEX_SUBJECT"
+
+      - name: Fetch renewal log
+        if: always()
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+            ubuntu@${{ env.INSTANCE_IP }} \
+            "tail -100 /var/log/ssl_renewal.log 2>/dev/null" 2>&1 || echo "Could not fetch log"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: |
+          rm -f ~/.ssh/id_rsa
+          rm -f ~/.ssh/known_hosts
+
+      - name: Alert on failure
+        if: failure()
+        run: |
+          echo "SSL certificate renewal failed for ${{ env.CERT_DOMAIN }}"
+          echo "Manual intervention may be required."
+          echo "To force renewal: gh workflow run ssl-renewal.yml -f force_renewal=true"
