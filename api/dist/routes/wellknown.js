@@ -33,9 +33,48 @@ router.get('/mcp.json', (_req, res) => {
         version: '0.1.0',
         mcp_endpoint: 'https://mcp.buywhere.ai/mcp',
         documentation: 'https://api.buywhere.ai/docs/guides/mcp',
-        capabilities: ['search_products', 'get_product', 'compare_products', 'get_deals', 'list_categories'],
+        capabilities: ['search_products', 'get_product', 'compare_products', 'get_deals', 'list_categories', 'find_best_price'],
         coverage: 'Singapore',
         data_freshness: 'real-time',
+    });
+});
+// GET /.well-known/glama.json — Glama.ai agent discovery manifest
+router.get('/glama.json', (_req, res) => {
+    res.json({
+        "$schema": "https://glama.ai/mcp/schemas/connector.json",
+        name: "buywhere",
+        display_name: "BuyWhere",
+        description: "Agent-native product catalog API. Search 1.5M+ products across Shopee, Lazada, Amazon, Walmart, and 20+ e-commerce platforms. Compare prices, find deals, browse categories.",
+        icon_url: "https://buywhere.ai/assets/icon.png",
+        public_repository: true,
+        homepage_url: "https://buywhere.ai",
+        repository_url: "https://github.com/BuyWhere/buywhere",
+        server: {
+            transport: "stdio",
+            command: "npx",
+            args: ["@buywhere/mcp-server"],
+            env: {
+                BUYWHERE_API_KEY: {
+                    description: "BuyWhere API key",
+                    required: true,
+                },
+                BUYWHERE_API_URL: {
+                    description: "API base URL",
+                    default: "https://api.buywhere.ai",
+                },
+            },
+        },
+        maintainers: [{ email: "api@buywhere.ai" }],
+        tools: [
+            { name: "search_products", description: "Full-text search across 1.5M+ products from 20+ e-commerce platforms" },
+            { name: "get_product", description: "Get full product details by BuyWhere product ID" },
+            { name: "compare_prices", description: "Compare prices for a product across all platforms" },
+            { name: "get_deals", description: "Find products with active discounts" },
+            { name: "browse_categories", description: "Browse the product category taxonomy tree" },
+            { name: "get_category_products", description: "Get products within a specific category" },
+        ],
+        categories: ["shopping", "e-commerce", "price-comparison"],
+        regions: ["SG", "US", "MY", "TH", "PH", "VN", "ID"],
     });
 });
 // GET /openapi.json — OpenAPI 3.0 spec
