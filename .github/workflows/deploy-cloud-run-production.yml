@@ -121,7 +121,7 @@ jobs:
             --set-env-vars "API_KEY_SECRET=${{ secrets.API_KEY_SECRET_PRODUCTION }}" \
             --set-env-vars "SENTRY_DSN=${{ secrets.SENTRY_DSN_PRODUCTION }}" \
             --set-env-vars "ADMIN_API_KEY=${{ secrets.ADMIN_API_KEY_PRODUCTION }}" \
-            --set-env-vars "POSTHOG_PROJECT_KEY=${{ secrets.POSTHOG_API_KEY_PRODUCTION }}" \
+            --set-env-vars "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY_PRODUCTION }}" \
             --memory 1Gi \
             --cpu 2 \
             --min-instances 2 \

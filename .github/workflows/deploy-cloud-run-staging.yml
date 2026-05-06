@@ -119,7 +119,7 @@ jobs:
             --set-env-vars "REDIS_URL=${{ secrets.REDIS_STAGING_URL }}" \
             --set-env-vars "API_KEY_SECRET=${{ secrets.API_KEY_SECRET_STAGING }}" \
             --set-env-vars "SENTRY_DSN=${{ secrets.SENTRY_DSN_STAGING }}" \
-            --set-env-vars "POSTHOG_PROJECT_KEY=${{ secrets.POSTHOG_API_KEY_PRODUCTION }}" \
+            --set-env-vars "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY_PRODUCTION }}" \
             --port 8000 \
             --memory 1Gi \
             --cpu 2 \
