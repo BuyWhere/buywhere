@@ -7,6 +7,32 @@ import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } f
 
 const router = Router();
 
+function extractProductId(args: Record<string, unknown>): string | null {
+  const raw = args.id ?? args.product_id;
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  return trimmed || null;
+}
+
+function extractProductIds(args: Record<string, unknown>): string[] {
+  const raw = args.ids ?? args.product_ids;
+  if (Array.isArray(raw)) {
+    return raw
+      .filter((id): id is string => typeof id === 'string')
+      .map(id => id.trim())
+      .filter(Boolean)
+      .slice(0, 10);
+  }
+  if (typeof raw === 'string') {
+    return raw
+      .split(',')
+      .map(id => id.trim())
+      .filter(Boolean)
+      .slice(0, 10);
+  }
+  return [];
+}
+
 // MCP tools manifest
 const TOOLS = [
   {
@@ -233,13 +259,15 @@ async function handleSearchProducts(args: Record<string, unknown>) {
 
 async function handleGetProduct(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const { id } = args;
+  const id = extractProductId(args);
+  if (!id) throw { code: -32602, message: 'id is required' };
   let result;
   try {
     result = await db.query(
-      `SELECT id, sku AS source, source AS domain, url, title,
-              price, currency, image_url, brand, category_path,
-              avg_rating AS rating, review_count, metadata, updated_at, region, country_code
+      `SELECT id, sku AS source_id, source AS domain, url,
+              title, price, currency, image_url, metadata, updated_at,
+              region, country_code, created_at, description, brand, mpn, gtin,
+              category_path, category, merchant_id, avg_rating, review_count
        FROM products WHERE id = $1`,
       [id]
     );
@@ -253,18 +281,30 @@ async function handleGetProduct(args: Record<string, unknown>) {
 
 async function handleCompareProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const ids = args.ids as string[];
+  const ids = extractProductIds(args);
   if (!ids || ids.length < 2) throw { code: -32602, message: 'Provide at least 2 product IDs' };
-  const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
   const result = await db.query(
-    `SELECT id, sku AS source, source AS domain, url, title,
-            price, currency, image_url, brand, category_path,
-            avg_rating AS rating, review_count, metadata, updated_at, region, country_code
-     FROM products WHERE id IN (${placeholders})`,
-    ids
+    `SELECT id, sku AS source_id, source AS domain, url,
+            title, price, currency, image_url, metadata,
+            category_path, brand, avg_rating AS rating, review_count, updated_at, region, country_code
+     FROM products
+     WHERE id = ANY($1::text[])
+     ORDER BY array_position($1::text[], id::text)`,
+    [ids]
   );
   const products = result.rows.map((r: Record<string, unknown>) => buildProduct(r, 'SGD', false));
-  return buildSearchResponse(products, products.length, ids.length, 0, Date.now() - t0, false);
+  const uniqueCurrencies = [...new Set(
+    result.rows.map((r: Record<string, unknown>) => r.currency).filter((currency): currency is string => typeof currency === 'string' && currency.length > 0)
+  )];
+  const currenciesMixed = uniqueCurrencies.length > 1;
+
+  return {
+    ...buildSearchResponse(products, products.length, ids.length, 0, Date.now() - t0, false),
+    currencies_mixed: currenciesMixed,
+    ...(currenciesMixed && {
+      currency_warning: `Products span multiple currencies (${uniqueCurrencies.join(', ')}). Prices are not comparable across currencies — do not aggregate or rank by price in comparison_summary.`,
+    }),
+  };
 }
 
 async function handleGetDeals(args: Record<string, unknown>) {
@@ -442,6 +482,10 @@ async function dispatchTool(name: string, args: Record<string, unknown>) {
   }
 }
 
+function isDirectToolMethod(method: string): boolean {
+  return TOOLS.some(tool => tool.name === method);
+}
+
 // JSON-RPC 2.0 response helpers
 function jsonrpcOk(id: unknown, result: unknown) {
   return { jsonrpc: '2.0', id, result };
@@ -493,7 +537,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   return next();
 });
 
-// POST /mcp — authenticated methods: tools/call (and any future additions)
+// POST /mcp — authenticated methods: tools/call and legacy direct tool method names.
 router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async (req: Request, res: Response) => {
   const body = req.body;
 
@@ -520,6 +564,12 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
       }
 
       default:
+        if (isDirectToolMethod(method)) {
+          const result = await dispatchTool(method, args);
+          return res.json(jsonrpcOk(id, {
+            content: [{ type: 'text', text: JSON.stringify(result) }],
+          }));
+        }
         return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
     }
   } catch (err: unknown) {
