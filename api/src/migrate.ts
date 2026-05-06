@@ -20,6 +20,31 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS country_code   VARCHAR(2);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS gtin           VARCHAR(14);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS mpn            VARCHAR(100);
 
+-- Unique constraint for ingest upsert (ON CONFLICT (sku, source)) -- BUY-10814 / BUY-10929 blocker
+DO $$
+DECLARE dup_count BIGINT;
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'products_sku_source_unique') THEN
+    RETURN;
+  END IF;
+  SELECT COUNT(*) INTO dup_count FROM (
+    SELECT sku, source, COUNT(*) AS cnt FROM products
+    WHERE sku IS NOT NULL AND source IS NOT NULL
+    GROUP BY sku, source HAVING COUNT(*) > 1
+  ) dups;
+  IF dup_count > 0 THEN
+    DELETE FROM products WHERE id IN (
+      SELECT id FROM (
+        SELECT id, ROW_NUMBER() OVER (PARTITION BY sku, source ORDER BY id DESC) AS rn
+        FROM products WHERE sku IS NOT NULL AND source IS NOT NULL
+      ) ranked WHERE rn > 1
+    );
+  END IF;
+  ALTER TABLE products ADD CONSTRAINT products_sku_source_unique UNIQUE (sku, source);
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'Could not create constraint: %', SQLERRM;
+END $$;
+
 -- Full-text search support on products table
 CREATE INDEX IF NOT EXISTS idx_products_search_vector ON products USING GIN(search_vector);
 
