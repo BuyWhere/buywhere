@@ -128,7 +128,9 @@ jobs:
             --max-instances 10 \
             --concurrency 80 \
             --timeout 60s \
-            --output json 2>/dev/null | tee /tmp/deploy_output.json | jq -r '.status.url')
+            --quiet)
+          echo "Getting service URL..."
+          SERVICE_URL=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} --region ${{ env.GCP_REGION }} --project ${{ env.GCP_PROJECT_ID }} --format "value(status.url)")
           echo "Full deploy output:"
           cat /tmp/deploy_output.json
           if [ -z "$SERVICE_URL" ] || [ "$SERVICE_URL" = "null" ]; then
