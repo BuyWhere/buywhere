@@ -127,10 +127,17 @@ jobs:
             --min-instances 2 \
             --max-instances 20 \
             --concurrency 50 \
-            --timeout 60s \
-            --labels "deployment-id=${{ needs.build.outputs.deployment_id }},version=${{ needs.build.outputs.version }},commit-sha=${{ github.sha }}" \
-            --format json | jq -r '.status.url')
+            --timeout 60s)
 
+          echo "Deploy completed"
+
+      - name: Get Cloud Run service URL
+        id: get-url
+        run: |
+          SERVICE_URL=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --region ${{ env.GCP_REGION }} \
+            --format "value(status.url)")
           echo "Service URL: $SERVICE_URL"
           echo "url=$SERVICE_URL" >> $GITHUB_OUTPUT
 
