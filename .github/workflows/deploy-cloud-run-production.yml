@@ -107,11 +107,11 @@ jobs:
         id: deploy
         run: |
           echo "Deploying to Cloud Run with direct env var secrets..."
-          echo "Removing existing env vars to allow type changes..."
+          echo "Clearing all existing env vars first to allow type changes..."
           gcloud run services update ${{ env.CLOUD_RUN_SERVICE }} \
             --project ${{ env.GCP_PROJECT_ID }} \
             --region ${{ env.GCP_REGION }} \
-            --remove-env-vars "DATABASE_URL,REDIS_URL,API_KEY_SECRET,SENTRY_DSN,ADMIN_API_KEY,POSTHOG_API_KEY" || true
+            --clear-env-vars || true
           echo "Deploying with new env vars..."
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
             --project ${{ env.GCP_PROJECT_ID }} \
