@@ -29,7 +29,7 @@ jobs:
     name: Build Docker Image
     runs-on: ubuntu-latest
     outputs:
-      image_tag: ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
+      image_tag: ghcr.io/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
       deployment_id: ${{ steps.deploy_info.outputs.deployment_id }}
       version: ${{ steps.deploy_info.outputs.version }}
     steps:
