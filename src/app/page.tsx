@@ -1,7 +1,20 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { TrustLayer } from "@/components/TrustLayer";
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: "/",
+  },
+  links: {
+    rel: "service",
+    type: "application/openapi+json",
+    title: "BuyWhere API OpenAPI Specification",
+    href: "https://api.buywhere.ai/openapi.json",
+  },
+};
 
 const audiences = [
   {
@@ -108,6 +121,35 @@ const faqSchema = {
   })),
 };
 
+const webApplicationSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "@id": "https://buywhere.ai/#webapp",
+  name: "BuyWhere API",
+  description:
+    "Product catalog API and MCP server for AI agents. Search, compare, and discover products across Shopee, Lazada, Amazon, and 50+ merchants in Singapore, US, and Southeast Asia.",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Any",
+  url: "https://buywhere.ai",
+  sameAs: [
+    "https://github.com/BuyWhere/buywhere-mcp",
+    "https://www.npmjs.com/package/@buywhere/mcp-server",
+    "https://api.buywhere.ai/docs",
+    "https://smithery.ai/servers/buywhere",
+    "https://glama.ai/mcp/servers/BuyWhere/buywhere-mcp",
+  ],
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+    availability: "https://schema.org/InStock",
+  },
+  keywords:
+    "MCP, Model Context Protocol, AI agent, product catalog, price comparison API, shopping agent, product search API, commerce API, Singapore, Lazada, Shopee, Amazon, Southeast Asia",
+  softwareVersion: "1.0",
+  browserRequirements: "Supports all modern browsers and MCP-compatible AI clients",
+};
+
 const codeSnippet = `import requests
 
 API_KEY = "bw_live_your_key_here"
@@ -132,6 +174,10 @@ export default function HomePage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(webApplicationSchema) }}
       />
 
       {/* Hero */}
