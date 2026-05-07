@@ -107,6 +107,12 @@ jobs:
         id: deploy
         run: |
           echo "Deploying to Cloud Run with direct env var secrets..."
+          echo "Removing existing env vars to allow type changes..."
+          gcloud run services update ${{ env.CLOUD_RUN_SERVICE }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --region ${{ env.GCP_REGION }} \
+            --remove-env-vars "DATABASE_URL,REDIS_URL,API_KEY_SECRET,SENTRY_DSN,ADMIN_API_KEY,POSTHOG_API_KEY" || true
+          echo "Deploying with new env vars..."
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
             --project ${{ env.GCP_PROJECT_ID }} \
             --region ${{ env.GCP_REGION }} \
@@ -115,7 +121,6 @@ jobs:
             --allow-unauthenticated \
             --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
             --port 8000 \
-            --remove-env-vars "DATABASE_URL,REDIS_URL,API_KEY_SECRET,SENTRY_DSN,ADMIN_API_KEY,POSTHOG_API_KEY" \
             --set-env-vars "ENVIRONMENT=production" \
             --set-env-vars "DATABASE_URL=${{ secrets.CLOUD_SQL_PRODUCTION_CONNECTION_STRING }}" \
             --set-env-vars "REDIS_URL=${{ secrets.REDIS_PRODUCTION_URL }}" \
