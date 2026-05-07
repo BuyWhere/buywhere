@@ -113,6 +113,7 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
+            --quiet \
             --set-env-vars "ENVIRONMENT=staging" \
             --set-env-vars "PG_POOL_MAX=50" \
             --set-secrets "DATABASE_URL=${{ secrets.CLOUD_SQL_STAGING_CONNECTION_STRING }}" \
