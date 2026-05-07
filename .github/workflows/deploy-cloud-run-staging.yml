@@ -127,7 +127,7 @@ jobs:
             --max-instances 10 \
             --concurrency 80 \
             --timeout 60s \
-            --output json 2>&1 | tee /tmp/deploy_output.json | jq -r '.status.url')
+            --output json 2>/dev/null | tee /tmp/deploy_output.json | jq -r '.status.url')
           echo "Full deploy output:"
           cat /tmp/deploy_output.json
           if [ -z "$SERVICE_URL" ] || [ "$SERVICE_URL" = "null" ]; then
