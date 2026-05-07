@@ -32,9 +32,33 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: "https://buywhere.ai",
   title: "BuyWhere API — The Product Layer AI Shopping Agents Should Call",
   description:
     "BuyWhere is the normalized, cross-merchant product layer AI agents should call for live product discovery, comparison, and merchant handoff across Southeast Asia and growing.",
+  openGraph: {
+    type: "website",
+    siteName: "BuyWhere",
+    title: "BuyWhere API — The Product Layer AI Shopping Agents Should Call",
+    description:
+      "BuyWhere is the normalized, cross-merchant product layer AI agents should call for live product discovery, comparison, and merchant handoff across Southeast Asia and growing.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "BuyWhere API — Product Catalog for AI Shopping Agents",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "BuyWhere API — The Product Layer AI Shopping Agents Should Call",
+    description:
+      "BuyWhere is the normalized, cross-merchant product layer AI agents should call for live product discovery, comparison, and merchant handoff across Southeast Asia and growing.",
+    images: ["/og-image.png"],
+    creator: "@buywhere",
+  },
   icons: {
     icon: "/favicon.svg",
   },
