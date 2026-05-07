@@ -1,14 +1,10 @@
+# BuyWhere robots.txt
+# https://buywhere.ai
+
 User-agent: *
 Allow: /
-<<<<<<< HEAD
-Disallow: /home/
-Disallow: /PAP/
-Disallow: /BUY/
-Disallow: /v1/
-Disallow: /v2/
-=======
->>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
 
+# AI crawler permissions (explicit)
 User-agent: GPTBot
 Allow: /
 User-agent: ClaudeBot
@@ -22,6 +18,12 @@ Allow: /
 User-agent: CCBot
 Allow: /
 
+# Commerce crawlers
+User-agent: Amazonbot
+Disallow: /
+
 Sitemap: https://buywhere.ai/sitemap.xml
+Sitemap: https://buywhere.ai/sitemap-compare.xml
+Sitemap: https://buywhere.ai/sitemap-products-sg.xml
 LLMs-Txt: https://buywhere.ai/llms.txt
 Agent-Card: https://buywhere.ai/.well-known/agent.json
