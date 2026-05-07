@@ -32,7 +32,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  metadataBase: "https://buywhere.ai",
+  metadataBase: new URL("https://buywhere.ai"),
   title: "BuyWhere API — The Product Layer AI Shopping Agents Should Call",
   description:
     "BuyWhere is the normalized, cross-merchant product layer AI agents should call for live product discovery, comparison, and merchant handoff across Southeast Asia and growing.",
