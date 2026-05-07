@@ -106,13 +106,7 @@ jobs:
       - name: Create GCP Secret Manager secrets and deploy
         id: deploy
         run: |
-          echo "Deploying to Cloud Run with direct env var secrets..."
-          echo "Clearing all existing env vars first to allow type changes..."
-          gcloud run services update ${{ env.CLOUD_RUN_SERVICE }} \
-            --project ${{ env.GCP_PROJECT_ID }} \
-            --region ${{ env.GCP_REGION }} \
-            --clear-env-vars || true
-          echo "Deploying with new env vars..."
+          echo "Deploying to Cloud Run..."
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
             --project ${{ env.GCP_PROJECT_ID }} \
             --region ${{ env.GCP_REGION }} \
@@ -126,7 +120,6 @@ jobs:
             --set-env-vars "REDIS_URL=${{ secrets.REDIS_PRODUCTION_URL }}" \
             --set-env-vars "API_KEY_SECRET=${{ secrets.API_KEY_SECRET_PRODUCTION }}" \
             --set-env-vars "SENTRY_DSN=${{ secrets.SENTRY_DSN_PRODUCTION }}" \
-            --set-env-vars "ADMIN_API_KEY=${{ secrets.ADMIN_API_KEY_PRODUCTION }}" \
             --set-env-vars "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY_PRODUCTION }}" \
             --memory 1Gi \
             --cpu 2 \
