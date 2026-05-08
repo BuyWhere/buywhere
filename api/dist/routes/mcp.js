@@ -61,7 +61,7 @@ const TOOLS = [
             type: 'object',
             required: ['id'],
             properties: {
-                id: { type: 'string', description: 'Product UUID' },
+                id: { type: 'string', description: 'Product ID returned by search_products (UUID format)' },
             },
         },
     },
@@ -236,17 +236,11 @@ async function handleGetProduct(args) {
     const id = extractProductId(args);
     if (!id)
         throw { code: -32602, message: 'id is required' };
-    let result;
-    try {
-        result = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
+    const result = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
               title, price, currency, image_url, metadata, updated_at,
               region, country_code, created_at, description, brand, mpn, gtin,
               category_path, category, merchant_id, avg_rating, review_count
        FROM products WHERE id = $1`, [id]);
-    }
-    catch {
-        throw { code: -32001, message: 'Product not found' };
-    }
     if (!result.rows.length)
         throw { code: -32001, message: 'Product not found' };
     const product = (0, response_1.buildProduct)(result.rows[0], 'SGD', false);

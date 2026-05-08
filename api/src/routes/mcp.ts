@@ -64,7 +64,7 @@ const TOOLS = [
       type: 'object',
       required: ['id'],
       properties: {
-        id: { type: 'string', description: 'Numeric BuyWhere product ID returned by search_products' },
+        id: { type: 'string', description: 'Product ID returned by search_products (UUID format)' },
       },
     },
   },
@@ -266,14 +266,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
 async function handleGetProduct(args: Record<string, unknown>) {
   const t0 = Date.now();
   const rawId = args.id ?? args.product_id;
-  const id = typeof rawId === 'number' && Number.isSafeInteger(rawId)
-    ? String(rawId)
-    : typeof rawId === 'string'
-      ? rawId.trim()
-      : '';
+  const id = typeof rawId === 'string' ? rawId.trim() : '';
 
-  if (!PRODUCT_ID_RE.test(id)) {
-    throw { code: -32602, message: 'id must be a numeric BuyWhere product ID' };
+  if (!id || !UUID_RE.test(id)) {
+    throw { code: -32602, message: 'id must be a valid product UUID (as returned by search_products)' };
   }
 
   const result = await db.query(
