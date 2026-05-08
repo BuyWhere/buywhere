@@ -37,8 +37,56 @@ router.get('/stats', async (_req: Request, res: Response) => {
       meta: { ts: new Date().toISOString() },
     });
   } catch (err) {
-    console.error('[catalog/stats] error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('[catalog/stats] exact query failed, trying approximate:', (err as Error).message);
+
+    try {
+      // Fall back to approximate stats from PostgreSQL system catalogs
+      // Works even when the table is too large for exact aggregates to complete in time
+      const [relResult, srcStats, ccStats] = await Promise.all([
+        db.query(
+          `SELECT reltuples::bigint AS estimated_rows
+           FROM pg_class WHERE relname = 'products'`
+        ),
+        db.query(
+          `SELECT n_distinct FROM pg_stats
+           WHERE tablename = 'products' AND attname = 'source'`
+        ),
+        db.query(
+          `SELECT n_distinct FROM pg_stats
+           WHERE tablename = 'products' AND attname = 'country_code'`
+        ),
+      ]);
+
+      const estimatedTotal = relResult.rows[0]?.estimated_rows ?? 0;
+      const sourceNDistinct = srcStats.rows[0]?.n_distinct ?? 0;
+      const ccNDistinct = ccStats.rows[0]?.n_distinct ?? 0;
+
+      let totalRegisteredMerchants = 0;
+      try {
+        const m = await db.query('SELECT COUNT(*)::int AS count FROM merchants');
+        totalRegisteredMerchants = m.rows[0].count;
+      } catch {
+        // merchants table may not exist in all environments
+      }
+
+      res.json({
+        data: {
+          total_products: Math.max(0, estimatedTotal),
+          total_merchants: sourceNDistinct > 0
+            ? Math.round(Math.abs(sourceNDistinct))
+            : null as unknown as number,
+          products_added_7d: null as unknown as number,
+          total_countries: ccNDistinct > 0
+            ? Math.round(Math.abs(ccNDistinct))
+            : null as unknown as number,
+          total_registered_merchants: totalRegisteredMerchants,
+        },
+        meta: { ts: new Date().toISOString(), approximate: true },
+      });
+    } catch (fallbackErr) {
+      console.error('[catalog/stats] fallback also failed:', fallbackErr);
+      res.status(500).json({ error: 'Internal server error' });
+    }
   }
 });
 
