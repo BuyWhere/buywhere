@@ -28,6 +28,7 @@ const merchants_1 = __importDefault(require("./routes/merchants"));
 const ingest_1 = __importDefault(require("./routes/ingest"));
 const catalog_1 = __importDefault(require("./routes/catalog"));
 const keys_1 = __importDefault(require("./routes/keys"));
+const webhooks_1 = __importDefault(require("./routes/webhooks"));
 function createApp() {
     const app = (0, express_1.default)();
     app.use((0, cors_1.default)({
@@ -121,39 +122,12 @@ function createApp() {
         res.set('Cache-Control', 'public, max-age=3600, s-maxage=86400');
         res.send(xml);
     });
-    // GEO / AI-crawler discoverability
+    // Block all crawlers from api.buywhere.ai — this is an API server, not a content site
     app.get('/robots.txt', (_req, res) => {
-        res.set('Content-Signal', 'ai-train=no, search=yes, ai-input=yes');
+        res.set('Content-Signal', 'ai-train=no, search=no, ai-input=no');
         res.type('text/plain').send([
             'User-agent: *',
-            'Allow: /',
-            '',
-            '# AI crawlers — explicitly allowed for GEO and LLM training/citations',
-            'User-agent: GPTBot',
-            'Allow: /',
-            '',
-            'User-agent: Claude-Web',
-            'Allow: /',
-            '',
-            'User-agent: PerplexityBot',
-            'Allow: /',
-            '',
-            'User-agent: Bytespider',
-            'Allow: /',
-            '',
-            'User-agent: CCBot',
-            'Allow: /',
-            '',
-            'User-agent: Applebot-Extended',
-            'Allow: /',
-            '',
-            'User-agent: YouBot',
-            'Allow: /',
-            '',
-            'User-agent: cohere-ai',
-            'Allow: /',
-            '',
-            'Sitemap: https://buywhere.ai/sitemap.xml',
+            'Disallow: /',
         ].join('\n'));
     });
     app.get('/llms.txt', (_req, res) => {
@@ -163,6 +137,8 @@ function createApp() {
     });
     // Landing pages — homepage (en_SG) and US edition (en_US)
     app.use(landing_1.default);
+    // Webhook relay — UptimeRobot → Paperclip issue creation
+    app.use('/webhooks', webhooks_1.default);
     // 404 fallback
     app.use((_req, res) => {
         res.status(404).json({ error: 'Not found' });
