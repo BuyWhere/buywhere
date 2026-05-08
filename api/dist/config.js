@@ -11,13 +11,13 @@ exports.db = new pg_1.Pool({
     max: parseInt(process.env.PG_POOL_MAX || '50'),
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
-    statement_timeout: 10000,
+    statement_timeout: parseInt(process.env.PG_STATEMENT_TIMEOUT || '30000'),
 });
 exports.redis = new ioredis_1.default({
     host: process.env.REDIS_HOST || '127.0.0.1',
     port: parseInt(process.env.REDIS_PORT || '6380'),
     maxRetriesPerRequest: 3,
-    commandTimeout: 1000,
+    commandTimeout: 5000,
     retryStrategy: (times) => Math.min(times * 200, 2000),
 });
 // Suppress unhandled-error crashes from Redis reconnect attempts
