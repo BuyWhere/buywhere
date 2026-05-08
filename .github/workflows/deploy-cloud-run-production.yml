@@ -18,7 +18,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: buywhere/buywhere-api
+  IMAGE_NAME: ${{ github.repository_owner }}/buywhere-catalog-api
   GCP_PROJECT_ID: gaia-calendar-488606
   GCP_REGION: asia-southeast1
   CLOUD_RUN_SERVICE: buywhere-api-production
@@ -76,6 +76,7 @@ jobs:
           push: true
           tags: |
             ${{ steps.meta.outputs.tags }}
+            ghcr.io/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
