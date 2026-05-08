@@ -4,44 +4,95 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
-  title: "Build With BuyWhere Challenge — Win an M3 MacBook Air",
+  title: "Build With BuyWhere — Showcase Your AI Shopping Agent",
   description:
-    "Build an AI shopping agent using BuyWhere's API or MCP tools. Win an M3 MacBook Air, $1,000 in API credits, and BuyWhere swag. Open to all developers.",
+    "Build an AI shopping agent using BuyWhere's API or MCP tools and showcase it to the community. Get started with free API credits and join developers building the future of shopping.",
   alternates: {
     canonical: "https://buywhere.ai/challenge",
   },
   openGraph: {
-    title: "Build With BuyWhere Challenge",
+    title: "Build With BuyWhere",
     description:
-      "Build an AI shopping agent using BuyWhere's API or MCP tools. Win an M3 MacBook Air, $1,000 in API credits, and BuyWhere swag.",
+      "Build an AI shopping agent using BuyWhere's API or MCP tools and showcase it to the community.",
     url: "https://buywhere.ai/challenge",
     type: "website",
   },
 };
 
-const prizes = [
-  {
-    place: "Grand Prize",
-    items: ["Apple M3 MacBook Air", "$1,000 in BuyWhere API credits", "BuyWhere swag box", "Featured on buywhere.ai"],
-    highlight: true,
-  },
-  {
-    place: "Runner-up",
-    items: ["$500 in BuyWhere API credits", "BuyWhere swag box", "Shoutout on social channels"],
-    highlight: false,
-  },
-  {
-    place: "Community Favorite",
-    items: ["$250 in BuyWhere API credits", "BuyWhere swag box", "Most +1 reactions on submission issue"],
-    highlight: false,
-  },
-];
+const quickStartCode = `{
+  "mcpServers": {
+    "buywhere": {
+      "command": "npx",
+      "args": ["-y", "@buywhere/mcp-server"],
+      "env": {
+        "BUYWHERE_API_KEY": "bw_live_your_key_here"
+      }
+    }
+  }
+}`;
 
-const judgingCriteria = [
-  { name: "Utility", weight: "40%", desc: "How useful is the agent for real shopping scenarios? Does it solve a genuine problem?" },
-  { name: "MCP Usage", weight: "30%", desc: "How well does the submission integrate BuyWhere tools via MCP or API?" },
-  { name: "Polish", weight: "20%", desc: "Is the agent well-built? Clean UI, clear instructions, error handling." },
-  { name: "Creativity", weight: "10%", desc: "Originality of the concept. Bonus for novel agent patterns or unique integrations." },
+const searchToolSchema = `{
+  "type": "function",
+  "function": {
+    "name": "search_products",
+    "description": "Search BuyWhere catalog for products",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "q": { "type": "string" },
+        "country_code": { "type": "string" },
+        "max_price": { "type": "number" },
+        "limit": { "type": "integer", "default": 5 }
+      },
+      "required": ["q", "country_code"]
+    }
+  }
+}`;
+
+const agentExample = `User: best laptop under $1000
+
+Agent -> search_products({
+  "q": "laptop",
+  "country_code": "US",
+  "max_price": 1000,
+  "limit": 5
+})
+
+Agent: Top recommendation: Acer Aspire 5 at $899.
+Alternatives: Lenovo at $749, ASUS at $999.`;
+
+const projectIdeas = [
+  {
+    name: "Deal Discord Bot",
+    description: "A Discord bot that lets users search products and get price comparisons right in chat.",
+    code: `// MCP tool call in your Discord bot
+const result = await agent.callTool("search_products", {
+  q: query,
+  country_code: "US",
+  max_price: budget,
+  limit: 5
+});`,
+    tags: ["Discord", "Node.js", "MCP"],
+  },
+  {
+    name: "Price Tracker Telegram Bot",
+    description: "A Telegram bot that monitors prices on your wishlist and alerts you when prices drop.",
+    code: `// Search and compare prices
+const products = await buywhere.search({
+  q: "wireless headphones",
+  country_code: "SG",
+  limit: 10
+});`,
+    tags: ["Telegram", "Python", "Price Alerts"],
+  },
+  {
+    name: "BuyWhere Cursor Plugin",
+    description: "A Cursor editor extension that helps developers test BuyWhere API calls while building agents.",
+    code: `// Tool schema ready to paste into Cursor
+// Use search_products before answering
+// any shopping-related questions`,
+    tags: ["Cursor", "MCP", "Developer Tool"],
+  },
 ];
 
 const steps = [
@@ -53,17 +104,47 @@ const steps = [
   },
   {
     step: "2",
-    title: "Build your agent",
-    desc: "Use BuyWhere's REST API or MCP server to give your agent live product search, comparison, and merchant handoff.",
+    title: "Connect MCP",
+    desc: "Add BuyWhere MCP to Claude Desktop, Cursor, or any MCP-compatible client in under 5 minutes.",
     cta: { label: "Read the quickstart", href: "/quickstart" },
   },
   {
     step: "3",
-    title: "Submit your project",
-    desc: "Open a GitHub issue using the challenge submission template with your repo URL, demo link, and a short description.",
-    cta: { label: "Submit via GitHub", href: "https://github.com/buywhere/buywhere-site/issues/new?labels=challenge,submission&template=build-with-buywhere-submission.yml" },
+    title: "Build and share",
+    desc: "Build an agent that uses BuyWhere product search. Share your project with the community.",
+    cta: { label: "Submit your project", href: "https://github.com/buywhere/buywhere-site/issues/new?labels=showcase&template=build-with-buywhere-submission.yml" },
   },
 ];
+
+const showcaseProjects = [
+  {
+    name: "Be the first to build",
+    builder: "the community",
+    description: "No projects featured yet. Be the first to build an AI shopping agent with BuyWhere MCP and get featured on this page.",
+    tags: ["MCP", "API"],
+    link: "https://github.com/buywhere/buywhere-site/issues/new?labels=showcase&template=build-with-buywhere-submission.yml",
+  },
+];
+
+function CodeBlock({
+  label,
+  code,
+}: {
+  label: string;
+  code: string;
+}) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-950 shadow-[0_24px_80px_rgba(15,23,42,0.32)]">
+      <div className="flex items-center justify-between border-b border-gray-800 bg-gray-900/80 px-4 py-2">
+        <span className="text-xs font-medium uppercase tracking-[0.22em] text-gray-400">{label}</span>
+        <span className="text-xs text-gray-500">Copy and run</span>
+      </div>
+      <pre className="overflow-x-auto p-4 text-sm leading-6 text-gray-100">
+        <code>{code}</code>
+      </pre>
+    </div>
+  );
+}
 
 export default function ChallengePage() {
   return (
@@ -79,13 +160,13 @@ export default function ChallengePage() {
 
           <div className="relative mx-auto max-w-6xl px-4 py-20 sm:px-6 md:py-28">
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-indigo-400/30 bg-indigo-400/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-indigo-200">
-              Developer Challenge
+              Developer Showcase
             </div>
             <h1 className="max-w-3xl text-4xl font-bold leading-tight sm:text-5xl lg:text-6xl">
               Build With BuyWhere
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300 sm:text-xl">
-              Build an AI shopping agent using BuyWhere&apos;s product catalog API or MCP tools. Win an M3 MacBook Air, API credits, and swag.
+              Build an AI shopping agent using BuyWhere&apos;s product catalog API or MCP tools. Share your build with the community.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
@@ -95,12 +176,12 @@ export default function ChallengePage() {
                 Start building →
               </Link>
               <a
-                href="https://github.com/buywhere/buywhere-site/issues/new?labels=challenge,submission&template=build-with-buywhere-submission.yml"
+                href="https://github.com/buywhere/buywhere-site/issues/new?labels=showcase&template=build-with-buywhere-submission.yml"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
               >
-                Submit your agent
+                Submit your project
               </a>
             </div>
           </div>
@@ -109,12 +190,12 @@ export default function ChallengePage() {
         <section className="border-b border-slate-200 bg-slate-50 py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="mx-auto max-w-3xl text-center">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">How it works</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">Get started</p>
               <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-                Three steps to enter
+                Three steps to build
               </h2>
               <p className="mt-4 text-lg leading-8 text-slate-600">
-                Anyone can enter. Get your key, build your agent, submit your project.
+                Get your key, build your agent, and share it with the community.
               </p>
             </div>
 
@@ -141,69 +222,140 @@ export default function ChallengePage() {
           </div>
         </section>
 
-        <section className="border-b border-slate-200 bg-white py-16">
+        <section className="border-b border-slate-200 bg-slate-950 py-16 text-white">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="mx-auto max-w-3xl text-center">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">Prizes</p>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-                What you can win
-              </h2>
-              <p className="mt-4 text-lg leading-8 text-slate-600">
-                Top submissions earn hardware, credits, and recognition.
+            <div className="mb-10">
+              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300">Quick start</p>
+              <h2 className="mt-3 text-3xl font-bold text-white">Connect BuyWhere MCP in under 5 minutes</h2>
+              <p className="mt-4 text-lg leading-8 text-slate-300">
+                Add BuyWhere product search to any MCP-compatible agent client.
               </p>
             </div>
 
-            <div className="mt-12 grid gap-6 md:grid-cols-3">
-              {prizes.map((prize) => (
-                <div
-                  key={prize.place}
-                  className={`rounded-[28px] border p-6 shadow-sm ${
-                    prize.highlight
-                      ? "border-indigo-200 bg-gradient-to-b from-indigo-50 to-white ring-1 ring-indigo-100"
-                      : "border-slate-200 bg-white"
-                  }`}
-                >
-                  <h3 className={`text-xl font-semibold ${prize.highlight ? "text-indigo-900" : "text-slate-900"}`}>
-                    {prize.place}
-                  </h3>
-                  <ul className="mt-4 space-y-3">
-                    {prize.items.map((item) => (
-                      <li key={item} className="flex items-start gap-2 text-sm leading-6 text-slate-600">
-                        <svg className="mt-0.5 h-4 w-4 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" aria-hidden="true">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                        </svg>
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
+            <div className="grid gap-8 lg:grid-cols-2">
+              <div className="space-y-6">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+                  <p className="text-sm font-semibold text-white">1. Install MCP server</p>
+                  <code className="mt-2 block text-sm text-slate-300">npx -y @buywhere/mcp-server</code>
                 </div>
-              ))}
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+                  <p className="text-sm font-semibold text-white">2. Configure your MCP client</p>
+                  <p className="mt-2 text-sm text-slate-300">Add this to your Claude Desktop, Cursor, or other MCP-compatible client config:</p>
+                </div>
+                <CodeBlock label="mcp_config.json" code={quickStartCode} />
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+                  <p className="text-sm font-semibold text-white">3. Use the search_products tool</p>
+                  <p className="mt-2 text-sm text-slate-300">Pass this schema to your agent to enable product search:</p>
+                </div>
+                <CodeBlock label="tool schema" code={searchToolSchema} />
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+                  <p className="text-sm font-semibold text-white">4. Try an example</p>
+                </div>
+                <CodeBlock label="agent flow" code={agentExample} />
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">Project ideas</p>
+                <h3 className="mt-3 text-xl font-semibold text-white">Start building something</h3>
+                <div className="mt-6 space-y-6">
+                  {projectIdeas.map((idea) => (
+                    <div key={idea.name} className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                      <h4 className="font-semibold text-white">{idea.name}</h4>
+                      <p className="mt-2 text-sm text-slate-300">{idea.description}</p>
+                      <pre className="mt-3 overflow-x-auto text-xs text-slate-400">
+                        <code>{idea.code}</code>
+                      </pre>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {idea.tags.map((tag) => (
+                          <span key={tag} className="inline-flex items-center rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-medium text-slate-300">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-6">
+                  <Link
+                    href="/quickstart"
+                    className="inline-flex items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-400/20"
+                  >
+                    Full quickstart guide →
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-10 flex flex-wrap gap-4">
+              <Link
+                href="/api-keys"
+                className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-indigo-700 transition-colors hover:bg-slate-100"
+              >
+                Get API key
+              </Link>
+              <Link
+                href="/docs/api-reference"
+                className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+              >
+                API docs
+              </Link>
+              <Link
+                href="/integrate"
+                className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+              >
+                MCP integration guide
+              </Link>
             </div>
           </div>
         </section>
 
-        <section className="border-b border-slate-200 bg-slate-50 py-16">
+        <section className="border-b border-slate-200 bg-white py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="mx-auto max-w-3xl text-center">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">Judging</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">Showcase</p>
               <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-                How submissions are scored
+                Featured builds
               </h2>
               <p className="mt-4 text-lg leading-8 text-slate-600">
-                Each entry is reviewed by the BuyWhere team on four criteria.
+                See what developers are building with BuyWhere.
               </p>
             </div>
 
-            <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {judgingCriteria.map((criterion) => (
-                <div key={criterion.name} className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
-                  <div className="flex items-baseline justify-between">
-                    <h3 className="text-lg font-semibold text-slate-900">{criterion.name}</h3>
-                    <span className="text-2xl font-bold text-indigo-600">{criterion.weight}</span>
+            <div className="mt-12 grid gap-6 md:grid-cols-3">
+              {showcaseProjects.map((project) => (
+                <a
+                  key={project.name}
+                  href={project.link}
+                  className="group rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm transition-all hover:border-indigo-200 hover:shadow-md"
+                >
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xl font-semibold text-slate-900 group-hover:text-indigo-600">{project.name}</h3>
+                    <svg className="h-5 w-5 text-slate-400 group-hover:text-indigo-600" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                    </svg>
                   </div>
-                  <p className="mt-3 text-sm leading-7 text-slate-600">{criterion.desc}</p>
-                </div>
+                  <p className="mt-2 text-sm text-slate-500">by {project.builder}</p>
+                  <p className="mt-3 text-sm leading-7 text-slate-600">{project.description}</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {project.tags.map((tag) => (
+                      <span key={tag} className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </a>
               ))}
+            </div>
+
+            <div className="mt-10 text-center">
+              <a
+                href="https://github.com/buywhere/buywhere-site/issues/new?labels=showcase&template=build-with-buywhere-submission.yml"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center rounded-xl border border-indigo-200 bg-indigo-50 px-6 py-3 text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-100"
+              >
+                Submit your project to be featured →
+              </a>
             </div>
           </div>
         </section>
