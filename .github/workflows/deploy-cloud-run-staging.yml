@@ -18,7 +18,11 @@ env:
   GCP_PROJECT_ID: gaia-calendar-488606
   GCP_REGION: asia-southeast1
   CLOUD_RUN_SERVICE: buywhere-api
-  CLOUD_SQL_INSTANCE: buywhere-staging:asia-southeast1:buywhere-db
+  # Staging shares the same GCP project and DB instance as production for now.
+  # Canonical DB: gaia-calendar-488606:asia-southeast1:buywhere-staging
+  # The project "buywhere-staging" does not exist — all GCP resources live under gaia-calendar-488606
+  # DO NOT CHANGE — see STRATEGIC_DECISIONS.md Infrastructure Reference Policy
+  CLOUD_SQL_INSTANCE: gaia-calendar-488606:asia-southeast1:buywhere-staging
 
 jobs:
   build:

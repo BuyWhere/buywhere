@@ -1,0 +1,420 @@
+# AQS Query Set Configuration
+# 50-query relevance sample set for Precision@K annotation
+# Version: 1.0
+# Created by: Cart (Agent Success Lead)
+# Parent issue: BUY-12894
+
+version: "1.0"
+description: "50-query relevance sample set for Precision@K annotation in the Agent Quality Framework (AQS). These queries represent what real agents search for on BuyWhere across 12 product categories."
+
+categories:
+  - electronics
+  - grocery
+  - apparel
+  - home-appliances
+  - beauty
+  - sports-outdoors
+  - health-wellness
+  - toys-games
+  - home-living
+  - pet-supplies
+  - automotive
+  - food-beverages
+
+queries:
+  - id: 1
+    query: "laptop"
+    category: electronics
+    intent_type: generic
+    price_bound: false
+    source: starter_reed
+
+  - id: 2
+    query: "macbook pro"
+    category: electronics
+    intent_type: branded
+    price_bound: false
+    source: starter_reed
+
+  - id: 3
+    query: "iphone"
+    category: electronics
+    intent_type: branded
+    price_bound: false
+    source: starter_reed
+
+  - id: 4
+    query: "samsung galaxy"
+    category: electronics
+    intent_type: branded
+    price_bound: false
+    source: starter_reed
+
+  - id: 5
+    query: "wireless keyboard"
+    category: electronics
+    intent_type: generic
+    price_bound: false
+    source: starter_reed
+
+  - id: 6
+    query: "gaming monitor"
+    category: electronics
+    intent_type: generic
+    price_bound: false
+    source: starter_reed
+
+  - id: 7
+    query: "milk"
+    category: grocery
+    intent_type: generic
+    price_bound: false
+    source: starter_reed
+
+  - id: 8
+    query: "organic eggs"
+    category: grocery
+    intent_type: generic
+    price_bound: false
+    source: starter_reed
+
+  - id: 9
+    query: "bread"
+    category: grocery
+    intent_type: generic
+    price_bound: false
+    source: starter_reed
+
+  - id: 10
+    query: "nike shoes"
+    category: apparel
+    intent_type: branded
+    price_bound: false
+    source: starter_reed
+
+  - id: 11
+    query: "running shoes"
+    category: apparel
+    intent_type: generic
+    price_bound: false
+    source: starter_reed
+
+  - id: 12
+    query: "refrigerator"
+    category: home-appliances
+    intent_type: generic
+    price_bound: false
+    source: starter_reed
+
+  - id: 13
+    query: "washing machine"
+    category: home-appliances
+    intent_type: generic
+    price_bound: false
+    source: starter_reed
+
+  - id: 14
+    query: "air conditioner"
+    category: home-appliances
+    intent_type: generic
+    price_bound: false
+    source: starter_reed
+
+  - id: 15
+    query: "vacuum cleaner"
+    category: home-appliances
+    intent_type: generic
+    price_bound: false
+    source: starter_reed
+
+  - id: 16
+    query: "iphone 15 pro 256gb"
+    category: electronics
+    intent_type: branded
+    price_bound: false
+    source: cart_expansion
+    notes: "Agent price-comparison query with specific model and storage"
+
+  - id: 17
+    query: "cheapest wireless earbuds"
+    category: electronics
+    intent_type: generic
+    price_bound: true
+    source: cart_expansion
+    notes: "Price-bound generic query - agents frequently filter by budget"
+
+  - id: 18
+    query: "samsung tv 55 inch"
+    category: electronics
+    intent_type: branded
+    price_bound: false
+    source: cart_expansion
+    notes: "Size-specific branded query"
+
+  - id: 19
+    query: "earloops earphones"
+    category: electronics
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Niche accessory query"
+
+  - id: 20
+    query: "sony headphones"
+    category: electronics
+    intent_type: branded
+    price_bound: false
+    source: cart_expansion
+    notes: "Branded audio equipment"
+
+  - id: 21
+    query: "moisturizer"
+    category: beauty
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Skincare staple"
+
+  - id: 22
+    query: "face serum"
+    category: beauty
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Multi-step skincare query"
+
+  - id: 23
+    query: "lipstick"
+    category: beauty
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Cosmetics query"
+
+  - id: 24
+    query: "shampoo"
+    category: beauty
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Hair care staple"
+
+  - id: 25
+    query: "perfume"
+    category: beauty
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Fragrance query"
+
+  - id: 26
+    query: "yoga mat"
+    category: sports-outdoors
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Fitness equipment"
+
+  - id: 27
+    query: "dumbbells"
+    category: sports-outdoors
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Home gym equipment"
+
+  - id: 28
+    query: "camping tent"
+    category: sports-outdoors
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Outdoor gear"
+
+  - id: 29
+    query: "bicycle"
+    category: sports-outdoors
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Transport and fitness"
+
+  - id: 30
+    query: "tennis racket"
+    category: sports-outdoors
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Racquet sport equipment"
+
+  - id: 31
+    query: "protein powder"
+    category: health-wellness
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Sports supplements"
+
+  - id: 32
+    query: "vitamins"
+    category: health-wellness
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Daily supplements"
+
+  - id: 33
+    query: "electric toothbrush"
+    category: health-wellness
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Personal care device"
+
+  - id: 34
+    query: "blood pressure monitor"
+    category: health-wellness
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Health monitoring device"
+
+  - id: 35
+    query: "first aid kit"
+    category: health-wellness
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Emergency supplies"
+
+  - id: 36
+    query: "lego set"
+    category: toys-games
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Building toys"
+
+  - id: 37
+    query: "board games"
+    category: toys-games
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Family games"
+
+  - id: 38
+    query: "puzzle 1000 pieces"
+    category: toys-games
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Adult puzzles"
+
+  - id: 39
+    query: "action figure"
+    category: toys-games
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Collectibles"
+
+  - id: 40
+    query: "rc car"
+    category: toys-games
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Remote control vehicles"
+
+  - id: 41
+    query: "gaming chair"
+    category: home-living
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "WFH ergonomic furniture"
+
+  - id: 42
+    query: "office chair"
+    category: home-living
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Desk seating"
+
+  - id: 43
+    query: "coffee maker"
+    category: home-living
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Kitchen appliance"
+
+  - id: 44
+    query: "desk lamp"
+    category: home-living
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Home office lighting"
+
+  - id: 45
+    query: "bed sheets"
+    category: home-living
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Bedroom textiles"
+
+  - id: 46
+    query: "dog food"
+    category: pet-supplies
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Pet staples - dog"
+
+  - id: 47
+    query: "cat litter"
+    category: pet-supplies
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Pet staples - cat"
+
+  - id: 48
+    query: "pet toy"
+    category: pet-supplies
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Pet entertainment"
+
+  - id: 49
+    query: "car vacuum"
+    category: automotive
+    intent_type: generic
+    price_bound: false
+    source: cart_expansion
+    notes: "Car cleaning equipment"
+
+  - id: 50
+    query: "dash cam"
+    category: automotive
+    intent_type: branded
+    price_bound: false
+    source: cart_expansion
+    notes: "Driving recorder - branded"
+
+# Metadata
+metadata:
+  total_queries: 50
+  categories_count: 12
+  branded_queries: 8
+  generic_queries: 42
+  price_bound_queries: 1
+  created_at: "2026-05-06"
+  created_by: Cart
+  parent_issue: BUY-12894
+  validation_issue: BUY-12897

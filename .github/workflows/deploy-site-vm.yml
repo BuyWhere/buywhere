@@ -77,8 +77,11 @@ jobs:
             echo "=== BuyWhere Next.js site VM deploy starting ==="
 
             # Find the site directory.
+<<<<<<< HEAD
             # Diagnostic run confirmed: buywhere-site is at $HOME/buywhere-site
             # (proxy_pass http://127.0.0.1:3006 in the live nginx config)
+=======
+>>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
             SITE_DIR=""
             DEPLOY_HOME="$HOME"
             for candidate in "$DEPLOY_HOME/buywhere-site" "$DEPLOY_HOME/buywhere-api" /tmp/main-site /srv/buywhere /srv/buywhere-site /opt/buywhere; do
@@ -96,6 +99,7 @@ jobs:
 
             cd "$SITE_DIR"
 
+<<<<<<< HEAD
             # Update to latest origin — force-sync to handle diverged local changes.
             # The VM's local main has modifications to src/app/openapi.json/route.ts
             # (and others) that diverge from origin. We hard-reset to get the
@@ -103,10 +107,15 @@ jobs:
             echo "=== git fetch + reset --hard origin/$BRANCH ==="
             git fetch origin
             git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "origin/$BRANCH"
+=======
+            echo "=== git fetch + reset --hard origin/$BRANCH ==="
+            git fetch origin
+>>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
             git reset --hard "origin/$BRANCH"
             echo "HEAD: $(git log --oneline -1)"
             echo "route.ts content: $(head -5 src/app/openapi.json/route.ts)"
 
+<<<<<<< HEAD
             # Build into .next-fresh to avoid the root-owned files in .next-deploy/standalone/
             # The .next-deploy directory has root-owned files from a previous root build
             # that the deploy user cannot remove, causing Next.js's cleanup to fail.
@@ -139,6 +148,43 @@ PYEOF
             else
               echo "ERROR: neither npm nor pnpm found"
               cp next.config.mjs.bak next.config.mjs  # restore on error
+=======
+            # Clean stale build artifacts that may reference deleted source files
+            echo "=== cleaning stale build artifacts ==="
+            rm -rf .next .next-deploy .next-deploy-* .next-fresh 2>/dev/null || true
+            echo "Build artifacts cleaned"
+
+            # Build into a fresh timestamped directory to avoid root-owned files
+            # from previous builds that the deploy user cannot remove.
+            export BUILD_DIR=".next-deploy-$(date +%s)"
+            echo "=== using build dir: $BUILD_DIR ==="
+            cp next.config.mjs next.config.mjs.bak
+            python3 - << 'PYEOF'
+          import re, sys, os
+          build_dir = os.environ.get('BUILD_DIR', '.next-fresh')
+          with open('next.config.mjs', 'r') as f:
+              content = f.read()
+          updated = re.sub(r"distDir:\s*['\"][^'\"]*['\"]", f"distDir: '{build_dir}'", content)
+          if 'distDir' not in updated:
+              updated = content.replace('output:', f"distDir: '{build_dir}',\n  output:")
+          with open('next.config.mjs', 'w') as f:
+              f.write(updated)
+          print(f"next.config.mjs patched to distDir={build_dir}")
+          PYEOF
+            grep "distDir" next.config.mjs
+
+            # Build Next.js — required to compile the updated route handler
+            echo "=== npm run build (into $BUILD_DIR) ==="
+            if command -v npm &>/dev/null; then
+              npm ci --prefer-offline 2>/dev/null || npm install
+              npx next build --no-lint
+            elif command -v pnpm &>/dev/null; then
+              pnpm install --frozen-lockfile
+              pnpm exec next build --no-lint
+            else
+              echo "ERROR: neither npm nor pnpm found"
+              cp next.config.mjs.bak next.config.mjs
+>>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
               exit 1
             fi
 
@@ -146,6 +192,7 @@ PYEOF
             cp next.config.mjs.bak next.config.mjs
             echo "Build complete into .next-fresh: HEAD=$(git log --oneline -1)"
 
+<<<<<<< HEAD
             # Restart the site process.
             # Diagnostic confirmed: runs as nohup, NOT systemd (service not installed yet).
             # PID is stored in .runtime/buywhere-site.pid.
@@ -165,6 +212,17 @@ PYEOF
             START_ENV="PORT=3006 HOSTNAME=127.0.0.1"
             if [ -f "$SERVICE_FILE" ]; then
               # Extract Environment= lines from systemd unit
+=======
+            # Restart the site process — use fuser to kill whatever is on port 3006
+            echo "=== restarting site process ==="
+            fuser -k 3006/tcp 2>/dev/null && echo "Killed process on port 3006" || echo "No process on port 3006"
+            sleep 3
+
+            # Read start env from service file if it exists
+            SERVICE_FILE="$SITE_DIR/deploy/buywhere-site.service"
+            START_ENV="PORT=3006 HOSTNAME=127.0.0.1"
+            if [ -f "$SERVICE_FILE" ]; then
+>>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
               EXTRA=$(grep "^Environment=" "$SERVICE_FILE" 2>/dev/null | sed 's/^Environment=//' | tr '\n' ' ')
               if [ -n "$EXTRA" ]; then
                 START_ENV="$EXTRA"
@@ -173,8 +231,14 @@ PYEOF
             fi
 
             mkdir -p "$SITE_DIR/.runtime"
+<<<<<<< HEAD
             LOG_FILE="$SITE_DIR/.runtime/buywhere-site.log"
             ENTRY="$SITE_DIR/.next-fresh/standalone/server.js"
+=======
+            PID_FILE="$SITE_DIR/.runtime/buywhere-site.pid"
+            LOG_FILE="$SITE_DIR/.runtime/buywhere-site.log"
+            ENTRY="$SITE_DIR/$BUILD_DIR/standalone/server.js"
+>>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
             if [ ! -f "$ENTRY" ]; then
               echo "ERROR: standalone server.js not found at $ENTRY after build"
               exit 1
@@ -204,20 +268,29 @@ PYEOF
         run: |
           echo "Waiting 15s for site to come up..."
           sleep 15
+<<<<<<< HEAD
           # Follow redirect to verify the chain works end-to-end
+=======
+>>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
           HTTP=$(curl -s -o /dev/null -w "%{http_code}" -L \
             https://buywhere.ai/openapi.json --max-time 15 || echo "000")
           REDIRECT=$(curl -s -o /dev/null -w "%{redirect_url}" \
             https://buywhere.ai/openapi.json --max-time 15 || echo "")
           echo "GET https://buywhere.ai/openapi.json → HTTP $HTTP (redirect: $REDIRECT)"
+<<<<<<< HEAD
           # Primary check: redirect to canonical
+=======
+>>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
           DIRECT=$(curl -s -o /dev/null -w "%{http_code}" \
             https://buywhere.ai/openapi.json --max-time 15 --max-redirs 0 || echo "000")
           echo "No-follow: HTTP $DIRECT"
           if [[ "$DIRECT" == "308" ]] || [[ "$DIRECT" == "301" ]] || [[ "$DIRECT" == "302" ]]; then
             echo "PASS: buywhere.ai/openapi.json correctly redirects (HTTP $DIRECT)"
           elif [[ "$HTTP" == "200" ]]; then
+<<<<<<< HEAD
             # Verify it's the canonical spec, not the stale .io spec
+=======
+>>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
             CONTENT=$(curl -s https://buywhere.ai/openapi.json -L --max-time 15 | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('servers',[{}])[0].get('url','UNKNOWN'))" 2>/dev/null || echo "PARSE_ERROR")
             echo "Final spec server URL: $CONTENT"
             if echo "$CONTENT" | grep -q "buywhere.ai"; then

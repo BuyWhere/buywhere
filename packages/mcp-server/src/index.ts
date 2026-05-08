@@ -19,6 +19,7 @@ import {
 
 const API_BASE_URL = process.env.BUYWHERE_API_URL ?? 'https://api.buywhere.ai';
 const API_KEY = process.env.BUYWHERE_API_KEY ?? '';
+const PRODUCT_ID_RE = /^\d+$/;
 
 if (!API_KEY) {
   process.stderr.write('Error: BUYWHERE_API_KEY environment variable is required.\n');
@@ -89,7 +90,7 @@ const TOOLS: Tool[] = [
       type: 'object',
       required: ['id'],
       properties: {
-        id: { type: 'string', description: 'Product UUID' },
+        id: { type: 'string', description: 'Numeric BuyWhere product ID returned by search_products' },
       },
     },
   },
@@ -141,7 +142,14 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       return apiGet('/v1/products/search', args);
 
     case 'get_product': {
-      const id = String(args.id);
+      const id = typeof args.id === 'number' && Number.isSafeInteger(args.id)
+        ? String(args.id)
+        : typeof args.id === 'string'
+          ? args.id.trim()
+          : '';
+      if (!PRODUCT_ID_RE.test(id)) {
+        throw new Error('Invalid get_product id: expected a numeric BuyWhere product ID returned by search_products');
+      }
       return apiGet(`/v1/products/${encodeURIComponent(id)}`);
     }
 

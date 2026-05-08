@@ -1,89 +1,75 @@
-# BuyWhere — Agent-Native Product Catalog API
+# BuyWhere
 
-> BuyWhere is a product catalog API designed for AI agents and LLM pipelines. It provides semantic product search, normalized pricing data, and real-time availability across Singapore retailers.
+BuyWhere is an agent-native product catalog and price comparison API for AI agents and LLM applications. We provide real-time pricing, availability, and product data from major e-commerce platforms across Southeast Asia and the United States.
 
-## What BuyWhere Does
+## Catalog Coverage
+- 120,966+ active products
+- 7 major merchants (Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, Carousell)
+- 2 countries: Singapore (SG) and United States (US)
+- Currencies: SGD, USD
 
-BuyWhere indexes products from Singapore's major e-commerce platforms (Lazada, Shopee, Qoo10, and more) and exposes them through a unified REST API. AI agents can search for products in natural language, retrieve structured product data, and generate affiliate links — without scraping or parsing inconsistent HTML.
+## REST API Endpoints
 
-## API Endpoints
+### Products
+- GET /v1/products/search — Full-text product search with filters (keyword, merchant, price, category, country, currency, availability)
+- GET /v1/products/deals — Products on sale, sorted by discount percentage
+- GET /v1/products/compare?ids=id1,id2,... — Side-by-side product comparison (2-10 products)
+- GET /v1/products/:id — Get full product details by ID
+- GET /v1/products/:id/similar — Find similar products
+- GET /v1/products/:id/price-history — Historical price chart data
+- GET /v1/products/:id/prices — Price snapshots from merchant feeds
 
-- **Product Search**: `GET https://api.buywhere.ai/v1/search?q={query}&limit=10`
-- **Product Detail**: `GET https://api.buywhere.ai/v1/products/{id}`
-- **Best Price**: `GET https://api.buywhere.ai/v1/products/best-price?product_name={name}`
-- **Deals**: `GET https://api.buywhere.ai/v1/deals`
-- **Categories**: `GET https://api.buywhere.ai/v1/categories`
+### Categories
+- GET /v1/categories — List all top-level categories
+- GET /v1/categories/:slug — Get category details with subcategories and sample products
 
-All endpoints return JSON. Authentication uses Bearer tokens via the `Authorization` header.
+### Catalog
+- GET /v1/catalog/stats — Aggregate statistics (total products, merchants, countries, recent additions) — unauthenticated
+
+## MCP Server
+MCP endpoint: https://api.buywhere.ai/mcp
+Authentication: Bearer token (get free key at https://api.buywhere.ai/v1/auth/register)
+
+### MCP Tools
+1. **search_products** — Full-text search with merchant, price, category, and country filters. Use compact=true for agent-optimized responses.
+2. **get_product** — Get full product details by BuyWhere product ID.
+3. **compare_products** — Compare 2-10 products side-by-side across merchants.
+4. **get_deals** — Find discounted products sorted by discount percentage.
+5. **list_categories** — List top-level product categories with product counts.
+6. **find_best_price** — Find the cheapest current listing for a product across all merchants.
 
 ## Authentication
+
+All API endpoints (except /v1/catalog/stats) require a Bearer token:
 
 ```
 Authorization: Bearer bw_live_YOUR_API_KEY
 ```
 
-Get an API key at: https://buywhere.ai/quickstart
+Get a free API key at: https://api.buywhere.ai/v1/auth/register
 
-## Example: Search Products
+Free tier: 1,000 calls/month. No credit card required.
 
-```bash
-curl -X GET "https://api.buywhere.ai/v1/search" \
-  -H "Authorization: Bearer bw_live_YOUR_API_KEY" \
-  -G \
-  --data-urlencode "q=wireless headphones under $150" \
-  --data-urlencode "limit=5"
-```
+## Use Cases
+- AI shopping agents and price comparison assistants
+- Product discovery and deal alerts
+- Cross-merchant price intelligence
+- Market research and retail analytics
 
-## Response Schema
-
-```json
-{
-  "total": 47,
-  "limit": 5,
-  "offset": 0,
-  "has_more": true,
-  "items": [
-    {
-      "id": 12345,
-      "name": "Sony WH-1000XM5 Wireless Headphones",
-      "price": 429.00,
-      "currency": "SGD",
-      "source": "lazada_sg",
-      "buy_url": "https://lazada.sg/products/...",
-      "affiliate_url": "https://api.buywhere.ai/v1/track/12345",
-      "image_url": "https://img.lazcdn.com/...",
-      "is_available": true,
-      "rating": 4.8,
-      "category": "Electronics > Audio > Headphones"
-    }
-  ]
-}
-```
-
-## Use Cases for AI Agents
-
-- **Shopping assistants**: Find the best deal across retailers in natural language
-- **Price comparison**: Track and compare prices across Lazada, Shopee, Qoo10
-- **Affiliate commerce**: Generate revenue by embedding affiliate product links
-- **Product recommendations**: Structured data for recommendation engines
-
-## Developer Resources
-
-- Quickstart guide: https://buywhere.ai/quickstart
-- Full API docs: https://richmondteo-code.github.io/buywhere-catalog-api/
-- Agent examples (LangChain + CrewAI): https://github.com/richmondteo-code/buywhere-agent-examples
-- Python: `pip install langchain langchain-openai requests` (no BuyWhere SDK needed — see examples repo)
-- TypeScript/Node: native `fetch` API, no dependencies (Node 18+)
+## Documentation
+- API docs: https://api.buywhere.ai/docs
+- MCP guide: https://api.buywhere.ai/docs/guides/mcp
+- Pricing: https://buywhere.ai/pricing
+- GitHub: https://github.com/BuyWhere/buywhere
+- npm: https://www.npmjs.com/package/@buywhere/mcp-server
 
 ## Rate Limits
-
-- Free: 10 req/min, 1,000 queries/month
-- Starter: 60 req/min, 100,000 queries/month
-- Growth: 300 req/min, 1,000,000 queries/month
-- Scale: 1,000 req/min, unlimited
+- Free: 1,000 calls/month
+- Starter: 50,000 calls/month — $9/month
+- Pro: 500,000 calls/month — $49/month
+- Enterprise: Custom limits
 
 ## Company
-
 BuyWhere Pte. Ltd. — Singapore
-Contact: hello@buywhere.ai
+Contact: api@buywhere.ai
 Website: https://buywhere.ai

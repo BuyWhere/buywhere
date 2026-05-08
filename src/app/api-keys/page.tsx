@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 
@@ -67,8 +68,67 @@ export default function ApiKeysPage() {
   -H "Authorization: Bearer ${apiKey}"`
     : "";
 
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "@id": "https://buywhere.ai/api-keys#faq",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: "How do I get a BuyWhere API key?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Enter your name and email on the BuyWhere API keys page and receive a working API key instantly. No credit card required during beta. The key is displayed on screen and emailed to you."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "Is the BuyWhere API free?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Yes — during beta, BuyWhere offers a free tier with 1,000 API calls per month, no credit card required. Paid plans (Developer at $29/month for 50,000 calls, Business at $99/month for 500,000 calls) unlock more capacity and features like price history and webhooks."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "What can I build with the BuyWhere API?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "The BuyWhere API powers AI shopping assistants, price comparison tools, affiliate recommendation engines, e-commerce analytics, and LangChain or CrewAI agents. Any application that needs real-time product search, price comparison, or deal discovery can use the API."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "What endpoints does the BuyWhere API offer?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "The core endpoint is GET /v1/products/search for full-text product search. Additional endpoints include price comparison, product details by ID, deal discovery, and category browsing. The same catalog is available as MCP tools for AI agent integration."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "Does BuyWhere support MCP (Model Context Protocol)?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Yes. BuyWhere publishes an official MCP server package (@buywhere/mcp-server) that exposes the product catalog as MCP tools. Install it with npx -y @buywhere/mcp-server and configure it with your API key to use BuyWhere inside Claude Desktop, Cursor, or any MCP-compatible agent."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "What countries does BuyWhere cover?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "BuyWhere covers Singapore (SGD) with the full catalog live, and United States (USD) in preview. Additional Southeast Asian markets including Malaysia, Thailand, Vietnam, Philippines, and Indonesia are planned."
+        }
+      }
+    ]
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
+      <Script id="faq-schema" type="application/ld+json" strategy="afterInteractive">
+        {JSON.stringify(faqSchema)}
+      </Script>
       <Nav />
 
       {/* Header */}

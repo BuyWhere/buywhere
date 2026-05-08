@@ -1,11 +1,9 @@
 import { db, redis } from './config';
 
-const EXTENSIONS = `
+const MIGRATION = `
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "btree_gin";
-`;
 
-const MIGRATION = `
 -- Ensure products has all columns before any indexes or triggers reference them
 ALTER TABLE products ADD COLUMN IF NOT EXISTS sku            TEXT;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS source         TEXT;
@@ -36,6 +34,8 @@ CREATE INDEX IF NOT EXISTS idx_products_search_region  ON products USING gin(sea
 CREATE INDEX IF NOT EXISTS idx_products_search_country ON products USING gin(search_vector, country_code);
 CREATE INDEX IF NOT EXISTS idx_products_currency     ON products(currency);
 CREATE INDEX IF NOT EXISTS idx_products_category_path ON products USING GIN(category_path);
+CREATE INDEX IF NOT EXISTS idx_products_category ON products (lower(category));
+CREATE INDEX IF NOT EXISTS idx_products_category_updated ON products (lower(category), updated_at DESC);
 
 -- api_keys: create if not exists, then add any missing columns
 CREATE TABLE IF NOT EXISTS api_keys (
@@ -103,6 +103,10 @@ CREATE TABLE IF NOT EXISTS affiliate_links (
 
 -- B-tree index on category_path[1] for fast GROUP BY / WHERE queries (BUY-8715)
 CREATE INDEX IF NOT EXISTS idx_products_category_path_first ON products USING btree ((category_path[1]));
+
+-- Index for category-only search using lower(category) = (BUY-14141)
+CREATE INDEX IF NOT EXISTS idx_products_category ON products (lower(category));
+CREATE INDEX IF NOT EXISTS idx_products_category_country_updated ON products (lower(category), country_code, updated_at DESC);
 
 -- Backfill empty category_path to prevent 0-category results (BUY-8715)
 UPDATE products SET category_path = ARRAY['Uncategorized']::text[]
@@ -296,15 +300,8 @@ CREATE INDEX IF NOT EXISTS idx_merchant_events_event_type ON merchant_events(eve
 export async function runMigrations() {
   console.log('Running migrations...');
 
-  // Extensions first, isolated — may fail if DB user lacks CREATE EXTENSION perms.
-  // This is non-fatal: the rest of migration still runs without extensions.
-  try {
-    await db.query(EXTENSIONS);
-  } catch (err: any) {
-    console.warn(`[migration] Extension creation skipped (non-fatal): ${err.message?.slice(0, 200)}`);
-  }
-
-  // Core migration — columns, indexes, tables.
+  // Run full migration block as-is (best-effort, may fail on extensions or
+  // products columns if those tables/perms don't exist yet).
   try {
     await db.query(MIGRATION);
     console.log('Full migration completed.');

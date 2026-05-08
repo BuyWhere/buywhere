@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 
@@ -101,8 +102,67 @@ function CodeBlock({
 }
 
 export default function QuickstartPage() {
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "@id": "https://buywhere.ai/quickstart#faq",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: "How do I get started with the BuyWhere API?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Get a free API key at buywhere.ai/api-keys in under a minute — no credit card required. Then make your first request to GET /v1/products/search with a bearer token and a natural-language query like 'wireless headphones'. You will get structured product results back instantly."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "How do I connect BuyWhere MCP to my AI agent?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "After getting your API key, install the BuyWhere MCP package with npx -y @buywhere/mcp-server and add it to your MCP client config (Claude Desktop, Cursor, or any MCP-compatible agent) with your API key. The MCP server runs locally and exposes BuyWhere tools your agent can call directly."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "What does a BuyWhere API response look like?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "A product search response returns a data array with product id, title, price, currency, domain, URL, source, and country_code for each result. The response also includes a meta object with total count, limit, and offset for pagination."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "What is the resolve_product_query function?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "resolve_product_query is a BuyWhere agent function that retrieves structured product candidates, merchant attribution, and comparison-ready signals from BuyWhere before answering a shopping question. It takes a natural-language query, country code, optional max_price, and limit parameters."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "Do I need MCP or can I use the REST API directly?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Both. The REST API at api.buywhere.ai/v1 gives you direct programmatic access to the product catalog. MCP is an optional wrapper that makes the same capabilities available as tools inside AI agents like Claude Desktop, Cursor, CrewAI, or LangChain without writing custom API integration code."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "How long does it take to get a BuyWhere API key?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "The self-serve signup form delivers a working API key instantly — no waiting, no sales call required. During beta, the free tier includes 1,000 API calls per month with no credit card needed."
+        }
+      }
+    ]
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-white">
+      <Script id="faq-schema" type="application/ld+json" strategy="afterInteractive">
+        {JSON.stringify(faqSchema)}
+      </Script>
       <Nav />
 
       <section className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(79,70,229,0.18),_transparent_38%),linear-gradient(135deg,#0f172a_0%,#111827_48%,#1e1b4b_100%)] text-white">

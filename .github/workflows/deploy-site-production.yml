@@ -134,15 +134,28 @@ jobs:
         run: |
           set -o pipefail
           SITE="${{ steps.deploy.outputs.url }}"
-          STATIC_ASSET=$(curl -sf -o /dev/null -w "%{http_code}" \
-            "${SITE}/_next/static/css/765b3c9ef9d41d32.css" --max-time 15 || echo "000")
-          echo "Static CSS asset status: HTTP ${STATIC_ASSET}"
-          if [[ "$STATIC_ASSET" == "400" ]]; then
-            echo "FAIL: _next/static asset returned 400 — stale build artifact detected"
-            echo "This means the container was built with a mismatched manifest and is serving wrong static files"
+          HTML="$(mktemp)"
+          curl -sf "${SITE}" -o "${HTML}"
+          mapfile -t ASSETS < <(grep -Eo '/_next/static/[^" ]+' "${HTML}" | sed 's/\\$//' | sort -u)
+
+          if [[ "${#ASSETS[@]}" -eq 0 ]]; then
+            echo "FAIL: no _next/static assets found in homepage HTML"
             exit 1
-          elif [[ "$STATIC_ASSET" == "000" ]]; then
-            echo "WARN: Could not reach static asset — network or DNS issue"
-          else
-            echo "Static assets smoke test passed: HTTP ${STATIC_ASSET}"
           fi
+
+          echo "Found ${#ASSETS[@]} referenced static assets in homepage HTML"
+          FAILURES=0
+          for ASSET in "${ASSETS[@]}"; do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" "${SITE}${ASSET}" --max-time 15 || echo "000")
+            if [[ "${CODE}" != "200" ]]; then
+              echo "FAIL: ${ASSET} returned HTTP ${CODE}"
+              FAILURES=$((FAILURES + 1))
+            fi
+          done
+
+          if [[ "${FAILURES}" -gt 0 ]]; then
+            echo "FAIL: ${FAILURES} referenced _next/static assets were not reachable"
+            exit 1
+          fi
+
+          echo "Static assets smoke test passed"

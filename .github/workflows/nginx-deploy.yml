@@ -1,6 +1,5 @@
 name: Deploy nginx config
 
-# Triggers: push to deploy/nginx/ on main, or manual dispatch
 on:
   push:
     branches: [main]
@@ -27,11 +26,24 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Set deploy variables
         id: vars
         run: |
-          CONFIG_NAME="${{ github.event.inputs.config_name || 'api.buywhere.ai' }}"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            CONFIG_NAME="${{ github.event.inputs.config_name || 'api.buywhere.ai' }}"
+          else
+            CHANGED=$(git diff --name-only HEAD~1 HEAD -- deploy/nginx/*.conf 2>/dev/null | head -1)
+            if [[ -n "$CHANGED" ]]; then
+              CONFIG_NAME=$(basename "$CHANGED" .conf)
+              echo "Detected changed config: ${CONFIG_NAME}"
+            else
+              CONFIG_NAME="api.buywhere.ai"
+              echo "No config change detected, defaulting to: ${CONFIG_NAME}"
+            fi
+          fi
           DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
           RESTART_ONLY="${{ github.event.inputs.restart_only || 'false' }}"
           echo "config_name=${CONFIG_NAME}" >> "$GITHUB_OUTPUT"
@@ -78,22 +90,16 @@ jobs:
           SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
           SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
         run: |
-          # Pass variables as explicit env vars on the remote command line.
-          # Using bash -s with heredoc avoids the positional-argument/unbound-variable
-          # issue that occurs when bash -c '...' _ "$VAR" is used over SSH.
           ssh -i ~/.ssh/id_ed25519 "${SSH_USER}@${SSH_HOST}" \
             env CONFIG_NAME="${CONFIG_NAME}" DEPLOY_SHA="${DEPLOY_SHA}" DRY_RUN="${DRY_RUN}" RESTART_ONLY="${RESTART_ONLY}" \
             bash -s <<'REMOTE'
           set -euo pipefail
 
-          # Sites-enabled on this server uses no .conf suffix (nginx convention: sites-enabled/hostname)
           DEST="/etc/nginx/sites-enabled/${CONFIG_NAME}"
           SRC="/tmp/nginx-${CONFIG_NAME}-${DEPLOY_SHA}.conf"
 
           echo "nginx-deploy: config=${CONFIG_NAME} sha=${DEPLOY_SHA} dry_run=${DRY_RUN} restart_only=${RESTART_ONLY}"
 
-          # Validate nginx config — try sudo first (non-interactive), fall back to plain.
-          # Treat PID-file permission errors as non-fatal (they don't affect config syntax).
           validate_nginx() {
             local out
             out=$(sudo -n nginx -t -c /etc/nginx/nginx.conf 2>&1) \
@@ -103,7 +109,6 @@ jobs:
             if echo "$out" | grep -q "syntax is ok"; then
               return 0
             fi
-            # If the only failures are pid-file permission errors, treat as OK
             local real_errors
             real_errors=$(echo "$out" | grep -v "nginx.pid" | grep -E "\[emerg\]|\[crit\]|test failed" || true)
             if [[ -n "$real_errors" ]]; then
@@ -126,9 +131,6 @@ jobs:
             echo "Validating existing nginx config before deploy..."
             validate_nginx
 
-            # Write the config — try plain cp first, then sudo cp, then sudo tee.
-            # All three must fail for the deploy to abort. If the DEST file exists but
-            # cannot be written, we exit rather than silently reloading stale config.
             if cp "${SRC}" "${DEST}" 2>/dev/null; then
               echo "Config written to ${DEST} (plain cp)"
             elif sudo -n cp "${SRC}" "${DEST}" 2>/dev/null; then
@@ -157,7 +159,6 @@ jobs:
             || sudo systemctl restart nginx
           echo "nginx restarted — config drift resolved (sha ${DEPLOY_SHA})"
 
-          # Cleanup tmp configs on server
           rm -f /tmp/main-nginx.conf /tmp/buywhere-ai-modified.conf 2>/dev/null || true
           REMOTE
 

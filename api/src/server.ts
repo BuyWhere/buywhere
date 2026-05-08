@@ -22,10 +22,14 @@ import merchantsRouter from './routes/merchants';
 import ingestRouter from './routes/ingest';
 import catalogRouter from './routes/catalog';
 import keysRouter from './routes/keys';
-import { db } from './config';
+import webhooksRouter from './routes/webhooks';
+import { db, redis } from './config';
+import { abuseDetection } from './middleware/abuseDetection';
+import { checkIpRateLimit } from './middleware/apiKey';
 
 export function createApp() {
   const app = express();
+  const releaseSha = (process.env.RELEASE_SHA || process.env.IMAGE_TAG || 'dev').trim();
 
   app.use(cors({
     origin: (process.env.CORS_ALLOWED_ORIGINS || 'https://us.buywhere.com,https://buywhere.ai').split(',').map((o) => o.trim()),
@@ -38,6 +42,17 @@ export function createApp() {
   });
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: false }));
+  app.use((_req, res, next) => {
+    res.set('X-BuyWhere-Release', releaseSha || 'dev');
+    next();
+  });
+
+  // Abuse detection & IP rate limiting — applied to API routes only
+  // Skips health checks, static pages, sitemaps, robots.txt, etc.
+  const apiAbuse = abuseDetection();
+  app.use('/v1', apiAbuse, checkIpRateLimit);
+  app.use('/v2', apiAbuse, checkIpRateLimit);
+  app.use('/mcp', apiAbuse, checkIpRateLimit);
 
   // Sentry request context — attaches user/country/method for error tracking
   app.use(sentryRequestHandler);
@@ -47,6 +62,7 @@ export function createApp() {
     res.json({
       status: 'ok',
       ts: new Date().toISOString(),
+      release: releaseSha || 'dev',
     });
   });
 
@@ -72,6 +88,49 @@ export function createApp() {
     }
   });
 
+  // Redis health check — UptimeRobot monitor endpoint
+  app.get('/health/redis', async (_req, res) => {
+    try {
+      const pong = await redis.ping();
+      res.json({
+        status: pong === 'PONG' ? 'ok' : 'degraded',
+        redis: pong === 'PONG' ? 'connected' : 'unexpected_response',
+        ts: new Date().toISOString(),
+      });
+    } catch (err) {
+      res.status(503).json({
+        status: 'error',
+        redis: 'disconnected',
+        error: (err as Error).message,
+        ts: new Date().toISOString(),
+      });
+    }
+  });
+
+  // Uptime Robot webhook handler — receives DOWN/UP alerts
+  app.post('/webhooks/uptime-robot', async (req, res) => {
+    const { monitorID, monitorFriendlyName, monitorURL, alertType, alertTypeFriendlyName, alertDetails, monitorStatusCode } = req.body || {};
+    if (!monitorID) {
+      return res.status(400).json({ error: { code: 'MISSING_REQUIRED_FIELD', message: 'monitorID is required' } });
+    }
+    const name = monitorFriendlyName || monitorID;
+    console.log(`[uptime-robot] ${name} [${monitorURL}] = ${alertTypeFriendlyName || alertType} — ${alertDetails || monitorStatusCode}`);
+    if (alertType === '1' || (alertTypeFriendlyName || '').toLowerCase() === 'down') {
+      console.error(`[uptime-robot] MONITOR DOWN: ${name} (${monitorURL}) — ${alertDetails || ''} (HTTP ${monitorStatusCode || '?'})`);
+    }
+    res.json({ status: 'ok' });
+  });
+
+  // Uptime Robot webhook diagnostic
+  app.get('/webhooks/uptime-robot', (_req, res) => {
+    res.json({ status: 'ok', mode: 'diagnostic' });
+  });
+        ts: new Date().toISOString(),
+      });
+    }
+  });
+
+<<<<<<< HEAD
   // Uptime Robot webhook handler — receives DOWN/UP alerts
   app.post('/webhooks/uptime-robot', async (req, res) => {
     const { monitorID, monitorFriendlyName, monitorURL, alertType, alertTypeFriendlyName, alertDetails, monitorStatusCode } = req.body || {};
@@ -91,6 +150,8 @@ export function createApp() {
     res.json({ status: 'ok', mode: 'diagnostic' });
   });
 
+=======
+>>>>>>> hotfix-restore
   // MCP / OpenAI plugin discovery
   app.use('/.well-known', wellknownRouter);
   app.get('/openapi.json', (req, res) => wellknownRouter(req, res, () => {}));
@@ -191,12 +252,15 @@ export function createApp() {
     res.set('X-Robots-Tag', 'ai-index');
     res.set('Cache-Control', 'public, max-age=86400');
     res.type('text/plain').send(
-      `# BuyWhere\n\nBuyWhere is a structured product catalog and price comparison API for AI agents and LLM applications. We provide real-time pricing, availability, and product data from Singapore's major e-commerce platforms (Lazada, Shopee, Best Denki, and others).\n\n## What we offer\n- REST API: GET /v1/products, GET /v1/offers, GET /v1/categories\n- MCP endpoint: https://api.buywhere.ai/mcp\n- Schema.org-compatible product data (Product, Offer, ItemList)\n- Coverage: 2M+ Singapore products across 40+ merchants\n- Use cases: price comparison agents, shopping assistants, market research tools\n\n## Documentation\n- API docs: https://docs.buywhere.ai\n- MCP guide: https://api.buywhere.ai/docs/guides/mcp\n- GitHub: https://github.com/BuyWhere/buywhere\n\n## Licensing\nFree tier: 1,000 API calls/month. Commercial plans available.\n`
+      `# BuyWhere\n\nBuyWhere is an agent-native product catalog and price comparison API for AI agents and LLM applications. We provide real-time pricing, availability, and product data from major e-commerce platforms across Southeast Asia and the United States.\n\n## Catalog Coverage\n- 120,966+ active products\n- 7 major merchants (Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, Carousell)\n- 2 countries: Singapore (SG) and United States (US)\n- Currencies: SGD, USD\n\n## REST API Endpoints\n\n### Products\n- GET /v1/products/search — Full-text product search with filters (keyword, merchant, price, category, country, currency, availability)\n- GET /v1/products/deals — Products on sale, sorted by discount percentage\n- GET /v1/products/compare?ids=id1,id2,... — Side-by-side product comparison (2-10 products)\n- GET /v1/products/:id — Get full product details by ID\n- GET /v1/products/:id/similar — Find similar products\n- GET /v1/products/:id/price-history — Historical price chart data\n- GET /v1/products/:id/prices — Price snapshots from merchant feeds\n\n### Categories\n- GET /v1/categories — List all top-level categories\n- GET /v1/categories/:slug — Get category details with subcategories and sample products\n\n### Catalog\n- GET /v1/catalog/stats — Aggregate statistics (total products, merchants, countries, recent additions) — unauthenticated\n\n## MCP Server\nMCP endpoint: https://api.buywhere.ai/mcp\nAuthentication: Bearer token (get free key at https://api.buywhere.ai/v1/auth/register)\n\n### MCP Tools\n1. **search_products** — Full-text search with merchant, price, category, and country filters. Use compact=true for agent-optimized responses.\n2. **get_product** — Get full product details by BuyWhere product ID.\n3. **compare_products** — Compare 2-10 products side-by-side across merchants.\n4. **get_deals** — Find discounted products sorted by discount percentage.\n5. **list_categories** — List top-level product categories with product counts.\n6. **find_best_price** — Find the cheapest current listing for a product across all merchants.\n\n## Use Cases\n- AI shopping agents and price comparison assistants\n- Product discovery and deal alerts\n- Cross-merchant price intelligence\n- Market research and retail analytics\n\n## Documentation\n- API docs: https://api.buywhere.ai/docs\n- MCP setup guide: https://api.buywhere.ai/docs/guides/mcp\n- Quickstart: https://buywhere.ai/quickstart\n- GitHub: https://github.com/BuyWhere/buywhere\n- npm package: https://www.npmjs.com/package/@buywhere/mcp-server\n\n## Authentication\nSign up at https://api.buywhere.ai/v1/auth/register for a free API key.\nFree tier: 1,000 API calls/month. No credit card required.\n\n## Pricing\nFree: 1,000 calls/month\nCommercial plans available at https://buywhere.ai/pricing\n`
     );
   });
 
   // Landing pages — homepage (en_SG) and US edition (en_US)
   app.use(landingRouter);
+
+  // Webhook relay — UptimeRobot → Paperclip issue creation
+  app.use('/webhooks', webhooksRouter);
 
   // 404 fallback
   app.use((_req, res) => {

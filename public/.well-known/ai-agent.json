@@ -1,0 +1,21 @@
+{
+  "name": "Buywhere.ai",
+  "type": "service",
+  "description": "Cross-border product catalog with intelligent market matching",
+  "version": "1.0.0",
+  "capabilities": ["product-search", "price-comparison", "cross-border-matching", "affiliate-attribution"],
+  "protocols": ["MCP", "A2A", "HTTP/REST"],
+  "endpoints": {
+    "mcp": "https://api.buywhere.ai/mcp/sse",
+    "a2a": "https://api.buywhere.ai/a2a",
+    "rest": "https://api.buywhere.ai/v1"
+  },
+  "auth": {
+    "type": "apiKey",
+    "header": "X-Buywhere-Key",
+    "docs": "https://docs.buywhere.ai/auth"
+  },
+  "contact": "agents@buywhere.ai",
+  "status": "https://status.buywhere.ai",
+  "trust_score": 0.95
+}

@@ -1,5 +1,16 @@
 import importlib as _il
 
+from scrapers.proxy_config import (  # noqa: E402
+    Zone,
+    ZoneConfig,
+    get_zone_config,
+    list_zones,
+    proxy_config_for_httpx,
+    proxy_config_for_playwright,
+    proxy_config_for_requests,
+    proxy_url,
+)
+
 _SCRAPERS = {
     "IKEAScraper": "ikea_sg",
     "ColdStorageScraper": "cold_storage_sg",

@@ -247,6 +247,7 @@ router.get('/mcp/server-card.json', (_req: Request, res: Response) => {
       { name: 'compare_products', description: 'Compare multiple products side-by-side across merchants: price, brand, rating, category path, and merchant for each product. For AI agent price comparison shopping.', inputSchema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } }, required: ['ids'] } },
       { name: 'get_deals', description: 'Get discounted products sorted by discount percentage across all merchants. Returns original price, current price, and discount percentage.', inputSchema: { type: 'object', properties: { min_discount: { type: 'number', default: 10 }, country_code: { type: 'string' }, country: { type: 'string' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 } } } },
       { name: 'list_categories', description: 'List top-level product categories available in the BuyWhere catalog with slugs, names, and product counts.', inputSchema: { type: 'object', properties: { currency: { type: 'string' } } } },
+      { name: 'find_best_price', description: 'Find the single cheapest listing for a product across all merchants. Use when a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X" or "where can I buy X for the lowest price".', inputSchema: { type: 'object', required: ['product_name'], properties: { product_name: { type: 'string', description: 'Product name to find best price for (e.g., "iphone 15 pro 256gb", "samsung galaxy s24")' }, category: { type: 'string', description: 'Category to filter by (e.g., "electronics", "fashion")' }, country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG)' }, region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter - use "us" for United States or "sea" for Southeast Asia' } } } },
     ],
     authentication: {
       required: true,
@@ -306,6 +307,30 @@ router.get('/api-catalog', (_req: Request, res: Response) => {
 // Public key (p=): h7SEyb+uUyDnAuhTuNfFKVLgvbKI+4eIJQQCfXiccxs=
 router.get('/mcp-registry-auth', (_req: Request, res: Response) => {
   res.type('text/plain').send('v=MCPv1; k=ed25519; p=h7SEyb+uUyDnAuhTuNfFKVLgvbKI+4eIJQQCfXiccxs=');
+});
+
+router.get('/api-catalog', (_req: Request, res: Response) => {
+  res.json({
+    name: 'BuyWhere Product Catalog API',
+    description: 'Agent-native product catalog and price comparison API',
+    version: 'v1',
+    documentation: 'https://api.buywhere.ai/docs',
+    endpoints: {
+      catalog_stats: `${API_BASE_URL}/v1/catalog/stats`,
+      product_search: `${API_BASE_URL}/v1/products/search`,
+      deals: `${API_BASE_URL}/v1/products/deals`,
+      categories: `${API_BASE_URL}/v1/categories`,
+      compare: `${API_BASE_URL}/v1/products/compare`,
+    },
+    mcp: {
+      endpoint: 'https://mcp.buywhere.ai/mcp',
+      tools: ['search_products', 'get_product', 'compare_products', 'get_deals', 'list_categories'],
+    },
+    auth: {
+      register_url: `${API_BASE_URL}/v1/auth/register`,
+      type: 'bearer',
+    },
+  });
 });
 
 export default router;

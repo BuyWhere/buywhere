@@ -19,7 +19,11 @@ env:
   GCP_PROJECT_ID: gaia-calendar-488606
   GCP_REGION: asia-southeast1
   CLOUD_RUN_SERVICE: buywhere-mcp
-  CLOUD_SQL_INSTANCE: gaia-calendar-488606:asia-southeast1:buywhere-db
+  # Canonical production DB: gaia-calendar-488606:asia-southeast1:buywhere-staging
+  # DO NOT CHANGE — see STRATEGIC_DECISIONS.md Infrastructure Reference Policy
+  # "buywhere-staging" is the production DB instance name (despite confusing naming)
+  # "buywhere-db" and "buywhere-production" are deprecated and do not exist
+  CLOUD_SQL_INSTANCE: gaia-calendar-488606:asia-southeast1:buywhere-staging
 
 jobs:
   build:

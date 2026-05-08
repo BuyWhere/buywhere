@@ -1,0 +1,87 @@
+name: Build With BuyWhere Challenge Submission
+description: Submit your AI shopping agent for the Build With BuyWhere Challenge
+title: "[Submission] "
+labels: [challenge, submission]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for entering the **Build With BuyWhere Challenge**! Fill out the details below and our team will review your submission.
+
+  - type: input
+    id: project-name
+    attributes:
+      label: Project Name
+      description: What did you build?
+      placeholder: e.g. "ShopBot — AI Shopping Assistant"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Tell us about your AI shopping agent. What does it do? What problem does it solve?
+      placeholder: Describe your agent, its features, and the real shopping scenarios it handles.
+    validations:
+      required: true
+
+  - type: input
+    id: repo-url
+    attributes:
+      label: Source Repository
+      description: Link to your public GitHub repo.
+      placeholder: https://github.com/your-username/your-agent
+    validations:
+      required: true
+
+  - type: input
+    id: demo-url
+    attributes:
+      label: Demo URL
+      description: Link to a live demo, video, or screencast.
+      placeholder: https://demo.example.com or https://youtube.com/...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: integration-type
+    attributes:
+      label: Integration Type
+      description: How does your agent use BuyWhere?
+      options:
+        - REST API
+        - MCP Server
+        - Both
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: instructions
+    attributes:
+      label: Setup & Usage Instructions
+      description: How do we run or test your agent?
+      placeholder: Steps to set up and use your submission...
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Submission Checklist
+      options:
+        - label: My agent uses BuyWhere's API or MCP tools for at least one core feature
+          required: true
+        - label: My source code is publicly accessible
+          required: true
+        - label: I have included a clear demo or walkthrough
+          required: false
+        - label: My submission is original work
+          required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        By submitting, you agree to the [Challenge Terms](https://buywhere.ai/terms). Good luck! 🚀

@@ -48,6 +48,9 @@ PLATFORM_MAP = {
     "normalized_sg": "amazon_sg",  # large aggregate of Amazon SG products
     "robinsons": "merchant_direct",
     "iherb": "iherb",
+    "cj_affiliate": "cj_affiliate",
+    "shareasale_affiliate": "shareasale_affiliate",
+    "impact_affiliate": "impact_affiliate",
 }
 
 

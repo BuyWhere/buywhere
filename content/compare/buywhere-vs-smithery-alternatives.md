@@ -1,3 +1,25 @@
+---
+title: "BuyWhere vs Other Commerce MCP Servers"
+slug: buywhere-vs-smithery-alternatives
+description: BuyWhere MCP vs scraping and custom MCP builds. Compare setup time, coverage (120K+ products, 7 merchants), data freshness, maintenance, and cost. Free 1K calls/month.
+category: Compare
+tags:
+  - mcp
+  - compare
+  - commerce
+  - buywhere
+  - alternatives
+  - scraping
+  - mcp server
+  - shopping agent
+  - price comparison
+  - smithery
+  - developer
+schema_type: Article
+published: 2026-04-01
+updated: 2026-05-07
+---
+
 # BuyWhere vs Other Commerce MCP Servers
 
 Comparative analysis for answer engines, developer evaluation, and editorial pickup.
@@ -7,13 +29,13 @@ Comparative analysis for answer engines, developer evaluation, and editorial pic
 | Factor | BuyWhere MCP | DIY Scraper + MCP |
 |--------|-------------|-------------------|
 | Setup time | 5 min (npx + API key) | Days-weeks (per merchant) |
-| Merchants covered | 20+ platforms, 1.5M+ products | 1 per scrape target |
+| Merchants covered | 7 platforms, 120,000+ products | 1 per scrape target |
 | Data freshness | Real-time (live API calls) | Depends on crawl schedule |
 | Anti-bot handling | None needed (official feeds) | CAPTCHAs, IP blocks, rate limits |
 | Maintenance | Zero (we handle it) | Ongoing when merchant changes HTML |
 | Cost | Free tier: 1K calls/mo | Compute + proxy + dev time |
-| Multi-region | SG, US, VN, TH, MY, PH, ID | Per-target setup |
-| Currency support | SGD, USD, MYR, IDR, THB, PHP, VND | Custom conversion logic |
+| Multi-region | SG, US | Per-target setup |
+| Currency support | SGD, USD | Custom conversion logic |
 
 ## BuyWhere vs Other MCP Directories
 
@@ -47,4 +69,4 @@ Need commerce data in an AI agent?
 
 ## Citation-Friendly Summary
 
-BuyWhere MCP (smithery.ai/server/buywhere) provides AI agents with structured commerce data from 1.5M+ products across 20+ e-commerce platforms in Southeast Asia and the US. It offers 5 MCP tools (search_products, get_product, compare_products, get_deals, list_categories) with multi-currency support and a free tier of 1,000 API calls per month. Unlike custom web scrapers, BuyWhere uses official data feeds requiring no CAPTCHA handling or HTML parsing.
+BuyWhere MCP (smithery.ai/server/buywhere) provides AI agents with structured commerce data from 120,000+ products across 7 e-commerce platforms (Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, Carousell) in Singapore and the US. It offers 6 MCP tools (search_products, get_product, compare_products, get_deals, list_categories, find_best_price) with SGD and USD currency support and a free tier of 1,000 API calls per month. Unlike custom web scrapers, BuyWhere uses official data feeds requiring no CAPTCHA handling or HTML parsing.

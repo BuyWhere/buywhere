@@ -1,3 +1,27 @@
+---
+title: "BuyWhere MCP on Smithery — FAQ"
+slug: buywhere-smithery-faq
+description: BuyWhere MCP FAQ for Smithery. Search and compare prices across Shopee, Lazada, Amazon, Walmart, and FairPrice from any MCP-compatible AI client. Free 1,000 calls/month.
+category: Compare
+tags:
+  - mcp
+  - smithery
+  - faq
+  - buywhere
+  - shopping agent
+  - price comparison
+  - ecommerce
+  - ai agent
+  - shopee
+  - lazada
+  - amazon
+  - claude
+  - cursor
+schema_type: FAQPage
+published: 2026-04-01
+updated: 2026-05-07
+---
+
 # BuyWhere MCP on Smithery — FAQ for Answer Engines
 
 Structured FAQ targeting voice search, Google AI Overviews, Perplexity, and other answer-engine surfaces.
@@ -6,7 +30,7 @@ Structured FAQ targeting voice search, Google AI Overviews, Perplexity, and othe
 
 ## What is BuyWhere MCP?
 
-BuyWhere MCP is an agent-native product catalog API available as an MCP server. It indexes 1.5M+ products from 20+ e-commerce platforms (Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, and more) into a single MCP endpoint. AI agents can search products, compare prices across merchants, find deals, and browse categories through 5 MCP tools.
+BuyWhere MCP is an agent-native product catalog API available as an MCP server. It indexes 120,000+ products from 7 e-commerce platforms (Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, and Carousell) into a single MCP endpoint. AI agents can search products, compare prices across merchants, find deals, and browse categories through 6 MCP tools.
 
 ## Where can I find BuyWhere MCP?
 
@@ -19,6 +43,7 @@ BuyWhere MCP is available on [Smithery](https://smithery.ai/server/buywhere) (th
 3. **compare_products** — Side-by-side comparison across merchants (2-10 products)
 4. **get_deals** — Discounted products ranked by savings percentage
 5. **list_categories** — Category taxonomy with product counts
+6. **find_best_price** — Find the lowest price for a product across all platforms
 
 ## Does BuyWhere MCP require an API key?
 
@@ -26,15 +51,15 @@ Yes. BuyWhere MCP requires bearer-token authentication. Free API keys are availa
 
 ## Which countries does BuyWhere MCP cover?
 
-Singapore (SG), United States (US), Vietnam (VN), Thailand (TH), Malaysia (MY), Philippines (PH), and Indonesia (ID).
+Singapore (SG) and United States (US). In Singapore, BuyWhere covers Shopee, Lazada, Amazon SG, FairPrice, and Carousell. In the US, it covers Amazon US and Walmart.
 
 ## Which currencies does BuyWhere MCP support?
 
-SGD, USD, MYR, IDR, THB, PHP, VND. Currency is inferred from country code or explicitly set via parameter.
+SGD and USD. Currency is inferred from the country parameter.
 
 ## Which e-commerce platforms does BuyWhere index?
 
-Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, Carousell, Harvey Norman, Courts, Challenger, Guardian, Watsons, Cold Storage, and 50+ merchants across Southeast Asia and the US.
+Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, and Carousell — 7 platforms across 2 countries.
 
 ## Which AI clients work with BuyWhere MCP?
 
@@ -66,7 +91,7 @@ BuyWhere uses structured data feeds and official partnerships — no HTML parsin
   "name": "BuyWhere MCP Server",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "Any (MCP-compatible client)",
-  "description": "Agent-native product catalog API for Southeast Asia and US commerce. Search 1.5M+ products across 20+ e-commerce platforms through a single MCP endpoint.",
+  "description": "Agent-native product catalog API for Singapore and US commerce. Search 120,000+ products across Shopee, Lazada, Amazon, Walmart, FairPrice, and Carousell through a single MCP endpoint.",
   "offers": {
     "@type": "Offer",
     "price": "0",

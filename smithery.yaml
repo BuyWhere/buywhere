@@ -1,20 +1,21 @@
 # Smithery MCP server manifest — https://smithery.ai
-# BuyWhere: Agent-native product catalog API for Southeast Asia commerce
+# BuyWhere: Agent-native product catalog API for Southeast Asia and US commerce
 
 name: buywhere
 displayName: BuyWhere MCP Server
 description: >
-  Agent-native product catalog API for Southeast Asia commerce. Search 1.5M+ products across Shopee, 
-  Lazada, Amazon SG, Amazon US, Walmart, Carousell, FairPrice, Harvey Norman, and 20+ e-commerce 
-  platforms. Compare prices across merchants, find deals, and browse categories — all through a 
-  single MCP endpoint. No scraping, no multi-API spaghetti.
+  Agent-native product catalog API for Southeast Asia and US commerce. Search 1.5M+ products
+  across Shopee, Lazada, Amazon SG, Amazon US, Walmart, Carousell, FairPrice, Harvey Norman,
+  and 20+ e-commerce platforms. Compare prices across merchants, find deals, browse categories,
+  and resolve natural language product queries — all through a single MCP endpoint. No scraping,
+  no multi-API spaghetti.
 
 version: 1.0.0
 license: MIT
 
 mcp:
   transport: http
-  url: https://mcp.buywhere.ai/mcp
+  url: https://api.buywhere.ai/mcp
   authentication:
     type: bearer
     description: >
@@ -25,8 +26,9 @@ tools:
   - name: search_products
     description: >
       Full-text product search with price, category, merchant, region, and rating filters.
-      Search across 1.5M+ products from Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, 
-      and 20+ e-commerce platforms. Supports multiple currencies (SGD, USD, MYR, IDR, THB, PHP, VND).
+      Search across 1.5M+ products from Shopee, Lazada, Amazon SG, Amazon US, Walmart,
+      FairPrice, and 20+ e-commerce platforms. Supports multiple currencies (SGD, USD, MYR,
+      IDR, THB, PHP, VND) and compact JSON mode for AI agents.
     inputSchema:
       type: object
       properties:
@@ -63,8 +65,8 @@ tools:
 
   - name: get_product
     description: >
-      Get a specific product by its ID, including full details, current price,
-      brand, category, ratings, merchant info, and specifications.
+      Get a specific product by its ID, including full details, current price, brand,
+      category, ratings, merchant info, and specifications.
     inputSchema:
       type: object
       required: [id]
@@ -78,9 +80,9 @@ tools:
 
   - name: compare_products
     description: >
-      Compare multiple products side-by-side across merchants. Returns price, 
-      brand, rating, category path, and merchant for each product. Useful for 
-      AI agents doing price comparison shopping.
+      Compare multiple products side-by-side across merchants. Returns price, brand,
+      rating, category path, and merchant for each product. Useful for AI agents doing
+      price comparison shopping.
     inputSchema:
       type: object
       required: [ids]
@@ -105,6 +107,9 @@ tools:
           type: number
           description: Minimum discount percentage (default 10)
           default: 10
+        country_code:
+          type: string
+          description: Filter by ISO country code (SG, US, VN, MY)
         country:
           type: string
           description: Filter by ISO country code (SG, US, VN, MY)
@@ -119,9 +124,9 @@ tools:
 
   - name: list_categories
     description: >
-      List top-level product categories available in the BuyWhere catalog. Returns 
-      category slugs, names, and product counts. Use with get_category_products 
-      to drill into a specific category.
+      List top-level product categories available in the BuyWhere catalog. Returns
+      category slugs, names, and product counts. Use with search_products to drill
+      into a specific category.
     inputSchema:
       type: object
       properties:
@@ -129,12 +134,78 @@ tools:
           type: string
           description: Currency for price display in category results (defaults to SGD)
 
+  - name: find_best_price
+    description: >
+      Find the single cheapest listing for a product across all merchants. Use when
+      a user asks about prices, wants to find the cheapest option, or asks "what's
+      the best price for X" or "where can I buy X for the lowest price". Returns
+      the best deal across Shopee, Lazada, Amazon, and all other BuyWhere merchants.
+    inputSchema:
+      type: object
+      properties:
+        product_name:
+          type: string
+          description: Product name to find best price for (e.g. "iphone 15 pro 256gb", "samsung galaxy s24")
+        category:
+          type: string
+          description: Category to filter by (e.g. "electronics", "fashion")
+        country_code:
+          type: string
+          enum: [SG, MY, TH, PH, VN, ID, US]
+          description: Country to search in (defaults to SG)
+        region:
+          type: string
+          enum: [us, sea]
+          description: Region filter — use "us" for United States or "sea" for Southeast Asia
+
+  - name: resolve_product_query
+    description: >
+      Resolve a natural language product query into structured catalog results.
+      Classifies query intent, extracts price constraints, and routes to deals,
+      categories, best-price lookup, or comparison-ready search results. Best for
+      AI agents that need to understand user shopping intent.
+    inputSchema:
+      type: object
+      properties:
+        query:
+          type: string
+          description: Natural language product query (e.g. "cheapest iphone 15 pro", "best laptop for students")
+        country_code:
+          type: string
+          enum: [SG, US, VN, TH, MY]
+          description: Filter by ISO country code (SG, US, VN, TH, MY)
+        region:
+          type: string
+          description: Region filter (us or sea)
+        domain:
+          type: string
+          description: Filter by merchant platform (e.g. lazada, shopee, amazon)
+        min_price:
+          type: number
+          description: Minimum price filter
+        max_price:
+          type: number
+          description: Maximum price filter
+        limit:
+          type: integer
+          description: Number of results (max 100, default 20)
+          default: 20
+        offset:
+          type: integer
+          description: Pagination offset
+          default: 0
+        compact:
+          type: boolean
+          description: Return minimal payload for AI agents (id, title, price, currency, url)
+          default: false
+
 categories:
   - Commerce
   - Shopping
   - Price Comparison
   - Singapore
   - Southeast Asia
+  - United States
   - e-commerce
   - product-search
 
@@ -145,11 +216,12 @@ keywords:
   - product search
   - singapore
   - southeast asia
+  - united states
   - shopee
   - lazada
   - amazon
-  - fairprice
   - walmart
+  - fairprice
   - deals
   - discounts
   - ai agent
@@ -198,6 +270,8 @@ regions:
 features:
   - Real-time product search across 1.5M+ products
   - Cross-merchant price comparison
+  - Cheapest price lookup (find_best_price)
+  - Natural language query resolution
   - Discount/deal discovery
   - Category browsing
   - Multi-currency support (SGD, USD, MYR, IDR, THB, PHP, VND)

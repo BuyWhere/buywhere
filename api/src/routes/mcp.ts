@@ -4,8 +4,36 @@ import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
+import { buildCompareProductsQuery, UUID_RE } from '../lib/compare-query';
 
 const router = Router();
+const PRODUCT_ID_RE = /^\d+$/;
+
+function extractProductId(args: Record<string, unknown>): string | null {
+  const raw = args.id ?? args.product_id;
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  return trimmed || null;
+}
+
+function extractProductIds(args: Record<string, unknown>): string[] {
+  const raw = args.ids ?? args.product_ids;
+  if (Array.isArray(raw)) {
+    return raw
+      .filter((id): id is string => typeof id === 'string')
+      .map(id => id.trim())
+      .filter(Boolean)
+      .slice(0, 10);
+  }
+  if (typeof raw === 'string') {
+    return raw
+      .split(',')
+      .map(id => id.trim())
+      .filter(Boolean)
+      .slice(0, 10);
+  }
+  return [];
+}
 
 // MCP tools manifest
 const TOOLS = [
@@ -36,7 +64,7 @@ const TOOLS = [
       type: 'object',
       required: ['id'],
       properties: {
-        id: { type: 'string', description: 'Product UUID' },
+        id: { type: 'string', description: 'Product ID returned by search_products (UUID format)' },
       },
     },
   },
@@ -155,8 +183,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     conditions.push(`country_code = $${params.length}`);
   }
   if (category) {
-    params.push(`%${category}%`);
-    conditions.push(`category ILIKE $${params.length}`);
+    params.push(category.toLowerCase());
+    conditions.push(`lower(category) = $${params.length}`);
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -201,8 +229,12 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       rows = candidateResult.rows.slice(offset, offset + limit);
     }
   } else {
-    const countResult = await db.query(`SELECT COUNT(*) FROM products ${where}`, params);
-    total = parseInt(countResult.rows[0].count, 10);
+    // For no-query browsing, skip the expensive COUNT (can timeout on large
+    // filtered sets) and use pg_class estimate instead.
+    const estResult = await db.query(
+      `SELECT reltuples::bigint AS estimate FROM pg_class WHERE relname = 'products'`
+    );
+    total = parseInt(estResult.rows[0]?.estimate ?? '0', 10);
     params.push(limit, offset);
     const result = await db.query(
       `SELECT id, sku AS source, source AS domain, url, title,
@@ -233,19 +265,21 @@ async function handleSearchProducts(args: Record<string, unknown>) {
 
 async function handleGetProduct(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const { id } = args;
-  let result;
-  try {
-    result = await db.query(
-      `SELECT id, sku AS source, source AS domain, url, title,
-              price, currency, image_url, brand, category_path,
-              avg_rating AS rating, review_count, metadata, updated_at, region, country_code
-       FROM products WHERE id = $1`,
-      [id]
-    );
-  } catch {
-    throw { code: -32001, message: 'Product not found' };
+  const rawId = args.id ?? args.product_id;
+  const id = typeof rawId === 'string' ? rawId.trim() : '';
+
+  if (!id || !UUID_RE.test(id)) {
+    throw { code: -32602, message: 'id must be a valid product UUID (as returned by search_products)' };
   }
+
+  const result = await db.query(
+    `SELECT id, sku AS source_id, source AS domain, url,
+            title, price, currency, image_url, metadata, updated_at,
+            region, country_code, description, brand, mpn, gtin,
+            category_path, category, merchant_id, avg_rating, review_count
+     FROM products WHERE id = $1`,
+    [id]
+  );
   if (!result.rows.length) throw { code: -32001, message: 'Product not found' };
   const product = buildProduct(result.rows[0] as Record<string, unknown>, 'SGD', false);
   return buildSearchResponse([product], 1, 1, 0, Date.now() - t0, false);
@@ -253,18 +287,31 @@ async function handleGetProduct(args: Record<string, unknown>) {
 
 async function handleCompareProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const ids = args.ids as string[];
+  const ids = extractProductIds(args);
   if (!ids || ids.length < 2) throw { code: -32602, message: 'Provide at least 2 product IDs' };
-  const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-  const result = await db.query(
-    `SELECT id, sku AS source, source AS domain, url, title,
-            price, currency, image_url, brand, category_path,
-            avg_rating AS rating, review_count, metadata, updated_at, region, country_code
-     FROM products WHERE id IN (${placeholders})`,
-    ids
-  );
+  if (ids.length > 10) throw { code: -32602, message: 'Maximum 10 product IDs allowed' };
+
+  const invalidIds = ids.filter((id) => !UUID_RE.test(id.trim()));
+  if (invalidIds.length > 0) {
+    throw { code: -32602, message: `Invalid product ID format: ${invalidIds.join(', ')}` };
+  }
+
+  const { text, values } = buildCompareProductsQuery(ids);
+  const result = await db.query(text, values);
+
   const products = result.rows.map((r: Record<string, unknown>) => buildProduct(r, 'SGD', false));
-  return buildSearchResponse(products, products.length, ids.length, 0, Date.now() - t0, false);
+  const uniqueCurrencies = [...new Set(
+    result.rows.map((r: Record<string, unknown>) => r.currency).filter((currency): currency is string => typeof currency === 'string' && currency.length > 0)
+  )];
+  const currenciesMixed = uniqueCurrencies.length > 1;
+
+  return {
+    ...buildSearchResponse(products, products.length, ids.length, 0, Date.now() - t0, false),
+    currencies_mixed: currenciesMixed,
+    ...(currenciesMixed && {
+      currency_warning: `Products span multiple currencies (${uniqueCurrencies.join(', ')}). Prices are not comparable across currencies — do not aggregate or rank by price in comparison_summary.`,
+    }),
+  };
 }
 
 async function handleGetDeals(args: Record<string, unknown>) {
@@ -392,8 +439,8 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     conditions.push(`region = $${params.length}`);
   }
   if (category) {
-    params.push(`%${category}%`);
-    conditions.push(`category ILIKE $${params.length}`);
+    params.push(category.toLowerCase());
+    conditions.push(`lower(category) = $${params.length}`);
   }
 
   params.push(limit);
@@ -440,6 +487,10 @@ async function dispatchTool(name: string, args: Record<string, unknown>) {
     default:
       throw { code: -32601, message: `Unknown tool: ${name}` };
   }
+}
+
+function isDirectToolMethod(method: string): boolean {
+  return TOOLS.some(tool => tool.name === method);
 }
 
 // JSON-RPC 2.0 response helpers
@@ -493,7 +544,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   return next();
 });
 
-// POST /mcp — authenticated methods: tools/call (and any future additions)
+// POST /mcp — authenticated methods: tools/call and legacy direct tool method names.
 router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async (req: Request, res: Response) => {
   const body = req.body;
 
@@ -520,12 +571,18 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
       }
 
       default:
+        if (isDirectToolMethod(method)) {
+          const result = await dispatchTool(method, args);
+          return res.json(jsonrpcOk(id, {
+            content: [{ type: 'text', text: JSON.stringify(result) }],
+          }));
+        }
         return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
     }
   } catch (err: unknown) {
     const e = err as { code?: number; message?: string };
     if (typeof e.code === 'number' && e.message) {
-      const envelopeCode = e.code === -32001 ? ErrorCode.NOT_FOUND
+      const envelopeCode = e.code === -32001 ? ErrorCode.ENDPOINT_NOT_FOUND
         : e.code === -32602 ? ErrorCode.INVALID_PARAMETER
         : ErrorCode.INTERNAL_ERROR;
       return res.json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));

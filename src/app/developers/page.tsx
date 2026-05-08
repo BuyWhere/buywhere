@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { TrustLayer } from "@/components/TrustLayer";
@@ -29,8 +30,83 @@ const curlExample = `curl -sS "https://api.buywhere.ai/v1/products/search?q=wire
   -H "Authorization: Bearer bw_live_your_key_here"`;
 
 export default function DevelopersPage() {
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "@id": "https://buywhere.ai/developers#faq",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: "What is MCP (Model Context Protocol)?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "MCP (Model Context Protocol) is an open standard that lets AI models call external tools through a standardized interface. Instead of hardcoding API calls, an MCP server exposes tools that any MCP-compatible client can discover and use. Think of it as 'USB for AI tools' — one integration works across all MCP clients."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "How does BuyWhere use MCP?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "BuyWhere exposes its product catalog API as MCP tools. When you configure @buywhere/mcp-server in Claude Desktop, Cursor, or any MCP client, the client can call tools like search_products and get_deals without you writing any API integration code."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "What MCP tools does BuyWhere expose?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "BuyWhere exposes six MCP tools: search_products (full-text product search across all merchants), get_product (product details by ID), compare_products (side-by-side comparison), get_deals (find discounted products), list_categories (browse categories), and find_best_price (cheapest current listing across merchants)."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "Which MCP clients support BuyWhere?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Any MCP-compatible client works. Tested and documented: Claude Desktop (Anthropic), Cursor, Cline, Windsurf, VS Code (with MCP extension), LangChain, CrewAI, AutoGen, and LlamaIndex."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "Do I need a credit card to start with BuyWhere?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "No. The BuyWhere free tier includes 1,000 API calls per month with no time limit and no credit card required."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "What countries does BuyWhere support?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "BuyWhere covers Singapore (SGD), United States (USD), Malaysia (MYR), Thailand (THB), Vietnam (VND), Philippines (PHP), and Indonesia (IDR) — with more markets planned."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "Can I use BuyWhere without MCP?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Yes. The same product catalog is available via REST API at api.buywhere.ai/v1. MCP is an optional wrapper that makes the tools available to AI agents with zero custom integration code."
+        }
+      },
+      {
+        "@type": "Question",
+        name: "How do I debug MCP tool calls?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Most MCP clients log tool calls and responses. For Claude Desktop, check the developer console. For Cursor, the MCP settings panel shows server logs. You can also test directly with: npx -y @buywhere/mcp-server --verbose"
+        }
+      }
+    ]
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-white">
+      <Script id="faq-schema" type="application/ld+json" strategy="afterInteractive">
+        {JSON.stringify(faqSchema)}
+      </Script>
       <Nav />
 
       <section className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(79,70,229,0.15),_transparent_40%),linear-gradient(135deg,#0f172a_0%,#1e1b4b_100%)] text-white">

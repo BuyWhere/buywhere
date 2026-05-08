@@ -1,0 +1,52 @@
+{
+  "description": "US non-Shopify merchant catalog \u2014 BUY-11037 (corrected v2)",
+  "count": 5,
+  "merchants": [
+    {
+      "domain": "sabian.com",
+      "platform": "woocommerce",
+      "country": "US",
+      "currency": "USD",
+      "category": "musical_instruments",
+      "source_attribution": "curated_compact",
+      "discovered_at": "20260506_023750"
+    },
+    {
+      "domain": "anycubic.com",
+      "platform": "bigcommerce",
+      "country": "US",
+      "currency": "USD",
+      "category": "electronics",
+      "source_attribution": "curated_compact",
+      "discovered_at": "20260506_023750"
+    },
+    {
+      "domain": "zeelool.com",
+      "platform": "bigcommerce",
+      "country": "US",
+      "currency": "USD",
+      "category": "eyewear",
+      "source_attribution": "curated",
+      "discovered_at": "20260506_022955"
+    },
+    {
+      "domain": "epiphone.com",
+      "platform": "bigcommerce",
+      "country": "US",
+      "currency": "USD",
+      "category": "musical_instruments",
+      "source_attribution": "curated_compact",
+      "discovered_at": "20260506_030216"
+    },
+    {
+      "domain": "mesaboogie.com",
+      "platform": "bigcommerce",
+      "country": "US",
+      "currency": "USD",
+      "category": "musical_instruments",
+      "source_attribution": "curated_compact",
+      "discovered_at": "20260506_030216"
+    }
+  ],
+  "generated_at": "20260506_030829"
+}

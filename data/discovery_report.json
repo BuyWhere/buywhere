@@ -1,0 +1,13 @@
+{
+  "generated_at": "20260506_022955",
+  "total_candidates": 1231,
+  "valid": {
+    "shopify": 40,
+    "woocommerce": 88,
+    "bigcommerce": 12,
+    "magento": 7
+  },
+  "rate_limited": 419,
+  "failed": 665,
+  "total_valid": 147
+}

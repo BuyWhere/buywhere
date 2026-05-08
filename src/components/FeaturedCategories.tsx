@@ -55,8 +55,8 @@ const categories: Category[] = [
     ),
   },
   {
-    slug: "health",
-    name: "Health",
+    slug: "health-wellness",
+    name: "Health & Wellness",
     productCount: 89234,
     color: "text-red-600",
     icon: (
@@ -97,6 +97,30 @@ const categories: Category[] = [
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
         <rect x="2" y="6" width="20" height="12" rx="3" />
         <path d="M6 12h4M8 10v4M15 11h1M15 13h1M17 11h.5M17 13h.5" />
+      </svg>
+    ),
+  },
+  {
+    slug: "books-stationery",
+    name: "Books & Stationery",
+    productCount: 41000,
+    color: "text-yellow-600",
+    icon: (
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+      </svg>
+    ),
+  },
+  {
+    slug: "garden-outdoor",
+    name: "Garden & Outdoor",
+    productCount: 35000,
+    color: "text-green-600",
+    icon: (
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <path d="M12 2c-1 3-3 5-3 8a3 3 0 006 0c0-3-2-5-3-8z" />
+        <path d="M12 10v12M8 22h8" />
       </svg>
     ),
   },

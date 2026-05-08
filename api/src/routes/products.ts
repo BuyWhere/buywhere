@@ -5,6 +5,7 @@ import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackApiQuery, trackProductSearch, trackProductView } from '../analytics/posthog';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
+import { buildCompareProductsQuery, UUID_RE } from '../lib/compare-query';
 
 const SEARCH_CACHE_TTL_SECONDS = 60;
 
@@ -391,20 +392,35 @@ router.get(
       return;
     }
 
-    const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-    const result = await db.query(
-      `SELECT id, sku AS source_id, source AS domain, url,
-              title, price, currency, image_url, metadata,
-              category_path, brand, avg_rating AS rating, review_count, updated_at, region, country_code
-       FROM products WHERE id IN (${placeholders})`,
-      ids
-    );
+    const invalidIds = ids.filter((id) => !UUID_RE.test(id.trim()));
+    if (invalidIds.length > 0) {
+      res.status(400).json({ error: `Invalid product ID(s): ${invalidIds.join(', ')}` });
+      return;
+    }
 
-    const products = result.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, 'SGD', false)
-    );
+    const { text, values } = buildCompareProductsQuery(ids);
+    const result = await db.query(text, values);
 
-    const uniqueCurrencies = [...new Set(result.rows.map((r: Record<string, unknown>) => r.currency).filter(Boolean) as string[])];
+    const products = result.rows.map((row) => ({
+      id: row.id,
+      source: row.source_id,
+      domain: row.domain,
+      url: row.url,
+      title: row.title,
+      price: row.price ? parseFloat(row.price) : null,
+      currency: row.currency,
+      image_url: row.image_url,
+      brand: row.brand,
+      category_path: row.category_path,
+      rating: row.rating ? parseFloat(row.rating) : null,
+      review_count: row.review_count,
+      metadata: row.metadata,
+      region: row.region || null,
+      country_code: row.country_code || null,
+      updated_at: row.updated_at,
+    }));
+
+    const uniqueCurrencies = [...new Set(products.map((p) => p.currency).filter(Boolean))];
     const currenciesMixed = uniqueCurrencies.length > 1;
 
     const responseBody = buildSearchResponse(products, products.length, ids.length, 0, Date.now() - start, false);

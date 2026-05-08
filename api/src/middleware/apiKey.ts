@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { createHash } from 'crypto';
-import { db, redis, FREE_TIER } from '../config';
+import { db, redis, FREE_TIER, RATE_LIMIT_CONFIG } from '../config';
 import { sendError, sendRateLimitError, ErrorCode } from './errors';
+import { recordInvalidKeyAttempt } from './abuseDetection';
 
 const PAPERCLIP_API_URL = process.env.PAPERCLIP_API_URL || 'https://api.paperclip.ai';
 
@@ -144,6 +145,7 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
       next();
       return;
     }
+    recordInvalidKeyAttempt(req).catch(() => {});
     sendError(res, ErrorCode.INVALID_API_KEY, 'Invalid Paperclip token');
     return;
   }
@@ -156,6 +158,7 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
   );
 
   if (result.rows.length === 0) {
+    recordInvalidKeyAttempt(req).catch(() => {});
     sendError(res, ErrorCode.INVALID_API_KEY);
     return;
   }
@@ -182,6 +185,13 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
   db.query('UPDATE api_keys SET last_used_at = NOW() WHERE key_hash = $1', [keyHash]).catch(() => {});
 
   next();
+}
+
+/** Set standard X-RateLimit-* headers on the response */
+function setRateLimitHeaders(res: Response, limit: number, remaining: number, resetEpoch: number): void {
+  res.set('X-RateLimit-Limit', String(limit));
+  res.set('X-RateLimit-Remaining', String(Math.max(0, remaining)));
+  res.set('X-RateLimit-Reset', String(resetEpoch));
 }
 
 export async function checkRateLimit(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -215,16 +225,67 @@ export async function checkRateLimit(req: Request, res: Response, next: NextFunc
     return;
   }
 
-  if (rpmCount > req.apiKeyRecord.rpmLimit) {
+  const rpmLimit = req.apiKeyRecord.rpmLimit;
+  const resetEpoch = Math.ceil((minuteWindow + 1) * 60);
+
+  if (rpmCount > rpmLimit) {
     const retryAfter = Math.ceil(60 - (now % 60000) / 1000);
-    sendRateLimitError(res, retryAfter, req.apiKeyRecord.rpmLimit, 0, 'Per-minute rate limit exceeded.');
+    setRateLimitHeaders(res, rpmLimit, 0, resetEpoch);
+    sendRateLimitError(res, retryAfter, rpmLimit, 0, 'Per-minute rate limit exceeded.');
     return;
   }
 
   if (dailyCount > req.apiKeyRecord.dailyLimit) {
     const retryAfter = Math.ceil(86400 - (now % 86400000) / 1000);
+    setRateLimitHeaders(res, req.apiKeyRecord.dailyLimit, 0, Math.ceil((dayWindow + 1) * 86400));
     sendRateLimitError(res, retryAfter, req.apiKeyRecord.dailyLimit, 0, 'Daily rate limit exceeded.');
     return;
+  }
+
+  // Set headers on ALL successful responses
+  setRateLimitHeaders(res, rpmLimit, rpmLimit - rpmCount, resetEpoch);
+  next();
+}
+
+/** IP-level rate limit for unauthenticated requests */
+export async function checkIpRateLimit(req: Request, res: Response, next: NextFunction): Promise<void> {
+  // Skip if request already has an API key (handled by checkRateLimit)
+  if (req.apiKeyRecord) {
+    next();
+    return;
+  }
+
+  const ip =
+    (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+    (req.headers['x-real-ip'] as string) ||
+    req.socket.remoteAddress ||
+    'unknown';
+
+  const now = Date.now();
+  const minuteWindow = Math.floor(now / 60000);
+  const ipKey = `rl:ip:${ip}:${minuteWindow}`;
+  const limit = RATE_LIMIT_CONFIG.IP_RPM;
+
+  try {
+    const count = await redis.incr(ipKey);
+    if (count === 1) redis.expire(ipKey, 120).catch(() => {});
+
+    const resetEpoch = Math.ceil((minuteWindow + 1) * 60);
+    setRateLimitHeaders(res, limit, limit - count, resetEpoch);
+
+    if (count > limit) {
+      const retryAfter = Math.ceil(60 - (now % 60000) / 1000);
+      sendRateLimitError(res, retryAfter, limit, 0, 'IP rate limit exceeded. Authenticate with an API key for higher limits.');
+      return;
+    }
+
+    // Burst detection — block IP if it hits burst multiplier × limit
+    if (count > limit * RATE_LIMIT_CONFIG.IP_BURST_MULTIPLIER) {
+      const blockKey = `abuse:blocked:${ip}`;
+      await redis.setex(blockKey, RATE_LIMIT_CONFIG.IP_BURST_BLOCK_SEC, '1');
+    }
+  } catch (_err) {
+    console.warn('[ip-rate-limit] Redis unavailable, skipping');
   }
 
   next();

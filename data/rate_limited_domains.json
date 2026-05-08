@@ -1,0 +1,1694 @@
+{
+  "description": "Rate-limited domains for retry",
+  "count": 241,
+  "domains": [
+    {
+      "domain": "meundies.com",
+      "category": "apparel",
+      "source": "curated_compact",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "carawayhome.com",
+      "category": "home",
+      "source": "curated_compact",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "hydrow.com",
+      "category": "fitness",
+      "source": "curated_compact",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "strymon.net",
+      "category": "musical_instruments",
+      "source": "curated_compact",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "albertaferretti.com",
+      "category": "international",
+      "source": "curated_compact",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "woolandprince.com",
+      "category": "apparel_mens",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "asrv.com",
+      "category": "apparel_mens",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "cathrinehammel.com",
+      "category": "international",
+      "source": "curated_compact",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "westernrise.com",
+      "category": "apparel_mens",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "designhousestockholm.no",
+      "category": "international",
+      "source": "curated_compact",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "youngla.com",
+      "category": "apparel_mens",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "crownnorthampton.com",
+      "category": "apparel_mens",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "grantstoneboot.com",
+      "category": "apparel_mens",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "bodenusa.com",
+      "category": "apparel_womens",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "hillhousehome.com",
+      "category": "apparel_womens",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "thefrankieshop.com",
+      "category": "apparel_womens",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "cultgaia.com",
+      "category": "apparel_womens",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "petitestudionyc.com",
+      "category": "apparel_womens",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "verishop.com",
+      "category": "apparel_womens",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "matchesfashion.com",
+      "category": "apparel_womens",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "knixteen.com",
+      "category": "apparel_womens",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "chantecaille.com",
+      "category": "beauty_skincare",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "joannavargas.com",
+      "category": "beauty_skincare",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "omorovicza.com",
+      "category": "beauty_skincare",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "111skin.com",
+      "category": "beauty_skincare",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "sulwhasoo.com",
+      "category": "beauty_skincare",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "k18hair.com",
+      "category": "beauty_hair",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "igkhair.com",
+      "category": "beauty_hair",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "colorwowhair.com",
+      "category": "beauty_hair",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "bondiboost.com",
+      "category": "beauty_hair",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "daehair.com",
+      "category": "beauty_hair",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "crownaffair.com",
+      "category": "beauty_hair",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "ceremonia.com",
+      "category": "beauty_hair",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "golabbeauty.com",
+      "category": "beauty_hair",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "viori.com",
+      "category": "beauty_hair",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "hairstory.com",
+      "category": "beauty_hair",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "dphue.com",
+      "category": "beauty_hair",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "carolsdaughter.com",
+      "category": "beauty_hair",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "partakefoods.com",
+      "category": "food_beverage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "kodiakcakes.com",
+      "category": "food_beverage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "primalspiritfoods.com",
+      "category": "food_beverage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "enjoylifefoods.com",
+      "category": "food_beverage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "kravejerky.com",
+      "category": "food_beverage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "epicbar.com",
+      "category": "food_beverage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "righteousfelon.com",
+      "category": "food_beverage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "brightland.co",
+      "category": "food_beverage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "ottosnaturals.com",
+      "category": "food_beverage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "kosterina.com",
+      "category": "food_beverage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "wildplanetfoods.com",
+      "category": "food_beverage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "patagoniaprovisions.com",
+      "category": "food_beverage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "simplifyfoods.com",
+      "category": "food_beverage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "pasturebird.com",
+      "category": "food_beverage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "flexpromeals.com",
+      "category": "food_beverage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "megafitmeals.com",
+      "category": "food_beverage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "citizenry.com",
+      "category": "home_furniture",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "pier1.com",
+      "category": "home_furniture",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "redlandcotton.com",
+      "category": "home_bed_bath",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "authenticity50.com",
+      "category": "home_bed_bath",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "pigletinbed.com",
+      "category": "home_bed_bath",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "brooklynbedding.com",
+      "category": "home_bed_bath",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "nolah.com",
+      "category": "home_bed_bath",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "winkbeds.com",
+      "category": "home_bed_bath",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "ghostbed.com",
+      "category": "home_bed_bath",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "greenpan.us",
+      "category": "home_kitchen",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "greenlife-cookware.com",
+      "category": "home_kitchen",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "zwilling.com",
+      "category": "home_kitchen",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "sttoke.com",
+      "category": "home_kitchen",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "ember.com",
+      "category": "home_kitchen",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "bruutea.com",
+      "category": "home_kitchen",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "abyssheadphones.com",
+      "category": "electronics_audio",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "ifi-audio.com",
+      "category": "electronics_audio",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "headamp.com",
+      "category": "electronics_audio",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "akracing.com",
+      "category": "electronics_gaming",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "shiftcam.com",
+      "category": "electronics_mobile",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "elago.com",
+      "category": "electronics_mobile",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "caudabe.com",
+      "category": "electronics_mobile",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "bellsofsteel.com",
+      "category": "fitness_equipment",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "speediance.com",
+      "category": "fitness_equipment",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "yogadesignlab.com",
+      "category": "fitness_equipment",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "trxtraining.com",
+      "category": "fitness_equipment",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "kettlebellkings.com",
+      "category": "fitness_equipment",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "kettlegryp.com",
+      "category": "fitness_equipment",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "powerblock.com",
+      "category": "fitness_equipment",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "htltsupps.com",
+      "category": "fitness_nutrition",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "killcliff.com",
+      "category": "fitness_nutrition",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "ascentprotein.com",
+      "category": "fitness_nutrition",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "gainful.com",
+      "category": "fitness_nutrition",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "skratchlabs.com",
+      "category": "fitness_nutrition",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "tailwindnutrition.com",
+      "category": "fitness_nutrition",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "guenergy.com",
+      "category": "fitness_nutrition",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "honeystinger.com",
+      "category": "fitness_nutrition",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "grizzlycoolers.com",
+      "category": "outdoor_recreation",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "grandtrunk.com",
+      "category": "outdoor_recreation",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "wiseowloutfitters.com",
+      "category": "outdoor_recreation",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "eaglesnestoutfittersinc.com",
+      "category": "outdoor_recreation",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "bioliteenergy.com",
+      "category": "outdoor_recreation",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "bluettipower.com",
+      "category": "outdoor_recreation",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "cascadedesigns.com",
+      "category": "outdoor_recreation",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "davespetfood.com",
+      "category": "pets_food",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "solidgoldpet.com",
+      "category": "pets_food",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "k9sportsack.com",
+      "category": "pets_supplies",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "petkit.com",
+      "category": "pets_supplies",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "annamaet.com",
+      "category": "pets_food",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "petivity.com",
+      "category": "pets_supplies",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "poochandmutt.com",
+      "category": "pets_supplies",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "smartbottoms.com",
+      "category": "baby_kids",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "jennifermeyer.com",
+      "category": "jewelry",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "stoneandstrand.com",
+      "category": "jewelry",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "wearmepro.com",
+      "category": "eyewear",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "readers.com",
+      "category": "eyewear",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "readingglasses.com",
+      "category": "eyewear",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "briggs-riley.com",
+      "category": "bags_luggage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "travelpro.com",
+      "category": "bags_luggage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "jansport.com",
+      "category": "bags_luggage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "eastpak.com",
+      "category": "bags_luggage",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "presentandcorrect.com",
+      "category": "office_supplies",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "fahrneyspens.com",
+      "category": "office_supplies",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "ikonmotorsports.com",
+      "category": "automotive",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "sbfilters.com",
+      "category": "automotive",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "deatschwerks.com",
+      "category": "automotive",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "perrinperformance.com",
+      "category": "automotive",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "aprperformance.com",
+      "category": "automotive",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "kaizenspeed.com",
+      "category": "automotive",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "rallysportdirect.com",
+      "category": "automotive",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "smiledirectclub.com",
+      "category": "health_wellness",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "baze.com",
+      "category": "health_wellness",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "allurebeautybox.com",
+      "category": "subscription_box",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "geekfuel.com",
+      "category": "subscription_box",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "drinksurely.com",
+      "category": "subscription_box",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "publicgoods.com",
+      "category": "grocery_specialty",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "lobels.com",
+      "category": "grocery_specialty",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "manhattanfruitier.com",
+      "category": "grocery_specialty",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "levainbakery.com",
+      "category": "grocery_specialty",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "milkbarstore.com",
+      "category": "grocery_specialty",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "roushperformance.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "fifteen52.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "vossenwheels.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "velgenwheels.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "accuair.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "tonneaucovered.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "addictivedesertdesigns.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "roadarmor.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "barricadeoffroad.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "fishboneoffroad.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "standdesk.co",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "mojodesk.com",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "ergonofis.com",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "stationeryhq.com",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "notiq.com",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "levenger.com",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "archerandolive.com",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "scribbleanddot.com",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "currys.com",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "artdiscount.co.uk",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "rawpawspetfood.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "luckypet.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "answerspetfood.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "smallbatchpets.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "darwinspet.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "allprovide.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "vivaraw.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "thehonestkitchen.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "petkind.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "thefoggydog.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "meowant.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "bigbarker.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "k9ballistics.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "dogbed4less.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "cowgirlcreamery.com",
+      "category": "food_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "carolinescakes.com",
+      "category": "food_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "bakedbymelissa.com",
+      "category": "food_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "food52.com",
+      "category": "food_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "greatbigstuff.com",
+      "category": "food_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "fossilfarms.com",
+      "category": "food_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "brokenarrowranch.com",
+      "category": "food_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "forceofnature.com",
+      "category": "food_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "northstarbison.com",
+      "category": "food_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "divinamarket.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "alterecofoods.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "pipingrock.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "naturesbakery.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "88acres.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "nutiva.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "navitasorganics.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "terrasoul.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "wildlyorganic.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "anthonysgoods.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "perrinperformance.com",
+      "category": "automotive",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "roushperformance.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "fifteen52.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "vossenwheels.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "velgenwheels.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "accuair.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "tonneaucovered.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "addictivedesertdesigns.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "roadarmor.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "barricadeoffroad.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "fishboneoffroad.com",
+      "category": "automotive_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "standdesk.co",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "mojodesk.com",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "ergonofis.com",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "stationeryhq.com",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "notiq.com",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "levenger.com",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "archerandolive.com",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "scribbleanddot.com",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "currys.com",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "artdiscount.co.uk",
+      "category": "office_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "rawpawspetfood.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "luckypet.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "answerspetfood.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "smallbatchpets.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "darwinspet.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "allprovide.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "vivaraw.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "thehonestkitchen.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "petkind.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "thefoggydog.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "meowant.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "bigbarker.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "k9ballistics.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "dogbed4less.com",
+      "category": "pets_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "cowgirlcreamery.com",
+      "category": "food_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "carolinescakes.com",
+      "category": "food_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "bakedbymelissa.com",
+      "category": "food_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "food52.com",
+      "category": "food_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "greatbigstuff.com",
+      "category": "food_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "fossilfarms.com",
+      "category": "food_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "brokenarrowranch.com",
+      "category": "food_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "forceofnature.com",
+      "category": "food_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "northstarbison.com",
+      "category": "food_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "divinamarket.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "alterecofoods.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "pipingrock.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "naturesbakery.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "88acres.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "nutiva.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "navitasorganics.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "terrasoul.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "wildlyorganic.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "anthonysgoods.com",
+      "category": "grocery_specialty_more",
+      "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    }
+  ],
+  "generated_at": "20260506_030216"
+}

@@ -1,0 +1,135 @@
+# BuyWhere
+
+> BuyWhere is a product catalog API for AI agents. Provides semantic search, normalized pricing, and availability across Singapore retailers with 1.5M+ products.
+
+## Table of Contents
+
+1. Quick Start
+2. Authentication
+3. Product API
+4. Categories & Merchants
+5. Comparison API
+6. Analytics
+7. MCP Server
+8. SDKs
+9. Pricing
+10. Rate Limits
+
+---
+
+## 1. Quick Start
+
+Get a free API key: https://buywhere.ai/quickstart
+
+```
+# Search
+curl -X GET "https://api.buywhere.ai/v1/search" -H "Authorization: Bearer bw_live_YOUR_API_KEY" -G --data-urlencode "q=wireless headphones" --data-urlencode "limit=3"
+# Detail
+curl -X GET "https://api.buywhere.ai/v1/products/12345" -H "Authorization: Bearer bw_live_YOUR_API_KEY"
+# Best price
+curl -X GET "https://api.buywhere.ai/v1/products/best-price" -H "Authorization: Bearer bw_live_YOUR_API_KEY" -G --data-urlencode "product_name=Sony WH-1000XM5"
+# Deals
+curl -X GET "https://api.buywhere.ai/v1/deals" -H "Authorization: Bearer bw_live_YOUR_API_KEY"
+```
+
+## 2. Authentication
+
+All requests require: `Authorization: Bearer bw_live_YOUR_API_KEY`
+
+Key types: `bw_live_*` (production), `bw_test_*` (sandbox).
+
+Rate limit headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`.
+
+### Response Format
+
+All responses return JSON with:
+- `total`: Total matching results
+- `limit`: Results per page
+- `offset`: Current offset
+- `has_more`: Whether more results exist
+- `items`: Array of product objects
+
+Each product includes: id, name, price, currency, source, buy_url, affiliate_url, image_url, is_available, rating, category.
+
+## 3. Product API
+
+Search: `GET https://api.buywhere.ai/v1/search?q={query}`
+Params: `q`, `limit` (max 100), `offset`, `market`, `min_price`, `max_price`, `currency`, `sort`.
+
+Detail: `GET https://api.buywhere.ai/v1/products/{id}`
+
+Best Price: `GET https://api.buywhere.ai/v1/products/best-price?product_name={name}`
+
+Deals: `GET https://api.buywhere.ai/v1/deals`
+
+## 4. Categories & Merchants
+
+Categories: `GET https://api.buywhere.ai/v1/categories`
+
+Category Products: `GET https://api.buywhere.ai/v1/categories/{slug}/products`
+
+Merchants: `GET https://api.buywhere.ai/v1/merchants`
+
+## 5. Comparison API
+
+Compare: `GET https://api.buywhere.ai/v1/compare?product_ids={ids}`
+
+Cross-Border Match: `POST https://api.buywhere.ai/v1/match`
+Body: `{ "source_product_id": 123, "target_market": "my" }`
+
+## 6. Analytics
+
+Track Click: `POST https://api.buywhere.ai/v1/track/{product_id}`
+Revenue Stats: `GET https://api.buywhere.ai/v1/revenue/stats`
+
+## 7. MCP Server
+
+Install: `npx -y @buywhere/mcp-server`
+
+Config:
+```json
+{
+  "mcpServers": {
+    "buywhere": {
+      "command": "npx",
+      "args": ["-y", "@buywhere/mcp-server"]
+    }
+  }
+}
+```
+
+Tools: search_products, get_product, compare_prices, get_deals
+
+Endpoint: `GET https://api.buywhere.ai/mcp`
+
+## 8. SDKs
+
+TypeScript: `npm install @buywhere/sdk`
+
+Python: `pip install buywhere-sdk`
+
+## 9. Pricing
+
+| Plan | Rate | Queries | Price |
+|------|------|---------|-------|
+| Free | 10/min | 1K/mo | $0 |
+| Starter | 60/min | 100K/mo | $29/mo |
+| Growth | 300/min | 1M/mo | $99/mo |
+| Scale | 1000/min | Unlimited | Custom |
+
+## 10. Rate Limits
+
+Per-key rolling 60-second window. HTTP 429 with Retry-After on exceed.
+
+### Best Practices
+
+Implement exponential backoff when receiving 429 responses.
+
+## Links and Resources
+
+- API Reference: https://api.buywhere.ai/docs
+- Quickstart: https://buywhere.ai/quickstart
+- Pricing: https://buywhere.ai/pricing
+- GitHub: https://github.com/BuyWhere/buywhere
+- Status: https://status.buywhere.ai
+- Contact: hello@buywhere.ai

@@ -18,23 +18,35 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/${{ github.event.repository.name }}
-  GCP_PROJECT_ID: buywhere-production
+  IMAGE_NAME: ${{ github.repository_owner }}/buywhere-catalog-api
+  GCP_PROJECT_ID: gaia-calendar-488606
   GCP_REGION: asia-southeast1
   CLOUD_RUN_SERVICE: buywhere-api-production
-  CLOUD_SQL_INSTANCE: buywhere-production:asia-southeast1:buywhere-db
+  # Canonical production DB: gaia-calendar-488606:asia-southeast1:buywhere-staging
+  # DO NOT CHANGE — see STRATEGIC_DECISIONS.md Infrastructure Reference Policy
+  # "buywhere-staging" is the production DB instance name (despite confusing naming)
+  # "buywhere-db" and "buywhere-production" are deprecated and do not exist
+  CLOUD_SQL_INSTANCE: gaia-calendar-488606:asia-southeast1:buywhere-staging
 
 jobs:
   build:
     name: Build Docker Image
     runs-on: ubuntu-latest
     outputs:
-      image_tag: ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
+      image_tag: ghcr.io/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
       deployment_id: ${{ steps.deploy_info.outputs.deployment_id }}
       version: ${{ steps.deploy_info.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate workflows have no deprecated production project refs
+        run: |
+          DEPRECATED_REF="buywhere""-production"
+          if rg -n --hidden --glob '*.yml' --glob '*.yaml' "$DEPRECATED_REF" .github/workflows; then
+            echo "Deprecated reference found in workflow files"
+            exit 1
+          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -64,6 +76,7 @@ jobs:
           push: true
           tags: |
             ${{ steps.meta.outputs.tags }}
+            ghcr.io/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -95,7 +108,7 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY_PROD || secrets.GCP_SA_KEY }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -106,8 +119,8 @@ jobs:
       - name: Create GCP Secret Manager secrets and deploy
         id: deploy
         run: |
-          echo "Deploying to Cloud Run with direct env var secrets..."
-          SERVICE_URL=$(gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
+          echo "Deploying to Cloud Run..."
+          gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
             --project ${{ env.GCP_PROJECT_ID }} \
             --region ${{ env.GCP_REGION }} \
             --image ${{ needs.build.outputs.image_tag }} \
@@ -120,17 +133,23 @@ jobs:
             --set-env-vars "REDIS_URL=${{ secrets.REDIS_PRODUCTION_URL }}" \
             --set-env-vars "API_KEY_SECRET=${{ secrets.API_KEY_SECRET_PRODUCTION }}" \
             --set-env-vars "SENTRY_DSN=${{ secrets.SENTRY_DSN_PRODUCTION }}" \
-            --set-env-vars "ADMIN_API_KEY=${{ secrets.ADMIN_API_KEY_PRODUCTION }}" \
             --set-env-vars "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY_PRODUCTION }}" \
             --memory 1Gi \
             --cpu 2 \
             --min-instances 2 \
             --max-instances 20 \
             --concurrency 50 \
-            --timeout 60s \
-            --labels "deployment-id=${{ needs.build.outputs.deployment_id }},version=${{ needs.build.outputs.version }},commit-sha=${{ github.sha }}" \
-            --format json | jq -r '.status.url')
+            --timeout 60s
 
+          echo "Deploy completed"
+
+      - name: Get Cloud Run service URL
+        id: get-url
+        run: |
+          SERVICE_URL=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --region ${{ env.GCP_REGION }} \
+            --format "value(status.url)")
           echo "Service URL: $SERVICE_URL"
           echo "url=$SERVICE_URL" >> $GITHUB_OUTPUT
 
@@ -145,6 +164,57 @@ jobs:
             --project ${{ env.GCP_PROJECT_ID }} \
             --region ${{ env.GCP_REGION }} \
             --format "table(status.conditions.name,status.conditions.status,status.conditions.reason)"
+
+  provision-smoke-test-key:
+    name: Provision Smoke Test API Key
+    needs: deploy-cloud-run
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_tests != 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+
+      - name: Download cloud-sql-proxy
+        run: |
+          curl -fsSL "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.18.3/cloud-sql-proxy.linux.amd64" -o cloud-sql-proxy
+          chmod +x cloud-sql-proxy
+          echo "$PWD" >> "$GITHUB_PATH"
+
+      - name: Provision and verify smoke test key
+        env:
+          DATABASE_URL: ${{ secrets.CLOUD_SQL_PRODUCTION_CONNECTION_STRING }}
+          VERIFY_URL: ${{ needs.deploy-cloud-run.outputs.service_url }}/health
+        run: |
+          chmod +x scripts/provision-smoke-test-key.sh
+
+          CREDENTIAL_FILE="$RUNNER_TEMP/gcp-sa-prod.json"
+          printf '%s' '${{ secrets.GCP_SA_KEY_PROD }}' > "$CREDENTIAL_FILE"
+          chmod 600 "$CREDENTIAL_FILE"
+
+          set +e
+          RESULT="$(
+            ./scripts/provision-smoke-test-key.sh \
+              --proxy \
+              --instance "${{ env.CLOUD_SQL_INSTANCE }}" \
+              --credential-file "$CREDENTIAL_FILE" \
+              --verify-url "$VERIFY_URL" \
+              --api-key-output "$RUNNER_TEMP/smoke-test-api-key"
+          )"
+          EXIT_CODE=$?
+          set -e
+
+          RAW_KEY="$(awk '/^=== SMOKE TEST API KEY ===$/{getline; print; exit}' <<<"$RESULT")"
+          if [[ -n "$RAW_KEY" ]]; then
+            echo "::add-mask::$RAW_KEY"
+          fi
+
+          echo "$RESULT" | sed "s/${RAW_KEY:-missing-key}/[MASKED]/g"
+          exit "$EXIT_CODE"
 
   api-latency-smoke-test:
     name: API Latency Smoke Test
@@ -165,6 +235,7 @@ jobs:
         env:
           API_BASE_URL: ${{ needs.deploy-cloud-run.outputs.service_url }}
           DEPLOYMENT_ID: ${{ needs.deploy-cloud-run.outputs.deployment_id }}
+          K6_API_KEY: ${{ secrets.K6_API_KEY_PRODUCTION }}
         run: |
           chmod +x scripts/cloud-run-latency-smoke-test.sh
 
@@ -195,12 +266,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install k6
-        run: |
-          sudo gpg -k
-          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver keyserver.ubuntu.com --recv-keys C5AD17C5C7B3759B332F72376E6821B1A45C7495 2>/dev/null || true
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq k6
+        uses: grafana/setup-k6-action@v1
 
       - name: Run k6 load test
         env:
@@ -244,7 +310,7 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY_PROD || secrets.GCP_SA_KEY }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -310,7 +376,7 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY_PROD || secrets.GCP_SA_KEY }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
