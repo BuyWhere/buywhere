@@ -54,9 +54,10 @@ async function resolvePaperclipAgentKey(agentId: string): Promise<{
   tier: string;
   signup_channel: string | null;
   attribution_source: string | null;
+  is_test: boolean;
 } | null> {
   const result = await db.query(
-    `SELECT id, key_hash, name, tier, signup_channel, attribution_source
+    `SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_test
      FROM api_keys
      WHERE signup_channel = 'paperclip_agent'
        AND name = $1
@@ -82,16 +83,17 @@ async function upsertPaperclipAgentKey(
   tier: string;
   signup_channel: string | null;
   attribution_source: string | null;
+  is_test: boolean;
 }> {
   const existing = await resolvePaperclipAgentKey(agentId);
   if (existing) return existing;
 
   const keyHash = hashKey(agentId);
   const result = await db.query(
-    `INSERT INTO api_keys (key_hash, name, tier, signup_channel, developer_id, rpm_limit, daily_limit)
-     VALUES ($1, $2, 'enterprise', 'paperclip_agent', $3, 1000, 100000)
+    `INSERT INTO api_keys (key_hash, name, tier, signup_channel, developer_id, rpm_limit, daily_limit, is_test)
+     VALUES ($1, $2, 'enterprise', 'paperclip_agent', $3, 1000, 100000, true)
      ON CONFLICT (key_hash) DO UPDATE SET last_used_at = NOW()
-     RETURNING id, key_hash, name, tier, signup_channel, attribution_source`,
+     RETURNING id, key_hash, name, tier, signup_channel, attribution_source, is_test`,
     [keyHash, agentName, companyId || null]
   );
   return result.rows[0];
@@ -140,6 +142,7 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
         dailyLimit: TIER_LIMITS.enterprise.daily,
         signupChannel: row.signup_channel,
         attributionSource: row.attribution_source,
+        isTest: row.is_test ?? true,
       };
       next();
       return;
@@ -150,7 +153,7 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
 
   const keyHash = hashKey(key);
   const result = await db.query(
-    `SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_active
+    `SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_active, is_test
      FROM api_keys WHERE key_hash = $1`,
     [keyHash]
   );
@@ -177,6 +180,7 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
     dailyLimit: tierLimits.daily,
     signupChannel: row.signup_channel,
     attributionSource: row.attribution_source,
+    isTest: row.is_test ?? false,
   };
 
   db.query('UPDATE api_keys SET last_used_at = NOW() WHERE key_hash = $1', [keyHash]).catch(() => {});

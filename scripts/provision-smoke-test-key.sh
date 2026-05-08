@@ -64,10 +64,11 @@ else
 fi
 
 # Build INSERT dynamically to handle schema differences
-INSERT_COLS="id, key_hash, name, tier, is_active, signup_channel, developer_id, rpm_limit, daily_limit"
+INSERT_COLS="id, key_hash, name, tier, is_active, signup_channel, developer_id, rpm_limit, daily_limit, is_test"
 INSERT_VALS="'${KEY_ID}', '${KEY_HASH}', '${KEY_NAME}', '${TIER}', true, 'smoke_test', 'provisioned'"
 INSERT_VALS="$INSERT_VALS, $( [ "$TIER" = "enterprise" ] && echo "1000" || echo "60" )"
 INSERT_VALS="$INSERT_VALS, $( [ "$TIER" = "enterprise" ] && echo "100000" || echo "1000" )"
+INSERT_VALS="$INSERT_VALS, true"
 
 if [ "$HAS_EMAIL_VERIFIED" = "1" ]; then
   INSERT_COLS="$INSERT_COLS, email_verified"

@@ -20,7 +20,7 @@ router.post('/', async (req, res) => {
         (0, errors_1.sendError)(res, errors_1.ErrorCode.INVALID_API_KEY, 'Valid admin key required via X-Admin-Key header');
         return;
     }
-    const { name, email, tier, rpm_limit, daily_limit } = req.body;
+    const { name, email, tier, rpm_limit, daily_limit, is_test } = req.body;
     if (!name || typeof name !== 'string') {
         (0, errors_1.sendError)(res, errors_1.ErrorCode.INVALID_PARAMETER, 'name is required');
         return;
@@ -32,8 +32,8 @@ router.post('/', async (req, res) => {
     const resolvedDaily = typeof daily_limit === 'number' ? daily_limit : 1000;
     try {
         await config_1.db.query(`INSERT INTO api_keys
-         (id, key_hash, name, email, tier, is_active, rpm_limit, daily_limit, signup_channel)
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, true, $5, $6, 'api_key_endpoint')`, [keyHash, name.trim().slice(0, 200), email ? String(email).slice(0, 500) : null, resolvedTier, resolvedRpm, resolvedDaily]);
+         (id, key_hash, name, email, tier, is_active, rpm_limit, daily_limit, signup_channel, is_test)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, true, $5, $6, 'api_key_endpoint', $7)`, [keyHash, name.trim().slice(0, 200), email ? String(email).slice(0, 500) : null, resolvedTier, resolvedRpm, resolvedDaily, is_test === true]);
         res.status(201).json({
             api_key: rawKey,
             tier: resolvedTier,
