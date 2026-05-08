@@ -266,12 +266,14 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             signupChannel: req.apiKeyRecord.signupChannel,
             sourcePage: sourcePage || null,
             endpoint: 'products.search',
+            isTest: req.apiKeyRecord.isTest,
         });
         (0, posthog_1.trackProductSearch)({
             apiKey: (0, apiKey_1.hashKey)(req.apiKeyRecord.key),
             queryText: q,
             resultCount: products.length,
             responseTimeMs,
+            isTest: req.apiKeyRecord.isTest,
         });
     }
     res.json(responseBody);
@@ -575,12 +577,14 @@ router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, 
             signupChannel: req.apiKeyRecord.signupChannel,
             sourcePage: null,
             endpoint: 'products.get',
+            isTest: req.apiKeyRecord.isTest,
         });
         (0, posthog_1.trackProductView)({
             apiKey: (0, apiKey_1.hashKey)(req.apiKeyRecord.key),
             productId: row.id,
             retailer: row.domain,
             category: (row.category_path ? row.category_path.split(' > ')[0] : null),
+            isTest: req.apiKeyRecord.isTest,
         });
     }
     const responseBody = (0, response_1.buildSearchResponse)([product], 1, 1, 0, Date.now() - start, false);

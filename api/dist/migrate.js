@@ -62,9 +62,13 @@ ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verified               BOOLE
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verification_token     TEXT;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verification_sent_at   TIMESTAMPTZ;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verification_expires_at TIMESTAMPTZ;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS is_test                        BOOLEAN     NOT NULL DEFAULT false;
 
 -- Backfill: mark existing keys with a contact email as verified
 UPDATE api_keys SET email_verified = true WHERE contact IS NOT NULL AND contact != '' AND email_verified = false;
+
+-- Backfill: mark internal test keys so they are excluded from KPI metrics (BUY-13878)
+UPDATE api_keys SET is_test = true WHERE signup_channel IN ('smoke_test', 'paperclip_agent') AND is_test = false;
 
 CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
 CREATE INDEX IF NOT EXISTS idx_api_keys_email_token ON api_keys(email_verification_token) WHERE email_verification_token IS NOT NULL;

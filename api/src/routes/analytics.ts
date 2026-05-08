@@ -30,14 +30,16 @@ router.get('/overview', requireApiKey, async (req: Request, res: Response) => {
 
   const result = await db.query(
     `SELECT
-       date_trunc('day', created_at)::date AS day,
+       date_trunc('day', ql.created_at)::date AS day,
        COUNT(*) AS total_queries,
-       COUNT(*) FILTER (WHERE is_agent = true) AS agent_queries,
-       COUNT(*) FILTER (WHERE is_agent = false) AS human_queries,
-       ROUND(AVG(response_time_ms)) AS avg_response_ms,
-       ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time_ms)) AS p99_response_ms
-     FROM query_log
-     WHERE created_at >= NOW() - ($1 || ' days')::interval
+       COUNT(*) FILTER (WHERE ql.is_agent = true) AS agent_queries,
+       COUNT(*) FILTER (WHERE ql.is_agent = false) AS human_queries,
+       ROUND(AVG(ql.response_time_ms)) AS avg_response_ms,
+       ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY ql.response_time_ms)) AS p99_response_ms
+     FROM query_log ql
+     LEFT JOIN api_keys ak ON ql.api_key_id = ak.id
+     WHERE ql.created_at >= NOW() - ($1 || ' days')::interval
+       AND (ak.is_test IS NOT TRUE OR ak.id IS NULL)
      GROUP BY day
      ORDER BY day DESC`,
     [days]
@@ -73,17 +75,19 @@ router.get('/agents', requireApiKey, async (req: Request, res: Response) => {
 
   const result = await db.query(
     `SELECT
-       agent_name,
-       agent_framework,
-       sdk_language,
+       ql.agent_name,
+       ql.agent_framework,
+       ql.sdk_language,
        COUNT(*) AS total_queries,
-       COUNT(DISTINCT DATE(created_at)) AS active_days,
-       ROUND(AVG(response_time_ms)) AS avg_response_ms,
-       MAX(created_at) AS last_seen_at
-     FROM query_log
-     WHERE is_agent = true
-       AND created_at >= NOW() - ($1 || ' days')::interval
-     GROUP BY agent_name, agent_framework, sdk_language
+       COUNT(DISTINCT DATE(ql.created_at)) AS active_days,
+       ROUND(AVG(ql.response_time_ms)) AS avg_response_ms,
+       MAX(ql.created_at) AS last_seen_at
+     FROM query_log ql
+     LEFT JOIN api_keys ak ON ql.api_key_id = ak.id
+     WHERE ql.is_agent = true
+       AND ql.created_at >= NOW() - ($1 || ' days')::interval
+       AND (ak.is_test IS NOT TRUE OR ak.id IS NULL)
+     GROUP BY ql.agent_name, ql.agent_framework, ql.sdk_language
      ORDER BY total_queries DESC
      LIMIT $2`,
     [days, limit]
@@ -109,20 +113,22 @@ router.get('/products', requireApiKey, async (req: Request, res: Response) => {
   const limit = Math.min(parseInt((req.query.limit as string) || '20'), 100);
   const agentOnly = req.query.agent_only !== 'false'; // default: agent queries only
 
-  const agentFilter = agentOnly ? 'AND is_agent = true' : '';
+  const agentFilter = agentOnly ? 'AND ql.is_agent = true' : '';
 
   const result = await db.query(
     `SELECT
-       query_text,
+       ql.query_text,
        COUNT(*) AS search_count,
-       COUNT(DISTINCT agent_name) AS unique_agents,
-       COUNT(DISTINCT api_key_id) AS unique_keys
-     FROM query_log
-     WHERE query_text IS NOT NULL AND query_text != ''
-       AND endpoint = 'products.search'
-       AND created_at >= NOW() - ($1 || ' days')::interval
+       COUNT(DISTINCT ql.agent_name) AS unique_agents,
+       COUNT(DISTINCT ql.api_key_id) AS unique_keys
+     FROM query_log ql
+     LEFT JOIN api_keys ak ON ql.api_key_id = ak.id
+     WHERE ql.query_text IS NOT NULL AND ql.query_text != ''
+       AND ql.endpoint = 'products.search'
+       AND ql.created_at >= NOW() - ($1 || ' days')::interval
+       AND (ak.is_test IS NOT TRUE OR ak.id IS NULL)
        ${agentFilter}
-     GROUP BY query_text
+     GROUP BY ql.query_text
      ORDER BY search_count DESC
      LIMIT $2`,
     [days, limit]
@@ -147,11 +153,13 @@ router.get('/conversions', requireApiKey, async (req: Request, res: Response) =>
     // Total queries per day (agent vs human)
     db.query(
       `SELECT
-         date_trunc('day', created_at)::date AS day,
-         COUNT(*) FILTER (WHERE is_agent = true) AS agent_queries,
-         COUNT(*) FILTER (WHERE is_agent = false) AS human_queries
-       FROM query_log
-       WHERE created_at >= NOW() - ($1 || ' days')::interval
+         date_trunc('day', ql.created_at)::date AS day,
+         COUNT(*) FILTER (WHERE ql.is_agent = true) AS agent_queries,
+         COUNT(*) FILTER (WHERE ql.is_agent = false) AS human_queries
+       FROM query_log ql
+       LEFT JOIN api_keys ak ON ql.api_key_id = ak.id
+       WHERE ql.created_at >= NOW() - ($1 || ' days')::interval
+         AND (ak.is_test IS NOT TRUE OR ak.id IS NULL)
        GROUP BY day
        ORDER BY day DESC`,
       [days]
@@ -225,14 +233,16 @@ router.get('/endpoints', requireApiKey, async (req: Request, res: Response) => {
 
   const result = await db.query(
     `SELECT
-       endpoint,
+       ql.endpoint,
        COUNT(*) AS total,
-       COUNT(*) FILTER (WHERE is_agent = true) AS agent_count,
-       COUNT(*) FILTER (WHERE is_agent = false) AS human_count,
-       ROUND(AVG(response_time_ms)) AS avg_response_ms
-     FROM query_log
-     WHERE created_at >= NOW() - ($1 || ' days')::interval
-     GROUP BY endpoint
+       COUNT(*) FILTER (WHERE ql.is_agent = true) AS agent_count,
+       COUNT(*) FILTER (WHERE ql.is_agent = false) AS human_count,
+       ROUND(AVG(ql.response_time_ms)) AS avg_response_ms
+     FROM query_log ql
+     LEFT JOIN api_keys ak ON ql.api_key_id = ak.id
+     WHERE ql.created_at >= NOW() - ($1 || ' days')::interval
+       AND (ak.is_test IS NOT TRUE OR ak.id IS NULL)
+     GROUP BY ql.endpoint
      ORDER BY total DESC`,
     [days]
   );
@@ -257,15 +267,17 @@ router.get('/geo-scorecard', requireApiKey, async (req: Request, res: Response) 
   const [weeklyResult, frameworkResult, topAgentsResult] = await Promise.all([
     db.query(
       `SELECT
-         date_trunc('week', created_at)::date AS week_start,
+         date_trunc('week', ql.created_at)::date AS week_start,
          COUNT(*) AS total_queries,
-         COUNT(*) FILTER (WHERE is_agent = true) AS agent_queries,
-         COUNT(DISTINCT api_key_id) FILTER (WHERE is_agent = true) AS unique_agent_keys,
-         COUNT(DISTINCT agent_name) FILTER (WHERE is_agent = true) AS unique_agents,
-         ROUND(AVG(response_time_ms)) AS avg_response_ms,
-         ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time_ms)) AS p99_response_ms
-       FROM query_log
-       WHERE created_at >= NOW() - ($1 || ' weeks')::interval
+         COUNT(*) FILTER (WHERE ql.is_agent = true) AS agent_queries,
+         COUNT(DISTINCT ql.api_key_id) FILTER (WHERE ql.is_agent = true) AS unique_agent_keys,
+         COUNT(DISTINCT ql.agent_name) FILTER (WHERE ql.is_agent = true) AS unique_agents,
+         ROUND(AVG(ql.response_time_ms)) AS avg_response_ms,
+         ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY ql.response_time_ms)) AS p99_response_ms
+       FROM query_log ql
+       LEFT JOIN api_keys ak ON ql.api_key_id = ak.id
+       WHERE ql.created_at >= NOW() - ($1 || ' weeks')::interval
+         AND (ak.is_test IS NOT TRUE OR ak.id IS NULL)
        GROUP BY week_start
        ORDER BY week_start DESC`,
       [weeks]
@@ -273,24 +285,28 @@ router.get('/geo-scorecard', requireApiKey, async (req: Request, res: Response) 
     // Framework distribution
     db.query(
       `SELECT
-         agent_framework,
+         ql.agent_framework,
          COUNT(*) AS count
-       FROM query_log
-       WHERE is_agent = true
-         AND created_at >= NOW() - ($1 || ' weeks')::interval
-       GROUP BY agent_framework
+       FROM query_log ql
+       LEFT JOIN api_keys ak ON ql.api_key_id = ak.id
+       WHERE ql.is_agent = true
+         AND ql.created_at >= NOW() - ($1 || ' weeks')::interval
+         AND (ak.is_test IS NOT TRUE OR ak.id IS NULL)
+       GROUP BY ql.agent_framework
        ORDER BY count DESC`,
       [weeks]
     ),
     // Top agents this period
     db.query(
       `SELECT
-         agent_name,
+         ql.agent_name,
          COUNT(*) AS queries
-       FROM query_log
-       WHERE is_agent = true
-         AND created_at >= NOW() - ($1 || ' weeks')::interval
-       GROUP BY agent_name
+       FROM query_log ql
+       LEFT JOIN api_keys ak ON ql.api_key_id = ak.id
+       WHERE ql.is_agent = true
+         AND ql.created_at >= NOW() - ($1 || ' weeks')::interval
+         AND (ak.is_test IS NOT TRUE OR ak.id IS NULL)
+       GROUP BY ql.agent_name
        ORDER BY queries DESC
        LIMIT 10`,
       [weeks]
@@ -356,15 +372,17 @@ router.get('/query-count', requireAdminKey, async (req: Request, res: Response) 
     // Daily breakdown for the rolling window
     db.query(
       `SELECT
-         date_trunc('day', created_at)::date AS day,
+         date_trunc('day', ql.created_at)::date AS day,
          COUNT(*) AS total,
-         COUNT(*) FILTER (WHERE is_agent = true) AS agent_count,
-         COUNT(*) FILTER (WHERE api_key_id IS NULL) AS unauthenticated_count,
-         COUNT(*) FILTER (WHERE status_code < 400) AS success_count,
-         COUNT(*) FILTER (WHERE status_code >= 400) AS error_count
-       FROM query_log
-       WHERE created_at >= NOW() - ($1 || ' days')::interval
-         AND endpoint = ANY($2)
+         COUNT(*) FILTER (WHERE ql.is_agent = true) AS agent_count,
+         COUNT(*) FILTER (WHERE ql.api_key_id IS NULL) AS unauthenticated_count,
+         COUNT(*) FILTER (WHERE ql.status_code < 400) AS success_count,
+         COUNT(*) FILTER (WHERE ql.status_code >= 400) AS error_count
+       FROM query_log ql
+       LEFT JOIN api_keys ak ON ql.api_key_id = ak.id
+       WHERE ql.created_at >= NOW() - ($1 || ' days')::interval
+         AND ql.endpoint = ANY($2)
+         AND (ak.is_test IS NOT TRUE OR ak.id IS NULL)
        GROUP BY day
        ORDER BY day DESC`,
       [days, CORE_ENDPOINTS]
@@ -373,26 +391,30 @@ router.get('/query-count', requireAdminKey, async (req: Request, res: Response) 
     db.query(
       `SELECT
          COUNT(*) AS total,
-         COUNT(*) FILTER (WHERE is_agent = true) AS agent_count,
-         COUNT(*) FILTER (WHERE api_key_id IS NULL) AS unauthenticated_count,
-         COUNT(DISTINCT api_key_id) FILTER (WHERE api_key_id IS NOT NULL) AS unique_keys,
-         COUNT(*) FILTER (WHERE status_code < 400) AS success_count,
-         COUNT(*) FILTER (WHERE status_code >= 400) AS error_count
-       FROM query_log
-       WHERE created_at >= NOW() - ($1 || ' days')::interval
-         AND endpoint = ANY($2)`,
+         COUNT(*) FILTER (WHERE ql.is_agent = true) AS agent_count,
+         COUNT(*) FILTER (WHERE ql.api_key_id IS NULL) AS unauthenticated_count,
+         COUNT(DISTINCT ql.api_key_id) FILTER (WHERE ql.api_key_id IS NOT NULL) AS unique_keys,
+         COUNT(*) FILTER (WHERE ql.status_code < 400) AS success_count,
+         COUNT(*) FILTER (WHERE ql.status_code >= 400) AS error_count
+       FROM query_log ql
+       LEFT JOIN api_keys ak ON ql.api_key_id = ak.id
+       WHERE ql.created_at >= NOW() - ($1 || ' days')::interval
+         AND ql.endpoint = ANY($2)
+         AND (ak.is_test IS NOT TRUE OR ak.id IS NULL)`,
       [days, CORE_ENDPOINTS]
     ),
     // Per-endpoint breakdown
     db.query(
       `SELECT
-         endpoint,
+         ql.endpoint,
          COUNT(*) AS total,
-         COUNT(*) FILTER (WHERE is_agent = true) AS agent_count
-       FROM query_log
-       WHERE created_at >= NOW() - ($1 || ' days')::interval
-         AND endpoint = ANY($2)
-       GROUP BY endpoint
+         COUNT(*) FILTER (WHERE ql.is_agent = true) AS agent_count
+       FROM query_log ql
+       LEFT JOIN api_keys ak ON ql.api_key_id = ak.id
+       WHERE ql.created_at >= NOW() - ($1 || ' days')::interval
+         AND ql.endpoint = ANY($2)
+         AND (ak.is_test IS NOT TRUE OR ak.id IS NULL)
+       GROUP BY ql.endpoint
        ORDER BY total DESC`,
       [days, CORE_ENDPOINTS]
     ),
@@ -469,43 +491,50 @@ router.get('/launch-window', requireAdminKey, async (req: Request, res: Response
     db.query(
       `SELECT
          COUNT(*) AS total,
-         COUNT(*) FILTER (WHERE is_agent = true) AS agent_count,
-         COUNT(*) FILTER (WHERE api_key_id IS NULL) AS unauthenticated_count,
-         COUNT(DISTINCT api_key_id) FILTER (WHERE api_key_id IS NOT NULL) AS unique_keys,
-         COUNT(*) FILTER (WHERE status_code < 400) AS success_count,
-         COUNT(*) FILTER (WHERE status_code >= 400) AS error_count
-       FROM query_log
-       WHERE created_at >= $1 AND created_at < $2
-         AND endpoint = ANY($3)`,
+         COUNT(*) FILTER (WHERE ql.is_agent = true) AS agent_count,
+         COUNT(*) FILTER (WHERE ql.api_key_id IS NULL) AS unauthenticated_count,
+         COUNT(DISTINCT ql.api_key_id) FILTER (WHERE ql.api_key_id IS NOT NULL) AS unique_keys,
+         COUNT(*) FILTER (WHERE ql.status_code < 400) AS success_count,
+         COUNT(*) FILTER (WHERE ql.status_code >= 400) AS error_count
+       FROM query_log ql
+       LEFT JOIN api_keys ak ON ql.api_key_id = ak.id
+       WHERE ql.created_at >= $1 AND ql.created_at < $2
+         AND ql.endpoint = ANY($3)
+         AND (ak.is_test IS NOT TRUE OR ak.id IS NULL)`,
       [startDate.toISOString(), endDate.toISOString(), CORE_ENDPOINTS]
     ),
     // First-query timestamps
     db.query(
       `SELECT
-         MIN(created_at) FILTER (WHERE status_code < 400) AS first_query_at,
-         MIN(created_at) FILTER (WHERE status_code < 400 AND api_key_id IS NOT NULL) AS first_external_query_at
-       FROM query_log
-       WHERE created_at >= $1 AND created_at < $2
-         AND endpoint = ANY($3)`,
+         MIN(ql.created_at) FILTER (WHERE ql.status_code < 400) AS first_query_at,
+         MIN(ql.created_at) FILTER (WHERE ql.status_code < 400 AND ql.api_key_id IS NOT NULL) AS first_external_query_at
+       FROM query_log ql
+       LEFT JOIN api_keys ak ON ql.api_key_id = ak.id
+       WHERE ql.created_at >= $1 AND ql.created_at < $2
+         AND ql.endpoint = ANY($3)
+         AND (ak.is_test IS NOT TRUE OR ak.id IS NULL)`,
       [startDate.toISOString(), endDate.toISOString(), CORE_ENDPOINTS]
     ),
-    // Registration count in window
+    // Registration count in window (exclude test keys)
     db.query(
       `SELECT COUNT(*) AS count FROM api_keys
-       WHERE created_at >= $1 AND created_at < $2`,
+       WHERE created_at >= $1 AND created_at < $2
+         AND is_test IS NOT TRUE`,
       [startDate.toISOString(), endDate.toISOString()]
     ),
     // Per-endpoint breakdown
     db.query(
       `SELECT
-         endpoint,
+         ql.endpoint,
          COUNT(*) AS total,
-         COUNT(*) FILTER (WHERE is_agent = true) AS agent_count,
-         COUNT(*) FILTER (WHERE status_code >= 400) AS error_count
-       FROM query_log
-       WHERE created_at >= $1 AND created_at < $2
-         AND endpoint = ANY($3)
-       GROUP BY endpoint
+         COUNT(*) FILTER (WHERE ql.is_agent = true) AS agent_count,
+         COUNT(*) FILTER (WHERE ql.status_code >= 400) AS error_count
+       FROM query_log ql
+       LEFT JOIN api_keys ak ON ql.api_key_id = ak.id
+       WHERE ql.created_at >= $1 AND ql.created_at < $2
+         AND ql.endpoint = ANY($3)
+         AND (ak.is_test IS NOT TRUE OR ak.id IS NULL)
+       GROUP BY ql.endpoint
        ORDER BY total DESC`,
       [startDate.toISOString(), endDate.toISOString(), CORE_ENDPOINTS]
     ),
@@ -564,31 +593,35 @@ router.get('/latency', requireAdminKey, async (req: Request, res: Response) => {
     db.query(
       `SELECT
          COUNT(*) AS sample_count,
-         ROUND(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY response_time_ms))::int AS p50,
-         ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms))::int AS p95,
-         ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time_ms))::int AS p99,
-         ROUND(AVG(response_time_ms))::int AS avg_ms,
-         MAX(response_time_ms)::int AS max_ms
-       FROM query_log
-       WHERE created_at >= $1
-         AND endpoint = ANY($2)
-         AND response_time_ms IS NOT NULL`,
+         ROUND(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY ql.response_time_ms))::int AS p50,
+         ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ql.response_time_ms))::int AS p95,
+         ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY ql.response_time_ms))::int AS p99,
+         ROUND(AVG(ql.response_time_ms))::int AS avg_ms,
+         MAX(ql.response_time_ms)::int AS max_ms
+       FROM query_log ql
+       LEFT JOIN api_keys ak ON ql.api_key_id = ak.id
+       WHERE ql.created_at >= $1
+         AND ql.endpoint = ANY($2)
+         AND ql.response_time_ms IS NOT NULL
+         AND (ak.is_test IS NOT TRUE OR ak.id IS NULL)`,
       [cutoff, CORE_ENDPOINTS]
     ),
     db.query(
       `SELECT
-         endpoint,
+         ql.endpoint,
          COUNT(*) AS sample_count,
-         ROUND(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY response_time_ms))::int AS p50,
-         ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms))::int AS p95,
-         ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time_ms))::int AS p99,
-         ROUND(AVG(response_time_ms))::int AS avg_ms,
-         MAX(response_time_ms)::int AS max_ms
-       FROM query_log
-       WHERE created_at >= $1
-         AND endpoint = ANY($2)
-         AND response_time_ms IS NOT NULL
-       GROUP BY endpoint
+         ROUND(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY ql.response_time_ms))::int AS p50,
+         ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ql.response_time_ms))::int AS p95,
+         ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY ql.response_time_ms))::int AS p99,
+         ROUND(AVG(ql.response_time_ms))::int AS avg_ms,
+         MAX(ql.response_time_ms)::int AS max_ms
+       FROM query_log ql
+       LEFT JOIN api_keys ak ON ql.api_key_id = ak.id
+       WHERE ql.created_at >= $1
+         AND ql.endpoint = ANY($2)
+         AND ql.response_time_ms IS NOT NULL
+         AND (ak.is_test IS NOT TRUE OR ak.id IS NULL)
+       GROUP BY ql.endpoint
        ORDER BY p99 DESC`,
       [cutoff, CORE_ENDPOINTS]
     ),

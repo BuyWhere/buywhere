@@ -41,7 +41,7 @@ async function verifyPaperclipTokenWithApi(token) {
     }
 }
 async function resolvePaperclipAgentKey(agentId) {
-    const result = await config_1.db.query(`SELECT id, key_hash, name, tier, signup_channel, attribution_source
+    const result = await config_1.db.query(`SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_test
      FROM api_keys
      WHERE signup_channel = 'paperclip_agent'
        AND name = $1
@@ -58,10 +58,10 @@ async function upsertPaperclipAgentKey(agentId, agentName, companyId) {
     if (existing)
         return existing;
     const keyHash = hashKey(agentId);
-    const result = await config_1.db.query(`INSERT INTO api_keys (key_hash, name, tier, signup_channel, developer_id, rpm_limit, daily_limit)
-     VALUES ($1, $2, 'enterprise', 'paperclip_agent', $3, 1000, 100000)
+    const result = await config_1.db.query(`INSERT INTO api_keys (key_hash, name, tier, signup_channel, developer_id, rpm_limit, daily_limit, is_test)
+     VALUES ($1, $2, 'enterprise', 'paperclip_agent', $3, 1000, 100000, true)
      ON CONFLICT (key_hash) DO UPDATE SET last_used_at = NOW()
-     RETURNING id, key_hash, name, tier, signup_channel, attribution_source`, [keyHash, agentName, companyId || null]);
+     RETURNING id, key_hash, name, tier, signup_channel, attribution_source, is_test`, [keyHash, agentName, companyId || null]);
     return result.rows[0];
 }
 function decodeJwtPayload(token) {
@@ -107,6 +107,7 @@ async function requireApiKey(req, res, next) {
                 dailyLimit: TIER_LIMITS.enterprise.daily,
                 signupChannel: row.signup_channel,
                 attributionSource: row.attribution_source,
+                isTest: row.is_test ?? true,
             };
             next();
             return;
@@ -115,7 +116,7 @@ async function requireApiKey(req, res, next) {
         return;
     }
     const keyHash = hashKey(key);
-    const result = await config_1.db.query(`SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_active
+    const result = await config_1.db.query(`SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_active, is_test
      FROM api_keys WHERE key_hash = $1`, [keyHash]);
     if (result.rows.length === 0) {
         (0, errors_1.sendError)(res, errors_1.ErrorCode.INVALID_API_KEY);
@@ -136,6 +137,7 @@ async function requireApiKey(req, res, next) {
         dailyLimit: tierLimits.daily,
         signupChannel: row.signup_channel,
         attributionSource: row.attribution_source,
+        isTest: row.is_test ?? false,
     };
     config_1.db.query('UPDATE api_keys SET last_used_at = NOW() WHERE key_hash = $1', [keyHash]).catch(() => { });
     next();

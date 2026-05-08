@@ -25,6 +25,9 @@ function trackApiQuery(event) {
     const ph = getClient();
     if (!ph)
         return;
+    // Skip PostHog capture for internal test keys (BUY-13878)
+    if (event.isTest)
+        return;
     ph.capture({
         distinctId: event.apiKey,
         event: 'api_query',
@@ -57,9 +60,12 @@ function trackAffiliateClick(event) {
         },
     });
 }
-function trackRegistration(apiKey, agentName, signupChannel, utmSource) {
+function trackRegistration(apiKey, agentName, signupChannel, utmSource, isTest) {
     const ph = getClient();
     if (!ph)
+        return;
+    // Skip PostHog capture for internal test keys (BUY-13878)
+    if (isTest)
         return;
     ph.capture({
         distinctId: apiKey,
@@ -133,6 +139,8 @@ function trackProductSearch(event) {
     const ph = getClient();
     if (!ph)
         return;
+    if (event.isTest)
+        return;
     ph.capture({
         distinctId: event.apiKey,
         event: 'product_search',
@@ -146,6 +154,8 @@ function trackProductSearch(event) {
 function trackProductView(event) {
     const ph = getClient();
     if (!ph)
+        return;
+    if (event.isTest)
         return;
     ph.capture({
         distinctId: event.apiKey,

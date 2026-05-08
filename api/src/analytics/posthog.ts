@@ -25,11 +25,14 @@ export interface ApiQueryEvent {
   signupChannel: string | null;
   sourcePage: string | null;
   endpoint: string;
+  isTest?: boolean;
 }
 
 export function trackApiQuery(event: ApiQueryEvent): void {
   const ph = getClient();
   if (!ph) return;
+  // Skip PostHog capture for internal test keys (BUY-13878)
+  if (event.isTest) return;
   ph.capture({
     distinctId: event.apiKey,
     event: 'api_query',
@@ -71,9 +74,11 @@ export function trackAffiliateClick(event: AffiliateClickEvent): void {
   });
 }
 
-export function trackRegistration(apiKey: string, agentName: string, signupChannel: string | null, utmSource: string | null): void {
+export function trackRegistration(apiKey: string, agentName: string, signupChannel: string | null, utmSource: string | null, isTest?: boolean): void {
   const ph = getClient();
   if (!ph) return;
+  // Skip PostHog capture for internal test keys (BUY-13878)
+  if (isTest) return;
   ph.capture({
     distinctId: apiKey,
     event: 'agent_registered',
@@ -164,11 +169,13 @@ export interface ProductSearchEvent {
   queryText: string;
   resultCount: number;
   responseTimeMs: number;
+  isTest?: boolean;
 }
 
 export function trackProductSearch(event: ProductSearchEvent): void {
   const ph = getClient();
   if (!ph) return;
+  if (event.isTest) return;
   ph.capture({
     distinctId: event.apiKey,
     event: 'product_search',
@@ -185,11 +192,13 @@ export interface ProductViewEvent {
   productId: string;
   retailer: string;
   category: string | null;
+  isTest?: boolean;
 }
 
 export function trackProductView(event: ProductViewEvent): void {
   const ph = getClient();
   if (!ph) return;
+  if (event.isTest) return;
   ph.capture({
     distinctId: event.apiKey,
     event: 'product_view',

@@ -287,12 +287,14 @@ router.get(
         signupChannel: req.apiKeyRecord.signupChannel,
         sourcePage: sourcePage || null,
         endpoint: 'products.search',
+        isTest: req.apiKeyRecord.isTest,
       });
       trackProductSearch({
         apiKey: hashKey(req.apiKeyRecord.key),
         queryText: q,
         resultCount: products.length,
         responseTimeMs,
+        isTest: req.apiKeyRecord.isTest,
       });
     }
 
@@ -705,12 +707,14 @@ router.get(
         signupChannel: req.apiKeyRecord.signupChannel,
         sourcePage: null,
         endpoint: 'products.get',
+        isTest: req.apiKeyRecord.isTest,
       });
       trackProductView({
         apiKey: hashKey(req.apiKeyRecord.key),
         productId: row.id,
         retailer: row.domain,
         category: (row.category_path ? row.category_path.split(' > ')[0] : null) as string | null,
+        isTest: req.apiKeyRecord.isTest,
       });
     }
 
