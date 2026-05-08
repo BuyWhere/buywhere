@@ -48,23 +48,11 @@ function initSentry() {
         dsn,
         environment: process.env.NODE_ENV || 'production',
         tracesSampleRate: 0.1,
-<<<<<<< HEAD
-=======
         enableTracing: true,
->>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
     });
     console.log('[sentry] Error tracking initialized (env=%s)', process.env.NODE_ENV || 'production');
 }
 function sentryRequestHandler(req, _res, next) {
-<<<<<<< HEAD
-    Sentry.setUser({
-        ip_address: req.ip,
-        id: req.sessionId || undefined,
-    });
-    Sentry.setExtra('country', req.query.country || req.body?.country || '');
-    Sentry.setTag('method', req.method);
-    Sentry.setTag('path', req.path);
-=======
     if (Sentry.getCurrentHub?.()?.getScope?.()) {
         const scope = Sentry.getCurrentHub().getScope();
         scope.setUser({
@@ -75,6 +63,5 @@ function sentryRequestHandler(req, _res, next) {
         scope.setTag('method', req.method);
         scope.setTag('path', req.path);
     }
->>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
     next();
 }
