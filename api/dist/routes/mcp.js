@@ -6,7 +6,9 @@ const apiKey_1 = require("../middleware/apiKey");
 const queryLog_1 = require("../middleware/queryLog");
 const errors_1 = require("../middleware/errors");
 const response_1 = require("../lib/response");
+const compare_query_1 = require("../lib/compare-query");
 const router = (0, express_1.Router)();
+const PRODUCT_ID_RE = /^\d+$/;
 function extractProductId(args) {
     const raw = args.id ?? args.product_id;
     if (typeof raw !== 'string')
@@ -177,8 +179,8 @@ async function handleSearchProducts(args) {
         conditions.push(`country_code = $${params.length}`);
     }
     if (category) {
-        params.push(`%${category}%`);
-        conditions.push(`category ILIKE $${params.length}`);
+        params.push(category.toLowerCase());
+        conditions.push(`lower(category) = $${params.length}`);
     }
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     let rows;
@@ -212,8 +214,10 @@ async function handleSearchProducts(args) {
         }
     }
     else {
-        const countResult = await config_1.db.query(`SELECT COUNT(*) FROM products ${where}`, params);
-        total = parseInt(countResult.rows[0].count, 10);
+        // For no-query browsing, skip the expensive COUNT (can timeout on large
+        // filtered sets) and use pg_class estimate instead.
+        const estResult = await config_1.db.query(`SELECT reltuples::bigint AS estimate FROM pg_class WHERE relname = 'products'`);
+        total = parseInt(estResult.rows[0]?.estimate ?? '0', 10);
         params.push(limit, offset);
         const result = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
               price, currency, image_url, metadata, updated_at,
@@ -233,14 +237,16 @@ async function handleSearchProducts(args) {
 }
 async function handleGetProduct(args) {
     const t0 = Date.now();
-    const id = extractProductId(args);
-    if (!id)
-        throw { code: -32602, message: 'id is required' };
+    const rawId = args.id ?? args.product_id;
+    const id = typeof rawId === 'string' ? rawId.trim() : '';
+    if (!id || !compare_query_1.UUID_RE.test(id)) {
+        throw { code: -32602, message: 'id must be a valid product UUID (as returned by search_products)' };
+    }
     const result = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
-              title, price, currency, image_url, metadata, updated_at,
-              region, country_code, description, brand, mpn, gtin,
-              category_path, category, merchant_id, avg_rating, review_count
-       FROM products WHERE id = $1`, [id]);
+            title, price, currency, image_url, metadata, updated_at,
+            region, country_code, description, brand, mpn, gtin,
+            category_path, category, merchant_id, avg_rating, review_count
+     FROM products WHERE id = $1`, [id]);
     if (!result.rows.length)
         throw { code: -32001, message: 'Product not found' };
     const product = (0, response_1.buildProduct)(result.rows[0], 'SGD', false);
@@ -251,12 +257,14 @@ async function handleCompareProducts(args) {
     const ids = extractProductIds(args);
     if (!ids || ids.length < 2)
         throw { code: -32602, message: 'Provide at least 2 product IDs' };
-    const result = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
-            title, price, currency, image_url, metadata,
-            category_path, brand, avg_rating AS rating, review_count, updated_at, region, country_code
-     FROM products
-     WHERE id = ANY($1::text[])
-     ORDER BY array_position($1::text[], id::text)`, [ids]);
+    if (ids.length > 10)
+        throw { code: -32602, message: 'Maximum 10 product IDs allowed' };
+    const invalidIds = ids.filter((id) => !compare_query_1.UUID_RE.test(id.trim()));
+    if (invalidIds.length > 0) {
+        throw { code: -32602, message: `Invalid product ID format: ${invalidIds.join(', ')}` };
+    }
+    const { text, values } = (0, compare_query_1.buildCompareProductsQuery)(ids);
+    const result = await config_1.db.query(text, values);
     const products = result.rows.map((r) => (0, response_1.buildProduct)(r, 'SGD', false));
     const uniqueCurrencies = [...new Set(result.rows.map((r) => r.currency).filter((currency) => typeof currency === 'string' && currency.length > 0))];
     const currenciesMixed = uniqueCurrencies.length > 1;
@@ -371,8 +379,8 @@ async function handleFindBestPrice(args) {
         conditions.push(`region = $${params.length}`);
     }
     if (category) {
-        params.push(`%${category}%`);
-        conditions.push(`category ILIKE $${params.length}`);
+        params.push(category.toLowerCase());
+        conditions.push(`lower(category) = $${params.length}`);
     }
     params.push(limit);
     const where = `WHERE ${conditions.join(' AND ')}`;
@@ -498,7 +506,7 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
     catch (err) {
         const e = err;
         if (typeof e.code === 'number' && e.message) {
-            const envelopeCode = e.code === -32001 ? errors_1.ErrorCode.NOT_FOUND
+            const envelopeCode = e.code === -32001 ? errors_1.ErrorCode.ENDPOINT_NOT_FOUND
                 : e.code === -32602 ? errors_1.ErrorCode.INVALID_PARAMETER
                     : errors_1.ErrorCode.INTERNAL_ERROR;
             return res.json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));

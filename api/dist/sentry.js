@@ -48,20 +48,16 @@ function initSentry() {
         dsn,
         environment: process.env.NODE_ENV || 'production',
         tracesSampleRate: 0.1,
-        enableTracing: true,
     });
     console.log('[sentry] Error tracking initialized (env=%s)', process.env.NODE_ENV || 'production');
 }
 function sentryRequestHandler(req, _res, next) {
-    if (Sentry.getCurrentHub?.()?.getScope?.()) {
-        const scope = Sentry.getCurrentHub().getScope();
-        scope.setUser({
-            ip_address: req.ip,
-            id: req.sessionId || undefined,
-        });
-        scope.setExtra('country', req.query.country || req.body?.country || '');
-        scope.setTag('method', req.method);
-        scope.setTag('path', req.path);
-    }
+    Sentry.setUser({
+        ip_address: req.ip,
+        id: req.sessionId || undefined,
+    });
+    Sentry.setExtra('country', req.query.country || req.body?.country || '');
+    Sentry.setTag('method', req.method);
+    Sentry.setTag('path', req.path);
     next();
 }

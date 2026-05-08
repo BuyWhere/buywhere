@@ -7,16 +7,27 @@ const agentDetect_1 = require("../middleware/agentDetect");
 const posthog_1 = require("../analytics/posthog");
 const queryLog_1 = require("../middleware/queryLog");
 const response_1 = require("../lib/response");
+const compare_query_1 = require("../lib/compare-query");
 const SEARCH_CACHE_TTL_SECONDS = 60;
 const router = (0, express_1.Router)();
 // GET /v1/products/search
-// Query params: q, domain, region, country, category, min_price, max_price, currency, limit, offset, source_page
+// Query params: q, domain, region, country, category, category_id, category_path,
+//               brand, merchant_id, availability, min_price, max_price,
+//               currency, limit, offset, page, fields, sort, sort_by, source_page, compact
 router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.search'), async (req, res) => {
     const requestStart = Date.now();
     const q = req.query.q || '';
     const domain = req.query.domain;
     const region = req.query.region;
     const category = req.query.category;
+    const categoryId = req.query.category_id;
+    const categoryPath = req.query.category_path ? req.query.category_path.split(',').map(p => p.trim()).filter(Boolean) : undefined;
+    const brand = req.query.brand;
+    const merchantId = req.query.merchant_id;
+    const availability = req.query.availability;
+    const rawFields = req.query.fields || undefined;
+    const fields = rawFields ? rawFields.split(',').map(f => f.trim()).filter(Boolean) : undefined;
+    const sort = (req.query.sort || req.query.sort_by) || undefined;
     // country_code is the canonical param; `country` is kept as a backward-compat alias.
     // Default to SG when neither country nor region is specified (BUY-6598: prevent cross-region accessory pollution).
     const explicitCountry = (req.query.country_code || req.query.country)?.toUpperCase() || undefined;
@@ -27,11 +38,13 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // Price filters (min_price/max_price) apply in this inferred currency.
     const currency = req.query.currency || (countryCode ? (response_1.COUNTRY_CURRENCY[countryCode] || 'SGD') : 'SGD');
     const limit = Math.min(parseInt(req.query.limit || '20'), 100);
-    const offset = parseInt(req.query.offset || '0');
+    const rawPage = parseInt(req.query.page || '0');
+    const rawOffset = parseInt(req.query.offset || '0');
+    const offset = rawPage > 0 ? (rawPage - 1) * limit : rawOffset;
     const sourcePage = req.query.source_page;
     const compact = req.query.compact === 'true';
     // Check Redis cache for this exact query (60s TTL)
-    const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${compact ? 'c' : 'f'}`;
+    const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}`;
     try {
         const cached = await config_1.redis.get(cacheKey);
         if (cached) {
@@ -77,6 +90,45 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         params.push(`%${category}%`);
         idx++;
     }
+    if (brand) {
+        conditions.push(`brand ILIKE $${idx}`);
+        params.push(`%${brand}%`);
+        idx++;
+    }
+    if (availability) {
+        const avail = availability.toLowerCase();
+        if (avail === 'in_stock') {
+            conditions.push(`(metadata->>'availability' = $${idx} OR (metadata->>'availability' IS NULL AND is_active = true))`);
+            params.push(avail);
+            idx++;
+        }
+        else if (avail === 'out_of_stock') {
+            conditions.push(`(metadata->>'availability' = $${idx} OR (metadata->>'availability' IS NULL AND is_active = false))`);
+            params.push(avail);
+            idx++;
+        }
+        else if (avail === 'preorder' || avail === 'discontinued') {
+            conditions.push(`metadata->>'availability' = $${idx}`);
+            params.push(avail);
+            idx++;
+        }
+    }
+    if (categoryId) {
+        conditions.push(`category_id = $${idx}`);
+        params.push(categoryId);
+        idx++;
+    }
+    if (categoryPath && categoryPath.length > 0) {
+        const pathPlaceholders = categoryPath.map((_, i) => `$${idx + i}`).join(',');
+        conditions.push(`category_path @> ARRAY[${pathPlaceholders}]::text[]`);
+        params.push(...categoryPath);
+        idx += categoryPath.length;
+    }
+    if (merchantId) {
+        conditions.push(`merchant_id = $${idx}`);
+        params.push(merchantId);
+        idx++;
+    }
     if (minPrice !== undefined) {
         conditions.push(`price >= $${idx}`);
         params.push(minPrice);
@@ -96,37 +148,56 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // Run count first (fast, capped) to decide ordering strategy, then fetch data
     const countResult = await config_1.db.query(countQuery, params.slice(0, idx - 1));
     const approxCount = parseInt(countResult.rows[0].count, 10);
+    const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
+    const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
+    const useFtsRanking = (!effectiveSort || effectiveSort === 'relevance') && ftsParamIdx;
+    // Build ORDER BY for non-fts-ranking path
+    function buildSortOrder() {
+        if (!effectiveSort || effectiveSort === 'relevance')
+            return 'updated_at DESC';
+        switch (effectiveSort) {
+            case 'price_asc': return 'price ASC, updated_at DESC';
+            case 'price_desc': return 'price DESC, updated_at DESC';
+            case 'newest': return 'updated_at DESC';
+            case 'highest_rated': return 'avg_rating DESC NULLS LAST, updated_at DESC';
+            case 'most_reviewed': return 'review_count DESC NULLS LAST, updated_at DESC';
+            default: return 'updated_at DESC';
+        }
+    }
     // For large result sets (>1000 rows), computing ts_rank over all matches is expensive.
     // Instead, let the GIN index fetch up to CANDIDATE_LIMIT rows, rank those by ts_rank,
     // then return the top N. This gives relevance ordering at a fraction of the cost.
     // For small result sets (<= 1000 rows), ts_rank over all matches is fast.
     const CANDIDATE_LIMIT = Math.max(500, (limit + offset) * 10);
+    const specColumns = `created_at, description, brand, mpn, gtin, category_path, category, category_id, merchant_id, avg_rating, review_count`;
     let dataQuery;
-    if (ftsParamIdx && approxCount <= 1000) {
-        // Small result set: ts_rank over all matches is fast, gives best relevance
+    if (useFtsRanking && approxCount <= 1000) {
         dataQuery = `
         SELECT id, sku AS source_id, source AS domain, url,
+               al.destination_url AS affiliate_url,
                title, price, currency, image_url, metadata, updated_at,
-               region, country_code
+               region, country_code, ${specColumns}
         FROM products
+        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ${whereClause}
         ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC, updated_at DESC
         LIMIT $${idx} OFFSET $${idx + 1}
       `;
     }
-    else if (ftsParamIdx) {
-        // Large result set: GIN index fetches CANDIDATE_LIMIT rows using bitmap scan, then ranks.
-        // No ORDER BY in the inner query — this lets PostgreSQL stop the heap scan after
-        // CANDIDATE_LIMIT rows (vs scanning all 25k+ matching rows to sort by rank first).
-        // 12x faster for broad queries (14ms vs 170ms for "headphones" on 2M product corpus).
+    else if (useFtsRanking) {
         dataQuery = `
-        SELECT id, source_id, domain, url, title, price, currency, image_url, metadata, updated_at, region, country_code
+        SELECT id, source_id, domain, url,
+               affiliate_url,
+               title, price, currency, image_url, metadata, updated_at,
+               region, country_code, ${specColumns}
         FROM (
           SELECT id, sku AS source_id, source AS domain, url,
+                 al.destination_url AS affiliate_url,
                  title, price, currency, image_url, metadata, updated_at,
-                 region, country_code,
+                 region, country_code, ${specColumns},
                  ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
           FROM products
+          LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
           ${whereClause}
           LIMIT ${CANDIDATE_LIMIT}
         ) _candidates
@@ -135,14 +206,15 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
       `;
     }
     else {
-        // No FTS query (e.g. filter-only) — sort by recency
         dataQuery = `
         SELECT id, sku AS source_id, source AS domain, url,
+               al.destination_url AS affiliate_url,
                title, price, currency, image_url, metadata, updated_at,
-               region, country_code
+               region, country_code, ${specColumns}
         FROM products
+        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ${whereClause}
-        ORDER BY updated_at DESC
+        ORDER BY ${buildSortOrder()}
         LIMIT $${idx} OFFSET $${idx + 1}
       `;
     }
@@ -150,8 +222,32 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const dataResult = await config_1.db.query(dataQuery, params);
     const total = parseInt(countResult.rows[0].count, 10);
     const responseTimeMs = Date.now() - requestStart;
-    const products = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
-    const responseBody = (0, response_1.buildSearchResponse)(products, total, limit, offset, responseTimeMs, false);
+    const products = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact, true));
+    // Apply field selection if `fields` param is specified
+    let filteredProducts = products;
+    if (fields && fields.length > 0) {
+        const VALID_FIELDS = new Set([
+            'id', 'name', 'price', 'url', 'merchant', 'category', 'country',
+            'ingested_at', 'updated_at', 'description', 'image_url', 'images',
+            'brand', 'sku', 'mpn', 'gtin', 'availability', 'compare_at_price',
+            'rating', 'title', 'country_code', 'region',
+            'canonical_id', 'normalized_price_usd', 'structured_specs',
+            'comparison_attributes', 'metadata', 'original_price', 'discount_pct',
+        ]);
+        const requested = fields.filter(f => VALID_FIELDS.has(f));
+        if (requested.length > 0) {
+            filteredProducts = products.map(p => {
+                const picked = {};
+                for (const f of requested) {
+                    if (f in p) {
+                        picked[f] = p[f];
+                    }
+                }
+                return picked;
+            });
+        }
+    }
+    const responseBody = (0, response_1.buildSearchResponse)(filteredProducts, total, limit, offset, responseTimeMs, false);
     // Cache result in Redis (fire-and-forget)
     config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
     // Extract categories from results for analytics
@@ -220,7 +316,8 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
         config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
                 currency, image_url, metadata, updated_at,
-                region, country_code,
+                region, country_code, created_at, description, brand, mpn, gtin,
+                category_path, category, merchant_id, avg_rating, review_count,
                 ROUND(((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)::numeric, 1) AS discount_pct
          FROM products
          WHERE ${dealWhere}
@@ -241,13 +338,32 @@ router.get('/compare', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiK
         res.status(400).json({ error: 'Provide at least 2 product IDs via ?ids=id1,id2' });
         return;
     }
-    const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-    const result = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
-              title, price, currency, image_url, metadata,
-              category_path, brand, avg_rating AS rating, review_count, updated_at, region, country_code
-       FROM products WHERE id IN (${placeholders})`, ids);
-    const products = result.rows.map((row) => (0, response_1.buildProduct)(row, 'SGD', false));
-    const uniqueCurrencies = [...new Set(result.rows.map((r) => r.currency).filter(Boolean))];
+    const invalidIds = ids.filter((id) => !compare_query_1.UUID_RE.test(id.trim()));
+    if (invalidIds.length > 0) {
+        res.status(400).json({ error: `Invalid product ID(s): ${invalidIds.join(', ')}` });
+        return;
+    }
+    const { text, values } = (0, compare_query_1.buildCompareProductsQuery)(ids);
+    const result = await config_1.db.query(text, values);
+    const products = result.rows.map((row) => ({
+        id: row.id,
+        source: row.source_id,
+        domain: row.domain,
+        url: row.url,
+        title: row.title,
+        price: row.price ? parseFloat(row.price) : null,
+        currency: row.currency,
+        image_url: row.image_url,
+        brand: row.brand,
+        category_path: row.category_path,
+        rating: row.rating ? parseFloat(row.rating) : null,
+        review_count: row.review_count,
+        metadata: row.metadata,
+        region: row.region || null,
+        country_code: row.country_code || null,
+        updated_at: row.updated_at,
+    }));
+    const uniqueCurrencies = [...new Set(products.map((p) => p.currency).filter(Boolean))];
     const currenciesMixed = uniqueCurrencies.length > 1;
     const responseBody = (0, response_1.buildSearchResponse)(products, products.length, ids.length, 0, Date.now() - start, false);
     res.json({
@@ -432,7 +548,8 @@ router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, 
     try {
         result = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
                 title, price, currency, image_url, metadata, updated_at,
-                region, country_code, brand, category_path, avg_rating AS rating, review_count
+                region, country_code, created_at, description, brand, mpn, gtin,
+                category_path, category, merchant_id, avg_rating, review_count
          FROM products WHERE id = $1`, [id]);
     }
     catch {
@@ -632,10 +749,10 @@ router.post('/ingest', apiKey_1.requireApiKey, async (req, res) => {
 function extractCategories(products) {
     const cats = new Set();
     for (const p of products) {
-        const source = p.domain || p.merchant;
+        const source = p.domain || (p.merchant?.domain) || '';
         if (source) {
-            const domain = source.replace('.sg', '').replace('.com', '');
-            cats.add(domain);
+            const domainName = source.replace('.sg', '').replace('.com', '');
+            cats.add(domainName);
         }
         if (p.metadata && typeof p.metadata === 'object') {
             const meta = p.metadata;

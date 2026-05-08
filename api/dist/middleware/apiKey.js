@@ -3,9 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.hashKey = hashKey;
 exports.requireApiKey = requireApiKey;
 exports.checkRateLimit = checkRateLimit;
+exports.checkIpRateLimit = checkIpRateLimit;
 const crypto_1 = require("crypto");
 const config_1 = require("../config");
 const errors_1 = require("./errors");
+const abuseDetection_1 = require("./abuseDetection");
 const PAPERCLIP_API_URL = process.env.PAPERCLIP_API_URL || 'https://api.paperclip.ai';
 const TIER_LIMITS = {
     unverified: { rpm: 5, daily: 50 },
@@ -111,6 +113,7 @@ async function requireApiKey(req, res, next) {
             next();
             return;
         }
+        (0, abuseDetection_1.recordInvalidKeyAttempt)(req).catch(() => { });
         (0, errors_1.sendError)(res, errors_1.ErrorCode.INVALID_API_KEY, 'Invalid Paperclip token');
         return;
     }
@@ -118,6 +121,7 @@ async function requireApiKey(req, res, next) {
     const result = await config_1.db.query(`SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_active
      FROM api_keys WHERE key_hash = $1`, [keyHash]);
     if (result.rows.length === 0) {
+        (0, abuseDetection_1.recordInvalidKeyAttempt)(req).catch(() => { });
         (0, errors_1.sendError)(res, errors_1.ErrorCode.INVALID_API_KEY);
         return;
     }
@@ -139,6 +143,12 @@ async function requireApiKey(req, res, next) {
     };
     config_1.db.query('UPDATE api_keys SET last_used_at = NOW() WHERE key_hash = $1', [keyHash]).catch(() => { });
     next();
+}
+/** Set standard X-RateLimit-* headers on the response */
+function setRateLimitHeaders(res, limit, remaining, resetEpoch) {
+    res.set('X-RateLimit-Limit', String(limit));
+    res.set('X-RateLimit-Remaining', String(Math.max(0, remaining)));
+    res.set('X-RateLimit-Reset', String(resetEpoch));
 }
 async function checkRateLimit(req, res, next) {
     if (!req.apiKeyRecord) {
@@ -168,15 +178,58 @@ async function checkRateLimit(req, res, next) {
         next();
         return;
     }
-    if (rpmCount > req.apiKeyRecord.rpmLimit) {
+    const rpmLimit = req.apiKeyRecord.rpmLimit;
+    const resetEpoch = Math.ceil((minuteWindow + 1) * 60);
+    if (rpmCount > rpmLimit) {
         const retryAfter = Math.ceil(60 - (now % 60000) / 1000);
-        (0, errors_1.sendRateLimitError)(res, retryAfter, req.apiKeyRecord.rpmLimit, 0, 'Per-minute rate limit exceeded.');
+        setRateLimitHeaders(res, rpmLimit, 0, resetEpoch);
+        (0, errors_1.sendRateLimitError)(res, retryAfter, rpmLimit, 0, 'Per-minute rate limit exceeded.');
         return;
     }
     if (dailyCount > req.apiKeyRecord.dailyLimit) {
         const retryAfter = Math.ceil(86400 - (now % 86400000) / 1000);
+        setRateLimitHeaders(res, req.apiKeyRecord.dailyLimit, 0, Math.ceil((dayWindow + 1) * 86400));
         (0, errors_1.sendRateLimitError)(res, retryAfter, req.apiKeyRecord.dailyLimit, 0, 'Daily rate limit exceeded.');
         return;
+    }
+    // Set headers on ALL successful responses
+    setRateLimitHeaders(res, rpmLimit, rpmLimit - rpmCount, resetEpoch);
+    next();
+}
+/** IP-level rate limit for unauthenticated requests */
+async function checkIpRateLimit(req, res, next) {
+    // Skip if request already has an API key (handled by checkRateLimit)
+    if (req.apiKeyRecord) {
+        next();
+        return;
+    }
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+        req.headers['x-real-ip'] ||
+        req.socket.remoteAddress ||
+        'unknown';
+    const now = Date.now();
+    const minuteWindow = Math.floor(now / 60000);
+    const ipKey = `rl:ip:${ip}:${minuteWindow}`;
+    const limit = config_1.RATE_LIMIT_CONFIG.IP_RPM;
+    try {
+        const count = await config_1.redis.incr(ipKey);
+        if (count === 1)
+            config_1.redis.expire(ipKey, 120).catch(() => { });
+        const resetEpoch = Math.ceil((minuteWindow + 1) * 60);
+        setRateLimitHeaders(res, limit, limit - count, resetEpoch);
+        if (count > limit) {
+            const retryAfter = Math.ceil(60 - (now % 60000) / 1000);
+            (0, errors_1.sendRateLimitError)(res, retryAfter, limit, 0, 'IP rate limit exceeded. Authenticate with an API key for higher limits.');
+            return;
+        }
+        // Burst detection — block IP if it hits burst multiplier × limit
+        if (count > limit * config_1.RATE_LIMIT_CONFIG.IP_BURST_MULTIPLIER) {
+            const blockKey = `abuse:blocked:${ip}`;
+            await config_1.redis.setex(blockKey, config_1.RATE_LIMIT_CONFIG.IP_BURST_BLOCK_SEC, '1');
+        }
+    }
+    catch (_err) {
+        console.warn('[ip-rate-limit] Redis unavailable, skipping');
     }
     next();
 }

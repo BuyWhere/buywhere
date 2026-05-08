@@ -96,11 +96,18 @@ Content-Type: application/json
 
 | Tool | Description |
 |------|-------------|
-| \`search_products\` | Search catalog by keyword, price range, platform, region, country |
-| \`get_product\` | Full product details and current price by ID |
-| \`compare_products\` | Side-by-side comparison of 2–10 products |
-| \`get_deals\` | Discounted products sorted by discount percentage |
-| \`list_categories\` | Browse available product categories |
+| `;
+    search_products ` | Search catalog by keyword, price range, platform, region, country |
+| `;
+    get_product ` | Full product details and current price by ID |
+| `;
+    compare_products ` | Side-by-side comparison of 2–10 products |
+| `;
+    get_deals ` | Discounted products sorted by discount percentage |
+| `;
+    list_categories ` | Browse available product categories |
+| `;
+    find_best_price ` | Find the cheapest current listing for a product across all merchants |
 
 ## Python Quickstart
 
@@ -361,6 +368,7 @@ Content-Type: application/json
 <tr><td><code>compare_products</code></td><td>Side-by-side comparison of 2–10 products</td></tr>
 <tr><td><code>get_deals</code></td><td>Discounted products sorted by discount percentage</td></tr>
 <tr><td><code>list_categories</code></td><td>Browse available product categories</td></tr>
+<tr><td><code>find_best_price</code></td><td>Find the cheapest current listing for a product across all merchants</td></tr>
 </table>
 
 <h2>Python Quickstart</h2>
