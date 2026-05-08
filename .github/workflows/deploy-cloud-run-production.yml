@@ -128,12 +128,11 @@ jobs:
             --allow-unauthenticated \
             --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
             --port 8000 \
-            --set-env-vars "ENVIRONMENT=production" \
-            --set-env-vars "DATABASE_URL=${{ secrets.CLOUD_SQL_PRODUCTION_CONNECTION_STRING }}" \
-            --set-env-vars "REDIS_URL=${{ secrets.REDIS_PRODUCTION_URL }}" \
-            --set-env-vars "API_KEY_SECRET=${{ secrets.API_KEY_SECRET_PRODUCTION }}" \
-            --set-env-vars "SENTRY_DSN=${{ secrets.SENTRY_DSN_PRODUCTION }}" \
-            --set-env-vars "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY_PRODUCTION }}" \
+            --update-env-vars "ENVIRONMENT=production" \
+            --update-env-vars "REDIS_URL=${{ secrets.REDIS_PRODUCTION_URL }}" \
+            --update-env-vars "API_KEY_SECRET=${{ secrets.API_KEY_SECRET_PRODUCTION }}" \
+            --update-env-vars "SENTRY_DSN=${{ secrets.SENTRY_DSN_PRODUCTION }}" \
+            --update-env-vars "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY_PRODUCTION }}" \
             --memory 1Gi \
             --cpu 2 \
             --min-instances 2 \
