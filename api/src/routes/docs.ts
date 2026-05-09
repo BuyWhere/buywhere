@@ -97,12 +97,12 @@ Content-Type: application/json
 
 | Tool | Description |
 |------|-------------|
-| `search_products` | Search catalog by keyword, price range, platform, region, country |
-| `get_product` | Full product details and current price by ID |
-| `compare_products` | Side-by-side comparison of 2–10 products |
-| `get_deals` | Discounted products sorted by discount percentage |
-| `list_categories` | Browse available product categories |
-| `find_best_price` | Find the cheapest current listing for a product across all merchants |
+| \`search_products\` | Search catalog by keyword, price range, platform, region, country |
+| \`get_product\` | Full product details and current price by ID |
+| \`compare_products\` | Side-by-side comparison of 2–10 products |
+| \`get_deals\` | Discounted products sorted by discount percentage |
+| \`list_categories\` | Browse available product categories |
+| \`find_best_price\` | Find the cheapest current listing for a product across all merchants |
 
 ## Python Quickstart
 
