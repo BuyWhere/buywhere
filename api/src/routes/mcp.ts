@@ -272,8 +272,8 @@ async function handleGetProduct(args: Record<string, unknown>) {
       ? rawId.trim()
       : '';
 
-  if (!PRODUCT_ID_RE.test(id)) {
-    throw { code: -32602, message: 'id must be a numeric BuyWhere product ID' };
+  if (!PRODUCT_ID_RE.test(id) && !UUID_RE.test(id)) {
+    throw { code: -32602, message: 'id must be a numeric or UUID BuyWhere product ID' };
   }
 
   const result = await db.query(
@@ -295,7 +295,7 @@ async function handleCompareProducts(args: Record<string, unknown>) {
   if (!ids || ids.length < 2) throw { code: -32602, message: 'Provide at least 2 product IDs' };
   if (ids.length > 10) throw { code: -32602, message: 'Maximum 10 product IDs allowed' };
 
-  const invalidIds = ids.filter((id) => !UUID_RE.test(id.trim()));
+  const invalidIds = ids.filter((id) => !PRODUCT_ID_RE.test(id.trim()) && !UUID_RE.test(id.trim()));
   if (invalidIds.length > 0) {
     throw { code: -32602, message: `Invalid product ID format: ${invalidIds.join(', ')}` };
   }
