@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { createHash } from 'crypto';
-import { db, redis, FREE_TIER } from '../config';
+import { db, redis, FREE_TIER, DEVELOPER_TIER } from '../config';
 import { sendError, sendRateLimitError, ErrorCode } from './errors';
 
 const PAPERCLIP_API_URL = process.env.PAPERCLIP_API_URL || 'https://api.paperclip.ai';
@@ -8,6 +8,7 @@ const PAPERCLIP_API_URL = process.env.PAPERCLIP_API_URL || 'https://api.papercli
 const TIER_LIMITS: Record<string, { rpm: number; daily: number }> = {
   unverified: { rpm: 5, daily: 50 },
   free: FREE_TIER,
+  developer: DEVELOPER_TIER,
   pro: { rpm: 300, daily: 10000 },
   enterprise: { rpm: 1000, daily: 100000 },
 };

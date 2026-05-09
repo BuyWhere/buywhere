@@ -30,3 +30,8 @@ export const FREE_TIER = {
   rpm: 60,
   daily: 1000,
 };
+
+export const DEVELOPER_TIER = {
+  rpm: 120,
+  daily: 5000,
+};
