@@ -125,33 +125,6 @@ export function createApp() {
   app.get('/webhooks/uptime-robot', (_req, res) => {
     res.json({ status: 'ok', mode: 'diagnostic' });
   });
-        ts: new Date().toISOString(),
-      });
-    }
-  });
-
-<<<<<<< HEAD
-  // Uptime Robot webhook handler — receives DOWN/UP alerts
-  app.post('/webhooks/uptime-robot', async (req, res) => {
-    const { monitorID, monitorFriendlyName, monitorURL, alertType, alertTypeFriendlyName, alertDetails, monitorStatusCode } = req.body || {};
-    if (!monitorID) {
-      return res.status(400).json({ error: { code: 'MISSING_REQUIRED_FIELD', message: 'monitorID is required' } });
-    }
-    const name = monitorFriendlyName || monitorID;
-    console.log(`[uptime-robot] ${name} [${monitorURL}] = ${alertTypeFriendlyName || alertType} — ${alertDetails || monitorStatusCode}`);
-    if (alertType === '1' || (alertTypeFriendlyName || '').toLowerCase() === 'down') {
-      console.error(`[uptime-robot] MONITOR DOWN: ${name} (${monitorURL}) — ${alertDetails || ''} (HTTP ${monitorStatusCode || '?'})`);
-    }
-    res.json({ status: 'ok' });
-  });
-
-  // Uptime Robot webhook diagnostic
-  app.get('/webhooks/uptime-robot', (_req, res) => {
-    res.json({ status: 'ok', mode: 'diagnostic' });
-  });
-
-=======
->>>>>>> hotfix-restore
   // MCP / OpenAI plugin discovery
   app.use('/.well-known', wellknownRouter);
   app.get('/openapi.json', (req, res) => wellknownRouter(req, res, () => {}));
