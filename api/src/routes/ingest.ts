@@ -106,6 +106,14 @@ function buildCategoryPathLiteral(paths?: string[]): string {
   return `{${paths.map(c => `"${c.replace(/"/g, '\\"')}"`).join(',')}}`;
 }
 
+router.get(
+  '/health',
+  requireApiKey,
+  (_req: Request, res: Response) => {
+    res.json({ status: 'ok' });
+  }
+);
+
 router.post(
   '/products',
   requireApiKey,

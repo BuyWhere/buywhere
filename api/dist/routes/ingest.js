@@ -88,6 +88,9 @@ function buildCategoryPathLiteral(paths) {
         return '{}';
     return `{${paths.map(c => `"${c.replace(/"/g, '\\"')}"`).join(',')}}`;
 }
+router.get('/health', apiKey_1.requireApiKey, (_req, res) => {
+    res.json({ status: 'ok' });
+});
 router.post('/products', apiKey_1.requireApiKey, async (req, res) => {
     const start = Date.now();
     const body = req.body;
