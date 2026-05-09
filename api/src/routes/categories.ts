@@ -25,6 +25,7 @@ router.get(
       if (cached) return res.json(JSON.parse(cached));
     } catch (_) {}
 
+    try {
     // Normalize category names (case-insensitive dedup)
     const result = await db.query(
       `SELECT INITCAP(LOWER(raw_name)) AS name, SUM(cnt) AS product_count
@@ -49,6 +50,15 @@ router.get(
     const body = { data: categories, meta: { total: categories.length, response_time_ms: Date.now() - start } };
     redis.set(cacheKey, JSON.stringify(body), 'EX', CACHE_TTL).catch(() => {});
     res.json(body);
+    } catch (err) {
+      console.error('[/v1/categories] query error:', err);
+      const e = err as { code?: unknown; message?: string };
+      if (e.code === '57014') {
+        res.status(504).json({ error: 'Query timeout — try reducing filters or increasing wait time' });
+      } else {
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    }
   }
 );
 
@@ -67,6 +77,7 @@ router.get(
     const limit = Math.min(parseInt((req.query.limit as string) || '20'), 100);
     const offset = parseInt((req.query.offset as string) || '0');
 
+    try {
     // Match slug back to a category_path[1] value (case-insensitive slug match)
     const slugResult = await db.query(
       `SELECT DISTINCT category_path[1] AS name FROM products
@@ -139,6 +150,15 @@ router.get(
       },
       meta: { limit, offset, response_time_ms: Date.now() - start },
     });
+    } catch (err) {
+      console.error('[/v1/categories/:slug] query error:', err);
+      const e = err as { code?: unknown; message?: string };
+      if (e.code === '57014') {
+        res.status(504).json({ error: 'Query timeout — try reducing filters or increasing wait time' });
+      } else {
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    }
   }
 );
 

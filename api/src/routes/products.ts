@@ -66,6 +66,7 @@ router.get(
       // Redis miss or error — fall through to DB
     }
 
+    try {
     const conditions: string[] = ['currency = $1'];
     const params: unknown[] = [currency];
     let idx = 2;
@@ -297,6 +298,15 @@ router.get(
     }
 
     res.json(responseBody);
+    } catch (err) {
+      console.error('[/v1/products/search] query error:', err);
+      const e = err as { code?: unknown; message?: string };
+      if (e.code === '57014') {
+        res.status(504).json({ error: 'Query timeout — try reducing filters or increasing wait time' });
+      } else {
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    }
   }
 );
 
@@ -327,6 +337,7 @@ router.get(
       }
     } catch (_) {}
 
+    try {
     // Deals: use metadata->'original_price' if available
     const dealConditions: string[] = ['currency = $1'];
     const dealParams: unknown[] = [currency];
@@ -377,6 +388,15 @@ router.get(
     const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false);
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
     res.json(responseBody);
+    } catch (err) {
+      console.error('[/v1/products/deals] query error:', err);
+      const e = err as { code?: unknown; message?: string };
+      if (e.code === '57014') {
+        res.status(504).json({ error: 'Query timeout — try reducing filters or increasing wait time' });
+      } else {
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    }
   }
 );
 
