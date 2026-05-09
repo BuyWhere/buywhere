@@ -5,6 +5,7 @@ Agent-native product catalog API for Southeast Asia commerce. Search 1.5M+ produ
 
 [![Glama Score](https://glama.ai/mcp/servers/BuyWhere/buywhere/badges/score.svg)](https://glama.ai/mcp/servers/BuyWhere/buywhere)
 <!-- Smithery badge: [![Smithery](https://smithery.ai/server/buywhere/badge)](https://smithery.ai/server/buywhere) -- add after listing is live -->
+[![SafeSkill 50/100](https://img.shields.io/badge/SafeSkill-50%2F100_Use%20with%20Caution-orange)](https://safeskill.dev/scan/buywhere-buywhere)
 
 ## Installation
 
