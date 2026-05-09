@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { createHash, randomBytes } from 'crypto';
-import { db, FREE_TIER, redis } from '../config';
+import { db, FREE_TIER, DEVELOPER_TIER, redis } from '../config';
 import { trackRegistration, trackEmailVerified } from '../analytics/posthog';
 import { sendVerificationEmail } from '../email';
 import { sendError } from '../middleware/errors';
@@ -88,6 +88,40 @@ router.post('/register', async (req: Request, res: Response) => {
     rate_limit: {
       rpm: FREE_TIER.rpm,
       daily: FREE_TIER.daily,
+    },
+    docs: 'https://api.buywhere.ai/docs',
+  });
+});
+
+// POST /v1/auth/register/agent
+// Agent self-registration — returns key instantly without email verification
+router.post('/register/agent', async (req: Request, res: Response) => {
+  const { agent_name, use_case } = req.body;
+
+  const rawKey = `bw_${uuidv4().replace(/-/g, '')}`;
+  const keyHash = hashKey(rawKey);
+
+  await db.query(
+    `INSERT INTO api_keys
+       (id, key_hash, name, use_case, tier, is_active,
+        developer_id, email_verified, rpm_limit, daily_limit)
+      VALUES (gen_random_uuid(),$1,$2,$3,'developer',true,'agent-registered',true,$4,$5)`,
+    [
+      keyHash,
+      agent_name ? String(agent_name).trim().slice(0, 200) : 'Agent',
+      use_case ? String(use_case).slice(0, 1000) : null,
+      DEVELOPER_TIER.rpm,
+      DEVELOPER_TIER.daily,
+    ]
+  );
+
+  res.status(201).json({
+    api_key: rawKey,
+    tier: 'developer',
+    email_verified: true,
+    rate_limit: {
+      rpm: DEVELOPER_TIER.rpm,
+      daily: DEVELOPER_TIER.daily,
     },
     docs: 'https://api.buywhere.ai/docs',
   });
