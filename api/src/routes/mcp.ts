@@ -429,8 +429,20 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const region = (args.region as string) || '';
   const category = (args.category as string) || '';
   const limit = 10;
+  const cacheKey = `best_price:${productName.toLowerCase()}:${country}:${region}:${category.toLowerCase()}:${limit}`;
 
-  const conditions: string[] = ['is_active = true'];
+  try {
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      return {
+        ...parsed,
+        meta: { ...parsed.meta, cached: true, response_time_ms: Date.now() - t0 },
+      };
+    }
+  } catch (_) {}
+
+  const conditions: string[] = ['is_active = true', 'price IS NOT NULL', 'price > 0'];
   const params: unknown[] = [];
 
   params.push(productName);
@@ -452,10 +464,16 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   params.push(limit);
   const where = `WHERE ${conditions.join(' AND ')}`;
   const result = await db.query(
-    `SELECT id, title, price, currency, source AS domain, url, image_url,
-            country_code,
-            ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
-     FROM products ${where}
+    `WITH candidates AS (
+       SELECT id, title, price, currency, source AS domain, url, image_url,
+              country_code,
+              ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
+       FROM products ${where}
+       ORDER BY rank DESC
+       LIMIT 250
+     )
+     SELECT *
+     FROM candidates
      ORDER BY price ASC, rank DESC
      LIMIT $${params.length}`,
     params
@@ -475,11 +493,14 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     country_code: r.country_code as string,
   }));
 
-  return {
+  const response = {
     best_price: data[0] ?? null,
     alternatives: data.slice(1),
-    meta: { total: data.length, country, response_time_ms: Date.now() - t0 },
+    meta: { total: data.length, country, response_time_ms: Date.now() - t0, cached: false },
   };
+
+  redis.set(cacheKey, JSON.stringify(response), 'EX', 60).catch(() => {});
+  return response;
 }
 
 async function dispatchTool(name: string, args: Record<string, unknown>) {
