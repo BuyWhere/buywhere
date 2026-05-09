@@ -197,7 +197,7 @@ router.get(
     let dataQuery: string;
     if (useFtsRanking && approxCount <= 1000) {
       dataQuery = `
-        SELECT id, sku AS source_id, source AS domain, url,
+        SELECT products.id, sku AS source_id, source AS domain, url,
                al.destination_url AS affiliate_url,
                title, price, currency, image_url, metadata, updated_at,
                region, country_code, ${specColumns}
@@ -214,13 +214,13 @@ router.get(
                title, price, currency, image_url, metadata, updated_at,
                region, country_code, ${specColumns}
         FROM (
-          SELECT id, sku AS source_id, source AS domain, url,
-                 al.destination_url AS affiliate_url,
-                 title, price, currency, image_url, metadata, updated_at,
-                 region, country_code, ${specColumns},
-                 ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
-          FROM products
-          LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+        SELECT products.id, sku AS source_id, source AS domain, url,
+               al.destination_url AS affiliate_url,
+               title, price, currency, image_url, metadata, updated_at,
+               region, country_code, ${specColumns},
+               ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+        FROM products
+        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
           ${whereClause}
           LIMIT ${CANDIDATE_LIMIT}
         ) _candidates
@@ -229,7 +229,7 @@ router.get(
       `;
     } else {
       dataQuery = `
-        SELECT id, sku AS source_id, source AS domain, url,
+        SELECT products.id, sku AS source_id, source AS domain, url,
                al.destination_url AS affiliate_url,
                title, price, currency, image_url, metadata, updated_at,
                region, country_code, ${specColumns}
