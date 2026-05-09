@@ -8,12 +8,6 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
-  links: {
-    rel: "service",
-    type: "application/openapi+json",
-    title: "BuyWhere API OpenAPI Specification",
-    href: "https://api.buywhere.ai/openapi.json",
-  },
 };
 
 const audiences = [

@@ -60,10 +60,6 @@ export default function BlogPostPage({ params }: PageProps) {
     notFound();
   }
 
-<<<<<<< HEAD
-  return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
-=======
   const jsonLd = post.jsonLd ? (
     <script
       type="application/ld+json"
@@ -74,7 +70,6 @@ export default function BlogPostPage({ params }: PageProps) {
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
       {jsonLd}
->>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
       <Nav />
 
       <main className="flex-1">

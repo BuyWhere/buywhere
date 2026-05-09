@@ -14,7 +14,7 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
 COPY --from=builder /app/.next-deploy/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next-deploy/static ./.next/static
+COPY --from=builder /app/.next-deploy/static ./.next-deploy/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/content ./content
 

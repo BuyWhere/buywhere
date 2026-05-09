@@ -1,12 +1,7 @@
 {
   "name": "@buywhere/mcp-server",
-<<<<<<< HEAD
-  "version": "0.1.4",
-  "description": "BuyWhere MCP server — stdio transport for Claude, Cursor, and other MCP clients",
-=======
   "version": "0.3.3",
   "description": "BuyWhere MCP server — search and compare products from Singapore, SEA, and US markets via Model Context Protocol. Cross-border e-commerce product catalog for AI agents.",
->>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
   "type": "module",
   "bin": {
     "buywhere-mcp-server": "./dist/index.js"
@@ -22,19 +17,13 @@
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
-<<<<<<< HEAD
-=======
   "mcpName": "ai.buywhere/buywhere-mcp",
->>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
   "keywords": [
     "buywhere",
     "mcp",
     "model-context-protocol",
     "product-search",
     "price-comparison",
-<<<<<<< HEAD
-    "shopping"
-=======
     "shopping",
     "ai-agent",
     "claude",
@@ -44,7 +33,6 @@
     "ecommerce",
     "singapore",
     "cross-border"
->>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
   ],
   "author": "BuyWhere",
   "license": "MIT",

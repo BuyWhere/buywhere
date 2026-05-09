@@ -20,10 +20,7 @@ export default function Nav() {
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600">
           <Link href="/quickstart" className="hover:text-indigo-600 transition-colors">Quickstart</Link>
-<<<<<<< HEAD
-=======
           <Link href="/challenge" className="hover:text-indigo-600 transition-colors">Challenge</Link>
->>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
           <Link href="/merchants" className="hover:text-indigo-600 transition-colors">Merchants</Link>
           <Link href="/partners" className="hover:text-indigo-600 transition-colors">Partners</Link>
           <Link href="/pricing" className="hover:text-indigo-600 transition-colors">Pricing</Link>
@@ -53,10 +50,7 @@ export default function Nav() {
       {open && (
         <div className="md:hidden border-t border-gray-100 bg-white px-4 pb-4 flex flex-col gap-3 text-sm font-medium text-gray-700">
           <Link href="/quickstart" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Quickstart</Link>
-<<<<<<< HEAD
-=======
           <Link href="/challenge" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Challenge</Link>
->>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
           <Link href="/merchants" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Merchants</Link>
           <Link href="/partners" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Partners</Link>
           <Link href="/pricing" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Pricing</Link>

@@ -13,10 +13,7 @@ export type BlogPost = {
   canonicalUrl?: string;
   coverImage?: string;
   tags: string[];
-<<<<<<< HEAD
-=======
   jsonLd?: string;
->>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
   body: string;
 };
 
@@ -29,10 +26,7 @@ type Frontmatter = {
   canonicalUrl?: string;
   coverImage?: string;
   tags?: string[];
-<<<<<<< HEAD
-=======
   jsonLd?: string;
->>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
 };
 
 function parseBlogPost(fileName: string): BlogPost | null {
@@ -74,10 +68,7 @@ function parseBlogPost(fileName: string): BlogPost | null {
     canonicalUrl: frontmatter.canonicalUrl,
     coverImage: frontmatter.coverImage,
     tags: frontmatter.tags ?? [],
-<<<<<<< HEAD
-=======
     jsonLd: frontmatter.jsonLd,
->>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
     body: content.trim(),
   };
 }

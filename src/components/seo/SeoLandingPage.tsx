@@ -70,7 +70,22 @@ function ProductGridCard({ product }: { product: LandingProduct }) {
   );
 }
 
+const DEFAULT_SHOPPER_CTA = {
+  title: "Start comparing prices",
+  body: "Search millions of products across Southeast Asia and the US — find the best price in seconds.",
+  label: "Search products",
+  href: "/",
+};
+const DEFAULT_DEVELOPER_CTA = {
+  title: "Add BuyWhere to your agent",
+  body: "Integrate real-time product search into your AI agent with one API call.",
+  label: "View docs",
+  href: "/developers",
+};
+
 export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig }) {
+  const shopperCta = shopperCta || DEFAULT_SHOPPER_CTA;
+  const developerCta = developerCta || DEFAULT_DEVELOPER_CTA;
   const products = await getSeoLandingProducts(config);
   const schema = buildSeoLandingSchema(config, products);
 
@@ -104,20 +119,20 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
 
             <div className="rounded-[32px] border border-white/10 bg-slate-950/35 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">Quick next step</p>
-              <h2 className="mt-3 text-2xl font-semibold">{config.shopperCta.title}</h2>
-              <p className="mt-3 text-sm leading-6 text-slate-200">{config.shopperCta.body}</p>
+              <h2 className="mt-3 text-2xl font-semibold">{shopperCta.title}</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-200">{shopperCta.body}</p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
-                  href={config.shopperCta.href}
+                  href={shopperCta.href}
                   className="inline-flex min-h-[44px] items-center rounded-full bg-amber-400 px-5 py-3 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-300"
                 >
-                  {config.shopperCta.label}
+                  {shopperCta.label}
                 </Link>
                 <Link
-                  href={config.developerCta.href}
+                  href={developerCta.href}
                   className="inline-flex min-h-[44px] items-center rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
                 >
-                  {config.developerCta.label}
+                  {developerCta.label}
                 </Link>
               </div>
             </div>
@@ -131,7 +146,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">Live catalog snapshot</p>
                 <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
               </div>
-              <Link href={config.shopperCta.href} className="text-sm font-semibold text-amber-700 hover:text-amber-800">
+              <Link href={shopperCta.href} className="text-sm font-semibold text-amber-700 hover:text-amber-800">
                 Open full search
               </Link>
             </div>
@@ -213,13 +228,13 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
 
               <div className="mt-6 rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Developer angle</p>
-                <h3 className="mt-3 text-2xl font-semibold text-slate-900">{config.developerCta.title}</h3>
-                <p className="mt-3 text-sm leading-6 text-slate-600">{config.developerCta.body}</p>
+                <h3 className="mt-3 text-2xl font-semibold text-slate-900">{developerCta.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-slate-600">{developerCta.body}</p>
                 <Link
-                  href={config.developerCta.href}
+                  href={developerCta.href}
                   className="mt-6 inline-flex min-h-[44px] items-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
                 >
-                  {config.developerCta.label}
+                  {developerCta.label}
                 </Link>
               </div>
             </div>
