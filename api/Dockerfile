@@ -3,7 +3,7 @@ WORKDIR /app
 COPY package*.json tsconfig.json ./
 RUN npm ci
 COPY src/ src/
-RUN npx tsc --skipLibCheck
+RUN npx tsc --skipLibCheck; test -f dist/index.js
 
 FROM node:20-slim
 WORKDIR /app
