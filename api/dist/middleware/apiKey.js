@@ -12,6 +12,7 @@ const PAPERCLIP_API_URL = process.env.PAPERCLIP_API_URL || 'https://api.papercli
 const TIER_LIMITS = {
     unverified: { rpm: 5, daily: 50 },
     free: config_1.FREE_TIER,
+    developer: config_1.DEVELOPER_TIER,
     pro: { rpm: 300, daily: 10000 },
     enterprise: { rpm: 1000, daily: 100000 },
 };

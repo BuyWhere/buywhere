@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ABUSE_LIMITS = exports.RATE_LIMIT_CONFIG = exports.FREE_TIER = exports.API_BASE_URL = exports.PORT = exports.redis = exports.db = void 0;
+exports.ABUSE_LIMITS = exports.RATE_LIMIT_CONFIG = exports.DEVELOPER_TIER = exports.FREE_TIER = exports.API_BASE_URL = exports.PORT = exports.redis = exports.db = void 0;
 const pg_1 = require("pg");
 const ioredis_1 = __importDefault(require("ioredis"));
 exports.db = new pg_1.Pool({
@@ -31,6 +31,10 @@ exports.API_BASE_URL = process.env.API_BASE_URL || 'https://api.buywhere.ai';
 exports.FREE_TIER = {
     rpm: 60,
     daily: 1000,
+};
+exports.DEVELOPER_TIER = {
+    rpm: 120,
+    daily: 5000,
 };
 /** Rate-limit & abuse-detection thresholds — tuneable via env without redeploy */
 exports.RATE_LIMIT_CONFIG = {

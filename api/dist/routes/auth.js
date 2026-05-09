@@ -10,6 +10,7 @@ const errors_1 = require("../middleware/errors");
 const errors_2 = require("../middleware/errors");
 const router = (0, express_1.Router)();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const UNVERIFIED_TIER = { rpm: 5, daily: 50 };
 function hashKey(rawKey) {
     return (0, crypto_1.createHash)('sha256').update(rawKey).digest('hex');
 }
@@ -17,7 +18,8 @@ function generateVerificationToken() {
     return (0, crypto_1.randomBytes)(32).toString('hex');
 }
 // POST /v1/auth/register
-// Headless agent self-registration — requires email for verification
+// Self-registration — email optional. With email: unverified tier + verification flow.
+// Without email: free tier, instant activation.
 router.post('/register', async (req, res) => {
     const { agent_name, email, contact, use_case } = req.body;
     if (!agent_name || typeof agent_name !== 'string') {
@@ -25,8 +27,10 @@ router.post('/register', async (req, res) => {
         return;
     }
     const emailAddr = (email || contact || '');
-    if (!emailAddr || !EMAIL_RE.test(emailAddr)) {
-        (0, errors_1.sendError)(res, errors_2.ErrorCode.INVALID_PARAMETER, 'A valid email address is required.');
+    const hasEmail = emailAddr && EMAIL_RE.test(emailAddr);
+    // If email was provided but invalid, reject
+    if (emailAddr && !hasEmail) {
+        (0, errors_1.sendError)(res, errors_2.ErrorCode.INVALID_PARAMETER, 'Email address is invalid. Omit it entirely for instant key, or provide a valid one.');
         return;
     }
     // Generate API key (raw key returned once, only hash stored)
@@ -36,40 +40,93 @@ router.post('/register', async (req, res) => {
     const utmSource = (req.query.utm_source || req.body.utm_source);
     const utmMedium = (req.query.utm_medium || req.body.utm_medium);
     const signupChannel = resolveSignupChannel(req.headers['referer'], utmSource, utmMedium);
-    const verificationToken = generateVerificationToken();
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    if (hasEmail) {
+        // Email flow: unverified tier, pending email verification
+        const verificationToken = generateVerificationToken();
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        await config_1.db.query(`INSERT INTO api_keys
+         (id, key_hash, name, email, contact, use_case, tier, is_active,
+          signup_channel, attribution_source, developer_id,
+          email_verification_token, email_verification_expires_at)
+        VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,'unverified',true,$6,$7,'self-registered',$8,$9)`, [
+            keyHash,
+            agent_name.trim().slice(0, 200),
+            emailAddr.slice(0, 500),
+            emailAddr.slice(0, 500),
+            use_case ? String(use_case).slice(0, 1000) : null,
+            signupChannel,
+            utmSource || null,
+            verificationToken,
+            expiresAt,
+        ]);
+        (0, posthog_1.trackRegistration)(hashKey(rawKey), agent_name, signupChannel, utmSource || null);
+        (0, email_1.sendVerificationEmail)(emailAddr, verificationToken)
+            .then((sent) => {
+            if (sent) {
+                config_1.db.query(`UPDATE api_keys SET email_verification_sent_at = NOW() WHERE key_hash = $1`, [keyHash]).catch(() => { });
+            }
+        })
+            .catch(() => { });
+        res.status(201).json({
+            api_key: rawKey,
+            tier: 'unverified',
+            email_verified: false,
+            rate_limit: {
+                rpm: UNVERIFIED_TIER.rpm,
+                daily: UNVERIFIED_TIER.daily,
+            },
+            message: 'Verify your email to unlock higher rate limits.',
+            docs: 'https://api.buywhere.ai/docs',
+        });
+    }
+    else {
+        // No email: instant free-tier activation
+        await config_1.db.query(`INSERT INTO api_keys
+         (id, key_hash, name, use_case, tier, is_active,
+          signup_channel, attribution_source, developer_id)
+        VALUES (gen_random_uuid(),$1,$2,$3,'free',true,$4,$5,'self-registered')`, [
+            keyHash,
+            agent_name.trim().slice(0, 200),
+            use_case ? String(use_case).slice(0, 1000) : null,
+            signupChannel,
+            utmSource || null,
+        ]);
+        (0, posthog_1.trackRegistration)(hashKey(rawKey), agent_name, signupChannel, utmSource || null);
+        res.status(201).json({
+            api_key: rawKey,
+            tier: 'free',
+            email_verified: false,
+            rate_limit: {
+                rpm: config_1.FREE_TIER.rpm,
+                daily: config_1.FREE_TIER.daily,
+            },
+            docs: 'https://api.buywhere.ai/docs',
+        });
+    }
+});
+// POST /v1/auth/register/agent
+// Agent self-registration — returns key instantly without email verification
+router.post('/register/agent', async (req, res) => {
+    const { agent_name, use_case } = req.body;
+    const rawKey = `bw_${(0, uuid_1.v4)().replace(/-/g, '')}`;
+    const keyHash = hashKey(rawKey);
     await config_1.db.query(`INSERT INTO api_keys
-       (id, key_hash, name, email, contact, use_case, tier, is_active,
-        signup_channel, attribution_source, developer_id,
-        email_verification_token, email_verification_expires_at)
-      VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,'unverified',true,$6,$7,'self-registered',$8,$9)`, [
+       (id, key_hash, name, use_case, tier, is_active,
+        developer_id, email_verified, rpm_limit, daily_limit)
+      VALUES (gen_random_uuid(),$1,$2,$3,'developer',true,'agent-registered',true,$4,$5)`, [
         keyHash,
-        agent_name.trim().slice(0, 200),
-        emailAddr.slice(0, 500),
-        emailAddr.slice(0, 500), // also set contact for backward compat
+        agent_name ? String(agent_name).trim().slice(0, 200) : 'Agent',
         use_case ? String(use_case).slice(0, 1000) : null,
-        signupChannel,
-        utmSource || null,
-        verificationToken,
-        expiresAt,
+        config_1.DEVELOPER_TIER.rpm,
+        config_1.DEVELOPER_TIER.daily,
     ]);
-    // Fire PostHog registration event (async, non-blocking)
-    (0, posthog_1.trackRegistration)(hashKey(rawKey), agent_name, signupChannel, utmSource || null);
-    // Send verification email (async, non-blocking)
-    (0, email_1.sendVerificationEmail)(emailAddr, verificationToken)
-        .then((sent) => {
-        if (sent) {
-            config_1.db.query(`UPDATE api_keys SET email_verification_sent_at = NOW() WHERE key_hash = $1`, [keyHash]).catch(() => { });
-        }
-    })
-        .catch(() => { });
     res.status(201).json({
         api_key: rawKey,
-        tier: 'unverified',
-        email_verified: false,
+        tier: 'developer',
+        email_verified: true,
         rate_limit: {
-            rpm: config_1.FREE_TIER.rpm,
-            daily: config_1.FREE_TIER.daily,
+            rpm: config_1.DEVELOPER_TIER.rpm,
+            daily: config_1.DEVELOPER_TIER.daily,
         },
         docs: 'https://api.buywhere.ai/docs',
     });
