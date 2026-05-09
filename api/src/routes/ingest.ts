@@ -106,6 +106,83 @@ function buildCategoryPathLiteral(paths?: string[]): string {
   return `{${paths.map(c => `"${c.replace(/"/g, '\\"')}"`).join(',')}}`;
 }
 
+const HEALTH_TTL_HOURS = 24;
+
+router.get('/health', async (_req: Request, res: Response) => {
+  const staleThreshold = Date.now() - (HEALTH_TTL_HOURS * 60 * 60 * 1000);
+
+  try {
+    const runResults = await db.query(
+      `SELECT source, status, finished_at, rows_inserted, rows_updated, rows_failed, error_message
+       FROM ingestion_runs
+       WHERE finished_at IS NOT NULL
+       ORDER BY finished_at DESC`
+    );
+
+    const latestBySource = new Map<string, typeof runResults.rows[0]>();
+    for (const row of runResults.rows) {
+      if (!latestBySource.has(row.source)) {
+        latestBySource.set(row.source, row);
+      }
+    }
+
+    const sources: Array<{
+      source: string;
+      status: string;
+      last_run: string | null;
+      rows_inserted: number;
+      rows_updated: number;
+      rows_failed: number;
+      error_message: string | null;
+      is_stale: boolean;
+    }> = [];
+
+    let healthyCount = 0;
+    let degradedCount = 0;
+
+    for (const [source, row] of latestBySource) {
+      const finishedAt = row.finished_at ? new Date(row.finished_at).getTime() : 0;
+      const isStale = finishedAt < staleThreshold;
+      const hasError = row.status === 'failed' || !!row.error_message;
+      const status = isStale ? 'stale' : hasError ? 'degraded' : 'ok';
+
+      if (status === 'ok') healthyCount++;
+      else degradedCount++;
+
+      sources.push({
+        source,
+        status,
+        last_run: row.finished_at,
+        rows_inserted: row.rows_inserted || 0,
+        rows_updated: row.rows_updated || 0,
+        rows_failed: row.rows_failed || 0,
+        error_message: row.error_message || null,
+        is_stale: isStale,
+      });
+    }
+
+    const overallStatus = degradedCount > 0 || healthyCount === 0 ? 'degraded' : 'ok';
+
+    res.json({
+      status: overallStatus,
+      summary: {
+        total_sources: sources.length,
+        healthy: healthyCount,
+        degraded: degradedCount,
+      },
+      sources,
+    });
+  } catch (err) {
+    console.error('[/v1/ingest/health] error:', err);
+    res.status(503).json({
+      status: 'unhealthy',
+      summary: { total_sources: 0, healthy: 0, degraded: 0 },
+      sources: [],
+      error: 'Database unavailable',
+    });
+  }
+});
+
 router.post(
   '/products',
   requireApiKey,
