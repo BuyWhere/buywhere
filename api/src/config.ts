@@ -31,6 +31,11 @@ export const FREE_TIER = {
   daily: 1000,
 };
 
+export const DEVELOPER_TIER = {
+  rpm: 120,
+  daily: 5000,
+};
+
 /** Rate-limit & abuse-detection thresholds — tuneable via env without redeploy */
 export const RATE_LIMIT_CONFIG = {
   /** Per-IP rate limit for unauthenticated requests (req/min) */
