@@ -18,6 +18,7 @@ exports.redis = new ioredis_1.default({
     port: parseInt(process.env.REDIS_PORT || '6380'),
     maxRetriesPerRequest: 3,
     commandTimeout: 1000,
+    connectTimeout: 2000,
     retryStrategy: (times) => Math.min(times * 200, 2000),
 });
 // Suppress unhandled-error crashes from Redis reconnect attempts
