@@ -173,6 +173,7 @@ class ZaloraSitemapScraper:
         use_scraperapi: bool = False,
         scraperapi_key: str = "",
         resume_from: Optional[list[str]] = None,
+        brightdata_proxy: str = "",
     ):
         self.rate_limit = rate_limit
         self.max_retries = max_retries
@@ -181,6 +182,8 @@ class ZaloraSitemapScraper:
         self.max_concurrency = max_concurrency
         self.use_scraperapi = use_scraperapi
         self.scraperapi_key = scraperapi_key or os.environ.get("SCRAPERAPI_KEY", "")
+        self.brightdata_proxy = brightdata_proxy or os.environ.get("BRIGHTDATA_PROXY", "")
+        self._next_build_id: Optional[str] = None
 
         self.output_dir = Path(output_dir) if output_dir else DATA_DIR
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -290,6 +293,10 @@ class ZaloraSitemapScraper:
             return direct_result
 
         _content, status, _mode = direct_result
+        if status in (403, 429) and self.brightdata_proxy:
+            proxy_result = await self._fetch_via_brightdata(url)
+            if proxy_result[0] is not None:
+                return proxy_result
         if status == 403 and self.use_scraperapi and self.scraperapi_key:
             proxy_result = await self._fetch_via_scraperapi(url)
             if proxy_result[0] is not None:
@@ -340,6 +347,65 @@ class ZaloraSitemapScraper:
                     await asyncio.sleep(2 ** attempt)
         return None, 0, "scraperapi"
 
+    async def _fetch_via_brightdata(self, url: str) -> tuple[Optional[str], int, str]:
+        assert self._session is not None
+        for attempt in range(self.max_retries):
+            try:
+                connector = aiohttp.TCPConnector()
+                proxy_session = aiohttp.ClientSession(
+                    connector=connector,
+                    timeout=aiohttp.ClientTimeout(total=max(self.timeout, 60)),
+                    headers=DEFAULT_HEADERS,
+                )
+                async with proxy_session:
+                    async with proxy_session.get(url, proxy=self.brightdata_proxy) as response:
+                        text = await response.text()
+                        if response.status == 200:
+                            return text, response.status, "brightdata"
+                        if response.status == 429 and attempt < self.max_retries - 1:
+                            await asyncio.sleep((2 ** attempt) * 5)
+                            continue
+                        return None, response.status, "brightdata"
+            except Exception as exc:
+                logger.warning("Brightdata fetch error for %s: %s", url, exc)
+                if attempt < self.max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)
+        return None, 0, "brightdata"
+
+    async def _fetch_via_next_data_api(self, slug: str) -> Optional[dict[str, Any]]:
+        """Try Zalora's Next.js data API /_next/data/{buildId}/p/{slug}.json.
+
+        This works for CSR product pages where the HTML shell has no preloaded state
+        but the server-side JSON endpoint still returns full product data.
+        """
+        if not self._next_build_id:
+            return None
+        api_url = f"{BASE_URL}/_next/data/{self._next_build_id}/p/{slug}.json"
+        await self._ensure_session()
+        assert self._session is not None
+        for attempt in range(self.max_retries):
+            try:
+                async with self._session.get(
+                    api_url,
+                    headers={**DEFAULT_HEADERS, "Accept": "application/json"},
+                ) as response:
+                    if response.status == 200:
+                        try:
+                            return await response.json(content_type=None)
+                        except Exception:
+                            return None
+                    if response.status == 404:
+                        return None
+                    if response.status == 429 and attempt < self.max_retries - 1:
+                        await asyncio.sleep((2 ** attempt) * 5)
+                        continue
+                    return None
+            except Exception as exc:
+                logger.warning("Next.js data API error for slug %s: %s", slug, exc)
+                if attempt < self.max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)
+        return None
+
     async def fetch_sitemap_entries(self) -> list[SitemapEntry]:
         entries: list[SitemapEntry] = []
         seen_ids: set[str] = set()
@@ -388,7 +454,20 @@ class ZaloraSitemapScraper:
 
         return entries
 
+    @staticmethod
+    def _is_404_page(html: str) -> bool:
+        """Detect when Zalora serves a 404/not-found page with a 200 status."""
+        return bool(
+            re.search(r'"statusCode"\s*:\s*404', html)
+            or re.search(r'"/404"', html)
+            or "Page Not Found" in html
+            or '"page":"/404"' in html
+        )
+
     def _parse_product_page(self, html: str, entry: SitemapEntry) -> Optional[dict[str, Any]]:
+        if self._is_404_page(html):
+            return None
+
         match = re.search(
             r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>',
             html,
@@ -401,6 +480,12 @@ class ZaloraSitemapScraper:
             data = json.loads(match.group(1))
         except json.JSONDecodeError:
             return None
+
+        # Capture buildId for the Next.js data API fallback path.
+        build_id = data.get("buildId")
+        if build_id and not self._next_build_id:
+            self._next_build_id = build_id
+            logger.info("Captured Next.js buildId: %s", build_id)
 
         product_raw = (
             data.get("props", {})
@@ -520,13 +605,35 @@ class ZaloraSitemapScraper:
 
                 product = self._parse_product_page(html, entry)
                 if product is None:
-                    self.shard_stats[entry.shard]["parse_failed"] += 1
-                    self.status_counts["parse_failed"] += 1
-                    self._record_failure_sample(entry, "parse_failed", f"{PRODUCT_BASE}{entry.slug}")
-                    self.total_failed += 1
-                    continue
+                    # HTML parse failed — try the Next.js data API (works for CSR pages).
+                    next_data = await self._fetch_via_next_data_api(entry.slug)
+                    if next_data is not None:
+                        product_raw = (
+                            next_data.get("pageProps", {})
+                            .get("preloadedState", {})
+                            .get("pdv", {})
+                            .get("product", {})
+                        )
+                        if product_raw:
+                            # Re-use the same parse path by injecting into a minimal data blob.
+                            fake_html_data = {
+                                "props": {"pageProps": {"preloadedState": {"pdv": {"product": product_raw}}}},
+                                "buildId": self._next_build_id,
+                            }
+                            product = self._parse_product_page(
+                                f'<script id="__NEXT_DATA__">{json.dumps(fake_html_data)}</script>',
+                                entry,
+                            )
+                            if product is not None:
+                                self.shard_stats[entry.shard]["next_api_recovered"] += 1
+                    if product is None:
+                        self.shard_stats[entry.shard]["parse_failed"] += 1
+                        self.status_counts["parse_failed"] += 1
+                        self._record_failure_sample(entry, "parse_failed", f"{PRODUCT_BASE}{entry.slug}")
+                        self.total_failed += 1
+                        continue
 
-                product_id = product["product_id"].removeprefix("zalora_sg_")
+                product_id = product["sku"].removeprefix("zalora_sg_")
                 if product_id in self.written_product_ids:
                     self.shard_stats[entry.shard]["duplicate_after_resume"] += 1
                     continue
@@ -629,6 +736,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-concurrency", type=int, default=5)
     parser.add_argument("--use-scraperapi", action="store_true")
     parser.add_argument("--scraperapi-key", default="")
+    parser.add_argument("--brightdata-proxy", default="", help="Brightdata proxy URL, e.g. http://user:pass@proxy.brightdata.com:22225")
     parser.add_argument(
         "--resume-from",
         action="append",
@@ -650,6 +758,7 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
         max_concurrency=args.max_concurrency,
         use_scraperapi=args.use_scraperapi or bool(os.environ.get("SCRAPERAPI_KEY")),
         scraperapi_key=args.scraperapi_key,
+        brightdata_proxy=args.brightdata_proxy,
         resume_from=args.resume_from,
     )
     return await scraper.run()
