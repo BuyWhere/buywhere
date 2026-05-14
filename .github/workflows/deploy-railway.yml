@@ -1,0 +1,56 @@
+name: Deploy API to Railway
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Railway environment to deploy to'
+        required: false
+        default: 'production'
+  push:
+    branches: [main]
+    paths:
+      - 'api/**'
+      - '.railway-trigger'
+
+jobs:
+  deploy:
+    name: Deploy to Railway
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy buywhere-api to Railway
+        working-directory: api
+        run: |
+          railway up \
+            --service 945e8a6d-6f89-41f1-8256-b8cc6a872a33 \
+            --environment ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae \
+            --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Smoke test Railway endpoint
+        run: |
+          echo "Waiting 120s for deploy to complete..."
+          sleep 120
+          echo "=== Smoke testing api.buywhere.ai ==="
+          for ENDPOINT in /health "/v1/ingest/health"; do
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" "https://api.buywhere.ai${ENDPOINT}")
+            echo "GET $ENDPOINT → HTTP $HTTP"
+            if [[ "$ENDPOINT" == "/health" && "$HTTP" != "200" ]]; then
+              echo "ERROR: /health should return 200" && exit 1
+            fi
+            if [[ "$ENDPOINT" == "/v1/ingest/health" && "$HTTP" == "404" ]]; then
+              echo "ERROR: /v1/ingest/health returned 404 — route not deployed" && exit 1
+            fi
+          done
+          echo "Smoke tests passed"
