@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CategoryBrowseClient, CategoryPageConfig } from "@/components/category";
 import { US_CATEGORY_META } from "@/lib/taxonomy";
+import { toSiteUrl } from "@/lib/site-url";
 
 function generateMockProducts(category: string) {
   const brands = ["Apple", "Samsung", "Sony", "LG", "Dell", "HP", "Nike", "Adidas", "ZARA", "H&M"];
@@ -145,7 +146,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     title: `${meta.name} — Compare Prices | BuyWhere US`,
     description: meta.description,
     alternates: {
-      canonical: `https://buywhere.ai/us/category/${meta.slug}/`,
+      canonical: toSiteUrl(`/us/category/${meta.slug}/`),
     },
     openGraph: {
       title: `${meta.name} — BuyWhere US`,

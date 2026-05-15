@@ -1,6 +1,16 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
+import type { Metadata } from "next";
+import { toSiteUrl } from "@/lib/site-url";
+
+export const metadata: Metadata = {
+  title: "About BuyWhere — AI-Powered Product Catalog",
+  description: "Learn about BuyWhere's mission to build the neutral product catalog layer for AI agents in Southeast Asia.",
+  alternates: {
+    canonical: toSiteUrl("/about/"),
+  },
+};
 
 const values = [
   {

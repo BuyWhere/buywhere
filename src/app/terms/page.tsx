@@ -1,9 +1,14 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import type { Metadata } from "next";
+import { toSiteUrl } from "@/lib/site-url";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Terms of Service — BuyWhere",
   description: "BuyWhere Terms of Service",
+  alternates: {
+    canonical: toSiteUrl("/terms/"),
+  },
 };
 
 export default function TermsPage() {

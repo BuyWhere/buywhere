@@ -1,5 +1,15 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import type { Metadata } from "next";
+import { toSiteUrl } from "@/lib/site-url";
+
+export const metadata: Metadata = {
+  title: "Contact — BuyWhere",
+  description: "Get in touch with BuyWhere. Request API access, ask questions, or discuss your use case.",
+  alternates: {
+    canonical: toSiteUrl("/contact/"),
+  },
+};
 
 export default function ContactPage() {
   return (

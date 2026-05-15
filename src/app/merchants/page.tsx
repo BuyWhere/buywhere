@@ -2,11 +2,15 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "Merchants — Get Discovered by AI Agents | BuyWhere",
   description:
     "List your catalog on BuyWhere and become discoverable to the next wave of AI-powered shopping experiences in Singapore.",
+  alternates: {
+    canonical: toSiteUrl("/merchants/"),
+  },
 };
 
 const benefits = [

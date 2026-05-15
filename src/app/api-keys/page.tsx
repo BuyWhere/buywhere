@@ -2,8 +2,19 @@
 
 import { useState } from "react";
 import Script from "next/script";
+import type { Metadata } from "next";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import { toSiteUrl } from "@/lib/site-url";
+
+export const metadata: Metadata = {
+  title: "Get API Key | BuyWhere",
+  description:
+    "Get a BuyWhere API key for live product discovery, comparison, and merchant handoff across the US and Southeast Asia.",
+  alternates: {
+    canonical: toSiteUrl("/api-keys/"),
+  },
+};
 
 const USE_CASES = [
   "AI shopping assistant",

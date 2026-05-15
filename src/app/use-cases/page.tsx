@@ -1,6 +1,16 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
+import type { Metadata } from "next";
+import { toSiteUrl } from "@/lib/site-url";
+
+export const metadata: Metadata = {
+  title: "Use Cases — BuyWhere",
+  description: "Explore use cases for BuyWhere's product catalog API: shopping assistants, price comparison agents, and more.",
+  alternates: {
+    canonical: toSiteUrl("/use-cases/"),
+  },
+};
 
 const useCases = [
   {

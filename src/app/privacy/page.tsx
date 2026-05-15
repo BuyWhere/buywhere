@@ -1,9 +1,14 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import type { Metadata } from "next";
+import { toSiteUrl } from "@/lib/site-url";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Privacy Policy — BuyWhere",
   description: "BuyWhere Privacy Policy",
+  alternates: {
+    canonical: toSiteUrl("/privacy/"),
+  },
 };
 
 export default function PrivacyPage() {

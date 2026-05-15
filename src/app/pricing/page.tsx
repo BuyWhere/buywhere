@@ -2,11 +2,15 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "Pricing — BuyWhere Product Catalog API",
   description:
     "BuyWhere is in developer beta. Get free API access to Singapore's structured product catalog for AI agents.",
+  alternates: {
+    canonical: toSiteUrl("/pricing/"),
+  },
 };
 
 const betaFeatures = [

@@ -1,10 +1,14 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import type { Metadata } from "next";
+import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "FAQ — BuyWhere",
   description: "Top 10 questions about BuyWhere — how it works, what's covered, how accurate prices are, and more.",
+  alternates: {
+    canonical: toSiteUrl("/faq/"),
+  },
 };
 
 const faqs = [
