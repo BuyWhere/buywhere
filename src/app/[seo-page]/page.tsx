@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { SeoLandingPage } from "@/components/seo/SeoLandingPage";
 import { buildSeoLandingMetadata, seoLandingPages } from "@/lib/seo-landing-pages";
 
+export const dynamicParams = false;
+
 interface PageProps {
   params: Promise<{ "seo-page": string }>;
 }
