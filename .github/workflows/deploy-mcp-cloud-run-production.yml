@@ -106,6 +106,7 @@ jobs:
             --set-env-vars "BUYWHERE_MCP_HTTP_PORT=8080" \
             --set-env-vars "BUYWHERE_REDIS_URL=${{ secrets.REDIS_PRODUCTION_URL }}" \
             --set-env-vars "DATABASE_URL=${{ secrets.CLOUD_SQL_PRODUCTION_CONNECTION_STRING }}" \
+            --set-env-vars "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY_PRODUCTION }}" \
             --add-cloudsql-instances ${{ env.CLOUD_SQL_INSTANCE }} \
             --set-env-vars "APP_BASE_URL=https://api.buywhere.ai" \
             --set-env-vars "LOG_LEVEL=INFO" \
