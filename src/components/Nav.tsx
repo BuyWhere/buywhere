@@ -25,16 +25,21 @@ export default function Nav() {
           <Link href="/partners" className="hover:text-indigo-600 transition-colors">Partners</Link>
           <Link href="/pricing" className="hover:text-indigo-600 transition-colors">Pricing</Link>
           <Link href="/about" className="hover:text-indigo-600 transition-colors">About</Link>
-          <Link href="/api-keys" className="ml-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
-            Get API Key
-          </Link>
+          <div className="flex items-center gap-3 ml-4 pl-4 border-l border-gray-200">
+            <Link href="/login" className="hover:text-indigo-600 transition-colors">Log In</Link>
+            <Link href="/register" className="rounded-lg bg-indigo-600 px-4 py-2 text-white transition-colors hover:bg-indigo-700">
+              Sign Up
+            </Link>
+          </div>
         </nav>
 
         {/* Mobile hamburger */}
         <button
           className="md:hidden p-2 rounded-lg hover:bg-gray-100"
           onClick={() => setOpen(!open)}
-          aria-label="Toggle menu"
+          aria-label={open ? "Close menu" : "Open menu"}
+          aria-expanded={open}
+          aria-controls="mobile-nav"
         >
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             {open ? (
@@ -48,15 +53,24 @@ export default function Nav() {
 
       {/* Mobile menu */}
       {open && (
-        <div className="md:hidden border-t border-gray-100 bg-white px-4 pb-4 flex flex-col gap-3 text-sm font-medium text-gray-700">
+        <nav
+          id="mobile-nav"
+          className="md:hidden border-t border-gray-100 bg-white px-4 pb-4 flex flex-col gap-3 text-sm font-medium text-gray-700"
+          aria-label="Mobile navigation"
+        >
           <Link href="/quickstart" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Quickstart</Link>
           <Link href="/challenge" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Challenge</Link>
           <Link href="/merchants" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Merchants</Link>
           <Link href="/partners" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Partners</Link>
           <Link href="/pricing" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Pricing</Link>
           <Link href="/about" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">About</Link>
-          <Link href="/api-keys" onClick={() => setOpen(false)} className="py-2 text-indigo-600 font-semibold">Get API Key</Link>
-        </div>
+          <div className="pt-3 mt-3 border-t border-gray-100 flex flex-col gap-3">
+            <Link href="/login" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Log In</Link>
+            <Link href="/register" onClick={() => setOpen(false)} className="rounded-lg bg-indigo-600 px-4 py-2 text-center text-white font-semibold">
+              Sign Up
+            </Link>
+          </div>
+        </nav>
       )}
     </header>
   );

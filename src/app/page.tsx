@@ -131,6 +131,7 @@ const webApplicationSchema = {
     "https://api.buywhere.ai/docs",
     "https://smithery.ai/servers/buywhere",
     "https://glama.ai/mcp/servers/BuyWhere/buywhere-mcp",
+    "https://t.me/buywhere_bot",
   ],
   offers: {
     "@type": "Offer",
@@ -171,7 +172,7 @@ const jsonLd = {
       name: "BuyWhere",
       url: "https://buywhere.ai",
       logo: "https://buywhere.ai/logo.png",
-      sameAs: ["https://github.com/BuyWhere"],
+      sameAs: ["https://github.com/BuyWhere", "https://t.me/buywhere_bot"],
       description:
         "BuyWhere is the MCP server and product catalog API that gives AI agents real-time product search, price comparison, and merchant handoff across Southeast Asia and the US.",
     },
@@ -315,9 +316,6 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* Trust strip */}
-      <TrustLayer />
 
       {/* Code demo */}
       <section className="bg-gray-900 py-16">
