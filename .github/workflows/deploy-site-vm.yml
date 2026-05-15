@@ -27,14 +27,11 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: Set up SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.PRODUCTION_DEPLOY_SSH_KEY }}
-
-      - name: Trust production host
+      - name: Set up SSH
         run: |
           mkdir -p ~/.ssh
+          echo "${{ secrets.PRODUCTION_DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -p "${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}" -H "${{ secrets.PRODUCTION_DEPLOY_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Diagnose VM state
@@ -43,7 +40,7 @@ jobs:
           DEPLOY_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
           DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
         run: |
-          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" bash -s << 'ENDSSH'
+          ssh -i ~/.ssh/id_ed25519 -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" bash -s << 'ENDSSH'
             echo "=== Port 3006 (ss with -p shows pid if owned by current user) ==="
             ss -tlnp 2>/dev/null | grep :3006 || echo "nothing on 3006"
             echo ""
@@ -72,7 +69,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
           BRANCH: ${{ inputs.branch || 'main' }}
         run: |
-          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "BRANCH=$BRANCH bash -s" << 'ENDSSH'
+          ssh -i ~/.ssh/id_ed25519 -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "BRANCH=$BRANCH bash -s" << 'ENDSSH'
             set -euo pipefail
             echo "=== BuyWhere Next.js site VM deploy starting ==="
 
