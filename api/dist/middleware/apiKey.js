@@ -3,17 +3,18 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.hashKey = hashKey;
 exports.requireApiKey = requireApiKey;
 exports.checkRateLimit = checkRateLimit;
-exports.checkIpRateLimit = checkIpRateLimit;
 const crypto_1 = require("crypto");
+const http_1 = require("http");
+const https_1 = require("https");
 const config_1 = require("../config");
 const errors_1 = require("./errors");
-const abuseDetection_1 = require("./abuseDetection");
 const PAPERCLIP_API_URL = process.env.PAPERCLIP_API_URL || 'https://api.paperclip.ai';
 const TIER_LIMITS = {
     unverified: { rpm: 5, daily: 50 },
     free: config_1.FREE_TIER,
     pro: { rpm: 300, daily: 10000 },
     enterprise: { rpm: 1000, daily: 100000 },
+    internal: { rpm: 10000, daily: 999999 },
 };
 function hashKey(rawKey) {
     return (0, crypto_1.createHash)('sha256').update(rawKey).digest('hex');
@@ -26,21 +27,68 @@ function isPaperclipJwtPayload(payload) {
     return payload.iss === 'paperclip' && payload.aud === 'paperclip-api';
 }
 async function verifyPaperclipTokenWithApi(token) {
-    try {
-        const resp = await fetch(`${PAPERCLIP_API_URL}/api/agents/me`, {
-            headers: { Authorization: `Bearer ${token}` },
-            signal: AbortSignal.timeout(10000),
+    const url = new URL(`${PAPERCLIP_API_URL}/api/agents/me`);
+    const isHttps = url.protocol === 'https:';
+    const requestFn = isHttps ? https_1.request : http_1.request;
+    return new Promise((resolve) => {
+        const connectTimeout = 5000;
+        const headersTimeout = 10000;
+        let settled = false;
+        const req = requestFn({
+            hostname: url.hostname,
+            port: url.port || (isHttps ? 443 : 80),
+            path: url.pathname + url.search,
+            method: 'GET',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: 'application/json',
+            },
+        }, (res) => {
+            let body = '';
+            res.on('data', (chunk) => {
+                body += chunk.toString();
+            });
+            res.on('end', () => {
+                if (settled)
+                    return;
+                settled = true;
+                if (res.statusCode === 200) {
+                    try {
+                        const data = JSON.parse(body);
+                        if (data.id) {
+                            resolve(data);
+                            return;
+                        }
+                    }
+                    catch { }
+                }
+                resolve(null);
+            });
         });
-        if (resp.status === 200) {
-            const data = await resp.json();
-            if (data.id)
-                return data;
-        }
-        return null;
-    }
-    catch {
-        return null;
-    }
+        req.on('socket', (socket) => {
+            socket.setTimeout(connectTimeout, () => {
+                if (!settled) {
+                    settled = true;
+                    req.destroy(new Error('socket timeout'));
+                    resolve(null);
+                }
+            });
+        });
+        req.on('error', () => {
+            if (!settled) {
+                settled = true;
+                resolve(null);
+            }
+        });
+        req.setTimeout(headersTimeout, () => {
+            if (!settled) {
+                settled = true;
+                req.destroy(new Error('headers timeout'));
+                resolve(null);
+            }
+        });
+        req.end();
+    });
 }
 async function resolvePaperclipAgentKey(agentId) {
     const result = await config_1.db.query(`SELECT id, key_hash, name, tier, signup_channel, attribution_source
@@ -105,15 +153,14 @@ async function requireApiKey(req, res, next) {
                 key,
                 agentName: row.name,
                 tier: row.tier,
-                rpmLimit: TIER_LIMITS.enterprise.rpm,
-                dailyLimit: TIER_LIMITS.enterprise.daily,
+                rpmLimit: (TIER_LIMITS[row.tier] ?? TIER_LIMITS.enterprise).rpm,
+                dailyLimit: (TIER_LIMITS[row.tier] ?? TIER_LIMITS.enterprise).daily,
                 signupChannel: row.signup_channel,
                 attributionSource: row.attribution_source,
             };
             next();
             return;
         }
-        (0, abuseDetection_1.recordInvalidKeyAttempt)(req).catch(() => { });
         (0, errors_1.sendError)(res, errors_1.ErrorCode.INVALID_API_KEY, 'Invalid Paperclip token');
         return;
     }
@@ -121,7 +168,6 @@ async function requireApiKey(req, res, next) {
     const result = await config_1.db.query(`SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_active
      FROM api_keys WHERE key_hash = $1`, [keyHash]);
     if (result.rows.length === 0) {
-        (0, abuseDetection_1.recordInvalidKeyAttempt)(req).catch(() => { });
         (0, errors_1.sendError)(res, errors_1.ErrorCode.INVALID_API_KEY);
         return;
     }
@@ -143,12 +189,6 @@ async function requireApiKey(req, res, next) {
     };
     config_1.db.query('UPDATE api_keys SET last_used_at = NOW() WHERE key_hash = $1', [keyHash]).catch(() => { });
     next();
-}
-/** Set standard X-RateLimit-* headers on the response */
-function setRateLimitHeaders(res, limit, remaining, resetEpoch) {
-    res.set('X-RateLimit-Limit', String(limit));
-    res.set('X-RateLimit-Remaining', String(Math.max(0, remaining)));
-    res.set('X-RateLimit-Reset', String(resetEpoch));
 }
 async function checkRateLimit(req, res, next) {
     if (!req.apiKeyRecord) {
@@ -178,58 +218,15 @@ async function checkRateLimit(req, res, next) {
         next();
         return;
     }
-    const rpmLimit = req.apiKeyRecord.rpmLimit;
-    const resetEpoch = Math.ceil((minuteWindow + 1) * 60);
-    if (rpmCount > rpmLimit) {
+    if (rpmCount > req.apiKeyRecord.rpmLimit) {
         const retryAfter = Math.ceil(60 - (now % 60000) / 1000);
-        setRateLimitHeaders(res, rpmLimit, 0, resetEpoch);
-        (0, errors_1.sendRateLimitError)(res, retryAfter, rpmLimit, 0, 'Per-minute rate limit exceeded.');
+        (0, errors_1.sendRateLimitError)(res, retryAfter, req.apiKeyRecord.rpmLimit, 0, 'Per-minute rate limit exceeded.');
         return;
     }
     if (dailyCount > req.apiKeyRecord.dailyLimit) {
         const retryAfter = Math.ceil(86400 - (now % 86400000) / 1000);
-        setRateLimitHeaders(res, req.apiKeyRecord.dailyLimit, 0, Math.ceil((dayWindow + 1) * 86400));
         (0, errors_1.sendRateLimitError)(res, retryAfter, req.apiKeyRecord.dailyLimit, 0, 'Daily rate limit exceeded.');
         return;
-    }
-    // Set headers on ALL successful responses
-    setRateLimitHeaders(res, rpmLimit, rpmLimit - rpmCount, resetEpoch);
-    next();
-}
-/** IP-level rate limit for unauthenticated requests */
-async function checkIpRateLimit(req, res, next) {
-    // Skip if request already has an API key (handled by checkRateLimit)
-    if (req.apiKeyRecord) {
-        next();
-        return;
-    }
-    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
-        req.headers['x-real-ip'] ||
-        req.socket.remoteAddress ||
-        'unknown';
-    const now = Date.now();
-    const minuteWindow = Math.floor(now / 60000);
-    const ipKey = `rl:ip:${ip}:${minuteWindow}`;
-    const limit = config_1.RATE_LIMIT_CONFIG.IP_RPM;
-    try {
-        const count = await config_1.redis.incr(ipKey);
-        if (count === 1)
-            config_1.redis.expire(ipKey, 120).catch(() => { });
-        const resetEpoch = Math.ceil((minuteWindow + 1) * 60);
-        setRateLimitHeaders(res, limit, limit - count, resetEpoch);
-        if (count > limit) {
-            const retryAfter = Math.ceil(60 - (now % 60000) / 1000);
-            (0, errors_1.sendRateLimitError)(res, retryAfter, limit, 0, 'IP rate limit exceeded. Authenticate with an API key for higher limits.');
-            return;
-        }
-        // Burst detection — block IP if it hits burst multiplier × limit
-        if (count > limit * config_1.RATE_LIMIT_CONFIG.IP_BURST_MULTIPLIER) {
-            const blockKey = `abuse:blocked:${ip}`;
-            await config_1.redis.setex(blockKey, config_1.RATE_LIMIT_CONFIG.IP_BURST_BLOCK_SEC, '1');
-        }
-    }
-    catch (_err) {
-        console.warn('[ip-rate-limit] Redis unavailable, skipping');
     }
     next();
 }

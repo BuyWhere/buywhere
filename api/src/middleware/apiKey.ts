@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { createHash } from 'crypto';
+import { request as httpRequest } from 'http';
+import { request as httpsRequest } from 'https';
 import { db, redis, FREE_TIER } from '../config';
 import { sendError, sendRateLimitError, ErrorCode } from './errors';
 
@@ -33,23 +35,75 @@ interface PaperclipAgentInfo {
 }
 
 async function verifyPaperclipTokenWithApi(token: string): Promise<PaperclipAgentInfo | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10000);
-  try {
-    const resp = await fetch(`${PAPERCLIP_API_URL}/api/agents/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: controller.signal,
+  const url = new URL(`${PAPERCLIP_API_URL}/api/agents/me`);
+  const isHttps = url.protocol === 'https:';
+  const requestFn = isHttps ? httpsRequest : httpRequest;
+
+  return new Promise<PaperclipAgentInfo | null>((resolve) => {
+    const connectTimeout = 5000;
+    const headersTimeout = 10000;
+    let settled = false;
+
+    const req = requestFn(
+      {
+        hostname: url.hostname,
+        port: url.port || (isHttps ? 443 : 80),
+        path: url.pathname + url.search,
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      },
+      (res) => {
+        let body = '';
+        res.on('data', (chunk: Buffer) => {
+          body += chunk.toString();
+        });
+        res.on('end', () => {
+          if (settled) return;
+          settled = true;
+          if (res.statusCode === 200) {
+            try {
+              const data = JSON.parse(body) as PaperclipAgentInfo;
+              if (data.id) {
+                resolve(data);
+                return;
+              }
+            } catch {}
+          }
+          resolve(null);
+        });
+      },
+    );
+
+    req.on('socket', (socket) => {
+      socket.setTimeout(connectTimeout, () => {
+        if (!settled) {
+          settled = true;
+          req.destroy(new Error('socket timeout'));
+          resolve(null);
+        }
+      });
     });
-    if (resp.status === 200) {
-      const data = await resp.json() as PaperclipAgentInfo;
-      if (data.id) return data;
-    }
-    return null;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
+
+    req.on('error', () => {
+      if (!settled) {
+        settled = true;
+        resolve(null);
+      }
+    });
+
+    req.setTimeout(headersTimeout, () => {
+      if (!settled) {
+        settled = true;
+        req.destroy(new Error('headers timeout'));
+        resolve(null);
+      }
+    });
+
+    req.end();
+  });
 }
 
 async function resolvePaperclipAgentKey(agentId: string): Promise<{
