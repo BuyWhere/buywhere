@@ -1,0 +1,332 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.runMigrations = void 0;
+const config_1 = require("./config");
+const MIGRATION = `
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "btree_gin";
+
+-- Ensure products has all columns before any indexes or triggers reference them
+ALTER TABLE products ADD COLUMN IF NOT EXISTS sku            TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS source         TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS merchant_id    TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS description    TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS category_path  TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS brand          TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS is_active      BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS search_vector  TSVECTOR;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS region         VARCHAR(10);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS country_code   VARCHAR(2);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS gtin           VARCHAR(14);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS mpn            VARCHAR(100);
+
+-- Full-text search support on products table
+CREATE INDEX IF NOT EXISTS idx_products_search_vector ON products USING GIN(search_vector);
+
+-- Drop the old broken trigger that referenced non-existent columns (name, tags).
+DROP TRIGGER IF EXISTS products_search_vector_trig ON products;
+DROP FUNCTION IF EXISTS products_search_vector_update() CASCADE;
+
+-- GEO indexes (now safe — is_active, region, country_code columns exist above)
+CREATE INDEX IF NOT EXISTS idx_products_is_active     ON products(is_active);
+CREATE INDEX IF NOT EXISTS idx_products_region        ON products(region);
+CREATE INDEX IF NOT EXISTS idx_products_country_code  ON products(country_code);
+CREATE INDEX IF NOT EXISTS idx_products_region_active ON products(region, is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_products_search_region  ON products USING gin(search_vector, region);
+CREATE INDEX IF NOT EXISTS idx_products_search_country ON products USING gin(search_vector, country_code);
+CREATE INDEX IF NOT EXISTS idx_products_currency     ON products(currency);
+CREATE INDEX IF NOT EXISTS idx_products_category_path ON products USING GIN(category_path);
+CREATE INDEX IF NOT EXISTS idx_products_category ON products (lower(category));
+CREATE INDEX IF NOT EXISTS idx_products_category_updated ON products (lower(category), updated_at DESC);
+
+-- api_keys: create if not exists, then add any missing columns
+CREATE TABLE IF NOT EXISTS api_keys (
+  id                 UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  key_hash           TEXT        NOT NULL UNIQUE,
+  name               TEXT        NOT NULL,
+  tier               TEXT        NOT NULL DEFAULT 'free',
+  is_active          BOOLEAN     NOT NULL DEFAULT true,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS rpm_limit          INTEGER     NOT NULL DEFAULT 60;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS daily_limit        INTEGER     NOT NULL DEFAULT 1000;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS signup_channel     TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS attribution_source TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS utm_source         TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS utm_medium         TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS utm_campaign       TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS contact                     TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email                       TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS use_case                    TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS developer_id                TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS last_used_at                 TIMESTAMPTZ;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verified               BOOLEAN     NOT NULL DEFAULT false;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verification_token     TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verification_sent_at   TIMESTAMPTZ;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verification_expires_at TIMESTAMPTZ;
+
+-- Backfill: mark existing keys with a contact email as verified
+UPDATE api_keys SET email_verified = true WHERE contact IS NOT NULL AND contact != '' AND email_verified = false;
+
+CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
+CREATE INDEX IF NOT EXISTS idx_api_keys_email_token ON api_keys(email_verification_token) WHERE email_verification_token IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_api_keys_created_at ON api_keys(created_at);
+
+-- Affiliate redirect click log
+CREATE TABLE IF NOT EXISTS affiliate_clicks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  api_key TEXT,
+  affiliate_slug TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  merchant_id TEXT,
+  affiliate_link_id TEXT,
+  source TEXT,
+  destination_url TEXT NOT NULL,
+  clicked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_api_key ON affiliate_clicks(api_key);
+CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_product ON affiliate_clicks(product_id);
+CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_clicked_at ON affiliate_clicks(clicked_at);
+
+-- Affiliate links registry
+CREATE TABLE IF NOT EXISTS affiliate_links (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug TEXT UNIQUE NOT NULL,
+  product_id TEXT NOT NULL,
+  merchant_id TEXT NOT NULL,
+  affiliate_link_id TEXT,
+  destination_url TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Note: idx_affiliate_links_slug intentionally omitted — affiliate_links table already
+-- exists in this DB without a slug column; the index is not applicable here.
+
+-- B-tree index on category_path[1] for fast GROUP BY / WHERE queries (BUY-8715)
+CREATE INDEX IF NOT EXISTS idx_products_category_path_first ON products USING btree ((category_path[1]));
+
+-- Index for category-only search using lower(category) = (BUY-14141)
+CREATE INDEX IF NOT EXISTS idx_products_category ON products (lower(category));
+CREATE INDEX IF NOT EXISTS idx_products_category_country_updated ON products (lower(category), country_code, updated_at DESC);
+
+-- Backfill empty category_path to prevent 0-category results (BUY-8715)
+UPDATE products SET category_path = ARRAY['Uncategorized']::text[]
+WHERE category_path = '{}' OR array_length(category_path, 1) = 0;
+
+-- GEO fields (BUY-1970, BUY-1979): columns and indexes handled at top of migration
+
+-- Comparison pages curation table (BUY-2273)
+-- product_ids: array of products.id (uuid) rows that represent this SKU across retailers
+CREATE TABLE IF NOT EXISTS comparison_pages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug TEXT UNIQUE NOT NULL,
+  product_ids UUID[] NOT NULL DEFAULT '{}',
+  category TEXT NOT NULL CHECK (category IN ('electronics','grocery','home','health')),
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published','archived')),
+  expert_summary TEXT,
+  hero_image_url TEXT,
+  published_at TIMESTAMPTZ,
+  metadata JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_comparison_pages_published ON comparison_pages(status) WHERE status = 'published';
+
+-- Convert existing BIGINT[] column to UUID[] if table was created before schema alignment (BUY-2270)
+DO $$
+DECLARE col_type TEXT;
+BEGIN
+  SELECT udt_name INTO col_type
+  FROM information_schema.columns
+  WHERE table_name = 'comparison_pages' AND column_name = 'product_ids';
+  IF col_type = '_int8' THEN
+    ALTER TABLE comparison_pages ALTER COLUMN product_ids DROP DEFAULT;
+    ALTER TABLE comparison_pages ALTER COLUMN product_ids TYPE UUID[] USING '{}'::UUID[];
+    ALTER TABLE comparison_pages ALTER COLUMN product_ids SET DEFAULT '{}';
+  END IF;
+END$$;
+
+-- Add affiliate_url to affiliate_links if not present (BUY-2274)
+
+-- Price refresh job log (BUY-2274)
+CREATE TABLE IF NOT EXISTS price_refresh_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ran_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  total_skus INTEGER NOT NULL DEFAULT 0,
+  success_count INTEGER NOT NULL DEFAULT 0,
+  failure_count INTEGER NOT NULL DEFAULT 0,
+  failures JSONB,
+  scraper_triggered BOOLEAN NOT NULL DEFAULT false
+);
+
+CREATE INDEX IF NOT EXISTS idx_price_refresh_log_ran_at ON price_refresh_log(ran_at);
+
+-- Price history — snapshot per product per scrape run (BUY-2345)
+CREATE TABLE IF NOT EXISTS price_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  price NUMERIC(12, 2) NOT NULL,
+  currency VARCHAR(3) NOT NULL DEFAULT 'SGD',
+  platform TEXT,
+  recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_price_history_product_recorded ON price_history(product_id, recorded_at DESC);
+
+-- Query log for agent analytics dashboard (BUY-1929)
+CREATE TABLE IF NOT EXISTS query_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  api_key_id VARCHAR REFERENCES api_keys(id),
+  agent_name TEXT,
+  agent_framework TEXT NOT NULL DEFAULT 'unknown',
+  sdk_language TEXT NOT NULL DEFAULT 'unknown',
+  is_agent BOOLEAN NOT NULL DEFAULT true,
+  endpoint TEXT NOT NULL,
+  query_text TEXT,
+  query_intent TEXT,
+  product_categories TEXT[],
+  result_count INTEGER,
+  response_time_ms INTEGER,
+  status_code INTEGER NOT NULL DEFAULT 200,
+  ip_address INET,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_query_log_created_at ON query_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_query_log_api_key_id ON query_log(api_key_id);
+CREATE INDEX IF NOT EXISTS idx_query_log_agent_name ON query_log(agent_name);
+CREATE INDEX IF NOT EXISTS idx_query_log_is_agent ON query_log(is_agent);
+CREATE INDEX IF NOT EXISTS idx_query_log_endpoint ON query_log(endpoint);
+-- Composite index for daily aggregation queries
+CREATE INDEX IF NOT EXISTS idx_query_log_daily ON query_log(created_at, is_agent);
+
+-- Outbound click tracking (BUY-4869): user-facing /api/click redirect logs
+-- Distinct from affiliate_clicks (affiliate programme tracking via /r/:slug/:productId)
+CREATE TABLE IF NOT EXISTS clicks (
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id      TEXT,
+  merchant_id     TEXT,
+  user_id         TEXT,           -- null when unauthenticated
+  api_key         TEXT,           -- from Authorization header if present
+  referrer        TEXT,
+  destination_url TEXT        NOT NULL,
+  ip_hash         TEXT,           -- SHA-256 of client IP, never raw
+  source          TEXT        DEFAULT 'click_endpoint',
+  clicked_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Ensure merchant_id column exists on clicks table (BUY-8716: handle pre-existing tables)
+ALTER TABLE clicks ADD COLUMN IF NOT EXISTS merchant_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_clicks_product    ON clicks(product_id);
+CREATE INDEX IF NOT EXISTS idx_clicks_merchant   ON clicks(merchant_id);
+CREATE INDEX IF NOT EXISTS idx_clicks_clicked_at ON clicks(clicked_at);
+
+-- Merchants onboarding table (BUY-6932)
+CREATE TABLE IF NOT EXISTS merchants (
+  id              TEXT        PRIMARY KEY,
+  name            TEXT        NOT NULL,
+  source          TEXT        NOT NULL,
+  country         VARCHAR(2)  NOT NULL DEFAULT 'SG',
+  domain          TEXT,
+  contact_email   TEXT,
+  contact_phone   TEXT,
+  scraping_priority TEXT     DEFAULT 'medium',
+  is_active       BOOLEAN    NOT NULL DEFAULT true,
+  onboarding_stage TEXT      NOT NULL DEFAULT 'interested',
+  first_indexed_at TIMESTAMPTZ,
+  products_count  INTEGER,
+  last_scraped_at  TIMESTAMPTZ,
+  scrape_error    TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_merchants_source ON merchants(source);
+CREATE INDEX IF NOT EXISTS idx_merchants_onboarding_stage ON merchants(onboarding_stage);
+CREATE INDEX IF NOT EXISTS idx_merchants_country ON merchants(country);
+
+-- Merchant events log (BUY-6932)
+CREATE TABLE IF NOT EXISTS merchant_events (
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  merchant_id     TEXT        NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+  event_type      TEXT        NOT NULL,
+  event_data      JSONB,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_merchant_events_merchant_id ON merchant_events(merchant_id);
+CREATE INDEX IF NOT EXISTS idx_merchant_events_event_type ON merchant_events(event_type);
+`;
+// Merchants tables — created separately from main migration so they
+// are not blocked if an earlier migration statement fails.
+const MERCHANTS_MIGRATION = `
+CREATE TABLE IF NOT EXISTS merchants (
+  id              TEXT        PRIMARY KEY,
+  name            TEXT        NOT NULL,
+  source          TEXT        NOT NULL,
+  country         VARCHAR(2)  NOT NULL DEFAULT 'SG',
+  domain          TEXT,
+  contact_email   TEXT,
+  contact_phone   TEXT,
+  scraping_priority TEXT     DEFAULT 'medium',
+  is_active       BOOLEAN    NOT NULL DEFAULT true,
+  onboarding_stage TEXT      NOT NULL DEFAULT 'interested',
+  first_indexed_at TIMESTAMPTZ,
+  products_count  INTEGER,
+  last_scraped_at  TIMESTAMPTZ,
+  scrape_error    TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_merchants_source ON merchants(source);
+CREATE INDEX IF NOT EXISTS idx_merchants_onboarding_stage ON merchants(onboarding_stage);
+CREATE INDEX IF NOT EXISTS idx_merchants_country ON merchants(country);
+
+CREATE TABLE IF NOT EXISTS merchant_events (
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  merchant_id     TEXT        NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+  event_type      TEXT        NOT NULL,
+  event_data      JSONB,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_merchant_events_merchant_id ON merchant_events(merchant_id);
+CREATE INDEX IF NOT EXISTS idx_merchant_events_event_type ON merchant_events(event_type);
+`;
+async function runMigrations() {
+    console.log('Running migrations...');
+    // Run full migration block as-is (best-effort, may fail on extensions or
+    // products columns if those tables/perms don't exist yet).
+    try {
+        await config_1.db.query(MIGRATION);
+        console.log('Full migration completed.');
+    }
+    catch (err) {
+        console.warn(`[migration] Full migration block failed (non-fatal): ${err.message?.slice(0, 200)}`);
+    }
+    // Separately ensure merchants tables exist — not blocked by failures above.
+    try {
+        await config_1.db.query(MERCHANTS_MIGRATION);
+        console.log('Merchants migration completed.');
+    }
+    catch (err) {
+        console.error(`[migration] Merchants table creation failed: ${err.message?.slice(0, 200)}`);
+    }
+    console.log('Migrations complete.');
+}
+exports.runMigrations = runMigrations;
+async function migrate() {
+    await runMigrations();
+    await config_1.db.end();
+    config_1.redis.disconnect();
+}
+if (require.main === module) {
+    migrate().catch((err) => {
+        console.error('Migration failed:', err);
+        process.exit(1);
+    });
+}

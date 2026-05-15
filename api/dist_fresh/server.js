@@ -1,0 +1,251 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.createApp = void 0;
+const express_1 = __importDefault(require("express"));
+const cors_1 = __importDefault(require("cors"));
+const sentry_1 = require("./sentry");
+const auth_1 = __importDefault(require("./routes/auth"));
+const products_1 = __importDefault(require("./routes/products"));
+const categories_1 = __importDefault(require("./routes/categories"));
+const redirect_1 = __importDefault(require("./routes/redirect"));
+const wellknown_1 = __importDefault(require("./routes/wellknown"));
+const docs_1 = __importDefault(require("./routes/docs"));
+const pages_1 = __importDefault(require("./routes/pages"));
+const publicCategories_1 = __importDefault(require("./routes/publicCategories"));
+const publicCompare_1 = __importDefault(require("./routes/publicCompare"));
+const compareSlug_1 = __importDefault(require("./routes/compareSlug"));
+const adminCompare_1 = __importDefault(require("./routes/adminCompare"));
+const mcp_1 = __importDefault(require("./routes/mcp"));
+const analytics_1 = __importDefault(require("./routes/analytics"));
+const revenue_1 = __importDefault(require("./routes/revenue"));
+const sitemapCompare_1 = __importDefault(require("./routes/sitemapCompare"));
+const landing_1 = __importDefault(require("./routes/landing"));
+const clicks_1 = __importDefault(require("./routes/clicks"));
+const merchants_1 = __importDefault(require("./routes/merchants"));
+const ingest_1 = __importDefault(require("./routes/ingest"));
+const catalog_1 = __importDefault(require("./routes/catalog"));
+const keys_1 = __importDefault(require("./routes/keys"));
+const webhooks_1 = __importDefault(require("./routes/webhooks"));
+const config_1 = require("./config");
+const abuseDetection_1 = require("./middleware/abuseDetection");
+const apiKey_1 = require("./middleware/apiKey");
+function createApp() {
+    const app = (0, express_1.default)();
+    const releaseSha = (process.env.RELEASE_SHA || process.env.IMAGE_TAG || 'dev').trim();
+    app.use((0, cors_1.default)({
+        origin: (process.env.CORS_ALLOWED_ORIGINS || 'https://us.buywhere.com,https://buywhere.ai').split(',').map((o) => o.trim()),
+        credentials: true,
+    }));
+    app.use((_req, res, next) => {
+        res.set('X-Content-Type-Options', 'nosniff');
+        res.set('X-Frame-Options', 'DENY');
+        next();
+    });
+    app.use(express_1.default.json({ limit: '10mb' }));
+    app.use(express_1.default.urlencoded({ extended: false }));
+    app.use((_req, res, next) => {
+        res.set('X-BuyWhere-Release', releaseSha || 'dev');
+        next();
+    });
+    // Abuse detection & IP rate limiting — applied to API routes only
+    // Skips health checks, static pages, sitemaps, robots.txt, etc.
+    const apiAbuse = (0, abuseDetection_1.abuseDetection)();
+    app.use('/v1', apiAbuse, apiKey_1.checkIpRateLimit);
+    app.use('/v2', apiAbuse, apiKey_1.checkIpRateLimit);
+    app.use('/mcp', apiAbuse, apiKey_1.checkIpRateLimit);
+    // Sentry request context — attaches user/country/method for error tracking
+    app.use(sentry_1.sentryRequestHandler);
+    // Health check - fast in-process check as required by BUY-3280
+    app.get('/health', (_req, res) => {
+        res.json({
+            status: 'ok',
+            ts: new Date().toISOString(),
+            release: releaseSha || 'dev',
+        });
+    });
+    // DB health check — verifies PostgreSQL connectivity
+    app.get('/health/db', async (_req, res) => {
+        const start = Date.now();
+        try {
+            const result = await config_1.db.query('SELECT 1 AS ok');
+            const latencyMs = Date.now() - start;
+            res.json({
+                db: 'ok',
+                latency_ms: latencyMs,
+                ts: new Date().toISOString(),
+            });
+        }
+        catch (err) {
+            const latencyMs = Date.now() - start;
+            res.status(503).json({
+                db: 'error',
+                error: err.message || 'Database unreachable',
+                latency_ms: latencyMs,
+                ts: new Date().toISOString(),
+            });
+        }
+    });
+    // Redis health check — UptimeRobot monitor endpoint
+    app.get('/health/redis', async (_req, res) => {
+        try {
+            const pong = await config_1.redis.ping();
+            res.json({
+                status: pong === 'PONG' ? 'ok' : 'degraded',
+                redis: pong === 'PONG' ? 'connected' : 'unexpected_response',
+                ts: new Date().toISOString(),
+            });
+        }
+        catch (err) {
+            res.status(503).json({
+                status: 'error',
+                redis: 'disconnected',
+                error: err.message,
+                ts: new Date().toISOString(),
+            });
+        }
+    });
+    // Uptime Robot webhook handler — receives DOWN/UP alerts
+    app.post('/webhooks/uptime-robot', async (req, res) => {
+        const { monitorID, monitorFriendlyName, monitorURL, alertType, alertTypeFriendlyName, alertDetails, monitorStatusCode } = req.body || {};
+        if (!monitorID) {
+            return res.status(400).json({ error: { code: 'MISSING_REQUIRED_FIELD', message: 'monitorID is required' } });
+        }
+        const name = monitorFriendlyName || monitorID;
+        console.log(`[uptime-robot] ${name} [${monitorURL}] = ${alertTypeFriendlyName || alertType} — ${alertDetails || monitorStatusCode}`);
+        if (alertType === '1' || (alertTypeFriendlyName || '').toLowerCase() === 'down') {
+            console.error(`[uptime-robot] MONITOR DOWN: ${name} (${monitorURL}) — ${alertDetails || ''} (HTTP ${monitorStatusCode || '?'})`);
+        }
+        res.json({ status: 'ok' });
+    });
+    // Uptime Robot webhook diagnostic
+    app.get('/webhooks/uptime-robot', (_req, res) => {
+        res.json({ status: 'ok', mode: 'diagnostic' });
+    });
+    // MCP / OpenAI plugin discovery
+    app.use('/.well-known', wellknown_1.default);
+    app.get('/openapi.json', (req, res) => (0, wellknown_1.default)(req, res, () => { }));
+    // ChatGPT Actions-compatible OpenAPI spec (OpenAPI 3.1, action-friendly)
+    app.get('/chatgpt-openapi.json', (_req, res) => {
+        res.json(require('./routes/chatgpt-openapi.json'));
+    });
+    // AI crawler headers for public endpoints (Perplexity, GPTBot, etc.)
+    const aiCrawlerHeaders = (_req, res, next) => {
+        res.set('X-Robots-Tag', 'ai-index');
+        res.set('Cache-Control', 'public, max-age=3600, s-maxage=86400');
+        next();
+    };
+    // Docs
+    app.use('/docs', aiCrawlerHeaders, docs_1.default);
+    // Public quickstart alias — launch fallback for BUY-3724
+    // api.buywhere.ai/quickstart → /docs/guides/mcp
+    app.get('/quickstart', aiCrawlerHeaders, (_req, res) => res.redirect(301, '/docs/guides/mcp'));
+    // MCP JSON-RPC endpoint (Model Context Protocol)
+    app.use('/mcp', mcp_1.default);
+    // v1 API
+    app.use('/v1/auth', auth_1.default);
+    app.use('/v1/products', products_1.default);
+    // v2 alias — same router, extends v1 contract with country_code + multi-region currency inference
+    app.use('/v2/products', products_1.default);
+    app.use('/v1/categories', categories_1.default);
+    app.use('/v1/merchants', merchants_1.default);
+    app.use('/v1/ingest', ingest_1.default);
+    // Direct ingest health route (BUY-17492 debug: bypasses router to isolate routing issue)
+    app.get('/v1/ingest/health-direct', (_req, res) => {
+        res.json({ status: 'ok', via: 'direct' });
+    });
+    // Backward-compat alias: /v1/search → /v1/products/search
+    app.get("/v1/search", (req, res) => {
+        const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+        res.redirect(301, `/v1/products/search${qs}`);
+    });
+    app.use('/v1/analytics', analytics_1.default);
+    app.use('/v1/revenue', revenue_1.default);
+    app.use('/v1/catalog', catalog_1.default);
+    app.use('/v1/keys', keys_1.default);
+    app.use('/v1/compare', aiCrawlerHeaders, compareSlug_1.default);
+    app.use('/api/v1/compare', aiCrawlerHeaders, compareSlug_1.default); // alias — FE integration uses /api prefix
+    // Admin editorial CRUD (ADMIN_API_KEY auth, not rate-limited)
+    app.use('/admin/comparison-pages', adminCompare_1.default);
+    // Outbound click tracking (BUY-4869): /api/click redirect + /admin/clicks analytics
+    app.use('/api', clicks_1.default);
+    app.use('/admin', clicks_1.default);
+    // Affiliate redirect (no /v1 prefix — short URLs)
+    app.use('/r', redirect_1.default);
+    // Public HTML pages with Schema.org JSON-LD (no auth — crawlable by AI agents)
+    app.use('/p', aiCrawlerHeaders, pages_1.default); // /p/:id — product page
+    app.use('/c', aiCrawlerHeaders, publicCategories_1.default); // /c/:slug — category page
+    app.use('/compare', aiCrawlerHeaders, publicCompare_1.default); // /compare?ids=id1,id2 — comparison page
+    // Sitemaps
+    app.use('/sitemap-compare.xml', sitemapCompare_1.default);
+    // Sitemap index — references all sitemaps
+    app.get('/sitemap.xml', (req, res) => {
+        const proto = (req.headers['x-forwarded-proto'] || req.protocol).split(',')[0].trim();
+        const host = req.headers['x-forwarded-host'] || req.get('host') || 'buywhere.ai';
+        const base = `${proto}://${host}`;
+        const now = new Date().toISOString().slice(0, 10);
+        const xml = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+            '  <sitemap>',
+            `    <loc>${base}/sitemap-compare.xml</loc>`,
+            `    <lastmod>${now}</lastmod>`,
+            '  </sitemap>',
+            '</sitemapindex>',
+        ].join('\n');
+        res.set('Content-Type', 'application/xml; charset=utf-8');
+        res.set('Cache-Control', 'public, max-age=3600, s-maxage=86400');
+        res.send(xml);
+    });
+    // Block all crawlers from api.buywhere.ai — this is an API server, not a content site
+    app.get('/robots.txt', (_req, res) => {
+        res.set('Content-Signal', 'ai-train=no, search=no, ai-input=no');
+        res.type('text/plain').send([
+            'User-agent: *',
+            'Disallow: /',
+        ].join('\n'));
+    });
+    app.get('/llms.txt', (_req, res) => {
+        res.set('X-Robots-Tag', 'ai-index');
+        res.set('Cache-Control', 'public, max-age=86400');
+        res.type('text/plain').send(`# BuyWhere\n\nBuyWhere is an agent-native product catalog and price comparison API for AI agents and LLM applications. We provide real-time pricing, availability, and product data from major e-commerce platforms across Southeast Asia and the United States.\n\n## Catalog Coverage\n- 120,966+ active products\n- 7 major merchants (Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, Carousell)\n- 2 countries: Singapore (SG) and United States (US)\n- Currencies: SGD, USD\n\n## REST API Endpoints\n\n### Products\n- GET /v1/products/search — Full-text product search with filters (keyword, merchant, price, category, country, currency, availability)\n- GET /v1/products/deals — Products on sale, sorted by discount percentage\n- GET /v1/products/compare?ids=id1,id2,... — Side-by-side product comparison (2-10 products)\n- GET /v1/products/:id — Get full product details by ID\n- GET /v1/products/:id/similar — Find similar products\n- GET /v1/products/:id/price-history — Historical price chart data\n- GET /v1/products/:id/prices — Price snapshots from merchant feeds\n\n### Categories\n- GET /v1/categories — List all top-level categories\n- GET /v1/categories/:slug — Get category details with subcategories and sample products\n\n### Catalog\n- GET /v1/catalog/stats — Aggregate statistics (total products, merchants, countries, recent additions) — unauthenticated\n\n## MCP Server\nMCP endpoint: https://api.buywhere.ai/mcp\nAuthentication: Bearer token (get free key at https://api.buywhere.ai/v1/auth/register)\n\n### MCP Tools\n1. **search_products** — Full-text search with merchant, price, category, and country filters. Use compact=true for agent-optimized responses.\n2. **get_product** — Get full product details by BuyWhere product ID.\n3. **compare_products** — Compare 2-10 products side-by-side across merchants.\n4. **get_deals** — Find discounted products sorted by discount percentage.\n5. **list_categories** — List top-level product categories with product counts.\n6. **find_best_price** — Find the cheapest current listing for a product across all merchants.\n\n## Use Cases\n- AI shopping agents and price comparison assistants\n- Product discovery and deal alerts\n- Cross-merchant price intelligence\n- Market research and retail analytics\n\n## Documentation\n- API docs: https://api.buywhere.ai/docs\n- MCP setup guide: https://api.buywhere.ai/docs/guides/mcp\n- Quickstart: https://buywhere.ai/quickstart\n- GitHub: https://github.com/BuyWhere/buywhere\n- npm package: https://www.npmjs.com/package/@buywhere/mcp-server\n\n## Authentication\nSign up at https://api.buywhere.ai/v1/auth/register for a free API key.\nFree tier: 1,000 API calls/month. No credit card required.\n\n## Pricing\nFree: 1,000 calls/month\nCommercial plans available at https://buywhere.ai/pricing\n`);
+    });
+    // Landing pages — homepage (en_SG) and US edition (en_US)
+    app.use(landing_1.default);
+    // Webhook relay — UptimeRobot → Paperclip issue creation
+    app.use('/webhooks', webhooks_1.default);
+    // Debug: enumerate registered routes (BUY-17492)
+    app.get('/_debug/routes', (_req, res) => {
+        const layers = [];
+        const stack = app._router?.stack || [];
+        for (const layer of stack) {
+            const entry = { name: layer.name, path: layer.path || layer.regexp?.source };
+            if (layer.route) {
+                entry.route = layer.route.path;
+                entry.methods = Object.keys(layer.route.methods).join(',').toUpperCase();
+            }
+            if (layer.name === 'router' && layer.handle?.stack) {
+                entry.subroutes = layer.handle.stack.map((sub) => ({
+                    name: sub.name, path: sub.route?.path, methods: sub.route ? Object.keys(sub.route.methods).join(',') : undefined,
+                }));
+            }
+            layers.push(entry);
+        }
+        const ingestLayers = layers.filter(l => (l.path || '').includes('ingest') || (l.route || '').includes('ingest'));
+        res.json({ total_layers: layers.length, ingest: ingestLayers, all: layers });
+    });
+    // 404 fallback
+    app.use((_req, res) => {
+        res.status(404).json({ error: 'Not found' });
+    });
+    // Sentry error capture — must be after all routes
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    app.use((err, _req, res, next) => {
+        sentry_1.Sentry.captureException(err);
+        next(err);
+    });
+    return app;
+}
+exports.createApp = createApp;
