@@ -1,6 +1,6 @@
 # buywhere-llamaindex
 
-BuyWhere LlamaIndex integration — product search, price comparison, and deals as LlamaIndex tools.
+[LlamaIndex](https://www.llamaindex.ai/) `FunctionTool` wrappers for the [BuyWhere](https://buywhere.ai) product catalog API — search, compare, and track prices across 40+ retailers in Southeast Asia and the US.
 
 ## Installation
 
@@ -11,49 +11,38 @@ pip install buywhere-llamaindex
 ## Quick Start
 
 ```python
-from buywhere import BuyWhereClient
+import os
 from buywhere_llamaindex import create_buywhere_tools
-
-client = BuyWhereClient(api_key="bw_...")
-tools = create_buywhere_tools(client)
-
-# Use with any LlamaIndex agent
-from llama_index.core.agent import FunctionCallingAgent
+from llama_index.core.agent import ReActAgent
 from llama_index.llms.openai import OpenAI
 
-llm = OpenAI(model="gpt-4o-mini")
-agent = FunctionCallingAgent.from_tools(tools, llm=llm)
-response = agent.chat("Find me wireless headphones under $100 in Singapore")
+os.environ["BUYWHERE_API_KEY"] = "bw_live_..."
+
+tools = create_buywhere_tools()
+agent = ReActAgent.from_tools(tools, llm=OpenAI(model="gpt-4o"), verbose=True)
+
+response = agent.chat("Find me the cheapest wireless headphones in Singapore under SGD 100")
+print(response)
 ```
 
-## Tools Included
+## Available Tools
 
 | Tool | Description |
 |------|-------------|
-| `buywhere_search_products` | Search the product catalog by query |
-| `buywhere_compare_prices` | Compare prices across merchants for a product |
-| `buywhere_get_deals` | Find current deals and price drops |
-| `buywhere_get_product_details` | Get detailed info about a specific product |
+| `search_products` | Full-text product search across all retailers |
+| `get_product` | Fetch a single product by ID |
+| `compare_prices` | Compare prices for a product across retailers |
+| `find_deals` | Discover products with the biggest discounts |
+| `browse_categories` | List all available product categories |
+| `get_category_products` | Get products within a specific category |
+| `get_deals` | Get the current deals feed |
 
-## Using BuyWhereToolSpec
+## Configuration
 
-For more control, use the `BuyWhereToolSpec` class directly:
+Set the `BUYWHERE_API_KEY` environment variable, or pass it directly:
 
 ```python
-from buywhere import BuyWhereClient
-from buywhere_llamaindex import BuyWhereToolSpec
-
-client = BuyWhereClient(api_key="bw_...")
-spec = BuyWhereToolSpec(client)
-tools = spec.to_tool_list()
+tools = create_buywhere_tools(api_key="bw_live_...", base_url="https://api.buywhere.ai")
 ```
 
-## Requirements
-
-- Python 3.9+
-- `buywhere>=0.2.0`
-- `llama-index-core>=0.10.0`
-
-## License
-
-MIT
+Get your API key at [buywhere.ai/api-keys](https://buywhere.ai/api-keys).

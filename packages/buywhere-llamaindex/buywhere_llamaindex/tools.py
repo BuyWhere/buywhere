@@ -1,361 +1,159 @@
-"""LlamaIndex tool integration for BuyWhere.
+"""LlamaIndex FunctionTool wrappers for the BuyWhere catalog API."""
 
-Usage::
-
-    from buywhere import BuyWhereClient
-    from buywhere_llamaindex import create_buywhere_tools
-
-    client = BuyWhereClient(api_key="bw_...")
-    tools = create_buywhere_tools(client)
-
-    # Use with LlamaIndex agent
-    from llama_index.core.agent import FunctionCallingAgent
-    agent = FunctionCallingAgent.from_tools(tools, llm=llm)
-"""
 from __future__ import annotations
 
-import json
-from typing import TYPE_CHECKING, List, Optional
+from typing import Any, Dict, List, Optional
 
 from llama_index.core.tools import FunctionTool
+from pydantic import BaseModel, Field
 
-if TYPE_CHECKING:
-    from buywhere.client import BuyWhereClient
-
-
-def search_products(
-    client: "BuyWhereClient",
-    query: str,
-    country: str = "sg",
-    category: Optional[str] = None,
-    min_price: Optional[float] = None,
-    max_price: Optional[float] = None,
-    limit: int = 10,
-) -> str:
-    """Search the BuyWhere product catalog for products matching a query.
-
-    Args:
-        client: BuyWhere client instance (injected automatically).
-        query: Product search query in natural language (e.g., "mechanical keyboard").
-        country: Country code (default: sg).
-        category: Category slug filter (e.g., "electronics").
-        min_price: Minimum price in local currency.
-        max_price: Maximum price in local currency.
-        limit: Number of results to return (1-50).
-
-    Returns:
-        JSON string with product listings including prices, merchant info, and availability.
-    """
-    try:
-        resp = client.products.search(
-            q=query,
-            country=country,
-            category=category,
-            min_price=min_price,
-            max_price=max_price,
-            limit=min(limit, 50),
-        )
-
-        products = []
-        for r in resp.results:
-            item = {
-                "product_id": r.product_id,
-                "title": r.title,
-                "price": {
-                    "amount": r.price.amount,
-                    "currency": r.price.currency,
-                },
-                "merchant": {
-                    "name": r.merchant.name,
-                    "platform": r.merchant.platform,
-                },
-                "in_stock": r.availability.in_stock,
-                "url": r.source_url,
-            }
-            if r.price.original_amount:
-                item["original_price"] = r.price.original_amount
-                item["discount_pct"] = r.price.discount_pct
-            if r.relevance_score:
-                item["relevance_score"] = r.relevance_score
-            products.append(item)
-
-        return json.dumps({
-            "success": True,
-            "total_estimated": resp.total_estimated,
-            "returned": len(resp.results),
-            "has_more": resp.has_more,
-            "products": products,
-        })
-    except Exception as e:
-        return json.dumps({"success": False, "error": str(e)})
+from buywhere_llamaindex.client import BuyWhereClient
 
 
-def compare_prices(
-    client: "BuyWhereClient",
-    product_id: str,
-) -> str:
-    """Compare prices for a product across multiple merchants.
-
-    Args:
-        client: BuyWhere client instance (injected automatically).
-        product_id: The BuyWhere product identifier.
-
-    Returns:
-        JSON string with sorted price listings from cheapest to most expensive.
-    """
-    try:
-        resp = client.products.compare_prices(product_id)
-
-        listings = []
-        for l in resp.listings:
-            listings.append({
-                "listing_id": l.listing_id,
-                "merchant": {
-                    "name": l.merchant.name,
-                    "platform": l.merchant.platform,
-                    "rating": l.merchant.rating,
-                },
-                "price": {
-                    "amount": l.price.amount,
-                    "currency": l.price.currency,
-                    "total": l.price.total,
-                    "shipping_fee": l.price.shipping_fee,
-                },
-                "in_stock": l.availability.in_stock,
-                "next_day_available": l.availability.next_day_available,
-                "url": l.source_url,
-            })
-
-        result = {
-            "success": True,
-            "product_id": resp.product_id,
-            "canonical_title": resp.canonical_title,
-            "listings": listings,
-        }
-        if resp.best_price:
-            result["best_price"] = {
-                "listing_id": resp.best_price.listing_id,
-                "total": resp.best_price.total,
-                "currency": resp.best_price.currency,
-            }
-        if resp.best_value:
-            result["best_value"] = {
-                "listing_id": resp.best_value.listing_id,
-                "total": resp.best_value.total,
-                "currency": resp.best_value.currency,
-                "rationale": resp.best_value.rationale,
-            }
-
-        return json.dumps(result)
-    except Exception as e:
-        return json.dumps({"success": False, "error": str(e)})
+class ProductResult(BaseModel):
+    id: str
+    name: str
+    price: Optional[float] = None
+    currency: Optional[str] = None
+    retailer: Optional[str] = None
+    url: Optional[str] = None
+    image_url: Optional[str] = None
+    brand: Optional[str] = None
+    category: Optional[str] = None
+    discount_percent: Optional[float] = None
+    in_stock: Optional[bool] = None
 
 
-def get_deals(
-    client: "BuyWhereClient",
-    query: str,
-    country: str = "sg",
-    limit: int = 10,
-) -> str:
-    """Find current deals and price drops using a natural language query.
-
-    Args:
-        client: BuyWhere client instance (injected automatically).
-        query: Natural language query for deals (e.g., "electronics on sale").
-        country: Country code (default: sg).
-        limit: Number of results to return (1-50).
-
-    Returns:
-        JSON string with products that have discounts and price drops.
-    """
-    try:
-        resp = client.products.query(
-            query=f"deals {query}",
-            context={"country": country},
-            limit=min(limit, 50),
-        )
-
-        deals = []
-        for p in resp.products:
-            deal = {
-                "product_id": p.product_id,
-                "title": p.title,
-                "price": {
-                    "amount": p.price.amount,
-                    "currency": p.price.currency,
-                },
-                "merchant": {
-                    "name": p.merchant.name,
-                    "platform": p.merchant.platform,
-                },
-                "in_stock": p.availability.in_stock,
-                "url": p.source_url,
-            }
-            if p.price.original_amount and p.price.original_amount > p.price.amount:
-                deal["original_price"] = p.price.original_amount
-                deal["discount_pct"] = round(
-                    (1 - p.price.amount / p.price.original_amount) * 100, 1
-                )
-            deals.append(deal)
-
-        return json.dumps({
-            "success": True,
-            "total": resp.total,
-            "deals": deals,
-        })
-    except Exception as e:
-        return json.dumps({"success": False, "error": str(e)})
+class SearchResponse(BaseModel):
+    products: List[ProductResult] = Field(default_factory=list)
+    total: int = 0
+    query: str = ""
 
 
-def get_product_details(
-    client: "BuyWhereClient",
-    product_id: str,
-) -> str:
-    """Get detailed information about a specific product by its ID.
+class CompareResponse(BaseModel):
+    product_id: str
+    name: str
+    prices: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+def _make_tools(client: BuyWhereClient) -> List[FunctionTool]:
+    def search_products(
+        q: str,
+        limit: int = 10,
+        min_price: Optional[float] = None,
+        max_price: Optional[float] = None,
+        retailer: Optional[str] = None,
+        country: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Search for products across all retailers by keyword.
+
+        Args:
+            q: Search query string (e.g. 'wireless headphones').
+            limit: Maximum number of results to return (1-50, default 10).
+            min_price: Minimum price filter.
+            max_price: Maximum price filter.
+            retailer: Filter by retailer slug (e.g. 'lazada_sg', 'shopee_sg').
+            country: ISO country code filter (e.g. 'SG', 'MY', 'US').
+        """
+        params: Dict[str, Any] = {"q": q, "limit": limit}
+        if min_price is not None:
+            params["min_price"] = min_price
+        if max_price is not None:
+            params["max_price"] = max_price
+        if retailer:
+            params["retailer"] = retailer
+        if country:
+            params["country"] = country
+        return client.get("/v1/products/search", params=params)
+
+    def get_product(product_id: str) -> Dict[str, Any]:
+        """Fetch a single product by its BuyWhere product ID.
+
+        Args:
+            product_id: The BuyWhere product identifier (e.g. '78234').
+        """
+        return client.get(f"/v1/products/{product_id}")
+
+    def compare_prices(product_id: str) -> Dict[str, Any]:
+        """Compare prices for a product across all retailers that carry it.
+
+        Args:
+            product_id: The BuyWhere product identifier to compare prices for.
+        """
+        return client.get(f"/v1/products/{product_id}/compare")
+
+    def find_deals(
+        min_discount: int = 20,
+        limit: int = 10,
+        category: Optional[str] = None,
+        country: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Find products with the biggest price discounts right now.
+
+        Args:
+            min_discount: Minimum discount percentage to include (default 20).
+            limit: Maximum number of deals to return (1-50, default 10).
+            category: Filter by category slug.
+            country: ISO country code filter (e.g. 'SG', 'MY', 'US').
+        """
+        params: Dict[str, Any] = {"min_discount": min_discount, "limit": limit}
+        if category:
+            params["category"] = category
+        if country:
+            params["country"] = country
+        return client.get("/v1/products/deals", params=params)
+
+    def browse_categories(country: Optional[str] = None) -> Dict[str, Any]:
+        """List all available product categories on BuyWhere.
+
+        Args:
+            country: ISO country code to filter categories by availability (e.g. 'SG').
+        """
+        params: Dict[str, Any] = {}
+        if country:
+            params["country"] = country
+        return client.get("/v1/categories", params=params)
+
+    def get_category_products(
+        category_slug: str,
+        limit: int = 10,
+        sort: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get products within a specific category.
+
+        Args:
+            category_slug: The category identifier slug (e.g. 'electronics', 'health-beauty').
+            limit: Maximum number of products to return (1-50, default 10).
+            sort: Sort order — 'price_asc', 'price_desc', 'discount_desc', or 'relevance'.
+        """
+        params: Dict[str, Any] = {"limit": limit}
+        if sort:
+            params["sort"] = sort
+        return client.get(f"/v1/categories/{category_slug}/products", params=params)
+
+    return [
+        FunctionTool.from_defaults(fn=search_products),
+        FunctionTool.from_defaults(fn=get_product),
+        FunctionTool.from_defaults(fn=compare_prices),
+        FunctionTool.from_defaults(fn=find_deals),
+        FunctionTool.from_defaults(fn=browse_categories),
+        FunctionTool.from_defaults(fn=get_category_products),
+    ]
+
+
+def create_buywhere_tools(
+    api_key: Optional[str] = None,
+    base_url: Optional[str] = None,
+) -> List[FunctionTool]:
+    """Create LlamaIndex FunctionTool instances for the BuyWhere API.
 
     Args:
-        client: BuyWhere client instance (injected automatically).
-        product_id: The BuyWhere product identifier.
+        api_key: BuyWhere API key. Falls back to BUYWHERE_API_KEY env var.
+        base_url: BuyWhere API base URL. Falls back to BUYWHERE_BASE_URL env var,
+            then https://api.buywhere.ai.
 
     Returns:
-        JSON string with full product details including all merchant prices,
-        brand, description, and reviews.
+        List of LlamaIndex FunctionTool instances ready to pass to an agent.
     """
-    try:
-        product = client.products.get(product_id)
-
-        result = {
-            "success": True,
-            "product": {
-                "product_id": product.product_id,
-                "title": product.title,
-                "description": product.description_full,
-                "category": product.category,
-                "tags": product.tags,
-                "price": {
-                    "amount": product.price.amount,
-                    "currency": product.price.currency,
-                },
-                "merchant": {
-                    "name": product.merchant.name,
-                    "platform": product.merchant.platform,
-                    "rating": product.merchant.rating,
-                    "review_count": product.merchant.review_count,
-                },
-                "availability": {
-                    "in_stock": product.availability.in_stock,
-                    "stock_level": product.availability.stock_level,
-                },
-                "images": [{"url": img.url, "role": img.role} for img in product.images],
-                "url": product.source_url,
-            },
-        }
-
-        if product.reviews_summary:
-            result["product"]["reviews"] = {
-                "average_rating": product.reviews_summary.average_rating,
-                "total_reviews": product.reviews_summary.total_reviews,
-                "sentiment": product.reviews_summary.sentiment,
-            }
-
-        if product.specifications:
-            result["product"]["specifications"] = product.specifications
-
-        return json.dumps(result)
-    except Exception as e:
-        return json.dumps({"success": False, "error": str(e)})
-
-
-class BuyWhereToolSpec:
-    """LlamaIndex tool specification for BuyWhere.
-
-    Create tools from a BuyWhere client and pass them to any LlamaIndex agent.
-
-    Example::
-
-        from buywhere import BuyWhereClient
-        from buywhere_llamaindex import BuyWhereToolSpec
-
-        client = BuyWhereClient(api_key="bw_...")
-        spec = BuyWhereToolSpec(client)
-        tools = spec.to_tool_list()
-
-        # Use with LlamaIndex agent
-        from llama_index.core.agent import FunctionCallingAgent
-        agent = FunctionCallingAgent.from_tools(tools, llm=llm)
-    """
-
-    def __init__(self, client: "BuyWhereClient") -> None:
-        self._client = client
-
-    def _search(self, query: str, country: str = "sg", category: Optional[str] = None,
-                min_price: Optional[float] = None, max_price: Optional[float] = None,
-                limit: int = 10) -> str:
-        return search_products(self._client, query, country, category, min_price, max_price, limit)
-
-    def _compare(self, product_id: str) -> str:
-        return compare_prices(self._client, product_id)
-
-    def _deals(self, query: str, country: str = "sg", limit: int = 10) -> str:
-        return get_deals(self._client, query, country, limit)
-
-    def _details(self, product_id: str) -> str:
-        return get_product_details(self._client, product_id)
-
-    def to_tool_list(self) -> List[FunctionTool]:
-        """Return all BuyWhere tools as LlamaIndex FunctionTool instances."""
-        return [
-            FunctionTool.from_defaults(
-                fn=self._search,
-                name="buywhere_search_products",
-                description=(
-                    "Search BuyWhere's product catalog for products matching a query. "
-                    "Returns product listings with prices, merchant info, availability, and buy links."
-                ),
-            ),
-            FunctionTool.from_defaults(
-                fn=self._compare,
-                name="buywhere_compare_prices",
-                description=(
-                    "Compare prices for a specific product across all merchants. "
-                    "Returns sorted listings from cheapest to most expensive with delivery info."
-                ),
-            ),
-            FunctionTool.from_defaults(
-                fn=self._deals,
-                name="buywhere_get_deals",
-                description=(
-                    "Find current deals and price drops from BuyWhere. "
-                    "Returns products with discounts, original prices, and savings percentages."
-                ),
-            ),
-            FunctionTool.from_defaults(
-                fn=self._details,
-                name="buywhere_get_product_details",
-                description=(
-                    "Get detailed information about a specific product by its ID. "
-                    "Returns full details including all merchant prices, brand, description, and reviews."
-                ),
-            ),
-        ]
-
-
-def create_buywhere_tools(client: "BuyWhereClient") -> List[FunctionTool]:
-    """Create a list of LlamaIndex tools for the BuyWhere API.
-
-    Args:
-        client: An authenticated BuyWhere client.
-
-    Returns:
-        List of LlamaIndex FunctionTool instances.
-
-    Example::
-
-        from buywhere import BuyWhereClient
-        from buywhere_llamaindex import create_buywhere_tools
-
-        client = BuyWhereClient(api_key="bw_...")
-        tools = create_buywhere_tools(client)
-    """
-    spec = BuyWhereToolSpec(client)
-    return spec.to_tool_list()
+    client = BuyWhereClient(api_key=api_key, base_url=base_url)
+    return _make_tools(client)

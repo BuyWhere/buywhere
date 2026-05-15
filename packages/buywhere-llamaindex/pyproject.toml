@@ -5,39 +5,29 @@ build-backend = "hatchling.build"
 [project]
 name = "buywhere-llamaindex"
 version = "0.1.0"
-description = "BuyWhere LlamaIndex integration — product search, price comparison, and deals as LlamaIndex tools"
+description = "LlamaIndex FunctionTool wrappers for the BuyWhere product catalog API"
 readme = "README.md"
-requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "BuyWhere", email = "dev@buywhere.io" }]
-keywords = [
-    "buywhere",
-    "llamaindex",
-    "llama-index",
-    "product-search",
-    "price-comparison",
-    "deals",
-    "shopping",
-    "agent-sdk",
-    "ai",
-]
+keywords = ["llamaindex", "llama-index", "buywhere", "shopping", "ecommerce", "tools"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Typing :: Typed",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
+requires-python = ">=3.9"
 dependencies = [
-    "buywhere>=0.2.0",
+    "httpx>=0.24.0",
+    "pydantic>=2.0.0",
     "llama-index-core>=0.10.0",
+    "tenacity>=8.0.0",
 ]
-
-[project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio", "respx", "mypy"]
 
 [project.urls]
 Homepage = "https://buywhere.ai"
@@ -46,6 +36,3 @@ Repository = "https://github.com/BuyWhere/buywhere"
 
 [tool.hatch.build.targets.wheel]
 packages = ["buywhere_llamaindex"]
-
-[tool.mypy]
-strict = true
