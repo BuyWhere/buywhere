@@ -1,8 +1,9 @@
 # BUY-17921: BrightData Residential Proxy Setup
 
-## Status: In Progress
-Heartbeat: `f64a70f6-a359-47a4-a938-c44773e718b5`
+## Status: BLOCKED
+Heartbeat: `f64a70f6-a359-47a4-a938-c44773e718b5` (recovery run)
 Date: 2026-05-15
+Recovery Owner: Rex (CTO)
 
 ## Objective
 Provision working residential proxy credentials from BrightData and configure them in Shelf service on Railway.
@@ -32,11 +33,37 @@ BRIGHTDATA_RESIDENTIAL_PORT = 22225
 5. **Verify connectivity** — Test that the proxy can be used from Railway
 
 ## Blockers
-- Paperclip API currently unreachable (network timeout to Railway)
-- Need BrightData account access token with zone management permissions
+**Missing BrightData Account Access** (PRIMARY BLOCKER)
+- No credentials for the approved BrightData account
+- Cannot create or access proxy zones without account access
+- Cannot retrieve zone credentials (username/password) for Railway
+- Requires someone with BrightData dashboard access or account ownership
 
-## Next Steps
-1. Obtain BrightData API credentials
-2. Run provision script or manually create zone in dashboard
-3. Extract zone credentials
-4. Push credentials to Railway via CLI or GitHub Actions
+**Secondary Requirements**
+- Railway API token or CLI access for setting environment variables on service `945e8a6d-6f89-41f1-8256-b8cc6a872a33`
+
+## Next Steps (Ordered by Priority)
+
+1. **[REQUIRED] Get BrightData account credentials**
+   - Obtain API token with zone management permissions from the approved account
+   - Or get credentials from existing residential_proxy1 zone if already created
+   - Contact: Whoever has access to the approved BrightData account/subscription
+
+2. **[OPTIONAL] Create residential_proxy1 zone**
+   - If zone doesn't exist, run: `BRIGHTDATA_API_TOKEN="..." python -m scrapers.provision_brightdata_zones --zone residential_proxy1 --type residential`
+   - If zone exists, retrieve username and password from dashboard
+
+3. **[REQUIRED] Set Railway environment variables**
+   - Use Railway CLI or GitHub Actions with RAILWAY_TOKEN
+   - Target service: `945e8a6d-6f89-41f1-8256-b8cc6a872a33`
+   - Target environment: `ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae`
+   - Set the 4 env vars from credentials obtained in step 1
+
+4. **[VERIFICATION] Test proxy connectivity**
+   - Deploy updated code to Railway
+   - Run a test scrape through the proxy to verify auth works
+
+## Related Issues
+- **Parent:** [BUY-16739](/BUY/issues/BUY-16739) - Waiting on this configuration
+- **Dependent:** [BUY-16734](/BUY/issues/BUY-16734) - Blocked by BUY-16739
+- **Board Approval:** [05fa44b8](/BUY/approvals/05fa44b8-e846-4444-9e85-647c240fa104) - Decision date 2026-05-15
