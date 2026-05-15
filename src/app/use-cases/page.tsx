@@ -23,7 +23,7 @@ const useCases = [
 API_KEY = "bw_live_your_key_here"
 
 resp = requests.get(
-    "https://api.buywhere.ai/v1/search",
+    "https://api.buywhere.ai/v1/products/search",
     headers={"Authorization": f"Bearer {API_KEY}"},
     params={"q": "wireless keyboard under $80", "limit": 5},
 )
@@ -44,7 +44,7 @@ for p in products:
 API_KEY = "bw_live_your_key_here"
 
 resp = requests.get(
-    "https://api.buywhere.ai/v1/search",
+    "https://api.buywhere.ai/v1/products/search",
     headers={"Authorization": f"Bearer {API_KEY}"},
     params={"q": "MacBook Pro M3", "limit": 20},
 )
@@ -68,7 +68,7 @@ API_KEY = "bw_live_your_key_here"
 # LLM resolves "gifts for tech-savvy teenager under $50"
 # → structured query to BuyWhere
 resp = requests.get(
-    "https://api.buywhere.ai/v1/search",
+    "https://api.buywhere.ai/v1/products/search",
     headers={"Authorization": f"Bearer {API_KEY}"},
     params={
         "q": "tech gadgets gifts under $50",
@@ -96,7 +96,7 @@ API_KEY = "bw_live_your_key_here"
 
 def find_available(product_name: str) -> list:
     resp = requests.get(
-        "https://api.buywhere.ai/v1/search",
+        "https://api.buywhere.ai/v1/products/search",
         headers={"Authorization": f"Bearer {API_KEY}"},
         params={"q": product_name, "limit": 20},
     )
@@ -127,7 +127,7 @@ def check_price_drops(queries: list[str]) -> list[dict]:
 
     for q in queries:
         resp = requests.get(
-            "https://api.buywhere.ai/v1/search",
+            "https://api.buywhere.ai/v1/products/search",
             headers={"Authorization": f"Bearer {API_KEY}"},
             params={"q": q, "limit": 1},
         )

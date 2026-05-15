@@ -150,7 +150,7 @@ const codeSnippet = `import requests
 API_KEY = "bw_live_your_key_here"
 
 response = requests.get(
-    "https://api.buywhere.ai/v1/search",
+    "https://api.buywhere.ai/v1/products/search",
     headers={"Authorization": f"Bearer {API_KEY}"},
     params={
         "q": "wireless noise-cancelling headphones",

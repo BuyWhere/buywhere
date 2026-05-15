@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "BuyWhere Demo — Product Catalog API for AI Agents",
   description:
     "See BuyWhere in action. Query 50M+ products across 6 markets with real-time pricing. Built for AI agents.",
   alternates: {
-    canonical: "https://buywhere.ai/ph-launch-demo",
+    canonical: toSiteUrl("/ph-launch-demo"),
   },
 };
 
@@ -56,7 +57,7 @@ const terminalLines = [
   { prefix: "←", text: '3. JBL Tune 770NC — S$129.00 (Shopee SG)' },
 ];
 
-const codeSnippet = `curl -sS "https://api.buywhere.ai/v1/search?q=vaccum+cleaner&limit=3" \\
+const codeSnippet = `curl -sS "https://api.buywhere.ai/v1/products/search?q=vaccum+cleaner&limit=3" \\
   -H "Authorization: Bearer bw_live_your_key" | jq '.items[] | {name, price, currency, source}'`;
 
 export default function PhLaunchDemoPage() {

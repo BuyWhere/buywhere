@@ -78,7 +78,7 @@ ${key}
 
 Quick start (curl):
 
-  curl "https://api.buywhere.ai/v1/search?q=wireless+headphones&limit=5" \\
+  curl "https://api.buywhere.ai/v1/products/search?q=wireless+headphones&limit=5" \\
     -H "Authorization: Bearer ${key}"
 
 Quickstart: https://buywhere.ai/quickstart
