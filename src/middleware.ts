@@ -153,7 +153,8 @@ export function middleware(request: NextRequest) {
   const redirectPath = legacyRedirectPath(host, pathname);
   if (redirectPath) {
     const url = request.nextUrl.clone();
-    url.hostname = "buywhere.ai";
+    url.host = "buywhere.ai";
+    url.port = "";
     url.protocol = "https:";
     url.pathname = redirectPath;
     return NextResponse.redirect(url, 308);
