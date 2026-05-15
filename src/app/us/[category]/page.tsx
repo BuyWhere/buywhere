@@ -3,6 +3,7 @@ import Link from "next/link";
 import { USSearchAutocomplete } from "@/components/USSearchAutocomplete";
 import { USDealsSection } from "@/components/USDealsSection";
 import Footer from "@/components/Footer";
+import { toSiteUrl } from "@/lib/site-url";
 
 interface CategoryPageProps {
   params: Promise<{
@@ -269,20 +270,14 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
        type: "website",
        locale: "en_US",
        siteName: "BuyWhere US",
-       images: [
-         {
-           url: "https://buywhere.ai/assets/img/og-image.png",
-           width: 1200,
-           height: 630,
-           alt: `${categoryData.title} - BuyWhere US`,
-         },
-         {
-           url: "https://buywhere.ai/assets/img/og-image.svg",
-           width: 1200,
-           height: 630,
-           alt: `${categoryData.title} - BuyWhere US`,
-         },
-       ],
+        images: [
+          {
+            url: "/og-image.png",
+            width: 1200,
+            height: 630,
+            alt: `${categoryData.title} - BuyWhere US`,
+          },
+        ],
      },
      twitter: {
        card: "summary_large_image",
@@ -290,7 +285,7 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
        description: categoryData.description,
      },
      alternates: {
-       canonical: `https://buywhere.ai/us/${category}`,
+       canonical: toSiteUrl(`/us/${category}`),
      },
    };
  }

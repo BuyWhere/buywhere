@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import USProductDetail from "@/components/USProductDetail";
+import { toSiteUrl } from "@/lib/site-url";
 import { resolveUSProductRoute } from "@/lib/us-product-route";
 
 interface PageProps {
@@ -9,36 +10,27 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedProduct = await resolveUSProductRoute(params.slug);
-  const productName = resolvedProduct?.name || "US Product";
-  const productSlug = resolvedProduct?.slug || params.slug;
-  const description = resolvedProduct
-    ? `Compare prices for ${productName} across Amazon, Walmart, Target, and Best Buy.`
-    : "Compare prices across top US retailers on BuyWhere.";
-  const pageUrl = `https://buywhere.ai/products/us/${productSlug}`;
+  if (!resolvedProduct) return { title: "Product Not Found" };
+
+  const pageUrl = toSiteUrl(`/products/us/${resolvedProduct.slug}`);
 
   return {
-    title: `${productName} - BuyWhere`,
-    description,
+    title: `${resolvedProduct.name} - BuyWhere`,
+    description: `Compare prices for ${resolvedProduct.name} across Amazon, Walmart, Target, and Best Buy.`,
     alternates: {
       canonical: pageUrl,
     },
     openGraph: {
-      title: `${productName} - BuyWhere`,
-      description,
+      title: `${resolvedProduct.name} - BuyWhere`,
+      description: `Compare prices for ${resolvedProduct.name} across Amazon, Walmart, Target, and Best Buy.`,
       url: pageUrl,
       type: "website",
       images: [
         {
-          url: "https://buywhere.ai/assets/img/og-image.png",
+          url: "/og-image.png",
           width: 1200,
           height: 630,
-          alt: `${productName} - Compare prices on BuyWhere US`,
-        },
-        {
-          url: "https://buywhere.ai/assets/img/og-image.svg",
-          width: 1200,
-          height: 630,
-          alt: `${productName} - Compare prices on BuyWhere US`,
+          alt: `${resolvedProduct.name} - Compare prices on BuyWhere US`,
         },
       ],
     },

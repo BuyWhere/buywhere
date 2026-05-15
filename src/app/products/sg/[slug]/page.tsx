@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { toSiteUrl } from "@/lib/site-url";
 import { resolveSGProductRoute } from "@/lib/sg-product-route";
 
 interface PageProps {
@@ -8,45 +9,36 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedProduct = await resolveSGProductRoute(params.slug);
-  const productName = resolvedProduct?.name || "SG Product";
-  const productSlug = resolvedProduct?.slug || params.slug;
-  const description = resolvedProduct
-    ? `Compare prices for ${productName} across Lazada, Shopee, Amazon SG, and top Singapore retailers.`
-    : "Compare prices across top Singapore and Southeast Asia retailers on BuyWhere.";
-  const pageUrl = `https://buywhere.ai/products/sg/${productSlug}`;
+  if (!resolvedProduct) return { title: "Product Not Found" };
+
+  const pageUrl = toSiteUrl(`/products/sg/${resolvedProduct.slug}`);
 
   return {
-    title: `${productName} - Compare Prices Singapore | BuyWhere`,
-    description,
+    title: `${resolvedProduct.name} - Compare Prices Singapore | BuyWhere`,
+    description: `Compare prices for ${resolvedProduct.name} across Lazada, Shopee, Amazon SG, and top Singapore retailers.`,
     alternates: {
       canonical: pageUrl,
     },
     openGraph: {
-      title: `${productName} - Compare Prices Singapore | BuyWhere`,
-      description,
+      title: `${resolvedProduct.name} - Compare Prices Singapore | BuyWhere`,
+      description: `Compare prices for ${resolvedProduct.name} across Lazada, Shopee, Amazon SG, and top Singapore retailers.`,
       url: pageUrl,
       type: "website",
       siteName: "BuyWhere",
       locale: "en_SG",
       images: [
         {
-          url: "https://buywhere.ai/assets/img/og-image.png",
+          url: "/og-image.png",
           width: 1200,
           height: 630,
-          alt: `${productName} - Compare prices on BuyWhere SG`,
-        },
-        {
-          url: "https://buywhere.ai/assets/img/og-image.svg",
-          width: 1200,
-          height: 630,
-          alt: `${productName} - Compare prices on BuyWhere SG`,
+          alt: `${resolvedProduct.name} - Compare prices on BuyWhere SG`,
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
-      title: `${productName} - Compare Prices Singapore | BuyWhere`,
-      description,
+      title: `${resolvedProduct.name} - Compare Prices Singapore | BuyWhere`,
+      description: `Compare prices for ${resolvedProduct.name} across Lazada, Shopee, Amazon SG, and top Singapore retailers.`,
     },
     robots: {
       index: true,
@@ -67,7 +59,7 @@ export default async function SGProductSlugPage({ params }: PageProps) {
     "@type": "Product",
     name: resolvedProduct.name,
     description: `Compare prices for ${resolvedProduct.name} across top Singapore retailers including Lazada, Shopee, Amazon SG, FairPrice, and Courts.`,
-    url: `https://buywhere.ai/products/sg/${resolvedProduct.slug}`,
+    url: toSiteUrl(`/products/sg/${resolvedProduct.slug}`),
     offers: {
       "@type": "AggregateOffer",
       priceCurrency: "SGD",

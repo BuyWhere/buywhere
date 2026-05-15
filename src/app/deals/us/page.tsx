@@ -4,6 +4,7 @@ import { DealOfTheDay } from "@/components/DealOfTheDay";
 import CategoryFilterSection from "@/components/CategoryFilterSection";
 import { TrendingDealsGrid } from "@/components/TrendingDealsGrid";
 import type { Metadata } from "next";
+import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "Top US Deals - Price Drops from Amazon, Walmart, Target & Best Buy | BuyWhere",
@@ -16,13 +17,7 @@ export const metadata: Metadata = {
     siteName: "BuyWhere US",
     images: [
       {
-        url: "https://buywhere.ai/assets/img/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "Top US Deals - Price Drops from Amazon, Walmart, Target & Best Buy | BuyWhere",
-      },
-      {
-        url: "https://buywhere.ai/assets/img/og-image.svg",
+        url: "/og-image.png",
         width: 1200,
         height: 630,
         alt: "Top US Deals - Price Drops from Amazon, Walmart, Target & Best Buy | BuyWhere",
@@ -35,7 +30,7 @@ export const metadata: Metadata = {
     description: "Find the latest price drops and deals on electronics, home goods, fashion, and more from Amazon, Walmart, Target, and Best Buy.",
   },
   alternates: {
-    canonical: "https://buywhere.ai/deals/us",
+    canonical: toSiteUrl("/deals/us"),
   },
 };
 

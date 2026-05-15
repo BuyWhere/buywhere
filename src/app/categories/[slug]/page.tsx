@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { HeroSearch } from '@/components/HeroSearch';
 import { PRODUCT_TAXONOMY, getCategoryBySlug } from '@/lib/taxonomy';
-
-const BASE_URL = 'https://buywhere.ai';
+import { toSiteUrl } from '@/lib/site-url';
 
 function slugToName(slug: string): string {
   return slug
@@ -18,12 +18,14 @@ function slugToQuery(slug: string): string {
 
 function buildMetadata(slug: string): Metadata {
   const category = getCategoryBySlug(slug);
-  const name = category?.name ?? slugToName(slug);
-  const description = category?.description
+  if (!category) return { title: 'Category Not Found' };
+
+  const name = category.name;
+  const description = category.description
     ? `Compare ${name.toLowerCase()} prices in Singapore. Find the best deals from top retailers on BuyWhere. ${category.description}.`
     : `Compare ${name.toLowerCase()} prices in Singapore. Find the best deals from top retailers on BuyWhere. Updated daily with the latest prices.`;
   const title = `${name} Singapore | Compare Best Prices & Deals`;
-  const canonical = `${BASE_URL}/categories/${slug}`;
+  const canonical = toSiteUrl(`/categories/${slug}`);
 
   return {
     title,
@@ -36,6 +38,14 @@ function buildMetadata(slug: string): Metadata {
       type: 'website',
       siteName: 'BuyWhere',
       locale: 'en_SG',
+      images: [
+        {
+          url: '/og-image.png',
+          width: 1200,
+          height: 630,
+          alt: `${name} - Compare prices on BuyWhere`,
+        },
+      ],
     },
     twitter: {
       card: 'summary_large_image',
@@ -54,50 +64,57 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return buildMetadata(slug);
 }
 
+export function generateStaticParams() {
+  return PRODUCT_TAXONOMY.map((cat) => ({ slug: cat.slug }));
+}
+
 export default async function CategorySlugPage({ params }: PageProps) {
   const { slug } = await params;
   const category = getCategoryBySlug(slug);
-  const name = category?.name ?? slugToName(slug);
+  if (!category) notFound();
+
+  const name = category.name;
+  const canonicalCategoryUrl = toSiteUrl(`/categories/${slug}`);
 
   const schemaMarkup = {
     '@context': 'https://schema.org',
     '@graph': [
       {
         '@type': 'BreadcrumbList',
-        '@id': `${BASE_URL}/#breadcrumb`,
+        '@id': `${toSiteUrl('/#breadcrumb')}`,
         itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: BASE_URL },
+          { '@type': 'ListItem', position: 1, name: 'Home', item: toSiteUrl('/') },
           {
             '@type': 'ListItem',
             position: 2,
             name: 'Categories',
-            item: `${BASE_URL}/categories`,
+            item: toSiteUrl('/categories/'),
           },
           {
             '@type': 'ListItem',
             position: 3,
             name,
-            item: `${BASE_URL}/categories/${slug}`,
+            item: canonicalCategoryUrl,
           },
         ],
       },
       {
         '@type': 'CollectionPage',
-        '@id': `${BASE_URL}/categories/${slug}#collection`,
+        '@id': `${canonicalCategoryUrl}#collection`,
         name: `${name} Singapore | Compare Best Prices & Deals`,
         description: `Find the best ${name.toLowerCase()} in Singapore. Compare prices from top retailers on BuyWhere.`,
-        url: `${BASE_URL}/categories/${slug}`,
-        mainEntityOfPage: `${BASE_URL}/categories/${slug}`,
+        url: canonicalCategoryUrl,
+        mainEntityOfPage: canonicalCategoryUrl,
         publisher: {
           '@type': 'Organization',
-          '@id': `${BASE_URL}/#organization`,
+          '@id': `${toSiteUrl('/#organization')}`,
           name: 'BuyWhere',
-          url: BASE_URL,
+          url: toSiteUrl('/'),
         },
         about: {
           '@type': 'Thing',
           name,
-          description: category?.description ?? `${name} products and deals in Singapore`,
+          description: category.description,
         },
       },
     ],
