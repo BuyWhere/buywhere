@@ -33,10 +33,12 @@ interface PaperclipAgentInfo {
 }
 
 async function verifyPaperclipTokenWithApi(token: string): Promise<PaperclipAgentInfo | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
   try {
     const resp = await fetch(`${PAPERCLIP_API_URL}/api/agents/me`, {
       headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(10000),
+      signal: controller.signal,
     });
     if (resp.status === 200) {
       const data = await resp.json() as PaperclipAgentInfo;
@@ -45,6 +47,8 @@ async function verifyPaperclipTokenWithApi(token: string): Promise<PaperclipAgen
     return null;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
