@@ -1,0 +1,51 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "buywhere-llamaindex"
+version = "0.1.0"
+description = "BuyWhere LlamaIndex integration — product search, price comparison, and deals as LlamaIndex tools"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "BuyWhere", email = "dev@buywhere.io" }]
+keywords = [
+    "buywhere",
+    "llamaindex",
+    "llama-index",
+    "product-search",
+    "price-comparison",
+    "deals",
+    "shopping",
+    "agent-sdk",
+    "ai",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
+dependencies = [
+    "buywhere>=0.2.0",
+    "llama-index-core>=0.10.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio", "respx", "mypy"]
+
+[project.urls]
+Homepage = "https://buywhere.ai"
+Documentation = "https://docs.buywhere.ai"
+Repository = "https://github.com/BuyWhere/buywhere"
+
+[tool.hatch.build.targets.wheel]
+packages = ["buywhere_llamaindex"]
+
+[tool.mypy]
+strict = true
