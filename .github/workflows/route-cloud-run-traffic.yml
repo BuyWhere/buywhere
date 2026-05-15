@@ -1,6 +1,12 @@
 name: Route Cloud Run Traffic to Latest
 on:
   workflow_dispatch:
+    inputs:
+      target_revision:
+        description: 'Specific revision name (leave empty for --to-latest)'
+        required: false
+        default: ''
+        type: string
 permissions:
   contents: read
   id-token: write
@@ -18,19 +24,32 @@ jobs:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
-      - name: Route traffic to latest revision
+      - name: List revisions
         run: |
-          echo "Current traffic:"
-          gcloud run services describe $CLOUD_RUN_SERVICE \
+          gcloud run revisions list \
+            --service $CLOUD_RUN_SERVICE \
             --project $GCP_PROJECT_ID \
             --region $GCP_REGION \
-            --format "yaml(status.traffic)"
-          echo "Routing traffic to latest..."
-          gcloud run services update-traffic $CLOUD_RUN_SERVICE \
-            --project $GCP_PROJECT_ID \
-            --region $GCP_REGION \
-            --to-latest
-          echo "Updated traffic:"
+            --sort-by=~creationTime \
+            --limit 5
+      - name: Route traffic
+        run: |
+          TARGET="${{ github.event.inputs.target_revision }}"
+          if [ -z "$TARGET" ]; then
+            echo "Routing to latest..."
+            gcloud run services update-traffic $CLOUD_RUN_SERVICE \
+              --project $GCP_PROJECT_ID \
+              --region $GCP_REGION \
+              --to-latest
+          else
+            echo "Routing to specific revision: $TARGET"
+            gcloud run services update-traffic $CLOUD_RUN_SERVICE \
+              --project $GCP_PROJECT_ID \
+              --region $GCP_REGION \
+              --to-revisions "$TARGET=100"
+          fi
+      - name: Verify traffic
+        run: |
           gcloud run services describe $CLOUD_RUN_SERVICE \
             --project $GCP_PROJECT_ID \
             --region $GCP_REGION \
