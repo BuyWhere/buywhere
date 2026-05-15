@@ -6,7 +6,12 @@ export const db = new Pool({
   max: parseInt(process.env.PG_POOL_MAX || '50'),
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
-  statement_timeout: parseInt(process.env.PG_STATEMENT_TIMEOUT || '30000'),
+});
+
+const pgStatementTimeout = parseInt(process.env.PG_STATEMENT_TIMEOUT || '10000');
+
+db.on('connect', (client) => {
+  client.query(`SET statement_timeout = ${pgStatementTimeout}`).catch(() => {});
 });
 
 export const redis = new Redis({
