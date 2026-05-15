@@ -172,7 +172,13 @@ export async function getSGProducts(options: GetSGProductsOptions = {}): Promise
         cachedSGProducts = { products, fetchedAt: Date.now() };
         return products;
       })
-      .catch(() => generateMockSGProducts())
+      .catch((error) => {
+        if (!allowMockFallback) {
+          throw error;
+        }
+
+        return generateMockSGProducts();
+      })
       .finally(() => {
         inflightSGProducts = null;
       });

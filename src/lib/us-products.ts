@@ -261,14 +261,18 @@ export async function getUSProducts(options: GetUSProductsOptions = {}): Promise
         cachedUSProducts = { products, fetchedAt: Date.now() };
         return products;
       })
-      .catch(() =>
-        generateMockUSProducts().map((product) => ({
+      .catch((error) => {
+        if (!allowMockFallback) {
+          throw error;
+        }
+
+        return generateMockUSProducts().map((product) => ({
           id: product.id,
           name: product.name,
           slug: buildUSProductSlug(product),
           lastUpdated: product.lastUpdated || new Date().toISOString(),
-        }))
-      )
+        }));
+      })
       .finally(() => {
         inflightUSProducts = null;
       });
