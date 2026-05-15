@@ -137,7 +137,8 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const host = request.headers.get("host") ?? "";
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const host = forwardedHost || request.headers.get("host") || "";
   const accept = request.headers.get("accept") ?? "";
   const wantsMarkdown = accept.includes("text/markdown");
 
