@@ -160,11 +160,6 @@ export function createApp() {
   app.use('/v1/merchants', merchantsRouter);
   app.use('/v1/ingest', ingestRouter);
 
-  // Direct ingest health route (BUY-17492 debug: bypasses router to isolate routing issue)
-  app.get('/v1/ingest/health-direct', (_req: express.Request, res: express.Response) => {
-    res.json({ status: 'ok', via: 'direct' });
-  });
-
   // Backward-compat alias: /v1/search → /v1/products/search
   app.get("/v1/search", (req, res) => {
     const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
@@ -239,27 +234,6 @@ export function createApp() {
 
   // Webhook relay — UptimeRobot → Paperclip issue creation
   app.use('/webhooks', webhooksRouter);
-
-  // Debug: enumerate registered routes (BUY-17492)
-  app.get('/_debug/routes', (_req, res) => {
-    const layers: Array<{ name: string; path: string; route?: string; methods?: string }> = [];
-    const stack = (app as any)._router?.stack || [];
-    for (const layer of stack) {
-      const entry: any = { name: layer.name, path: layer.path || layer.regexp?.source };
-      if (layer.route) {
-        entry.route = layer.route.path;
-        entry.methods = Object.keys(layer.route.methods).join(',').toUpperCase();
-      }
-      if (layer.name === 'router' && layer.handle?.stack) {
-        entry.subroutes = layer.handle.stack.map((sub: any) => ({
-          name: sub.name, path: sub.route?.path, methods: sub.route ? Object.keys(sub.route.methods).join(',') : undefined,
-        }));
-      }
-      layers.push(entry);
-    }
-    const ingestLayers = layers.filter(l => (l.path || '').includes('ingest') || (l.route || '').includes('ingest'));
-    res.json({ total_layers: layers.length, ingest: ingestLayers, all: layers });
-  });
 
   // 404 fallback
   app.use((_req, res) => {
