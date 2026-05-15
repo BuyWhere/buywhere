@@ -1,19 +1,3 @@
-<<<<<<< HEAD
-# BuyWhere MCP Server
-
-Agent-native product catalog API for Southeast Asia commerce. Search 1.5M+ products across Shopee, Lazada, Amazon, Walmart, and 20+ e-commerce platforms. Compare prices, find deals, browse categories.
-
-[![Glama Score](https://glama.ai/mcp/servers/BuyWhere/buywhere/badges/score.svg)](https://glama.ai/mcp/servers/BuyWhere/buywhere)
-<!-- Smithery badge: [![Smithery](https://smithery.ai/server/buywhere/badge)](https://smithery.ai/server/buywhere) -- add after listing is live -->
-
-## Installation
-
-```bash
-npx @buywhere/mcp-server
-```
-
-Or add to your MCP client config:
-=======
 # BuyWhere API
 
 The product catalog API for AI agent commerce — search, compare, and track prices across 40+ retailers in Southeast Asia and the US.
@@ -68,71 +52,22 @@ python /path/to/buywhere-api/mcp_server.py
 ```
 
 **Claude Desktop** — add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
->>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
 
 ```json
 {
   "mcpServers": {
     "buywhere": {
-<<<<<<< HEAD
-      "command": "npx",
-      "args": ["@buywhere/mcp-server"],
-      "env": {
-        "BUYWHERE_API_KEY": "your-api-key"
-=======
       "command": "python",
       "args": ["/path/to/buywhere-api/mcp_server.py"],
       "env": {
         "BUYWHERE_API_KEY": "your_api_key_here",
         "BUYWHERE_API_URL": "https://api.buywhere.ai"
->>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
       }
     }
   }
 }
 ```
 
-<<<<<<< HEAD
-## Remote MCP (HTTP/SSE)
-
-```
-https://mcp.buywhere.ai/mcp
-```
-
-Authentication: Bearer token (API key). Get a free key at [api.buywhere.ai/v1/auth/register](https://api.buywhere.ai/v1/auth/register).
-
-## Tools
-
-| Tool | Description |
-|------|-------------|
-| `search_products` | Full-text search across 1.5M+ products from 20+ platforms |
-| `get_product` | Get full product details by BuyWhere product ID |
-| `compare_prices` | Compare prices for a product across all platforms |
-| `get_deals` | Find products with active discounts |
-| `browse_categories` | Browse the product category taxonomy tree |
-| `get_category_products` | Get products within a specific category |
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `BUYWHERE_API_KEY` | Yes | BuyWhere API key |
-| `BUYWHERE_API_URL` | No | API base URL (default: `https://api.buywhere.ai`) |
-
-## Documentation
-
-Full API docs: [api.buywhere.ai/docs/guides/mcp](https://api.buywhere.ai/docs/guides/mcp)
-
-## Links
-
-- Homepage: [buywhere.ai](https://buywhere.ai)
-- npm package: [@buywhere/mcp-server](https://www.npmjs.com/package/@buywhere/mcp-server)
-- API: [api.buywhere.ai](https://api.buywhere.ai)
-
-## License
-
-MIT
-=======
 **Cursor** — add to Cursor settings → MCP servers using the same JSON config above.
 
 Available MCP tools: `search_products`, `get_product`, `compare_prices`, `get_deals`, `find_deals`, `browse_categories`, `get_category_products`.
@@ -189,4 +124,3 @@ docker-compose up
 ## License
 
 Proprietary — © 2026 BuyWhere. All rights reserved.
->>>>>>> a8194ee77 (fix(BUY-12731): use Cloud Run hostname + X-Forwarded-Host to fix 404 routing)
