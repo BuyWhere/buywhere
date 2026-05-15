@@ -7,6 +7,7 @@ const queryLog_1 = require("../middleware/queryLog");
 const errors_1 = require("../middleware/errors");
 const response_1 = require("../lib/response");
 const compare_query_1 = require("../lib/compare-query");
+const posthog_1 = require("../analytics/posthog");
 const router = (0, express_1.Router)();
 const PRODUCT_ID_RE = /^\d+$/;
 function extractProductId(args) {
@@ -480,28 +481,49 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
     }
     const { id, method, params } = body;
     const args = (params && typeof params === 'object' && !Array.isArray(params)) ? params : {};
+    const t0 = Date.now();
     try {
+        let toolName;
+        let result;
         switch (method) {
             case 'tools/call': {
-                const toolName = args.name;
+                toolName = args.name;
                 const toolArgs = (args.arguments && typeof args.arguments === 'object') ? args.arguments : {};
                 if (!toolName) {
                     return res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
                 }
-                const result = await dispatchTool(toolName, toolArgs);
-                return res.json(jsonrpcOk(id, {
-                    content: [{ type: 'text', text: JSON.stringify(result) }],
-                }));
+                result = await dispatchTool(toolName, toolArgs);
+                break;
             }
             default:
                 if (isDirectToolMethod(method)) {
-                    const result = await dispatchTool(method, args);
-                    return res.json(jsonrpcOk(id, {
-                        content: [{ type: 'text', text: JSON.stringify(result) }],
-                    }));
+                    toolName = method;
+                    result = await dispatchTool(method, args);
                 }
-                return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
+                else {
+                    return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
+                }
         }
+        if (req.apiKeyRecord) {
+            (0, posthog_1.trackApiQuery)({
+                apiKey: (0, apiKey_1.hashKey)(req.apiKeyRecord.key),
+                agentFramework: req.agentInfo?.framework || 'mcp',
+                agentVersion: req.agentInfo?.version || '',
+                sdkLanguage: req.agentInfo?.sdkLanguage || 'unknown',
+                queryIntent: toolName,
+                productCategories: [],
+                resultCount: result?.results
+                    ? result.results.length
+                    : 1,
+                responseTimeMs: Date.now() - t0,
+                signupChannel: req.apiKeyRecord.signupChannel,
+                sourcePage: null,
+                endpoint: `mcp.${toolName}`,
+            });
+        }
+        return res.json(jsonrpcOk(id, {
+            content: [{ type: 'text', text: JSON.stringify(result) }],
+        }));
     }
     catch (err) {
         const e = err;

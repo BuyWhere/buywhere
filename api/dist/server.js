@@ -152,10 +152,6 @@ function createApp() {
     app.use('/v1/categories', categories_1.default);
     app.use('/v1/merchants', merchants_1.default);
     app.use('/v1/ingest', ingest_1.default);
-    // Direct ingest health route (BUY-17492 debug: bypasses router to isolate routing issue)
-    app.get('/v1/ingest/health-direct', (_req, res) => {
-        res.json({ status: 'ok', via: 'direct' });
-    });
     // Backward-compat alias: /v1/search → /v1/products/search
     app.get("/v1/search", (req, res) => {
         const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
@@ -216,28 +212,6 @@ function createApp() {
     app.use(landing_1.default);
     // Webhook relay — UptimeRobot → Paperclip issue creation
     app.use('/webhooks', webhooks_1.default);
-    // Debug: enumerate registered routes (BUY-17492)
-    app.get('/_debug/routes', (_req, res) => {
-        const routes = [];
-        function extractRoutes(stack, prefix) {
-            for (const layer of stack) {
-                if (layer.route) {
-                    const methods = Object.keys(layer.route.methods).join(',').toUpperCase();
-                    routes.push({ method: methods, path: prefix + layer.route.path });
-                }
-                else if (layer.name === 'router' && layer.handle?.stack) {
-                    const routerPath = layer.regexp?.source === '^\\/?$' ? '' :
-                        (layer.keys?.length === 0 ? layer.regexp?.source.replace(/\\\//g, '/').replace(/\^\/?|\?.*$/g, '') : layer.path || '');
-                    extractRoutes(layer.handle.stack, prefix + routerPath);
-                }
-            }
-        }
-        if (app._router?.stack) {
-            extractRoutes(app._router.stack, '');
-        }
-        const ingestRoutes = routes.filter(r => r.path.includes('ingest'));
-        res.json({ total: routes.length, ingest: ingestRoutes, all: routes });
-    });
     // 404 fallback
     app.use((_req, res) => {
         res.status(404).json({ error: 'Not found' });

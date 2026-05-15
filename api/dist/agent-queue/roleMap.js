@@ -1,9 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ROLE_ALLOWLIST = exports.NON_ENGINEERING_ROLES = void 0;
-exports.getTaskCategoryFromLabels = getTaskCategoryFromLabels;
-exports.inferTaskCategoryFromDescription = inferTaskCategoryFromDescription;
-exports.inferEngineeringSubType = inferEngineeringSubType;
+exports.inferEngineeringSubType = exports.inferTaskCategoryFromDescription = exports.getTaskCategoryFromLabels = exports.ROLE_ALLOWLIST = exports.NON_ENGINEERING_ROLES = void 0;
 exports.NON_ENGINEERING_ROLES = new Set([
     'designer',
     'researcher',
@@ -39,6 +36,7 @@ function getTaskCategoryFromLabels(labels) {
         return 'management';
     return null;
 }
+exports.getTaskCategoryFromLabels = getTaskCategoryFromLabels;
 function inferTaskCategoryFromDescription(description) {
     const lower = description.toLowerCase();
     const patterns = [
@@ -58,6 +56,7 @@ function inferTaskCategoryFromDescription(description) {
     }
     return null;
 }
+exports.inferTaskCategoryFromDescription = inferTaskCategoryFromDescription;
 function inferEngineeringSubType(description) {
     const lower = description.toLowerCase();
     if (/scraper|scraping|crawl|extract/i.test(lower))
@@ -78,3 +77,4 @@ function inferEngineeringSubType(description) {
         return 'platform';
     return null;
 }
+exports.inferEngineeringSubType = inferEngineeringSubType;

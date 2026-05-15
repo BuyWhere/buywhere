@@ -1,9 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.hashKey = hashKey;
-exports.requireApiKey = requireApiKey;
-exports.checkRateLimit = checkRateLimit;
-exports.checkIpRateLimit = checkIpRateLimit;
+exports.checkIpRateLimit = exports.checkRateLimit = exports.requireApiKey = exports.hashKey = void 0;
 const crypto_1 = require("crypto");
 const config_1 = require("../config");
 const errors_1 = require("./errors");
@@ -19,6 +16,7 @@ const TIER_LIMITS = {
 function hashKey(rawKey) {
     return (0, crypto_1.createHash)('sha256').update(rawKey).digest('hex');
 }
+exports.hashKey = hashKey;
 function base64UrlDecode(s) {
     const base64 = s.replace(/-/g, '+').replace(/_/g, '/');
     return Buffer.from(base64, 'base64').toString('utf8');
@@ -145,6 +143,7 @@ async function requireApiKey(req, res, next) {
     config_1.db.query('UPDATE api_keys SET last_used_at = NOW() WHERE key_hash = $1', [keyHash]).catch(() => { });
     next();
 }
+exports.requireApiKey = requireApiKey;
 /** Set standard X-RateLimit-* headers on the response */
 function setRateLimitHeaders(res, limit, remaining, resetEpoch) {
     res.set('X-RateLimit-Limit', String(limit));
@@ -197,6 +196,7 @@ async function checkRateLimit(req, res, next) {
     setRateLimitHeaders(res, rpmLimit, rpmLimit - rpmCount, resetEpoch);
     next();
 }
+exports.checkRateLimit = checkRateLimit;
 /** IP-level rate limit for unauthenticated requests */
 async function checkIpRateLimit(req, res, next) {
     // Skip if request already has an API key (handled by checkRateLimit)
@@ -234,3 +234,4 @@ async function checkIpRateLimit(req, res, next) {
     }
     next();
 }
+exports.checkIpRateLimit = checkIpRateLimit;

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.queryLogMiddleware = queryLogMiddleware;
+exports.queryLogMiddleware = void 0;
 const config_1 = require("../config");
 // Known human User-Agent patterns — browsers, Googlebot, etc.
 const HUMAN_UA_PATTERNS = [
@@ -95,7 +95,7 @@ function queryLogMiddleware(endpoint) {
             return originalJson(body);
         };
         // Hook into response finish to capture status code, timing, and result count
-        res.on('finish', () => {
+        res.once('finish', () => {
             const apiKeyRecord = req.apiKeyRecord;
             // Log all requests — unauthenticated ones recorded with null api_key_id
             // so we capture total demand even before API key adoption ramps up.
@@ -127,3 +127,4 @@ function queryLogMiddleware(endpoint) {
         next();
     };
 }
+exports.queryLogMiddleware = queryLogMiddleware;

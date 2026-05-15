@@ -1,14 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.trackApiQuery = trackApiQuery;
-exports.trackAffiliateClick = trackAffiliateClick;
-exports.trackRegistration = trackRegistration;
-exports.trackComparePageView = trackComparePageView;
-exports.trackCompareRetailerClick = trackCompareRetailerClick;
-exports.shutdownPostHog = shutdownPostHog;
-exports.trackEmailVerified = trackEmailVerified;
-exports.trackProductSearch = trackProductSearch;
-exports.trackProductView = trackProductView;
+exports.trackProductView = exports.trackProductSearch = exports.trackEmailVerified = exports.shutdownPostHog = exports.trackCompareRetailerClick = exports.trackComparePageView = exports.trackRegistration = exports.trackAffiliateClick = exports.trackApiQuery = void 0;
 const posthog_node_1 = require("posthog-node");
 const POSTHOG_API_KEY = process.env.POSTHOG_API_KEY || '';
 const POSTHOG_HOST = process.env.POSTHOG_HOST || 'https://app.posthog.com';
@@ -42,6 +34,7 @@ function trackApiQuery(event) {
         },
     });
 }
+exports.trackApiQuery = trackApiQuery;
 function trackAffiliateClick(event) {
     const ph = getClient();
     if (!ph)
@@ -57,6 +50,7 @@ function trackAffiliateClick(event) {
         },
     });
 }
+exports.trackAffiliateClick = trackAffiliateClick;
 function trackRegistration(apiKey, agentName, signupChannel, utmSource) {
     const ph = getClient();
     if (!ph)
@@ -80,6 +74,7 @@ function trackRegistration(apiKey, agentName, signupChannel, utmSource) {
         },
     });
 }
+exports.trackRegistration = trackRegistration;
 function trackComparePageView(event) {
     const ph = getClient();
     if (!ph)
@@ -96,6 +91,7 @@ function trackComparePageView(event) {
         },
     });
 }
+exports.trackComparePageView = trackComparePageView;
 function trackCompareRetailerClick(event) {
     const ph = getClient();
     if (!ph)
@@ -111,11 +107,13 @@ function trackCompareRetailerClick(event) {
         },
     });
 }
+exports.trackCompareRetailerClick = trackCompareRetailerClick;
 async function shutdownPostHog() {
     if (client) {
         await client.shutdown();
     }
 }
+exports.shutdownPostHog = shutdownPostHog;
 function trackEmailVerified(apiKeyId, email) {
     const ph = getClient();
     if (!ph)
@@ -129,6 +127,7 @@ function trackEmailVerified(apiKeyId, email) {
         },
     });
 }
+exports.trackEmailVerified = trackEmailVerified;
 function trackProductSearch(event) {
     const ph = getClient();
     if (!ph)
@@ -143,6 +142,7 @@ function trackProductSearch(event) {
         },
     });
 }
+exports.trackProductSearch = trackProductSearch;
 function trackProductView(event) {
     const ph = getClient();
     if (!ph)
@@ -157,3 +157,4 @@ function trackProductView(event) {
         },
     });
 }
+exports.trackProductView = trackProductView;

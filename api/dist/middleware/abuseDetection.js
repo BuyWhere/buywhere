@@ -1,9 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ABUSE_LIMITS = void 0;
-exports.abuseDetection = abuseDetection;
-exports.recordInvalidKeyAttempt = recordInvalidKeyAttempt;
-exports.recordProductsReturned = recordProductsReturned;
+exports.recordProductsReturned = exports.recordInvalidKeyAttempt = exports.abuseDetection = exports.ABUSE_LIMITS = void 0;
 const config_1 = require("../config");
 Object.defineProperty(exports, "ABUSE_LIMITS", { enumerable: true, get: function () { return config_1.ABUSE_LIMITS; } });
 const errors_1 = require("./errors");
@@ -64,6 +61,7 @@ function abuseDetection() {
         }
     };
 }
+exports.abuseDetection = abuseDetection;
 async function recordInvalidKeyAttempt(req) {
     const ip = getClientIp(req);
     const fiveMinWindow = Math.floor(Date.now() / 300000);
@@ -82,6 +80,7 @@ async function recordInvalidKeyAttempt(req) {
         // non-critical
     }
 }
+exports.recordInvalidKeyAttempt = recordInvalidKeyAttempt;
 async function recordProductsReturned(req, count) {
     if (count <= 0)
         return;
@@ -102,3 +101,4 @@ async function recordProductsReturned(req, count) {
         // non-critical
     }
 }
+exports.recordProductsReturned = recordProductsReturned;

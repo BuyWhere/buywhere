@@ -25,3 +25,11 @@ const shutdown = async () => {
 };
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
+process.on('uncaughtException', (err) => {
+    console.error('[FATAL] uncaughtException:', err);
+    server.close(() => process.exit(1));
+    setTimeout(() => process.exit(1), 5000);
+});
+process.on('unhandledRejection', (reason) => {
+    console.error('[WARN] unhandledRejection:', reason);
+});

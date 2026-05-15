@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.runMigrations = runMigrations;
+exports.runMigrations = void 0;
 const config_1 = require("./config");
 const MIGRATION = `
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -318,6 +318,7 @@ async function runMigrations() {
     }
     console.log('Migrations complete.');
 }
+exports.runMigrations = runMigrations;
 async function migrate() {
     await runMigrations();
     await config_1.db.end();

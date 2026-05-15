@@ -1,10 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.StructuredError = exports.ErrorCode = exports.DOC_BASE = void 0;
-exports.buildErrorEnvelope = buildErrorEnvelope;
-exports.buildRateLimitEnvelope = buildRateLimitEnvelope;
-exports.sendError = sendError;
-exports.sendRateLimitError = sendRateLimitError;
+exports.StructuredError = exports.sendRateLimitError = exports.sendError = exports.buildRateLimitEnvelope = exports.buildErrorEnvelope = exports.ErrorCode = exports.DOC_BASE = void 0;
 exports.DOC_BASE = 'https://buywhere.ai/docs/errors';
 exports.ErrorCode = {
     // 400
@@ -99,6 +95,7 @@ function buildErrorEnvelope(code, message, detail) {
         },
     };
 }
+exports.buildErrorEnvelope = buildErrorEnvelope;
 function buildRateLimitEnvelope(retryAfter, limit, remaining, resetAt, message) {
     return {
         ...buildErrorEnvelope(exports.ErrorCode.RATE_LIMIT_EXCEEDED, message),
@@ -110,10 +107,12 @@ function buildRateLimitEnvelope(retryAfter, limit, remaining, resetAt, message) 
         },
     };
 }
+exports.buildRateLimitEnvelope = buildRateLimitEnvelope;
 function sendError(res, code, message, detail, statusCode) {
     const status = statusCode || HTTP_STATUS_MAP[code] || 500;
     res.status(status).json(buildErrorEnvelope(code, message, detail));
 }
+exports.sendError = sendError;
 function sendRateLimitError(res, retryAfter, limit, remaining, message) {
     const resetAt = new Date(Date.now() + retryAfter * 1000).toISOString();
     res.set('Retry-After', String(retryAfter));
@@ -124,6 +123,7 @@ function sendRateLimitError(res, retryAfter, limit, remaining, message) {
     envelope.rate_limit.retry_after_seconds = retryAfter;
     res.status(429).json(envelope);
 }
+exports.sendRateLimitError = sendRateLimitError;
 class StructuredError extends Error {
     constructor(code, message, detail) {
         super(message || DEFAULT_MESSAGES[code] || code);

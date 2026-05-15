@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.preprocessSearchQuery = preprocessSearchQuery;
+exports.preprocessSearchQuery = void 0;
 const NOISE_WORDS = new Set([
     'buy', 'purchase', 'order', 'get', 'find', 'show', 'give',
     'want', 'need', 'looking',
@@ -60,6 +60,7 @@ function preprocessSearchQuery(q, existingMinPrice, existingMaxPrice) {
     result.cleanedQuery = cleanQueryText(workingQuery);
     return result;
 }
+exports.preprocessSearchQuery = preprocessSearchQuery;
 function cleanQueryText(text) {
     let cleaned = text;
     // Remove price literals: "$50", "50 dollars", "50 sgd"

@@ -1,7 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.detectAgentFramework = detectAgentFramework;
-exports.agentDetectMiddleware = agentDetectMiddleware;
+exports.agentDetectMiddleware = exports.detectAgentFramework = void 0;
 // Detect agent framework from User-Agent header
 // Priority: X-Agent-Framework header > User-Agent heuristics > unknown
 function detectAgentFramework(userAgent, xAgentFramework) {
@@ -46,9 +45,11 @@ function detectAgentFramework(userAgent, xAgentFramework) {
     }
     return { framework: 'unknown', version: '', sdkLanguage: 'unknown' };
 }
+exports.detectAgentFramework = detectAgentFramework;
 function agentDetectMiddleware(req, _res, next) {
     const ua = req.headers['user-agent'] || '';
     const xFramework = req.headers['x-agent-framework'];
     req.agentInfo = detectAgentFramework(ua, xFramework);
     next();
 }
+exports.agentDetectMiddleware = agentDetectMiddleware;
