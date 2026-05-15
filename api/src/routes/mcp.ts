@@ -1,10 +1,11 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { db, redis } from '../config';
-import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
+import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE } from '../lib/compare-query';
+import { trackApiQuery } from '../analytics/posthog';
 
 const router = Router();
 const PRODUCT_ID_RE = /^\d+$/;
@@ -556,29 +557,52 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
   const { id, method, params } = body;
   const args = (params && typeof params === 'object' && !Array.isArray(params)) ? params : {};
 
+  const t0 = Date.now();
   try {
+    let toolName: string;
+    let result: unknown;
+
     switch (method) {
       case 'tools/call': {
-        const toolName = args.name as string;
+        toolName = args.name as string;
         const toolArgs = (args.arguments && typeof args.arguments === 'object') ? args.arguments as Record<string, unknown> : {};
         if (!toolName) {
           return res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
         }
-        const result = await dispatchTool(toolName, toolArgs);
-        return res.json(jsonrpcOk(id, {
-          content: [{ type: 'text', text: JSON.stringify(result) }],
-        }));
+        result = await dispatchTool(toolName, toolArgs);
+        break;
       }
 
       default:
         if (isDirectToolMethod(method)) {
-          const result = await dispatchTool(method, args);
-          return res.json(jsonrpcOk(id, {
-            content: [{ type: 'text', text: JSON.stringify(result) }],
-          }));
+          toolName = method;
+          result = await dispatchTool(method, args);
+        } else {
+          return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
         }
-        return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
     }
+
+    if (req.apiKeyRecord) {
+      trackApiQuery({
+        apiKey: hashKey(req.apiKeyRecord.key),
+        agentFramework: req.agentInfo?.framework || 'mcp',
+        agentVersion: req.agentInfo?.version || '',
+        sdkLanguage: req.agentInfo?.sdkLanguage || 'unknown',
+        queryIntent: toolName!,
+        productCategories: [],
+        resultCount: (result as Record<string, unknown>)?.results
+          ? ((result as Record<string, unknown>).results as unknown[]).length
+          : 1,
+        responseTimeMs: Date.now() - t0,
+        signupChannel: req.apiKeyRecord.signupChannel,
+        sourcePage: null,
+        endpoint: `mcp.${toolName!}`,
+      });
+    }
+
+    return res.json(jsonrpcOk(id, {
+      content: [{ type: 'text', text: JSON.stringify(result) }],
+    }));
   } catch (err: unknown) {
     const e = err as { code?: number; message?: string };
     if (typeof e.code === 'number' && e.message) {
