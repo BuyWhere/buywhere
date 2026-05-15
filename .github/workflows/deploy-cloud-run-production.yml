@@ -152,6 +152,19 @@ jobs:
             --region ${{ env.GCP_REGION }} \
             --format "table(status.conditions.name,status.conditions.status,status.conditions.reason)"
 
+      - name: Route traffic to new revision
+        run: |
+          echo "Routing 100% traffic to latest revision..."
+          gcloud run services update-traffic ${{ env.CLOUD_RUN_SERVICE }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --region ${{ env.GCP_REGION }} \
+            --to-latest
+          echo "Traffic routing complete"
+          gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --region ${{ env.GCP_REGION }} \
+            --format "yaml(status.traffic)"
+
   provision-smoke-test-key:
     name: Provision Smoke Test API Key
     needs: deploy-cloud-run
