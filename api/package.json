@@ -12,9 +12,9 @@
     "migrate": "ts-node src/migrate.ts",
     "start:refresh": "node dist/jobs/priceRefreshRunner.js",
     "refresh": "ts-node src/jobs/priceRefreshRunner.ts",
-    "test": "node --test src/__tests__/*.test.ts",
-    "test:mcp": "node --test src/__tests__/mcp-integration.test.ts",
-    "test:mcp:load": "node --test src/__tests__/mcp-load.ts",
+    "test": "node --test tests/response.test.mjs tests/search.test.mjs",
+    "test:mcp": "node --test tests/mcp-integration.test.mjs",
+    "test:mcp:load": "node --test tests/load/staging-load-test.js",
     "test:openai-latency": "node tests/load/openai-function-calling-latency.mjs"
   },
   "dependencies": {
