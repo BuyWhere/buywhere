@@ -123,6 +123,18 @@ async function main() {
   const existingCount = await pool.query("SELECT COUNT(*) as c FROM products WHERE source = 'fairprice_sg'");
   console.log(`FairPrice products in DB before ingestion: ${existingCount.rows[0].c}`);
 
+  // Create ingestion run record
+  let runId = null;
+  try {
+    const runResult = await pool.query(
+      "INSERT INTO ingestion_runs (source, status) VALUES ('fairprice_sg', 'running') RETURNING id"
+    );
+    runId = runResult.rows[0]?.id || null;
+    if (runId) console.log(`Created ingestion_run id=${runId}`);
+  } catch (e) {
+    console.warn(`Failed to create ingestion_run record: ${e.message}`);
+  }
+
   let files;
   const stat = fs.statSync(DATA_DIR);
   if (stat.isFile()) {
@@ -136,6 +148,12 @@ async function main() {
 
   if (!files.length) {
     console.log('No NDJSON files found in', DATA_DIR);
+    if (runId) {
+      await pool.query(
+        "UPDATE ingestion_runs SET status = 'failed', error_message = $1, finished_at = NOW() WHERE id = $2",
+        ['No NDJSON files found', runId]
+      );
+    }
     process.exit(1);
   }
 
@@ -156,6 +174,20 @@ async function main() {
   console.log(`Updated: ${grandUpdated}`);
   console.log(`Errors: ${grandErrors}`);
   console.log(`FairPrice products in DB after ingestion: ${finalCount.rows[0].c}`);
+
+  // Update ingestion run record with results
+  if (runId) {
+    const finalStatus = grandErrors > 0 && grandInserted + grandUpdated === 0 ? 'failed' : 'done';
+    try {
+      await pool.query(
+        "UPDATE ingestion_runs SET status = $1, rows_inserted = $2, rows_updated = $3, rows_failed = $4, finished_at = NOW() WHERE id = $5",
+        [finalStatus, grandInserted, grandUpdated, grandErrors, runId]
+      );
+      console.log(`Updated ingestion_run id=${runId} status=${finalStatus}`);
+    } catch (e) {
+      console.warn(`Failed to update ingestion_run record: ${e.message}`);
+    }
+  }
 
   await pool.end();
 }
