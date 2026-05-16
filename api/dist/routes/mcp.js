@@ -301,8 +301,8 @@ async function handleGetDeals(args) {
         : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
     // Use dedicated client with extended timeout when discount_pct column is absent.
     const dealsClient = await config_1.db.connect();
-    let products;
-    let total;
+    let products = [];
+    let total = 0;
     try {
         if (!useDiscountCol)
             await dealsClient.query('SET statement_timeout = 60000');

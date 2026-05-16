@@ -337,8 +337,8 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // When discount_pct exists (happy path), this query is fast via idx_products_deals.
   // Without it, the metadata regex+cast fallback can exceed the default 10s statement_timeout.
   const dealsClient = await db.connect();
-  let products: ReturnType<typeof buildProduct>[];
-  let total: number;
+  let products: ReturnType<typeof buildProduct>[] = [];
+  let total = 0;
   try {
     if (!useDiscountCol) await dealsClient.query('SET statement_timeout = 60000');
     const countResult = await dealsClient.query(
@@ -370,7 +370,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     dealsClient.release();
   }
 
-  const result = buildSearchResponse(products, total!, limit, offset, Date.now() - t0, false);
+  const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
 
   redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
 
