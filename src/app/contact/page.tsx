@@ -1,6 +1,7 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import ContactForm from "@/components/ContactForm";
+import MailtoLink from "@/components/MailtoLink";
 import type { Metadata } from "next";
 import { toSiteUrl } from "@/lib/site-url";
 
@@ -61,7 +62,7 @@ export default function ContactPage() {
                 <div className="space-y-3 text-sm text-gray-600">
                   <div className="flex items-center gap-2">
                     <span className="text-indigo-500">✉</span>
-                    <a href="mailto:hello@buywhere.ai" className="hover:text-indigo-600 hover:underline">hello@buywhere.ai</a>
+                    <MailtoLink email="hello@buywhere.ai" className="hover:text-indigo-600 hover:underline" />
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-indigo-500">🏢</span>
