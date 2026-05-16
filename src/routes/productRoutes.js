@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const express = require('express');
 const router = express.Router();
 const { Product, SearchQuery } = require('../models');
@@ -390,7 +391,6 @@ async function getTrending(req, res) {
 }
 
 async function autocomplete(req, res) {
-  const startTime = Date.now();
   const { q, limit = 5, country_code = 'SG' } = req.query;
 
   if (!q || q.trim().length === 0) {

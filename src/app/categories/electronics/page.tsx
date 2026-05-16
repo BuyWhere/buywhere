@@ -1,12 +1,15 @@
 import Link from 'next/link';
 import { HeroSearch } from '@/components/HeroSearch';
 import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
+import { toSiteUrl } from '@/lib/site-url';
 
 export const metadata = buildSgCategoryMetadata(
   'Electronics Singapore | Compare Best Prices on Gadgets & Tech',
   'Find the best electronics in Singapore. Compare cheapest prices on smartphones, laptops, TVs, and more from top retailers. Updated daily with the latest deals.',
   'electronics'
 );
+
+const CATEGORY_URL = toSiteUrl('/categories/electronics');
 
 export default function ElectronicsCategoryPage() {
   const schemaMarkup = {
@@ -20,34 +23,34 @@ export default function ElectronicsCategoryPage() {
             "@type": "ListItem",
             position: 1,
             name: "Home",
-            item: "https://buywhere.ai"
+            item: toSiteUrl('/')
           },
           {
             "@type": "ListItem",
             position: 2,
             name: "Categories",
-            item: "https://buywhere.ai/categories"
+            item: toSiteUrl('/categories/')
           },
           {
             "@type": "ListItem",
             position: 3,
             name: "Electronics",
-            item: "https://buywhere.ai/categories/electronics"
+            item: CATEGORY_URL
           }
         ]
       },
       {
         "@type": "CollectionPage",
-        "@id": "https://buywhere.ai/categories/electronics#collection",
+        "@id": `${CATEGORY_URL}#collection`,
         name: "Electronics Singapore | Compare Best Prices on Gadgets & Tech",
         description: "Find the best electronics in Singapore. Compare cheapest prices on smartphones, laptops, TVs, and more from top retailers.",
-        url: "https://buywhere.ai/categories/electronics",
-        mainEntityOfPage: "https://buywhere.ai/categories/electronics",
+        url: CATEGORY_URL,
+        mainEntityOfPage: CATEGORY_URL,
         publisher: {
           "@type": "Organization",
           "@id": "https://buywhere.ai/#organization",
           name: "BuyWhere",
-          url: "https://buywhere.ai"
+          url: toSiteUrl('/')
         },
         about: {
           "@type": "Thing",

@@ -1,12 +1,15 @@
 import Link from 'next/link';
 import { HeroSearch } from '@/components/HeroSearch';
 import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
+import { toSiteUrl } from '@/lib/site-url';
 
 export const metadata = buildSgCategoryMetadata(
   'Grocery Singapore | Compare Prices on Food, Beverages & Daily Essentials',
   'Compare grocery prices in Singapore. Find cheapest deals on rice, cooking ingredients, snacks, beverages, and daily essentials from NTUC, Sheng Siong, Cold Storage, and more.',
   'grocery'
 );
+
+const CATEGORY_URL = toSiteUrl('/categories/grocery');
 
 export default function GroceryCategoryPage() {
   const schemaMarkup = {
@@ -20,34 +23,34 @@ export default function GroceryCategoryPage() {
             "@type": "ListItem",
             position: 1,
             name: "Home",
-            item: "https://buywhere.ai"
+            item: toSiteUrl('/')
           },
           {
             "@type": "ListItem",
             position: 2,
             name: "Categories",
-            item: "https://buywhere.ai/categories"
+            item: toSiteUrl('/categories/')
           },
           {
             "@type": "ListItem",
             position: 3,
             name: "Grocery",
-            item: "https://buywhere.ai/categories/grocery"
+            item: CATEGORY_URL
           }
         ]
       },
       {
         "@type": "CollectionPage",
-        "@id": "https://buywhere.ai/categories/grocery#collection",
+        "@id": `${CATEGORY_URL}#collection`,
         name: "Grocery Singapore | Compare Prices on Food, Beverages & Daily Essentials",
         description: "Compare grocery prices in Singapore. Find cheapest deals on rice, cooking ingredients, snacks, beverages, and daily essentials from NTUC, Sheng Siong, Cold Storage, and more.",
-        url: "https://buywhere.ai/categories/grocery",
-        mainEntityOfPage: "https://buywhere.ai/categories/grocery",
+        url: CATEGORY_URL,
+        mainEntityOfPage: CATEGORY_URL,
         publisher: {
           "@type": "Organization",
           "@id": "https://buywhere.ai/#organization",
           name: "BuyWhere",
-          url: "https://buywhere.ai"
+          url: toSiteUrl('/')
         },
         about: {
           "@type": "Thing",

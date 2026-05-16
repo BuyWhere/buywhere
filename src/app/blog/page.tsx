@@ -3,13 +3,14 @@ import type { Metadata } from "next";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { getAllBlogPosts } from "@/lib/blog";
+import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "BuyWhere Blog",
   description:
     "Developer tutorials, launch updates, and SEO content about product APIs, shopping agents, and commerce infrastructure.",
   alternates: {
-    canonical: "https://buywhere.ai/blog",
+    canonical: toSiteUrl("/blog"),
   },
 };
 

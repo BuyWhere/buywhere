@@ -50,10 +50,10 @@ export function TrustLayer() {
                 <div>
                   <div className="text-sm font-medium text-gray-900">Developer Support</div>
                   <Link
-                    href="mailto:support@buywhere.ai"
+                    href="/contact"
                     className="text-sm text-indigo-600 hover:text-indigo-700 hover:underline"
                   >
-                    support@buywhere.ai
+                    Contact support
                   </Link>
                 </div>
               </div>
@@ -62,10 +62,10 @@ export function TrustLayer() {
                 <div>
                   <div className="text-sm font-medium text-gray-900">Enterprise Inquiries</div>
                   <Link
-                    href="mailto:enterprise@buywhere.ai"
+                    href="/contact"
                     className="text-sm text-indigo-600 hover:text-indigo-700 hover:underline"
                   >
-                    enterprise@buywhere.ai
+                    Enterprise inquiries
                   </Link>
                 </div>
               </div>

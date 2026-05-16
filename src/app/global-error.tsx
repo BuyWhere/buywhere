@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -13,7 +12,7 @@ export default function GlobalError({
   error: Error & { digest?: string };
 }) {
   useEffect(() => {
-    Sentry.captureException(error);
+    console.error("Global error:", error);
   }, [error]);
 
   return (

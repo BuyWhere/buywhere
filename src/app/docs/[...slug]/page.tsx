@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { permanentRedirect } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import fs from "node:fs";
@@ -8,6 +8,7 @@ import path from "node:path";
 import matter from "gray-matter";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import { toSiteUrl } from "@/lib/site-url";
 
 const docsDirectory = path.join(process.cwd(), "docs");
 
@@ -106,13 +107,13 @@ export async function generateMetadata({ params }: DocRouteParams): Promise<Meta
     title: doc.title,
     description: doc.description,
     alternates: {
-      canonical: `https://buywhere.ai/docs/${doc.slug}`,
+      canonical: toSiteUrl(`/docs/${doc.slug}`),
     },
     openGraph: {
       title: doc.title,
       description: doc.description,
       type: "website",
-      url: `https://buywhere.ai/docs/${doc.slug}`,
+      url: toSiteUrl(`/docs/${doc.slug}`),
       siteName: "BuyWhere Documentation",
     },
   };
@@ -123,7 +124,7 @@ export default function DocPage({ params }: DocRouteParams) {
   const allDocs = getAllDocs();
 
   if (!doc) {
-    notFound();
+    permanentRedirect("/docs/");
   }
 
   const formatDate = (dateString: string) => {

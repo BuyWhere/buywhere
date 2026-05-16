@@ -2,6 +2,7 @@ import { getAllBlogPosts } from "@/lib/blog";
 import { PRODUCT_TAXONOMY, US_CATEGORY_META } from "@/lib/taxonomy";
 import { getUSProducts, type USProductForSitemap } from "@/lib/us-products";
 import { getSGProducts, type SGProductForSitemap } from "@/lib/sg-products";
+import { toSiteUrl } from "@/lib/site-url";
 import fs from "node:fs";
 
 function safeGetBlogPosts() {
@@ -150,13 +151,13 @@ export function getStaticSitemapEntries(): SitemapUrlEntry[] {
 
   return [
     ...STATIC_SITEMAP_ROUTES.map(({ path, priority, changeFrequency }) => ({
-      url: `${SITEMAP_BASE_URL}${path}`,
+      url: toSiteUrl(path),
       lastModified: now,
       changeFrequency,
       priority,
     })),
     ...blogPosts.map((post) => ({
-      url: `${SITEMAP_BASE_URL}/blog/${post.slug}`,
+      url: toSiteUrl(`/blog/${post.slug}`),
       lastModified: new Date(post.publishedAt),
       changeFrequency: "monthly" as const,
       priority: 0.8,
@@ -170,7 +171,7 @@ export function getCategorySitemapEntries(): SitemapUrlEntry[] {
 
   const addEntry = (path: string, priority = 0.8) => {
     entries.set(path, {
-      url: `${SITEMAP_BASE_URL}${path}`,
+      url: toSiteUrl(path),
       lastModified: now,
       changeFrequency: "daily",
       priority,
@@ -202,7 +203,7 @@ export function getCompareSitemapEntries(): SitemapUrlEntry[] {
 
   const addEntry = (path: string, priority = 0.8) => {
     entries.set(path, {
-      url: `${SITEMAP_BASE_URL}${path}`,
+      url: toSiteUrl(path),
       lastModified: now,
       changeFrequency: "daily",
       priority,
@@ -223,7 +224,7 @@ export async function getProductSitemapEntries(): Promise<SitemapUrlEntry[]> {
   const products = await getUSProducts({ allowMockFallback: false });
 
   return products.map((product: USProductForSitemap) => ({
-    url: `${SITEMAP_BASE_URL}/products/us/${product.slug}/`,
+    url: toSiteUrl(`/products/us/${product.slug}`),
     lastModified: product.lastUpdated,
     changeFrequency: "weekly",
     priority: 0.7,
@@ -245,7 +246,7 @@ export async function getSGProductSitemapEntries(): Promise<SitemapUrlEntry[]> {
   const products = await getSGProducts({ allowMockFallback: false });
 
   return products.map((product: SGProductForSitemap) => ({
-    url: `${SITEMAP_BASE_URL}/products/sg/${product.slug}/`,
+    url: toSiteUrl(`/products/sg/${product.slug}`),
     lastModified: product.lastUpdated,
     changeFrequency: "weekly",
     priority: 0.7,

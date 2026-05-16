@@ -29,27 +29,6 @@ interface DeveloperAuthContextValue {
 
 const DeveloperAuthContext = createContext<DeveloperAuthContextValue | undefined>(undefined);
 
-async function loadDeveloperProfile(apiKey: string) {
-  const response = await fetch("/api/dashboard/account", {
-    headers: { "x-api-key": apiKey },
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    const error = new Error("Failed to load developer profile") as Error & {
-      status?: number;
-    };
-    error.status = response.status;
-    throw error;
-  }
-
-  const payload = await response.json() as {
-    developer: DeveloperAuthProfile;
-  };
-
-  return payload.developer;
-}
-
 export function DeveloperAuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [developer, setDeveloper] = useState<DeveloperAuthProfile | null>(null);
@@ -70,21 +49,36 @@ export function DeveloperAuthProvider({ children }: { children: ReactNode }) {
 
     setStatus((current) => (current === "authenticated" ? current : "loading"));
 
-    void loadDeveloperProfile(apiKey)
-      .then((nextDeveloper) => {
+    // Fetch developer profile on the client side
+    fetch("/api/dashboard/account", {
+      headers: { "x-api-key": apiKey },
+      cache: "no-store",
+    })
+      .then(async (response) => {
         if (cancelled || requestIdRef.current !== requestId) {
           return;
         }
 
-        setDeveloper(nextDeveloper);
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            throw new Error("Unauthorized");
+          }
+          throw new Error("Failed to load developer profile");
+        }
+
+        const payload = await response.json() as {
+          developer: DeveloperAuthProfile;
+        };
+
+        setDeveloper(payload.developer);
         setStatus("authenticated");
       })
-      .catch(async (error: Error & { status?: number }) => {
+      .catch(async (error: Error) => {
         if (cancelled || requestIdRef.current !== requestId) {
           return;
         }
 
-        if (error.status === 401 || error.status === 403) {
+        if (error.message === "Unauthorized") {
           setDeveloper(null);
           setStatus("anonymous");
 

@@ -9,6 +9,7 @@ import matter from "gray-matter";
 import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import { toSiteUrl } from "@/lib/site-url";
 
 const contentDir = path.join(process.cwd(), "content", "compare");
 
@@ -57,8 +58,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   if (!doc) return {};
   return {
     title: doc.title, description: doc.description,
-    alternates: { canonical: `https://buywhere.ai/compare/${doc.slug}` },
-    openGraph: { title: doc.title, description: doc.description, type: "website", url: `https://buywhere.ai/compare/${doc.slug}`, siteName: "BuyWhere" },
+    alternates: { canonical: toSiteUrl(`/compare/${doc.slug}`) },
+    openGraph: { title: doc.title, description: doc.description, type: "website", url: toSiteUrl(`/compare/${doc.slug}`), siteName: "BuyWhere" },
   };
 }
 

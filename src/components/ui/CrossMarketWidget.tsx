@@ -70,7 +70,7 @@ export function CrossMarketWidget({ productName, currentMarket = 'US' }: CrossMa
             limit: '3',
           });
 
-          const res = await fetch(`${baseUrl}/v1/search?${params.toString()}`, {
+          const res = await fetch(`${baseUrl}/v1/products/search?${params.toString()}`, {
             headers: {
               Authorization: `Bearer ${apiKey}`,
             },

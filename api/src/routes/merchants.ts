@@ -3,6 +3,36 @@ import { db } from '../config';
 import { requireApiKey } from '../middleware/apiKey';
 
 const VALID_ONBOARDING_STAGES = ['interested', 'data_received', 'first_indexed_product', 'active'];
+const DB_LOCK_RETRYABLE_MESSAGES = [
+  'database is locked',
+  'database is busy',
+  'database schema has changed',
+];
+
+function isRetryableDbError(err: unknown): boolean {
+  const message = ((err as { message?: string })?.message || '').toLowerCase();
+  const code = (err as { code?: string })?.code;
+  if (code === '55P03' || code === '40P01' || code === '40001') return true;
+  return DB_LOCK_RETRYABLE_MESSAGES.some((pattern) => message.includes(pattern));
+}
+
+async function withDbRetry<T>(operation: () => Promise<T>, label: string, maxRetries = 4): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastError = err;
+      if (attempt >= maxRetries || !isRetryableDbError(err)) {
+        throw err;
+      }
+      const delayMs = 250 * Math.pow(2, attempt);
+      console.warn(`[merchants] ${label} retrying after lock error (attempt ${attempt + 1}/${maxRetries})`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  throw lastError;
+}
 
 const router = Router();
 
@@ -68,7 +98,8 @@ router.post(
         : null;
 
     try {
-      const result = await db.query(
+      const result = await withDbRetry(
+        () => db.query(
         `INSERT INTO merchants (id, name, source, country, domain, contact_email, contact_phone, scraping_priority, is_active, onboarding_stage, first_indexed_at, products_count)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          ON CONFLICT (id) DO UPDATE SET
@@ -85,6 +116,8 @@ router.post(
            products_count = COALESCE(EXCLUDED.products_count, merchants.products_count)
          RETURNING id, name, source, country, domain, contact_email, contact_phone, is_active, scraping_priority, onboarding_stage, first_indexed_at, products_count, created_at, updated_at, last_scraped_at, scrape_error`,
         [id, name, source, country, domain, contact_email, contact_phone, scraping_priority, is_active, onboarding_stage, first_indexed_at, products_count]
+        ),
+        'merchant upsert'
       );
 
       const merchant = result.rows[0];

@@ -3,13 +3,14 @@ import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import PartnershipInquiryForm from "@/components/partnership/PartnershipInquiryForm";
+import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "Merchant Partnerships | BuyWhere",
   description:
     "Feature your products on BuyWhere and reach price-conscious shoppers, AI agents, and comparison experiences across Singapore and Southeast Asia.",
   alternates: {
-    canonical: "https://buywhere.ai/partnership",
+    canonical: toSiteUrl("/partnership"),
   },
 };
 

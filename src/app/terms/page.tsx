@@ -107,7 +107,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-semibold text-gray-900 mb-3">12. Contact</h2>
               <p>
-                For questions about these Terms, contact us at <a href="mailto:legal@buywhere.ai" className="text-indigo-600 hover:underline">legal@buywhere.ai</a> or through our <a href="/contact" className="text-indigo-600 hover:underline">contact page</a>.
+                For questions about these Terms, contact us via our <a href="/contact" className="text-indigo-600 hover:underline">contact page</a>.
               </p>
             </section>
           </div>

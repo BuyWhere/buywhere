@@ -1,0 +1,13 @@
+
+> buywhere-site@0.1.0 dev
+> next dev
+
+ ⚠ You are using a non-standard "NODE_ENV" value in your environment. This creates inconsistencies in the project and is strongly advised against. Read more: https://nextjs.org/docs/messages/non-standard-node-env
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3001
+
+ ✓ Starting...
+ ⚠ Duplicate page detected. src/app/robots.ts and src/app/robots.txt/route.ts resolve to /robots.txt
+ ⚠ Duplicate page detected. src/app/robots.ts and src/app/robots.txt/route.ts resolve to /robots.txt
+ ✓ Ready in 1396ms
+[?25h

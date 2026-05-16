@@ -1,28 +1,54 @@
 #!/bin/bash
 set -euo pipefail
 
-OUTPUT_DIR="/home/paperclip/buywhere-api/data/carousell-sg"
-PID_FILE="$OUTPUT_DIR/scraper.pid"
-LOG_FILE="$OUTPUT_DIR/scraper.log"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if WORKTREE_ROOT="$(git -C "${SCRIPT_DIR}/.." rev-parse --show-toplevel 2>/dev/null)"; then
+  WORKDIR="$WORKTREE_ROOT"
+else
+  WORKDIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+fi
+OUTPUT_DIR="${WORKDIR}/data/carousell-sg"
+PID_FILE="${OUTPUT_DIR}/scraper.pid"
+LOG_FILE="${OUTPUT_DIR}/scraper.log"
 MONITOR_LOG="/tmp/carousell-sg-monitor.log"
 
-SCRAPER_CMD="python3 -m scrapers.carousell_sg --scrape-only --continuous --refresh-interval 14400"
-WORKDIR="/home/paperclip/buywhere-api"
+SCRAPER_CMD=(python3 -m scrapers.carousell_sg --scrape-only --continuous --refresh-interval 14400)
+SCRAPER_PROC_PATTERN="python3 -m scrapers\.carousell_sg .*--continuous"
 
 declare -i RESTART=0
 declare -i JSONL_NEW=0
 
 check_alive() {
+    local pid_from_file=0
+    local live_count=0
+
     if [[ -f "$PID_FILE" ]]; then
         local pid
         pid=$(cat "$PID_FILE")
         if kill -0 "$pid" 2>/dev/null; then
-            return 0
+            local cmd
+            cmd=$(ps -p "$pid" -o args= 2>/dev/null || true)
+            if [[ "$cmd" =~ $SCRAPER_PROC_PATTERN ]]; then
+                return 0
+            fi
         fi
     fi
-    if pgrep -f "python3 -m scrapers.carousell_sg.*--continuous" >/dev/null 2>&1; then
+
+    while IFS= read -r line; do
+        local live_pid
+        local cmd
+        live_pid=$(echo "$line" | awk '{print $1}')
+        cmd=$(echo "$line" | cut -d' ' -f2-)
+        if [[ -n "$live_pid" && "$cmd" =~ $SCRAPER_PROC_PATTERN ]]; then
+            ((live_count += 1))
+            pid_from_file=1
+        fi
+    done < <(pgrep -af "python3 -m scrapers.carousell_sg")
+
+    if [[ $pid_from_file -eq 1 ]]; then
         return 0
     fi
+
     return 1
 }
 
@@ -59,10 +85,16 @@ fi
 
 if [[ $RESTART -eq 1 ]] || [[ $JSONL_NEW -eq 1 ]]; then
     log "Action: Restarting Carousell SG scraper..."
-    pkill -f "python3 -m scrapers.carousell_sg" 2>/dev/null || true
+    while IFS= read -r line; do
+        pid=$(echo "$line" | awk '{print $1}')
+        cmd=$(echo "$line" | cut -d' ' -f2-)
+        if [[ "$cmd" =~ $SCRAPER_PROC_PATTERN ]]; then
+            kill "$pid" 2>/dev/null || true
+        fi
+    done < <(pgrep -af "python3 -m scrapers.carousell_sg")
     sleep 2
     cd "$WORKDIR"
-    nohup $SCRAPER_CMD >> "$LOG_FILE" 2>&1 &
+    nohup "${SCRAPER_CMD[@]}" >> "$LOG_FILE" 2>&1 &
     NEW_PID=$!
     echo "$NEW_PID" > "$PID_FILE"
     log "Started with PID $NEW_PID"

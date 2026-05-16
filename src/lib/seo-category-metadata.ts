@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { getCategoryBySlug } from "@/lib/taxonomy";
-
-const BASE_URL = "https://buywhere.ai";
+import { toSiteUrl } from "@/lib/site-url";
 
 type CollectionPageMetadataConfig = {
   title: string;
@@ -18,7 +17,7 @@ function buildCollectionPageMetadata({
   siteName = "BuyWhere",
   locale,
 }: CollectionPageMetadataConfig): Metadata {
-  const canonical = `${BASE_URL}${path}`;
+  const canonical = toSiteUrl(path);
 
   return {
     title,

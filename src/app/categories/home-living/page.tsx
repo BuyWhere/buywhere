@@ -1,12 +1,15 @@
 import Link from 'next/link';
 import { HeroSearch } from '@/components/HeroSearch';
 import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
+import { toSiteUrl } from '@/lib/site-url';
 
 export const metadata = buildSgCategoryMetadata(
   'Home & Living Singapore | Compare Best Prices on Furniture & Household Items',
   'Shop home and living products in Singapore. Compare cheapest prices on furniture, kitchen appliances, bedding, and home decor from IKEA, Courts, and top retailers.',
   'home-living'
 );
+
+const CATEGORY_URL = toSiteUrl('/categories/home-living');
 
 export default function HomeLivingCategoryPage() {
   const schemaMarkup = {
@@ -20,34 +23,34 @@ export default function HomeLivingCategoryPage() {
             "@type": "ListItem",
             position: 1,
             name: "Home",
-            item: "https://buywhere.ai"
+            item: toSiteUrl('/')
           },
           {
             "@type": "ListItem",
             position: 2,
             name: "Categories",
-            item: "https://buywhere.ai/categories"
+            item: toSiteUrl('/categories/')
           },
           {
             "@type": "ListItem",
             position: 3,
             name: "Home & Living",
-            item: "https://buywhere.ai/categories/home-living"
+            item: CATEGORY_URL
           }
         ]
       },
       {
         "@type": "CollectionPage",
-        "@id": "https://buywhere.ai/categories/home-living#collection",
+        "@id": `${CATEGORY_URL}#collection`,
         name: "Home & Living Singapore | Compare Best Prices on Furniture & Household Items",
         description: "Shop home and living products in Singapore. Compare cheapest prices on furniture, kitchen appliances, bedding, and home decor from IKEA, Courts, and top retailers.",
-        url: "https://buywhere.ai/categories/home-living",
-        mainEntityOfPage: "https://buywhere.ai/categories/home-living",
+        url: CATEGORY_URL,
+        mainEntityOfPage: CATEGORY_URL,
         publisher: {
           "@type": "Organization",
           "@id": "https://buywhere.ai/#organization",
           name: "BuyWhere",
-          url: "https://buywhere.ai"
+          url: toSiteUrl('/')
         },
         about: {
           "@type": "Thing",

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { toSiteUrl } from "@/lib/site-url";
 
 const BASE_URL = "https://buywhere.ai";
 const API_BASE_URL =
@@ -147,7 +148,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
 }
 
 export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata {
-  const canonical = `${BASE_URL}${config.canonicalPath}`;
+  const canonical = toSiteUrl(config.canonicalPath);
 
   return {
     title: config.title,
@@ -172,7 +173,7 @@ export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata 
 }
 
 export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: LandingProduct[]) {
-  const canonical = `${BASE_URL}${config.canonicalPath}`;
+  const canonical = toSiteUrl(config.canonicalPath);
 
   return {
     "@context": "https://schema.org",

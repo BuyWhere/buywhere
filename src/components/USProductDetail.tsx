@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useCompare } from "@/lib/compare-context";
 import { useRecentlyViewed } from "@/lib/recently-viewed-context";
 import { useWishlist } from "@/lib/wishlist-context";
+import { buildUSProductSlug } from "@/lib/us-products";
 import WishlistButton from "@/components/WishlistButton";
 
 import { FreshnessBadge } from "@/components/ui/FreshnessBadge";
@@ -36,6 +37,7 @@ interface USMerchantPrice {
 interface USProduct {
   id: string;
   name: string;
+  slug?: string;
   image: string;
   description: string;
   specs: Record<string, string>;
@@ -54,6 +56,7 @@ interface USProduct {
 
 interface RelatedProduct {
   id: string;
+  slug: string;
   name: string;
   image: string;
   price: string | null;
@@ -825,6 +828,7 @@ export default function USProductDetail({ productId }: USProductDetailProps) {
   const { isInWishlist, updateWishlistItem } = useWishlist();
   const inCompare = product ? isInCompare(product.id) : false;
   const availablePrices = product?.prices.filter((p) => p.price !== null) ?? [];
+  const productSlug = product ? (product.slug || buildUSProductSlug(product)) : null;
   const verifiedRetailerCount = product?.prices.filter((price) => MERCHANT_INFO[price.merchant]).length ?? 0;
   const lowestPrice = availablePrices.length > 0
     ? availablePrices.reduce((min, p) => {
@@ -900,6 +904,7 @@ export default function USProductDetail({ productId }: USProductDetailProps) {
           setProduct({
             id: productId,
             name: apiMatch.name,
+            slug: buildUSProductSlug({ id: productId, name: apiMatch.name }),
             image: `https://picsum.photos/seed/${productId}/400/400`,
             description: `Compare prices for ${apiMatch.name} across top US retailers.`,
             specs: { Brand: "Various", "Match Score": `${(apiMatch.match_score * 100).toFixed(0)}%` },
@@ -929,6 +934,7 @@ export default function USProductDetail({ productId }: USProductDetailProps) {
       setRelatedProducts(
         otherProducts.map((p) => ({
           id: p.id,
+          slug: buildUSProductSlug(p),
           name: p.name,
           image: p.image,
           price: p.prices[0]?.price || null,
@@ -964,11 +970,11 @@ export default function USProductDetail({ productId }: USProductDetailProps) {
           image: product.image,
           price: lowest.price,
           merchant: lowest.merchant,
-          url: `/compare/us/${product.id}`,
+          url: productSlug ? `/products/us/${productSlug}/` : `/products/us/${product.id}/`,
         });
       }
     }
-  }, [product, addToRecentlyViewed]);
+  }, [product, productSlug, addToRecentlyViewed]);
 
   useEffect(() => {
     if (!product || !lowestPrice || !isInWishlist(product.id)) {
@@ -981,11 +987,11 @@ export default function USProductDetail({ productId }: USProductDetailProps) {
       currentPrice: lowestPrice.price,
       merchant: lowestPrice.merchant,
       buyUrl: lowestPrice.url,
-      productUrl: `/products/us/${product.id}`,
+      productUrl: productSlug ? `/products/us/${productSlug}/` : `/products/us/${product.id}/`,
       brand: product.brand,
       apiProductId: numericProductId,
     });
-  }, [isInWishlist, lowestPrice, numericProductId, product, updateWishlistItem]);
+  }, [isInWishlist, lowestPrice, numericProductId, product, productSlug, updateWishlistItem]);
 
   if (loading) {
     return <ProductLoadingSkeleton />;
@@ -1085,7 +1091,7 @@ export default function USProductDetail({ productId }: USProductDetailProps) {
                     currentPrice: lowestPrice.price,
                     merchant: lowestPrice.merchant,
                     buyUrl: lowestPrice.url,
-                    productUrl: `/products/us/${product.id}`,
+                    productUrl: productSlug ? `/products/us/${productSlug}/` : `/products/us/${product.id}/`,
                     brand: product.brand,
                     apiProductId: numericProductId,
                   }}
@@ -1105,7 +1111,7 @@ export default function USProductDetail({ productId }: USProductDetailProps) {
               <ShareDealActions
                 productId={numericProductId}
                 productName={product.name}
-                productUrl={`/products/us/${product.id}`}
+                productUrl={productSlug ? `/products/us/${productSlug}/` : `/products/us/${product.id}/`}
                 merchant={lowestPrice?.merchant || null}
                 priceText={lowestPrice ? formatPrice(lowestPrice.price) : null}
                 variant="menu"
@@ -1288,7 +1294,7 @@ export default function USProductDetail({ productId }: USProductDetailProps) {
                     {relatedProducts.map((related) => (
                       <Link
                         key={related.id}
-                        href={`/compare/us/${related.id}`}
+                        href={`/products/us/${related.slug}/`}
                         className="group block bg-gray-50 rounded-xl p-3 hover:bg-gray-100 transition-colors"
                       >
                         <div className="relative w-full aspect-square bg-white rounded-lg overflow-hidden mb-3">

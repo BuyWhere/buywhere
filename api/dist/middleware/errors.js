@@ -117,12 +117,7 @@ function sendError(res, code, message, detail, statusCode) {
 function sendRateLimitError(res, retryAfter, limit, remaining, message) {
     const resetAt = new Date(Date.now() + retryAfter * 1000).toISOString();
     res.set('Retry-After', String(retryAfter));
-    res.set('X-RateLimit-Limit', String(limit));
-    res.set('X-RateLimit-Remaining', String(Math.max(0, remaining)));
-    res.set('X-RateLimit-Reset', String(Math.ceil(Date.now() / 1000 + retryAfter)));
-    const envelope = buildRateLimitEnvelope(retryAfter, limit, remaining, resetAt, message);
-    envelope.rate_limit.retry_after_seconds = retryAfter;
-    res.status(429).json(envelope);
+    res.status(429).json(buildRateLimitEnvelope(retryAfter, limit, remaining, resetAt, message));
 }
 class StructuredError extends Error {
     constructor(code, message, detail) {

@@ -1,0 +1,9 @@
+2026-05-15 17:02:02,029 INFO homedepot_us_sitemap: Starting Home Depot sitemap scraper with limit 200
+2026-05-15 17:02:02,029 INFO homedepot_us_sitemap: Using direct/proxy-free requests (no proxy service)
+2026-05-15 17:02:02,029 INFO homedepot_us_sitemap: Step 1: Fetching product URLs from sitemap...
+2026-05-15 17:02:02,029 INFO homedepot_us_sitemap: Fetching sitemap from https://www.homedepot.com/sitemap.xml
+2026-05-15 17:02:02,029 INFO homedepot_us_sitemap: Fetching https://www.homedepot.com/sitemap.xml (attempt 1/3)
+2026-05-15 17:02:02,061 WARNING homedepot_us_sitemap: Failed to fetch https://www.homedepot.com/sitemap.xml: 403
+2026-05-15 17:02:02,061 INFO homedepot_us_sitemap: Found 0 product URLs to scrape
+2026-05-15 17:02:02,061 ERROR homedepot_us_sitemap: No product URLs found
+Scraping completed: {'merchant_id': 'homedepot_us', 'source': 'homedepot_us', 'total_urls_found': 0, 'products_scraped': 0, 'products_skipped': 0, 'errors': 0, 'duration_seconds': 0, 'output_file': '/home/paperclip/buywhere-api/data/homedepot_us/products.jsonl', 'products_per_second': 0}

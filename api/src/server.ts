@@ -91,6 +91,28 @@ export function createApp() {
   // Public quickstart alias — launch fallback for BUY-3724
   // api.buywhere.ai/quickstart → /docs/guides/mcp
   app.get('/quickstart', aiCrawlerHeaders, (_req, res) => res.redirect(301, '/docs/guides/mcp'));
+  app.get('/search', (req, res) => {
+    const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    res.redirect(301, `/v1/search${qs}`);
+  });
+  app.get('/v2', (_req, res) => res.redirect(301, '/docs'));
+  app.get('/v2/agents/search', (req, res) => {
+    const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    res.redirect(301, `/v1/search${qs}`);
+  });
+  app.get('/v2/agents/best-price', (req, res) => {
+    const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    res.redirect(301, `/v1/products/best-price${qs}`);
+  });
+  app.get('/v2/agents/price-comparison', (req, res) => {
+    const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    res.redirect(301, `/v1/products/search${qs}`);
+  });
+  app.get('/v2/agents/bulk-compare', (req, res) => {
+    const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    res.redirect(301, `/v1/products/bulk-lookup${qs}`);
+  });
+  app.get('/metrics', (_req, res) => res.redirect(301, '/health'));
 
   // MCP JSON-RPC endpoint (Model Context Protocol)
   app.use('/mcp', mcpRouter);
@@ -125,6 +147,7 @@ export function createApp() {
 
   // Affiliate redirect (no /v1 prefix — short URLs)
   app.use('/r', redirectRouter);
+  app.use('/go', redirectRouter);
 
   // Public HTML pages with Schema.org JSON-LD (no auth — crawlable by AI agents)
   app.use('/p', aiCrawlerHeaders, pagesRouter);           // /p/:id — product page

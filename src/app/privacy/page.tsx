@@ -94,7 +94,7 @@ export default function PrivacyPage() {
                 <li>Withdraw consent for optional processing</li>
                 <li>Request deletion of your data (subject to legal obligations)</li>
               </ul>
-              <p className="mt-2">To exercise these rights, contact us at <a href="mailto:privacy@buywhere.ai" className="text-indigo-600 hover:underline">privacy@buywhere.ai</a>.</p>
+              <p className="mt-2">To exercise these rights, contact us via our <a href="/contact" className="text-indigo-600 hover:underline">contact page</a>.</p>
             </section>
 
             <section>
@@ -121,7 +121,7 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-xl font-semibold text-gray-900 mb-3">12. Contact Us</h2>
               <p>
-                For privacy inquiries or to exercise your PDPA rights, contact our Data Protection Officer at <a href="mailto:privacy@buywhere.ai" className="text-indigo-600 hover:underline">privacy@buywhere.ai</a> or through our <a href="/contact" className="text-indigo-600 hover:underline">contact page</a>.
+                For privacy inquiries or to exercise your PDPA rights, contact our Data Protection Officer via our <a href="/contact" className="text-indigo-600 hover:underline">contact page</a>.
               </p>
               <p className="mt-2">
                 BuyWhere Pte. Ltd.<br />

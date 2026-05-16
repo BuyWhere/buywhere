@@ -3,12 +3,13 @@ import Link from "next/link";
 import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "BuyWhere Quickstart",
   description: "Create a BuyWhere API key, run your first product search, and add BuyWhere to an MCP-compatible agent in minutes.",
   alternates: {
-    canonical: "https://buywhere.ai/quickstart",
+    canonical: toSiteUrl("/quickstart"),
   },
 };
 

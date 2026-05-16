@@ -7,31 +7,6 @@ const queryLog_1 = require("../middleware/queryLog");
 const errors_1 = require("../middleware/errors");
 const response_1 = require("../lib/response");
 const router = (0, express_1.Router)();
-function extractProductId(args) {
-    const raw = args.id ?? args.product_id;
-    if (typeof raw !== 'string')
-        return null;
-    const trimmed = raw.trim();
-    return trimmed || null;
-}
-function extractProductIds(args) {
-    const raw = args.ids ?? args.product_ids;
-    if (Array.isArray(raw)) {
-        return raw
-            .filter((id) => typeof id === 'string')
-            .map(id => id.trim())
-            .filter(Boolean)
-            .slice(0, 10);
-    }
-    if (typeof raw === 'string') {
-        return raw
-            .split(',')
-            .map(id => id.trim())
-            .filter(Boolean)
-            .slice(0, 10);
-    }
-    return [];
-}
 // MCP tools manifest
 const TOOLS = [
     {
@@ -183,9 +158,10 @@ async function handleSearchProducts(args) {
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     let rows;
     let total;
+    const COUNT_CAP = 1001;
     if (q) {
-        // Count matching rows to pick query strategy
-        const countResult = await config_1.db.query(`SELECT COUNT(*) FROM products ${where}`, params);
+        // Count matching rows (capped) to pick query strategy
+        const countResult = await config_1.db.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`, params);
         total = parseInt(countResult.rows[0].count, 10);
         if (total <= 1000) {
             params.push(limit, offset);
@@ -212,7 +188,7 @@ async function handleSearchProducts(args) {
         }
     }
     else {
-        const countResult = await config_1.db.query(`SELECT COUNT(*) FROM products ${where}`, params);
+        const countResult = await config_1.db.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`, params);
         total = parseInt(countResult.rows[0].count, 10);
         params.push(limit, offset);
         const result = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
@@ -233,15 +209,12 @@ async function handleSearchProducts(args) {
 }
 async function handleGetProduct(args) {
     const t0 = Date.now();
-    const id = extractProductId(args);
-    if (!id)
-        throw { code: -32602, message: 'id is required' };
+    const { id } = args;
     let result;
     try {
-        result = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
-              title, price, currency, image_url, metadata, updated_at,
-              region, country_code, created_at, description, brand, mpn, gtin,
-              category_path, category, merchant_id, avg_rating, review_count
+        result = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
+              price, currency, image_url, brand, category_path,
+              avg_rating AS rating, review_count, metadata, updated_at, region, country_code
        FROM products WHERE id = $1`, [id]);
     }
     catch {
@@ -254,25 +227,16 @@ async function handleGetProduct(args) {
 }
 async function handleCompareProducts(args) {
     const t0 = Date.now();
-    const ids = extractProductIds(args);
+    const ids = args.ids;
     if (!ids || ids.length < 2)
         throw { code: -32602, message: 'Provide at least 2 product IDs' };
-    const result = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
-            title, price, currency, image_url, metadata,
-            category_path, brand, avg_rating AS rating, review_count, updated_at, region, country_code
-     FROM products
-     WHERE id = ANY($1::text[])
-     ORDER BY array_position($1::text[], id::text)`, [ids]);
+    const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
+    const result = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
+            price, currency, image_url, brand, category_path,
+            avg_rating AS rating, review_count, metadata, updated_at, region, country_code
+     FROM products WHERE id IN (${placeholders})`, ids);
     const products = result.rows.map((r) => (0, response_1.buildProduct)(r, 'SGD', false));
-    const uniqueCurrencies = [...new Set(result.rows.map((r) => r.currency).filter((currency) => typeof currency === 'string' && currency.length > 0))];
-    const currenciesMixed = uniqueCurrencies.length > 1;
-    return {
-        ...(0, response_1.buildSearchResponse)(products, products.length, ids.length, 0, Date.now() - t0, false),
-        currencies_mixed: currenciesMixed,
-        ...(currenciesMixed && {
-            currency_warning: `Products span multiple currencies (${uniqueCurrencies.join(', ')}). Prices are not comparable across currencies — do not aggregate or rank by price in comparison_summary.`,
-        }),
-    };
+    return (0, response_1.buildSearchResponse)(products, products.length, ids.length, 0, Date.now() - t0, false);
 }
 async function handleGetDeals(args) {
     const t0 = Date.now();
@@ -293,13 +257,28 @@ async function handleGetDeals(args) {
         }
     }
     catch (_) { }
+    // Probe whether discount_pct column exists (cached per-process)
+    if (typeof handleGetDeals._hasDiscountPct === 'undefined') {
+        try {
+            await config_1.db.query(`SELECT discount_pct FROM products LIMIT 0`);
+            handleGetDeals._hasDiscountPct = true;
+        }
+        catch {
+            handleGetDeals._hasDiscountPct = false;
+        }
+    }
+    const useDiscountCol = handleGetDeals._hasDiscountPct;
     const conditions = [
         `currency = $1`,
-        `(metadata->>'original_price')::numeric > price`,
-        `(metadata->>'original_price')::numeric < price * 100`,
         `price > 0`,
-        `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100 >= $2`,
     ];
+    if (useDiscountCol) {
+        conditions.push(`discount_pct >= $2`);
+    }
+    else {
+        conditions.push(`(metadata->>'original_price')::numeric > price`);
+        conditions.push(`((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) >= $2`);
+    }
     const params = [currency, minDiscount];
     if (region) {
         params.push(region);
@@ -310,22 +289,24 @@ async function handleGetDeals(args) {
         conditions.push(`country_code = $${params.length}`);
     }
     const whereClause = conditions.join(' AND ');
-    const [countResult, dataResult] = await Promise.all([
-        config_1.db.query(`SELECT COUNT(*) FROM products WHERE ${whereClause}`, params),
-        (() => {
-            const dataParams = [...params, limit, offset];
-            const limitIdx = dataParams.length - 1;
-            const offsetIdx = dataParams.length;
-            return config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
-                price, (metadata->>'original_price')::numeric AS original_price,
-                currency, image_url, metadata, updated_at, region, country_code,
-                ROUND((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) AS discount_pct
-         FROM products
-         WHERE ${whereClause}
-         ORDER BY discount_pct DESC
-         LIMIT $${limitIdx} OFFSET $${offsetIdx}`, dataParams);
-        })(),
-    ]);
+    const discountSelect = useDiscountCol
+        ? 'discount_pct'
+        : `ROUND(((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)::numeric, 1) AS discount_pct`;
+    const discountOrder = useDiscountCol
+        ? 'discount_pct DESC'
+        : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
+    const countResult = await config_1.db.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`, params);
+    const dataParams = [...params, limit, offset];
+    const limitIdx = dataParams.length - 1;
+    const offsetIdx = dataParams.length;
+    const dataResult = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
+            price, (metadata->>'original_price')::numeric AS original_price,
+            currency, image_url, metadata, updated_at, region, country_code,
+            ${discountSelect}
+     FROM products
+     WHERE ${whereClause}
+     ORDER BY ${discountOrder}
+     LIMIT $${limitIdx} OFFSET $${offsetIdx}`, dataParams);
     const products = dataResult.rows.map((r) => (0, response_1.buildProduct)(r, currency, false));
     const total = parseInt(countResult.rows[0].count, 10);
     const result = (0, response_1.buildSearchResponse)(products, total, limit, offset, Date.now() - t0, false);
@@ -418,9 +399,6 @@ async function dispatchTool(name, args) {
             throw { code: -32601, message: `Unknown tool: ${name}` };
     }
 }
-function isDirectToolMethod(method) {
-    return TOOLS.some(tool => tool.name === method);
-}
 // JSON-RPC 2.0 response helpers
 function jsonrpcOk(id, result) {
     return { jsonrpc: '2.0', id, result };
@@ -469,7 +447,7 @@ router.post('/', async (req, res, next) => {
     }
     return next();
 });
-// POST /mcp — authenticated methods: tools/call and legacy direct tool method names.
+// POST /mcp — authenticated methods: tools/call (and any future additions)
 router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('mcp'), async (req, res) => {
     const body = req.body;
     // Validate JSON-RPC envelope
@@ -492,12 +470,6 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                 }));
             }
             default:
-                if (isDirectToolMethod(method)) {
-                    const result = await dispatchTool(method, args);
-                    return res.json(jsonrpcOk(id, {
-                        content: [{ type: 'text', text: JSON.stringify(result) }],
-                    }));
-                }
                 return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
         }
     }

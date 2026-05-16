@@ -47,6 +47,7 @@ export default function DeveloperSignupPage() {
       const rawKey = data.api_key;
       window.localStorage.setItem("bw_developer_email", email.trim().toLowerCase());
       window.localStorage.setItem("bw_developer_name", name.trim());
+      window.localStorage.setItem("bw_api_key", rawKey);
       setApiKey(rawKey);
       setStatus('success');
     } catch (err) {
@@ -215,8 +216,8 @@ export default function DeveloperSignupPage() {
               </div>
 
               <div className="rounded-2xl border border-gray-200 p-5 text-sm text-slate-500">
-                Questions? Email{' '}
-                <Link href="mailto:hello@buywhere.ai" className="text-indigo-600 hover:underline">hello@buywhere.ai</Link>
+                Questions? Visit our{" "}
+                <Link href="/contact" className="text-indigo-600 hover:underline">contact page</Link>
               </div>
             </div>
           </div>
@@ -264,12 +265,12 @@ export default function DeveloperSignupPage() {
 
             <div className="mb-8 grid gap-4 sm:grid-cols-3">
               <Link
-                href="/quickstart"
+                href="/onboarding"
                 className="group rounded-xl border border-indigo-200 bg-indigo-50 p-5 transition-all hover:border-indigo-300 hover:bg-indigo-100"
               >
                 <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-indigo-500">Step 1</p>
-                <p className="text-sm font-semibold text-slate-900 group-hover:text-indigo-700">Open quickstart</p>
-                <p className="mt-1 text-xs text-slate-500">Make your first authenticated request</p>
+                <p className="text-sm font-semibold text-slate-900 group-hover:text-indigo-700">Set your preferences</p>
+                <p className="mt-1 text-xs text-slate-500">Tell us what you&apos;re looking for</p>
               </Link>
               <Link
                 href="/integrate"

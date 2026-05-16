@@ -44,6 +44,14 @@ export default function Footer() {
               <li><Link href="/privacy" className="hover:text-indigo-600">Privacy Policy</Link></li>
             </ul>
           </div>
+
+          <div>
+            <h4 className="text-sm font-semibold text-gray-900 mb-3">Connect</h4>
+            <ul className="space-y-2 text-sm text-gray-500">
+              <li><a href="https://t.me/buywhere_bot" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600">Telegram</a></li>
+              <li><a href="https://github.com/BuyWhere/buywhere-mcp" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600">GitHub</a></li>
+            </ul>
+          </div>
         </div>
 
         <div className="mt-10 pt-6 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-2 text-sm text-gray-400">

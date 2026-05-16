@@ -1,0 +1,43 @@
+Starting eBay US product scraper...
+Scraping category: Electronics - keyword: computers laptops
+  Page 1... https://www.ebay.com/s/i.html?_nkw=computers laptops&_pgn=1
+  Proxy failed (HTTPSConnectionPool(host='www.ebay.com', port=443): Max retries exceeded with url: /s/i.html?_nkw=computers%20laptops&_pgn=1 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 407 Invalid Auth')))), trying direct connection...
+/home/paperclip/.local/lib/python3.11/site-packages/urllib3/connectionpool.py:1110: InsecureRequestWarning: Unverified HTTPS request is being made to host 'www.ebay.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+/home/paperclip/.local/lib/python3.11/site-packages/urllib3/connectionpool.py:1110: InsecureRequestWarning: Unverified HTTPS request is being made to host 'pages.ebay.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+/home/paperclip/.local/lib/python3.11/site-packages/urllib3/connectionpool.py:1110: InsecureRequestWarning: Unverified HTTPS request is being made to host 'www.ebay.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+  Direct connection request sent to eBay...
+  Page 1: Failed to fetch (No response)
+  Page 2... https://www.ebay.com/s/i.html?_nkw=computers laptops&_pgn=2
+  Proxy failed (HTTPSConnectionPool(host='www.ebay.com', port=443): Max retries exceeded with url: /s/i.html?_nkw=computers%20laptops&_pgn=2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 407 Invalid Auth')))), trying direct connection...
+/home/paperclip/.local/lib/python3.11/site-packages/urllib3/connectionpool.py:1110: InsecureRequestWarning: Unverified HTTPS request is being made to host 'www.ebay.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+/home/paperclip/.local/lib/python3.11/site-packages/urllib3/connectionpool.py:1110: InsecureRequestWarning: Unverified HTTPS request is being made to host 'pages.ebay.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+/home/paperclip/.local/lib/python3.11/site-packages/urllib3/connectionpool.py:1110: InsecureRequestWarning: Unverified HTTPS request is being made to host 'www.ebay.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+  Direct connection request sent to eBay...
+  Page 2: Failed to fetch (No response)
+Scraping category: Electronics - keyword: smartphone mobile phone
+  Page 1... https://www.ebay.com/s/i.html?_nkw=smartphone mobile phone&_pgn=1
+  Proxy failed (HTTPSConnectionPool(host='www.ebay.com', port=443): Max retries exceeded with url: /s/i.html?_nkw=smartphone%20mobile%20phone&_pgn=1 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 407 Invalid Auth')))), trying direct connection...
+/home/paperclip/.local/lib/python3.11/site-packages/urllib3/connectionpool.py:1110: InsecureRequestWarning: Unverified HTTPS request is being made to host 'www.ebay.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+/home/paperclip/.local/lib/python3.11/site-packages/urllib3/connectionpool.py:1110: InsecureRequestWarning: Unverified HTTPS request is being made to host 'pages.ebay.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+/home/paperclip/.local/lib/python3.11/site-packages/urllib3/connectionpool.py:1110: InsecureRequestWarning: Unverified HTTPS request is being made to host 'www.ebay.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+  Direct connection request sent to eBay...
+  Page 1: Failed to fetch (No response)
+  Page 2... https://www.ebay.com/s/i.html?_nkw=smartphone mobile phone&_pgn=2
+  Proxy failed (HTTPSConnectionPool(host='www.ebay.com', port=443): Max retries exceeded with url: /s/i.html?_nkw=smartphone%20mobile%20phone&_pgn=2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 407 Invalid Auth')))), trying direct connection...
+/home/paperclip/.local/lib/python3.11/site-packages/urllib3/connectionpool.py:1110: InsecureRequestWarning: Unverified HTTPS request is being made to host 'www.ebay.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+/home/paperclip/.local/lib/python3.11/site-packages/urllib3/connectionpool.py:1110: InsecureRequestWarning: Unverified HTTPS request is being made to host 'pages.ebay.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+/home/paperclip/.local/lib/python3.11/site-packages/urllib3/connectionpool.py:1110: InsecureRequestWarning: Unverified HTTPS request is being made to host 'www.ebay.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+  Direct connection request sent to eBay...
+  Page 2: Failed to fetch (No response)

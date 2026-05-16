@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { buildCategoriesIndexMetadata } from '@/lib/seo-category-metadata';
+import { toSiteUrl } from '@/lib/site-url';
 
 export const metadata = buildCategoriesIndexMetadata();
 
@@ -36,13 +37,13 @@ const schemaMarkup = {
       '@type': 'ListItem',
       position: 1,
       name: 'Home',
-      item: 'https://buywhere.ai',
+      item: toSiteUrl('/'),
     },
     {
       '@type': 'ListItem',
       position: 2,
       name: 'Categories',
-      item: 'https://buywhere.ai/categories',
+      item: toSiteUrl('/categories/'),
     },
   ],
 };

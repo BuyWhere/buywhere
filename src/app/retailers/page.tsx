@@ -1,13 +1,14 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import type { Metadata } from "next";
+import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "Retailer Coverage — BuyWhere",
   description:
     "Supported merchants, coverage depth, and data freshness for the BuyWhere product catalog. See which retailers are covered and how up-to-date our pricing data is.",
   alternates: {
-    canonical: "https://buywhere.ai/retailers",
+    canonical: toSiteUrl("/retailers"),
   },
   robots: {
     index: true,

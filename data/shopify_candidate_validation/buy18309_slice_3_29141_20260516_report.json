@@ -1,0 +1,45 @@
+{
+  "generated_at": "2026-05-16T02:15:31.104607+00:00",
+  "total_candidates": 9141,
+  "category_counts": {
+    "shopify_blocked": 9019,
+    "unreachable": 35,
+    "validated_public": 25,
+    "shopify_no_public_products": 62
+  },
+  "vertical_counts": {
+    "uncategorized": 8242,
+    "electronics": 55,
+    "fashion": 317,
+    "automotive": 166,
+    "beauty": 40,
+    "sports": 112,
+    "home": 169,
+    "health": 40
+  },
+  "country_counts": {
+    "BR": 152,
+    "AU": 177,
+    "IN": 626,
+    "US": 6976,
+    "JP": 118,
+    "GB": 249,
+    "IT": 118,
+    "MX": 119,
+    "DE": 171,
+    "ES": 90,
+    "FR": 128,
+    "TR": 27,
+    "ZA": 67,
+    "IE": 19,
+    "CA": 91,
+    "SG": 13
+  },
+  "us_candidates_priority": 6957,
+  "junk_count": 9026,
+  "output_files": {
+    "ndjson": "/home/paperclip/buywhere-api/data/shopify_candidate_validation/buy18309_slice_3_29141_20260516_validated.ndjson",
+    "csv": "/home/paperclip/buywhere-api/data/shopify_candidate_validation/buy18309_slice_3_29141_20260516_validated.csv",
+    "json": "/home/paperclip/buywhere-api/data/shopify_candidate_validation/buy18309_slice_3_29141_20260516_validated.json"
+  }
+}

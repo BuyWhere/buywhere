@@ -1,12 +1,15 @@
 import Link from 'next/link';
 import { HeroSearch } from '@/components/HeroSearch';
 import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
+import { toSiteUrl } from '@/lib/site-url';
 
 export const metadata = buildSgCategoryMetadata(
   'Fashion Singapore | Compare Prices on Clothing, Shoes & Accessories',
   'Shop fashion online in Singapore. Compare cheapest prices on clothing, shoes, bags, and accessories from Zalora, Amazon SG, Love Bonito, and more. Free shipping deals available.',
   'fashion'
 );
+
+const CATEGORY_URL = toSiteUrl('/categories/fashion');
 
 export default function FashionCategoryPage() {
   const schemaMarkup = {
@@ -20,34 +23,34 @@ export default function FashionCategoryPage() {
             "@type": "ListItem",
             position: 1,
             name: "Home",
-            item: "https://buywhere.ai"
+            item: toSiteUrl('/')
           },
           {
             "@type": "ListItem",
             position: 2,
             name: "Categories",
-            item: "https://buywhere.ai/categories"
+            item: toSiteUrl('/categories/')
           },
           {
             "@type": "ListItem",
             position: 3,
             name: "Fashion",
-            item: "https://buywhere.ai/categories/fashion"
+            item: CATEGORY_URL
           }
         ]
       },
       {
         "@type": "CollectionPage",
-        "@id": "https://buywhere.ai/categories/fashion#collection",
+        "@id": `${CATEGORY_URL}#collection`,
         name: "Fashion Singapore | Compare Prices on Clothing, Shoes & Accessories",
         description: "Shop fashion online in Singapore. Compare cheapest prices on clothing, shoes, bags, and accessories from Zalora, Amazon SG, Love Bonito, and more.",
-        url: "https://buywhere.ai/categories/fashion",
-        mainEntityOfPage: "https://buywhere.ai/categories/fashion",
+        url: CATEGORY_URL,
+        mainEntityOfPage: CATEGORY_URL,
         publisher: {
           "@type": "Organization",
           "@id": "https://buywhere.ai/#organization",
           name: "BuyWhere",
-          url: "https://buywhere.ai"
+          url: toSiteUrl('/')
         },
         about: {
           "@type": "Thing",

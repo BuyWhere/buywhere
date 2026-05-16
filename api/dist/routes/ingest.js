@@ -11,6 +11,55 @@ const SOURCE_NORMALIZATION = {
     'amazon_sg_toys': 'amazon_sg',
     'ikea.com.sg': 'ikea_sg',
 };
+const DB_LOCK_RETRYABLE_MESSAGES = [
+    'database is locked',
+    'database is busy',
+    'database schema has changed',
+];
+function isRetryableDbError(err) {
+    const message = (err?.message || '').toLowerCase();
+    const code = err?.code;
+    if (code === '55P03' || code === '40P01' || code === '40001')
+        return true;
+    return DB_LOCK_RETRYABLE_MESSAGES.some((pattern) => message.includes(pattern));
+}
+const DB_RETRY_ATTEMPTS = parseInt(process.env.INGEST_DB_RETRY_ATTEMPTS || '8', 10);
+function asyncHandler(fn) {
+    return (req, res) => {
+        fn(req, res).catch((err) => {
+            const message = err instanceof Error ? err.message : String(err);
+            console.error(`[ingest] unhandled error on ${req.method} ${req.path}:`, message);
+            if (!res.headersSent) {
+                res.status(500).json({
+                    run_id: null,
+                    status: 'failed',
+                    rows_inserted: 0,
+                    rows_updated: 0,
+                    rows_failed: Array.isArray(req.body?.products) ? req.body.products.length : 0,
+                    errors: [{ index: -1, sku: 'batch', error: `Unhandled ingest error: ${message}`, code: 'unhandled_error' }],
+                });
+            }
+        });
+    };
+}
+async function withDbRetry(operation, label, maxRetries = DB_RETRY_ATTEMPTS) {
+    let lastError;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            return await operation();
+        }
+        catch (err) {
+            lastError = err;
+            if (attempt >= maxRetries || !isRetryableDbError(err)) {
+                throw err;
+            }
+            const delayMs = Math.min(1000, 200 * Math.pow(2, attempt));
+            console.warn(`[ingest] ${label} retrying after lock error (attempt ${attempt + 1}/${maxRetries}) in ${delayMs}ms`);
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+    }
+    throw lastError;
+}
 function normalizeSource(source) {
     return SOURCE_NORMALIZATION[source] || source;
 }
@@ -91,7 +140,7 @@ function buildCategoryPathLiteral(paths) {
 router.get('/health', apiKey_1.requireApiKey, (_req, res) => {
     res.json({ status: 'ok' });
 });
-router.post('/products', apiKey_1.requireApiKey, async (req, res) => {
+router.post('/products', apiKey_1.requireApiKey, asyncHandler(async (req, res) => {
     const start = Date.now();
     const body = req.body;
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
@@ -141,14 +190,14 @@ router.post('/products', apiKey_1.requireApiKey, async (req, res) => {
     }
     let runId = null;
     try {
-        const runResult = await config_1.db.query(`INSERT INTO ingestion_runs (source, status) VALUES ($1, 'running') RETURNING id`, [source]);
+        const runResult = await withDbRetry(() => config_1.db.query(`INSERT INTO ingestion_runs (source, status) VALUES ($1, 'running') RETURNING id`, [source]), 'create ingestion run');
         runId = runResult.rows[0]?.id || null;
     }
     catch (e) {
         console.warn('[ingest] Failed to create ingestion run record:', e.message);
     }
     const skus = validProducts.map(p => p.sku);
-    const existingResult = await config_1.db.query(`SELECT sku FROM products WHERE sku = ANY($1::text[]) AND source = $2`, [skus, source]);
+    const existingResult = await withDbRetry(() => config_1.db.query(`SELECT sku FROM products WHERE sku = ANY($1::text[]) AND source = $2`, [skus, source]), 'select existing SKUs');
     const existingSkus = new Set(existingResult.rows.map((r) => r.sku));
     let rowsInserted = 0;
     let rowsUpdated = 0;
@@ -175,7 +224,7 @@ router.post('/products', apiKey_1.requireApiKey, async (req, res) => {
             values.push(p.sku, source, p.merchant_id, p.title, p.description || null, p.price, p.currency || 'SGD', p.url, p.image_url || null, buildCategoryPathLiteral(p.category_path), p.brand || null, JSON.stringify(metadata), p.is_active !== false, p.region || null, p.country_code || null);
             placeholders.push(`($${base},$${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},$${base + 13},$${base + 14})`);
         }
-        await config_1.db.query(`INSERT INTO products
+        await withDbRetry(() => config_1.db.query(`INSERT INTO products
            (sku, source, merchant_id, title, description, price, currency, url,
             image_url, category_path, brand, metadata, is_active, region, country_code)
          VALUES ${placeholders.join(', ')}
@@ -194,7 +243,7 @@ router.post('/products', apiKey_1.requireApiKey, async (req, res) => {
            is_active = true,
            region = COALESCE(EXCLUDED.region, products.region),
            country_code = COALESCE(EXCLUDED.country_code, products.country_code),
-           updated_at = NOW()`, values);
+           updated_at = NOW()`, values), 'upsert products batch');
         for (const p of validProducts) {
             if (existingSkus.has(p.sku)) {
                 rowsUpdated++;
@@ -214,7 +263,7 @@ router.post('/products', apiKey_1.requireApiKey, async (req, res) => {
             errors.unshift({ index: -1, sku: 'batch', error: `Database error: ${msg}`, code: 'database_error' });
         }
         if (runId !== null) {
-            await config_1.db.query(`UPDATE ingestion_runs SET status = 'failed', error_message = $1, finished_at = NOW() WHERE id = $2`, [msg.slice(0, 500), runId]).catch(() => { });
+            await withDbRetry(() => config_1.db.query(`UPDATE ingestion_runs SET status = 'failed', error_message = $1, finished_at = NOW() WHERE id = $2`, [msg.slice(0, 500), runId]), 'mark run failed').catch(() => { });
         }
         res.status(207).json({
             run_id: runId, status: 'failed', rows_inserted: 0, rows_updated: 0,
@@ -224,7 +273,7 @@ router.post('/products', apiKey_1.requireApiKey, async (req, res) => {
     }
     const priceHistoryValues = [];
     const phPlaceholders = [];
-    const finalResult = await config_1.db.query(`SELECT id, sku FROM products WHERE sku = ANY($1::text[]) AND source = $2`, [skus, source]);
+    const finalResult = await withDbRetry(() => config_1.db.query(`SELECT id, sku FROM products WHERE sku = ANY($1::text[]) AND source = $2`, [skus, source]), 'select final product ids');
     const skuToId = new Map(finalResult.rows.map((r) => [r.sku, r.id]));
     for (const p of validProducts) {
         const productId = skuToId.get(p.sku);
@@ -236,8 +285,8 @@ router.post('/products', apiKey_1.requireApiKey, async (req, res) => {
     }
     if (priceHistoryValues.length > 0) {
         try {
-            await config_1.db.query(`INSERT INTO price_history (product_id, price, currency, source)
-           VALUES ${phPlaceholders.join(', ')}`, priceHistoryValues);
+            await withDbRetry(() => config_1.db.query(`INSERT INTO price_history (product_id, price, currency, source)
+           VALUES ${phPlaceholders.join(', ')}`, priceHistoryValues), 'insert price history');
         }
         catch (e) {
             console.warn('[ingest] Price history insert failed:', e.message);
@@ -245,7 +294,7 @@ router.post('/products', apiKey_1.requireApiKey, async (req, res) => {
     }
     const status = rowsFailed === 0 ? 'completed' : 'completed_with_errors';
     if (runId !== null) {
-        await config_1.db.query(`UPDATE ingestion_runs SET status = $1, rows_inserted = $2, rows_updated = $3, rows_failed = $4, finished_at = NOW() WHERE id = $5`, [status, rowsInserted, rowsUpdated, rowsFailed, runId]).catch(() => { });
+        await withDbRetry(() => config_1.db.query(`UPDATE ingestion_runs SET status = $1, rows_inserted = $2, rows_updated = $3, rows_failed = $4, finished_at = NOW() WHERE id = $5`, [status, rowsInserted, rowsUpdated, rowsFailed, runId]), 'mark run complete').catch(() => { });
     }
     if (rowsInserted > 0 || rowsUpdated > 0) {
         try {
@@ -272,5 +321,5 @@ router.post('/products', apiKey_1.requireApiKey, async (req, res) => {
         rows_failed: rowsFailed,
         errors: errors.length > 0 ? errors : undefined,
     });
-});
+}));
 exports.default = router;

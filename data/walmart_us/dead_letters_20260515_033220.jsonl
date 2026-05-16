@@ -1,0 +1,4 @@
+{"url": "https://www.walmart.com/search?q=laptop&page=1", "reason": "Bot-detection page", "status_code": 200, "merchant_id": "walmart_us", "timestamp": "2026-05-15T03:32:51.345933+00:00"}
+{"url": "https://www.walmart.com/search?q=tv&page=1", "reason": "Bot-detection page", "status_code": 200, "merchant_id": "walmart_us", "timestamp": "2026-05-15T03:33:09.176786+00:00"}
+{"url": "https://www.walmart.com/search?q=iphone&page=1", "reason": "Bot-detection page", "status_code": 200, "merchant_id": "walmart_us", "timestamp": "2026-05-15T03:33:29.732023+00:00"}
+{"url": "https://www.walmart.com/search?q=refrigerator&page=1", "reason": "Bot-detection page", "status_code": 200, "merchant_id": "walmart_us", "timestamp": "2026-05-15T03:33:45.266950+00:00"}

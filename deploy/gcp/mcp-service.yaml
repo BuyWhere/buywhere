@@ -12,7 +12,7 @@ spec:
       annotations:
         autoscaling.knative.dev/minScale: "1"
         autoscaling.knative.dev/maxScale: "10"
-        run.googleapis.com/cloudsql-instances: "PROJECT_ID:asia-southeast1:buywhere-staging"
+        run.googleapis.com/cloudsql-instances: "PROJECT_ID:asia-southeast1:buywhere-db"
         run.googleapis.com/execution-environment: gen2
     spec:
       containerConcurrency: 200

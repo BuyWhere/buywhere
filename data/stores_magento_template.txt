@@ -1,0 +1,20 @@
+# Magento/Adobe Commerce Store Configuration
+# Format: store_url,store_code,access_token,country,region,currency
+#
+# Example:
+# https://store1.com,default,abc123token,US,us,USD
+# https://store2.com,store_en,xyz456token,GB,uk,GBP
+#
+# Notes:
+# - access_token: Admin access token from Magento/Adobe Commerce integration
+# - store_code: Magento store code (default is typically "default")
+# - Get access token via: System > Extensions > Integration in Magento admin
+#
+# Authentication:
+# Magento REST API uses Bearer token authentication. Create an integration
+# in Magento admin with "Resource Access" set to "All" for full product access.
+#
+# Required API permissions:
+# - Products > PHP Admin API > /V1/products (GET)
+# - Inventory > Stock Status
+# - Categories (optional for category mapping)

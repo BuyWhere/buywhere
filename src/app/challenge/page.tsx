@@ -2,19 +2,20 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "Build With BuyWhere Challenge — Win an M3 MacBook Air",
   description:
     "Build an AI shopping agent using BuyWhere's API or MCP tools. Win an M3 MacBook Air, $1,000 in API credits, and BuyWhere swag. Open to all developers.",
   alternates: {
-    canonical: "https://buywhere.ai/challenge",
+    canonical: toSiteUrl("/challenge"),
   },
   openGraph: {
     title: "Build With BuyWhere Challenge",
     description:
       "Build an AI shopping agent using BuyWhere's API or MCP tools. Win an M3 MacBook Air, $1,000 in API credits, and BuyWhere swag.",
-    url: "https://buywhere.ai/challenge",
+    url: toSiteUrl("/challenge"),
     type: "website",
   },
 };

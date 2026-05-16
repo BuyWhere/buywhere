@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { getAllBlogPosts, getBlogPostBySlug } from "@/lib/blog";
+import { toSiteUrl } from "@/lib/site-url";
 
 type PageProps = {
   params: { slug: string };
@@ -31,7 +32,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return {};
   }
 
-  const canonical = post.canonicalUrl ?? `https://buywhere.ai/blog/${post.slug}`;
+  const canonical = post.canonicalUrl ?? toSiteUrl(`/blog/${post.slug}`);
 
   return {
     title: post.title,

@@ -9,12 +9,24 @@ const queryLog_1 = require("../middleware/queryLog");
 const response_1 = require("../lib/response");
 const compare_query_1 = require("../lib/compare-query");
 const SEARCH_CACHE_TTL_SECONDS = 60;
+// Express 4 doesn't catch async rejections — unhandled errors crash the process.
+// This wrapper ensures all async route handlers return 500 instead of crashing.
+function asyncHandler(fn) {
+    return (req, res) => {
+        fn(req, res).catch((err) => {
+            console.error(`[products] unhandled error on ${req.method} ${req.path}:`, err?.message || err);
+            if (!res.headersSent) {
+                res.status(500).json({ error: 'Internal server error' });
+            }
+        });
+    };
+}
 const router = (0, express_1.Router)();
 // GET /v1/products/search
 // Query params: q, domain, region, country, category, category_id, category_path,
 //               brand, merchant_id, availability, min_price, max_price,
 //               currency, limit, offset, page, fields, sort, sort_by, source_page, compact
-router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.search'), async (req, res) => {
+router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.search'), asyncHandler(async (req, res) => {
     const requestStart = Date.now();
     const q = req.query.q || '';
     const domain = req.query.domain;
@@ -142,25 +154,26 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     // Cap count at 1001: if result set > 1000 rows, ts_rank ordering over all matches is expensive
     // (500ms+ for broad queries like "apple iphone"). For large result sets, fall back to
-    // products.updated_at DESC which uses the index and avoids full-scan rank computation.
-    // Avoid expensive full-text COUNT on large Railway catalog.
-    // Broad FTS terms can take 100s+ even with GIN due bitmap heap rechecks.
-    const approxCount = ftsParamIdx ? 1001 : 0;
-    const countResult = { rows: [{ count: String(approxCount) }] };
+    // updated_at DESC which uses the index and avoids full-scan rank computation.
+    const COUNT_CAP = 1001;
+    const countQuery = `SELECT COUNT(*) FROM (SELECT 1 FROM products ${whereClause} LIMIT ${COUNT_CAP}) _sub`;
+    // Run count first (fast, capped) to decide ordering strategy, then fetch data
+    const countResult = await config_1.db.query(countQuery, params.slice(0, idx - 1));
+    const approxCount = parseInt(countResult.rows[0].count, 10);
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
     const useFtsRanking = (!effectiveSort || effectiveSort === 'relevance') && ftsParamIdx;
     // Build ORDER BY for non-fts-ranking path
     function buildSortOrder() {
         if (!effectiveSort || effectiveSort === 'relevance')
-            return 'products.updated_at DESC';
+            return 'updated_at DESC';
         switch (effectiveSort) {
-            case 'price_asc': return 'price ASC, products.updated_at DESC';
-            case 'price_desc': return 'price DESC, products.updated_at DESC';
-            case 'newest': return 'products.updated_at DESC';
-            case 'highest_rated': return 'avg_rating DESC NULLS LAST, products.updated_at DESC';
-            case 'most_reviewed': return 'review_count DESC NULLS LAST, products.updated_at DESC';
-            default: return 'products.updated_at DESC';
+            case 'price_asc': return 'price ASC, updated_at DESC';
+            case 'price_desc': return 'price DESC, updated_at DESC';
+            case 'newest': return 'updated_at DESC';
+            case 'highest_rated': return 'avg_rating DESC NULLS LAST, updated_at DESC';
+            case 'most_reviewed': return 'review_count DESC NULLS LAST, updated_at DESC';
+            default: return 'updated_at DESC';
         }
     }
     // For large result sets (>1000 rows), computing ts_rank over all matches is expensive.
@@ -168,35 +181,35 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // then return the top N. This gives relevance ordering at a fraction of the cost.
     // For small result sets (<= 1000 rows), ts_rank over all matches is fast.
     const CANDIDATE_LIMIT = Math.max(500, (limit + offset) * 10);
-    const specColumns = `products.created_at AS created_at, products.description, products.brand, products.mpn, products.gtin, products.category_path, products.category, products.category_id, products.merchant_id, products.avg_rating, products.review_count`;
+    const specColumns = `created_at, description, brand, mpn, gtin, category_path, category, category_id, merchant_id, avg_rating, review_count`;
     let dataQuery;
     if (useFtsRanking && approxCount <= 1000) {
         dataQuery = `
         SELECT products.id, sku AS source_id, source AS domain, url,
                al.destination_url AS affiliate_url,
                title, price, currency, image_url, metadata, updated_at,
-               region, country_code, products.created_at AS created_at, products.description, products.brand, products.mpn, products.gtin, products.category_path, products.category, products.category_id, products.merchant_id, products.avg_rating, products.review_count
+               region, country_code, ${specColumns}
         FROM products
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ${whereClause}
-        ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC, products.updated_at DESC
+        ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC, updated_at DESC
         LIMIT $${idx} OFFSET $${idx + 1}
       `;
     }
     else if (useFtsRanking) {
         dataQuery = `
-        SELECT _candidates.id, source_id, domain, url,
+        SELECT id, source_id, domain, url,
                affiliate_url,
                title, price, currency, image_url, metadata, updated_at,
-               region, country_code, created_at, description, brand, mpn, gtin, category_path, category, category_id, merchant_id, avg_rating, review_count
+               region, country_code, ${specColumns}
         FROM (
-          SELECT products.id, sku AS source_id, source AS domain, url,
-                 al.destination_url AS affiliate_url,
-                 title, price, currency, image_url, metadata, updated_at,
-                 region, country_code, products.created_at AS created_at, products.description, products.brand, products.mpn, products.gtin, products.category_path, products.category, products.category_id, products.merchant_id, products.avg_rating, products.review_count,
-                 ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
-          FROM products
-          LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+        SELECT products.id, sku AS source_id, source AS domain, url,
+               al.destination_url AS affiliate_url,
+               title, price, currency, image_url, metadata, updated_at,
+               region, country_code, ${specColumns},
+               ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+        FROM products
+        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
           ${whereClause}
           LIMIT ${CANDIDATE_LIMIT}
         ) _candidates
@@ -209,7 +222,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         SELECT products.id, sku AS source_id, source AS domain, url,
                al.destination_url AS affiliate_url,
                title, price, currency, image_url, metadata, updated_at,
-               region, country_code, products.created_at AS created_at, products.description, products.brand, products.mpn, products.gtin, products.category_path, products.category, products.category_id, products.merchant_id, products.avg_rating, products.review_count
+               region, country_code, ${specColumns}
         FROM products
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ${whereClause}
@@ -221,7 +234,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const dataResult = await config_1.db.query(dataQuery, params);
     const total = parseInt(countResult.rows[0].count, 10);
     const responseTimeMs = Date.now() - requestStart;
-    const products = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact, true));
+    const products = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
     // Apply field selection if `fields` param is specified
     let filteredProducts = products;
     if (fields && fields.length > 0) {
@@ -274,10 +287,10 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         });
     }
     res.json(responseBody);
-});
+}));
 // GET /v1/products/deals
 // Returns products on sale (original_price > price), sorted by discount %
-router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.deals'), async (req, res) => {
+router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.deals'), asyncHandler(async (req, res) => {
     const start = Date.now();
     const currency = req.query.currency || 'SGD';
     const countryCode = (req.query.country_code || req.query.country)?.toUpperCase() || undefined;
@@ -295,13 +308,30 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
         }
     }
     catch (_) { }
-    // Deals: use metadata->'original_price' if available
-    const dealConditions = ['currency = $1'];
+    // Deals: prefer discount_pct generated column (BUY-14332), fall back to inline
+    // computation if the column doesn't exist yet (migration may not have run).
+    const dealConditions = ['currency = $1', 'price > 0'];
     const dealParams = [currency];
     let dealIdx = 2;
-    dealConditions.push(`(metadata->>'original_price')::numeric > price`);
-    dealConditions.push(`(metadata->>'original_price')::numeric < price * 100`);
-    dealConditions.push(`((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) >= $${dealIdx}`);
+    let useDiscountCol = true;
+    // Probe whether discount_pct column exists (cached per-process)
+    if (typeof router._hasDiscountPct === 'undefined') {
+        try {
+            await config_1.db.query(`SELECT discount_pct FROM products LIMIT 0`);
+            router._hasDiscountPct = true;
+        }
+        catch {
+            router._hasDiscountPct = false;
+        }
+    }
+    useDiscountCol = router._hasDiscountPct;
+    if (useDiscountCol) {
+        dealConditions.push(`discount_pct >= $${dealIdx}`);
+    }
+    else {
+        dealConditions.push(`(metadata->>'original_price')::numeric > price`);
+        dealConditions.push(`((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) >= $${dealIdx}`);
+    }
     dealParams.push(minDiscount);
     dealIdx++;
     if (countryCode) {
@@ -310,17 +340,24 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
         dealIdx++;
     }
     const dealWhere = dealConditions.join(' AND ');
+    const discountSelect = useDiscountCol
+        ? 'discount_pct'
+        : `ROUND(((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)::numeric, 1) AS discount_pct`;
+    const discountOrder = useDiscountCol
+        ? 'discount_pct DESC'
+        : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
+    const COUNT_CAP = 1001;
     const [countResult, dataResult] = await Promise.all([
-        config_1.db.query(`SELECT COUNT(*) FROM products WHERE ${dealWhere}`, dealParams),
-        config_1.db.query(`SELECT products.id, sku AS source_id, source AS domain, url,
+        config_1.db.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${dealWhere} LIMIT ${COUNT_CAP}) _sub`, dealParams),
+        config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
                 currency, image_url, metadata, updated_at,
-                region, country_code, products.created_at AS created_at, products.description, products.brand, products.mpn, products.gtin,
+                region, country_code, created_at, description, brand, mpn, gtin,
                 category_path, category, merchant_id, avg_rating, review_count,
-                ROUND(((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)::numeric, 1) AS discount_pct
+                ${discountSelect}
          FROM products
          WHERE ${dealWhere}
-         ORDER BY (1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC, products.updated_at DESC
+         ORDER BY ${discountOrder}, updated_at DESC
          LIMIT $${dealIdx} OFFSET $${dealIdx + 1}`, [...dealParams, limit, offset]),
     ]);
     const deals = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, false));
@@ -328,9 +365,9 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     const responseBody = (0, response_1.buildSearchResponse)(deals, total, limit, offset, Date.now() - start, false);
     config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
     res.json(responseBody);
-});
+}));
 // GET /v1/products/compare?ids=id1,id2,id3
-router.get('/compare', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.compare'), async (req, res) => {
+router.get('/compare', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.compare'), asyncHandler(async (req, res) => {
     const start = Date.now();
     const ids = (req.query.ids || '').split(',').filter(Boolean).slice(0, 10);
     if (ids.length < 2) {
@@ -344,25 +381,8 @@ router.get('/compare', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiK
     }
     const { text, values } = (0, compare_query_1.buildCompareProductsQuery)(ids);
     const result = await config_1.db.query(text, values);
-    const products = result.rows.map((row) => ({
-        id: row.id,
-        source: row.source_id,
-        domain: row.domain,
-        url: row.url,
-        title: row.title,
-        price: row.price ? parseFloat(row.price) : null,
-        currency: row.currency,
-        image_url: row.image_url,
-        brand: row.brand,
-        category_path: row.category_path,
-        rating: row.rating ? parseFloat(row.rating) : null,
-        review_count: row.review_count,
-        metadata: row.metadata,
-        region: row.region || null,
-        country_code: row.country_code || null,
-        updated_at: row.updated_at,
-    }));
-    const uniqueCurrencies = [...new Set(products.map((p) => p.currency).filter(Boolean))];
+    const products = result.rows.map((row) => (0, response_1.buildProduct)(row, 'SGD', false));
+    const uniqueCurrencies = [...new Set(products.map((p) => p.price.currency).filter(Boolean))];
     const currenciesMixed = uniqueCurrencies.length > 1;
     const responseBody = (0, response_1.buildSearchResponse)(products, products.length, ids.length, 0, Date.now() - start, false);
     res.json({
@@ -372,10 +392,10 @@ router.get('/compare', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiK
             currency_warning: `Products span multiple currencies (${uniqueCurrencies.join(', ')}). Prices are not comparable across currencies — do not aggregate or rank by price in comparison_summary.`,
         }),
     });
-});
+}));
 // GET /v1/products/:id/price-history — daily aggregated price history (BUY-2345)
 // Query params: days (30|90|180, default 30)
-router.get('/:id/price-history', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.price-history'), async (req, res) => {
+router.get('/:id/price-history', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.price-history'), asyncHandler(async (req, res) => {
     const start = Date.now();
     const { id } = req.params;
     const days = Math.min(parseInt(req.query.days || '30'), 180);
@@ -421,9 +441,9 @@ router.get('/:id/price-history', agentDetect_1.agentDetectMiddleware, apiKey_1.r
         },
         meta: { days, response_time_ms: Date.now() - start },
     });
-});
+}));
 // GET /v1/products/:id/prices — price history from price_snapshots
-router.get('/:id/prices', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.prices'), async (req, res) => {
+router.get('/:id/prices', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.prices'), asyncHandler(async (req, res) => {
     const start = Date.now();
     const { id } = req.params;
     const days = Math.min(parseInt(req.query.days || '30'), 90);
@@ -458,11 +478,11 @@ router.get('/:id/prices', agentDetect_1.agentDetectMiddleware, apiKey_1.requireA
         },
         meta: { days, response_time_ms: Date.now() - start },
     });
-});
+}));
 // GET /v1/products/:id/similar — return up to 8 similar products for 'related products' widget
 // Strategy: same brand+category first (fast index lookup), then FTS title fallback to pad to 8.
 // Target: <50ms p99 — both paths use GIN/B-tree indexes only.
-router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.similar'), async (req, res) => {
+router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.similar'), asyncHandler(async (req, res) => {
     const start = Date.now();
     const { id } = req.params;
     const limit = Math.min(parseInt(req.query.limit || '8'), 20);
@@ -488,11 +508,11 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
             brandCatParams.push(sourceCountry);
         }
         brandCatParams.push(limit);
-        const brandCatResult = await config_1.db.query(`SELECT products.id, sku AS source_id, source AS domain, url, title, price, currency,
+        const brandCatResult = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
                 image_url, brand, category_path, region, country_code
          FROM products
          WHERE ${brandCatWhere}
-         ORDER BY products.updated_at DESC
+         ORDER BY updated_at DESC
          LIMIT $${brandCatParams.length}`, brandCatParams);
         similar = brandCatResult.rows;
     }
@@ -514,12 +534,12 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
             ftsIdx++;
         }
         ftsParams.push(needed);
-        const ftsResult = await config_1.db.query(`SELECT products.id, sku AS source_id, source AS domain, url, title, price, currency,
+        const ftsResult = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
                 image_url, brand, category_path, region, country_code
          FROM products
          WHERE ${ftsWhere}
          ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${existingIds.length + 2})) DESC,
-                  products.updated_at DESC
+                  updated_at DESC
          LIMIT $${ftsParams.length}`, ftsParams);
         similar = [...similar, ...ftsResult.rows];
     }
@@ -538,16 +558,16 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
         country_code: row.country_code || null,
     }));
     res.json({ data, meta: { source_id: id, count: data.length, response_time_ms: Date.now() - start } });
-});
+}));
 // GET /v1/products/:id
-router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.get'), async (req, res) => {
+router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.get'), asyncHandler(async (req, res) => {
     const start = Date.now();
     const { id } = req.params;
     let result;
     try {
-        result = await config_1.db.query(`SELECT products.id, sku AS source_id, source AS domain, url,
+        result = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
                 title, price, currency, image_url, metadata, updated_at,
-                region, country_code, products.created_at AS created_at, products.description, products.brand, products.mpn, products.gtin,
+                region, country_code, created_at, description, brand, mpn, gtin,
                 category_path, category, merchant_id, avg_rating, review_count
          FROM products WHERE id = $1`, [id]);
     }
@@ -584,7 +604,7 @@ router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, 
     }
     const responseBody = (0, response_1.buildSearchResponse)([product], 1, 1, 0, Date.now() - start, false);
     res.json(responseBody);
-});
+}));
 function inferQueryIntent(q, domain, minPrice, maxPrice) {
     const lower = q.toLowerCase();
     if (minPrice !== undefined && maxPrice !== undefined)
@@ -602,7 +622,7 @@ function inferQueryIntent(q, domain, minPrice, maxPrice) {
 // POST /v1/products/ingest
 // Bulk ingest products from scraper agents. Requires API key auth.
 // Upserts on (platform, platform_id) — safe to re-run.
-router.post('/ingest', apiKey_1.requireApiKey, async (req, res) => {
+router.post('/ingest', apiKey_1.requireApiKey, asyncHandler(async (req, res) => {
     const start = Date.now();
     const items = req.body;
     if (!Array.isArray(items) || items.length === 0) {
@@ -744,11 +764,11 @@ router.post('/ingest', apiKey_1.requireApiKey, async (req, res) => {
         validation_errors: errors.length > 0 ? errors : undefined,
         duration_ms: Date.now() - start,
     });
-});
+}));
 function extractCategories(products) {
     const cats = new Set();
     for (const p of products) {
-        const source = p.domain || (p.merchant?.domain) || '';
+        const source = p.domain || (typeof p.merchant === 'object' ? p.merchant?.domain : p.merchant) || '';
         if (source) {
             const domainName = source.replace('.sg', '').replace('.com', '');
             cats.add(domainName);

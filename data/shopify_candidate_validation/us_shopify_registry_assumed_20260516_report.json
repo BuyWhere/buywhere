@@ -1,0 +1,13 @@
+{
+  "generated_at": "2026-05-16T02:06:48.874388+00:00",
+  "total_candidates": 355,
+  "category_counts": {
+    "shopify_blocked": 352,
+    "validated_public": 3
+  },
+  "output_files": {
+    "ndjson": "/home/paperclip/buywhere-api/data/shopify_candidate_validation/us_shopify_registry_assumed_20260516_validated.ndjson",
+    "csv": "/home/paperclip/buywhere-api/data/shopify_candidate_validation/us_shopify_registry_assumed_20260516_validated.csv",
+    "json": "/home/paperclip/buywhere-api/data/shopify_candidate_validation/us_shopify_registry_assumed_20260516_validated.json"
+  }
+}

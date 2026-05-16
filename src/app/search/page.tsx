@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import SearchResultsClient from './SearchResultsClient';
+import { toSiteUrl } from '@/lib/site-url';
 
 type SearchPageProps = {
   searchParams?: {
@@ -20,8 +21,8 @@ export async function generateMetadata({ searchParams }: SearchPageProps): Promi
     title,
     alternates: {
       canonical: query
-        ? `https://buywhere.ai/search?q=${encodeURIComponent(query)}`
-        : 'https://buywhere.ai/search',
+        ? toSiteUrl(`/search?q=${encodeURIComponent(query)}`)
+        : toSiteUrl('/search'),
     },
   };
 }

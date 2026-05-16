@@ -3,13 +3,14 @@ import Link from "next/link";
 import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "BuyWhere Integration Guide — MCP Server & API for AI Agents",
   description:
     "Connect BuyWhere to your AI agent in minutes. Use the MCP server to give your agent product search, price comparison, and deal discovery across Singapore and the US.",
   alternates: {
-    canonical: "https://buywhere.ai/integrate",
+    canonical: toSiteUrl("/integrate"),
   },
 };
 

@@ -35,7 +35,36 @@ CREATE INDEX IF NOT EXISTS idx_products_region_active ON products(region, is_act
 CREATE INDEX IF NOT EXISTS idx_products_search_region  ON products USING gin(search_vector, region);
 CREATE INDEX IF NOT EXISTS idx_products_search_country ON products USING gin(search_vector, country_code);
 CREATE INDEX IF NOT EXISTS idx_products_currency     ON products(currency);
+CREATE INDEX IF NOT EXISTS idx_products_currency_price ON products(currency, price) WHERE price > 0;
 CREATE INDEX IF NOT EXISTS idx_products_category_path ON products USING GIN(category_path);
+
+-- BUY-14332: discount_pct generated column handled separately in runMigrations()
+-- with an extended statement_timeout (5 min) to avoid timeout on 14M row tables.
+
+-- BUY-14399: Deals cold-path optimization indexes for country/region filtering
+-- These indexes optimize /v1/deals queries that filter by country_code or region
+-- with discount percentage sorting, avoiding sequential scans on 14M+ row table.
+CREATE INDEX IF NOT EXISTS idx_products_deals_country ON products (
+  currency,
+  country_code,
+  (((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)),
+  updated_at DESC
+) WHERE is_active = true
+    AND price > 0
+    AND (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
+    AND (metadata->>'original_price')::numeric > price
+    AND (metadata->>'original_price')::numeric < price * 100;
+
+CREATE INDEX IF NOT EXISTS idx_products_deals_region ON products (
+  currency,
+  region,
+  (((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)),
+  updated_at DESC
+) WHERE is_active = true
+    AND price > 0
+    AND (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
+    AND (metadata->>'original_price')::numeric > price
+    AND (metadata->>'original_price')::numeric < price * 100;
 
 -- api_keys: create if not exists, then add any missing columns
 CREATE TABLE IF NOT EXISTS api_keys (
@@ -100,6 +129,9 @@ CREATE TABLE IF NOT EXISTS affiliate_links (
 
 -- Note: idx_affiliate_links_slug intentionally omitted — affiliate_links table already
 -- exists in this DB without a slug column; the index is not applicable here.
+
+-- BUY-14356: index on (product_id, merchant_id) for the LEFT JOIN in product search/deals queries
+CREATE INDEX IF NOT EXISTS idx_affiliate_links_product_merchant ON affiliate_links(product_id, merchant_id);
 
 -- B-tree index on category_path[1] for fast GROUP BY / WHERE queries (BUY-8715)
 CREATE INDEX IF NOT EXISTS idx_products_category_path_first ON products USING btree ((category_path[1]));
@@ -301,6 +333,36 @@ async function runMigrations() {
     }
     catch (err) {
         console.warn(`[migration] Full migration block failed (non-fatal): ${err.message?.slice(0, 200)}`);
+    }
+    // BUY-14350: discount_pct GENERATED STORED column on 14M row table may exceed
+    // the pool's statement_timeout. Run it with an extended timeout in its own connection.
+    try {
+        const hasCol = await config_1.db.query(`SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`);
+        if (hasCol.rows.length === 0) {
+            console.log('[migration] Adding discount_pct generated column (may take a while on large table)...');
+            // Use a dedicated client with extended timeout for this DDL
+            const client = await config_1.db.connect();
+            try {
+                await client.query('SET statement_timeout = 300000'); // 5 minutes for DDL
+                await client.query(`
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS discount_pct NUMERIC
+            GENERATED ALWAYS AS (
+              ROUND((1 - price / NULLIF((metadata->>'original_price')::NUMERIC, 0)) * 100)
+            ) STORED
+        `);
+                await client.query(`
+          CREATE INDEX IF NOT EXISTS idx_products_deals ON products(currency, discount_pct DESC)
+            WHERE discount_pct IS NOT NULL
+        `);
+                console.log('[migration] discount_pct column and index created.');
+            }
+            finally {
+                client.release();
+            }
+        }
+    }
+    catch (err) {
+        console.warn(`[migration] discount_pct column creation failed (non-fatal): ${err.message?.slice(0, 200)}`);
     }
     // Separately ensure merchants tables exist — not blocked by failures above.
     try {

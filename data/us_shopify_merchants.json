@@ -1,5 +1,5 @@
 {
-  "description": "US Shopify merchant catalog \u2014 BUY-11037",
+  "description": "US Shopify merchant catalog \u2014 BUY-11037 / BUY-11050",
   "count": 355,
   "merchants": [
     {
@@ -1187,7 +1187,7 @@
     {
       "domain": "baseblu.com",
       "source": "shopify_sea",
-      "country": "SEA",
+      "country": "SG",
       "currency": "USD",
       "category": "general",
       "subcategory": "sea",
@@ -2881,5 +2881,6 @@
       "category": "pets",
       "source_attribution": "curated"
     }
-  ]
+  ],
+  "generated_at": "20260515_164942"
 }

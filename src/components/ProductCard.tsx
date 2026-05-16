@@ -7,6 +7,7 @@ import { FreshnessBadge } from '@/components/ui/FreshnessBadge';
 import { MerchantBadge, getMerchantConfig } from '@/components/ui/MerchantBadge';
 import WishlistButton from '@/components/WishlistButton';
 import ShareDealActions from '@/components/share/ShareDealActions';
+import { buildUSProductSlug } from '@/lib/us-products';
 
 interface ProductCardProps {
   deal: {
@@ -193,7 +194,7 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
             variant="menu"
             productId={deal.id}
             productName={deal.name}
-            productUrl={`/products/us/${deal.id}`}
+            productUrl={`/products/us/${buildUSProductSlug({ id: String(deal.id), name: deal.name })}/`}
             merchant={deal.merchant}
             priceText={formatUSD(deal.price)}
           />

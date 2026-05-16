@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "BuyWhere for AI Agents",
   description:
     "Product behavior documentation for AI agents using BuyWhere: ranking, price comparison, availability, merchant selection, tool mapping, and machine-relevant metrics.",
   alternates: {
-    canonical: "https://buywhere.ai/agents",
+    canonical: toSiteUrl("/agents"),
   },
 };
 

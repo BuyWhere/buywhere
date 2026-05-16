@@ -21,7 +21,7 @@ app.get('/healthz', (_req, res) => {
 });
 app.get('/health', async (_req, res) => {
     try {
-        const result = await config_1.db.query('SELECT COUNT(*) FROM products');
+        const result = await config_1.db.query('SELECT reltuples::bigint AS count FROM pg_class WHERE oid = \'public.products\'::regclass');
         res.json({
             status: 'ok',
             server: 'mcp',

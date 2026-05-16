@@ -18,6 +18,7 @@ import { CompareProductsGrid, type CompareProduct } from "@/components/compare/C
 import { getFreshnessTier } from "@/lib/freshness";
 import type { DataFreshness } from "@/lib/freshness";
 import { buildCompareIndexMetadata } from "@/lib/seo-category-metadata";
+import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata = buildCompareIndexMetadata();
 
@@ -36,15 +37,15 @@ type ComparePageProps = {
 const schemaMarkup = {
   "@context": "https://schema.org",
   "@type": "CollectionPage",
-  "@id": "https://buywhere.ai/compare#collection",
+  "@id": `${toSiteUrl("/compare/")}#collection`,
   name: "Compare Product Prices by Market",
   description:
     "Compare prices on electronics, fashion, home goods, beauty products, and more across the US and Southeast Asia.",
-  url: "https://buywhere.ai/compare",
-  mainEntityOfPage: "https://buywhere.ai/compare",
+  url: toSiteUrl("/compare/"),
+  mainEntityOfPage: toSiteUrl("/compare/"),
   publisher: {
     "@type": "Organization",
-    "@id": "https://buywhere.ai/#organization",
+    "@id": `${toSiteUrl("/#organization")}`,
     name: "BuyWhere",
   },
 };

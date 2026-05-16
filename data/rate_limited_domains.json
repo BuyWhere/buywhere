@@ -1,5 +1,5 @@
 {
-  "description": "Rate-limited domains for retry",
+  "description": "Rate-limited domains for retry \u2014 BUY-11037 / BUY-11050",
   "count": 241,
   "domains": [
     {
@@ -1690,5 +1690,5 @@
       "status": "rate_limited"
     }
   ],
-  "generated_at": "20260506_030216"
+  "generated_at": "20260515_164942"
 }

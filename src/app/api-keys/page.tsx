@@ -227,7 +227,7 @@ export default function ApiKeysPage() {
                       "Access to GET /v1/products/search",
                       "Product catalog across Singapore and Southeast Asia",
                       "Free usage during beta",
-                      "Email support at hello@buywhere.ai",
+                      "Support via our contact page",
                     ].map((item) => (
                       <li key={item} className="flex items-start gap-2">
                         <svg className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" viewBox="0 0 16 16" fill="none">
@@ -303,7 +303,7 @@ export default function ApiKeysPage() {
                   },
                   {
                     title: "Questions?",
-                    desc: "Reach us directly at hello@buywhere.ai or via the contact page.",
+                    desc: "Reach us via our contact page for questions, support, or partnership inquiries.",
                     href: "/contact",
                     cta: "Contact us →",
                   },

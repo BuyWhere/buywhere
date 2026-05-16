@@ -5,6 +5,7 @@ import Footer from "@/components/Footer";
 import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
+import { toSiteUrl } from "@/lib/site-url";
 
 const directoryContentDir = path.join(process.cwd(), "content", "directory");
 
@@ -37,7 +38,7 @@ function getAllDirectoryContent() {
 export const metadata: Metadata = {
   title: "BuyWhere Directory — Listed on AI Agent & MCP Marketplaces",
   description: "Browse all platforms where BuyWhere is listed — MCP marketplaces, AI agent directories, API registries, and developer tool listings.",
-  alternates: { canonical: "https://buywhere.ai/directory" },
+  alternates: { canonical: toSiteUrl("/directory") },
 };
 
 export default function DirectoryIndexPage() {

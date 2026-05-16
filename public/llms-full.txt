@@ -23,7 +23,7 @@ Get a free API key: https://buywhere.ai/quickstart
 
 ```
 # Search
-curl -X GET "https://api.buywhere.ai/v1/search" -H "Authorization: Bearer bw_live_YOUR_API_KEY" -G --data-urlencode "q=wireless headphones" --data-urlencode "limit=3"
+curl -X GET "https://api.buywhere.ai/v1/products/search" -H "Authorization: Bearer bw_live_YOUR_API_KEY" -G --data-urlencode "q=wireless headphones" --data-urlencode "limit=3"
 # Detail
 curl -X GET "https://api.buywhere.ai/v1/products/12345" -H "Authorization: Bearer bw_live_YOUR_API_KEY"
 # Best price
@@ -53,7 +53,7 @@ Each product includes: id, name, price, currency, source, buy_url, affiliate_url
 
 ## 3. Product API
 
-Search: `GET https://api.buywhere.ai/v1/search?q={query}`
+Search: `GET https://api.buywhere.ai/v1/products/search?q={query}`
 Params: `q`, `limit` (max 100), `offset`, `market`, `min_price`, `max_price`, `currency`, `sort`.
 
 Detail: `GET https://api.buywhere.ai/v1/products/{id}`

@@ -3,20 +3,21 @@ import Link from "next/link";
 import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "MCP for Ecommerce: The Complete Guide to Product Search MCP Servers (2026)",
   description:
     "Learn how AI agents search real products, compare prices, and discover deals using MCP for ecommerce. Complete guide with setup instructions and real-world use cases.",
   alternates: {
-    canonical: "https://buywhere.ai/mcp-ecommerce",
+    canonical: toSiteUrl("/mcp-ecommerce"),
   },
   openGraph: {
     title: "MCP for Ecommerce: The Complete Guide to Product Search MCP Servers (2026)",
     description:
       "Learn how AI agents search real products, compare prices, and discover deals using MCP for ecommerce. Complete guide with setup instructions and real-world use cases.",
     type: "article",
-    url: "https://buywhere.ai/mcp-ecommerce",
+    url: toSiteUrl("/mcp-ecommerce"),
   },
 };
 
@@ -76,7 +77,7 @@ const structuredData = {
       inLanguage: "en",
       potentialAction: {
         "@type": "SearchAction",
-        target: { "@type": "EntryPoint", urlTemplate: "https://api.buywhere.ai/v1/search?q={search_term_string}" },
+        target: { "@type": "EntryPoint", urlTemplate: "https://api.buywhere.ai/v1/products/search?q={search_term_string}" },
         "query-input": "required name=search_term_string",
       },
     },
@@ -247,7 +248,7 @@ export default function McpEcommercePage() {
               <li><strong>BigCommerce MCP</strong> — enterprise store management</li>
             </ul>
             <p className="mt-4 text-lg leading-8 text-slate-500 italic">
-              These are valuable for store management — but they don't help AI agents search and compare products across markets.
+              These are valuable for store management — but they don&apos;t help AI agents search and compare products across markets.
             </p>
           </div>
         </div>
@@ -341,7 +342,7 @@ Sony WH-1000XM5 (US)        — $329.99 @ Amazon US`}</pre>
         <div className="mx-auto max-w-4xl px-4 sm:px-6">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">Architecture</p>
           <h2 className="mt-3 text-3xl font-bold text-slate-900">Architecture Overview</h2>
-          <p className="mt-6 text-lg leading-8 text-slate-700">BuyWhere's MCP server exposes five core tools:</p>
+          <p className="mt-6 text-lg leading-8 text-slate-700">BuyWhere&apos;s MCP server exposes five core tools:</p>
           <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-200">
             <table className="min-w-full border-collapse text-left text-sm">
               <thead className="bg-slate-100 text-slate-700">

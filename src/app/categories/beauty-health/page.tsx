@@ -1,12 +1,15 @@
 import Link from 'next/link';
 import { HeroSearch } from '@/components/HeroSearch';
 import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
+import { toSiteUrl } from '@/lib/site-url';
 
 export const metadata = buildSgCategoryMetadata(
   'Beauty & Health Singapore | Compare Best Skincare, Makeup & Wellness Prices',
   'Find the best beauty products in Singapore. Compare cheapest prices on skincare, makeup, fragrances, and health supplements from Watsons, Guardian, Sephora, and more.',
   'beauty-health'
 );
+
+const CATEGORY_URL = toSiteUrl('/categories/beauty-health');
 
 export default function BeautyHealthCategoryPage() {
   const schemaMarkup = {
@@ -20,34 +23,34 @@ export default function BeautyHealthCategoryPage() {
             "@type": "ListItem",
             position: 1,
             name: "Home",
-            item: "https://buywhere.ai"
+            item: toSiteUrl('/')
           },
           {
             "@type": "ListItem",
             position: 2,
             name: "Categories",
-            item: "https://buywhere.ai/categories"
+            item: toSiteUrl('/categories/')
           },
           {
             "@type": "ListItem",
             position: 3,
             name: "Beauty & Health",
-            item: "https://buywhere.ai/categories/beauty-health"
+            item: CATEGORY_URL
           }
         ]
       },
       {
         "@type": "CollectionPage",
-        "@id": "https://buywhere.ai/categories/beauty-health#collection",
+        "@id": `${CATEGORY_URL}#collection`,
         name: "Beauty & Health Singapore | Compare Best Skincare, Makeup & Wellness Prices",
         description: "Find the best beauty products in Singapore. Compare cheapest prices on skincare, makeup, fragrances, and health supplements from Watsons, Guardian, Sephora, and more.",
-        url: "https://buywhere.ai/categories/beauty-health",
-        mainEntityOfPage: "https://buywhere.ai/categories/beauty-health",
+        url: CATEGORY_URL,
+        mainEntityOfPage: CATEGORY_URL,
         publisher: {
           "@type": "Organization",
           "@id": "https://buywhere.ai/#organization",
           name: "BuyWhere",
-          url: "https://buywhere.ai"
+          url: toSiteUrl('/')
         },
         about: {
           "@type": "Thing",

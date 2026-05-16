@@ -60,3 +60,10 @@
 2026-05-03T14:30:04Z|gs|https://www.anker.com/googlebase.xml|scraped=0|ingested=0|failed=0|errors=HTTP 404
 2026-05-03T14:30:04Z|gs|https://www.leatherman.com/googlebase.xml|scraped=0|ingested=0|failed=0|errors=HTTP 404
 2026-05-03T14:30:04Z|gs|https://burst.shopify.com/products.xml|scraped=0|ingested=0|failed=0|errors=HTTP 404
+2026-05-14T17:36:10Z|78|78|0
+2026-05-14T17:36:10Z|woo|nuvanta.com.sg|api=/wp-json/wc/store/v1/products|scraped=78|ingested=78|failed=0|errors=none
+2026-05-14T17:44:21Z|883|78|0
+2026-05-14T17:44:21Z|woo|nuvanta.com.sg|api=/wp-json/wc/store/v1/products|scraped=78|ingested=78|failed=0|errors=none
+2026-05-14T17:44:21Z|woo|paragontraders.com.sg|api=/wp-json/wc/store/v1/products|scraped=805|ingested=0|failed=0|errors=Normalization produced no valid products
+2026-05-14T17:44:52Z|78|78|0
+2026-05-14T17:44:52Z|woo|nuvanta.com.sg|api=/wp-json/wc/store/v1/products|scraped=78|ingested=78|failed=0|errors=none

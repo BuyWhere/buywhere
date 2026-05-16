@@ -75,7 +75,7 @@ export function Autocomplete({
       params.set('q', searchQuery);
       params.set('limit', '8');
 
-      const res = await fetch(`${apiUrl}/api/v1/search?${params.toString()}`, {
+      const res = await fetch(`${apiUrl}/v1/products/search?${params.toString()}`, {
         headers: { 'Content-Type': 'application/json' },
       });
 

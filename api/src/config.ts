@@ -9,9 +9,13 @@ export const db = new Pool({
 });
 
 const pgStatementTimeout = parseInt(process.env.PG_STATEMENT_TIMEOUT || '10000');
+const pgLockTimeout = parseInt(process.env.PG_LOCK_TIMEOUT || '2000');
 
 db.on('connect', (client) => {
-  client.query(`SET statement_timeout = ${pgStatementTimeout}`).catch(() => {});
+  Promise.all([
+    client.query(`SET statement_timeout = ${pgStatementTimeout}`),
+    client.query(`SET lock_timeout = ${pgLockTimeout}`),
+  ]).catch(() => {});
 });
 
 export const redis = new Redis({

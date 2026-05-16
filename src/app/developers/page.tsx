@@ -4,13 +4,14 @@ import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { TrustLayer } from "@/components/TrustLayer";
+import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "Developer Portal — BuyWhere MCP & API for AI Agents",
   description:
     "BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff starting in Singapore, expanding across Southeast Asia.",
   alternates: {
-    canonical: "https://buywhere.ai/developers",
+    canonical: toSiteUrl("/developers"),
   },
 };
 

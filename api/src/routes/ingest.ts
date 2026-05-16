@@ -12,6 +12,58 @@ const SOURCE_NORMALIZATION: Record<string, string> = {
   'ikea.com.sg': 'ikea_sg',
 };
 
+const DB_LOCK_RETRYABLE_MESSAGES = [
+  'database is locked',
+  'database is busy',
+  'database schema has changed',
+];
+
+function isRetryableDbError(err: unknown): boolean {
+  const message = ((err as { message?: string; code?: string })?.message || '').toLowerCase();
+  const code = (err as { code?: string })?.code;
+  if (code === '55P03' || code === '40P01' || code === '40001') return true;
+  return DB_LOCK_RETRYABLE_MESSAGES.some((pattern) => message.includes(pattern));
+}
+
+const DB_RETRY_ATTEMPTS = parseInt(process.env.INGEST_DB_RETRY_ATTEMPTS || '8', 10);
+
+function asyncHandler(fn: (req: Request, res: Response) => Promise<unknown>) {
+  return (req: Request, res: Response) => {
+    fn(req, res).catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[ingest] unhandled error on ${req.method} ${req.path}:`, message);
+      if (!res.headersSent) {
+        res.status(500).json({
+          run_id: null,
+          status: 'failed',
+          rows_inserted: 0,
+          rows_updated: 0,
+          rows_failed: Array.isArray(req.body?.products) ? req.body.products.length : 0,
+          errors: [{ index: -1, sku: 'batch', error: `Unhandled ingest error: ${message}`, code: 'unhandled_error' }],
+        });
+      }
+    });
+  };
+}
+
+async function withDbRetry<T>(operation: () => Promise<T>, label: string, maxRetries = DB_RETRY_ATTEMPTS): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastError = err;
+      if (attempt >= maxRetries || !isRetryableDbError(err)) {
+        throw err;
+      }
+      const delayMs = Math.min(1000, 200 * Math.pow(2, attempt));
+      console.warn(`[ingest] ${label} retrying after lock error (attempt ${attempt + 1}/${maxRetries}) in ${delayMs}ms`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  throw lastError;
+}
+
 function normalizeSource(source: string): string {
   return SOURCE_NORMALIZATION[source] || source;
 }
@@ -113,7 +165,7 @@ router.get('/health', requireApiKey, (_req: Request, res: Response) => {
 router.post(
   '/products',
   requireApiKey,
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
     const body = req.body;
 
@@ -169,9 +221,12 @@ router.post(
 
     let runId: number | null = null;
     try {
-      const runResult = await db.query(
+      const runResult = await withDbRetry(
+        () => db.query(
         `INSERT INTO ingestion_runs (source, status) VALUES ($1, 'running') RETURNING id`,
-        [source]
+          [source]
+        ),
+        'create ingestion run'
       );
       runId = runResult.rows[0]?.id || null;
     } catch (e) {
@@ -179,9 +234,12 @@ router.post(
     }
 
     const skus = validProducts.map(p => p.sku);
-    const existingResult = await db.query(
+    const existingResult = await withDbRetry(
+      () => db.query(
       `SELECT sku FROM products WHERE sku = ANY($1::text[]) AND source = $2`,
-      [skus, source]
+        [skus, source]
+      ),
+      'select existing SKUs'
     );
     const existingSkus = new Set(existingResult.rows.map((r: { sku: string }) => r.sku));
 
@@ -224,7 +282,8 @@ router.post(
         );
       }
 
-      await db.query(
+      await withDbRetry(
+        () => db.query(
         `INSERT INTO products
            (sku, source, merchant_id, title, description, price, currency, url,
             image_url, category_path, brand, metadata, is_active, region, country_code)
@@ -245,7 +304,9 @@ router.post(
            region = COALESCE(EXCLUDED.region, products.region),
            country_code = COALESCE(EXCLUDED.country_code, products.country_code),
            updated_at = NOW()`,
-        values
+          values
+        ),
+        'upsert products batch'
       );
 
       for (const p of validProducts) {
@@ -266,9 +327,12 @@ router.post(
       }
 
       if (runId !== null) {
-        await db.query(
-          `UPDATE ingestion_runs SET status = 'failed', error_message = $1, finished_at = NOW() WHERE id = $2`,
-          [msg.slice(0, 500), runId]
+        await withDbRetry(
+          () => db.query(
+            `UPDATE ingestion_runs SET status = 'failed', error_message = $1, finished_at = NOW() WHERE id = $2`,
+            [msg.slice(0, 500), runId]
+          ),
+          'mark run failed'
         ).catch(() => {});
       }
 
@@ -282,9 +346,12 @@ router.post(
     const priceHistoryValues: unknown[] = [];
     const phPlaceholders: string[] = [];
 
-    const finalResult = await db.query(
+    const finalResult = await withDbRetry(
+      () => db.query(
       `SELECT id, sku FROM products WHERE sku = ANY($1::text[]) AND source = $2`,
-      [skus, source]
+        [skus, source]
+      ),
+      'select final product ids'
     );
     const skuToId = new Map(finalResult.rows.map((r: { id: number; sku: string }) => [r.sku, r.id]));
 
@@ -299,10 +366,13 @@ router.post(
 
     if (priceHistoryValues.length > 0) {
       try {
-        await db.query(
+        await withDbRetry(
+          () => db.query(
           `INSERT INTO price_history (product_id, price, currency, source)
            VALUES ${phPlaceholders.join(', ')}`,
-          priceHistoryValues
+            priceHistoryValues
+          ),
+          'insert price history'
         );
       } catch (e) {
         console.warn('[ingest] Price history insert failed:', (e as Error).message);
@@ -311,9 +381,12 @@ router.post(
 
     const status = rowsFailed === 0 ? 'completed' : 'completed_with_errors';
     if (runId !== null) {
-      await db.query(
-        `UPDATE ingestion_runs SET status = $1, rows_inserted = $2, rows_updated = $3, rows_failed = $4, finished_at = NOW() WHERE id = $5`,
-        [status, rowsInserted, rowsUpdated, rowsFailed, runId]
+      await withDbRetry(
+        () => db.query(
+          `UPDATE ingestion_runs SET status = $1, rows_inserted = $2, rows_updated = $3, rows_failed = $4, finished_at = NOW() WHERE id = $5`,
+          [status, rowsInserted, rowsUpdated, rowsFailed, runId]
+        ),
+        'mark run complete'
       ).catch(() => {});
     }
 
@@ -342,7 +415,7 @@ router.post(
       rows_failed: rowsFailed,
       errors: errors.length > 0 ? errors : undefined,
     });
-  }
+  })
 );
 
 export default router;

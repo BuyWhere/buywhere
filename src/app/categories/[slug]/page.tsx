@@ -5,13 +5,6 @@ import { HeroSearch } from '@/components/HeroSearch';
 import { PRODUCT_TAXONOMY, getCategoryBySlug } from '@/lib/taxonomy';
 import { toSiteUrl } from '@/lib/site-url';
 
-function slugToName(slug: string): string {
-  return slug
-    .split('-')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
-}
-
 function slugToQuery(slug: string): string {
   return slug.replace(/-/g, '+');
 }

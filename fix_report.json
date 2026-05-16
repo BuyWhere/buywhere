@@ -1,0 +1,39 @@
+{
+  "fix_timestamp": "2026-05-15T19:22:13.453069+00:00",
+  "issue_buy": "BUY-18048",
+  "title": "Control-plane fix for successful_run_missing_state legalization and stale recovery auto-resolution",
+  "summary": {
+    "successful_run_missing_state_found": 1,
+    "successful_run_missing_state_fixed": 1,
+    "stale_recovery_found": 1,
+    "stale_recovery_fixed": 1,
+    "total_issues_affected": 2
+  },
+  "issues": {
+    "successful_run_missing_state": [
+      {
+        "id": "issue-1",
+        "identifier": "BUY-18041",
+        "current_status": "in_progress",
+        "reason": "successful_run_missing_state",
+        "fix_action": "block_issue",
+        "explanation": "Successful run ended with blocker but source issue not blocked"
+      }
+    ],
+    "stale_recovery": [
+      {
+        "id": "issue-2",
+        "identifier": "BUY-18019",
+        "current_status": "blocked",
+        "reason": "stale_recovery_debt",
+        "fix_action": "clear_stale_recovery",
+        "explanation": "Issue in terminal state (blocked) but has stale recovery debt"
+      }
+    ]
+  },
+  "implementation_notes": {
+    "successful_run_missing_state_fix": "Issues with successful runs that ended with blockers are now properly blocked",
+    "stale_recovery_fix": "Stale recovery debt is cleared for issues that reached terminal states",
+    "forensics_reference": "Based on BUY-18048 and BUY-18019 forensics on blocked successful runs and liveness_state=blocked"
+  }
+}

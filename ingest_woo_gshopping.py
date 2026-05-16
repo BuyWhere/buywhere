@@ -29,8 +29,27 @@ from typing import Optional
 
 import httpx
 
+
+def proxy_url_from_env() -> Optional[str]:
+    """Try to load Brightdata proxy URL from environment."""
+    try:
+        from scrapers.proxy_config import proxy_url, Zone
+        return proxy_url(Zone.RESIDENTIAL_PROXY1)
+    except Exception:
+        return None
+
 BUYWHERE_API_URL = "https://api.buywhere.ai"
 BUYWHERE_API_KEY = "bw_i-74qnb4qRXfF7pXixXeVyenHDz3KoDjTiL1EMZpt8s"
+
+WOO_AUTH_HEADER_KEY = "X-WooCommerce-Store-API-Auth"
+
+
+def build_woo_auth_url(base_url: str, consumer_key: str, consumer_secret: str) -> str:
+    """Build URL with WooCommerce REST API auth query params (simple auth)."""
+    separator = "&" if "?" in base_url else "?"
+    return f"{base_url}{separator}consumer_key={consumer_key}&consumer_secret={consumer_secret}"
+
+
 FEED_FIELDS = [
     "id", "title", "description", "link", "image_link", "price", "sale_price",
     "currency", "availability", "brand", "gtin", "mpn", "product_type",
@@ -64,28 +83,43 @@ def parse_woo_price(price: str) -> tuple[float, str]:
         return 0.0, "USD"
 
 
-async def fetch_woocommerce(client: httpx.AsyncClient, store_url: str) -> tuple[list[dict], int, str]:
-    """Fetch products from a WooCommerce store. Tries Store API first (unauthenticated), then V3 admin API."""
+async def fetch_woocommerce(
+    client: httpx.AsyncClient,
+    store_url: str,
+    consumer_key: str = "",
+    consumer_secret: str = "",
+) -> tuple[list[dict], int, str]:
+    """Fetch products from a WooCommerce store. Tries Store API first (unauthenticated), then V3 admin API.
+    If consumer_key/secret provided, uses authenticated REST API."""
     products = []
     page = 1
     per_page = 100
     clean_url = store_url.rstrip("/").replace("https://", "").replace("http://", "")
 
-    api_paths = ["/wp-json/wc/store/v1/products", "/wp-json/wc/v3/products"]
+    has_auth = bool(consumer_key and consumer_secret)
+
+    if has_auth:
+        api_paths = ["/wp-json/wc/v3/products"]
+    else:
+        api_paths = ["/wp-json/wc/store/v1/products", "/wp-json/wc/v3/products"]
 
     for api_path in api_paths:
         products = []
         page = 1
         api_base = f"https://{clean_url}{api_path}"
+        if has_auth:
+            api_base = build_woo_auth_url(api_base, consumer_key, consumer_secret)
         while True:
             try:
                 resp = await client.get(
                     api_base,
-                    params={"page": page, "per_page": per_page},
+                    params={"page": page, "per_page": per_page} if not has_auth else {},
                     timeout=30.0,
                 )
                 if resp.status_code in (401, 403):
-                    return [], resp.status_code, api_path
+                    if has_auth:
+                        return [], resp.status_code, api_path
+                    continue
                 if resp.status_code == 404:
                     break
                 if resp.status_code != 200:
@@ -360,6 +394,8 @@ async def process_woo_store(
     api_url: str,
     scrape_only: bool,
     batch_size: int,
+    consumer_key: str = "",
+    consumer_secret: str = "",
 ) -> dict:
     result = {
         "type": "woocommerce",
@@ -370,7 +406,7 @@ async def process_woo_store(
         "failed": 0,
         "errors": [],
     }
-    products, status, api_path = await fetch_woocommerce(client, store_domain)
+    products, status, api_path = await fetch_woocommerce(client, store_domain, consumer_key, consumer_secret)
     result["api"] = api_path
     if status in (401, 403):
         result["errors"].append(f"auth_required ({status})")
@@ -450,13 +486,14 @@ async def process_gshopping_feed(
 
 
 async def run_pipeline(
-    woo_stores: list[str],
+    woo_stores: list[tuple[str, str, str]],
     gshopping_feeds: list[str],
     api_key: str,
     api_url: str,
     batch_size: int,
     concurrency: int,
     scrape_only: bool,
+    proxy: Optional[str] = None,
 ) -> list[dict]:
     async with httpx.AsyncClient(
         headers={
@@ -464,20 +501,35 @@ async def run_pipeline(
             "Accept": "application/json",
         },
         timeout=httpx.Timeout(60.0, connect=10.0),
+        proxy=proxy,
+        verify=False,
     ) as client:
         tasks = []
-        for store in woo_stores:
-            tasks.append(process_woo_store(client, store, api_key, api_url, scrape_only, batch_size))
+        for store_domain, consumer_key, consumer_secret in woo_stores:
+            tasks.append(process_woo_store(client, store_domain, api_key, api_url, scrape_only, batch_size, consumer_key, consumer_secret))
         for feed in gshopping_feeds:
             tasks.append(process_gshopping_feed(client, feed, api_key, api_url, scrape_only, batch_size))
         results = await asyncio.gather(*tasks)
     return results
 
 
+def parse_woo_store_line(line: str) -> tuple[str, str, str]:
+    """Parse a line from the stores file. Format: domain.com or domain.com:consumer_key:consumer_secret"""
+    line = line.strip()
+    if not line or line.startswith("#"):
+        return ("", "", "")
+    parts = line.split(":")
+    if len(parts) == 1:
+        return (parts[0].strip(), "", "")
+    elif len(parts) >= 3:
+        return (parts[0].strip(), parts[1].strip(), parts[2].strip())
+    return (line, "", "")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="WooCommerce + Google Shopping Feed ingestion pipeline")
-    parser.add_argument("--woo-stores-file", help="File with WooCommerce store domains (one per line)")
-    parser.add_argument("--woo-stores", nargs="+", help="WooCommerce store domains")
+    parser.add_argument("--woo-stores-file", help="File with WooCommerce store domains (one per line, optionally :consumer_key:consumer_secret for auth)")
+    parser.add_argument("--woo-stores", nargs="+", help="WooCommerce store domains (optionally :consumer_key:consumer_secret)")
     parser.add_argument("--gshopping-feeds-file", help="File with Google Shopping feed URLs (one per line)")
     parser.add_argument("--gshopping-feeds", nargs="+", help="Google Shopping feed URLs")
     parser.add_argument("--api-key", default=BUYWHERE_API_KEY)
@@ -485,13 +537,21 @@ def main() -> int:
     parser.add_argument("--concurrency", type=int, default=4)
     parser.add_argument("--scrape-only", action="store_true")
     parser.add_argument("--log-file", help="Append results to log file")
+    parser.add_argument("--use-proxy", action="store_true", help="Use Brightdata residential proxy for blocked sites")
     args = parser.parse_args()
 
     woo_stores = []
     if args.woo_stores_file:
         with open(args.woo_stores_file) as f:
-            woo_stores = [line.strip() for line in f if line.strip() and not line.startswith("#")]
-    woo_stores.extend(args.woo_stores or [])
+            for line in f:
+                domain, key, secret = parse_woo_store_line(line)
+                if domain:
+                    woo_stores.append((domain, key, secret))
+    if args.woo_stores:
+        for store in args.woo_stores:
+            domain, key, secret = parse_woo_store_line(store)
+            if domain:
+                woo_stores.append((domain, key, secret))
 
     gshopping_feeds = []
     if args.gshopping_feeds_file:
@@ -506,9 +566,17 @@ def main() -> int:
     print(f"Pipeline: {len(woo_stores)} WooCommerce, {len(gshopping_feeds)} Google Shopping feeds")
     print(f"Batch: {args.batch_size}, Concurrency: {args.concurrency}, Scrape-only: {args.scrape_only}")
 
+    proxy = None
+    if args.use_proxy:
+        proxy = proxy_url_from_env()
+        if proxy:
+            print(f"Using proxy: {proxy[:50]}...")
+        else:
+            print("WARNING: --use-proxy specified but no proxy available")
+
     start = time.time()
     results = asyncio.run(
-        run_pipeline(woo_stores, gshopping_feeds, args.api_key, BUYWHERE_API_URL, args.batch_size, args.concurrency, args.scrape_only)
+        run_pipeline(woo_stores, gshopping_feeds, args.api_key, BUYWHERE_API_URL, args.batch_size, args.concurrency, args.scrape_only, proxy)
     )
     elapsed = time.time() - start
 

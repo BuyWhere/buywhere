@@ -142,11 +142,13 @@ export function middleware(request: NextRequest) {
   const accept = request.headers.get("accept") ?? "";
   const wantsMarkdown = accept.includes("text/markdown");
 
+  // Bypass all middleware for static files
   if (
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/api/") ||
     pathname.startsWith("/assets/") ||
-    (pathname.includes(".") && !pathname.startsWith("/.well-known/"))
+    pathname.includes(".") ||
+    pathname === "/.well-known/"
   ) {
     return NextResponse.next();
   }
