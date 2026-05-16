@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "pg";
+import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 declare global {
@@ -8,6 +9,16 @@ declare global {
 }
 
 const FALLBACK_FILE = "/tmp/bw-feedback.json";
+
+const ses = new SESClient({
+  region: process.env.AWS_REGION ?? "ap-southeast-1",
+});
+const FEEDBACK_NOTIFY_EMAIL =
+  process.env.FEEDBACK_NOTIFY_EMAIL
+  ?? process.env.CONTACT_NOTIFY_EMAIL
+  ?? process.env.SIGNUP_NOTIFY_EMAIL
+  ?? "founders@buywhere.ai";
+const FROM_EMAIL = process.env.SES_FROM_EMAIL ?? "noreply@buywhere.ai";
 
 function normalizeDatabaseUrl(rawValue: string) {
   if (rawValue.startsWith("postgresql+asyncpg://")) {
@@ -117,6 +128,38 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Feedback DB persistence failed, falling back to file:", error);
     persistFallback({ name: trimmedName, email: trimmedEmail, message: trimmedMessage, category: trimmedCategory });
+  }
+
+  try {
+    await ses.send(
+      new SendEmailCommand({
+        Source: FROM_EMAIL,
+        Destination: { ToAddresses: [FEEDBACK_NOTIFY_EMAIL] },
+        ReplyToAddresses: [trimmedEmail],
+        Message: {
+          Subject: {
+            Data: `[BuyWhere feedback] ${trimmedCategory} from ${trimmedName || trimmedEmail}`,
+          },
+          Body: {
+            Text: {
+              Data: `New feedback submission
+
+Name: ${trimmedName || "(not provided)"}
+Email: ${trimmedEmail}
+Category: ${trimmedCategory}
+Stored via: ${storage}
+Time: ${createdAt}
+
+Message:
+${trimmedMessage}
+`,
+            },
+          },
+        },
+      })
+    );
+  } catch (error) {
+    console.error("Feedback notification failed:", error);
   }
 
   return NextResponse.json({

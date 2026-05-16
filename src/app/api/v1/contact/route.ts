@@ -9,6 +9,8 @@ const CONTACT_NOTIFY_EMAIL =
   ?? process.env.SIGNUP_NOTIFY_EMAIL
   ?? "founders@buywhere.ai";
 
+const ses = new SESClient({ region: SES_REGION });
+
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const { companyName, contactName, email, website, message, source } = body as {
@@ -59,7 +61,8 @@ export async function POST(request: NextRequest) {
     created_at: createdAt,
   });
 
-  const ses = new SESClient({ region: SES_REGION });
+  const isPartnership = trimmedSource === "partnership-page";
+  const subjectPrefix = isPartnership ? "BuyWhere merchant partnership" : "BuyWhere contact";
 
   try {
     await ses.send(
@@ -69,17 +72,17 @@ export async function POST(request: NextRequest) {
         ReplyToAddresses: [trimmedEmail],
         Message: {
           Subject: {
-            Data: `[BuyWhere merchant partnership] ${trimmedCompanyName} - ${trimmedContactName}`,
+            Data: `[${subjectPrefix}] ${trimmedCompanyName} - ${trimmedContactName}`,
           },
           Body: {
             Text: {
-              Data: `New merchant partnership inquiry
+              Data: `New ${isPartnership ? "merchant partnership" : "contact"} inquiry
 
 Company: ${trimmedCompanyName}
 Contact: ${trimmedContactName}
 Email: ${trimmedEmail}
 Website: ${trimmedWebsite || "(not provided)"}
-Source: ${trimmedSource || "/partnership"}
+Source: ${trimmedSource || "/contact"}
 Stored via: ${result.storage}
 Time: ${createdAt}
 
@@ -92,7 +95,7 @@ ${trimmedMessage}
       })
     );
   } catch (error) {
-    console.error("Merchant partnership notification failed:", error);
+    console.error("Contact notification failed:", error);
   }
 
   return NextResponse.json({
