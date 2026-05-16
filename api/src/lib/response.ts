@@ -1,4 +1,5 @@
 import { CanonicalProduct, ComparisonAttribute, SearchResponse } from '../types/product';
+import { resolvePrecomputedAffiliateUrl } from './affiliateWrapper';
 
 export const CURRENCY_RATES: Record<string, number> = {
   USD: 1, SGD: 0.74, VND: 0.000039, THB: 0.028, MYR: 0.22, GBP: 0.79,
@@ -16,16 +17,18 @@ export function buildProduct(
   const currency = (row.currency as string) || defaultCurrency;
   const amount = row.price != null ? parseFloat(row.price as string) : null;
 
+  const affiliateUrl = resolvePrecomputedAffiliateUrl(row.affiliate_url);
   const base: CanonicalProduct = {
     id: row.id as string,
     title: row.title as string,
     price: { amount, currency },
     merchant: row.domain as string,
-    url: row.url as string,
+    url: affiliateUrl ?? (row.url as string),
     image_url: (row.image_url as string) || null,
     region: (row.region as string) || null,
     country_code: (row.country_code as string) || null,
     updated_at: (row.updated_at as string) || null,
+    ...(affiliateUrl != null && { affiliate_url: affiliateUrl }),
   };
 
   if (compact) {

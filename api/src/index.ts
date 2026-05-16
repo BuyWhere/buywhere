@@ -3,6 +3,7 @@ import { createApp } from './server';
 import { PORT } from './config';
 import { shutdownPostHog } from './analytics/posthog';
 import { runMigrations } from './migrate';
+import { loadAffiliateConfigs } from './lib/affiliateWrapper';
 
 // Initialize Sentry before anything else so all errors are captured
 initSentry();
@@ -12,6 +13,9 @@ const app = createApp();
 runMigrations().catch(err => {
   console.error('Migration failed during startup:', err);
 });
+
+// Pre-warm affiliate config cache after migrations complete (BUY-18436)
+loadAffiliateConfigs().catch(() => {});
 
 const server = app.listen(PORT, () => {
   console.log(`BuyWhere API v1 listening on :${PORT}`);

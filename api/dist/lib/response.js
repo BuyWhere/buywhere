@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.COUNTRY_CURRENCY = exports.CURRENCY_RATES = void 0;
 exports.buildProduct = buildProduct;
 exports.buildSearchResponse = buildSearchResponse;
+const affiliateWrapper_1 = require("./affiliateWrapper");
 exports.CURRENCY_RATES = {
     USD: 1, SGD: 0.74, VND: 0.000039, THB: 0.028, MYR: 0.22, GBP: 0.79,
 };
@@ -12,16 +13,18 @@ exports.COUNTRY_CURRENCY = {
 function buildProduct(row, defaultCurrency, compact) {
     const currency = row.currency || defaultCurrency;
     const amount = row.price != null ? parseFloat(row.price) : null;
+    const affiliateUrl = (0, affiliateWrapper_1.resolvePrecomputedAffiliateUrl)(row.affiliate_url);
     const base = {
         id: row.id,
         title: row.title,
         price: { amount, currency },
         merchant: row.domain,
-        url: row.url,
+        url: affiliateUrl ?? row.url,
         image_url: row.image_url || null,
         region: row.region || null,
         country_code: row.country_code || null,
         updated_at: row.updated_at || null,
+        ...(affiliateUrl != null && { affiliate_url: affiliateUrl }),
     };
     if (compact) {
         const meta = row.metadata;

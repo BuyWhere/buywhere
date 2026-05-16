@@ -29,6 +29,8 @@ export interface CanonicalProduct {
   // Deal-specific:
   original_price?: number | null;
   discount_pct?: number | null;
+  // Affiliate-tracked URL (BUY-18436); present when platform has active affiliate config
+  affiliate_url?: string | null;
 }
 
 export interface SearchResponse {

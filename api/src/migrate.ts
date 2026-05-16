@@ -128,6 +128,25 @@ CREATE TABLE IF NOT EXISTS affiliate_links (
 -- Note: idx_affiliate_links_slug intentionally omitted — affiliate_links table already
 -- exists in this DB without a slug column; the index is not applicable here.
 
+-- BUY-18436: per-platform affiliate config table (hot-reloadable, feature-flagged)
+CREATE TABLE IF NOT EXISTS affiliate_platform_config (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  platform    TEXT        NOT NULL UNIQUE,  -- e.g. 'shopee_sg', 'lazada_sg'
+  network_id  TEXT        NOT NULL,         -- e.g. 'accesstrade', 'involve_asia'
+  tracking_id TEXT        NOT NULL,         -- publisher/sub-ID on that network
+  is_active   BOOLEAN     NOT NULL DEFAULT false,
+  notes       TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Seed placeholder configs for Shopee SG and Lazada SG (inactive by default)
+INSERT INTO affiliate_platform_config (platform, network_id, tracking_id, is_active, notes)
+VALUES
+  ('shopee_sg', 'involve_asia', 'PLACEHOLDER_SHOPEE_SG', false, 'Swap tracking_id when BUY-13765 resolves'),
+  ('lazada_sg',  'involve_asia', 'PLACEHOLDER_LAZADA_SG',  false, 'Swap tracking_id when BUY-13765 resolves')
+ON CONFLICT (platform) DO NOTHING;
+
 -- BUY-14356: index on (product_id, merchant_id) for the LEFT JOIN in product search/deals queries
 CREATE INDEX IF NOT EXISTS idx_affiliate_links_product_merchant ON affiliate_links(product_id, merchant_id);
 
