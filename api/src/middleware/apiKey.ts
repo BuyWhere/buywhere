@@ -6,6 +6,7 @@ import { db, redis, FREE_TIER } from '../config';
 import { sendError, sendRateLimitError, ErrorCode } from './errors';
 
 const PAPERCLIP_API_URL = process.env.PAPERCLIP_API_URL || 'https://api.paperclip.ai';
+const JWT_CACHE_TTL_SECONDS = 300; // 5 minutes — short enough to catch revocations
 
 const TIER_LIMITS: Record<string, { rpm: number; daily: number }> = {
   unverified: { rpm: 5, daily: 50 },
@@ -32,6 +33,28 @@ interface PaperclipAgentInfo {
   id: string;
   name: string;
   companyId?: string;
+}
+
+function jwtCacheKey(token: string): string {
+  return `jwt:verify:${createHash('sha256').update(token).digest('hex')}`;
+}
+
+async function getCachedJwtVerification(token: string): Promise<PaperclipAgentInfo | null> {
+  try {
+    const cached = await redis.get(jwtCacheKey(token));
+    if (cached) return JSON.parse(cached) as PaperclipAgentInfo;
+  } catch {
+    // Redis unavailable — fall through to API
+  }
+  return null;
+}
+
+async function setCachedJwtVerification(token: string, info: PaperclipAgentInfo): Promise<void> {
+  try {
+    await redis.set(jwtCacheKey(token), JSON.stringify(info), 'EX', JWT_CACHE_TTL_SECONDS);
+  } catch {
+    // Redis unavailable — non-fatal
+  }
 }
 
 async function verifyPaperclipTokenWithApi(token: string): Promise<PaperclipAgentInfo | null> {
@@ -187,7 +210,14 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
   // Detect Paperclip JWT — decode payload without signature verification
   const jwtPayload = decodeJwtPayload(key);
   if (jwtPayload && isPaperclipJwtPayload(jwtPayload)) {
-    const agentInfo = await verifyPaperclipTokenWithApi(key);
+    // Check Redis cache to survive brief Paperclip API outages
+    let agentInfo = await getCachedJwtVerification(key);
+    if (!agentInfo) {
+      agentInfo = await verifyPaperclipTokenWithApi(key);
+      if (agentInfo) {
+        await setCachedJwtVerification(key, agentInfo);
+      }
+    }
     if (agentInfo) {
       try {
         const row = await upsertPaperclipAgentKey(agentInfo.id, agentInfo.name, agentInfo.companyId);
