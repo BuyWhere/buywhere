@@ -1,7 +1,6 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import ContactForm from "@/components/ContactForm";
-import MailtoLink from "@/components/MailtoLink";
 import type { Metadata } from "next";
 import { toSiteUrl } from "@/lib/site-url";
 
@@ -31,7 +30,7 @@ export default function ContactPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="grid md:grid-cols-2 gap-12">
 
-            <div>
+            <div id="contact-form">
               <h2 className="text-xl font-bold text-gray-900 mb-6">Send us a message</h2>
               <ContactForm />
             </div>
@@ -62,7 +61,7 @@ export default function ContactPage() {
                 <div className="space-y-3 text-sm text-gray-600">
                   <div className="flex items-center gap-2">
                     <span className="text-indigo-500">✉</span>
-                    <MailtoLink email="hello@buywhere.ai" className="hover:text-indigo-600 hover:underline" />
+                    <a href="#contact-form" className="hover:text-indigo-600 hover:underline">Use the form on this page</a>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-indigo-500">🏢</span>

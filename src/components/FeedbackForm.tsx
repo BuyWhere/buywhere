@@ -76,8 +76,9 @@ export default function FeedbackForm() {
     } catch {
       setErrorMessage(
         <>
-          Unable to submit feedback. Please email us directly at{" "}
-          <MailtoLink email="hello@buywhere.ai" className="underline hover:text-gray-600" />
+          Unable to submit feedback. Please{" "}
+          <Link href="/contact" className="underline hover:text-gray-600">contact us directly</Link>
+          {" "}and we will get back to you within 1 business day.
         </>
       );
       setStatus("error");
