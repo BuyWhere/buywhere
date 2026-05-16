@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import RootLayout from "../layout";
 
 export const metadata: Metadata = {
   title: "Get BuyWhere API Key - Free Developer Access | BuyWhere",
@@ -15,5 +14,5 @@ export default function ApiKeysLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return <RootLayout>{children}</RootLayout>;
+  return <>{children}</>;
 }
