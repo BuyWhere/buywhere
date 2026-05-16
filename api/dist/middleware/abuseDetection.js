@@ -36,15 +36,21 @@ function abuseDetection() {
                 (0, errors_1.sendError)(res, errors_1.ErrorCode.INVALID_PARAMETER, 'Limit cannot exceed 100.');
                 return;
             }
-            const rapidFireKey = `abuse:rapid:${ip}:${req.path}:${JSON.stringify(req.query)}:${minuteWindow}`;
-            const [rapidFireCount] = await config_1.redis.pipeline()
-                .incr(rapidFireKey)
-                .expire(rapidFireKey, config_1.ABUSE_LIMITS.RAPID_FIRE_WINDOW_SEC)
-                .exec();
-            const rfCount = rapidFireCount || 0;
-            if (rfCount > config_1.ABUSE_LIMITS.RAPID_FIRE_THRESHOLD) {
-                await sendAbuseError(res, 60, 'Too many identical requests. Please slow down.');
-                return;
+            // Skip rapid-fire check for authenticated requests — per-key rate limiting handles those.
+            // POST endpoints (e.g. MCP) route tool selection via request body, not query params, so
+            // all tool calls share the same rapid-fire key and would be falsely blocked otherwise.
+            const hasAuthHeader = !!(req.headers['authorization']);
+            if (!hasAuthHeader) {
+                const rapidFireKey = `abuse:rapid:${ip}:${req.path}:${JSON.stringify(req.query)}:${minuteWindow}`;
+                const [rapidFireCount] = await config_1.redis.pipeline()
+                    .incr(rapidFireKey)
+                    .expire(rapidFireKey, config_1.ABUSE_LIMITS.RAPID_FIRE_WINDOW_SEC)
+                    .exec();
+                const rfCount = rapidFireCount || 0;
+                if (rfCount > config_1.ABUSE_LIMITS.RAPID_FIRE_THRESHOLD) {
+                    await sendAbuseError(res, 60, 'Too many identical requests. Please slow down.');
+                    return;
+                }
             }
             // Check if IP is currently blocked (from invalid key attempts tracked by recordInvalidKeyAttempt)
             const blockKey = `abuse:blocked:${ip}`;
