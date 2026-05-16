@@ -1,4 +1,10 @@
-name: Deploy MCP to Cloud Run (Production)
+# SUPERSEDED by Railway (BUY-18347, 2026-05-16)
+# mcp.buywhere.ai is now served by the main Railway buywhere-api service, not a dedicated Cloud Run container.
+# This workflow is retained as a reference for the old Cloud Run deployment model.
+# Do NOT run this workflow — it deploys to a stale Cloud Run service that is no longer the production path.
+# Railway owns production MCP at: mcp.buywhere.ai/mcp and mcp.buywhere.ai/health
+
+name: Deploy MCP to Cloud Run (Production) [SUPERSEDED]
 
 on:
   workflow_dispatch:

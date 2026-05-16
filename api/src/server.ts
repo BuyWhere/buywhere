@@ -51,6 +51,15 @@ export function createApp() {
     });
   });
 
+  // /healthz — backwards-compatible alias for /health (BUY-18347)
+  // Old dedicated MCP container (Cloud Run) used /healthz as its Knative liveness probe path.
+  // Railway buywhere-api now owns mcp.buywhere.ai; alias keeps legacy probes and monitors working.
+  app.get('/healthz', (_req, res) => {
+    res.json({
+      status: 'ok',
+      ts: new Date().toISOString(),
+    });
+  });
   app.get('/health/redis', async (_req, res) => {
     try {
       const pong = await redis.ping();

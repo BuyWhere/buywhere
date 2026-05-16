@@ -1,3 +1,8 @@
+# SUPERSEDED by Railway (BUY-18347, 2026-05-16)
+# mcp.buywhere.ai is now served by the main Railway buywhere-api service.
+# This Knative/Cloud Run service definition is retained as reference only.
+# The /healthz liveness probe path below belongs to the standalone mcp-server.ts container shape,
+# not the current Railway production runtime which uses /health.
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
