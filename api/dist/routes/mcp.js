@@ -299,22 +299,33 @@ async function handleGetDeals(args) {
     const discountOrder = useDiscountCol
         ? 'discount_pct DESC'
         : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
-    const countResult = await config_1.db.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`, params);
-    const dataParams = [...params, limit, offset];
-    const limitIdx = dataParams.length - 1;
-    const offsetIdx = dataParams.length;
-    const dataResult = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
-            price,
-            CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
-                 THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
-            currency, image_url, metadata, updated_at, region, country_code,
-            ${discountSelect}
-     FROM products
-     WHERE ${whereClause}
-     ORDER BY ${discountOrder}
-     LIMIT $${limitIdx} OFFSET $${offsetIdx}`, dataParams);
-    const products = dataResult.rows.map((r) => (0, response_1.buildProduct)(r, currency, false));
-    const total = parseInt(countResult.rows[0].count, 10);
+    // Use dedicated client with extended timeout when discount_pct column is absent.
+    const dealsClient = await config_1.db.connect();
+    let products;
+    let total;
+    try {
+        if (!useDiscountCol)
+            await dealsClient.query('SET statement_timeout = 60000');
+        const countResult = await dealsClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`, params);
+        total = parseInt(countResult.rows[0].count, 10);
+        const dataParams = [...params, limit, offset];
+        const limitIdx = dataParams.length - 1;
+        const offsetIdx = dataParams.length;
+        const dataResult = await dealsClient.query(`SELECT id, sku AS source, source AS domain, url, title,
+              price,
+              CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
+                   THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
+              currency, image_url, metadata, updated_at, region, country_code,
+              ${discountSelect}
+       FROM products
+       WHERE ${whereClause}
+       ORDER BY ${discountOrder}
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`, dataParams);
+        products = dataResult.rows.map((r) => (0, response_1.buildProduct)(r, currency, false));
+    }
+    finally {
+        dealsClient.release();
+    }
     const result = (0, response_1.buildSearchResponse)(products, total, limit, offset, Date.now() - t0, false);
     config_1.redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => { });
     return result;
@@ -330,18 +341,25 @@ async function handleListCategories(_args) {
         }
     }
     catch (_) { }
-    // Use category_path[1] IS NOT NULL to enable idx_products_category_path_first B-tree index scan.
-    const result = await config_1.db.query(`SELECT category_path[1] AS slug,
-            category_path[1] AS name,
-            COUNT(*) AS product_count
-     FROM products
-     WHERE category_path[1] IS NOT NULL
-     GROUP BY category_path[1]
-     ORDER BY product_count DESC
-     LIMIT 100`);
-    const data = { data: result.rows, meta: { total: result.rows.length, response_time_ms: Date.now() - t0, cached: false } };
-    config_1.redis.set(cacheKey, JSON.stringify(data), 'EX', 300).catch(() => { });
-    return data;
+    // Use dedicated client with extended timeout — GROUP BY on 13.7M rows can exceed default 10s.
+    const catClient = await config_1.db.connect();
+    try {
+        await catClient.query('SET statement_timeout = 60000');
+        const result = await catClient.query(`SELECT category_path[1] AS slug,
+              category_path[1] AS name,
+              COUNT(*) AS product_count
+       FROM products
+       WHERE category_path[1] IS NOT NULL
+       GROUP BY category_path[1]
+       ORDER BY product_count DESC
+       LIMIT 100`);
+        const data = { data: result.rows, meta: { total: result.rows.length, response_time_ms: Date.now() - t0, cached: false } };
+        config_1.redis.set(cacheKey, JSON.stringify(data), 'EX', 300).catch(() => { });
+        return data;
+    }
+    finally {
+        catClient.release();
+    }
 }
 async function handleFindBestPrice(args) {
     const t0 = Date.now();

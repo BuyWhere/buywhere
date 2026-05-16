@@ -333,33 +333,44 @@ async function handleGetDeals(args: Record<string, unknown>) {
     ? 'discount_pct DESC'
     : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
 
-  const countResult = await db.query(
-    `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`,
-    params
-  );
+  // Use dedicated client with extended timeout when discount_pct column is absent.
+  // When discount_pct exists (happy path), this query is fast via idx_products_deals.
+  // Without it, the metadata regex+cast fallback can exceed the default 10s statement_timeout.
+  const dealsClient = await db.connect();
+  let products: ReturnType<typeof buildProduct>[];
+  let total: number;
+  try {
+    if (!useDiscountCol) await dealsClient.query('SET statement_timeout = 60000');
+    const countResult = await dealsClient.query(
+      `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`,
+      params
+    );
+    total = parseInt(countResult.rows[0].count, 10);
 
-  const dataParams = [...params, limit, offset];
-  const limitIdx = dataParams.length - 1;
-  const offsetIdx = dataParams.length;
-  const dataResult = await db.query(
-    `SELECT id, sku AS source, source AS domain, url, title,
-            price,
-            CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
-                 THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
-            currency, image_url, metadata, updated_at, region, country_code,
-            ${discountSelect}
-     FROM products
-     WHERE ${whereClause}
-     ORDER BY ${discountOrder}
-     LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
-    dataParams
-  );
+    const dataParams = [...params, limit, offset];
+    const limitIdx = dataParams.length - 1;
+    const offsetIdx = dataParams.length;
+    const dataResult = await dealsClient.query(
+      `SELECT id, sku AS source, source AS domain, url, title,
+              price,
+              CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
+                   THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
+              currency, image_url, metadata, updated_at, region, country_code,
+              ${discountSelect}
+       FROM products
+       WHERE ${whereClause}
+       ORDER BY ${discountOrder}
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      dataParams
+    );
+    products = dataResult.rows.map((r: Record<string, unknown>) =>
+      buildProduct(r, currency, false)
+    );
+  } finally {
+    dealsClient.release();
+  }
 
-  const products = dataResult.rows.map((r: Record<string, unknown>) =>
-    buildProduct(r, currency, false)
-  );
-  const total = parseInt(countResult.rows[0].count, 10);
-  const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
+  const result = buildSearchResponse(products, total!, limit, offset, Date.now() - t0, false);
 
   redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
 
@@ -377,21 +388,27 @@ async function handleListCategories(_args: Record<string, unknown>) {
     }
   } catch (_) {}
 
-  // Use category_path[1] IS NOT NULL condition to enable idx_products_category_path_first B-tree index scan.
-  // The backfill migration already replaced empty arrays with ['Uncategorized'], so this is equivalent.
-  const result = await db.query(
-    `SELECT category_path[1] AS slug,
-            category_path[1] AS name,
-            COUNT(*) AS product_count
-     FROM products
-     WHERE category_path[1] IS NOT NULL
-     GROUP BY category_path[1]
-     ORDER BY product_count DESC
-     LIMIT 100`
-  );
-  const data = { data: result.rows, meta: { total: result.rows.length, response_time_ms: Date.now() - t0, cached: false } };
-  redis.set(cacheKey, JSON.stringify(data), 'EX', 300).catch(() => {});
-  return data;
+  // Use dedicated client with extended timeout — this GROUP BY on 13.7M rows can exceed the default 10s.
+  // The warmupMcpCaches() function pre-populates the cache at startup so cache misses are rare.
+  const client = await db.connect();
+  try {
+    await client.query('SET statement_timeout = 60000');
+    const result = await client.query(
+      `SELECT category_path[1] AS slug,
+              category_path[1] AS name,
+              COUNT(*) AS product_count
+       FROM products
+       WHERE category_path[1] IS NOT NULL
+       GROUP BY category_path[1]
+       ORDER BY product_count DESC
+       LIMIT 100`
+    );
+    const data = { data: result.rows, meta: { total: result.rows.length, response_time_ms: Date.now() - t0, cached: false } };
+    redis.set(cacheKey, JSON.stringify(data), 'EX', 300).catch(() => {});
+    return data;
+  } finally {
+    client.release();
+  }
 }
 
 async function handleFindBestPrice(args: Record<string, unknown>) {
