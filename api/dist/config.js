@@ -12,7 +12,7 @@ exports.db = new pg_1.Pool({
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
 });
-const pgStatementTimeout = parseInt(process.env.PG_STATEMENT_TIMEOUT || '10000');
+const pgStatementTimeout = parseInt(process.env.PG_STATEMENT_TIMEOUT || '30000');
 const pgLockTimeout = parseInt(process.env.PG_LOCK_TIMEOUT || '2000');
 exports.db.on('connect', (client) => {
     Promise.all([

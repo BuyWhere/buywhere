@@ -8,7 +8,7 @@ export const db = new Pool({
   connectionTimeoutMillis: 5000,
 });
 
-const pgStatementTimeout = parseInt(process.env.PG_STATEMENT_TIMEOUT || '10000');
+const pgStatementTimeout = parseInt(process.env.PG_STATEMENT_TIMEOUT || '30000');
 const pgLockTimeout = parseInt(process.env.PG_LOCK_TIMEOUT || '2000');
 
 db.on('connect', (client) => {
