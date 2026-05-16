@@ -17,6 +17,8 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS region         VARCHAR(10);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS country_code   VARCHAR(2);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS gtin           VARCHAR(14);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS mpn            VARCHAR(100);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS avg_rating     NUMERIC;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS review_count   INTEGER;
 
 -- Full-text search support on products table
 CREATE INDEX IF NOT EXISTS idx_products_search_vector ON products USING GIN(search_vector);

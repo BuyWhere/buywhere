@@ -48,8 +48,28 @@ export function createApp() {
     res.json({
       status: 'ok',
       ts: new Date().toISOString(),
-      fix: 'BUY-18176-v4',
+      fix: 'BUY-18176-v5',
     });
+  });
+
+  // Diagnostic endpoint - BUY-18176: exposes DB error for debugging
+  app.get('/health/db', async (_req, res) => {
+    try {
+      const cols = await db.query(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = 'products' ORDER BY ordinal_position`,
+        []
+      );
+      const colNames = cols.rows.map((r: { column_name: string }) => r.column_name);
+      let queryError: string | null = null;
+      try {
+        await db.query(`SELECT id, avg_rating, review_count FROM products LIMIT 1`);
+      } catch (e: unknown) {
+        queryError = (e as Error).message || String(e);
+      }
+      res.json({ status: 'ok', columns: colNames, avg_rating_test: queryError || 'pass', ts: new Date().toISOString() });
+    } catch (err: unknown) {
+      res.status(500).json({ status: 'error', error: (err as Error).message || String(err), ts: new Date().toISOString() });
+    }
   });
 
   // /healthz — backwards-compatible alias for /health (BUY-18347)

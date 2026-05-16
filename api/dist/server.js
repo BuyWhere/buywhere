@@ -50,8 +50,26 @@ function createApp() {
         res.json({
             status: 'ok',
             ts: new Date().toISOString(),
-            fix: 'BUY-18176-v4',
+            fix: 'BUY-18176-v5',
         });
+    });
+    // BUY-18176: diagnostic endpoint to expose DB column errors
+    app.get('/health/db', async (_req, res) => {
+        try {
+            const cols = await config_1.db.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'products' ORDER BY ordinal_position`);
+            const colNames = cols.rows.map((r) => r.column_name);
+            let queryError = null;
+            try {
+                await config_1.db.query(`SELECT id, avg_rating, review_count FROM products LIMIT 1`);
+            }
+            catch (e) {
+                queryError = e.message || String(e);
+            }
+            res.json({ status: 'ok', columns: colNames, avg_rating_test: queryError || 'pass', ts: new Date().toISOString() });
+        }
+        catch (err) {
+            res.status(500).json({ status: 'error', error: err.message || String(err), ts: new Date().toISOString() });
+        }
     });
     app.get('/health/redis', async (_req, res) => {
         try {
