@@ -68,6 +68,27 @@ const serverCard = {
         },
       },
     },
+    {
+      name: "compare_products",
+      description: "Compare 2 to 10 products side-by-side across merchants.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          ids: { type: "string", description: "Comma-separated BuyWhere product IDs (2-10)" },
+        },
+        required: ["ids"],
+      },
+    },
+    {
+      name: "list_categories",
+      description: "List top-level product categories with product counts.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          currency: { type: "string", description: "Currency code (default SGD)" },
+        },
+      },
+    },
   ],
 };
 

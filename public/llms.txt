@@ -27,7 +27,7 @@ BuyWhere is an agent-native product catalog and price comparison API for AI agen
 - GET /v1/catalog/stats — Aggregate statistics (total products, merchants, countries, recent additions) — unauthenticated
 
 ## MCP Server
-MCP endpoint: https://api.buywhere.ai/mcp
+MCP endpoint: https://mcp.buywhere.ai/mcp
 Authentication: Bearer token (get free key at https://api.buywhere.ai/v1/auth/register)
 
 ### MCP Tools

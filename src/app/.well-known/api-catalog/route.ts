@@ -4,7 +4,7 @@ const apiCatalog = {
       name: "BuyWhere Catalog API",
       description: "Product search, offer comparison, and merchant handoff API for AI shopping agents.",
       documentation: "https://buywhere.ai/docs/API_DOCUMENTATION",
-      specification: "https://buywhere.ai/openapi.json",
+      specification: "https://api.buywhere.ai/openapi.json",
       authentication: {
         type: "apiKey",
         in: "header",
