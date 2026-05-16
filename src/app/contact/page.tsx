@@ -30,7 +30,7 @@ export default function ContactPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="grid md:grid-cols-2 gap-12">
 
-            <div>
+            <div id="contact-form">
               <h2 className="text-xl font-bold text-gray-900 mb-6">Send us a message</h2>
               <ContactForm />
             </div>
