@@ -4,6 +4,7 @@ import { PORT } from './config';
 import { shutdownPostHog } from './analytics/posthog';
 import { runMigrations } from './migrate';
 import { loadAffiliateConfigs } from './lib/affiliateWrapper';
+import { warmupMcpCaches } from './lib/mcpWarmup';
 
 // Initialize Sentry before anything else so all errors are captured
 initSentry();
@@ -16,6 +17,8 @@ runMigrations().catch(err => {
 
 // Pre-warm affiliate config cache after migrations complete (BUY-18436)
 loadAffiliateConfigs().catch(() => {});
+// Pre-warm MCP caches (list_categories, discount_pct) so first requests are instant
+warmupMcpCaches().catch((err) => console.warn('[mcp-warmup] failed:', err?.message));
 
 const server = app.listen(PORT, () => {
   console.log(`BuyWhere API v1 listening on :${PORT}`);

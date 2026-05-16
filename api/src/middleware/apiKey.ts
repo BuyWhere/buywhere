@@ -189,19 +189,25 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
   if (jwtPayload && isPaperclipJwtPayload(jwtPayload)) {
     const agentInfo = await verifyPaperclipTokenWithApi(key);
     if (agentInfo) {
-      const row = await upsertPaperclipAgentKey(agentInfo.id, agentInfo.name, agentInfo.companyId);
-      req.apiKeyRecord = {
-        id: row.id,
-        key,
-        agentName: row.name,
-        tier: row.tier,
-        rpmLimit: (TIER_LIMITS[row.tier] ?? TIER_LIMITS.enterprise).rpm,
-        dailyLimit: (TIER_LIMITS[row.tier] ?? TIER_LIMITS.enterprise).daily,
-        signupChannel: row.signup_channel,
-        attributionSource: row.attribution_source,
-      };
-      next();
-      return;
+      try {
+        const row = await upsertPaperclipAgentKey(agentInfo.id, agentInfo.name, agentInfo.companyId);
+        req.apiKeyRecord = {
+          id: row.id,
+          key,
+          agentName: row.name,
+          tier: row.tier,
+          rpmLimit: (TIER_LIMITS[row.tier] ?? TIER_LIMITS.enterprise).rpm,
+          dailyLimit: (TIER_LIMITS[row.tier] ?? TIER_LIMITS.enterprise).daily,
+          signupChannel: row.signup_channel,
+          attributionSource: row.attribution_source,
+        };
+        next();
+        return;
+      } catch (err) {
+        console.error('[auth] upsertPaperclipAgentKey failed:', err);
+        sendError(res, ErrorCode.INTERNAL_ERROR, 'Auth key setup failed');
+        return;
+      }
     }
     sendError(res, ErrorCode.INVALID_API_KEY, 'Invalid Paperclip token');
     return;
