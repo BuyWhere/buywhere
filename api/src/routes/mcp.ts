@@ -288,16 +288,19 @@ async function handleGetDeals(args: Record<string, unknown>) {
     }
   } catch (_) {}
 
-  // Probe whether discount_pct column exists (cached per-process)
+  // Probe whether discount_pct column exists (cached per-process).
+  // Use information_schema so connection errors don't incorrectly mark the column absent.
   if (typeof (handleGetDeals as any)._hasDiscountPct === 'undefined') {
     try {
-      await db.query(`SELECT discount_pct FROM products LIMIT 0`);
-      (handleGetDeals as any)._hasDiscountPct = true;
+      const probe = await db.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`
+      );
+      (handleGetDeals as any)._hasDiscountPct = probe.rows.length > 0;
     } catch {
-      (handleGetDeals as any)._hasDiscountPct = false;
+      // Keep undefined so the probe retries on the next request
     }
   }
-  const useDiscountCol: boolean = (handleGetDeals as any)._hasDiscountPct;
+  const useDiscountCol: boolean = (handleGetDeals as any)._hasDiscountPct === true;
 
   const conditions: string[] = [
     `currency = $1`,
@@ -340,7 +343,9 @@ async function handleGetDeals(args: Record<string, unknown>) {
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
   try {
-    if (!useDiscountCol) await dealsClient.query('SET statement_timeout = 60000');
+    // 5-minute timeout for both paths: fast path is index-backed but deals index may
+    // still lag on very large scans; fallback regex on 13.7M rows needs the headroom.
+    await dealsClient.query('SET statement_timeout = 300000');
     const countResult = await dealsClient.query(
       `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`,
       params
@@ -388,11 +393,11 @@ async function handleListCategories(_args: Record<string, unknown>) {
     }
   } catch (_) {}
 
-  // Use dedicated client with extended timeout — this GROUP BY on 13.7M rows can exceed the default 10s.
-  // The warmupMcpCaches() function pre-populates the cache at startup so cache misses are rare.
+  // Use dedicated client with extended timeout — this GROUP BY on 13.7M rows requires headroom.
+  // warmupMcpCaches() pre-populates at startup (24h TTL); this path handles post-restart misses.
   const client = await db.connect();
   try {
-    await client.query('SET statement_timeout = 60000');
+    await client.query('SET statement_timeout = 300000'); // 5 min, matching warmup
     const result = await client.query(
       `SELECT category_path[1] AS slug,
               category_path[1] AS name,
@@ -404,7 +409,8 @@ async function handleListCategories(_args: Record<string, unknown>) {
        LIMIT 100`
     );
     const data = { data: result.rows, meta: { total: result.rows.length, response_time_ms: Date.now() - t0, cached: false } };
-    redis.set(cacheKey, JSON.stringify(data), 'EX', 300).catch(() => {});
+    // 24h TTL matches warmup — expensive query should stay cached as long as possible
+    redis.set(cacheKey, JSON.stringify(data), 'EX', 86400).catch(() => {});
     return data;
   } finally {
     client.release();
