@@ -393,23 +393,34 @@ async function handleListCategories(_args: Record<string, unknown>) {
     }
   } catch (_) {}
 
-  // Use dedicated client with extended timeout — this GROUP BY on 13.7M rows requires headroom.
-  // warmupMcpCaches() pre-populates at startup (24h TTL); this path handles post-restart misses.
+  // Try the pre-aggregated summary table first (instant); fall back to slow GROUP BY if it doesn't exist yet.
   const client = await db.connect();
   try {
-    await client.query('SET statement_timeout = 300000'); // 5 min, matching warmup
-    const result = await client.query(
-      `SELECT category_path[1] AS slug,
-              category_path[1] AS name,
-              COUNT(*) AS product_count
-       FROM products
-       WHERE category_path[1] IS NOT NULL
-       GROUP BY category_path[1]
-       ORDER BY product_count DESC
-       LIMIT 100`
+    const tableCheck = await client.query(
+      `SELECT to_regclass('public.mcp_category_summary') AS tbl`
     );
-    const data = { data: result.rows, meta: { total: result.rows.length, response_time_ms: Date.now() - t0, cached: false } };
-    // 24h TTL matches warmup — expensive query should stay cached as long as possible
+    let rows: Array<{ slug: string; name: string; product_count: number }>;
+    if (tableCheck.rows[0]?.tbl) {
+      const result = await client.query(
+        `SELECT slug, name, product_count FROM mcp_category_summary ORDER BY product_count DESC LIMIT 100`
+      );
+      rows = result.rows;
+    } else {
+      // Summary table not yet created — fall back to expensive GROUP BY with extended timeout
+      await client.query('SET statement_timeout = 300000'); // 5 min
+      const result = await client.query(
+        `SELECT category_path[1] AS slug,
+                category_path[1] AS name,
+                COUNT(*) AS product_count
+         FROM products
+         WHERE category_path[1] IS NOT NULL
+         GROUP BY category_path[1]
+         ORDER BY product_count DESC
+         LIMIT 100`
+      );
+      rows = result.rows;
+    }
+    const data = { data: rows, meta: { total: rows.length, response_time_ms: Date.now() - t0, cached: false } };
     redis.set(cacheKey, JSON.stringify(data), 'EX', 86400).catch(() => {});
     return data;
   } finally {
