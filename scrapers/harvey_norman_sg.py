@@ -79,8 +79,13 @@ class HarveyNormanScraper:
         self.scrape_only = scrape_only
         self.sitemap_client = httpx.AsyncClient(timeout=30.0, headers=HEADERS, follow_redirects=True)
         try:
-            proxy_url = proxy_config_for_httpx(Zone.RESIDENTIAL_PROXY1)
-            self.client = httpx.AsyncClient(timeout=30.0, headers=HEADERS, follow_redirects=True, proxy=proxy_url, verify=False)
+            from scrapers.proxy_config import _load_zone_config
+            zone_cfg = _load_zone_config(Zone.RESIDENTIAL_PROXY1)
+            if zone_cfg.password:
+                proxy_url = proxy_config_for_httpx(Zone.RESIDENTIAL_PROXY1)
+                self.client = httpx.AsyncClient(timeout=30.0, headers=HEADERS, follow_redirects=True, proxy=proxy_url, verify=False)
+            else:
+                self.client = httpx.AsyncClient(timeout=30.0, headers=HEADERS, follow_redirects=True)
         except Exception:
             self.client = httpx.AsyncClient(timeout=30.0, headers=HEADERS, follow_redirects=True)
         self.total_scraped = 0
