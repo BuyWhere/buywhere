@@ -1,29 +1,60 @@
 #!/usr/bin/env python3
 """Ingest scraper NDJSON output directly into Railway PostgreSQL.
 
-Reads NDJSON files from scraper output dirs and upserts into products table
-using the Railway DB schema (title/url/source columns).
+Reads NDJSON files from scraper output dirs and upserts into products table.
+Uses psycopg2 (available via /home/paperclip/buywhere-catalog-api/venv) and
+DATABASE_URL env var so it always writes to the correct Railway DB.
 """
-import asyncio
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-import asyncpg
+sys.path.insert(0, '/home/paperclip/buywhere-catalog-api/venv/lib/python3.12/site-packages')
+import psycopg2
+import psycopg2.extras
 
-DB_URL = "postgresql://postgres:uzxujl66t16mzzsr3unqcw8e0v54yutb@roundhouse.proxy.rlwy.net:27479/railway"
+DB_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:uzxujl66t16mzzsr3unqcw8e0v54yutb@roundhouse.proxy.rlwy.net:27479/railway")
+
+WORKSPACE = Path("/paperclip/instances/default/workspaces/8ca957f8-0911-4e81-a963-e2cf54c97d44/buywhere")
 
 PLATFORM_MAP = {
     "guardian_sg": "guardian_sg",
     "fairprice_sg": "fairprice_sg",
     "giant_sg": "giant_sg",
-    "harvey_norman_sg": "harveynorman.com.sg",
+    "harvey_norman_sg": "harvey_norman_sg",
     "decathlon_sg": "decathlon_sg",
 }
 
 BATCH_SIZE = 500
+
+UPSERT_SQL = """
+    INSERT INTO products (
+        sku, source, merchant_id, title, description, price, currency, url,
+        category, category_path, image_url, is_active, in_stock, brand, metadata,
+        region, country_code, updated_at, data_updated_at
+    ) VALUES (
+        %(sku)s, %(source)s, %(merchant_id)s, %(title)s, %(description)s, %(price)s,
+        %(currency)s, %(url)s, %(category)s, %(category_path)s, %(image_url)s,
+        %(is_active)s, %(in_stock)s, %(brand)s, %(metadata)s,
+        %(region)s, %(country_code)s, NOW(), NOW()
+    )
+    ON CONFLICT (sku, source) DO UPDATE SET
+        title = EXCLUDED.title,
+        price = EXCLUDED.price,
+        currency = EXCLUDED.currency,
+        url = EXCLUDED.url,
+        image_url = EXCLUDED.image_url,
+        category = EXCLUDED.category,
+        brand = EXCLUDED.brand,
+        is_active = EXCLUDED.is_active,
+        in_stock = EXCLUDED.in_stock,
+        metadata = EXCLUDED.metadata,
+        updated_at = NOW(),
+        data_updated_at = NOW()
+"""
 
 
 def safe_decimal(val):
@@ -52,61 +83,59 @@ def transform(record: dict, platform: str) -> dict | None:
     if not category_path and record.get("category"):
         category_path = [record["category"]]
 
-    now = datetime.now(timezone.utc)
-
     return {
         "sku": sku[:500],
         "source": platform,
-        "platform": platform,
-        "merchant_id": merchant_id[:500],
+        "merchant_id": (merchant_id or platform)[:500],
         "title": title[:2000],
         "description": (record.get("description") or "")[:5000],
         "price": price,
-        "price_sgd": price,
-        "currency": record.get("currency", "SGD")[:3],
+        "currency": (record.get("currency", "SGD") or "SGD")[:3],
         "url": url[:2000],
         "category": (record.get("category") or "")[:500],
         "category_path": category_path,
         "image_url": record.get("image_url"),
         "is_active": record.get("is_active", True),
-        "is_available": record.get("is_available", True),
-        "in_stock": record.get("is_available", True),
+        "in_stock": record.get("in_stock", True),
         "brand": (record.get("brand") or "")[:500] or None,
         "metadata": json.dumps(metadata),
-        "review_count": record.get("review_count"),
-        "rating": record.get("rating"),
-        "barcode": record.get("barcode") or record.get("gtin"),
         "region": "SG",
         "country_code": "SG",
-        "created_at": now,
-        "updated_at": now,
-        "data_updated_at": now,
     }
 
 
-UPSERT_SQL = """
-    INSERT INTO products (
-        sku, source, merchant_id, title, description, price, price_sgd,
-        currency, url, category, category_path, image_url, is_active, is_available,
-        in_stock, brand, metadata, review_count, rating, barcode, region, country_code,
-        created_at, updated_at, data_updated_at
-    ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-        $15, $16, $17::jsonb, $18, $19, $20, $21, $22, $23, $24, $25
-    )
-    ON CONFLICT (sku, source) DO UPDATE SET
-        title = EXCLUDED.title,
-        price = EXCLUDED.price,
-        price_sgd = EXCLUDED.price_sgd,
-        is_available = EXCLUDED.is_available,
-        in_stock = EXCLUDED.in_stock,
-        updated_at = EXCLUDED.updated_at,
-        data_updated_at = EXCLUDED.data_updated_at
-"""
+def create_ingestion_run(cur, source: str) -> int | None:
+    try:
+        cur.execute(
+            "INSERT INTO ingestion_runs (source, status, started_at) VALUES (%s, 'running', NOW()) RETURNING id",
+            (source,)
+        )
+        row = cur.fetchone()
+        run_id = row[0] if row else None
+        if run_id:
+            print(f"  Created ingestion_run id={run_id} for {source}")
+        return run_id
+    except Exception as e:
+        print(f"  Warning: failed to create ingestion_run for {source}: {e}")
+        return None
 
 
-async def ingest_file(conn, filepath: Path, platform: str):
-    total = inserted = updated = errors = 0
+def finish_ingestion_run(cur, run_id: int | None, inserted: int, updated: int, failed: int) -> None:
+    if not run_id:
+        return
+    status = "failed" if inserted + updated == 0 and failed > 0 else "completed"
+    try:
+        cur.execute(
+            "UPDATE ingestion_runs SET status=%s, rows_inserted=%s, rows_updated=%s, rows_failed=%s, finished_at=NOW() WHERE id=%s",
+            (status, inserted, updated, failed, run_id)
+        )
+        print(f"  Updated ingestion_run id={run_id} status={status}")
+    except Exception as e:
+        print(f"  Warning: failed to update ingestion_run id={run_id}: {e}")
+
+
+def ingest_file(cur, filepath: Path, platform: str) -> tuple[int, int, int, int]:
+    total = inserted = errors = 0
     batch = []
 
     with open(filepath) as f:
@@ -123,9 +152,8 @@ async def ingest_file(conn, filepath: Path, platform: str):
                     continue
                 batch.append(row)
                 if len(batch) >= BATCH_SIZE:
-                    ins, upd = await flush_batch(conn, batch)
-                    inserted += ins
-                    updated += upd
+                    psycopg2.extras.execute_batch(cur, UPSERT_SQL, batch, page_size=BATCH_SIZE)
+                    inserted += len(batch)
                     batch = []
             except Exception as e:
                 errors += 1
@@ -133,79 +161,26 @@ async def ingest_file(conn, filepath: Path, platform: str):
                     print(f"  Error on line {total}: {e}")
 
     if batch:
-        ins, upd = await flush_batch(conn, batch)
-        inserted += ins
-        updated += upd
+        psycopg2.extras.execute_batch(cur, UPSERT_SQL, batch, page_size=BATCH_SIZE)
+        inserted += len(batch)
 
-    return total, inserted, updated, errors
-
-
-async def flush_batch(conn, batch: list[dict]) -> tuple[int, int]:
-    inserted = updated = 0
-    for row in batch:
-        try:
-            result = await conn.execute(
-                UPSERT_SQL,
-                row["sku"], row["source"], row["merchant_id"],
-                row["title"], row["description"], row["price"], row["price_sgd"],
-                row["currency"], row["url"], row["category"], row["category_path"],
-                row["image_url"], row["is_active"], row["is_available"],
-                row["in_stock"], row["brand"], row["metadata"],
-                row["review_count"], row["rating"], row["barcode"],
-                row["region"], row["country_code"],
-                row["created_at"], row["updated_at"], row["data_updated_at"],
-            )
-            if "INSERT" in result:
-                inserted += 1
-            else:
-                updated += 1
-        except Exception as e:
-            pass
-    return inserted, updated
+    return total, inserted, 0, errors
 
 
-async def create_ingestion_run(conn, source: str) -> int | None:
-    try:
-        row = await conn.fetchrow(
-            "INSERT INTO ingestion_runs (source, status) VALUES ($1, 'running') RETURNING id",
-            source,
-        )
-        run_id = row["id"] if row else None
-        if run_id:
-            print(f"  Created ingestion_run id={run_id} for {source}")
-        return run_id
-    except Exception as e:
-        print(f"  Warning: failed to create ingestion_run for {source}: {e}")
-        return None
-
-
-async def finish_ingestion_run(conn, run_id: int, inserted: int, updated: int, failed: int) -> None:
-    if not run_id:
-        return
-    status = "failed" if inserted + updated == 0 and failed > 0 else "done"
-    try:
-        await conn.execute(
-            "UPDATE ingestion_runs SET status = $1, rows_inserted = $2, rows_updated = $3, rows_failed = $4, finished_at = NOW() WHERE id = $5",
-            status, inserted, updated, failed, run_id,
-        )
-        print(f"  Updated ingestion_run id={run_id} status={status}")
-    except Exception as e:
-        print(f"  Warning: failed to update ingestion_run id={run_id}: {e}")
-
-
-async def main(dirs: list[str] | None = None):
-    conn = await asyncpg.connect(DB_URL)
-
+def main(sources: list[str] | None = None):
     search_dirs = {
-        "guardian_sg": Path("/home/paperclip/buywhere-api/data/guardian_sg"),
-        "fairprice_sg": Path("/home/paperclip/buywhere-api/data/fairprice_sg"),
-        "giant_sg": Path("/home/paperclip/buywhere-api/data/giant-sg"),
-        "harvey_norman_sg": Path("/home/paperclip/buywhere-api/data/harvey-norman"),
-        "decathlon_sg": Path("/home/paperclip/buywhere-api/data/decathlon"),
+        "guardian_sg": WORKSPACE / "data" / "guardian_sg",
+        "fairprice_sg": WORKSPACE / "data" / "fairprice_scrape",
+        "giant_sg": WORKSPACE / "data" / "giant_sg",
+        "harvey_norman_sg": WORKSPACE / "data" / "harvey-norman",
+        "decathlon_sg": WORKSPACE / "data" / "decathlon",
     }
 
-    if dirs:
-        search_dirs = {k: v for k, v in search_dirs.items() if k in dirs}
+    if sources:
+        search_dirs = {k: v for k, v in search_dirs.items() if k in sources}
+
+    conn = psycopg2.connect(DB_URL)
+    cur = conn.cursor()
 
     results = {}
     for merchant, data_dir in search_dirs.items():
@@ -213,46 +188,43 @@ async def main(dirs: list[str] | None = None):
         if not data_dir.exists():
             print(f"[{merchant}] No data dir at {data_dir}, skipping")
             continue
+
         files = sorted(data_dir.glob("*.jsonl")) + sorted(data_dir.glob("*.ndjson"))
         if not files:
             print(f"[{merchant}] No JSONL/NDJSON files in {data_dir}, skipping")
             continue
-        print(f"\n[{merchant}] Ingesting {len(files)} file(s) into platform={platform}")
-        run_id = await create_ingestion_run(conn, platform)
+
+        print(f"\n[{merchant}] Ingesting {len(files)} file(s) from {data_dir}")
+        run_id = create_ingestion_run(cur, platform)
+        conn.commit()
+
         total_t = total_i = total_u = total_e = 0
-        for f in files:
-            t, i, u, e = await ingest_file(conn, f, platform)
+        for fpath in files:
+            t, i, u, e = ingest_file(cur, fpath, platform)
+            conn.commit()
             total_t += t
             total_i += i
             total_u += u
             total_e += e
-            print(f"  {f.name}: {t} records, {i} inserted, {u} updated, {e} errors")
-        await finish_ingestion_run(conn, run_id, total_i, total_u, total_e)
+            print(f"  {fpath.name}: {t} records, {i} upserted, {e} errors")
+
+        finish_ingestion_run(cur, run_id, total_i, total_u, total_e)
+        conn.commit()
         results[merchant] = {"total": total_t, "inserted": total_i, "updated": total_u, "errors": total_e}
 
-    await conn.close()
+    conn.close()
 
     print("\n=== INGEST SUMMARY ===")
     grand_total = 0
     for merchant, r in results.items():
-        print(f"  {merchant}: {r['inserted']} inserted, {r['updated']} updated, {r['errors']} errors")
-        grand_total += r["inserted"] + r["updated"]
+        print(f"  {merchant}: {r['inserted']} upserted, {r['errors']} errors")
+        grand_total += r["inserted"]
     print(f"  TOTAL processed: {grand_total}")
-
-    # Final DB counts
-    conn2 = await asyncpg.connect(DB_URL)
-    rows = await conn2.fetch("""
-        SELECT platform, COUNT(*) as cnt FROM products
-        WHERE platform IN ('guardian_sg', 'fairprice_sg', 'giant_sg', 'harveynorman.com.sg', 'decathlon_sg',
-                           'harvey_norman', 'decathlon', 'guardian', 'fairprice', 'giant')
-        GROUP BY platform ORDER BY cnt DESC
-    """)
-    print("\n=== DB COUNTS (target merchants) ===")
-    for r in rows:
-        print(f"  {r['platform']}: {r['cnt']}")
-    await conn2.close()
 
 
 if __name__ == "__main__":
-    merchants = sys.argv[1:] if len(sys.argv) > 1 else None
-    asyncio.run(main(merchants))
+    import argparse
+    parser = argparse.ArgumentParser(description="Ingest NDJSON scraper output into Railway PostgreSQL")
+    parser.add_argument("--sources", nargs="*", help="Limit to specific sources (e.g. guardian_sg fairprice_sg)")
+    args = parser.parse_args()
+    main(sources=args.sources)
