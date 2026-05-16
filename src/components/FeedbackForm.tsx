@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import Link from "next/link";
 
 type FormState = {
   name: string;
@@ -76,9 +77,7 @@ export default function FeedbackForm() {
       setErrorMessage(
         <>
           Unable to submit feedback. Please email us directly at{" "}
-          <a href="mailto:hello@buywhere.ai" className="underline hover:text-gray-600">
-            hello@buywhere.ai
-          </a>
+          <MailtoLink email="hello@buywhere.ai" className="underline hover:text-gray-600" />
         </>
       );
       setStatus("error");

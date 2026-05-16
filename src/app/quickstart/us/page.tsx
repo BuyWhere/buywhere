@@ -111,7 +111,7 @@ export default function QuickstartUSPage() {
                 The BuyWhere API is live and production-ready for Singapore. Get your key now, build your integration, and switch to US data by changing one parameter when we launch.
               </p>
               <div className="mt-6 rounded-2xl bg-slate-50 p-4 font-mono text-xs text-slate-700">
-                <p className="text-slate-400">// Switch from SG to US with one param change</p>
+                <p className="text-slate-400">{`// Switch from SG to US with one param change`}</p>
                 <p className="mt-1">GET /v1/products/search</p>
                 <p className="ml-4 text-slate-500">?q=wireless+headphones</p>
                 <p className="ml-4 text-green-700">&amp;country_code=US <span className="text-slate-400">← add this</span></p>
