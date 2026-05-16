@@ -1,7 +1,7 @@
 const serverCard = {
   name: "buywhere-catalog",
   title: "BuyWhere Catalog MCP Server",
-  description: "Agent-native product catalog API. Search, compare, and retrieve products from 40+ e-commerce platforms across Southeast Asia, US, and more.",
+  description: "Agent-native product catalog API. Search, compare, and retrieve products from 7 merchants (Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, Carousell) across Singapore and the United States.",
   version: "1.0.0",
   homepage: "https://buywhere.ai",
   documentation: "https://api.buywhere.ai/docs/guides/mcp",
@@ -20,7 +20,7 @@ const serverCard = {
     {
       name: "search_products",
       description:
-        "Search the BuyWhere product catalog by keyword. Returns ranked results from Singapore e-commerce platforms.",
+        "Search the BuyWhere product catalog by keyword. Returns ranked results from 7 merchants across Singapore and the United States.",
       inputSchema: {
         type: "object",
         properties: {
@@ -47,7 +47,7 @@ const serverCard = {
     },
     {
       name: "find_best_price",
-      description: "Find the single cheapest listing for a product across all Singapore e-commerce platforms.",
+      description: "Find the single cheapest listing for a product across all covered merchants in Singapore and the United States.",
       inputSchema: {
         type: "object",
         properties: {

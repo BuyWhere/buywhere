@@ -121,7 +121,7 @@ const webApplicationSchema = {
   "@id": "https://buywhere.ai/#webapp",
   name: "BuyWhere API",
   description:
-    "Product catalog API and MCP server for AI agents. Search, compare, and discover products across Shopee, Lazada, Amazon, and 50+ merchants in Singapore, US, and Southeast Asia.",
+    "Product catalog API and MCP server for AI agents. Search, compare, and discover products across Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, and Carousell — 7 merchants in Singapore and the United States.",
   applicationCategory: "BusinessApplication",
   operatingSystem: "Any",
   url: "https://buywhere.ai",

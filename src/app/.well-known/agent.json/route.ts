@@ -1,7 +1,7 @@
 const AGENT_JSON = {
   name: 'Buywhere Product Catalog',
   description:
-    'Cross-border product discovery with intelligent market matching, price comparison, and affiliate attribution across Singapore, China, and global markets.',
+    'Agent-native product catalog and price comparison API covering 7 merchants across Singapore and the United States. Search, compare, and discover products from Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, and Carousell.',
   url: 'https://buywhere.ai',
   version: '1.0.0',
   capabilities: {
@@ -19,22 +19,22 @@ const AGENT_JSON = {
       id: 'product-search',
       name: 'Product Search',
       description:
-        'Search products by keyword, category, price range, and market',
+        'Search products by keyword, category, price range, and market across Singapore and US merchants',
       tags: ['e-commerce', 'search', 'products'],
       examples: [
         'Find Dyson hair dryer under 400 SGD in Singapore',
-        'Organic shampoo in China under 100 CNY',
+        'Wireless headphones under 150 USD on Amazon US or Walmart',
       ],
     },
     {
       id: 'cross-border-match',
       name: 'Cross-Border Product Matching',
       description:
-        'Find equivalent products across different markets with price and spec comparison',
+        'Find equivalent products across Singapore and US markets with price and spec comparison',
       tags: ['cross-border', 'matching', 'price-comparison', 'affiliate'],
       examples: [
-        'What is the China equivalent of this Singapore shampoo?',
-        'Find the cheapest market for iPhone 16 Pro Max',
+        'Compare this Shopee listing with Amazon US pricing',
+        'Find the cheapest market for iPhone 16 Pro Max across SG and US',
       ],
     },
     {
@@ -52,11 +52,11 @@ const AGENT_JSON = {
       id: 'merchant-discovery',
       name: 'Merchant & Affiliate Discovery',
       description:
-        'Discover merchants selling a product and retrieve affiliate links',
+        'Discover which of the 7 covered merchants sell a product and retrieve affiliate links',
       tags: ['merchants', 'affiliate', 'deals'],
       examples: [
-        'Which merchants sell this product in China?',
-        'Get affiliate link for this Singapore merchant',
+        'Which merchants sell wireless earbuds under 80 SGD?',
+        'Get affiliate link for this Lazada listing',
       ],
     },
   ],
