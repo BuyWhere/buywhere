@@ -35,6 +35,7 @@ jobs:
           ssh-keyscan -p "${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}" -H "${{ secrets.PRODUCTION_DEPLOY_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Diagnose VM state
+        continue-on-error: true
         env:
           DEPLOY_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
           DEPLOY_PORT: ${{ secrets.PRODUCTION_DEPLOY_PORT || 22 }}
