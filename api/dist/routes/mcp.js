@@ -125,7 +125,7 @@ async function handleSearchProducts(args) {
         }
     }
     catch (_) { /* redis miss — proceed */ }
-    const conditions = [];
+    const conditions = ['is_active = true'];
     const params = [];
     if (q) {
         params.push(q);
@@ -271,11 +271,15 @@ async function handleGetDeals(args) {
     const conditions = [
         `currency = $1`,
         `price > 0`,
+        `is_active = true`,
     ];
     if (useDiscountCol) {
         conditions.push(`discount_pct >= $2`);
     }
     else {
+        // Guard: only consider rows where original_price is a valid numeric string.
+        // Matches the partial index predicate on idx_products_deals_country/region.
+        conditions.push(`metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'`);
         conditions.push(`(metadata->>'original_price')::numeric > price`);
         conditions.push(`((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) >= $2`);
     }
@@ -300,7 +304,9 @@ async function handleGetDeals(args) {
     const limitIdx = dataParams.length - 1;
     const offsetIdx = dataParams.length;
     const dataResult = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
-            price, (metadata->>'original_price')::numeric AS original_price,
+            price,
+            CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
+                 THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
             currency, image_url, metadata, updated_at, region, country_code,
             ${discountSelect}
      FROM products
@@ -324,12 +330,13 @@ async function handleListCategories(_args) {
         }
     }
     catch (_) { }
+    // Use category_path[1] IS NOT NULL to enable idx_products_category_path_first B-tree index scan.
     const result = await config_1.db.query(`SELECT category_path[1] AS slug,
             category_path[1] AS name,
             COUNT(*) AS product_count
      FROM products
-     WHERE category_path IS NOT NULL AND array_length(category_path, 1) > 0
-     GROUP BY 1
+     WHERE category_path[1] IS NOT NULL
+     GROUP BY category_path[1]
      ORDER BY product_count DESC
      LIMIT 100`);
     const data = { data: result.rows, meta: { total: result.rows.length, response_time_ms: Date.now() - t0, cached: false } };
