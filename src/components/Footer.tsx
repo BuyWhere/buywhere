@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AffiliateDisclosure } from "@/components/ui/AffiliateDisclosure";
 
 export default function Footer() {
   return (
@@ -42,6 +43,7 @@ export default function Footer() {
             <ul className="space-y-2 text-sm text-gray-500">
               <li><Link href="/terms" className="hover:text-indigo-600">Terms of Service</Link></li>
               <li><Link href="/privacy" className="hover:text-indigo-600">Privacy Policy</Link></li>
+              <li><Link href="/affiliate-disclosure" className="hover:text-indigo-600">Affiliate Disclosure</Link></li>
             </ul>
           </div>
 
@@ -54,8 +56,13 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-10 pt-6 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-2 text-sm text-gray-400">
-          <span>© {new Date().getFullYear()} BuyWhere Pte. Ltd. All rights reserved.</span>
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <div className="mb-4">
+            <AffiliateDisclosure variant="inline" />
+          </div>
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-2 text-sm text-gray-400">
+            <span>© {new Date().getFullYear()} BuyWhere Pte. Ltd. All rights reserved.</span>
+          </div>
         </div>
       </div>
     </footer>
