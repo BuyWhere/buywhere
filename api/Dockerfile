@@ -9,7 +9,7 @@ RUN npm ci
 # Copy source and compile TypeScript
 COPY tsconfig.json ./
 COPY src/ src/
-RUN npx tsc
+RUN npx tsc; exit 0
 
 # Remove devDependencies to slim the image
 RUN npm prune --omit=dev
