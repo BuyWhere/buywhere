@@ -12,6 +12,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'site.Dockerfile'
+      - '.dockerignore'
       - '.github/workflows/deploy-site-production.yml'
   workflow_dispatch:
 
