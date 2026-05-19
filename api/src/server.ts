@@ -48,7 +48,7 @@ export function createApp() {
     res.json({
       status: 'ok',
       ts: new Date().toISOString(),
-      fix: 'BUY-18176-v5',
+      fix: 'BUY-14407-v1',
     });
   });
 

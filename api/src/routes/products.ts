@@ -193,7 +193,7 @@ router.get(
     // then return the top N. This gives relevance ordering at a fraction of the cost.
     // For small result sets (<= 1000 rows), ts_rank over all matches is fast.
     const CANDIDATE_LIMIT = Math.max(500, (limit + offset) * 10);
-    const specColumns = `created_at, description, brand, mpn, gtin, category_path, category, category_id, merchant_id, avg_rating, review_count`;
+    const specColumns = `created_at, description, brand, mpn, gtin, category_path, category, merchant_id, avg_rating, review_count`;
     let dataQuery: string;
     if (useFtsRanking && approxCount <= 1000) {
       dataQuery = `
@@ -701,7 +701,8 @@ router.get(
          FROM products WHERE id = $1`,
         [id]
       );
-    } catch {
+    } catch (err: unknown) {
+      console.error('[products/:id] db query error:', err);
       res.status(500).json({ error: 'Internal server error' });
       return;
     }
@@ -732,7 +733,7 @@ router.get(
         apiKey: hashKey(req.apiKeyRecord.key),
         productId: row.id,
         retailer: row.domain,
-        category: (row.category_path ? row.category_path.split(' > ')[0] : null) as string | null,
+        category: (Array.isArray(row.category_path) ? row.category_path[0] : (typeof row.category_path === 'string' ? row.category_path.split(' > ')[0] : null)) as string | null,
       });
     }
 
