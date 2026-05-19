@@ -8,14 +8,9 @@ const http_1 = require("http");
 const https_1 = require("https");
 const config_1 = require("../config");
 const errors_1 = require("./errors");
+const errors_2 = require("./errors");
 const PAPERCLIP_API_URL = process.env.PAPERCLIP_API_URL || 'https://api.paperclip.ai';
-const TIER_LIMITS = {
-    unverified: { rpm: 5, daily: 50 },
-    free: config_1.FREE_TIER,
-    pro: { rpm: 300, daily: 10000 },
-    enterprise: { rpm: 1000, daily: 100000 },
-    internal: { rpm: 10000, daily: 999999 },
-};
+const JWT_CACHE_TTL_SECONDS = 300;
 function hashKey(rawKey) {
     return (0, crypto_1.createHash)('sha256').update(rawKey).digest('hex');
 }
@@ -26,13 +21,33 @@ function base64UrlDecode(s) {
 function isPaperclipJwtPayload(payload) {
     return payload.iss === 'paperclip' && payload.aud === 'paperclip-api';
 }
+function jwtCacheKey(token) {
+    return `jwt:verify:${(0, crypto_1.createHash)('sha256').update(token).digest('hex')}`;
+}
+async function getCachedJwtVerification(token) {
+    try {
+        const cached = await config_1.redis.get(jwtCacheKey(token));
+        if (cached)
+            return JSON.parse(cached);
+    }
+    catch {
+    }
+    return null;
+}
+async function setCachedJwtVerification(token, info) {
+    try {
+        await config_1.redis.set(jwtCacheKey(token), JSON.stringify(info), 'EX', JWT_CACHE_TTL_SECONDS);
+    }
+    catch {
+    }
+}
 async function verifyPaperclipTokenWithApi(token) {
     const url = new URL(`${PAPERCLIP_API_URL}/api/agents/me`);
     const isHttps = url.protocol === 'https:';
     const requestFn = isHttps ? https_1.request : http_1.request;
     return new Promise((resolve) => {
-        const connectTimeout = 5000;
-        const headersTimeout = 10000;
+        const connectTimeout = 2000;
+        const headersTimeout = 3000;
         let settled = false;
         const req = requestFn({
             hostname: url.hostname,
@@ -125,108 +140,142 @@ function decodeJwtPayload(token) {
         return null;
     }
 }
+function nextMidnightUTC() {
+    const d = new Date();
+    d.setUTCHours(24, 0, 0, 0);
+    return d;
+}
+function tierDailyLimit(tier, rowDailyLimit) {
+    if (rowDailyLimit != null && rowDailyLimit > 0)
+        return rowDailyLimit;
+    return (config_1.TIER_LIMITS[tier] ?? config_1.FREE_TIER).daily;
+}
+function tierRpmLimit(tier, rowRpmLimit) {
+    if (rowRpmLimit != null && rowRpmLimit > 0)
+        return rowRpmLimit;
+    return (config_1.TIER_LIMITS[tier] ?? config_1.FREE_TIER).rpm;
+}
 async function requireApiKey(req, res, next) {
-    const authHeader = req.headers['authorization'] || '';
-    const queryKey = req.query['api_key'];
-    let key;
-    if (authHeader.startsWith('Bearer ')) {
-        key = authHeader.slice(7).trim();
+    try {
+        const authHeader = req.headers['authorization'] || '';
+        const xApiKey = req.headers['x-api-key'];
+        const queryKey = req.query['api_key'];
+        let key;
+        if (authHeader.startsWith('Bearer ')) {
+            key = authHeader.slice(7).trim();
+        }
+        else if (authHeader.startsWith('ApiKey ')) {
+            key = authHeader.slice(7).trim();
+        }
+        else if (xApiKey) {
+            key = xApiKey.trim();
+        }
+        else if (queryKey) {
+            key = queryKey;
+        }
+        if (!key) {
+            (0, errors_2.sendSpecError)(res, 'missing_api_key', 'API key required. Get one at https://buywhere.ai/dashboard', 401);
+            return;
+        }
+        const jwtPayload = decodeJwtPayload(key);
+        if (jwtPayload && isPaperclipJwtPayload(jwtPayload)) {
+            let agentInfo = await getCachedJwtVerification(key);
+            if (!agentInfo) {
+                agentInfo = await verifyPaperclipTokenWithApi(key);
+                if (agentInfo) {
+                    await setCachedJwtVerification(key, agentInfo);
+                }
+            }
+            if (agentInfo) {
+                try {
+                    const row = await upsertPaperclipAgentKey(agentInfo.id, agentInfo.name, agentInfo.companyId);
+                    const limits = config_1.TIER_LIMITS[row.tier] ?? config_1.TIER_LIMITS.enterprise;
+                    req.apiKeyRecord = {
+                        id: row.id,
+                        key,
+                        agentName: row.name,
+                        tier: row.tier,
+                        rpmLimit: limits.rpm,
+                        dailyLimit: limits.daily,
+                        signupChannel: row.signup_channel,
+                        attributionSource: row.attribution_source,
+                        dailyRequestCount: 0,
+                        dailyResetAt: nextMidnightUTC(),
+                    };
+                    next();
+                    return;
+                }
+                catch (err) {
+                    console.error('[auth] upsertPaperclipAgentKey failed:', err);
+                    (0, errors_1.sendError)(res, errors_1.ErrorCode.INTERNAL_ERROR, 'Auth key setup failed');
+                    return;
+                }
+            }
+            (0, errors_2.sendSpecError)(res, 'invalid_api_key', 'Invalid Paperclip token', 401);
+            return;
+        }
+        const keyHash = hashKey(key);
+        const result = await config_1.db.query(`SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_active
+       FROM api_keys WHERE key_hash = $1`, [keyHash]);
+        if (result.rows.length === 0) {
+            (0, errors_2.sendSpecError)(res, 'invalid_api_key', undefined, 401);
+            return;
+        }
+        const row = result.rows[0];
+        if (!row.is_active) {
+            (0, errors_2.sendSpecError)(res, 'invalid_api_key', 'API key has been revoked', 401);
+            return;
+        }
+        const limits = config_1.TIER_LIMITS[row.tier] ?? config_1.FREE_TIER;
+        config_1.db.query('UPDATE api_keys SET last_used_at = NOW() WHERE id = $1', [row.id]).catch(() => { });
+        req.apiKeyRecord = {
+            id: row.id,
+            key,
+            agentName: row.name,
+            tier: row.tier,
+            rpmLimit: limits.rpm,
+            dailyLimit: limits.daily,
+            signupChannel: row.signup_channel,
+            attributionSource: row.attribution_source,
+            dailyRequestCount: 0,
+            dailyResetAt: nextMidnightUTC(),
+        };
+        next();
     }
-    else if (authHeader.startsWith('ApiKey ')) {
-        key = authHeader.slice(7).trim();
+    catch (err) {
+        console.error('[auth] requireApiKey error:', err);
+        (0, errors_1.sendError)(res, errors_1.ErrorCode.INTERNAL_ERROR, 'Authentication error');
     }
-    else if (queryKey) {
-        key = queryKey;
-    }
-    if (!key) {
-        (0, errors_1.sendError)(res, errors_1.ErrorCode.MISSING_API_KEY);
-        return;
-    }
-    // Detect Paperclip JWT — decode payload without signature verification
-    const jwtPayload = decodeJwtPayload(key);
-    if (jwtPayload && isPaperclipJwtPayload(jwtPayload)) {
-        const agentInfo = await verifyPaperclipTokenWithApi(key);
-        if (agentInfo) {
-            const row = await upsertPaperclipAgentKey(agentInfo.id, agentInfo.name, agentInfo.companyId);
-            req.apiKeyRecord = {
-                id: row.id,
-                key,
-                agentName: row.name,
-                tier: row.tier,
-                rpmLimit: (TIER_LIMITS[row.tier] ?? TIER_LIMITS.enterprise).rpm,
-                dailyLimit: (TIER_LIMITS[row.tier] ?? TIER_LIMITS.enterprise).daily,
-                signupChannel: row.signup_channel,
-                attributionSource: row.attribution_source,
-            };
+}
+async function checkRateLimit(req, res, next) {
+    try {
+        if (!req.apiKeyRecord) {
             next();
             return;
         }
-        (0, errors_1.sendError)(res, errors_1.ErrorCode.INVALID_API_KEY, 'Invalid Paperclip token');
-        return;
-    }
-    const keyHash = hashKey(key);
-    const result = await config_1.db.query(`SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_active
-     FROM api_keys WHERE key_hash = $1`, [keyHash]);
-    if (result.rows.length === 0) {
-        (0, errors_1.sendError)(res, errors_1.ErrorCode.INVALID_API_KEY);
-        return;
-    }
-    const row = result.rows[0];
-    if (!row.is_active) {
-        (0, errors_1.sendError)(res, errors_1.ErrorCode.REVOKED_API_KEY);
-        return;
-    }
-    const tierLimits = TIER_LIMITS[row.tier] ?? config_1.FREE_TIER;
-    req.apiKeyRecord = {
-        id: row.id,
-        key,
-        agentName: row.name,
-        tier: row.tier,
-        rpmLimit: tierLimits.rpm,
-        dailyLimit: tierLimits.daily,
-        signupChannel: row.signup_channel,
-        attributionSource: row.attribution_source,
-    };
-    config_1.db.query('UPDATE api_keys SET last_used_at = NOW() WHERE key_hash = $1', [keyHash]).catch(() => { });
-    next();
-}
-async function checkRateLimit(req, res, next) {
-    if (!req.apiKeyRecord) {
+        const key = req.apiKeyRecord.key;
+        const now = Date.now();
+        const minuteWindow = Math.floor(now / 60000);
+        const rpmKey = `rl:rpm:${key}:${minuteWindow}`;
+        let rpmCount;
+        try {
+            rpmCount = await config_1.redis.incr(rpmKey);
+            if (rpmCount === 1)
+                config_1.redis.expire(rpmKey, 120).catch(() => { });
+        }
+        catch (_err) {
+            console.warn('[rate-limit] Redis unavailable, skipping rate limit check');
+            next();
+            return;
+        }
+        if (rpmCount > req.apiKeyRecord.rpmLimit) {
+            (0, errors_2.sendPerMinuteLimitError)(res, req.apiKeyRecord.tier, req.apiKeyRecord.rpmLimit);
+            return;
+        }
         next();
-        return;
     }
-    const key = req.apiKeyRecord.key;
-    const now = Date.now();
-    const minuteWindow = Math.floor(now / 60000);
-    const dayWindow = Math.floor(now / 86400000);
-    const rpmKey = `rl:rpm:${key}:${minuteWindow}`;
-    const dailyKey = `rl:daily:${key}:${dayWindow}`;
-    let rpmCount;
-    let dailyCount;
-    try {
-        [rpmCount, dailyCount] = await Promise.all([
-            config_1.redis.incr(rpmKey),
-            config_1.redis.incr(dailyKey),
-        ]);
-        if (rpmCount === 1)
-            config_1.redis.expire(rpmKey, 120).catch(() => { });
-        if (dailyCount === 1)
-            config_1.redis.expire(dailyKey, 172800).catch(() => { });
-    }
-    catch (_err) {
-        console.warn('[rate-limit] Redis unavailable, skipping rate limit check');
+    catch (err) {
+        console.error('[rate-limit] checkRateLimit error:', err);
         next();
-        return;
     }
-    if (rpmCount > req.apiKeyRecord.rpmLimit) {
-        const retryAfter = Math.ceil(60 - (now % 60000) / 1000);
-        (0, errors_1.sendRateLimitError)(res, retryAfter, req.apiKeyRecord.rpmLimit, 0, 'Per-minute rate limit exceeded.');
-        return;
-    }
-    if (dailyCount > req.apiKeyRecord.dailyLimit) {
-        const retryAfter = Math.ceil(86400 - (now % 86400000) / 1000);
-        (0, errors_1.sendRateLimitError)(res, retryAfter, req.apiKeyRecord.dailyLimit, 0, 'Daily rate limit exceeded.');
-        return;
-    }
-    next();
 }

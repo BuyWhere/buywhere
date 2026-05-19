@@ -1,7 +1,14 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
+const stripe_1 = __importDefault(require("stripe"));
 const router = (0, express_1.Router)();
+const stripe = process.env.STRIPE_SECRET_KEY
+    ? new stripe_1.default(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-04-22.dahlia' })
+    : null;
 const PAPERCLIP_BASE_URL = process.env.UPTIMEROBOT_WEBHOOK_RELAY_URL?.trim() || '';
 const PAPERCLIP_API_KEY = process.env.UPTIMEROBOT_WEBHOOK_RELAY_API_KEY?.trim() || '';
 const COMPANY_ID = '177bc805-e3c8-4336-84cb-8e1e482d5a17';
@@ -81,6 +88,65 @@ router.post('/uptime-robot', (req, res) => {
     }
     else {
         console.log(`[webhooks/uptime-robot] Alert type ${alertType}: ${friendlyName} (${monitorURL}) — ${alertDetails}`);
+    }
+    res.status(200).json({ received: true });
+});
+router.post('/stripe', async (req, res) => {
+    if (!stripe) {
+        return res.status(503).json({ error: 'Stripe not configured' });
+    }
+    const sig = req.headers['stripe-signature'];
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+        console.error('[webhooks/stripe] STRIPE_WEBHOOK_SECRET not configured');
+        res.status(500).json({ error: 'Webhook secret not configured' });
+        return;
+    }
+    let event;
+    try {
+        const rawBody = JSON.stringify(req.body);
+        event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+    }
+    catch (err) {
+        console.error('[webhooks/stripe] Signature verification failed:', err);
+        res.status(400).json({ error: 'Invalid signature' });
+        return;
+    }
+    console.log(`[webhooks/stripe] Received event: ${event.type}`);
+    try {
+        switch (event.type) {
+            case 'checkout.session.completed': {
+                const session = event.data.object;
+                console.log(`[webhooks/stripe] Checkout completed: ${session.id}, customer: ${session.customer}`);
+                break;
+            }
+            case 'customer.subscription.created':
+            case 'customer.subscription.updated': {
+                const subscription = event.data.object;
+                console.log(`[webhooks/stripe] Subscription ${event.type}: ${subscription.id}, status: ${subscription.status}`);
+                break;
+            }
+            case 'customer.subscription.deleted': {
+                const subscription = event.data.object;
+                console.log(`[webhooks/stripe] Subscription deleted: ${subscription.id}`);
+                break;
+            }
+            case 'invoice.payment_succeeded': {
+                const invoice = event.data.object;
+                console.log(`[webhooks/stripe] Invoice paid: ${invoice.id}, subscription: ${invoice.subscription}`);
+                break;
+            }
+            case 'invoice.payment_failed': {
+                const invoice = event.data.object;
+                console.log(`[webhooks/stripe] Invoice payment failed: ${invoice.id}`);
+                break;
+            }
+            default:
+                console.log(`[webhooks/stripe] Unhandled event type: ${event.type}`);
+        }
+    }
+    catch (err) {
+        console.error(`[webhooks/stripe] Error handling event ${event.type}:`, err);
     }
     res.status(200).json({ received: true });
 });

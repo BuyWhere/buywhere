@@ -43,30 +43,8 @@ CREATE INDEX IF NOT EXISTS idx_products_category_path ON products USING GIN(cate
 -- BUY-14332: discount_pct generated column handled separately in runMigrations()
 -- with an extended statement_timeout (5 min) to avoid timeout on 14M row tables.
 
--- BUY-14399: Deals cold-path optimization indexes for country/region filtering
--- These indexes optimize /v1/deals queries that filter by country_code or region
--- with discount percentage sorting, avoiding sequential scans on 14M+ row table.
-CREATE INDEX IF NOT EXISTS idx_products_deals_country ON products (
-  currency,
-  country_code,
-  (((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)),
-  updated_at DESC
-) WHERE is_active = true
-    AND price > 0
-    AND (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
-    AND (metadata->>'original_price')::numeric > price
-    AND (metadata->>'original_price')::numeric < price * 100;
-
-CREATE INDEX IF NOT EXISTS idx_products_deals_region ON products (
-  currency,
-  region,
-  (((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)),
-  updated_at DESC
-) WHERE is_active = true
-    AND price > 0
-    AND (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
-    AND (metadata->>'original_price')::numeric > price
-    AND (metadata->>'original_price')::numeric < price * 100;
+-- BUY-14399: Deals cold-path optimization indexes handled separately in runMigrations()
+-- with extended timeout to avoid blocking the main migration on 14M row table.
 
 -- api_keys: create if not exists, then add any missing columns
 CREATE TABLE IF NOT EXISTS api_keys (
@@ -93,6 +71,10 @@ ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verified               BOOLE
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verification_token     TEXT;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verification_sent_at   TIMESTAMPTZ;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verification_expires_at TIMESTAMPTZ;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS daily_request_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS daily_reset_at      TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '1 day');
+
+CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash) WHERE is_active = true;
 
 -- Backfill: mark existing keys with a contact email as verified
 UPDATE api_keys SET email_verified = true WHERE contact IS NOT NULL AND contact != '' AND email_verified = false;
@@ -131,6 +113,25 @@ CREATE TABLE IF NOT EXISTS affiliate_links (
 
 -- Note: idx_affiliate_links_slug intentionally omitted — affiliate_links table already
 -- exists in this DB without a slug column; the index is not applicable here.
+
+-- BUY-18436: per-platform affiliate config table (hot-reloadable, feature-flagged)
+CREATE TABLE IF NOT EXISTS affiliate_platform_config (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  platform    TEXT        NOT NULL UNIQUE,  -- e.g. 'shopee_sg', 'lazada_sg'
+  network_id  TEXT        NOT NULL,         -- e.g. 'accesstrade', 'involve_asia'
+  tracking_id TEXT        NOT NULL,         -- publisher/sub-ID on that network
+  is_active   BOOLEAN     NOT NULL DEFAULT false,
+  notes       TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Seed placeholder configs for Shopee SG and Lazada SG (inactive by default)
+INSERT INTO affiliate_platform_config (platform, network_id, tracking_id, is_active, notes)
+VALUES
+  ('shopee_sg', 'involve_asia', 'PLACEHOLDER_SHOPEE_SG', false, 'Swap tracking_id when BUY-13765 resolves'),
+  ('lazada_sg',  'involve_asia', 'PLACEHOLDER_LAZADA_SG',  false, 'Swap tracking_id when BUY-13765 resolves')
+ON CONFLICT (platform) DO NOTHING;
 
 -- BUY-14356: index on (product_id, merchant_id) for the LEFT JOIN in product search/deals queries
 CREATE INDEX IF NOT EXISTS idx_affiliate_links_product_merchant ON affiliate_links(product_id, merchant_id);
@@ -373,6 +374,40 @@ async function runMigrations() {
     }
     catch (err) {
         console.error(`[migration] Merchants table creation failed: ${err.message?.slice(0, 200)}`);
+    }
+    // BUY-14399: Deals optimization indexes on 14M row table — run with extended timeout
+    const dealsIndexes = [
+        `CREATE INDEX IF NOT EXISTS idx_products_deals_country ON products (
+      currency, country_code,
+      (((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)),
+      updated_at DESC
+    ) WHERE is_active = true AND price > 0
+        AND (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
+        AND (metadata->>'original_price')::numeric > price
+        AND (metadata->>'original_price')::numeric < price * 100`,
+        `CREATE INDEX IF NOT EXISTS idx_products_deals_region ON products (
+      currency, region,
+      (((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)),
+      updated_at DESC
+    ) WHERE is_active = true AND price > 0
+        AND (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
+        AND (metadata->>'original_price')::numeric > price
+        AND (metadata->>'original_price')::numeric < price * 100`,
+    ];
+    for (const ddl of dealsIndexes) {
+        try {
+            const client = await config_1.db.connect();
+            try {
+                await client.query('SET statement_timeout = 300000');
+                await client.query(ddl);
+            }
+            finally {
+                client.release();
+            }
+        }
+        catch (err) {
+            console.warn(`[migration] Deals index creation skipped (non-fatal): ${err.message?.slice(0, 200)}`);
+        }
     }
     console.log('Migrations complete.');
 }

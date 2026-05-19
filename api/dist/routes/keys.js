@@ -1,13 +1,21 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const uuid_1 = require("uuid");
 const crypto_1 = require("crypto");
 const config_1 = require("../config");
 const errors_1 = require("../middleware/errors");
 const router = (0, express_1.Router)();
 function hashKey(rawKey) {
     return (0, crypto_1.createHash)('sha256').update(rawKey).digest('hex');
+}
+function generateApiKey() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const randomPart = (0, crypto_1.randomBytes)(32).toString('hex');
+    let key = 'bw_live_';
+    for (let i = 0; i < 32; i++) {
+        key += chars[parseInt(randomPart.substr(i * 2, 2), 16) % chars.length];
+    }
+    return key;
 }
 // POST /v1/keys — create a new API key
 // Requires an admin API key passed as X-Admin-Key header or matching
@@ -25,7 +33,7 @@ router.post('/', async (req, res) => {
         (0, errors_1.sendError)(res, errors_1.ErrorCode.INVALID_PARAMETER, 'name is required');
         return;
     }
-    const rawKey = `bw_${(0, uuid_1.v4)().replace(/-/g, '')}`;
+    const rawKey = generateApiKey();
     const keyHash = hashKey(rawKey);
     const resolvedTier = typeof tier === 'string' ? tier : 'free';
     const resolvedRpm = typeof rpm_limit === 'number' ? rpm_limit : 60;

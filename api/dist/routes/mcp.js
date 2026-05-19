@@ -97,6 +97,17 @@ const TOOLS = [
         },
     },
 ];
+let _hasDiscountPct;
+async function probeDiscountPctColumn() {
+    try {
+        const probe = await config_1.db.query(`SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`);
+        return probe.rows.length > 0;
+    }
+    catch {
+        return false;
+    }
+}
+probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() => { });
 // Tool handlers
 async function handleSearchProducts(args) {
     const t0 = Date.now();
@@ -158,46 +169,53 @@ async function handleSearchProducts(args) {
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     let rows;
     let total;
-    const COUNT_CAP = 1001;
-    if (q) {
-        // Count matching rows (capped) to pick query strategy
-        const countResult = await config_1.db.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`, params);
-        total = parseInt(countResult.rows[0].count, 10);
-        if (total <= 1000) {
+    // Use a dedicated client with extended timeout — FTS on 14M rows can exceed the 10s pool default.
+    const searchClient = await config_1.db.connect();
+    try {
+        await searchClient.query('SET statement_timeout = 30000'); // 30s is generous for FTS with GIN index
+        const COUNT_CAP = 1001;
+        if (q) {
+            const countResult = await searchClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`, params);
+            total = parseInt(countResult.rows[0].count, 10);
+            if (total <= 1000) {
+                params.push(limit, offset);
+                const result = await searchClient.query(`SELECT id, sku AS source, source AS domain, url, title,
+                  price, currency, image_url, metadata, updated_at,
+                  region, country_code,
+                  ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
+           FROM products ${where}
+           ORDER BY rank DESC
+           LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
+                rows = result.rows;
+            }
+            else {
+                const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
+                params.push(CANDIDATE_LIMIT);
+                const candidateResult = await searchClient.query(`SELECT id, sku AS source, source AS domain, url, title,
+                  price, currency, image_url, metadata, updated_at,
+                  region, country_code,
+                  ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
+           FROM products ${where}
+           ORDER BY rank DESC
+           LIMIT $${params.length}`, params);
+                rows = candidateResult.rows.slice(offset, offset + limit);
+            }
+        }
+        else {
+            const countResult = await searchClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`, params);
+            total = parseInt(countResult.rows[0].count, 10);
             params.push(limit, offset);
-            const result = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
+            const result = await searchClient.query(`SELECT id, sku AS source, source AS domain, url, title,
                 price, currency, image_url, metadata, updated_at,
-                region, country_code,
-                ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
+                region, country_code
          FROM products ${where}
-         ORDER BY rank DESC
+         ORDER BY updated_at DESC
          LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
             rows = result.rows;
         }
-        else {
-            const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
-            params.push(CANDIDATE_LIMIT);
-            const candidateResult = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
-                price, currency, image_url, metadata, updated_at,
-                region, country_code,
-                ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
-         FROM products ${where}
-         ORDER BY rank DESC
-         LIMIT $${params.length}`, params);
-            rows = candidateResult.rows.slice(offset, offset + limit);
-        }
     }
-    else {
-        const countResult = await config_1.db.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`, params);
-        total = parseInt(countResult.rows[0].count, 10);
-        params.push(limit, offset);
-        const result = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
-              price, currency, image_url, metadata, updated_at,
-              region, country_code
-       FROM products ${where}
-       ORDER BY updated_at DESC
-       LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
-        rows = result.rows;
+    finally {
+        searchClient.release();
     }
     const products = rows.map(r => (0, response_1.buildProduct)(r, currency, compact));
     const result = (0, response_1.buildSearchResponse)(products, total, limit, offset, Date.now() - t0, false);
@@ -257,17 +275,7 @@ async function handleGetDeals(args) {
         }
     }
     catch (_) { }
-    // Probe whether discount_pct column exists (cached per-process)
-    if (typeof handleGetDeals._hasDiscountPct === 'undefined') {
-        try {
-            await config_1.db.query(`SELECT discount_pct FROM products LIMIT 0`);
-            handleGetDeals._hasDiscountPct = true;
-        }
-        catch {
-            handleGetDeals._hasDiscountPct = false;
-        }
-    }
-    const useDiscountCol = handleGetDeals._hasDiscountPct;
+    const useDiscountCol = _hasDiscountPct === true;
     const conditions = [
         `currency = $1`,
         `price > 0`,
@@ -300,12 +308,15 @@ async function handleGetDeals(args) {
         ? 'discount_pct DESC'
         : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
     // Use dedicated client with extended timeout when discount_pct column is absent.
+    // When discount_pct exists (happy path), this query is fast via idx_products_deals.
+    // Without it, the metadata regex+cast fallback can exceed the default 10s statement_timeout.
     const dealsClient = await config_1.db.connect();
     let products = [];
     let total = 0;
     try {
-        if (!useDiscountCol)
-            await dealsClient.query('SET statement_timeout = 60000');
+        // 5-minute timeout for both paths: fast path is index-backed but deals index may
+        // still lag on very large scans; fallback regex on 13.7M rows needs the headroom.
+        await dealsClient.query('SET statement_timeout = 300000');
         const countResult = await dealsClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`, params);
         total = parseInt(countResult.rows[0].count, 10);
         const dataParams = [...params, limit, offset];
@@ -341,24 +352,34 @@ async function handleListCategories(_args) {
         }
     }
     catch (_) { }
-    // Use dedicated client with extended timeout — GROUP BY on 13.7M rows can exceed default 10s.
-    const catClient = await config_1.db.connect();
+    // Try the pre-aggregated summary table first (instant); fall back to slow GROUP BY if it doesn't exist yet.
+    const client = await config_1.db.connect();
     try {
-        await catClient.query('SET statement_timeout = 60000');
-        const result = await catClient.query(`SELECT category_path[1] AS slug,
-              category_path[1] AS name,
-              COUNT(*) AS product_count
-       FROM products
-       WHERE category_path[1] IS NOT NULL
-       GROUP BY category_path[1]
-       ORDER BY product_count DESC
-       LIMIT 100`);
-        const data = { data: result.rows, meta: { total: result.rows.length, response_time_ms: Date.now() - t0, cached: false } };
-        config_1.redis.set(cacheKey, JSON.stringify(data), 'EX', 300).catch(() => { });
+        const tableCheck = await client.query(`SELECT to_regclass('public.mcp_category_summary') AS tbl`);
+        let rows;
+        if (tableCheck.rows[0]?.tbl) {
+            const result = await client.query(`SELECT slug, name, product_count FROM mcp_category_summary ORDER BY product_count DESC LIMIT 100`);
+            rows = result.rows;
+        }
+        else {
+            // Summary table not yet created — fall back to expensive GROUP BY with extended timeout
+            await client.query('SET statement_timeout = 300000'); // 5 min
+            const result = await client.query(`SELECT category_path[1] AS slug,
+                category_path[1] AS name,
+                COUNT(*) AS product_count
+         FROM products
+         WHERE category_path[1] IS NOT NULL
+         GROUP BY category_path[1]
+         ORDER BY product_count DESC
+         LIMIT 100`);
+            rows = result.rows;
+        }
+        const data = { data: rows, meta: { total: rows.length, response_time_ms: Date.now() - t0, cached: false } };
+        config_1.redis.set(cacheKey, JSON.stringify(data), 'EX', 86400).catch(() => { });
         return data;
     }
     finally {
-        catClient.release();
+        client.release();
     }
 }
 async function handleFindBestPrice(args) {
@@ -388,12 +409,21 @@ async function handleFindBestPrice(args) {
     }
     params.push(limit);
     const where = `WHERE ${conditions.join(' AND ')}`;
-    const result = await config_1.db.query(`SELECT id, title, price, currency, source AS domain, url, image_url,
-            country_code,
-            ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
-     FROM products ${where}
-     ORDER BY price ASC, rank DESC
-     LIMIT $${params.length}`, params);
+    // Dedicated client with 30s timeout — FTS on 14M rows can exceed the 10s pool default.
+    const bestPriceClient = await config_1.db.connect();
+    let result;
+    try {
+        await bestPriceClient.query('SET statement_timeout = 30000');
+        result = await bestPriceClient.query(`SELECT id, title, price, currency, source AS domain, url, image_url,
+              country_code,
+              ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
+       FROM products ${where}
+       ORDER BY price ASC, rank DESC
+       LIMIT $${params.length}`, params);
+    }
+    finally {
+        bestPriceClient.release();
+    }
     const currency = response_1.COUNTRY_CURRENCY[country] || 'SGD';
     const toUsd = response_1.CURRENCY_RATES[currency] ?? 1;
     const data = result.rows.map((r) => ({

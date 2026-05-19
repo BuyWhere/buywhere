@@ -50,13 +50,13 @@ function createApp() {
         res.json({
             status: 'ok',
             ts: new Date().toISOString(),
-            fix: 'BUY-18176-v5',
+            fix: 'BUY-14407-v1',
         });
     });
-    // BUY-18176: diagnostic endpoint to expose DB column errors
+    // Diagnostic endpoint - BUY-18176: exposes DB error for debugging
     app.get('/health/db', async (_req, res) => {
         try {
-            const cols = await config_1.db.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'products' ORDER BY ordinal_position`);
+            const cols = await config_1.db.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'products' ORDER BY ordinal_position`, []);
             const colNames = cols.rows.map((r) => r.column_name);
             let queryError = null;
             try {
@@ -70,6 +70,23 @@ function createApp() {
         catch (err) {
             res.status(500).json({ status: 'error', error: err.message || String(err), ts: new Date().toISOString() });
         }
+    });
+    // /api/health — alias for monitors still using the v3 path (BUY-20969)
+    app.get('/api/health', (_req, res) => {
+        res.json({
+            status: 'ok',
+            ts: new Date().toISOString(),
+            fix: 'BUY-18176-v5',
+        });
+    });
+    // /healthz — backwards-compatible alias for /health (BUY-18347)
+    // Old dedicated MCP container (Cloud Run) used /healthz as its Knative liveness probe path.
+    // Railway buywhere-api now owns mcp.buywhere.ai; alias keeps legacy probes and monitors working.
+    app.get('/healthz', (_req, res) => {
+        res.json({
+            status: 'ok',
+            ts: new Date().toISOString(),
+        });
     });
     app.get('/health/redis', async (_req, res) => {
         try {

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.FREE_TIER = exports.API_BASE_URL = exports.PORT = exports.redis = exports.db = void 0;
+exports.TIER_LIMITS = exports.FREE_TIER = exports.API_BASE_URL = exports.PORT = exports.redis = exports.db = void 0;
 const pg_1 = require("pg");
 const ioredis_1 = __importDefault(require("ioredis"));
 exports.db = new pg_1.Pool({
@@ -23,9 +23,10 @@ exports.db.on('connect', (client) => {
 exports.redis = new ioredis_1.default({
     host: process.env.REDIS_HOST || '127.0.0.1',
     port: parseInt(process.env.REDIS_PORT || '6380'),
-    maxRetriesPerRequest: 3,
-    commandTimeout: 1000,
+    maxRetriesPerRequest: 0,
+    commandTimeout: 500,
     connectTimeout: 2000,
+    enableOfflineQueue: false,
     retryStrategy: (times) => Math.min(times * 200, 2000),
 });
 // Suppress unhandled-error crashes from Redis reconnect attempts
@@ -37,6 +38,14 @@ exports.redis.on('error', (err) => {
 exports.PORT = parseInt(process.env.PORT || '3000');
 exports.API_BASE_URL = process.env.API_BASE_URL || 'https://api.buywhere.ai';
 exports.FREE_TIER = {
-    rpm: 60,
-    daily: 1000,
+    rpm: 10,
+    daily: 100,
+};
+exports.TIER_LIMITS = {
+    free: exports.FREE_TIER,
+    starter: { rpm: 100, daily: 10000 },
+    pro: { rpm: 500, daily: 100000 },
+    unverified: { rpm: 5, daily: 50 },
+    enterprise: { rpm: 1000, daily: 100000 },
+    internal: { rpm: 10000, daily: 999999 },
 };

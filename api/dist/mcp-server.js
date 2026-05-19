@@ -42,6 +42,7 @@ app.use((_req, res) => {
 });
 async function warmupMcpCaches() {
     // Ensure discount_pct generated column exists (needed by get_deals fast path).
+    // This mirrors the migration in migrate.ts but scoped to MCP server startup.
     const client = await config_1.db.connect();
     try {
         await client.query('SET statement_timeout = 360000'); // 6 minutes for DDL on 14M rows
