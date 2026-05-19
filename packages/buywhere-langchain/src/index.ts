@@ -1,5 +1,5 @@
 import { Tool } from '@langchain/core/tools';
-import type { SearchParams, Product, DealProduct, ComparisonProduct, MerchantPrice, AgentSearchParams } from '@buywhere/sdk';
+import type { SearchParams, Product, DealProduct, AgentSearchParams } from '@buywhere/sdk';
 import { BuyWhereSDK } from '@buywhere/sdk';
 
 export interface BuyWhereLangChainConfig {
@@ -49,15 +49,16 @@ Returns product listings with prices, merchant info, availability, and affiliate
       return JSON.stringify({
         success: true,
         total: results.total,
-        products: results.items.map((p: Product) => ({
+        products: results.results.map((p: Product) => ({
           id: p.id,
-          name: p.name,
-          price: p.price,
-          currency: p.currency,
-          merchant: p.source,
-          url: p.buy_url,
-          in_stock: p.is_available,
-          rating: p.rating,
+          title: p.title,
+          price: p.price?.amount,
+          currency: p.price?.currency,
+          merchant: p.merchant,
+          url: p.url,
+          image_url: p.image_url,
+          original_price: p.original_price,
+          discount_pct: p.discount_pct,
         })),
       }, null, 2);
     } catch (error) {
@@ -102,21 +103,17 @@ Returns sorted price listings from cheapest to most expensive across all merchan
 
       return JSON.stringify({
         success: true,
-        products: results.products.map((p: ComparisonProduct) => ({
+        total: results.total,
+        products: results.results.map((p: Product) => ({
           id: p.id,
-          name: p.name,
-          brand: p.brand,
-          lowest_price: p.lowest_price,
-          lowest_price_merchant: p.lowest_price_merchant,
-          all_merchants: p.prices.map((mp: MerchantPrice) => ({
-            merchant: mp.merchant,
-            price: mp.price,
-            currency: mp.currency,
-            url: mp.url,
-            in_stock: mp.in_stock,
-            rating: mp.rating,
-            savings_pct: mp.savings_pct,
-          })),
+          title: p.title,
+          price: p.price?.amount,
+          currency: p.price?.currency,
+          merchant: p.merchant,
+          url: p.url,
+          image_url: p.image_url,
+          original_price: p.original_price,
+          discount_pct: p.discount_pct,
         })),
       }, null, 2);
     } catch (error) {
@@ -164,17 +161,17 @@ Returns products with discounts, original prices, discount percentages, and expi
 
       return JSON.stringify({
         success: true,
-        total: results.meta.total,
-        deals: results.deals.map((d: DealProduct) => ({
+        total: results.total,
+        deals: results.results.map((d: DealProduct) => ({
           id: d.id,
-          name: d.name,
-          current_price: d.price,
+          title: d.title,
+          current_price: d.price?.amount,
+          currency: d.price?.currency,
           original_price: d.original_price,
           discount_pct: d.discount_pct,
           merchant: d.merchant,
           url: d.url,
-          expires_at: d.ends_at,
-          is_exclusive: d.is_exclusive,
+          image_url: d.image_url,
         })),
       }, null, 2);
     } catch (error) {
@@ -211,23 +208,17 @@ Returns full product details including all merchant prices, lowest price, brand,
         success: true,
         product: {
           id: product.id,
-          name: product.name,
-          brand: product.brand,
-          description: product.description,
-          category: product.category,
-          lowest_price: product.lowest_price,
-          lowest_price_merchant: product.lowest_price_merchant,
-          all_merchants: product.prices.map((mp: MerchantPrice) => ({
-            merchant: mp.merchant,
-            price: mp.price,
-            currency: mp.currency,
-            url: mp.url,
-            in_stock: mp.in_stock,
-            rating: mp.rating,
-          })),
-          rating: product.rating,
-          reviews_count: product.reviews_count,
-          last_updated: product.last_updated,
+          title: product.title,
+          price: product.price?.amount,
+          currency: product.price?.currency,
+          merchant: product.merchant,
+          url: product.url,
+          image_url: product.image_url,
+          original_price: product.original_price,
+          discount_pct: product.discount_pct,
+          region: product.region,
+          country_code: product.country_code,
+          updated_at: product.updated_at,
         },
       }, null, 2);
     } catch (error) {
@@ -343,7 +334,7 @@ export class AgentSearchProductsTool extends Tool {
         success: true,
         total: results.total,
         query_processed: results.query_processed,
-        products: results.results.map((p: { id: number; title: string; price: number; currency: string; price_sgd: number; source: string; brand: string; category: string; url: string; image_url: string; rating: number; review_count: number; is_available: boolean; freshness_score: number; confidence_score: number; availability_prediction: string }) => ({
+        products: results.results.map((p) => ({
           id: p.id,
           title: p.title,
           price: p.price,
@@ -589,29 +580,21 @@ Returns products sorted by price with all merchant listings, including buywhere_
 
       return JSON.stringify({
         success: true,
-        products: results.map((p, idx) => ({
+        products: results.map((p: Product, idx: number) => ({
           id: p.id,
-          name: p.name,
-          brand: p.brand,
-          buywhere_score: {
-            score: (p.rating ?? 0) * 20,
-            rank: idx + 1,
-            reason_for_rank: `Product comparison rank ${idx + 1}`,
-          },
-          confidence: (p.rating ?? 0) / 5,
-          // merchant_reliability_score: pending API support — not returned by /v1/products/{id}
-          availability_status: {
-            status: p.prices.some((mp: MerchantPrice) => mp.in_stock) ? 'in_stock' : 'out_of_stock',
-          },
-          price_last_checked: p.last_updated,
-          exact_match: true,
-          prices: p.prices,
-          lowest_price: p.lowest_price,
-          lowest_price_merchant: p.lowest_price_merchant,
+          title: p.title,
+          price: p.price?.amount,
+          currency: p.price?.currency,
+          merchant: p.merchant,
+          url: p.url,
+          image_url: p.image_url,
+          original_price: p.original_price,
+          discount_pct: p.discount_pct,
+          comparison_attributes: p.comparison_attributes,
+          updated_at: p.updated_at,
         })),
         meta: {
           total_products: results.length,
-          total_merchants: new Set(results.flatMap((p) => p.prices.map((mp: MerchantPrice) => mp.merchant))).size,
           last_updated: new Date().toISOString(),
         },
       }, null, 2);
@@ -658,29 +641,19 @@ Returns full product details with buywhere_score, confidence, availability_statu
         success: true,
         product: {
           id: product.id,
-          name: product.name,
-          brand: product.brand,
-          description: product.description,
-          category: product.category,
-          buywhere_score: {
-            score: (product.rating ?? 0) * 20,
-            rank: 1,
-            reason_for_rank: `Detailed view for product ${product.id}`,
-          },
-          confidence: (product.rating ?? 0) / 5,
-          // merchant_reliability_score: pending API support — not returned by /v1/products/{id}
-          availability_status: {
-            status: product.prices.some((mp: MerchantPrice) => mp.in_stock) ? 'in_stock' : 'out_of_stock',
-          },
-          price_last_checked: product.last_updated,
-          exact_match: true,
-          prices: product.prices,
-          lowest_price: product.lowest_price,
-          lowest_price_merchant: product.lowest_price_merchant,
+          title: product.title,
+          price: product.price?.amount,
+          currency: product.price?.currency,
+          merchant: product.merchant,
+          url: product.url,
           image_url: product.image_url,
-          rating: product.rating,
-          reviews_count: product.reviews_count,
-          last_updated: product.last_updated,
+          original_price: product.original_price,
+          discount_pct: product.discount_pct,
+          region: product.region,
+          country_code: product.country_code,
+          structured_specs: product.structured_specs,
+          comparison_attributes: product.comparison_attributes,
+          updated_at: product.updated_at,
         },
       };
 
@@ -728,47 +701,20 @@ Returns all merchants with pricing, sorted by the specified criteria, with buywh
 
       const product = await this.client.products.getProduct(params.product_id);
 
-      let options = product.prices.map((mp: MerchantPrice) => ({
-        merchant: mp.merchant,
-        price: parseFloat(mp.price),
-        currency: mp.currency,
-        buy_url: mp.url,
-        in_stock: mp.in_stock,
-        // merchant_reliability_score: pending API support — not returned by /v1/products/{id}
-        availability_status: {
-          status: mp.in_stock ? 'in_stock' : 'out_of_stock',
-        },
-        price_last_checked: mp.last_updated,
-        rating: mp.rating,
-        fulfillment_rating: mp.rating,
-      }));
-
-      if (params.filter_merchant) {
-        options = options.filter((o) => o.merchant.toLowerCase().includes(params.filter_merchant!.toLowerCase()));
-      }
-      if (params.filter_price_min !== undefined) {
-        options = options.filter((o) => o.price >= params.filter_price_min!);
-      }
-      if (params.filter_price_max !== undefined) {
-        options = options.filter((o) => o.price <= params.filter_price_max!);
-      }
-
-      if (params.sort_by === 'price_asc') {
-        options.sort((a, b) => a.price - b.price);
-      } else if (params.sort_by === 'price_desc') {
-        options.sort((a, b) => b.price - a.price);
-      }
+      const options = [{
+        merchant: product.merchant,
+        price: product.price?.amount,
+        currency: product.price?.currency,
+        buy_url: product.url,
+        original_price: product.original_price,
+        discount_pct: product.discount_pct,
+        updated_at: product.updated_at,
+      }];
 
       return JSON.stringify({
         success: true,
         product_id: params.product_id,
-        product_name: product.name,
-        buywhere_score: {
-          score: (product.rating ?? 0) * 20,
-          rank: 1,
-          reason_for_rank: `Purchase options for ${product.name}`,
-        },
-        confidence: (product.rating ?? 0) / 5,
+        product_title: product.title,
         options,
         recommended_merchant: options[0]?.merchant,
         recommended_buy_url: options[0]?.buy_url,
