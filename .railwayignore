@@ -1,0 +1,15 @@
+venv/
+__pycache__/
+*.pyc
+node_modules/
+.next/
+dist/
+app/.next/
+app/node_modules/
+*.md
+*.sh
+data/
+output/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
