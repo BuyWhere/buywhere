@@ -12,7 +12,6 @@ node_modules/
 
 # Docs and other non-frontend dirs
 docs-site/
-docs/
 scraper/
 scrapers/
 tests/
