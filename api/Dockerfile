@@ -20,7 +20,7 @@ RUN printf '#!/bin/bash\nexec node --max-old-space-size=450 /app/dist/index.js\n
 RUN mkdir -p /paperclip/instances/default/scripts && \
     printf '#!/bin/bash\necho "[bootstrap] skipped"\n' > /paperclip/instances/default/scripts/bootstrap-secrets.sh && \
     chmod +x /paperclip/instances/default/scripts/bootstrap-secrets.sh && \
-    chown -R paperclip:paperclip /paperclip /home/paperclip
+    chown -R paperclip:paperclip /paperclip /home/paperclip /app
 
 ENV NODE_ENV=production
 EXPOSE 3000
