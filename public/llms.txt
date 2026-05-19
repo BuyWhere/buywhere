@@ -31,12 +31,12 @@ MCP endpoint: https://mcp.buywhere.ai/mcp
 Authentication: Bearer token (get free key at https://api.buywhere.ai/v1/auth/register)
 
 ### MCP Tools
-1. **search_products** — Full-text search with merchant, price, category, and country filters. Use compact=true for agent-optimized responses.
+1. **search_products** — Full-text search with merchant, price, category, and country filters.
 2. **get_product** — Get full product details by BuyWhere product ID.
-3. **compare_products** — Compare 2-10 products side-by-side across merchants.
-4. **get_deals** — Find discounted products sorted by discount percentage.
-5. **list_categories** — List top-level product categories with product counts.
-6. **find_best_price** — Find the cheapest current listing for a product across all merchants.
+3. **get_price** — Get current prices for a product across all available merchants.
+4. **compare_prices** — Compare 2–5 products side-by-side with price range, pros/cons, and best-value recommendation.
+5. **get_affiliate_link** — Get the click-tracked BuyWhere affiliate link for a product.
+6. **get_catalog** — List available product categories in the BuyWhere catalog.
 
 ## Authentication
 

@@ -61,10 +61,10 @@ For AI agent integration, BuyWhere provides MCP tools:
 
 - `search_products` — Full-text product search with filters for keyword, merchant, price, category, country, currency
 - `get_product` — Get full product details by BuyWhere product ID
-- `compare_products` — Compare 2–10 products side-by-side across merchants
-- `get_deals` — Find discounted products sorted by discount percentage
-- `list_categories` — List top-level product categories with product counts
-- `find_best_price` — Find the cheapest current listing across all merchants
+- `get_price` — Get current prices for a product across all available merchants
+- `compare_prices` — Compare 2–5 products side-by-side with best-value recommendation
+- `get_affiliate_link` — Get the click-tracked BuyWhere affiliate link for a product
+- `get_catalog` — List available product categories in the BuyWhere catalog
 
 ## Code Examples
 

@@ -62,10 +62,11 @@ BuyWhere is an API and MCP server that gives AI agents and developers real-time 
 
 ### MCP Server Tools for AI Agents
 - `search_products` — Find products by query
-- `compare_prices` — Cross-merchant price comparison
-- `find_best_price` — Locate the lowest price
-- `track_price` — Monitor price changes
-- `get_merchant_info` — Merchant details and policies
+- `get_product` — Full product details by ID
+- `get_price` — Current prices across all merchants
+- `compare_prices` — Side-by-side comparison of 2–5 products
+- `get_affiliate_link` — Click-tracked affiliate URL
+- `get_catalog` — Browse product categories
 
 ## Use Cases
 

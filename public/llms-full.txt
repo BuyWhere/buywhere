@@ -98,7 +98,7 @@ Config:
 }
 ```
 
-Tools: search_products, get_product, compare_prices, get_deals
+Tools: search_products, get_product, get_price, compare_prices, get_affiliate_link, get_catalog
 
 Endpoint: `GET https://api.buywhere.ai/mcp`
 

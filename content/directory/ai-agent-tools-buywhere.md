@@ -45,10 +45,10 @@ BuyWhere provides an **MCP (Model Context Protocol) server** that AI agents like
 **MCP Tools Available:**
 - `search_products` — Full-text product search with price, category, merchant, region, and rating filters
 - `get_product` — Full product details by ID including price, brand, ratings, merchant info, specifications
-- `compare_products` — Compare 2–10 products side-by-side across merchants
-- `get_deals` — Find discounted products sorted by discount percentage
-- `list_categories` — List top-level product categories with product counts
-- `find_best_price` — Find the cheapest current listing for a product across all merchants
+- `get_price` — Get current prices for a product across all available merchants
+- `compare_prices` — Compare 2–5 products side-by-side with pros/cons and best-value recommendation
+- `get_affiliate_link` — Get the click-tracked BuyWhere affiliate link for a product
+- `get_catalog` — List available product categories in the BuyWhere catalog
 
 ### Developer API
 RESTful API with comprehensive documentation, supporting:

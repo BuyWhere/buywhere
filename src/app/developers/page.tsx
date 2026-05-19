@@ -49,7 +49,7 @@ export default function DevelopersPage() {
         name: "How does BuyWhere use MCP?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "BuyWhere exposes its product catalog API as MCP tools. When you configure @buywhere/mcp-server in Claude Desktop, Cursor, or any MCP client, the client can call tools like search_products and get_deals without you writing any API integration code."
+          text: "BuyWhere exposes its product catalog API as MCP tools. When you configure @buywhere/mcp-server in Claude Desktop, Cursor, or any MCP client, the client can call tools like search_products and get_price without you writing any API integration code."
         }
       },
       {
@@ -57,7 +57,7 @@ export default function DevelopersPage() {
         name: "What MCP tools does BuyWhere expose?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "BuyWhere exposes six MCP tools: search_products (full-text product search across all merchants), get_product (product details by ID), compare_products (side-by-side comparison), get_deals (find discounted products), list_categories (browse categories), and find_best_price (cheapest current listing across merchants)."
+          text: "BuyWhere exposes six MCP tools: search_products (full-text product search across all merchants), get_product (product details by ID), get_price (current prices across all merchants), compare_prices (side-by-side comparison of 2–5 products), get_affiliate_link (click-tracked affiliate URL), and get_catalog (browse product categories)."
         }
       },
       {

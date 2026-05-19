@@ -30,10 +30,10 @@ BuyWhere provides a Model Context Protocol (MCP) server that gives AI agents rea
 |------|-------------|
 | `search_products` | Full-text product search with filters for keyword, merchant, price, category, country, currency |
 | `get_product` | Get full product details by BuyWhere product ID |
-| `compare_products` | Compare 2–10 products side-by-side across merchants |
-| `get_deals` | Find discounted products sorted by discount percentage |
-| `list_categories` | List top-level product categories with product counts |
-| `find_best_price` | Find the cheapest current listing for a product across all merchants |
+| `get_price` | Get current prices for a product across all available merchants |
+| `compare_prices` | Compare 2–5 products side-by-side with pros/cons and best-value recommendation |
+| `get_affiliate_link` | Get the click-tracked BuyWhere affiliate link for a product |
+| `get_catalog` | List available product categories in the BuyWhere catalog |
 
 ### Supported Regions
 
@@ -79,14 +79,13 @@ const results = await mcp.buywhere.search_products({
 });
 
 // Compare prices across retailers
-const prices = await mcp.buywhere.compare_products({
-  ids: [results.items[0].id, results.items[1].id]
+const prices = await mcp.buywhere.compare_prices({
+  product_ids: [results.items[0].product_id, results.items[1].product_id]
 });
 
-// Find the best price
-const best = await mcp.buywhere.find_best_price({
-  product_name: "Sony WH-1000XM5",
-  country_code: "US"
+// Get prices for a specific product
+const best = await mcp.buywhere.get_price({
+  product_id: results.items[0].product_id
 });
 ```
 
