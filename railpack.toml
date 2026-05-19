@@ -1,2 +1,0 @@
-[options]
-installCmd = "npm install --ignore-scripts"
