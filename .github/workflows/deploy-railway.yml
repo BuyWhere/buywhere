@@ -29,7 +29,6 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy buywhere-api to Railway
-        working-directory: api
         run: |
           railway up \
             --service 945e8a6d-6f89-41f1-8256-b8cc6a872a33 \
