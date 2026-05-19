@@ -8,17 +8,17 @@ const DISCOVERY_LINK =
   '<https://buywhere.ai/openapi.json>; rel="service-desc"; type="application/json"';
 
 const ACTIVE_DOC_PATHS = new Set([
-  "/docs/",
-  "/docs/API_DOCUMENTATION/",
-  "/docs/quickstart-mcp/",
-  "/docs/developer-quickstart-sea-shopping-agent/",
-  "/docs/agent-onboarding-flow/",
-  "/docs/rate-limits/",
-  "/docs/BUY-7268-status/",
-  "/docs/BUY-14348-status/",
-  "/docs/launch-runbook/",
-  "/docs/smithery-publish-guide/",
-  "/docs/uptime-monitoring-setup/",
+  "/docs",
+  "/docs/API_DOCUMENTATION",
+  "/docs/quickstart-mcp",
+  "/docs/developer-quickstart-sea-shopping-agent",
+  "/docs/agent-onboarding-flow",
+  "/docs/rate-limits",
+  "/docs/BUY-7268-status",
+  "/docs/BUY-14348-status",
+  "/docs/launch-runbook",
+  "/docs/smithery-publish-guide",
+  "/docs/uptime-monitoring-setup",
 ]);
 
 const ACTIVE_BLOG_SLUGS = new Set([
@@ -38,98 +38,98 @@ function normalizePathname(pathname: string): string {
     return pathname;
   }
 
-  return pathname.endsWith("/") ? pathname : `${pathname}/`;
+  return pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
 }
 
 function legacyRedirectPath(host: string, pathname: string): string | null {
   const normalizedPath = normalizePathname(pathname);
   const isDocsHost = host === "docs.buywhere.ai";
 
-  if (normalizedPath === "/api-keys-keys/") {
-    return "/api-keys/";
+  if (normalizedPath === "/api-keys-keys") {
+    return "/api-keys";
   }
 
-  if (normalizedPath === "/alerts/") {
-    return "/search/";
+  if (normalizedPath === "/alerts") {
+    return "/search";
   }
 
-  if (normalizedPath === "/changelog/") {
-    return "/blog/";
+  if (normalizedPath === "/changelog") {
+    return "/blog";
   }
 
   if (normalizedPath.startsWith("/blog/")) {
-    const slug = normalizedPath.slice("/blog/".length, -1);
+    const slug = normalizedPath.slice("/blog/".length);
     if (!slug) {
-      return isDocsHost ? "/blog/" : null;
+      return isDocsHost ? "/blog" : null;
     }
 
-    return ACTIVE_BLOG_SLUGS.has(slug) ? (isDocsHost ? normalizedPath : null) : "/blog/";
+    return ACTIVE_BLOG_SLUGS.has(slug) ? (isDocsHost ? normalizedPath : null) : "/blog";
   }
 
-  if (normalizedPath === "/docs/launch-day-runbook/" || normalizedPath === "/docs/launch/launch-day-runbook/") {
-    return "/docs/launch-runbook/";
+  if (normalizedPath === "/docs/launch-day-runbook" || normalizedPath === "/docs/launch/launch-day-runbook") {
+    return "/docs/launch-runbook";
   }
 
-  if (normalizedPath === "/docs/quickstart/" || normalizedPath === "/docs/getting-started/") {
-    return "/quickstart/";
+  if (normalizedPath === "/docs/quickstart" || normalizedPath === "/docs/getting-started") {
+    return "/quickstart";
   }
 
-  if (normalizedPath === "/docs/guides/authentication/") {
-    return "/api-keys/";
+  if (normalizedPath === "/docs/guides/authentication") {
+    return "/api-keys";
   }
 
-  if (normalizedPath === "/docs/guides/rate-limits/") {
-    return "/docs/rate-limits/";
+  if (normalizedPath === "/docs/guides/rate-limits") {
+    return "/docs/rate-limits";
   }
 
   if (normalizedPath.startsWith("/docs/blog/posts/")) {
-    const slug = normalizedPath.slice("/docs/blog/posts/".length, -1);
-    return ACTIVE_BLOG_SLUGS.has(slug) ? `/blog/${slug}/` : "/blog/";
+    const slug = normalizedPath.slice("/docs/blog/posts/".length);
+    return ACTIVE_BLOG_SLUGS.has(slug) ? `/blog/${slug}` : "/blog";
   }
 
   if (
-    normalizedPath === "/docs/api/" ||
-    normalizedPath === "/docs/api/reference/" ||
-    normalizedPath.startsWith("/docs/api-reference/")
+    normalizedPath === "/docs/api" ||
+    normalizedPath === "/docs/api/reference" ||
+    normalizedPath.startsWith("/docs/api-reference")
   ) {
-    return "/docs/API_DOCUMENTATION/";
+    return "/docs/API_DOCUMENTATION";
   }
 
-  if (normalizedPath.startsWith("/docs/comparisons/")) {
-    return "/compare/";
+  if (normalizedPath.startsWith("/docs/comparisons")) {
+    return "/compare";
   }
 
   if (
-    normalizedPath.startsWith("/docs/guides/") ||
-    normalizedPath.startsWith("/docs/tutorials/")
+    normalizedPath.startsWith("/docs/guides") ||
+    normalizedPath.startsWith("/docs/tutorials")
   ) {
-    return "/quickstart/";
+    return "/quickstart";
   }
 
   if (
-    normalizedPath.startsWith("/docs/bd/") ||
-    normalizedPath.startsWith("/docs/content/") ||
-    normalizedPath.startsWith("/docs/emails/") ||
-    normalizedPath.startsWith("/docs/index/") ||
-    normalizedPath.startsWith("/docs/knowledge-base/") ||
-    normalizedPath.startsWith("/docs/pipelines/") ||
-    normalizedPath.startsWith("/docs/recipes/") ||
-    normalizedPath.startsWith("/docs/samples/") ||
-    normalizedPath.startsWith("/docs/social/")
+    normalizedPath.startsWith("/docs/bd") ||
+    normalizedPath.startsWith("/docs/content") ||
+    normalizedPath.startsWith("/docs/emails") ||
+    normalizedPath.startsWith("/docs/index") ||
+    normalizedPath.startsWith("/docs/knowledge-base") ||
+    normalizedPath.startsWith("/docs/pipelines") ||
+    normalizedPath.startsWith("/docs/recipes") ||
+    normalizedPath.startsWith("/docs/samples") ||
+    normalizedPath.startsWith("/docs/social")
   ) {
-    return "/docs/";
+    return "/docs";
   }
 
-  if (normalizedPath.startsWith("/docs/")) {
+  if (normalizedPath.startsWith("/docs")) {
     if (ACTIVE_DOC_PATHS.has(normalizedPath)) {
       return isDocsHost ? normalizedPath : null;
     }
 
-    return "/docs/";
+    return "/docs";
   }
 
   if (isDocsHost) {
-    return normalizedPath === "/" ? "/docs/" : normalizedPath;
+    return normalizedPath === "/" ? "/docs" : normalizedPath;
   }
 
   return null;
@@ -172,7 +172,7 @@ export function middleware(request: NextRequest) {
       url.pathname = "/index.md";
       return NextResponse.rewrite(url);
     }
-    if (pathname === "/docs" || pathname === "/docs/") {
+    if (pathname === "/docs") {
       const url = request.nextUrl.clone();
       url.pathname = "/docs-md";
       return NextResponse.rewrite(url);
@@ -183,8 +183,7 @@ export function middleware(request: NextRequest) {
   const isDiscoveryRoute =
     pathname === "/" ||
     pathname === "" ||
-    pathname === "/docs" ||
-    pathname === "/docs/";
+    pathname === "/docs";
 
   if (isDiscoveryRoute) {
     const response = NextResponse.next();

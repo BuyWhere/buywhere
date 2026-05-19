@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  trailingSlash: true,
+  trailingSlash: false,
   output: 'standalone',
   distDir: '.next-deploy',
   async redirects() {
