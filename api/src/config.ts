@@ -21,9 +21,10 @@ db.on('connect', (client) => {
 export const redis = new Redis({
   host: process.env.REDIS_HOST || '127.0.0.1',
   port: parseInt(process.env.REDIS_PORT || '6380'),
-  maxRetriesPerRequest: 3,
-  commandTimeout: 1000,
+  maxRetriesPerRequest: 0,
+  commandTimeout: 500,
   connectTimeout: 2000,
+  enableOfflineQueue: false,
   retryStrategy: (times) => Math.min(times * 200, 2000),
 });
 // Suppress unhandled-error crashes from Redis reconnect attempts
