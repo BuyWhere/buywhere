@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
-import { createHash } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { db } from '../config';
 import { sendError, ErrorCode } from '../middleware/errors';
 
@@ -8,6 +7,16 @@ const router = Router();
 
 function hashKey(rawKey: string): string {
   return createHash('sha256').update(rawKey).digest('hex');
+}
+
+function generateApiKey(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const randomPart = randomBytes(32).toString('hex');
+  let key = 'bw_live_';
+  for (let i = 0; i < 32; i++) {
+    key += chars[parseInt(randomPart.substr(i * 2, 2), 16) % chars.length];
+  }
+  return key;
 }
 
 // POST /v1/keys — create a new API key
@@ -30,7 +39,7 @@ router.post('/', async (req: Request, res: Response) => {
     return;
   }
 
-  const rawKey = `bw_${uuidv4().replace(/-/g, '')}`;
+  const rawKey = generateApiKey();
   const keyHash = hashKey(rawKey);
 
   const resolvedTier = typeof tier === 'string' ? tier : 'free';

@@ -2,19 +2,12 @@ import { Request, Response, NextFunction } from 'express';
 import { createHash } from 'crypto';
 import { request as httpRequest } from 'http';
 import { request as httpsRequest } from 'https';
-import { db, redis, FREE_TIER } from '../config';
-import { sendError, sendRateLimitError, ErrorCode } from './errors';
+import { db, redis, FREE_TIER, TIER_LIMITS } from '../config';
+import { sendError, ErrorCode } from './errors';
+import { sendSpecError, sendDailyLimitError, sendPerMinuteLimitError } from './errors';
 
 const PAPERCLIP_API_URL = process.env.PAPERCLIP_API_URL || 'https://api.paperclip.ai';
-const JWT_CACHE_TTL_SECONDS = 300; // 5 minutes — short enough to catch revocations
-
-const TIER_LIMITS: Record<string, { rpm: number; daily: number }> = {
-  unverified: { rpm: 5, daily: 50 },
-  free: FREE_TIER,
-  pro: { rpm: 300, daily: 10000 },
-  enterprise: { rpm: 1000, daily: 100000 },
-  internal: { rpm: 10000, daily: 999999 },
-};
+const JWT_CACHE_TTL_SECONDS = 300;
 
 export function hashKey(rawKey: string): string {
   return createHash('sha256').update(rawKey).digest('hex');
@@ -44,7 +37,6 @@ async function getCachedJwtVerification(token: string): Promise<PaperclipAgentIn
     const cached = await redis.get(jwtCacheKey(token));
     if (cached) return JSON.parse(cached) as PaperclipAgentInfo;
   } catch {
-    // Redis unavailable — fall through to API
   }
   return null;
 }
@@ -53,7 +45,6 @@ async function setCachedJwtVerification(token: string, info: PaperclipAgentInfo)
   try {
     await redis.set(jwtCacheKey(token), JSON.stringify(info), 'EX', JWT_CACHE_TTL_SECONDS);
   } catch {
-    // Redis unavailable — non-fatal
   }
 }
 
@@ -63,8 +54,8 @@ async function verifyPaperclipTokenWithApi(token: string): Promise<PaperclipAgen
   const requestFn = isHttps ? httpsRequest : httpRequest;
 
   return new Promise<PaperclipAgentInfo | null>((resolve) => {
-    const connectTimeout = 5000;
-    const headersTimeout = 10000;
+    const connectTimeout = 2000;
+    const headersTimeout = 3000;
     let settled = false;
 
     const req = requestFn(
@@ -189,8 +180,25 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
   }
 }
 
+function nextMidnightUTC(): Date {
+  const d = new Date();
+  d.setUTCHours(24, 0, 0, 0);
+  return d;
+}
+
+function tierDailyLimit(tier: string, rowDailyLimit: number | null): number {
+  if (rowDailyLimit != null && rowDailyLimit > 0) return rowDailyLimit;
+  return (TIER_LIMITS[tier] ?? FREE_TIER).daily;
+}
+
+function tierRpmLimit(tier: string, rowRpmLimit: number | null): number {
+  if (rowRpmLimit != null && rowRpmLimit > 0) return rowRpmLimit;
+  return (TIER_LIMITS[tier] ?? FREE_TIER).rpm;
+}
+
 export async function requireApiKey(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers['authorization'] || '';
+  const xApiKey = req.headers['x-api-key'] as string | undefined;
   const queryKey = req.query['api_key'] as string | undefined;
 
   let key: string | undefined;
@@ -198,19 +206,19 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
     key = authHeader.slice(7).trim();
   } else if (authHeader.startsWith('ApiKey ')) {
     key = authHeader.slice(7).trim();
+  } else if (xApiKey) {
+    key = xApiKey.trim();
   } else if (queryKey) {
     key = queryKey;
   }
 
   if (!key) {
-    sendError(res, ErrorCode.MISSING_API_KEY);
+    sendSpecError(res, 'missing_api_key', 'API key required. Get one at https://buywhere.ai/dashboard', 401);
     return;
   }
 
-  // Detect Paperclip JWT — decode payload without signature verification
   const jwtPayload = decodeJwtPayload(key);
   if (jwtPayload && isPaperclipJwtPayload(jwtPayload)) {
-    // Check Redis cache to survive brief Paperclip API outages
     let agentInfo = await getCachedJwtVerification(key);
     if (!agentInfo) {
       agentInfo = await verifyPaperclipTokenWithApi(key);
@@ -221,15 +229,18 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
     if (agentInfo) {
       try {
         const row = await upsertPaperclipAgentKey(agentInfo.id, agentInfo.name, agentInfo.companyId);
+        const limits = TIER_LIMITS[row.tier] ?? TIER_LIMITS.enterprise;
         req.apiKeyRecord = {
           id: row.id,
           key,
           agentName: row.name,
           tier: row.tier,
-          rpmLimit: (TIER_LIMITS[row.tier] ?? TIER_LIMITS.enterprise).rpm,
-          dailyLimit: (TIER_LIMITS[row.tier] ?? TIER_LIMITS.enterprise).daily,
+          rpmLimit: limits.rpm,
+          dailyLimit: limits.daily,
           signupChannel: row.signup_channel,
           attributionSource: row.attribution_source,
+          dailyRequestCount: 0,
+          dailyResetAt: nextMidnightUTC(),
         };
         next();
         return;
@@ -239,42 +250,68 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
         return;
       }
     }
-    sendError(res, ErrorCode.INVALID_API_KEY, 'Invalid Paperclip token');
+    sendSpecError(res, 'invalid_api_key', 'Invalid Paperclip token', 401);
     return;
   }
 
   const keyHash = hashKey(key);
   const result = await db.query(
-    `SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_active
+    `SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_active,
+            daily_request_count, daily_reset_at, rpm_limit, daily_limit
      FROM api_keys WHERE key_hash = $1`,
     [keyHash]
   );
 
   if (result.rows.length === 0) {
-    sendError(res, ErrorCode.INVALID_API_KEY);
+    sendSpecError(res, 'invalid_api_key', undefined, 401);
     return;
   }
 
   const row = result.rows[0];
 
   if (!row.is_active) {
-    sendError(res, ErrorCode.REVOKED_API_KEY);
+    sendSpecError(res, 'invalid_api_key', 'API key has been revoked', 401);
     return;
   }
 
-  const tierLimits = TIER_LIMITS[row.tier] ?? FREE_TIER;
+  const dailyLimit = tierDailyLimit(row.tier, row.daily_limit);
+  const rpmLimit = tierRpmLimit(row.tier, row.rpm_limit);
+
+  let dailyRequestCount = row.daily_request_count || 0;
+  let dailyResetAt = row.daily_reset_at ? new Date(row.daily_reset_at) : nextMidnightUTC();
+  const now = new Date();
+
+  if (now >= dailyResetAt) {
+    dailyRequestCount = 0;
+    dailyResetAt = nextMidnightUTC();
+    db.query(
+      'UPDATE api_keys SET daily_request_count = 0, daily_reset_at = $1 WHERE id = $2',
+      [dailyResetAt, row.id]
+    ).catch(() => {});
+  }
+
+  if (dailyRequestCount >= dailyLimit) {
+    sendDailyLimitError(res, row.tier, dailyLimit, dailyResetAt.toISOString());
+    return;
+  }
+
   req.apiKeyRecord = {
     id: row.id,
     key,
     agentName: row.name,
     tier: row.tier,
-    rpmLimit: tierLimits.rpm,
-    dailyLimit: tierLimits.daily,
+    rpmLimit,
+    dailyLimit,
     signupChannel: row.signup_channel,
     attributionSource: row.attribution_source,
+    dailyRequestCount,
+    dailyResetAt,
   };
 
-  db.query('UPDATE api_keys SET last_used_at = NOW() WHERE key_hash = $1', [keyHash]).catch(() => {});
+  db.query(
+    'UPDATE api_keys SET daily_request_count = daily_request_count + 1, last_used_at = NOW() WHERE id = $1',
+    [row.id]
+  ).catch(() => {});
 
   next();
 }
@@ -288,22 +325,14 @@ export async function checkRateLimit(req: Request, res: Response, next: NextFunc
   const key = req.apiKeyRecord.key;
   const now = Date.now();
   const minuteWindow = Math.floor(now / 60000);
-  const dayWindow = Math.floor(now / 86400000);
 
   const rpmKey = `rl:rpm:${key}:${minuteWindow}`;
-  const dailyKey = `rl:daily:${key}:${dayWindow}`;
 
   let rpmCount: number;
-  let dailyCount: number;
 
   try {
-    [rpmCount, dailyCount] = await Promise.all([
-      redis.incr(rpmKey),
-      redis.incr(dailyKey),
-    ]);
-
+    rpmCount = await redis.incr(rpmKey);
     if (rpmCount === 1) redis.expire(rpmKey, 120).catch(() => {});
-    if (dailyCount === 1) redis.expire(dailyKey, 172800).catch(() => {});
   } catch (_err) {
     console.warn('[rate-limit] Redis unavailable, skipping rate limit check');
     next();
@@ -311,14 +340,7 @@ export async function checkRateLimit(req: Request, res: Response, next: NextFunc
   }
 
   if (rpmCount > req.apiKeyRecord.rpmLimit) {
-    const retryAfter = Math.ceil(60 - (now % 60000) / 1000);
-    sendRateLimitError(res, retryAfter, req.apiKeyRecord.rpmLimit, 0, 'Per-minute rate limit exceeded.');
-    return;
-  }
-
-  if (dailyCount > req.apiKeyRecord.dailyLimit) {
-    const retryAfter = Math.ceil(86400 - (now % 86400000) / 1000);
-    sendRateLimitError(res, retryAfter, req.apiKeyRecord.dailyLimit, 0, 'Daily rate limit exceeded.');
+    sendPerMinuteLimitError(res, req.apiKeyRecord.tier, req.apiKeyRecord.rpmLimit);
     return;
   }
 

@@ -72,6 +72,15 @@ export function createApp() {
     }
   });
 
+  // /api/health — alias for monitors still using the v3 path (BUY-20969)
+  app.get('/api/health', (_req, res) => {
+    res.json({
+      status: 'ok',
+      ts: new Date().toISOString(),
+      fix: 'BUY-18176-v5',
+    });
+  });
+
   // /healthz — backwards-compatible alias for /health (BUY-18347)
   // Old dedicated MCP container (Cloud Run) used /healthz as its Knative liveness probe path.
   // Railway buywhere-api now owns mcp.buywhere.ai; alias keeps legacy probes and monitors working.

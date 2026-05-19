@@ -12,7 +12,9 @@
     "migrate": "ts-node src/migrate.ts",
     "start:refresh": "node dist/jobs/priceRefreshRunner.js",
     "refresh": "ts-node src/jobs/priceRefreshRunner.ts",
-    "test": "node --test tests/response.test.mjs tests/search.test.mjs",
+    "start:key-reset": "node dist/jobs/dailyKeyResetRunner.js",
+    "key-reset": "ts-node src/jobs/dailyKeyResetRunner.ts",
+    "test": "node --test tests/response.test.mjs tests/search.test.mjs tests/auth-middleware.test.mjs tests/auth-middleware-integration.test.mjs",
     "test:mcp": "node --test tests/mcp-integration.test.mjs",
     "test:mcp:load": "node --test tests/load/staging-load-test.js",
     "test:openai-latency": "node tests/load/openai-function-calling-latency.mjs"
@@ -25,6 +27,7 @@
     "ioredis": "^5.3.2",
     "pg": "^8.11.3",
     "posthog-node": "^4.0.1",
+    "stripe": "^22.1.1",
     "uuid": "^9.0.0"
   },
   "devDependencies": {

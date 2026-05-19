@@ -11,27 +11,45 @@ initSentry();
 
 const app = createApp();
 
-runMigrations().catch(err => {
-  console.error('Migration failed during startup:', err);
-});
+async function start() {
+  // Run migrations before listening so DDL locks don't cancel first requests.
+  // IF NOT EXISTS guards make this fast (< 1s) when already applied.
+  try {
+    await runMigrations();
+  } catch (err) {
+    console.error('Migration failed during startup (continuing):', err);
+  }
 
-// Pre-warm affiliate config cache after migrations complete (BUY-18436)
-loadAffiliateConfigs().catch(() => {});
-// Pre-warm MCP caches (list_categories, discount_pct) so first requests are instant
-warmupMcpCaches().catch((err) => console.warn('[mcp-warmup] failed:', err?.message));
+  // Pre-warm caches after migrations
+  loadAffiliateConfigs().catch(() => {});
+  warmupMcpCaches().catch((err) => console.warn('[mcp-warmup] failed:', err?.message));
 
-const server = app.listen(PORT, () => {
-  console.log(`BuyWhere API v1 listening on :${PORT}`);
-  console.log(`  Health:   http://localhost:${PORT}/health`);
-  console.log(`  Register: http://localhost:${PORT}/v1/auth/register`);
-  console.log(`  Search:   http://localhost:${PORT}/v1/products/search`);
-  console.log(`  MCP:      http://localhost:${PORT}/.well-known/ai-plugin.json`);
+  return new Promise<ReturnType<typeof app.listen>>((resolve) => {
+    const server = app.listen(PORT, () => {
+      console.log(`BuyWhere API v1 listening on :${PORT}`);
+      console.log(`  Health:   http://localhost:${PORT}/health`);
+      console.log(`  Register: http://localhost:${PORT}/v1/auth/register`);
+      console.log(`  Search:   http://localhost:${PORT}/v1/products/search`);
+      console.log(`  MCP:      http://localhost:${PORT}/.well-known/ai-plugin.json`);
+      resolve(server);
+    });
+  });
+}
+
+let server: ReturnType<typeof app.listen> | undefined;
+
+start().then((s) => {
+  server = s;
+}).catch((err) => {
+  console.error('[FATAL] startup failed:', err);
+  process.exit(1);
 });
 
 const shutdown = async () => {
   console.log('Shutting down...');
   await shutdownPostHog();
-  server.close(() => process.exit(0));
+  if (server) server.close(() => process.exit(0));
+  else process.exit(0);
 };
 
 process.on('SIGTERM', shutdown);
@@ -39,7 +57,7 @@ process.on('SIGINT', shutdown);
 
 process.on('uncaughtException', (err) => {
   console.error('[FATAL] uncaughtException:', err);
-  server.close(() => process.exit(1));
+  if (server) server.close(() => process.exit(1));
   setTimeout(() => process.exit(1), 5000);
 });
 

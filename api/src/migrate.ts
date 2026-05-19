@@ -91,6 +91,10 @@ ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verified               BOOLE
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verification_token     TEXT;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verification_sent_at   TIMESTAMPTZ;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verification_expires_at TIMESTAMPTZ;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS daily_request_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS daily_reset_at      TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '1 day');
+
+CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash) WHERE is_active = true;
 
 -- Backfill: mark existing keys with a contact email as verified
 UPDATE api_keys SET email_verified = true WHERE contact IS NOT NULL AND contact != '' AND email_verified = false;

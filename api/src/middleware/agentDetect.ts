@@ -72,6 +72,8 @@ declare global {
         dailyLimit: number;
         signupChannel: string | null;
         attributionSource: string | null;
+        dailyRequestCount: number;
+        dailyResetAt: Date;
       };
     }
   }

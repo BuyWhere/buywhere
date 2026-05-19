@@ -166,6 +166,68 @@ export function sendRateLimitError(
   res.status(429).json(buildRateLimitEnvelope(retryAfter, limit, remaining, resetAt, message));
 }
 
+export function sendSpecError(
+  res: Response,
+  error: string,
+  message: string | undefined,
+  statusCode: number
+): void {
+  const body: Record<string, unknown> = { error };
+  if (message) body.message = message;
+  res.status(statusCode).json(body);
+}
+
+const TIER_UPGRADE: Record<string, { next: string; price: number } | null> = {
+  free: { next: 'Starter', price: 29 },
+  starter: { next: 'Pro', price: 99 },
+  pro: null,
+};
+
+export function sendDailyLimitError(
+  res: Response,
+  tier: string,
+  limit: number,
+  resetAt: string
+): void {
+  const upgrade = TIER_UPGRADE[tier];
+  let message: string;
+  if (upgrade) {
+    message = `Daily limit of ${limit.toLocaleString()} requests exceeded for ${capitalize(tier)} tier. Upgrade to ${upgrade.next} at $${upgrade.price}/mo.`;
+  } else {
+    message = `Daily limit of ${limit.toLocaleString()} requests reached. Resets at midnight UTC.`;
+  }
+  res.set('Retry-After', String(Math.max(1, Math.ceil((new Date(resetAt).getTime() - Date.now()) / 1000))));
+  res.status(429).json({
+    error: 'rate_limit_exceeded',
+    message,
+    tier,
+    limit,
+    reset_at: resetAt,
+    upgrade_url: 'https://buywhere.ai/pricing',
+  });
+}
+
+export function sendPerMinuteLimitError(
+  res: Response,
+  tier: string,
+  limit: number
+): void {
+  const retryAfter = Math.ceil(60 - (Date.now() % 60000) / 1000);
+  res.set('Retry-After', String(retryAfter));
+  res.status(429).json({
+    error: 'rate_limit_exceeded',
+    message: `Rate limit of ${limit} requests/min exceeded for ${capitalize(tier)} tier.`,
+    tier,
+    limit,
+    window: '60s',
+    upgrade_url: 'https://buywhere.ai/pricing',
+  });
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 export class StructuredError extends Error {
   public code: ErrorCodeType;
   public statusCode: number;

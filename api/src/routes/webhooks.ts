@@ -1,6 +1,13 @@
 import { Router, Request, Response } from 'express';
+import Stripe from 'stripe';
+import { db } from '../config';
 
 const router = Router();
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+  apiVersion: '2026-04-22.dahlia',
+});
+
 const PAPERCLIP_BASE_URL = process.env.UPTIMEROBOT_WEBHOOK_RELAY_URL?.trim() || '';
 const PAPERCLIP_API_KEY = process.env.UPTIMEROBOT_WEBHOOK_RELAY_API_KEY?.trim() || '';
 const COMPANY_ID = '177bc805-e3c8-4336-84cb-8e1e482d5a17';
@@ -101,6 +108,72 @@ router.post('/uptime-robot', (req: Request, res: Response) => {
     void createPaperclipIssue(payload, false);
   } else {
     console.log(`[webhooks/uptime-robot] Alert type ${alertType}: ${friendlyName} (${monitorURL}) — ${alertDetails}`);
+  }
+
+  res.status(200).json({ received: true });
+});
+
+router.post('/stripe', async (req: Request, res: Response) => {
+  const sig = req.headers['stripe-signature'] as string;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (!webhookSecret) {
+    console.error('[webhooks/stripe] STRIPE_WEBHOOK_SECRET not configured');
+    res.status(500).json({ error: 'Webhook secret not configured' });
+    return;
+  }
+
+  let event: Stripe.Event;
+
+  try {
+    const rawBody = JSON.stringify(req.body);
+    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+  } catch (err) {
+    console.error('[webhooks/stripe] Signature verification failed:', err);
+    res.status(400).json({ error: 'Invalid signature' });
+    return;
+  }
+
+  console.log(`[webhooks/stripe] Received event: ${event.type}`);
+
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        console.log(`[webhooks/stripe] Checkout completed: ${session.id}, customer: ${session.customer}`);
+        break;
+      }
+
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object as Stripe.Subscription;
+        console.log(`[webhooks/stripe] Subscription ${event.type}: ${subscription.id}, status: ${subscription.status}`);
+        break;
+      }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as Stripe.Subscription;
+        console.log(`[webhooks/stripe] Subscription deleted: ${subscription.id}`);
+        break;
+      }
+
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data.object as Stripe.Invoice;
+        console.log(`[webhooks/stripe] Invoice paid: ${invoice.id}, subscription: ${invoice.subscription}`);
+        break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as Stripe.Invoice;
+        console.log(`[webhooks/stripe] Invoice payment failed: ${invoice.id}`);
+        break;
+      }
+
+      default:
+        console.log(`[webhooks/stripe] Unhandled event type: ${event.type}`);
+    }
+  } catch (err) {
+    console.error(`[webhooks/stripe] Error handling event ${event.type}:`, err);
   }
 
   res.status(200).json({ received: true });

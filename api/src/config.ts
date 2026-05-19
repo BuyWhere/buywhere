@@ -37,6 +37,15 @@ export const PORT = parseInt(process.env.PORT || '3000');
 export const API_BASE_URL = process.env.API_BASE_URL || 'https://api.buywhere.ai';
 
 export const FREE_TIER = {
-  rpm: 60,
-  daily: 1000,
+  rpm: 10,
+  daily: 100,
+};
+
+export const TIER_LIMITS: Record<string, { rpm: number; daily: number }> = {
+  free: FREE_TIER,
+  starter: { rpm: 100, daily: 10000 },
+  pro: { rpm: 500, daily: 100000 },
+  unverified: { rpm: 5, daily: 50 },
+  enterprise: { rpm: 1000, daily: 100000 },
+  internal: { rpm: 10000, daily: 999999 },
 };

@@ -98,6 +98,21 @@ const TOOLS = [
   },
 ];
 
+let _hasDiscountPct: boolean | undefined;
+
+async function probeDiscountPctColumn(): Promise<boolean> {
+  try {
+    const probe = await db.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`
+    );
+    return probe.rows.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() => {});
+
 // Tool handlers
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
@@ -297,19 +312,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     }
   } catch (_) {}
 
-  // Probe whether discount_pct column exists (cached per-process).
-  // Use information_schema so connection errors don't incorrectly mark the column absent.
-  if (typeof (handleGetDeals as any)._hasDiscountPct === 'undefined') {
-    try {
-      const probe = await db.query(
-        `SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`
-      );
-      (handleGetDeals as any)._hasDiscountPct = probe.rows.length > 0;
-    } catch {
-      // Keep undefined so the probe retries on the next request
-    }
-  }
-  const useDiscountCol: boolean = (handleGetDeals as any)._hasDiscountPct === true;
+  const useDiscountCol: boolean = _hasDiscountPct === true;
 
   const conditions: string[] = [
     `currency = $1`,
