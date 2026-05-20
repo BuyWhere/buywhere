@@ -28,8 +28,8 @@ env:
   GCP_PROJECT_ID: gaia-calendar-488606
   GCP_REGION: asia-southeast1
   CLOUD_RUN_SERVICE: buywhere-site-production
-  AR_REPO: buywhere
-  AR_IMAGE: asia-southeast1-docker.pkg.dev/gaia-calendar-488606/buywhere/site
+  AR_REPO: cloud-run-source-deploy
+  AR_IMAGE: asia-southeast1-docker.pkg.dev/gaia-calendar-488606/cloud-run-source-deploy/site
 
 jobs:
   build:
@@ -57,12 +57,7 @@ jobs:
           gcloud artifacts repositories describe ${{ env.AR_REPO }} \
             --location=${{ env.GCP_REGION }} \
             --project=${{ env.GCP_PROJECT_ID }} \
-            --format="value(name)" 2>/dev/null || \
-          gcloud artifacts repositories create ${{ env.AR_REPO }} \
-            --repository-format=docker \
-            --location=${{ env.GCP_REGION }} \
-            --project=${{ env.GCP_PROJECT_ID }} \
-            --description="BuyWhere container images"
+            --format="value(name)"
 
       - name: Set image tag
         id: image_meta
