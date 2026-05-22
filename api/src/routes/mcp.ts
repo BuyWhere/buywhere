@@ -103,9 +103,9 @@ let _hasDiscountPct: boolean | undefined;
 async function probeDiscountPctColumn(): Promise<boolean> {
   try {
     const probe = await db.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`
+      `SELECT is_generated FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`
     );
-    return probe.rows.length > 0;
+    return probe.rows.length > 0 && probe.rows[0].is_generated === 'ALWAYS';
   } catch {
     return false;
   }
