@@ -5,24 +5,42 @@ export async function warmupMcpCaches(): Promise<void> {
   try {
     await client.query('SET statement_timeout = 360000'); // 6 minutes
 
-    // Ensure discount_pct generated column exists
-    const hasCol = await client.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name='products' AND column_name='discount_pct' LIMIT 1`
+    // BUY-22324: Ensure discount_pct is a GENERATED STORED column (not plain).
+    const colInfo = await client.query(
+      `SELECT is_generated FROM information_schema.columns WHERE table_name='products' AND column_name='discount_pct'`
     );
-    if (hasCol.rows.length === 0) {
-      console.log('[mcp-warmup] Adding discount_pct column...');
+    if (colInfo.rows.length === 0) {
+      console.log('[mcp-warmup] Adding discount_pct GENERATED column...');
       await client.query(`
-        ALTER TABLE products ADD COLUMN IF NOT EXISTS discount_pct NUMERIC
+        ALTER TABLE products ADD COLUMN discount_pct numeric
           GENERATED ALWAYS AS (
-            ROUND((1 - price / NULLIF((metadata->>'original_price')::NUMERIC, 0)) * 100)
+            CASE
+              WHEN (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
+               AND (metadata->>'original_price')::numeric > 0
+              THEN ROUND((1 - price / (metadata->>'original_price')::numeric) * 100)
+            END
           ) STORED
       `);
+    } else if (colInfo.rows[0].is_generated === 'NEVER') {
+      console.log('[mcp-warmup] Replacing plain discount_pct with GENERATED column...');
+      await client.query(`ALTER TABLE products DROP COLUMN discount_pct`);
       await client.query(`
-        CREATE INDEX IF NOT EXISTS idx_products_deals ON products(currency, discount_pct DESC)
-          WHERE discount_pct IS NOT NULL
+        ALTER TABLE products ADD COLUMN discount_pct numeric
+          GENERATED ALWAYS AS (
+            CASE
+              WHEN (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
+               AND (metadata->>'original_price')::numeric > 0
+              THEN ROUND((1 - price / (metadata->>'original_price')::numeric) * 100)
+            END
+          ) STORED
       `);
-      console.log('[mcp-warmup] discount_pct column and index created.');
     }
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_products_deals_discount_pct
+        ON products (currency, discount_pct DESC)
+        WHERE discount_pct IS NOT NULL AND price > 0
+    `);
+    console.log('[mcp-warmup] discount_pct column and index verified.');
 
     // Pre-warm list_categories cache
     const cacheKey = 'categories_mcp:top100';
