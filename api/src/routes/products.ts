@@ -347,11 +347,15 @@ router.get(
     let dealIdx = 2;
     let useDiscountCol = true;
 
-    // Probe whether discount_pct column exists (cached per-process)
+    // Probe whether discount_pct column exists as GENERATED (cached per-process)
+    // BUY-22324: must verify is_generated = 'ALWAYS'; a plain column is 100% NULL
+    // and produces wrong results (get_deals returns total: 0).
     if (typeof (router as any)._hasDiscountPct === 'undefined') {
       try {
-        await db.query(`SELECT discount_pct FROM products LIMIT 0`);
-        (router as any)._hasDiscountPct = true;
+        const probe = await db.query(
+          `SELECT is_generated FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`
+        );
+        (router as any)._hasDiscountPct = probe.rows.length > 0 && probe.rows[0].is_generated === 'ALWAYS';
       } catch {
         (router as any)._hasDiscountPct = false;
       }
