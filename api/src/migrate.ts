@@ -360,35 +360,68 @@ export async function runMigrations() {
     console.warn(`[migration] Full migration block failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
-  // BUY-14350: discount_pct GENERATED STORED column on 14M row table may exceed
-  // the pool's statement_timeout. Run it with an extended timeout in its own connection.
+  // BUY-22324: discount_pct GENERATED STORED column — must detect and fix a plain
+  // (non-generated) column left by a prior migration failure.
+  // Uses guarded CASE with regex to prevent dirty original_price from failing inserts.
+  const DISCOUNT_PCT_DDL = `
+    DO $$
+    DECLARE
+      _is_generated text;
+    BEGIN
+      SELECT c.is_generated INTO _is_generated
+        FROM information_schema.columns c
+       WHERE c.table_name = 'products' AND c.column_name = 'discount_pct';
+
+      IF _is_generated IS NULL THEN
+        ALTER TABLE products
+          ADD COLUMN discount_pct numeric
+          GENERATED ALWAYS AS (
+            CASE
+              WHEN (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
+               AND (metadata->>'original_price')::numeric > 0
+              THEN ROUND((1 - price / (metadata->>'original_price')::numeric) * 100)
+            END
+          ) STORED;
+      ELSIF _is_generated = 'NEVER' THEN
+        ALTER TABLE products DROP COLUMN discount_pct;
+        ALTER TABLE products
+          ADD COLUMN discount_pct numeric
+          GENERATED ALWAYS AS (
+            CASE
+              WHEN (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
+               AND (metadata->>'original_price')::numeric > 0
+              THEN ROUND((1 - price / (metadata->>'original_price')::numeric) * 100)
+            END
+          ) STORED;
+      END IF;
+    END$$;
+
+    CREATE INDEX IF NOT EXISTS idx_products_deals_discount_pct
+      ON products (currency, discount_pct DESC)
+      WHERE discount_pct IS NOT NULL AND price > 0;
+  `;
+
   try {
-    const hasCol = await db.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`
-    );
-    if (hasCol.rows.length === 0) {
-      console.log('[migration] Adding discount_pct generated column (may take a while on large table)...');
-      // Use a dedicated client with extended timeout for this DDL
-      const client = await db.connect();
-      try {
-        await client.query('SET statement_timeout = 300000'); // 5 minutes for DDL
-        await client.query(`
-          ALTER TABLE products ADD COLUMN IF NOT EXISTS discount_pct NUMERIC
-            GENERATED ALWAYS AS (
-              ROUND((1 - price / NULLIF((metadata->>'original_price')::NUMERIC, 0)) * 100)
-            ) STORED
-        `);
-        await client.query(`
-          CREATE INDEX IF NOT EXISTS idx_products_deals ON products(currency, discount_pct DESC)
-            WHERE discount_pct IS NOT NULL
-        `);
-        console.log('[migration] discount_pct column and index created.');
-      } finally {
-        client.release();
-      }
+    console.log('[migration] Ensuring discount_pct is a GENERATED STORED column (extended timeout for 14M row table)...');
+    const client = await db.connect();
+    try {
+      await client.query('SET statement_timeout = 360000');
+      await client.query(DISCOUNT_PCT_DDL);
+      console.log('[migration] discount_pct GENERATED column and index verified.');
+    } finally {
+      client.release();
     }
+
+    const verify = await db.query(
+      `SELECT is_generated FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct'`
+    );
+    if (verify.rows.length === 0 || verify.rows[0].is_generated !== 'ALWAYS') {
+      throw new Error(`discount_pct column is missing or not GENERATED (is_generated=${verify.rows[0]?.is_generated})`);
+    }
+    const countCheck = await db.query(`SELECT count(*) AS cnt FROM products WHERE discount_pct IS NOT NULL`);
+    console.log(`[migration] discount_pct non-null rows: ${countCheck.rows[0].cnt}`);
   } catch (err: any) {
-    console.warn(`[migration] discount_pct column creation failed (non-fatal): ${err.message?.slice(0, 200)}`);
+    throw new Error(`[migration] FATAL: discount_pct GENERATED column failed: ${err.message}`);
   }
 
   // Separately ensure merchants tables exist — not blocked by failures above.
