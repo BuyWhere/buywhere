@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { db } from '../config';
+import { trackApiUsage } from '../analytics/posthog';
 
 // Known human User-Agent patterns — browsers, Googlebot, etc.
 const HUMAN_UA_PATTERNS = [
@@ -128,6 +129,24 @@ export function queryLogMiddleware(endpoint: string) {
       ).catch(() => {
         // Fire-and-forget — don't crash on log failure
       });
+
+      // BUY-22733: source-of-truth usage telemetry to PostHog.
+      // Skip unauthenticated requests — no api_key_id to attribute.
+      if (apiKeyRecord?.id) {
+        try {
+          trackApiUsage({
+            apiKeyId: apiKeyRecord.id,
+            endpoint,
+            method: req.method,
+            tier: apiKeyRecord.tier,
+            resultStatus: res.statusCode,
+            latencyMs: responseTimeMs,
+            toolName: (res.locals.mcpToolName as string) || null,
+          });
+        } catch {
+          // PostHog client errors must never affect the response.
+        }
+      }
     });
 
     next();
