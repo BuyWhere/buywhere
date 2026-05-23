@@ -595,6 +595,9 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         if (!toolName) {
           return res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
         }
+        // BUY-22733: surface tool name to queryLog middleware so the finish
+        // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
+        res.locals.mcpToolName = toolName;
         const result = await dispatchTool(toolName, toolArgs);
         return res.json(jsonrpcOk(id, {
           content: [{ type: 'text', text: JSON.stringify(result) }],
