@@ -1,5 +1,71 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY ?? "phc_B3cS3aNdwTfr2UMykvuShWNnnTaPf5sfHLUQ8FkNHqCc";
+const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com";
+
+const BOT_PATTERNS: [RegExp, string][] = [
+  [/\bChatGPT-User\//i, "ChatGPT-User"],
+  [/\bClaudeBot\//i, "ClaudeBot"],
+  [/\bPerplexityBot\//i, "PerplexityBot"],
+  [/\bGPTBot\//i, "GPTBot"],
+  [/\bGoogle-Extended\//i, "Google-Extended"],
+  [/\banthropic-ai\//i, "anthropic-ai"],
+  [/\bCCBot\//i, "CCBot"],
+  [/\bGooglebot\b/i, "Googlebot"],
+  [/\bBingbot\b/i, "Bingbot"],
+  [/\bSlurp\b/i, "other_bot"],
+  [/\bDuckDuckBot\b/i, "other_bot"],
+  [/\bBaiduspider\b/i, "other_bot"],
+  [/\bYandexBot\b/i, "other_bot"],
+  [/\bAhrefsBot\b/i, "other_bot"],
+  [/\bSemrushBot\b/i, "other_bot"],
+];
+
+const GENERIC_BOT_RE = /\b(bot|crawl|spider|fetch|scrape|headless|selenium|puppeteer|playwright|curl|wget|python-requests|node-fetch|axios)\b/i;
+
+function classifyUa(ua: string): { is_bot: boolean; agent_family: string } {
+  for (const [re, family] of BOT_PATTERNS) {
+    if (re.test(ua)) return { is_bot: true, agent_family: family };
+  }
+  if (GENERIC_BOT_RE.test(ua)) return { is_bot: true, agent_family: "other_bot" };
+  return { is_bot: false, agent_family: "human" };
+}
+
+async function capturePageviewServer(
+  distinctId: string,
+  url: string,
+  ua: string,
+  ip: string | null
+) {
+  const { is_bot, agent_family } = classifyUa(ua);
+  try {
+    await fetch(`${POSTHOG_HOST}/i/v0/e/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: POSTHOG_KEY,
+        event: "pageview_server",
+        distinct_id: distinctId,
+        properties: {
+          $current_url: url,
+          $raw_user_agent: ua,
+          $ip: ip,
+          is_bot,
+          agent_family,
+        },
+      }),
+    });
+  } catch {}
+}
+
+function hashIp(ip: string): string {
+  let h = 0;
+  for (let i = 0; i < ip.length; i++) {
+    h = ((h << 5) - h + ip.charCodeAt(i)) | 0;
+  }
+  return "srv_" + Math.abs(h).toString(36);
+}
+
 // Discovery Link headers for AI agent / Cloudflare readiness
 const DISCOVERY_LINK =
   '<https://buywhere.ai/llms.txt>; rel="describedby"; type="text/plain", ' +
@@ -152,6 +218,12 @@ export function middleware(request: NextRequest) {
   ) {
     return NextResponse.next();
   }
+
+  const ua = request.headers.get("user-agent") ?? "";
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? request.headers.get("x-real-ip") ?? null;
+  const distinctId = ip ? hashIp(ip) : "srv_unknown";
+
+  capturePageviewServer(distinctId, request.url, ua, ip);
 
   const redirectPath = legacyRedirectPath(host, pathname);
   if (redirectPath) {
