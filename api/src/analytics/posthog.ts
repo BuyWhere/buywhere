@@ -146,6 +146,42 @@ export async function shutdownPostHog(): Promise<void> {
   }
 }
 
+// BUY-22733: source-of-truth usage telemetry — one event per authenticated request.
+// `toolName` set on MCP `tools/call` → emits `mcp_tool_call`; otherwise `api_query`.
+// `timestamp` lets the backfill script post historical events at their original `query_log.created_at`.
+export interface ApiUsageEvent {
+  apiKeyId: string;
+  endpoint: string;
+  method: string;
+  tier: string;
+  resultStatus: number;
+  latencyMs: number;
+  toolName?: string | null;
+  timestamp?: Date;
+  backfilled?: boolean;
+}
+
+export function trackApiUsage(event: ApiUsageEvent): void {
+  const ph = getClient();
+  if (!ph) return;
+  const isMcpToolCall = !!event.toolName;
+  ph.capture({
+    distinctId: event.apiKeyId,
+    event: isMcpToolCall ? 'mcp_tool_call' : 'api_query',
+    properties: {
+      endpoint: event.endpoint,
+      method: event.method,
+      tier: event.tier,
+      api_key_id: event.apiKeyId,
+      result_status: event.resultStatus,
+      latency_ms: event.latencyMs,
+      ...(isMcpToolCall ? { tool_name: event.toolName } : {}),
+      ...(event.backfilled ? { backfilled: true } : {}),
+    },
+    ...(event.timestamp ? { timestamp: event.timestamp } : {}),
+  });
+}
+
 export function trackEmailVerified(apiKeyId: string, email: string): void {
   const ph = getClient();
   if (!ph) return;
