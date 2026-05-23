@@ -89,6 +89,7 @@ const ACTIVE_DOC_PATHS = new Set([
 
 const ACTIVE_BLOG_SLUGS = new Set([
   "best-laptop-deals-singapore",
+  "best-laptop-deals-under-sgd-2000-singapore",
   "best-price-tracking-tools-singapore",
   "best-time-to-buy-cameras",
   "best-time-to-buy-electronics",
@@ -97,6 +98,10 @@ const ACTIVE_BLOG_SLUGS = new Set([
   "best-time-to-buy-laptops",
   "best-time-to-buy-smartwatches",
   "best-time-to-buy-tvs",
+  "cheapest-iphone-singapore-2026",
+  "compare-headphones-singapore-2026",
+  "compare-product-prices-singapore-2026",
+  "home-appliance-deals-singapore-2026",
 ]);
 
 function normalizePathname(pathname: string): string {
