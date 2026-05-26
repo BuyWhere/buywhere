@@ -432,6 +432,70 @@ export async function runMigrations() {
     console.error(`[migration] Merchants table creation failed: ${err.message?.slice(0, 200)}`);
   }
 
+  // BUY-24284: Restore the search_vector trigger that was dropped in a prior migration.
+  // Without it, every new product insert leaves search_vector NULL and FTS returns 0 results.
+  try {
+    const svClient = await db.connect();
+    try {
+      await svClient.query(`
+        CREATE OR REPLACE FUNCTION products_search_vector_update()
+        RETURNS TRIGGER AS $$
+        BEGIN
+          NEW.search_vector := to_tsvector('english',
+            COALESCE(NEW.title, '') || ' ' ||
+            COALESCE(NEW.brand, '') || ' ' ||
+            COALESCE(array_to_string(NEW.category_path, ' '), '')
+          );
+          RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+
+        DROP TRIGGER IF EXISTS products_search_vector_trig ON products;
+        CREATE TRIGGER products_search_vector_trig
+          BEFORE INSERT OR UPDATE OF title, brand, category_path
+          ON products
+          FOR EACH ROW EXECUTE FUNCTION products_search_vector_update();
+      `);
+      console.log('[migration] search_vector trigger restored (BUY-24284).');
+    } finally {
+      svClient.release();
+    }
+  } catch (err: any) {
+    console.warn(`[migration] search_vector trigger creation failed (non-fatal): ${err.message?.slice(0, 200)}`);
+  }
+
+  // Backfill NULL search_vector rows — same 6-min timeout pattern as discount_pct.
+  // Non-fatal: the trigger above covers all new writes; this fixes the existing corpus.
+  try {
+    const backfillClient = await db.connect();
+    try {
+      await backfillClient.query('SET statement_timeout = 360000'); // 6 min
+      const { rows: countRows } = await backfillClient.query(
+        `SELECT COUNT(*) AS cnt FROM products WHERE search_vector IS NULL`
+      );
+      const nullCount = parseInt(countRows[0].cnt, 10);
+      if (nullCount > 0) {
+        console.log(`[migration] Backfilling search_vector for ${nullCount} NULL rows (BUY-24284)...`);
+        await backfillClient.query(
+          `UPDATE products
+           SET search_vector = to_tsvector('english',
+             COALESCE(title, '') || ' ' ||
+             COALESCE(brand, '') || ' ' ||
+             COALESCE(array_to_string(category_path, ' '), '')
+           )
+           WHERE search_vector IS NULL`
+        );
+        console.log('[migration] search_vector backfill complete.');
+      } else {
+        console.log('[migration] search_vector already populated for all rows, skipping backfill.');
+      }
+    } finally {
+      backfillClient.release();
+    }
+  } catch (err: any) {
+    console.warn(`[migration] search_vector backfill timed out or failed (non-fatal, trigger covers new rows): ${err.message?.slice(0, 200)}`);
+  }
+
   console.log('Migrations complete.');
 }
 

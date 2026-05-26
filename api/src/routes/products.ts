@@ -875,8 +875,14 @@ router.post(
       const result = await db.query(
         `INSERT INTO products
            (sku, source, merchant_id, title, description, price, currency, url,
-            image_url, category_path, brand, metadata, is_active, region, country_code, gtin, mpn)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,true,$13,$14,$15,$16)
+            image_url, category_path, brand, metadata, is_active, region, country_code, gtin, mpn,
+            search_vector)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,true,$13,$14,$15,$16,
+                 to_tsvector('english',
+                   COALESCE($4,'') || ' ' ||
+                   COALESCE($11,'') || ' ' ||
+                   COALESCE(array_to_string($10::text[],' '),'')
+                 ))
          ON CONFLICT (sku, source)
          DO UPDATE SET
            title = EXCLUDED.title,
@@ -888,6 +894,11 @@ router.post(
            country_code = COALESCE(EXCLUDED.country_code, products.country_code),
            gtin = COALESCE(EXCLUDED.gtin, products.gtin),
            mpn = COALESCE(EXCLUDED.mpn, products.mpn),
+           search_vector = to_tsvector('english',
+             COALESCE(EXCLUDED.title,'') || ' ' ||
+             COALESCE(EXCLUDED.brand,'') || ' ' ||
+             COALESCE(array_to_string(EXCLUDED.category_path,' '),'')
+           ),
            updated_at = NOW()
          RETURNING (xmax = 0) AS is_insert`,
         [
