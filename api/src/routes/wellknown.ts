@@ -2,6 +2,78 @@ import { Router, Request, Response } from 'express';
 import { API_BASE_URL } from '../config';
 
 const router = Router();
+const DISCOVERY_CACHE_CONTROL = 'public, max-age=86400, s-maxage=86400';
+
+const AI_AGENT_DESCRIPTOR = {
+  name: 'BuyWhere',
+  description: 'Cross-border product price comparison API — SG, US, and SEA markets',
+  version: '1.0',
+  protocols: {
+    mcp: 'https://api.buywhere.ai/mcp/sse',
+    a2a: 'https://api.buywhere.ai/.well-known/agent.json',
+    rest: 'https://api.buywhere.ai/v1',
+  },
+  auth: {
+    type: 'api_key',
+    header: 'X-API-Key',
+    obtain: 'https://api.buywhere.ai/v1/keys',
+  },
+  capabilities: ['search_products', 'get_deals', 'compare_prices'],
+  llms_txt: 'https://buywhere.ai/llms.txt',
+};
+
+const A2A_AGENT_CARD = {
+  name: 'BuyWhere',
+  description: 'Agent-native product catalog API for AI agent commerce',
+  url: 'https://buywhere.ai',
+  provider: {
+    organization: 'BuyWhere',
+    url: 'https://buywhere.ai',
+  },
+  version: '1.0.0',
+  capabilities: {
+    streaming: false,
+    pushNotifications: false,
+  },
+  defaultInputModes: ['text'],
+  defaultOutputModes: ['text'],
+  skills: [
+    {
+      id: 'product_search',
+      name: 'Product Search',
+      description: 'Search Singapore product catalog by keyword, category, price range',
+      tags: ['ecommerce', 'search', 'products'],
+      examples: ['Find wireless earbuds under $200 in Singapore'],
+    },
+    {
+      id: 'product_compare',
+      name: 'Product Comparison',
+      description: 'Compare products across merchants by price, rating, availability',
+      tags: ['ecommerce', 'comparison', 'price'],
+      examples: ['Compare iPhone 15 prices across Singapore retailers'],
+    },
+    {
+      id: 'deal_finder',
+      name: 'Deal Finder',
+      description: 'Find best deals and discounts across Singapore merchants',
+      tags: ['ecommerce', 'deals', 'discounts'],
+      examples: ['Show me the best laptop deals today'],
+    },
+  ],
+  protocols: {
+    mcp: {
+      serverUrl: 'https://api.buywhere.ai/mcp/sse',
+      transport: 'sse',
+    },
+    a2a: {
+      serverUrl: 'https://api.buywhere.ai/a2a',
+      transport: 'json',
+    },
+  },
+  contact: {
+    email: 'hello@buywhere.ai',
+  },
+};
 
 // GET /.well-known/ai-plugin.json — MCP/OpenAI plugin discovery
 router.get('/ai-plugin.json', (_req: Request, res: Response) => {
@@ -97,6 +169,18 @@ router.get('/glama.json', (_req: Request, res: Response) => {
     categories: ["shopping", "e-commerce", "price-comparison"],
     regions: ["SG", "US", "MY", "TH", "PH", "VN", "ID"],
   });
+});
+
+// GET /.well-known/ai-agent.json — generic agent identity descriptor
+router.get('/ai-agent.json', (_req: Request, res: Response) => {
+  res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
+  res.json(AI_AGENT_DESCRIPTOR);
+});
+
+// GET /.well-known/agent.json — A2A agent card
+router.get('/agent.json', (_req: Request, res: Response) => {
+  res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
+  res.json(A2A_AGENT_CARD);
 });
 
 // GET /openapi.json — OpenAPI 3.0 spec
