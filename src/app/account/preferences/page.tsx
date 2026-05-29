@@ -393,7 +393,7 @@ export default function AlertPreferencesPage() {
                             {alert.product_image_url ? (
                               <Image
                                 src={alert.product_image_url}
-                                alt=""
+                                alt={alert.product_name || "product image"}
                                 width={80}
                                 height={80}
                                 className="h-20 w-20 rounded-2xl border border-slate-200 object-cover"

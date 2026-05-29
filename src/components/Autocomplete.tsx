@@ -248,7 +248,7 @@ export function Autocomplete({
                   {product.image_url ? (
                     <Image
                       src={product.image_url}
-                      alt=""
+                      alt={product.name || "product image"}
                       width={48}
                       height={48}
                       className="object-cover rounded-lg bg-gray-100 shrink-0"

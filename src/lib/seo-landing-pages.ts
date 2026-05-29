@@ -163,11 +163,20 @@ export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata 
       type: "article",
       locale: config.locale,
       siteName: "BuyWhere",
+      images: [
+        {
+          url: "/og-image.png",
+          width: 1200,
+          height: 630,
+          alt: config.title,
+        },
+      ],
     },
     twitter: {
       card: "summary_large_image",
       title: config.title,
       description: config.description,
+      images: ["/og-image.png"],
     },
   };
 }

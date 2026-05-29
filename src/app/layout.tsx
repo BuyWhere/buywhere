@@ -37,13 +37,13 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://buywhere.ai"),
   title: "BuyWhere — MCP Server and Product Catalog API for AI Agents",
   description:
-    "BuyWhere is the MCP server and product catalog API that gives AI agents real-time product search, price comparison, and merchant handoff across Southeast Asia and the US.",
+    "BuyWhere is the MCP server and product catalog API for AI agents: real-time search, price comparison, and merchant handoff across Southeast Asia and the US.",
   openGraph: {
     type: "website",
     siteName: "BuyWhere",
     title: "BuyWhere — MCP Server and Product Catalog API for AI Agents",
     description:
-      "BuyWhere is the MCP server and product catalog API that gives AI agents real-time product search, price comparison, and merchant handoff across Southeast Asia and the US.",
+      "BuyWhere is the MCP server and product catalog API for AI agents: real-time search, price comparison, and merchant handoff across Southeast Asia and the US.",
     images: [
       {
         url: "/og-image.png",
@@ -57,7 +57,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "BuyWhere — MCP Server and Product Catalog API for AI Agents",
     description:
-      "BuyWhere is the MCP server and product catalog API that gives AI agents real-time product search, price comparison, and merchant handoff across Southeast Asia and the US.",
+      "BuyWhere is the MCP server and product catalog API for AI agents: real-time search, price comparison, and merchant handoff across Southeast Asia and the US.",
     images: ["/og-image.png"],
     creator: "@buywhere",
   },
