@@ -277,7 +277,7 @@ export default function AlertPreferencesPage() {
     <div className="flex min-h-screen flex-col bg-white text-slate-950">
       <Nav />
 
-      <main className="flex-1 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.12),_transparent_34%),linear-gradient(180deg,#f8fafc_0%,#ffffff_40%,#eef2ff_100%)]">
+      <main id="main-content" className="flex-1 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.12),_transparent_34%),linear-gradient(180deg,#f8fafc_0%,#ffffff_40%,#eef2ff_100%)]">
         <section className="border-b border-slate-200 bg-slate-950 text-white">
           <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
             <div className="max-w-3xl">

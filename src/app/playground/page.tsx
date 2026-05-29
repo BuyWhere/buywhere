@@ -242,7 +242,7 @@ export default function PlaygroundPage() {
     <div className="flex min-h-screen flex-col bg-[#0f1117]">
       <Nav />
 
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <div className="mx-auto max-7xl px-4 py-16 sm:px-6">
           <div className="mb-8">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">API Playground</p>

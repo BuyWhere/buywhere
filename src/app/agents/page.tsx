@@ -134,7 +134,7 @@ export default function AgentsPage() {
     <div className="flex min-h-screen flex-col bg-slate-50">
       <Nav />
 
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <section className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.16),transparent_32%),radial-gradient(circle_at_top_right,rgba(99,102,241,0.16),transparent_28%),linear-gradient(135deg,#0f172a_0%,#111827_56%,#172554_100%)] text-white">
           <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
             <div className="max-w-3xl">

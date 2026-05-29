@@ -104,7 +104,7 @@ export default function OnboardingPage() {
   return (
     <div className="flex min-h-screen flex-col bg-white">
       <Nav />
-      <main className="flex-1 bg-gradient-to-b from-indigo-50 to-white py-12">
+      <main id="main-content" className="flex-1 bg-gradient-to-b from-indigo-50 to-white py-12">
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           {/* Progress */}
           <div className="mb-10">

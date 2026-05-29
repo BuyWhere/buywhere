@@ -32,7 +32,7 @@ export default function BlogIndexPage() {
     <div className="flex min-h-screen flex-col bg-slate-50">
       <Nav />
 
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <section className="border-b border-indigo-100 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.16),_transparent_35%),linear-gradient(180deg,#eef2ff_0%,#f8fafc_100%)]">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 md:py-20">
             <div className="max-w-3xl">

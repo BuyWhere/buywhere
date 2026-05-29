@@ -11,7 +11,7 @@ export default function AffiliateDisclosurePage() {
     <div className="flex flex-col min-h-screen">
       <Nav />
 
-      <main className="flex-1 py-16">
+      <main id="main-content" className="flex-1 py-16">
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Affiliate Disclosure</h1>
           <p className="text-sm text-gray-400 mb-10">Last updated: 17 May 2026</p>

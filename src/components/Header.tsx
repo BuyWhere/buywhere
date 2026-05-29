@@ -20,7 +20,7 @@ export default function Header() {
           <span>BuyWhere</span>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600 dark:text-gray-300">
+        <nav id="main-navigation" className="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600 dark:text-gray-300" aria-label="Main navigation">
           <Link href="/compare" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Compare</Link>
           <Link href="/blog" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Blog</Link>
           <Link href="/quickstart" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Quickstart</Link>
@@ -69,8 +69,9 @@ export default function Header() {
           <button
             className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
             onClick={() => setOpen(!open)}
-            aria-label="Toggle menu"
+            aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
+            aria-controls="mobile-nav"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               {open ? (
@@ -84,7 +85,7 @@ export default function Header() {
       </div>
 
       {open && (
-        <div className="md:hidden border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 pb-4 flex flex-col gap-3 text-sm font-medium text-gray-700 dark:text-gray-300">
+        <nav id="mobile-nav" className="md:hidden border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 pb-4 flex flex-col gap-3 text-sm font-medium text-gray-700 dark:text-gray-300" aria-label="Mobile navigation">
           <Link href="/compare" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Compare</Link>
           <Link href="/blog" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Blog</Link>
           <Link href="/quickstart" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Quickstart</Link>
@@ -95,7 +96,7 @@ export default function Header() {
           <Link href="/about" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">About</Link>
           <Link href="/developers" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Developers</Link>
           <AuthNavControls mobile onNavigate={() => setOpen(false)} />
-        </div>
+        </nav>
       )}
     </header>
   );

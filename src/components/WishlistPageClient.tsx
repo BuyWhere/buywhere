@@ -194,7 +194,7 @@ export default function WishlistPageClient() {
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,_#f8fafc_0%,_#ffffff_28%,_#f8fafc_100%)]">
       <Nav />
-      <main className="pb-20">
+      <main id="main-content" className="pb-20">
         <section className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.16),_rgba(255,255,255,0)_34%),linear-gradient(135deg,_#0f172a,_#1e293b_58%,_#334155)] py-16 text-white">
           <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 sm:px-6">
             <p className="text-sm font-semibold uppercase tracking-[0.24em] text-amber-300">Wishlist</p>

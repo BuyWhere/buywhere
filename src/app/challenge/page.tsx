@@ -71,7 +71,7 @@ export default function ChallengePage() {
     <div className="flex min-h-screen flex-col bg-white">
       <Nav />
 
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <section className="relative overflow-hidden border-b border-slate-200 bg-[radial-gradient(circle_at_20%_10%,_rgba(99,102,241,0.32),_transparent_40%),radial-gradient(circle_at_80%_80%,_rgba(168,85,247,0.15),_transparent_36%),linear-gradient(135deg,#0f172a_0%,#1e1b4b_48%,#0f172a_100%)] text-white">
           <div className="absolute inset-0 opacity-20">
             <div className="absolute left-[-8rem] top-[-4rem] h-72 w-72 rounded-full bg-indigo-500/30 blur-3xl" />

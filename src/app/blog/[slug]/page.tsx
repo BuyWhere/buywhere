@@ -80,7 +80,7 @@ export default function BlogPostPage({ params }: PageProps) {
       {jsonLd}
       <Nav />
 
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <section className="border-b border-slate-200 bg-white">
           <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 md:py-16">
             <Link href="/blog" className="mb-6 inline-flex text-sm font-medium text-indigo-600">

@@ -145,7 +145,7 @@ export default function DocPage({ params }: DocRouteParams) {
     <div className="flex min-h-screen flex-col bg-slate-50">
       <Nav />
 
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <section className="border-b border-slate-200 bg-white">
           <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 md:py-16">
             <Link href="/docs" className="mb-6 inline-flex text-sm font-medium text-indigo-600">

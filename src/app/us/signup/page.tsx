@@ -237,7 +237,7 @@ export default function USSignupPage() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-16 md:py-24">
+      <main id="main-content" className="max-w-4xl mx-auto px-4 sm:px-6 py-16 md:py-24">
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-100 text-emerald-700 text-sm font-medium rounded-full mb-6">
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600"></span>

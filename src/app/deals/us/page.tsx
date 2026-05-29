@@ -72,7 +72,7 @@ export default function DealsPage() {
     <div className="flex flex-col min-h-screen">
       <Nav />
 
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <section className="py-12 bg-gray-50 border-b border-gray-100">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="mb-2">

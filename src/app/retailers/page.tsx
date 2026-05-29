@@ -350,7 +350,7 @@ export default function RetailersPage() {
         </div>
       </section>
 
-      <main className="flex-1 bg-gray-50">
+      <main id="main-content" className="flex-1 bg-gray-50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
           <CoverageStats />
 

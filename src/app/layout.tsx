@@ -9,6 +9,7 @@ import SentryErrorBoundary from "@/components/SentryErrorBoundary";
 import UpgradeIntentPromptHost from "@/components/UpgradeIntentPromptHost";
 import WebVitals from "@/components/WebVitals";
 import AnalyticsTracker from "@/components/AnalyticsTracker";
+import SkipLinks from "@/components/SkipLinks";
 import { PosthogProvider } from "@/components/PosthogProvider";
 import { CompareProvider } from "@/lib/compare-context";
 import { DeveloperAuthProvider } from "@/lib/developer-auth";
@@ -113,6 +114,7 @@ export default function RootLayout({
         )}
       </head>
       <body className={`${inter.variable} font-sans antialiased bg-white text-gray-900`}>
+        <SkipLinks />
         <SentryErrorBoundary>
           <PosthogProvider>
             <ThemeProvider>

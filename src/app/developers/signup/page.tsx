@@ -93,7 +93,7 @@ export default function DeveloperSignupPage() {
         </div>
       </section>
 
-      <main className="flex-1 mx-auto max-w-5xl w-full px-4 py-14 sm:px-6">
+      <main id="main-content" className="flex-1 mx-auto max-w-5xl w-full px-4 py-14 sm:px-6">
 
         {status === 'idle' || status === 'loading' || status === 'error' ? (
           <div className="grid md:grid-cols-5 gap-10">

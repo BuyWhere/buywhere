@@ -348,7 +348,7 @@ export default async function USCategoryPage({ params }: CategoryPageProps) {
         </div>
       </header>
 
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <CategoryHero category={category} />
         <TrustBadges />
         <SubcategoriesSection subcategories={categoryData.subcategories} />
