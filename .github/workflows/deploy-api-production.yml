@@ -6,6 +6,16 @@ on:
       image_tag:
         description: 'Image tag to deploy (default: git SHA)'
         required: false
+      test_scope:
+        description: 'Regression test scope to run before deploy'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - search
+          - products
+          - categories
 
 env:
   GCP_PROJECT_ID: gaia-calendar-488606
@@ -15,9 +25,35 @@ env:
   SERVICE_NAME: buywhere-api
 
 jobs:
+  api-regression:
+    name: API Regression (${{ github.event.inputs.test_scope || 'all' }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        run: pip install pytest requests
+
+      - name: Run regression tests
+        env:
+          REGRESSION_BASE_URL: https://api.buywhere.ai
+        run: |
+          SCOPE="${{ github.event.inputs.test_scope || 'all' }}"
+          if [ "$SCOPE" = "all" ]; then
+            pytest tests/api/test_api_endpoints.py -v
+          else
+            pytest tests/api/test_api_endpoints.py -v -m "$SCOPE"
+          fi
+
   deploy:
     runs-on: ubuntu-latest
     environment: production
+    needs: [api-regression]
 
     steps:
       - uses: actions/checkout@v4
@@ -134,6 +170,9 @@ jobs:
       - name: Smoke test agent-readiness headers
         run: |
           sleep 3
+
+          echo "=== Smoke testing apex TLS and homepage paths ==="
+          ./scripts/smoke-apex-tls.sh
 
           echo "=== Smoke testing agent-readiness ==="
 
