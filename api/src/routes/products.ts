@@ -175,16 +175,19 @@ router.get(
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
     const useFtsRanking = (!effectiveSort || effectiveSort === 'relevance') && ftsParamIdx;
 
-    // Build ORDER BY for non-fts-ranking path
+    // Build ORDER BY for non-fts-ranking path.
+    // Fully qualify column names: this query JOINs affiliate_links, which shares
+    // column names with products (id, created_at, updated_at, merchant_id).
+    // Unqualified names cause "column reference is ambiguous" (BUY-27414 / BUY-28433).
     function buildSortOrder(): string {
-      if (!effectiveSort || effectiveSort === 'relevance') return 'updated_at DESC';
+      if (!effectiveSort || effectiveSort === 'relevance') return 'products.updated_at DESC';
       switch (effectiveSort) {
-        case 'price_asc': return 'price ASC, updated_at DESC';
-        case 'price_desc': return 'price DESC, updated_at DESC';
-        case 'newest': return 'updated_at DESC';
-        case 'highest_rated': return 'avg_rating DESC NULLS LAST, updated_at DESC';
-        case 'most_reviewed': return 'review_count DESC NULLS LAST, updated_at DESC';
-        default: return 'updated_at DESC';
+        case 'price_asc': return 'products.price ASC, products.updated_at DESC';
+        case 'price_desc': return 'products.price DESC, products.updated_at DESC';
+        case 'newest': return 'products.updated_at DESC';
+        case 'highest_rated': return 'products.avg_rating DESC NULLS LAST, products.updated_at DESC';
+        case 'most_reviewed': return 'products.review_count DESC NULLS LAST, products.updated_at DESC';
+        default: return 'products.updated_at DESC';
       }
     }
 
@@ -194,17 +197,22 @@ router.get(
     // For small result sets (<= 1000 rows), ts_rank over all matches is fast.
     const CANDIDATE_LIMIT = Math.max(500, (limit + offset) * 10);
     const specColumns = `created_at, description, brand, mpn, gtin, category_path, category, merchant_id, avg_rating, review_count`;
+    // Products-qualified variants for queries that JOIN affiliate_links.
+    // affiliate_links shares id, created_at, updated_at, merchant_id with products —
+    // omitting the table qualifier causes "column reference is ambiguous" (BUY-27414 / BUY-28433).
+    const specColumnsJoined = `products.created_at, products.description, products.brand, products.mpn, products.gtin, products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
+    const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
+               al.destination_url AS affiliate_url,
+               products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
+               products.region, products.country_code, ${specColumnsJoined}`;
     let dataQuery: string;
     if (useFtsRanking && approxCount <= 1000) {
       dataQuery = `
-        SELECT products.id, sku AS source_id, source AS domain, url,
-               al.destination_url AS affiliate_url,
-               title, price, currency, image_url, metadata, updated_at,
-               region, country_code, ${specColumns}
+        SELECT ${joinedColumns}
         FROM products
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ${whereClause}
-        ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC, updated_at DESC
+        ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC, products.updated_at DESC
         LIMIT $${idx} OFFSET $${idx + 1}
       `;
     } else if (useFtsRanking) {
@@ -214,10 +222,7 @@ router.get(
                title, price, currency, image_url, metadata, updated_at,
                region, country_code, ${specColumns}
         FROM (
-        SELECT products.id, sku AS source_id, source AS domain, url,
-               al.destination_url AS affiliate_url,
-               title, price, currency, image_url, metadata, updated_at,
-               region, country_code, ${specColumns},
+        SELECT ${joinedColumns},
                ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
         FROM products
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
@@ -229,10 +234,7 @@ router.get(
       `;
     } else {
       dataQuery = `
-        SELECT products.id, sku AS source_id, source AS domain, url,
-               al.destination_url AS affiliate_url,
-               title, price, currency, image_url, metadata, updated_at,
-               region, country_code, ${specColumns}
+        SELECT ${joinedColumns}
         FROM products
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ${whereClause}
