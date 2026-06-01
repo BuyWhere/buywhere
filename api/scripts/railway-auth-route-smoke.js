@@ -67,7 +67,7 @@ function request(url, options = {}) {
   });
 }
 
-async function register(apiKey) {
+async function register() {
   const email = `smoke-test-${Date.now()}@test.local`;
   const body = JSON.stringify({
     email,
@@ -143,7 +143,19 @@ async function main() {
   console.log(`   Elapsed: ${results.stats.elapsed}ms`);
   if (results.stats.timedOut) console.log('   TIMEOUT');
 
-  const apiKey = process.env.TEST_API_KEY;
+  let apiKey = process.env.TEST_API_KEY;
+  if (!apiKey && results.register.status === 201) {
+    try {
+      const registerData = JSON.parse(results.register.body);
+      apiKey = registerData.key || registerData.api_key || registerData.token || '';
+      if (apiKey) {
+        console.log('\nUsing API key returned from /v1/auth/register');
+      }
+    } catch (_) {
+      // Ignore invalid response payloads and continue with fallback behavior.
+    }
+  }
+
   if (!apiKey) {
     console.log('\nWARNING: TEST_API_KEY not set, skipping authenticated endpoint tests');
     console.log('Set TEST_API_KEY environment variable to test authenticated routes');

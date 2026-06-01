@@ -7,11 +7,10 @@ on:
         description: 'Railway environment to deploy to'
         required: false
         default: 'production'
-  push:
-    branches: [main]
-    paths:
-      - 'api/**'
-      - '.railway-trigger'
+
+concurrency:
+  group: buywhere-api-railway-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -33,6 +32,7 @@ jobs:
           railway up \
             --service 945e8a6d-6f89-41f1-8256-b8cc6a872a33 \
             --environment ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae \
+            --message "gha deploy-railway ${GITHUB_SHA}" \
             --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
@@ -52,4 +52,35 @@ jobs:
               echo "ERROR: /v1/ingest/health returned 404 — route not deployed" && exit 1
             fi
           done
+
+          CATALOG_JSON=$(curl -fsS "https://api.buywhere.ai/v1/catalog/stats")
+          echo "$CATALOG_JSON" | jq '.'
+          APPROX=$(echo "$CATALOG_JSON" | jq -r '.meta.approximate')
+          SOURCE=$(echo "$CATALOG_JSON" | jq -r '.meta.source')
+          if [[ "$APPROX" != "false" || "$SOURCE" != "public.products" ]]; then
+            echo "ERROR: catalog stats did not restore exact-count behavior"
+            exit 1
+          fi
+
+          EMAIL="gha-railway-smoke-${GITHUB_RUN_ID}@buywhere.ai"
+          REGISTER_JSON=$(curl -fsS -X POST "https://api.buywhere.ai/v1/auth/register" \
+            -H "Content-Type: application/json" \
+            -d "{\"email\":\"${EMAIL}\",\"agent_name\":\"GitHub Actions Railway Smoke\",\"agent_type\":\"github_actions\"}")
+          API_KEY=$(echo "$REGISTER_JSON" | jq -r '.api_key // empty')
+          if [[ -z "$API_KEY" ]]; then
+            echo "ERROR: failed to mint smoke-test API key"
+            echo "$REGISTER_JSON"
+            exit 1
+          fi
+
+          SEARCH_JSON=$(curl -fsS "https://api.buywhere.ai/v1/products/search?q=laptop&country_code=SG" \
+            -H "Authorization: Bearer ${API_KEY}")
+          echo "$SEARCH_JSON" | jq '{total, first: (.results[0] // null), error}'
+          SEARCH_ERROR=$(echo "$SEARCH_JSON" | jq -r '.error // empty')
+          SEARCH_TOTAL=$(echo "$SEARCH_JSON" | jq -r '.total // 0')
+          if [[ -n "$SEARCH_ERROR" || "$SEARCH_TOTAL" == "0" ]]; then
+            echo "ERROR: search smoke test failed"
+            exit 1
+          fi
+
           echo "Smoke tests passed"
