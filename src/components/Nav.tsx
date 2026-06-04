@@ -1,11 +1,77 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+
+const DEV_LINKS = [
+  { href: "/developers", label: "Developer Portal", description: "API keys, usage, overview" },
+  { href: "/quickstart", label: "Get Started", description: "5-minute quickstart guide" },
+  { href: "/integrate", label: "MCP Integration", description: "Add BuyWhere to your AI agent" },
+  { href: "/api-reference", label: "API Reference", description: "Full REST & MCP API docs" },
+  { href: "/docs", label: "Documentation", description: "Guides, tutorials, examples" },
+];
+
+function DevDropdown() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="true"
+        aria-expanded={open}
+        className="flex items-center gap-1 hover:text-indigo-600 transition-colors focus:outline-none"
+      >
+        Developers
+        <svg
+          className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          aria-hidden="true"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute left-0 top-full mt-2 w-60 bg-white rounded-xl border border-gray-100 shadow-lg py-1 z-50"
+        >
+          {DEV_LINKS.map(({ href, label, description }) => (
+            <Link
+              key={href}
+              href={href}
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="flex flex-col px-4 py-3 hover:bg-indigo-50 transition-colors"
+            >
+              <span className="font-medium text-gray-900 text-sm">{label}</span>
+              <span className="text-xs text-gray-500 mt-0.5">{description}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Nav() {
   const [open, setOpen] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const [devOpen, setDevOpen] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
@@ -24,7 +90,7 @@ export default function Nav() {
 
         {/* Desktop nav */}
         <nav id="main-navigation" className="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600" aria-label="Main navigation">
-          <Link href="/quickstart" className="hover:text-indigo-600 transition-colors">Quickstart</Link>
+          <DevDropdown />
           <Link href="/challenge" className="hover:text-indigo-600 transition-colors">Challenge</Link>
           <Link href="/merchants" className="hover:text-indigo-600 transition-colors">Merchants</Link>
           <Link href="/partners" className="hover:text-indigo-600 transition-colors">Partners</Link>
@@ -62,10 +128,41 @@ export default function Nav() {
       {isClient && open && (
         <nav
           id="mobile-nav"
-          className="md:hidden border-t border-gray-100 bg-white px-4 pb-4 flex flex-col gap-3 text-sm font-medium text-gray-700"
+          className="md:hidden border-t border-gray-100 bg-white px-4 pb-4 flex flex-col gap-1 text-sm font-medium text-gray-700"
           aria-label="Mobile navigation"
         >
-          <Link href="/quickstart" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Quickstart</Link>
+          {/* Developer section */}
+          <button
+            className="flex items-center justify-between py-2 hover:text-indigo-600 w-full text-left"
+            onClick={() => setDevOpen((v) => !v)}
+            aria-expanded={devOpen}
+          >
+            <span>Developers</span>
+            <svg
+              className={`w-3.5 h-3.5 transition-transform ${devOpen ? "rotate-180" : ""}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {devOpen && (
+            <div className="ml-4 flex flex-col gap-1 border-l-2 border-indigo-100 pl-3 mb-1">
+              {DEV_LINKS.map(({ href, label, description }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={() => { setOpen(false); setDevOpen(false); }}
+                  className="py-1.5 hover:text-indigo-600"
+                >
+                  <span className="font-medium">{label}</span>
+                  <span className="text-xs text-gray-400 ml-1.5">{description}</span>
+                </Link>
+              ))}
+            </div>
+          )}
           <Link href="/challenge" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Challenge</Link>
           <Link href="/merchants" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Merchants</Link>
           <Link href="/partners" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Partners</Link>
