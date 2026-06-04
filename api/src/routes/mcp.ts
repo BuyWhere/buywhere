@@ -259,6 +259,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
 async function handleGetProduct(args: Record<string, unknown>) {
   const t0 = Date.now();
   const { id } = args;
+
+  if (!id || typeof id !== 'string' || !id.trim()) {
+    throw { code: -32602, message: 'missing required parameter: id' };
+  }
+
   let result;
   try {
     result = await db.query(
@@ -266,7 +271,7 @@ async function handleGetProduct(args: Record<string, unknown>) {
               price, currency, image_url, brand, category_path,
               avg_rating AS rating, review_count, metadata, updated_at, region, country_code
        FROM products WHERE id = $1`,
-      [id]
+      [id.trim()]
     );
   } catch {
     throw { code: -32001, message: 'Product not found' };
@@ -279,17 +284,28 @@ async function handleGetProduct(args: Record<string, unknown>) {
 async function handleCompareProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
   const ids = args.ids as string[];
-  if (!ids || ids.length < 2) throw { code: -32602, message: 'Provide at least 2 product IDs' };
-  const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-  const result = await db.query(
-    `SELECT id, sku AS source, source AS domain, url, title,
-            price, currency, image_url, brand, category_path,
-            avg_rating AS rating, review_count, metadata, updated_at, region, country_code
-     FROM products WHERE id IN (${placeholders})`,
-    ids
-  );
+  if (!ids || !Array.isArray(ids) || ids.length < 2) {
+    throw { code: -32602, message: 'Provide at least 2 product IDs' };
+  }
+  const validIds = ids.filter((id) => id != null && String(id).trim());
+  if (validIds.length < 2) {
+    throw { code: -32602, message: 'Provide at least 2 valid product IDs' };
+  }
+  const placeholders = validIds.map((_, i) => `$${i + 1}`).join(',');
+  let result;
+  try {
+    result = await db.query(
+      `SELECT id, sku AS source, source AS domain, url, title,
+              price, currency, image_url, brand, category_path,
+              avg_rating AS rating, review_count, metadata, updated_at, region, country_code
+       FROM products WHERE id IN (${placeholders})`,
+      validIds
+    );
+  } catch {
+    throw { code: -32001, message: 'Products not found' };
+  }
   const products = result.rows.map((r: Record<string, unknown>) => buildProduct(r, 'SGD', false));
-  return buildSearchResponse(products, products.length, ids.length, 0, Date.now() - t0, false);
+  return buildSearchResponse(products, products.length, validIds.length, 0, Date.now() - t0, false);
 }
 
 async function handleGetDeals(args: Record<string, unknown>) {
@@ -312,7 +328,11 @@ async function handleGetDeals(args: Record<string, unknown>) {
     }
   } catch (_) {}
 
-  const useDiscountCol: boolean = _hasDiscountPct === true;
+  let useDiscountCol = _hasDiscountPct;
+  if (useDiscountCol === undefined) {
+    useDiscountCol = await probeDiscountPctColumn();
+    _hasDiscountPct = useDiscountCol;
+  }
 
   const conditions: string[] = [
     `currency = $1`,

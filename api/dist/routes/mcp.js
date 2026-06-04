@@ -100,8 +100,8 @@ const TOOLS = [
 let _hasDiscountPct;
 async function probeDiscountPctColumn() {
     try {
-        const probe = await config_1.db.query(`SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`);
-        return probe.rows.length > 0;
+        const probe = await config_1.db.query(`SELECT is_generated FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`);
+        return probe.rows.length > 0 && probe.rows[0].is_generated === 'ALWAYS';
     }
     catch {
         return false;
@@ -228,12 +228,15 @@ async function handleSearchProducts(args) {
 async function handleGetProduct(args) {
     const t0 = Date.now();
     const { id } = args;
+    if (!id || typeof id !== 'string' || !id.trim()) {
+        throw { code: -32602, message: 'missing required parameter: id' };
+    }
     let result;
     try {
         result = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
               price, currency, image_url, brand, category_path,
               avg_rating AS rating, review_count, metadata, updated_at, region, country_code
-       FROM products WHERE id = $1`, [id]);
+       FROM products WHERE id = $1`, [id.trim()]);
     }
     catch {
         throw { code: -32001, message: 'Product not found' };
@@ -246,15 +249,26 @@ async function handleGetProduct(args) {
 async function handleCompareProducts(args) {
     const t0 = Date.now();
     const ids = args.ids;
-    if (!ids || ids.length < 2)
+    if (!ids || !Array.isArray(ids) || ids.length < 2) {
         throw { code: -32602, message: 'Provide at least 2 product IDs' };
-    const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-    const result = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
-            price, currency, image_url, brand, category_path,
-            avg_rating AS rating, review_count, metadata, updated_at, region, country_code
-     FROM products WHERE id IN (${placeholders})`, ids);
+    }
+    const validIds = ids.filter((id) => id != null && String(id).trim());
+    if (validIds.length < 2) {
+        throw { code: -32602, message: 'Provide at least 2 valid product IDs' };
+    }
+    const placeholders = validIds.map((_, i) => `$${i + 1}`).join(',');
+    let result;
+    try {
+        result = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
+              price, currency, image_url, brand, category_path,
+              avg_rating AS rating, review_count, metadata, updated_at, region, country_code
+       FROM products WHERE id IN (${placeholders})`, validIds);
+    }
+    catch {
+        throw { code: -32001, message: 'Products not found' };
+    }
     const products = result.rows.map((r) => (0, response_1.buildProduct)(r, 'SGD', false));
-    return (0, response_1.buildSearchResponse)(products, products.length, ids.length, 0, Date.now() - t0, false);
+    return (0, response_1.buildSearchResponse)(products, products.length, validIds.length, 0, Date.now() - t0, false);
 }
 async function handleGetDeals(args) {
     const t0 = Date.now();
@@ -275,7 +289,11 @@ async function handleGetDeals(args) {
         }
     }
     catch (_) { }
-    const useDiscountCol = _hasDiscountPct === true;
+    let useDiscountCol = _hasDiscountPct;
+    if (useDiscountCol === undefined) {
+        useDiscountCol = await probeDiscountPctColumn();
+        _hasDiscountPct = useDiscountCol;
+    }
     const conditions = [
         `currency = $1`,
         `price > 0`,
@@ -519,6 +537,9 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                 if (!toolName) {
                     return res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
                 }
+                // BUY-22733: surface tool name to queryLog middleware so the finish
+                // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
+                res.locals.mcpToolName = toolName;
                 const result = await dispatchTool(toolName, toolArgs);
                 return res.json(jsonrpcOk(id, {
                     content: [{ type: 'text', text: JSON.stringify(result) }],
