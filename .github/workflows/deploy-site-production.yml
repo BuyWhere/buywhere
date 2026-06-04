@@ -1,0 +1,201 @@
+name: Deploy site to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to deploy (default: git SHA)'
+        required: false
+      skip_e2e:
+        description: 'Skip e2e gate (emergency deploys only)'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  GCP_PROJECT_ID: gaia-calendar-488606
+  GCP_REGION: asia-southeast1
+  ARTIFACT_REGISTRY: asia-southeast1-docker.pkg.dev
+  IMAGE_REPO: buywhere
+  SERVICE_NAME: buywhere-site
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Gate 1: Playwright e2e smoke tests against production
+  # Runs before Docker build to catch regressions early.
+  # Tests run against the CURRENT live site (https://buywhere.ai) so we
+  # validate the baseline before deploying a new image.
+  # ──────────────────────────────────────────────────────────────────────────
+  e2e-smoke:
+    name: E2E smoke gate (Playwright)
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_e2e != 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run smoke tests against production
+        env:
+          PLAYWRIGHT_BASE_URL: https://buywhere.ai
+        run: npx playwright test tests/e2e/site-smoke.spec.ts --project=chromium
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Gate 2: Build Docker image
+  # ──────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build site image
+    runs-on: ubuntu-latest
+    needs: [e2e-smoke]
+    if: always() && (needs.e2e-smoke.result == 'success' || github.event.inputs.skip_e2e == 'true')
+    outputs:
+      full_image: ${{ steps.tag.outputs.full_image }}
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }} --quiet
+
+      - name: Set image tag
+        id: tag
+        run: |
+          TAG="${{ github.event.inputs.image_tag || github.sha }}"
+          echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          FULL_IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.IMAGE_REPO }}/site:${TAG}"
+          echo "full_image=${FULL_IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push site image
+        env:
+          FULL_IMAGE: ${{ steps.tag.outputs.full_image }}
+        run: |
+          docker build -t "$FULL_IMAGE" -f site.Dockerfile .
+          docker push "$FULL_IMAGE"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Gate 3: Deploy to production + post-deploy smoke
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy site
+    runs-on: ubuntu-latest
+    environment: production
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Generate Artifact Registry auth token
+        id: gar_token
+        run: |
+          TOKEN=$(gcloud auth print-access-token)
+          echo "::add-mask::${TOKEN}"
+          echo "token=${TOKEN}" >> $GITHUB_OUTPUT
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PRODUCTION_DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.PRODUCTION_DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy site on production VM
+        env:
+          FULL_IMAGE: ${{ needs.build.outputs.full_image }}
+          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+          SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+          APP_DIR: ${{ secrets.PRODUCTION_APP_DIR || '/opt/buywhere' }}
+          GAR_TOKEN: ${{ steps.gar_token.outputs.token }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 "${SSH_USER}@${SSH_HOST}" \
+            env FULL_IMAGE="${FULL_IMAGE}" IMAGE_TAG="${IMAGE_TAG}" APP_DIR="${APP_DIR}" GAR_TOKEN="${GAR_TOKEN}" \
+            bash -s <<'REMOTE'
+          set -euo pipefail
+          echo "site-deploy: image=${FULL_IMAGE} tag=${IMAGE_TAG}"
+
+          echo "${GAR_TOKEN}" | docker login -u oauth2accesstoken --password-stdin asia-southeast1-docker.pkg.dev
+          docker pull "${FULL_IMAGE}"
+
+          cd "${APP_DIR}"
+          docker tag "${FULL_IMAGE}" buywhere-site:latest
+          docker compose up -d --no-deps --force-recreate site
+
+          echo "Site container restarted — waiting for health check..."
+          for i in 1 2 3 4 5 6; do
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/health 2>/dev/null || echo "000")
+            if [[ "$HTTP" == "200" ]]; then
+              echo "GET /api/health → HTTP 200 (attempt $i)"
+              break
+            fi
+            echo "GET /api/health → HTTP ${HTTP} (attempt $i, waiting...)"
+            sleep $((i * 3))
+          done
+
+          if [[ "$HTTP" != "200" ]]; then
+            echo "ERROR: Site health check failed after 6 attempts"
+            exit 1
+          fi
+          echo "Site healthy (${IMAGE_TAG})"
+          REMOTE
+
+      # Post-deploy e2e: run smoke tests against the newly deployed site
+      - name: Set up Node.js (post-deploy e2e)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Playwright browsers (post-deploy)
+        run: |
+          npm ci --ignore-scripts
+          npx playwright install --with-deps chromium
+
+      - name: Post-deploy e2e smoke tests
+        env:
+          PLAYWRIGHT_BASE_URL: https://buywhere.ai
+        run: npx playwright test tests/e2e/site-smoke.spec.ts --project=chromium
+
+      - name: Upload post-deploy Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-deploy-playwright-report
+          path: playwright-report/
+          retention-days: 14
