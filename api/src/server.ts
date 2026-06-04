@@ -167,6 +167,8 @@ export function createApp() {
 
   // MCP JSON-RPC endpoint (Model Context Protocol)
   app.use('/mcp', mcpRouter);
+  // /api/mcp — backwards-compatible alias (BUY-30153)
+  app.use('/api/mcp', mcpRouter);
 
   // v1 API
   app.use('/v1/auth', authRouter);

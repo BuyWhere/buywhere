@@ -556,6 +556,51 @@ function jsonrpcErr(id: unknown, code: number, message: string, data?: unknown, 
   return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) } };
 }
 
+// GET /mcp/health — public liveness probe (checks DB + Redis connectivity)
+router.get('/health', async (_req: Request, res: Response) => {
+  try {
+    const [, pong] = await Promise.all([
+      db.query('SELECT 1'),
+      redis.ping(),
+    ]);
+    res.json({
+      status: pong === 'PONG' ? 'ok' : 'degraded',
+      db: 'ok',
+      redis: pong === 'PONG' ? 'ok' : 'degraded',
+      ts: new Date().toISOString(),
+    });
+  } catch (err: unknown) {
+    res.status(503).json({
+      status: 'down',
+      error: (err as Error).message || String(err),
+      ts: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /mcp/health/authenticated — deeper probe requiring API key
+router.get('/health/authenticated', requireApiKey, async (_req: Request, res: Response) => {
+  try {
+    const [countResult, pong] = await Promise.all([
+      db.query('SELECT reltuples::bigint AS count FROM pg_class WHERE relname = \'products\''),
+      redis.ping(),
+    ]);
+    res.json({
+      status: 'ok',
+      db: 'ok',
+      redis: pong === 'PONG' ? 'ok' : 'degraded',
+      product_count: countResult.rows[0]?.count ?? null,
+      ts: new Date().toISOString(),
+    });
+  } catch (err: unknown) {
+    res.status(503).json({
+      status: 'down',
+      error: (err as Error).message || String(err),
+      ts: new Date().toISOString(),
+    });
+  }
+});
+
 // GET /mcp — info endpoint for browser / reviewer verification.
 // Returns a JSON descriptor instead of Express's default 404 so registry
 // reviewers and DevRel verifiers can confirm the endpoint is live without
