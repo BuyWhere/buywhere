@@ -446,7 +446,10 @@ async def search_products(
         invalid = [r for r in region_codes if r not in REGION_NAMES]
         if invalid:
             raise HTTPException(status_code=422, detail=f"Invalid region code(s): {', '.join(invalid)}. Supported: {', '.join(REGION_NAMES.keys())}")
-    else:
+    elif country is None:
+        # Only default to US region when no country filter is specified;
+        # otherwise an explicit country_code=TH/VN would be silently blocked
+        # by the US region filter (TH/VN products have region='sea', not 'us').
         region = "US"
 
     default_currency = "SGD"
