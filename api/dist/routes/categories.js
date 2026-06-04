@@ -7,19 +7,9 @@ const agentDetect_1 = require("../middleware/agentDetect");
 const queryLog_1 = require("../middleware/queryLog");
 const router = (0, express_1.Router)();
 const CACHE_TTL = 300; // 5 min — categories change slowly
-function asyncHandler(fn) {
-    return (req, res) => {
-        fn(req, res).catch((err) => {
-            console.error(`[categories] unhandled error on ${req.method} ${req.path}:`, err?.message || err);
-            if (!res.headersSent) {
-                res.status(500).json({ error: 'Internal server error' });
-            }
-        });
-    };
-}
 // GET /v1/categories
 // Returns top-level categories derived from products.category_path[1]
-router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('categories.list'), asyncHandler(async (req, res) => {
+router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('categories.list'), async (req, res) => {
     const start = Date.now();
     const currency = req.query.currency || 'SGD';
     const cacheKey = `categories:top:${currency}`;
@@ -29,12 +19,34 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
             return res.json(JSON.parse(cached));
     }
     catch (_) { }
-    // Normalize category names (case-insensitive dedup)
+    // Fast path: use pre-computed mcp_category_summary table (populated by warmup)
+    // Avoids the full GROUP BY on 16M products that always exceeds statement_timeout.
+    try {
+        const summaryCheck = await config_1.db.query(`SELECT to_regclass('public.mcp_category_summary') AS tbl`);
+        if (summaryCheck.rows[0]?.tbl) {
+            const summaryResult = await config_1.db.query(`SELECT slug, name, product_count FROM mcp_category_summary ORDER BY product_count DESC LIMIT 50`);
+            if (summaryResult.rows.length > 0) {
+                const categories = summaryResult.rows.map((row) => {
+                    const initcapName = row.name.replace(/(^|\s|-|_)(\w)/g, (_m, sep, c) => sep + c.toUpperCase());
+                    return {
+                        slug: row.slug || row.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                        name: initcapName,
+                        product_count: parseInt(row.product_count, 10),
+                    };
+                });
+                const body = { data: categories, meta: { total: categories.length, response_time_ms: Date.now() - start } };
+                config_1.redis.set(cacheKey, JSON.stringify(body), 'EX', CACHE_TTL).catch(() => { });
+                return res.json(body);
+            }
+        }
+    }
+    catch (_) { }
+    // Slow path fallback: full GROUP BY on products table (only reached if summary table is empty)
     const result = await config_1.db.query(`SELECT INITCAP(LOWER(raw_name)) AS name, SUM(cnt) AS product_count
        FROM (
          SELECT category_path[1] AS raw_name, COUNT(*) AS cnt
          FROM products
-         WHERE currency = $1 AND category_path IS NOT NULL AND array_length(category_path, 1) > 0
+         WHERE currency = $1 AND category_path[1] IS NOT NULL
          GROUP BY category_path[1]
        ) sub
        GROUP BY INITCAP(LOWER(raw_name))
@@ -48,10 +60,10 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
     const body = { data: categories, meta: { total: categories.length, response_time_ms: Date.now() - start } };
     config_1.redis.set(cacheKey, JSON.stringify(body), 'EX', CACHE_TTL).catch(() => { });
     res.json(body);
-}));
+});
 // GET /v1/categories/:slug
 // Returns category info + subcategories + sample products
-router.get('/:slug', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('categories.get'), asyncHandler(async (req, res) => {
+router.get('/:slug', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('categories.get'), async (req, res) => {
     const start = Date.now();
     const { slug } = req.params;
     const currency = req.query.currency || 'SGD';
@@ -69,8 +81,8 @@ router.get('/:slug', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     const categoryName = slugResult.rows[0].name;
     const [countResult, productsResult, subCatsResult] = await Promise.all([
         config_1.db.query(`SELECT COUNT(*) FROM products WHERE currency = $1 AND category_path[1] = $2`, [currency, categoryName]),
-        config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
-                title, price, currency, image_url, updated_at
+        config_1.db.query(`SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
+                name AS title, price, currency, image_url, updated_at
          FROM products
          WHERE currency = $1 AND category_path[1] = $2
          ORDER BY updated_at DESC
@@ -111,5 +123,5 @@ router.get('/:slug', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
         },
         meta: { limit, offset, response_time_ms: Date.now() - start },
     });
-}));
+});
 exports.default = router;

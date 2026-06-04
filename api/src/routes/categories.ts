@@ -25,13 +25,37 @@ router.get(
       if (cached) return res.json(JSON.parse(cached));
     } catch (_) {}
 
-    // Normalize category names (case-insensitive dedup)
+    // Fast path: use pre-computed mcp_category_summary table (populated by warmup)
+    // Avoids the full GROUP BY on 16M products that always exceeds statement_timeout.
+    try {
+      const summaryCheck = await db.query(`SELECT to_regclass('public.mcp_category_summary') AS tbl`);
+      if (summaryCheck.rows[0]?.tbl) {
+        const summaryResult = await db.query(
+          `SELECT slug, name, product_count FROM mcp_category_summary ORDER BY product_count DESC LIMIT 50`
+        );
+        if (summaryResult.rows.length > 0) {
+          const categories = summaryResult.rows.map((row) => {
+            const initcapName = (row.name as string).replace(/(^|\s|-|_)(\w)/g, (_m: string, sep: string, c: string) => sep + c.toUpperCase());
+            return {
+              slug: row.slug || (row.name as string).toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+              name: initcapName,
+              product_count: parseInt(row.product_count, 10),
+            };
+          });
+          const body = { data: categories, meta: { total: categories.length, response_time_ms: Date.now() - start } };
+          redis.set(cacheKey, JSON.stringify(body), 'EX', CACHE_TTL).catch(() => {});
+          return res.json(body);
+        }
+      }
+    } catch (_) {}
+
+    // Slow path fallback: full GROUP BY on products table (only reached if summary table is empty)
     const result = await db.query(
       `SELECT INITCAP(LOWER(raw_name)) AS name, SUM(cnt) AS product_count
        FROM (
          SELECT category_path[1] AS raw_name, COUNT(*) AS cnt
          FROM products
-         WHERE currency = $1 AND category_path IS NOT NULL AND array_length(category_path, 1) > 0
+         WHERE currency = $1 AND category_path[1] IS NOT NULL
          GROUP BY category_path[1]
        ) sub
        GROUP BY INITCAP(LOWER(raw_name))
