@@ -6,10 +6,11 @@ import { db, redis, FREE_TIER, TIER_LIMITS } from '../config';
 import { sendError, ErrorCode } from './errors';
 import { sendSpecError, sendDailyLimitError, sendPerMinuteLimitError } from './errors';
 
-const PAPERCLIP_API_URLS = (process.env.PAPERCLIP_API_URL || 'https://api.paperclip.ai,https://paperclip.richteo.com')
-  .split(',')
-  .map((v) => v.trim())
-  .filter(Boolean);
+const PAPERCLIP_API_URL_FALLBACKS = ['https://api.paperclip.ai', 'https://paperclip.richteo.com'];
+const PAPERCLIP_API_URLS = [...new Set([
+  ...(process.env.PAPERCLIP_API_URL || '').split(',').map((v) => v.trim()).filter(Boolean),
+  ...PAPERCLIP_API_URL_FALLBACKS,
+])];
 const JWT_CACHE_TTL_SECONDS = 300;
 
 export function hashKey(rawKey: string): string {
