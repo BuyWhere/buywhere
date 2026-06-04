@@ -8,6 +8,7 @@ import { MerchantBadge, getMerchantConfig } from '@/components/ui/MerchantBadge'
 import WishlistButton from '@/components/WishlistButton';
 import ShareDealActions from '@/components/share/ShareDealActions';
 import { buildUSProductSlug } from '@/lib/us-products';
+import { AffiliateDisclosure } from '@/components/ui/AffiliateDisclosure';
 
 interface ProductCardProps {
   deal: {
@@ -241,6 +242,9 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
               {formatUSD(deal.original_price)}
             </span>
           )}
+        </div>
+        <div className="mt-2">
+          <AffiliateDisclosure variant="inline" />
         </div>
       </div>
     </a>
