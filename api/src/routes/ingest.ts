@@ -418,4 +418,51 @@ router.post(
   })
 );
 
+
+router.get('/runs', requireApiKey, asyncHandler(async (req: Request, res: Response) => {
+  const limit = Math.min(parseInt(String(req.query.limit), 10) || 50, 200);
+  const offset = parseInt(String(req.query.offset), 10) || 0;
+  const source = req.query.source as string | undefined;
+
+  let query = `SELECT id, source, status, rows_inserted, rows_updated, rows_failed,
+                      error_message, created_at, finished_at
+               FROM ingestion_runs`;
+  const params: unknown[] = [];
+  const conditions: string[] = [];
+
+  if (source) {
+    params.push(source);
+    conditions.push(`source = $${params.length}`);
+  }
+
+  if (conditions.length > 0) {
+    query += ` WHERE ${conditions.join(' AND ')}`;
+  }
+
+  query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+  params.push(limit, offset);
+
+  const result = await db.query(query, params);
+  res.json({ runs: result.rows, limit, offset });
+}));
+
+router.get('/runs/:id', requireApiKey, asyncHandler(async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: 'Invalid run id' });
+    return;
+  }
+  const result = await db.query(
+    `SELECT id, source, status, rows_inserted, rows_updated, rows_failed,
+            error_message, created_at, finished_at
+     FROM ingestion_runs WHERE id = $1`,
+    [id]
+  );
+  if (result.rows.length === 0) {
+    res.status(404).json({ error: 'Run not found' });
+    return;
+  }
+  res.json(result.rows[0]);
+}));
+
 export default router;
