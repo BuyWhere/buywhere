@@ -418,6 +418,42 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Price comparisons hub — crawlable entry point into /compare cluster */}
+      <section className="py-16 bg-slate-50 border-t border-gray-100">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="max-w-3xl mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">Price comparison guides</h2>
+            <p className="text-gray-500 leading-relaxed">
+              Compare prices across merchants for the most searched products in Singapore, the US, and Southeast Asia.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3 mb-6">
+            {[
+              { label: "Electronics", href: "/compare?category=electronics" },
+              { label: "Laptops", href: "/compare?category=laptops" },
+              { label: "Smartphones", href: "/compare?category=smartphones" },
+              { label: "Home & Living", href: "/compare?category=home-living" },
+              { label: "Fashion", href: "/compare?category=fashion" },
+              { label: "Health & Wellness", href: "/compare?category=health-wellness" },
+            ].map(({ label, href }) => (
+              <Link
+                key={href}
+                href={href}
+                className="rounded-full border border-gray-200 bg-white px-4 py-1.5 text-sm font-medium text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
+          <Link
+            href="/compare"
+            className="text-indigo-600 font-medium hover:text-indigo-700 transition-colors text-sm"
+          >
+            Browse all price comparisons →
+          </Link>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="py-20 bg-indigo-600 text-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">

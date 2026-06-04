@@ -93,6 +93,12 @@ export default function CompareContentPage({ params }: Params) {
     if ((data as Frontmatter).schema_type === "FAQPage") faqSchema = buildFaqSchema(body);
   } catch { notFound(); }
 
+  // Sibling pages in the same category (max 6, excluding current)
+  const allDocs = getAll().filter(Boolean) as NonNullable<ReturnType<typeof getAll>[number]>[];
+  const siblings = doc.category
+    ? allDocs.filter((d) => d.category === doc.category && d.slug !== doc.slug).slice(0, 6)
+    : [];
+
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
       {faqSchema && <Script id="faq-schema" type="application/ld+json" strategy="afterInteractive">{JSON.stringify(faqSchema)}</Script>}
@@ -100,7 +106,18 @@ export default function CompareContentPage({ params }: Params) {
       <main id="main-content" className="flex-1">
         <section className="border-b border-slate-200 bg-white">
           <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 md:py-16">
-            <Link href="/compare" className="mb-6 inline-flex text-sm font-medium text-indigo-600">← Back to compare</Link>
+            {/* Breadcrumb: hub → category → current */}
+            <nav aria-label="Breadcrumb" className="mb-6 flex flex-wrap items-center gap-1 text-sm text-slate-500">
+              <Link href="/compare" className="font-medium text-indigo-600 hover:underline">Price Comparisons</Link>
+              {doc.category && (
+                <>
+                  <span aria-hidden="true">/</span>
+                  <Link href={`/compare?category=${encodeURIComponent(doc.category)}`} className="font-medium text-indigo-600 hover:underline">{doc.category}</Link>
+                </>
+              )}
+              <span aria-hidden="true">/</span>
+              <span className="text-slate-700">{doc.title}</span>
+            </nav>
             <h1 className="mb-6 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">{doc.title}</h1>
             <div className="mb-4 flex flex-wrap gap-2 text-sm text-slate-500">
               {doc.category && <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">{doc.category}</span>}
@@ -132,6 +149,32 @@ export default function CompareContentPage({ params }: Params) {
               }}>{body}</ReactMarkdown>
             </div>
           </article>
+
+          {/* Sibling comparisons in the same category */}
+          {siblings.length > 0 && (
+            <aside className="mt-10" aria-label="Related comparisons">
+              <h2 className="mb-4 text-lg font-semibold text-slate-800">
+                More {doc.category} comparisons
+              </h2>
+              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {siblings.map((s) => (
+                  <li key={s.slug}>
+                    <Link
+                      href={`/compare/${s.slug}`}
+                      className="block rounded-xl border border-slate-200 bg-white p-4 text-sm font-medium text-indigo-700 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all"
+                    >
+                      {s.title}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-4 text-sm text-slate-500">
+                <Link href="/compare" className="font-medium text-indigo-600 hover:underline">
+                  View all price comparisons →
+                </Link>
+              </p>
+            </aside>
+          )}
         </section>
       </main>
       <Footer />
