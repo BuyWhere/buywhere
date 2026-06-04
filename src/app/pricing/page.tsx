@@ -107,6 +107,7 @@ export default function PricingPage() {
     <div className="flex flex-col min-h-screen bg-white">
       <Nav />
 
+      <main id="main-content">
       {/* Header */}
       <section className="py-16 border-b border-gray-100 text-center">
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
@@ -343,6 +344,7 @@ export default function PricingPage() {
         </div>
       </section>
 
+      </main>
       <Footer />
     </div>
   );

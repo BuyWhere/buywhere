@@ -36,6 +36,7 @@ export default function AboutPage() {
     <div className="flex flex-col min-h-screen">
       <Nav />
 
+      <main id="main-content">
       {/* Hero */}
       <section className="bg-indigo-600 text-white py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -193,6 +194,7 @@ export default function AboutPage() {
         </div>
       </section>
 
+      </main>
       <Footer />
     </div>
   );
