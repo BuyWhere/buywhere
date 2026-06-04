@@ -7,6 +7,11 @@ import { Button } from '@/components/ui/Button';
 import { AmazonLogo } from '@/components/logos/AmazonLogo';
 import { WalmartLogo } from '@/components/logos/WalmartLogo';
 import { TargetLogo } from '@/components/logos/TargetLogo';
+import {
+  CATALOG_STATS_FALLBACK_LABEL,
+  fetchCatalogStatsClient,
+  formatCompactProductCount,
+} from '@/lib/catalog-stats';
 
 interface SignupState {
   status: 'idle' | 'loading' | 'success' | 'error';
@@ -14,7 +19,7 @@ interface SignupState {
 }
 
 interface ProductCount {
-  count: number;
+  label: string;
   loading: boolean;
   error: boolean;
 }
@@ -76,12 +81,12 @@ function ProductCountDisplay({ productCount }: { productCount: ProductCount }) {
   }
 
   if (productCount.error) {
-    return <span className="text-gray-500">10M+ products</span>;
+    return <span className="text-gray-500">{CATALOG_STATS_FALLBACK_LABEL} products</span>;
   }
 
   return (
     <span className="font-semibold text-indigo-600">
-      {productCount.count.toLocaleString()}+ products
+      {productCount.label} products
     </span>
   );
 }
@@ -190,29 +195,22 @@ function SignupForm({ onSuccess }: { onSuccess: () => void }) {
 }
 
 export default function USSignupPage() {
-  const [productCount, setProductCount] = useState<ProductCount>({ count: 0, loading: true, error: false });
+  const [productCount, setProductCount] = useState<ProductCount>({ label: '', loading: true, error: false });
   const [showThankYou, setShowThankYou] = useState(false);
 
   useEffect(() => {
-    async function fetchProductCount() {
-      try {
-        const res = await fetch('https://api.buywhere.ai/v1/catalog/stats', {
-          headers: {
-            'Accept': 'application/json',
-          },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setProductCount({ count: data.total_products || 50000000, loading: false, error: false });
-        } else {
-          throw new Error('Failed to fetch');
-        }
-      } catch {
-        setProductCount({ count: 50000000, loading: false, error: true });
+    let cancelled = false;
+    fetchCatalogStatsClient().then((stats) => {
+      if (cancelled) return;
+      if (stats) {
+        setProductCount({ label: formatCompactProductCount(stats.totalProducts), loading: false, error: false });
+      } else {
+        setProductCount({ label: '', loading: false, error: true });
       }
-    }
-
-    fetchProductCount();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (

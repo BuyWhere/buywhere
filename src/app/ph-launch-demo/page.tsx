@@ -3,17 +3,23 @@ import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
+import {
+  CATALOG_STATS_FALLBACK_LABEL,
+  fetchCatalogStats,
+  formatCompactProductCount,
+} from "@/lib/catalog-stats";
 
 export const metadata: Metadata = {
   title: "BuyWhere Demo — Product Catalog API for AI Agents",
   description:
-    "See BuyWhere in action. Query 50M+ products across 6 markets with real-time pricing. Built for AI agents.",
+    "See BuyWhere in action. Query our live product catalog across 6 markets with real-time pricing. Built for AI agents.",
   alternates: {
     canonical: toSiteUrl("/ph-launch-demo"),
   },
 };
 
-const features = [
+function buildFeatures(productCountPhrase: string) {
+  return [
   {
     icon: "🌏",
     title: "6 markets, one API",
@@ -21,7 +27,7 @@ const features = [
   },
   {
     icon: "📦",
-    title: "50M+ products indexed",
+    title: `${productCountPhrase} products indexed`,
     desc: "Structured catalog data from Amazon, Walmart, Lazada, Shopee, Best Denki, and more major retailers.",
   },
   {
@@ -44,7 +50,8 @@ const features = [
     title: "MCP & REST",
     desc: "Use the Model Context Protocol for native agent integration, or call the REST API directly from any stack.",
   },
-];
+  ];
+}
 
 const terminalLines = [
   { prefix: "$", text: "pip install buywhere-mcp" },
@@ -60,7 +67,13 @@ const terminalLines = [
 const codeSnippet = `curl -sS "https://api.buywhere.ai/v1/products/search?q=vaccum+cleaner&limit=3" \\
   -H "Authorization: Bearer bw_live_your_key" | jq '.items[] | {name, price, currency, source}'`;
 
-export default function PhLaunchDemoPage() {
+export default async function PhLaunchDemoPage() {
+  const stats = await fetchCatalogStats();
+  const productCountPhrase = stats
+    ? formatCompactProductCount(stats.totalProducts)
+    : CATALOG_STATS_FALLBACK_LABEL;
+  const features = buildFeatures(productCountPhrase);
+
   return (
     <div className="flex flex-col min-h-screen">
       <Nav />
@@ -188,7 +201,7 @@ export default function PhLaunchDemoPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex flex-col md:flex-row items-start gap-12">
             <div className="flex-1 text-white">
-              <h2 className="text-2xl font-bold mb-4">One curl, 50M+ products</h2>
+              <h2 className="text-2xl font-bold mb-4">One curl, {productCountPhrase} products</h2>
               <p className="text-gray-400 mb-6">
                 Search, filter, and compare across markets with a single HTTP request. Structured JSON back every time.
               </p>
@@ -221,7 +234,7 @@ export default function PhLaunchDemoPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {[
-              { stat: "50M+", label: "Products indexed" },
+              { stat: productCountPhrase, label: "Products indexed" },
               { stat: "6", label: "Markets covered" },
               { stat: "< 200ms", label: "Median query latency" },
               { stat: "99.9%", label: "API uptime target" },

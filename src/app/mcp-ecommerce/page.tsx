@@ -4,6 +4,11 @@ import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
+import {
+  CATALOG_STATS_FALLBACK_LABEL,
+  fetchCatalogStats,
+  formatCompactProductCount,
+} from "@/lib/catalog-stats";
 
 export const metadata: Metadata = {
   title: "MCP for Ecommerce: The Complete Guide to Product Search MCP Servers (2026)",
@@ -21,7 +26,8 @@ export const metadata: Metadata = {
   },
 };
 
-const structuredData = {
+function buildStructuredData(productCountPhrase: string) {
+  return {
   "@context": "https://schema.org",
   "@graph": [
     {
@@ -106,7 +112,7 @@ const structuredData = {
           name: "What is the best MCP server for ecommerce product search?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "BuyWhere is the leading cross-market MCP server for ecommerce product discovery, covering 50M+ products across Singapore, China, US, Japan, Korea, and Australia. It provides product search, multi-retailer aggregation (Lazada, Shopee, Amazon, and more), cross-market price comparison, and deal discovery through a single MCP interface. Setup takes 60 seconds."
+            text: `BuyWhere is the leading cross-market MCP server for ecommerce product discovery, covering ${productCountPhrase} products across Singapore, China, US, Japan, Korea, and Australia. It provides product search, multi-retailer aggregation (Lazada, Shopee, Amazon, and more), cross-market price comparison, and deal discovery through a single MCP interface. Setup takes 60 seconds.`
           }
         },
         {
@@ -136,9 +142,16 @@ const structuredData = {
       ]
     }
   ],
-};
+  };
+}
 
-export default function McpEcommercePage() {
+export default async function McpEcommercePage() {
+  const stats = await fetchCatalogStats();
+  const productCountPhrase = stats
+    ? formatCompactProductCount(stats.totalProducts)
+    : CATALOG_STATS_FALLBACK_LABEL;
+  const structuredData = buildStructuredData(productCountPhrase);
+
   return (
     <div className="flex min-h-screen flex-col bg-white">
       <Script id="structured-data" type="application/ld+json" strategy="afterInteractive">
@@ -228,7 +241,7 @@ export default function McpEcommercePage() {
             <pre className="mt-6 rounded-xl bg-slate-950 p-4 font-mono text-sm text-blue-200">npx -y @buywhere/mcp-server</pre>
             <h4 className="mt-8 text-lg font-semibold text-slate-900">Capabilities:</h4>
             <ul className="mt-4 list-disc space-y-3 pl-6 text-lg leading-8 text-slate-700">
-              <li><strong>Product search</strong> across 50M+ products in 6 markets (Singapore, China, US, Japan, Korea, Australia)</li>
+              <li><strong>Product search</strong> across {productCountPhrase} products in 6 markets (Singapore, China, US, Japan, Korea, Australia)</li>
               <li><strong>Multi-retailer aggregation</strong> — Lazada, Shopee, Amazon, and more</li>
               <li><strong>Price comparison</strong> across markets in a single tool call</li>
               <li><strong>Deal discovery</strong> — active promotions and price drops</li>
