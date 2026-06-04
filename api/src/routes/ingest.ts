@@ -295,7 +295,7 @@ router.post(
            price = EXCLUDED.price,
            currency = EXCLUDED.currency,
            url = EXCLUDED.url,
-           image_url = EXCLUDED.image_url,
+           image_url = COALESCE(NULLIF(EXCLUDED.image_url, ''), products.image_url),
            brand = EXCLUDED.brand,
            category_path = EXCLUDED.category_path,
            merchant_id = EXCLUDED.merchant_id,
