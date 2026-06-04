@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 import uuid
 from datetime import datetime, timezone
@@ -22,6 +23,24 @@ try:
 except ImportError:
     central_log_request = None
     central_log_scraper_progress = None
+
+# In-memory state for developer success event tracking.
+# Populated at runtime; resets on restart, which is acceptable for these metrics.
+_developer_first_query_seen: set[str] = set()
+_developer_last_query_at: Dict[str, float] = {}
+_SESSION_GAP_SECONDS = 30 * 60  # 30 minutes
+
+_PRODUCT_ID_RE = re.compile(r"^/v\d+/products/([^/]+?)(?:/prices|/price_history|/compare)?$")
+
+def _classify_query_type(path: str, query_params: dict) -> str:
+    if "/search" in path:
+        return "search"
+    if _PRODUCT_ID_RE.match(path):
+        return "by_id"
+    if query_params.get("merchant_id") or query_params.get("merchant"):
+        return "by_merchant"
+    return "other"
+
 
 LOG_DIR = Path(os.environ.get("LOG_DIR", "/app/logs"))
 LOG_FILE = LOG_DIR / "api_requests.log"
@@ -335,7 +354,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             # PostHog tracking for API usage (async-safe, non-blocking)
             if post_hog is not None:
                 try:
-                    track_properties = {
+                    base_props = {
                         "method": request.method,
                         "path": request.url.path,
                         "status_code": response.status_code,
@@ -349,19 +368,83 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                         "environment": os.environ.get("ENVIRONMENT", "development"),
                     }
                     if bot_name:
-                        track_properties["bot_name"] = bot_name
-                        track_properties["bot_vendor"] = BOT_PATTERNS.get(bot_name, "unknown")
+                        base_props["bot_name"] = bot_name
+                        base_props["bot_vendor"] = BOT_PATTERNS.get(bot_name, "unknown")
                         post_hog.track_event(
                             event="ai_crawler_hit",
-                            properties=track_properties,
+                            properties=base_props,
                             distinct_id=f"bot:{bot_name}",
                         )
                     elif api_key_id:
+                        # Legacy broad event kept for backwards compatibility
                         post_hog.track_event(
                             event="api_request",
-                            properties=track_properties,
+                            properties=base_props,
                             distinct_id=f"api_key:{api_key_id}",
                         )
+
+                    # ── Developer success events ───────────────────────────
+                    if api_key_id:
+                        developer_id = (
+                            getattr(getattr(request.state, "api_key", None), "developer_id", None)
+                            or f"api_key:{api_key_id}"
+                        )
+                        endpoint = request.url.path
+                        query_params_for_type = dict(request.query_params)
+                        query_type = _classify_query_type(endpoint, query_params_for_type)
+                        result_count = getattr(request.state, "result_count", None)
+                        now_ts = time.time()
+
+                        # is_first_query: true on the first api_query we observe for this developer
+                        is_first = developer_id not in _developer_first_query_seen
+                        _developer_first_query_seen.add(developer_id)
+
+                        # developer_session_start: fire when gap since last query exceeds threshold
+                        last_ts = _developer_last_query_at.get(developer_id)
+                        if last_ts is None or (now_ts - last_ts) >= _SESSION_GAP_SECONDS:
+                            if last_ts is not None:
+                                post_hog.track_event(
+                                    event="developer_session_start",
+                                    properties={
+                                        "developer_id": developer_id,
+                                        "environment": os.environ.get("ENVIRONMENT", "development"),
+                                    },
+                                    distinct_id=developer_id,
+                                )
+                        _developer_last_query_at[developer_id] = now_ts
+
+                        status_label = "success" if response.status_code < 400 else "error"
+                        query_props: Dict[str, Any] = {
+                            "developer_id": developer_id,
+                            "endpoint": endpoint,
+                            "status": status_label,
+                            "response_time_ms": round(elapsed_ms, 2),
+                            "query_type": query_type,
+                            "is_first_query": is_first,
+                            "environment": os.environ.get("ENVIRONMENT", "development"),
+                        }
+                        if result_count is not None:
+                            query_props["result_count"] = result_count
+
+                        post_hog.track_event(
+                            event="api_query",
+                            properties=query_props,
+                            distinct_id=developer_id,
+                        )
+
+                        if response.status_code >= 400:
+                            error_message = getattr(request.state, "error_message", None)
+                            post_hog.track_event(
+                                event="api_error",
+                                properties={
+                                    "developer_id": developer_id,
+                                    "endpoint": endpoint,
+                                    "error_code": response.status_code,
+                                    "error_message": error_message,
+                                    "environment": os.environ.get("ENVIRONMENT", "development"),
+                                },
+                                distinct_id=developer_id,
+                            )
                 except Exception:
                     pass
         except Exception:
