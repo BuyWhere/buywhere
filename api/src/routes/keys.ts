@@ -50,8 +50,8 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     await db.query(
       `INSERT INTO api_keys
-         (id, key_hash, name, email, tier, is_active, rpm_limit, daily_limit, signup_channel, label)
-       VALUES ($1, $2, $3, $4, $5, true, $6, $7, 'api_key_endpoint', $8)`,
+         (id, key_hash, name, email, tier, is_active, rpm_limit, daily_limit, signup_channel, developer_id, label)
+       VALUES ($1, $2, $3, $4, $5, true, $6, $7, 'api_key_endpoint', 'api_key_endpoint', $8)`,
       [id, keyHash, labelValue, email ? String(email).slice(0, 500) : null, resolvedTier, resolvedRpm, resolvedDaily, labelValue]
     );
 
