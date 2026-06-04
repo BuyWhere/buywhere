@@ -1,6 +1,30 @@
-import { Tool } from '@langchain/core/tools';
+import { Tool, DynamicStructuredTool } from '@langchain/core/tools';
 import type { SearchParams, Product, DealProduct, AgentSearchParams } from '@buywhere/sdk';
 import { BuyWhereSDK } from '@buywhere/sdk';
+import { z } from 'zod';
+
+// ---------------------------------------------------------------------------
+// Retry helper with exponential backoff
+// ---------------------------------------------------------------------------
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  opts: { retries?: number; baseDelayMs?: number; maxDelayMs?: number } = {},
+): Promise<T> {
+  const { retries = 3, baseDelayMs = 200, maxDelayMs = 5000 } = opts;
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt === retries) break;
+      const delay = Math.min(baseDelayMs * 2 ** attempt, maxDelayMs);
+      await new Promise((res) => setTimeout(res, delay));
+    }
+  }
+  throw lastError;
+}
 
 export interface BuyWhereLangChainConfig {
   apiKey: string;
@@ -735,5 +759,156 @@ export function createAgentTools(config: BuyWhereLangChainConfig) {
     new CompareProductsTool(config),
     new GetProductDetailsTool(config),
     new GetPurchaseOptionsTool(config),
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// DynamicStructuredTool versions — spec-required API surface
+// These use Zod schemas for input validation rather than JSON.parse strings.
+// ---------------------------------------------------------------------------
+
+const COUNTRY_CODES = ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'] as const;
+
+/**
+ * search_products — DynamicStructuredTool variant with Zod schema validation.
+ * Accepts typed inputs instead of a raw JSON string.
+ */
+export function createSearchProductsTool(config: BuyWhereLangChainConfig): DynamicStructuredTool {
+  const client = new BuyWhereSDK(config.apiKey);
+  return new DynamicStructuredTool({
+    name: 'search_products',
+    description:
+      'Search the BuyWhere product catalog using keywords or natural language. ' +
+      'Returns matching products with title, price, availability, merchant, and affiliate URL.',
+    schema: z.object({
+      query: z.string().describe('Keyword or natural-language query (e.g. "wireless earbuds under $50")'),
+      country: z.enum(COUNTRY_CODES).optional().describe('Country code to scope results'),
+      limit: z.number().int().min(1).max(50).default(10).optional().describe('Max results to return'),
+      price_min: z.number().optional().describe('Minimum price filter'),
+      price_max: z.number().optional().describe('Maximum price filter'),
+    }),
+    func: async ({ query, country, limit, price_min, price_max }) => {
+      try {
+        const results = await withRetry(() =>
+          client.search.search({
+            query,
+            country: country as SearchParams['country'],
+            limit,
+            price_min,
+            price_max,
+          }),
+        );
+        return JSON.stringify({
+          success: true,
+          total: results.total,
+          products: results.results.map((p: Product) => ({
+            id: p.id,
+            title: p.title,
+            price: p.price?.amount,
+            currency: p.price?.currency,
+            merchant: p.merchant,
+            url: p.url,
+            image_url: p.image_url,
+            original_price: p.original_price,
+            discount_pct: p.discount_pct,
+          })),
+        }, null, 2);
+      } catch (error) {
+        return JSON.stringify({ success: false, error: (error as Error).message });
+      }
+    },
+  });
+}
+
+/**
+ * get_product_details — DynamicStructuredTool variant.
+ */
+export function createGetProductDetailsTool(config: BuyWhereLangChainConfig): DynamicStructuredTool {
+  const client = new BuyWhereSDK(config.apiKey);
+  return new DynamicStructuredTool({
+    name: 'get_product_details',
+    description: 'Get full details for a specific product by its BuyWhere product ID.',
+    schema: z.object({
+      product_id: z.number().int().describe('The unique BuyWhere product ID'),
+    }),
+    func: async ({ product_id }) => {
+      try {
+        const product = await withRetry(() => client.products.getProduct(product_id));
+        return JSON.stringify({
+          success: true,
+          product: {
+            id: product.id,
+            title: product.title,
+            price: product.price?.amount,
+            currency: product.price?.currency,
+            merchant: product.merchant,
+            url: product.url,
+            image_url: product.image_url,
+            original_price: product.original_price,
+            discount_pct: product.discount_pct,
+            region: product.region,
+            country_code: product.country_code,
+            structured_specs: product.structured_specs,
+            updated_at: product.updated_at,
+          },
+        }, null, 2);
+      } catch (error) {
+        return JSON.stringify({ success: false, error: (error as Error).message });
+      }
+    },
+  });
+}
+
+/**
+ * get_price_comparison — DynamicStructuredTool variant.
+ * Compares prices for a product query across all merchants.
+ */
+export function createGetPriceComparisonTool(config: BuyWhereLangChainConfig): DynamicStructuredTool {
+  const client = new BuyWhereSDK(config.apiKey);
+  return new DynamicStructuredTool({
+    name: 'get_price_comparison',
+    description:
+      'Compare prices for a product across all available merchants, sorted cheapest first. ' +
+      'Use this to find the best deal for a specific product.',
+    schema: z.object({
+      query: z.string().describe('Product name or query to compare prices for'),
+      category: z.string().optional().describe('Category slug filter (e.g. "electronics")'),
+      limit: z.number().int().min(1).max(50).default(10).optional().describe('Max results to return'),
+    }),
+    func: async ({ query, category, limit }) => {
+      try {
+        const results = await withRetry(() =>
+          client.products.comparePrices(query, { category, limit }),
+        );
+        return JSON.stringify({
+          success: true,
+          total: results.total,
+          products: results.results.map((p: Product) => ({
+            id: p.id,
+            title: p.title,
+            price: p.price?.amount,
+            currency: p.price?.currency,
+            merchant: p.merchant,
+            url: p.url,
+            original_price: p.original_price,
+            discount_pct: p.discount_pct,
+          })),
+        }, null, 2);
+      } catch (error) {
+        return JSON.stringify({ success: false, error: (error as Error).message });
+      }
+    },
+  });
+}
+
+/**
+ * Factory that returns the three spec-required DynamicStructuredTools.
+ * Use this for new LangChain.js agent integrations.
+ */
+export function createStructuredTools(config: BuyWhereLangChainConfig): DynamicStructuredTool[] {
+  return [
+    createSearchProductsTool(config),
+    createGetProductDetailsTool(config),
+    createGetPriceComparisonTool(config),
   ];
 }
