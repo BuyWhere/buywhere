@@ -20,8 +20,9 @@ function generateVerificationToken(): string {
 }
 
 // POST /v1/auth/register
+// POST /v1/developers/signup
 // Headless agent self-registration — requires email for verification
-router.post('/register', async (req: Request, res: Response) => {
+async function registerAgent(req: Request, res: Response): Promise<void> {
   const { agent_name, email, contact, use_case } = req.body;
 
   if (!agent_name || typeof agent_name !== 'string') {
@@ -46,14 +47,16 @@ router.post('/register', async (req: Request, res: Response) => {
 
   const verificationToken = generateVerificationToken();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  const id = uuidv4();
 
   await db.query(
     `INSERT INTO api_keys
        (id, key_hash, name, email, contact, use_case, tier, is_active,
         signup_channel, attribution_source, developer_id,
         email_verification_token, email_verification_expires_at)
-      VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,'unverified',true,$6,$7,'self-registered',$8,$9)`,
+      VALUES ($1,$2,$3,$4,$5,$6,'unverified',true,$7,$8,'self-registered',$9,$10)`,
     [
+      id,
       keyHash,
       agent_name.trim().slice(0, 200),
       emailAddr.slice(0, 500),
@@ -91,7 +94,10 @@ router.post('/register', async (req: Request, res: Response) => {
     },
     docs: 'https://api.buywhere.ai/docs',
   });
-});
+}
+
+router.post('/register', registerAgent);
+router.post('/signup', registerAgent);
 
 // GET /v1/auth/verify?token=xxx
 router.get('/verify', async (req: Request, res: Response) => {
@@ -107,7 +113,7 @@ router.get('/verify', async (req: Request, res: Response) => {
        SET email_verified = true,
            email_verification_token = NULL,
            email_verification_expires_at = NULL,
-           tier = 'free'
+           tier = 'basic'
      WHERE email_verification_token = $1
        AND email_verified = false
        AND (email_verification_expires_at IS NULL OR email_verification_expires_at > NOW())

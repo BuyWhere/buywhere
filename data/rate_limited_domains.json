@@ -1,6 +1,6 @@
 {
-  "description": "Rate-limited domains for retry \u2014 BUY-11037 / BUY-11050",
-  "count": 241,
+  "description": "Rate-limited domains for retry — BUY-11037 / BUY-11050",
+  "count": 242,
   "domains": [
     {
       "domain": "meundies.com",
@@ -818,6 +818,13 @@
       "domain": "fahrneyspens.com",
       "category": "office_supplies",
       "source": "curated_v2",
+      "platform": null,
+      "status": "rate_limited"
+    },
+    {
+      "domain": "oreillyauto.com",
+      "category": "automotive_more",
+      "source": "magento_public_discovery",
       "platform": null,
       "status": "rate_limited"
     },

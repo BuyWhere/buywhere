@@ -6,7 +6,10 @@ import { db, redis, FREE_TIER, TIER_LIMITS } from '../config';
 import { sendError, ErrorCode } from './errors';
 import { sendSpecError, sendDailyLimitError, sendPerMinuteLimitError } from './errors';
 
-const PAPERCLIP_API_URL = process.env.PAPERCLIP_API_URL || 'https://api.paperclip.ai';
+const PAPERCLIP_API_URLS = (process.env.PAPERCLIP_API_URL || 'https://api.paperclip.ai,https://paperclip.richteo.com')
+  .split(',')
+  .map((v) => v.trim())
+  .filter(Boolean);
 const JWT_CACHE_TTL_SECONDS = 300;
 
 export function hashKey(rawKey: string): string {
@@ -48,8 +51,8 @@ async function setCachedJwtVerification(token: string, info: PaperclipAgentInfo)
   }
 }
 
-async function verifyPaperclipTokenWithApi(token: string): Promise<PaperclipAgentInfo | null> {
-  const url = new URL(`${PAPERCLIP_API_URL}/api/agents/me`);
+async function verifyPaperclipTokenAtUrl(token: string, baseUrl: string, agentPath: string): Promise<PaperclipAgentInfo | null> {
+  const url = new URL(`${baseUrl}${agentPath}`);
   const isHttps = url.protocol === 'https:';
   const requestFn = isHttps ? httpsRequest : httpRequest;
 
@@ -118,6 +121,21 @@ async function verifyPaperclipTokenWithApi(token: string): Promise<PaperclipAgen
 
     req.end();
   });
+}
+
+async function verifyPaperclipTokenWithApi(token: string): Promise<PaperclipAgentInfo | null> {
+  const agentPaths = ['/api/agents/me', '/agents/me'];
+  for (const baseUrl of PAPERCLIP_API_URLS) {
+    for (const agentPath of agentPaths) {
+      try {
+        const result = await verifyPaperclipTokenAtUrl(token, baseUrl, agentPath);
+        if (result) return result;
+      } catch {
+        // try next
+      }
+    }
+  }
+  return null;
 }
 
 async function resolvePaperclipAgentKey(agentId: string): Promise<{

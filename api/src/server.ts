@@ -170,6 +170,7 @@ export function createApp() {
 
   // v1 API
   app.use('/v1/auth', authRouter);
+  app.use('/v1/developers', authRouter);
   app.use('/v1/products', productsRouter);
   // v2 alias — same router, extends v1 contract with country_code + multi-region currency inference
   app.use('/v2/products', productsRouter);
