@@ -45,7 +45,7 @@ router.post('/', async (req: Request, res: Response) => {
   const resolvedTier = typeof tier === 'string' ? tier : 'free';
   const resolvedRpm = typeof rpm_limit === 'number' ? rpm_limit : 60;
   const resolvedDaily = typeof daily_limit === 'number' ? daily_limit : 1000;
-  const labelValue = resolvedLabel ? resolvedLabel.trim().slice(0, 200) : null;
+  const labelValue = resolvedLabel ? resolvedLabel.trim().slice(0, 200) : `headless-key-${id.slice(0, 8)}`;
 
   try {
     await db.query(
