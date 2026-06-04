@@ -511,7 +511,7 @@ async def search_products(
         base_query = base_query.order_by(Product.updated_at.desc())
 
     if category:
-        base_query = base_query.where(Product.category.ilike(f"%{category}%"))
+        base_query = base_query.where(Product.category.ilike(f"{category}%"))
     if min_price is not None:
         base_query = base_query.where(Product.price >= min_price)
     if max_price is not None:
@@ -542,7 +542,7 @@ async def search_products(
                 text("search_vector @@ websearch_to_tsquery('english', :cq)").bindparams(cq=q)
             )
         if category:
-            count_conditions.append(Product.category.ilike(f"%{category}%"))
+            count_conditions.append(Product.category.ilike(f"{category}%"))
         if min_price is not None:
             count_conditions.append(Product.price >= min_price)
         if max_price is not None:

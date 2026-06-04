@@ -95,6 +95,8 @@ class Product(Base):
         # GIN indexes for full-text search — required for @@ operator on TSVECTOR columns
         Index("idx_products_search_vector_gin", "search_vector", postgresql_using="gin"),
         Index("idx_products_title_search_vector_gin", "title_search_vector", postgresql_using="gin"),
+        # Trigram GIN index for fast prefix/fuzzy category matching
+        Index("idx_products_category_trigram", "category", postgresql_using="gin", postgresql_ops={"category": "gin_trgm_ops"}),
     )
 
 
