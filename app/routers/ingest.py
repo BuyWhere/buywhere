@@ -17,7 +17,9 @@ from app.schemas.ingest import (
     IngestResponse,
     IngestError,
     IngestErrorCode,
+    ProductQualitySummary,
 )
+from app.services.product_quality import compute_ingest_quality_score, TIER_CRITICAL_FAIL_LABEL
 from app.rate_limit import limiter
 from app import cache
 from app.logging_centralized import get_logger
@@ -133,8 +135,31 @@ async def _log_ingestion_rejection(
     error_message: str,
     raw_data: Optional[dict] = None,
 ) -> None:
-    """Log a rejected product to the ingestion_rejections table."""
-    pass
+    """Log a rejected product to the ingestion_rejections table (best-effort)."""
+    try:
+        from sqlalchemy import text as sa_text
+        await db.execute(
+            sa_text(
+                """
+                INSERT INTO ingestion_rejections
+                    (run_id, source, sku, error_code, error_message, raw_data, rejected_at)
+                VALUES
+                    (:run_id, :source, :sku, :error_code, :error_message, :raw_data::jsonb,
+                     now())
+                ON CONFLICT DO NOTHING
+                """
+            ).bindparams(
+                run_id=run_id,
+                source=source or "unknown",
+                sku=sku or "unknown",
+                error_code=error_code,
+                error_message=error_message[:2000],
+                raw_data=__import__("json").dumps(raw_data) if raw_data else "{}",
+            )
+        )
+    except Exception as exc:
+        # Table may not exist in all environments — log and continue
+        logger.warning("Could not write ingestion_rejection row", extra={"error": str(exc), "sku": sku})
 
 
 @router.post("/products", response_model=IngestResponse, summary="Ingest product batch")
@@ -215,6 +240,8 @@ async def ingest_products(
     rows_updated = 0
     rows_failed = 0
     errors: List[IngestError] = []
+    quality_scores: List[ProductQualitySummary] = []
+    critical_fails = 0
     webhook_events: List[dict] = []
 
     skus = [item.sku for item in body.products]
@@ -228,7 +255,39 @@ async def ingest_products(
     existing_ids = set(existing_map.keys())
 
     values_list = []
-    for item in body.products:
+    for idx, item in enumerate(body.products):
+        # Quality score gate — critical fails are rejected before DB upsert
+        quality_result = compute_ingest_quality_score(item.model_dump())
+        quality_scores.append(ProductQualitySummary(
+            sku=item.sku,
+            score=quality_result.score,
+            tier=quality_result.tier,
+            missing_required=quality_result.missing_required,
+            missing_optional=quality_result.missing_optional,
+        ))
+        if quality_result.is_critical_fail:
+            critical_fails += 1
+            rows_failed += 1
+            err_msg = (
+                f"Critical quality fail: required fields missing — {quality_result.missing_required}"
+            )
+            errors.append(IngestError(
+                index=idx,
+                sku=item.sku,
+                error=err_msg,
+                code=IngestErrorCode.QUALITY_CRITICAL_FAIL,
+            ))
+            await _log_ingestion_rejection(
+                db=db,
+                run_id=run.id,
+                source=body.source,
+                sku=item.sku,
+                error_code=IngestErrorCode.QUALITY_CRITICAL_FAIL,
+                error_message=err_msg,
+                raw_data=item.model_dump(),
+            )
+            continue
+
         values_list.append({
             "sku": item.sku,
             "source": body.source,
@@ -418,6 +477,8 @@ async def ingest_products(
         rows_updated=rows_updated,
         rows_failed=rows_failed,
         errors=errors,
+        quality_scores=quality_scores,
+        critical_fails=critical_fails,
     )
 
 

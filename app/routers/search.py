@@ -495,6 +495,13 @@ async def search_products(
                     + CASE WHEN lower(title) LIKE lower(:q_prefix) THEN 1.0 ELSE 0 END
                     + CASE WHEN brand IS NOT NULL AND lower(brand) = lower(:q_exact) THEN 0.75 ELSE 0 END
                     + CASE WHEN source ~ '^(amazon_us|walmart_us|target_us|bestbuy_us)' THEN 0.25 ELSE 0 END
+                    + CASE
+                        WHEN image_url IS NOT NULL AND brand IS NOT NULL AND description IS NOT NULL
+                             AND category IS NOT NULL THEN 0.30
+                        WHEN image_url IS NOT NULL AND brand IS NOT NULL THEN 0.15
+                        WHEN image_url IS NOT NULL THEN 0.05
+                        ELSE 0
+                      END
                 ) DESC
                 """
             ).bindparams(q_rank=q, q_exact=q, q_prefix=f"{q}%"),
