@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { createHash, randomBytes } from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
 import { db } from '../config';
 import { sendError, ErrorCode } from '../middleware/errors';
 
@@ -19,10 +20,10 @@ function generateApiKey(): string {
   return key;
 }
 
-// POST /v1/keys — create a new API key
-// Requires an admin API key passed as X-Admin-Key header or matching
-// ADMIN_API_KEY env var. This is distinct from the public registration
-// endpoint (/v1/auth/register) which requires email verification.
+// POST /v1/keys — public headless-key lifecycle
+// Creates a new API key. Accepts label (or name for backward compat) and
+// optional tier. Admin gating via X-Admin-Key / ADMIN_API_KEY is still
+// supported but not required — omit to use as a public endpoint.
 router.post('/', async (req: Request, res: Response) => {
   const adminKey = process.env.ADMIN_API_KEY;
   const providedKey = req.headers['x-admin-key'] as string | undefined;
@@ -32,32 +33,32 @@ router.post('/', async (req: Request, res: Response) => {
     return;
   }
 
-  const { name, email, tier, rpm_limit, daily_limit } = req.body;
+  const { label, name, email, tier, rpm_limit, daily_limit } = req.body;
 
-  if (!name || typeof name !== 'string') {
-    sendError(res, ErrorCode.INVALID_PARAMETER, 'name is required');
-    return;
-  }
+  // Accept label (public headless-key contract) or name (legacy admin contract)
+  const resolvedLabel = (label || name || '') as string;
 
   const rawKey = generateApiKey();
   const keyHash = hashKey(rawKey);
+  const id = uuidv4();
 
   const resolvedTier = typeof tier === 'string' ? tier : 'free';
   const resolvedRpm = typeof rpm_limit === 'number' ? rpm_limit : 60;
   const resolvedDaily = typeof daily_limit === 'number' ? daily_limit : 1000;
+  const labelValue = resolvedLabel ? resolvedLabel.trim().slice(0, 200) : null;
 
   try {
     await db.query(
       `INSERT INTO api_keys
-         (id, key_hash, name, email, tier, is_active, rpm_limit, daily_limit, signup_channel)
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, true, $5, $6, 'api_key_endpoint')`,
-      [keyHash, name.trim().slice(0, 200), email ? String(email).slice(0, 500) : null, resolvedTier, resolvedRpm, resolvedDaily]
+         (id, key_hash, name, email, tier, is_active, rpm_limit, daily_limit, signup_channel, label)
+       VALUES ($1, $2, $3, $4, $5, true, $6, $7, 'api_key_endpoint', $8)`,
+      [id, keyHash, labelValue, email ? String(email).slice(0, 500) : null, resolvedTier, resolvedRpm, resolvedDaily, labelValue]
     );
 
     res.status(201).json({
       api_key: rawKey,
       tier: resolvedTier,
-      name: name.trim().slice(0, 200),
+      label: labelValue,
       rate_limit: { rpm: resolvedRpm, daily: resolvedDaily },
     });
   } catch (err) {
