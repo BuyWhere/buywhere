@@ -24,6 +24,8 @@ import catalogRouter from './routes/catalog';
 import keysRouter from './routes/keys';
 import usageRouter from './routes/usage';
 import webhooksRouter from './routes/webhooks';
+import monitoringRouter from './monitoring/routes';
+import { latencyMiddleware } from './monitoring/middleware';
 import { db, redis } from './config';
 
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=86400, s-maxage=86400';
@@ -56,6 +58,9 @@ export function createApp() {
 
   // Sentry request context — attaches user/country/method for error tracking
   app.use(sentryRequestHandler);
+
+  // Latency monitoring middleware for P95 calculation
+  app.use(latencyMiddleware);
 
   // Health check - fast in-process check as required by BUY-3280
   app.get('/health', (_req, res) => {
@@ -264,6 +269,9 @@ export function createApp() {
 
   // Webhook relay — UptimeRobot → Paperclip issue creation
   app.use('/webhooks', webhooksRouter);
+
+  // P95 monitoring endpoints (BUY-31208)
+  app.use(monitoringRouter);
 
   // 404 fallback
   app.use((_req, res) => {
