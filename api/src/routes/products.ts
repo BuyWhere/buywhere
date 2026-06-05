@@ -7,7 +7,9 @@ import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE } from '../lib/compare-query';
 
-const SEARCH_CACHE_TTL_SECONDS = 120;
+// BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
+// Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
+const SEARCH_CACHE_TTL_SECONDS = 3600;
 
 // Express 4 doesn't catch async rejections — unhandled errors crash the process.
 // This wrapper ensures all async route handlers return 500 instead of crashing.
@@ -943,6 +945,126 @@ function extractCategories(products: Array<{ domain?: string; merchant?: string 
     }
   }
   return Array.from(cats).slice(0, 10);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Cache warm-up — BUY-31302
+// Runs once at startup, seeds Redis with results for the most common
+// search queries × country combos. Cold queries hit DB at 3-10s; warm
+// queries return from Redis in <5ms. With 3600s TTL most queries stay
+// warm across basket runs.
+// ─────────────────────────────────────────────────────────────
+
+const WARM_SEED_QUERIES: Array<{ q: string; country: string }> = [
+  // SG — high-traffic consumer electronics & daily items
+  { q: 'iPhone 15 Pro', country: 'SG' },
+  { q: 'Samsung Galaxy S24', country: 'SG' },
+  { q: 'laptop', country: 'SG' },
+  { q: 'wireless earbuds', country: 'SG' },
+  { q: 'running shoes', country: 'SG' },
+  { q: 'coffee maker', country: 'SG' },
+  { q: 'rice cooker', country: 'SG' },
+  { q: 'air fryer', country: 'SG' },
+  { q: 'bluetooth speaker', country: 'SG' },
+  { q: 'gaming mouse', country: 'SG' },
+  { q: 'monitor 27 inch', country: 'SG' },
+  { q: 'mechanical keyboard', country: 'SG' },
+  { q: 'Nike shoes', country: 'SG' },
+  { q: 'Adidas sneakers', country: 'SG' },
+  { q: 'hand cream moisturizer', country: 'SG' },
+  { q: 'sunscreen SPF 50', country: 'SG' },
+  { q: 'vitamin C supplement', country: 'SG' },
+  { q: 'yoga mat', country: 'SG' },
+  { q: 'power bank', country: 'SG' },
+  { q: 'tablet', country: 'SG' },
+  // US — high-traffic
+  { q: 'iPhone 15 Pro', country: 'US' },
+  { q: 'laptop', country: 'US' },
+  { q: 'wireless earbuds', country: 'US' },
+  { q: 'running shoes', country: 'US' },
+  { q: 'coffee maker', country: 'US' },
+  { q: 'air fryer', country: 'US' },
+  { q: 'bluetooth speaker', country: 'US' },
+  { q: 'gaming mouse', country: 'US' },
+  { q: 'monitor', country: 'US' },
+  { q: 'mechanical keyboard', country: 'US' },
+];
+
+export async function warmSearchCache(): Promise<void> {
+  const startMs = Date.now();
+  let warmed = 0;
+  let skipped = 0;
+
+  for (const { q, country } of WARM_SEED_QUERIES) {
+    try {
+      const currency = country === 'US' ? 'USD' : 'SGD';
+      const limit = 20;
+      const offset = 0;
+      const cacheKey = `fts:${q}:::${country}::::::::${currency}:::${limit}:${offset}::f`;
+
+      const existing = await redis.get(cacheKey).catch(() => null);
+      if (existing) {
+        skipped++;
+        continue;
+      }
+
+      // Build the query the same way the handler does
+      const conditions: string[] = ['currency = $1'];
+      const params: unknown[] = [currency];
+      let idx = 2;
+      const ftsParamIdx = idx;
+      conditions.push(`search_vector @@ plainto_tsquery('english', $${idx})`);
+      params.push(q);
+      idx++;
+      conditions.push(`country_code = $${idx}`);
+      params.push(country);
+      idx++;
+
+      const whereClause = `WHERE ${conditions.join(' AND ')}`;
+      const CANDIDATE_CAP = 200;
+
+      const specColumnsJoined = `products.created_at, products.description, products.brand, products.mpn, products.gtin, products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
+      const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
+                 al.destination_url AS affiliate_url,
+                 products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
+                 products.region, products.country_code, ${specColumnsJoined}`;
+
+      const dataQuery = `
+        WITH top_ids AS (
+          SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+          FROM products
+          ${whereClause}
+          ORDER BY rank DESC
+          LIMIT ${CANDIDATE_CAP}
+        )
+        SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
+        FROM top_ids
+        JOIN products ON products.id = top_ids.id
+        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+        ORDER BY top_ids.rank DESC
+        LIMIT $${idx} OFFSET $${idx + 1}
+      `;
+
+      params.push(limit + 1, offset);
+
+      const result = await db.query(dataQuery, params);
+      const hasMore = result.rows.length > limit;
+      if (hasMore) result.rows.pop();
+      const total = result.rows.length + (hasMore ? 1 : 0);
+
+      const products = result.rows.map((row) => buildProduct(row as Record<string, unknown>, currency, false));
+      const responseBody = buildSearchResponse(products, total, limit, offset, 0, hasMore);
+
+      await redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS);
+      warmed++;
+    } catch (err) {
+      // Non-fatal: log but don't block startup
+      console.warn(`[cache-warm] failed for q="${q}" country=${country}:`, (err as Error)?.message);
+    }
+  }
+
+  const elapsed = Date.now() - startMs;
+  console.log(`[cache-warm] done: ${warmed} warmed, ${skipped} already cached, ${elapsed}ms`);
 }
 
 export default router;

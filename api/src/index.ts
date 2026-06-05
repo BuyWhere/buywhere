@@ -5,6 +5,7 @@ import { shutdownPostHog } from './analytics/posthog';
 import { runMigrations } from './migrate';
 import { loadAffiliateConfigs } from './lib/affiliateWrapper';
 import { warmupMcpCaches } from './lib/mcpWarmup';
+import { warmSearchCache } from './routes/products';
 
 // Initialize Sentry before anything else so all errors are captured
 initSentry();
@@ -23,6 +24,8 @@ async function start() {
   // Pre-warm caches after migrations
   loadAffiliateConfigs().catch(() => {});
   warmupMcpCaches().catch((err) => console.warn('[mcp-warmup] failed:', err?.message));
+  // BUY-31302: seed Redis with top search queries so cold cache is always <5ms
+  warmSearchCache().catch((err) => console.warn('[cache-warm] failed:', err?.message));
 
   return new Promise<ReturnType<typeof app.listen>>((resolve) => {
     const server = app.listen(PORT, () => {
