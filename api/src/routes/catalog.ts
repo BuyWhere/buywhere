@@ -5,6 +5,8 @@ const router = Router();
 
 const CACHE_KEY = 'catalog:stats:exact';
 const CACHE_TTL = 300;
+const REFRESH_LOCK_KEY = 'catalog:stats:refresh-lock';
+const REFRESH_LOCK_TTL = 30;
 
 interface ExactStats {
   total_products: number;
@@ -13,10 +15,11 @@ interface ExactStats {
   collected_at: string;
 }
 
-async function computeExactStats(): Promise<ExactStats> {
+async function tryExactCount(): Promise<ExactStats | null> {
   const client = await db.connect();
   try {
-    await client.query('SET LOCAL statement_timeout = 8000');
+    await client.query('BEGIN');
+    await client.query('SET LOCAL statement_timeout = 10000');
     const result = await client.query(`
       SELECT
         count(*) AS total_products,
@@ -25,97 +28,89 @@ async function computeExactStats(): Promise<ExactStats> {
         now() AT TIME ZONE 'utc' AS collected_at
       FROM products
     `);
+    await client.query('COMMIT');
+    const row = result.rows[0];
     return {
-      total_products: Number(result.rows[0].total_products),
-      active_products: Number(result.rows[0].active_products),
-      total_merchants: Number(result.rows[0].total_merchants),
-      collected_at: result.rows[0].collected_at.toISOString(),
+      total_products: Number(row.total_products),
+      active_products: Number(row.active_products),
+      total_merchants: Number(row.total_merchants),
+      collected_at: row.collected_at.toISOString(),
     };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    return null;
   } finally {
     client.release();
   }
 }
 
-async function getExactStats(): Promise<ExactStats | null> {
+async function triggerBackgroundRefresh(): Promise<void> {
   try {
-    const cached = await redis.get(CACHE_KEY);
-    if (cached) return JSON.parse(cached);
-  } catch {}
-
-  try {
-    const stats = await computeExactStats();
-    try { await redis.set(CACHE_KEY, JSON.stringify(stats), 'EX', CACHE_TTL); } catch {}
-    return stats;
-  } catch (err) {
-    console.error('[catalog/stats] exact count failed, falling back:', (err as Error).message);
-    return null;
-  }
-}
-
-async function getFallbackStats(): Promise<{ total_products: number; total_merchants: number; source: string }> {
-  try {
-    const result = await db.query(`
-      SELECT total FROM catalog_stats
-      WHERE source IS NULL AND region IS NULL AND country_code IS NULL
-      LIMIT 1
-    `);
-    if (result.rows.length > 0 && Number(result.rows[0].total) > 0) {
-      const pgResult = await db.query(
-        `SELECT reltuples::bigint AS total FROM pg_class WHERE oid = 'public.merchants'::regclass`
-      );
-      return {
-        total_products: Number(result.rows[0].total),
-        total_merchants: Math.max(Number(pgResult.rows[0]?.total || 0), 0),
-        source: 'catalog_stats',
-      };
+    const lock = await redis.set(REFRESH_LOCK_KEY, '1', 'EX', REFRESH_LOCK_TTL, 'NX');
+    if (lock !== 'OK') return;
+    const stats = await tryExactCount();
+    if (stats) {
+      await redis.set(CACHE_KEY, JSON.stringify(stats), 'EX', CACHE_TTL);
     }
   } catch {}
-
-  const result = await db.query(`
-    SELECT
-      (SELECT reltuples::bigint FROM pg_class WHERE oid = 'public.products'::regclass) AS total_products,
-      (SELECT reltuples::bigint FROM pg_class WHERE oid = 'public.merchants'::regclass) AS total_merchants
-  `);
-  const row = result.rows[0] || {};
-  return {
-    total_products: Math.max(Number(row.total_products || 0), 0),
-    total_merchants: Math.max(Number(row.total_merchants || 0), 0),
-    source: 'pg_class_fallback',
-  };
 }
 
-// GET /v1/catalog/stats — catalog-level aggregate statistics
-// Unauthenticated — used by MCP server info, monitor, and discovery tools
-// Primary: exact count from public.products (cached 5 min in Redis). Fallback: catalog_stats / pg_class.
 router.get('/stats', async (_req: Request, res: Response) => {
   try {
-    const exact = await getExactStats();
-    if (exact) {
+    const cached = await redis.get(CACHE_KEY).catch(() => null);
+    if (cached) {
+      const stats: ExactStats = JSON.parse(cached);
+      triggerBackgroundRefresh().catch(() => {});
       res.json({
         data: {
-          total_products: exact.total_products,
-          total_merchants: exact.total_merchants,
-          active_products: exact.active_products,
+          total_products: stats.total_products,
+          total_merchants: stats.total_merchants,
+          active_products: stats.active_products,
         },
         meta: {
           approximate: false,
           source: 'public.products',
-          ts: exact.collected_at,
+          ts: stats.collected_at,
         },
       });
       return;
     }
 
-    const fallback = await getFallbackStats();
+    const fresh = await tryExactCount();
+    if (fresh) {
+      await redis.set(CACHE_KEY, JSON.stringify(fresh), 'EX', CACHE_TTL).catch(() => {});
+      res.json({
+        data: {
+          total_products: fresh.total_products,
+          total_merchants: fresh.total_merchants,
+          active_products: fresh.active_products,
+        },
+        meta: {
+          approximate: false,
+          source: 'public.products',
+          ts: fresh.collected_at,
+        },
+      });
+      return;
+    }
+
+    const [productsEst, merchantsEst] = await Promise.all([
+      db.query(`SELECT reltuples::bigint AS est FROM pg_class WHERE oid = 'public.products'::regclass`),
+      db.query(`SELECT reltuples::bigint AS est FROM pg_class WHERE oid = 'public.merchants'::regclass`),
+    ]);
+    const totalProducts = Math.max(Number(productsEst.rows[0]?.est || 0), 0);
+    const totalMerchants = Math.max(Number(merchantsEst.rows[0]?.est || 0), 0);
+
+    triggerBackgroundRefresh().catch(() => {});
     res.json({
       data: {
-        total_products: fallback.total_products,
-        total_merchants: fallback.total_merchants,
-        active_products: fallback.total_products,
+        total_products: totalProducts,
+        total_merchants: totalMerchants,
+        active_products: totalProducts,
       },
       meta: {
         approximate: true,
-        source: fallback.source,
+        source: 'pg_class_estimate',
         ts: new Date().toISOString(),
       },
     });
@@ -125,9 +120,6 @@ router.get('/stats', async (_req: Request, res: Response) => {
   }
 });
 
-// GET /v1/catalog/categories — top categories from cached mcp_category_summary table (BUY-30969)
-// Unauthenticated — used by MCP discovery, category browsing, and analytics tools
-// Reads only from the pre-computed summary table; never falls back to live COUNT(*) on products.
 router.get('/categories', async (_req: Request, res: Response) => {
   const start = Date.now();
   try {
