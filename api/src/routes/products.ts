@@ -161,24 +161,23 @@ router.get(
     }
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    // Cap count at 1001: if result set > 1000 rows, ts_rank ordering over all matches is expensive
-    // (500ms+ for broad queries like "apple iphone"). For large result sets, fall back to
-    // updated_at DESC which uses the index and avoids full-scan rank computation.
     const COUNT_CAP = 1001;
     const countQuery = `SELECT COUNT(*) FROM (SELECT 1 FROM products ${whereClause} LIMIT ${COUNT_CAP}) _sub`;
 
-    // Run count first (fast, capped) to decide ordering strategy, then fetch data
-    const countResult = await db.query(countQuery, params.slice(0, idx - 1));
-    const approxCount = parseInt(countResult.rows[0].count, 10);
+    const SEARCH_STATEMENT_TIMEOUT_MS = 8000;
+    const CANDIDATE_CAP = 2000;
+
+    const specColumns = `created_at, description, brand, mpn, gtin, category_path, category, merchant_id, avg_rating, review_count`;
+    const specColumnsJoined = `products.created_at, products.description, products.brand, products.mpn, products.gtin, products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
+    const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
+               al.destination_url AS affiliate_url,
+               products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
+               products.region, products.country_code, ${specColumnsJoined}`;
 
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
     const useFtsRanking = (!effectiveSort || effectiveSort === 'relevance') && ftsParamIdx;
 
-    // Build ORDER BY for non-fts-ranking path.
-    // Fully qualify column names: this query JOINs affiliate_links, which shares
-    // column names with products (id, created_at, updated_at, merchant_id).
-    // Unqualified names cause "column reference is ambiguous" (BUY-27414 / BUY-28433).
     function buildSortOrder(): string {
       if (!effectiveSort || effectiveSort === 'relevance') return 'products.updated_at DESC';
       switch (effectiveSort) {
@@ -191,60 +190,74 @@ router.get(
       }
     }
 
-    // For large result sets (>1000 rows), computing ts_rank over all matches is expensive.
-    // Instead, let the GIN index fetch up to CANDIDATE_LIMIT rows, rank those by ts_rank,
-    // then return the top N. This gives relevance ordering at a fraction of the cost.
-    // For small result sets (<= 1000 rows), ts_rank over all matches is fast.
-    const CANDIDATE_LIMIT = Math.max(500, (limit + offset) * 10);
-    const specColumns = `created_at, description, brand, mpn, gtin, category_path, category, merchant_id, avg_rating, review_count`;
-    // Products-qualified variants for queries that JOIN affiliate_links.
-    // affiliate_links shares id, created_at, updated_at, merchant_id with products —
-    // omitting the table qualifier causes "column reference is ambiguous" (BUY-27414 / BUY-28433).
-    const specColumnsJoined = `products.created_at, products.description, products.brand, products.mpn, products.gtin, products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
-    const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
-               al.destination_url AS affiliate_url,
-               products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-               products.region, products.country_code, ${specColumnsJoined}`;
-    let dataQuery: string;
-    if (useFtsRanking && approxCount <= 1000) {
-      dataQuery = `
-        SELECT ${joinedColumns}
-        FROM products
-        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-        ${whereClause}
-        ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC, products.updated_at DESC
-        LIMIT $${idx} OFFSET $${idx + 1}
-      `;
-    } else if (useFtsRanking) {
-      dataQuery = `
-        SELECT id, source_id, domain, url,
-               affiliate_url,
-               title, price, currency, image_url, metadata, updated_at,
-               region, country_code, ${specColumns}
-        FROM (
-        SELECT ${joinedColumns},
-               ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
-        FROM products
-        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-          ${whereClause}
-          LIMIT ${CANDIDATE_LIMIT}
-        ) _candidates
-        ORDER BY rank DESC
-        LIMIT $${idx} OFFSET $${idx + 1}
-      `;
-    } else {
-      dataQuery = `
-        SELECT ${joinedColumns}
-        FROM products
-        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-        ${whereClause}
-        ORDER BY ${buildSortOrder()}
-        LIMIT $${idx} OFFSET $${idx + 1}
-      `;
-    }
-    params.push(limit, offset);
+    let countResult: { rows: Array<{ count: string }> };
+    let dataResult: { rows: Array<Record<string, unknown>> };
 
-    const dataResult = await db.query(dataQuery, params);
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
+
+      countResult = await client.query(countQuery, params.slice(0, idx - 1));
+      const approxCount = parseInt(countResult.rows[0].count, 10);
+
+      let dataQuery: string;
+      if (useFtsRanking && approxCount <= 1000) {
+        dataQuery = `
+          SELECT ${joinedColumns}
+          FROM products
+          LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+          ${whereClause}
+          ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC, products.updated_at DESC
+          LIMIT $${idx} OFFSET $${idx + 1}
+        `;
+      } else if (useFtsRanking) {
+        dataQuery = `
+          WITH candidates AS (
+            SELECT products.id, products.sku, products.source, products.url,
+                   al.destination_url AS affiliate_url,
+                   products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
+                   products.region, products.country_code, ${specColumnsJoined},
+                   products.search_vector
+            FROM products
+            LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+            ${whereClause}
+            ORDER BY products.id DESC
+            LIMIT ${CANDIDATE_CAP}
+          )
+          SELECT id, sku AS source_id, source AS domain, url,
+                 affiliate_url,
+                 title, price, currency, image_url, metadata, updated_at,
+                 region, country_code, ${specColumns}
+          FROM candidates
+          ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
+          LIMIT $${idx} OFFSET $${idx + 1}
+        `;
+      } else {
+        dataQuery = `
+          SELECT ${joinedColumns}
+          FROM products
+          LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+          ${whereClause}
+          ORDER BY ${buildSortOrder()}
+          LIMIT $${idx} OFFSET $${idx + 1}
+        `;
+      }
+      params.push(limit, offset);
+
+      dataResult = await client.query(dataQuery, params);
+      await client.query('COMMIT');
+    } catch (err: unknown) {
+      await client.query('ROLLBACK').catch(() => {});
+      const pgErr = err as { code?: string };
+      if (pgErr.code === '57014') {
+        res.status(503).json({ error: 'Search query timed out', timeout_ms: SEARCH_STATEMENT_TIMEOUT_MS });
+        return;
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
 
     const total = parseInt(countResult.rows[0].count, 10);
     const responseTimeMs = Date.now() - requestStart;
