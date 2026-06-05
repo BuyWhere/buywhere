@@ -1,3 +1,4 @@
+import contextvars
 import logging
 from typing import Any
 
@@ -19,6 +20,10 @@ logger = logging.getLogger("mcp-http")
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
+# Thread the caller's Bearer token through MCP tool handler → _api_get without
+# adding it to every function signature. ContextVar is safe under asyncio concurrency.
+_request_auth: contextvars.ContextVar[str] = contextvars.ContextVar("mcp_auth", default="")
+
 _api_server: Server | None = None
 
 
@@ -34,20 +39,25 @@ def get_mcp_server() -> Server:
                     Tool(
                         name="search_products",
                         description=(
-                            "Search the BuyWhere product catalog by keyword. "
-                            "Returns ranked results from Singapore e-commerce platforms "
-                            "(Lazada, Shopee, Qoo10, Carousell)."
+                            "Search the BuyWhere product catalog by keyword across Singapore, US, "
+                            "and Southeast Asia. Returns products from Lazada, Shopee, Qoo10, "
+                            "Amazon, Walmart, Target, and 40+ other retailers. Use country_code to "
+                            "scope results to a specific market (SG, US, MY, TH, VN, PH)."
                         ),
                         inputSchema={
                             "type": "object",
                             "properties": {
                                 "query": {"type": "string", "description": "Product search query."},
                                 "category": {"type": "string", "description": "Optional category filter."},
-                                "min_price": {"type": "number", "description": "Minimum price in SGD."},
-                                "max_price": {"type": "number", "description": "Maximum price in SGD."},
+                                "min_price": {"type": "number", "description": "Minimum price."},
+                                "max_price": {"type": "number", "description": "Maximum price."},
                                 "source": {
                                     "type": "string",
-                                    "description": "Platform filter (lazada_sg, shopee_sg, etc.).",
+                                    "description": "Platform filter (lazada_sg, shopee_sg, amazon_us, etc.).",
+                                },
+                                "country_code": {
+                                    "type": "string",
+                                    "description": "Country filter: SG, US, MY, TH, VN, PH. Strongly recommended — without it the search spans all 28M products.",
                                 },
                                 "limit": {
                                     "type": "integer",
@@ -152,8 +162,6 @@ def get_mcp_server() -> Server:
 
 
 async def _handle_search_products(args: dict[str, Any]) -> CallToolResult:
-    from unittest.mock import AsyncMock
-
     query = str(args.get("query", "")).strip()
     if not query:
         return CallToolResult(
@@ -165,9 +173,12 @@ async def _handle_search_products(args: dict[str, Any]) -> CallToolResult:
     for key in ("category", "min_price", "max_price", "source"):
         if args.get(key) is not None:
             params[key] = args[key]
+    # country_code scopes the GIN scan to a single market (7.8M rows for SG vs 28M total)
+    if args.get("country_code"):
+        params["country_code"] = str(args["country_code"]).upper()
 
     try:
-        data = await _api_get("/v1/products", params)
+        data = await _api_get("/v1/search", params)
     except Exception as exc:
         logger.exception("search_products API error for %r", query)
         return CallToolResult(
@@ -286,6 +297,10 @@ async def _api_get(path: str, params: dict[str, Any] | None = None) -> Any:
     API_BASE_URL = settings.app_base_url or "http://localhost:8000"
 
     headers = {"Accept": "application/json"}
+    # Forward the caller's Bearer token so internal routes can authenticate
+    auth = _request_auth.get()
+    if auth:
+        headers["Authorization"] = auth
     async with httpx.AsyncClient(base_url=API_BASE_URL, headers=headers, timeout=10.0) as client:
         resp = await client.get(path, params=params or {})
         resp.raise_for_status()
@@ -359,6 +374,9 @@ async def call_tool(
     api_key: ApiKey = Depends(get_current_api_key),
 ):
     server = get_mcp_server()
+    # Thread the caller's Bearer token into the contextvar so _api_get can forward it
+    auth_header = request.headers.get("Authorization", "")
+    token = _request_auth.set(auth_header)
     try:
         result = await server.call_tool(body.method, body.params or {})
         return JSONRPCResponse(id=body.id, result=result)
@@ -368,3 +386,5 @@ async def call_tool(
             id=body.id,
             error={"code": -32603, "message": str(exc)}
         )
+    finally:
+        _request_auth.reset(token)

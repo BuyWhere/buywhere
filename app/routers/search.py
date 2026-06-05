@@ -479,6 +479,14 @@ async def search_products(
 
     start_time = time.perf_counter()
 
+    # Hard cap: no single search query should block for more than 8s.
+    # SQLAlchemy 2.0 autobegin starts a transaction on the first execute, so
+    # SET LOCAL scopes the timeout to this transaction only.
+    try:
+        await db.execute(text("SET LOCAL statement_timeout = '8000'"))
+    except Exception:
+        pass  # Non-fatal — proceed without timeout if the session state doesn't allow it
+
     base_query = select(Product).where(Product.is_active == True)
 
     if q:
@@ -518,15 +526,9 @@ async def search_products(
         region_codes = [r.strip().lower() for r in region.split(",")]
         base_query = base_query.where(Product.region.in_(region_codes))
 
-    if offset == 0:
-        # Use a direct COUNT on products instead of wrapping the ranked query in a
-        # subquery — this lets the GIN index on search_vector do the heavy lifting
-        # without the ORDER BY + ts_rank overhead.
+    if offset == 0 and not q:
+        # Non-FTS first page: run exact COUNT (cheap — no GIN posting-list scan).
         count_conditions = [Product.is_active == True]
-        if q:
-            count_conditions.append(
-                text("search_vector @@ websearch_to_tsquery('english', :cq)").bindparams(cq=q)
-            )
         if category:
             count_conditions.append(Product.category.ilike(f"{category}%"))
         if min_price is not None:
@@ -547,6 +549,9 @@ async def search_products(
         count_result = await db.execute(count_query)
         total = count_result.scalar_one()
     else:
+        # FTS queries (q is set): skip exact count — GIN posting-list traversal for a
+        # popular term like "iPhone" can hit 50k+ entries even with country filtering.
+        # Clients should use has_more for pagination rather than a display total.
         total = None
 
     results = await db.execute(base_query.limit(limit).offset(offset))
@@ -1004,7 +1009,8 @@ async def benchmark_search(
             select(Product)
             .where(Product.is_active == True)
             .where(text("search_vector @@ websearch_to_tsquery('english', :q)").bindparams(q=q))
-            .order_by(Product.updated_at.desc())
+            # No ORDER BY — GIN can't short-circuit ORDER BY on 28M rows. Without it
+            # PostgreSQL stops after LIMIT rows rather than materializing all matches.
             .limit(20)
         )
 
