@@ -327,6 +327,9 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
     dailyResetAt,
   };
 
+  res.set('X-RateLimit-Limit-Day', String(dailyLimit));
+  res.set('X-RateLimit-Remaining-Day', String(Math.max(0, dailyLimit - dailyRequestCount - 1)));
+
   db.query(
     'UPDATE api_keys SET daily_request_count = daily_request_count + 1, last_used_at = NOW() WHERE id = $1',
     [row.id]
