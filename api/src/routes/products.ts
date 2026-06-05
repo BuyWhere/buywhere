@@ -227,20 +227,59 @@ router.get(
         FROM products
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
           ${whereClause}
-          LIMIT ${CANDIDATE_LIMIT}
+          LIMIT ${CANDIDATE_LIMIT} OFFSET 0
         ) _candidates
         ORDER BY rank DESC
         LIMIT $${idx} OFFSET $${idx + 1}
       `;
     } else {
-      dataQuery = `
-        SELECT ${joinedColumns}
-        FROM products
-        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-        ${whereClause}
-        ORDER BY ${buildSortOrder()}
-        LIMIT $${idx} OFFSET $${idx + 1}
-      `;
+      // Branch C: non-rank sort (newest, price_asc, price_desc, etc.) or no-q browse.
+      // For broad match sets (>500 rows), heap-scanning and sorting all matches is
+      // expensive: 14.6K laptop/SG rows → 12.5s measured. Cap candidates in a subquery
+      // first, then sort the cap. OFFSET 0 prevents the planner from collapsing the
+      // subquery boundary (materialization barrier).
+      // Trade-off: for very large match sets we sort a sample, not global top-N.
+      // Small result sets (≤500) keep exact ordering.
+      const NON_RANK_CANDIDATE_LIMIT = Math.max(500, (limit + offset) * 20);
+
+      function buildSortOrderUnqualified(): string {
+        if (!effectiveSort || effectiveSort === 'relevance') return 'updated_at DESC';
+        switch (effectiveSort) {
+          case 'price_asc': return 'price ASC, updated_at DESC';
+          case 'price_desc': return 'price DESC, updated_at DESC';
+          case 'newest': return 'updated_at DESC';
+          case 'highest_rated': return 'avg_rating DESC NULLS LAST, updated_at DESC';
+          case 'most_reviewed': return 'review_count DESC NULLS LAST, updated_at DESC';
+          default: return 'updated_at DESC';
+        }
+      }
+
+      if (approxCount > 500) {
+        dataQuery = `
+          SELECT id, source_id, domain, url,
+                 affiliate_url,
+                 title, price, currency, image_url, metadata, updated_at,
+                 region, country_code, ${specColumns}
+          FROM (
+            SELECT ${joinedColumns}
+            FROM products
+            LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+            ${whereClause}
+            LIMIT ${NON_RANK_CANDIDATE_LIMIT} OFFSET 0
+          ) _candidates
+          ORDER BY ${buildSortOrderUnqualified()}
+          LIMIT $${idx} OFFSET $${idx + 1}
+        `;
+      } else {
+        dataQuery = `
+          SELECT ${joinedColumns}
+          FROM products
+          LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+          ${whereClause}
+          ORDER BY ${buildSortOrder()}
+          LIMIT $${idx} OFFSET $${idx + 1}
+        `;
+      }
     }
     params.push(limit, offset);
 
