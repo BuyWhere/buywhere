@@ -701,6 +701,60 @@ class BestBuyUSSitemapScraper:
             },
         }
 
+    async def _enrich_images_from_pages(self, urls: list[str]) -> dict[str, int]:
+        """Scrape product pages for image URLs and re-ingest with image_url populated.
+
+        Called after Phase 1 (sitemap stub ingestion) to back-fill the image_url field,
+        which the URL-only sitemap extraction cannot provide.
+        """
+        counts = {"scraped": 0, "ingested": 0, "updated": 0, "failed": 0}
+        batch: list[dict[str, Any]] = []
+
+        for url in urls:
+            html = await self._get_with_retry(url)
+            if not html:
+                counts["failed"] += 1
+                await asyncio.sleep(self.url_delay)
+                continue
+
+            raw = self._parse_product_page(html, url)
+            if not raw or not raw.get("image_url"):
+                counts["failed"] += 1
+                await asyncio.sleep(self.url_delay)
+                continue
+
+            if not raw.get("sku"):
+                raw["sku"] = self._extract_sku_from_url(url)
+
+            cat, sub = self._category_from_title(raw.get("title", ""))
+            product = self.transform_product(raw, cat, sub)
+            if product:
+                product["metadata"]["source"] = SOURCE
+                product["metadata"]["extraction_method"] = "bestbuy_pdp_page"
+                batch.append(product)
+                counts["scraped"] += 1
+
+                if len(batch) >= self.batch_size:
+                    i, u, f = await self.ingest_batch(batch)
+                    counts["ingested"] += i
+                    counts["updated"] += u
+                    counts["failed"] += f
+                    batch = []
+                    log.progress(
+                        f"Image enrichment: {counts['scraped']} scraped, "
+                        f"{counts['ingested'] + counts['updated']} ingested"
+                    )
+
+            await asyncio.sleep(self.url_delay)
+
+        if batch:
+            i, u, f = await self.ingest_batch(batch)
+            counts["ingested"] += i
+            counts["updated"] += u
+            counts["failed"] += f
+
+        return counts
+
     async def scrape_product_url(self, url: str, category_name: str = "", category_sub: str = "") -> dict[str, Any] | None:
         html = await self._get_with_retry(url)
         if not html:
@@ -803,6 +857,18 @@ class BestBuyUSSitemapScraper:
         log.progress("=== PHASE 1: PDP Sitemap Product Extraction ===")
         sitemap_counts = await self.collect_and_ingest_from_sitemaps()
         if sitemap_counts["scraped"] > 0:
+            # Phase 1.5: enrich image_url by scraping each product page.
+            # Phase 1 ingests URL-only stubs with image_url="" because sitemap entries
+            # carry no image data. We must visit actual product pages to populate images.
+            # The ingest ON CONFLICT uses COALESCE so these re-ingests update image_url
+            # only when the scraped page returns a non-empty value.
+            sitemap_urls = list(self.seen_urls)
+            log.progress(
+                f"=== PHASE 1.5: Image Enrichment ({len(sitemap_urls)} product pages) ==="
+            )
+            enrich_counts = await self._enrich_images_from_pages(sitemap_urls)
+            log.progress(f"Image enrichment complete: {enrich_counts}")
+
             elapsed = time.time() - start
             summary = {
                 "elapsed_seconds": round(elapsed, 1),
@@ -817,6 +883,7 @@ class BestBuyUSSitemapScraper:
                 "dead_letter_file": str(self.dead_letter_file) if self._dead_letter_count > 0 else None,
                 "unique_skus": len(self.seen_skus),
                 "sitemap_counts": sitemap_counts,
+                "enrich_counts": enrich_counts,
             }
             log.progress(f"Scraper complete: {summary}")
             return summary
