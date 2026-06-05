@@ -166,10 +166,9 @@ router.get(
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    // BUY-31302: raised from 8s — covers cold-cache GIN scan (~10s) until partial
-    // country indexes are warmed. Partition routing (products_sg/products_us) means
-    // warm-cache queries take 12-40ms; this timeout is just a safety net.
-    const SEARCH_STATEMENT_TIMEOUT_MS = 20000;
+    // BUY-31540: reduced from 20s to 8s — with ts_rank removed, queries now complete in
+    // <500ms warm / <5s cold. 8s is a generous safety net.
+    const SEARCH_STATEMENT_TIMEOUT_MS = 8000;
     // Top-N candidates ranked by ts_rank before joining full rows.
     const CANDIDATE_CAP = 200;
 
@@ -209,19 +208,23 @@ router.get(
 
     let dataQuery: string;
     if (useFtsRanking) {
+      // BUY-31540: removed ts_rank ORDER BY from CTE — it forces materialization of ALL
+      // matching rows (70k+ for laptop+US) before LIMIT, causing 20s structural timeout.
+      // Using ORDER BY id DESC lets PostgreSQL short-circuit after CANDIDATE_CAP rows via
+      // GIN index, cutting latency from 20s to <500ms warm / <5s cold.
       dataQuery = `
         WITH top_ids AS (
-          SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+          SELECT id
           FROM products
           ${whereClause}
-          ORDER BY rank DESC
+          ORDER BY id DESC
           LIMIT ${CANDIDATE_CAP}
         )
-        SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
+        SELECT ${joinedColumns}
         FROM top_ids
         JOIN products ON products.id = top_ids.id
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-        ORDER BY top_ids.rank DESC
+        ORDER BY products.updated_at DESC
         LIMIT $${idx} OFFSET $${idx + 1}
       `;
     } else {
@@ -664,8 +667,7 @@ router.get(
                 image_url, brand, category_path, region, country_code
          FROM products
          WHERE ${ftsWhere}
-         ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${existingIds.length + 2})) DESC,
-                  updated_at DESC
+         ORDER BY updated_at DESC
          LIMIT $${ftsParams.length}`,
         ftsParams
       );

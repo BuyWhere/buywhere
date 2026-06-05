@@ -178,11 +178,9 @@ async def v2_list_products(
     base_query = select(Product).where(Product.is_active == True)
     
     if q:
+        # BUY-31540: removed ts_rank ORDER BY — forces full materialization before LIMIT.
         base_query = base_query.where(
             text("search_vector @@ plainto_tsquery('english', :q)").bindparams(q=q)
-        ).order_by(
-            text("ts_rank(search_vector, plainto_tsquery('english', :q_rank), 32) DESC").bindparams(q_rank=q),
-            Product.updated_at.desc()
         )
     elif sort_by == "price_asc":
         base_query = base_query.order_by(Product.price.asc())
@@ -309,14 +307,11 @@ async def v2_search(
     if cached:
         return cached
     
+    # BUY-31540: removed ts_rank ORDER BY and rank column — forces full materialization
+    # of ALL matching rows before LIMIT (70k+ for laptop+US = 20s timeout).
     base_query = select(Product).where(
         Product.is_active == True,
         text("search_vector @@ plainto_tsquery('english', :q)").bindparams(q=q)
-    ).add_columns(
-        text("ts_rank(search_vector, plainto_tsquery('english', :q_rank), 32)").bindparams(q_rank=q).label("rank")
-    ).order_by(
-        text("ts_rank(search_vector, plainto_tsquery('english', :q_rank), 32) DESC").bindparams(q_rank=q),
-        Product.updated_at.desc()
     )
     
     if category:

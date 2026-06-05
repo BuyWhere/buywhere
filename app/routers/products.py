@@ -439,11 +439,12 @@ async def v1_product_search(
     highlight_query = None
 
     if q:
+        # BUY-31540: removed ts_rank ORDER BY — forces materialization of ALL matching rows
+        # before LIMIT (70k+ for laptop+US = 20s timeout). GIN index cannot short-circuit
+        # ORDER BY, so results arrive in insertion order instead. See search.py for the
+        # canonical fix pattern.
         base_query = base_query.where(
             text("search_vector @@ plainto_tsquery('english', :q)").bindparams(q=q)
-        ).order_by(
-            text("ts_rank(search_vector, plainto_tsquery('english', :q_rank), 32) DESC").bindparams(q_rank=q),
-            Product.updated_at.desc()
         )
         highlight_query = text(
             "ts_headline('english', coalesce(title, '') || ' ' || coalesce(description, ''), "

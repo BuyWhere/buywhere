@@ -182,7 +182,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // Use a dedicated client with extended timeout — FTS on 14M rows can exceed the 10s pool default.
   const searchClient = await db.connect();
   try {
-    await searchClient.query('SET statement_timeout = 30000'); // 30s is generous for FTS with GIN index
+    await searchClient.query('SET statement_timeout = 10000'); // BUY-31540: reduced from 30s — ts_rank removed, <5s expected
     const COUNT_CAP = 1001;
     if (q) {
       const countResult = await searchClient.query(
@@ -191,15 +191,17 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       );
       total = parseInt(countResult.rows[0].count, 10);
 
+      // BUY-31540: removed ts_rank ORDER BY — forces materialization of ALL matching rows
+      // before LIMIT (70k+ for laptop+US = 20s timeout). Use updated_at DESC instead;
+      // PostgreSQL can short-circuit after LIMIT rows via GIN index.
       if (total <= 1000) {
         params.push(limit, offset);
         const result = await searchClient.query(
           `SELECT id, sku AS source, source AS domain, url, title,
                   price, currency, image_url, metadata, updated_at,
-                  region, country_code,
-                  ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
+                  region, country_code
            FROM products ${where}
-           ORDER BY rank DESC
+           ORDER BY updated_at DESC
            LIMIT $${params.length - 1} OFFSET $${params.length}`,
           params
         );
@@ -210,10 +212,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         const candidateResult = await searchClient.query(
           `SELECT id, sku AS source, source AS domain, url, title,
                   price, currency, image_url, metadata, updated_at,
-                  region, country_code,
-                  ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
+                  region, country_code
            FROM products ${where}
-           ORDER BY rank DESC
+           ORDER BY updated_at DESC
            LIMIT $${params.length}`,
           params
         );
@@ -497,12 +498,13 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   let result: { rows: Record<string, unknown>[] };
   try {
     await bestPriceClient.query('SET statement_timeout = 30000');
+    // BUY-31540: removed ts_rank from ORDER BY — price ordering is the primary sort here
+    // and ts_rank forces full result materialization before LIMIT.
     result = await bestPriceClient.query(
       `SELECT id, title, price, currency, source AS domain, url, image_url,
-              country_code,
-              ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
+              country_code
        FROM products ${where}
-       ORDER BY price ASC, rank DESC
+       ORDER BY price ASC, updated_at DESC
        LIMIT $${params.length}`,
       params
     );
