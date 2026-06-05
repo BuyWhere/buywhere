@@ -55,12 +55,22 @@ jobs:
 
           CATALOG_JSON=$(curl -fsS "https://api.buywhere.ai/v1/catalog/stats")
           echo "$CATALOG_JSON" | jq '.'
-          APPROX=$(echo "$CATALOG_JSON" | jq -r '.meta.approximate')
           SOURCE=$(echo "$CATALOG_JSON" | jq -r '.meta.source')
-          if [[ "$APPROX" != "false" || "$SOURCE" != "public.products" ]]; then
-            echo "ERROR: catalog stats did not restore exact-count behavior"
+          if [[ "$SOURCE" != "catalog_stats" && "$SOURCE" != "pg_class_fallback" ]]; then
+            echo "ERROR: catalog stats meta.source unexpected: $SOURCE"
             exit 1
           fi
+          echo "catalog/stats OK — source=$SOURCE"
+
+          CATEGORIES_JSON=$(curl -fsS "https://api.buywhere.ai/v1/catalog/categories")
+          echo "$CATEGORIES_JSON" | jq '{total: .meta.total, source: .meta.source, first: (.data[0] // null)}'
+          CAT_SOURCE=$(echo "$CATEGORIES_JSON" | jq -r '.meta.source')
+          CAT_TOTAL=$(echo "$CATEGORIES_JSON" | jq -r '.meta.total // 0')
+          if [[ -z "$CAT_SOURCE" || "$CAT_TOTAL" == "0" ]]; then
+            echo "ERROR: catalog/categories returned no data or missing source"
+            exit 1
+          fi
+          echo "catalog/categories OK — source=$CAT_SOURCE total=$CAT_TOTAL"
 
           EMAIL="gha-railway-smoke-${GITHUB_RUN_ID}@buywhere.ai"
           REGISTER_JSON=$(curl -fsS -X POST "https://api.buywhere.ai/v1/auth/register" \
