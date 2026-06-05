@@ -440,6 +440,19 @@ export async function runMigrations() {
     console.warn(`[migration] api_keys column ensure failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
+  // BUY-31040: Prevent future google-shopping source rows (owner: postgres role via API).
+  // IF NOT EXISTS → idempotent; NOT VALID → skips full-table scan (0 rows exist).
+  try {
+    await db.query(`
+      ALTER TABLE products
+        ADD CONSTRAINT IF NOT EXISTS products_source_no_legacy_google_shopping
+        CHECK (source <> 'google-shopping'::text) NOT VALID;
+    `);
+    console.log('[migration] products_source_no_legacy_google_shopping constraint ensured (BUY-31040).');
+  } catch (err: any) {
+    console.warn(`[migration] products_source_no_legacy_google_shopping constraint failed (non-fatal): ${err.message?.slice(0, 200)}`);
+  }
+
   // Separately ensure merchants tables exist — not blocked by failures above.
   try {
     await db.query(MERCHANTS_MIGRATION);
