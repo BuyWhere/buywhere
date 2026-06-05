@@ -427,6 +427,19 @@ export async function runMigrations() {
     throw new Error(`[migration] FATAL: discount_pct GENERATED column failed: ${err.message}`);
   }
 
+  // BUY-30968: Ensure api_keys columns added in BUY-29220/BUY-30073 are present even
+  // when the main MIGRATION block fails before reaching those ALTER TABLE statements.
+  try {
+    await db.query(`
+      ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS key_prefix       TEXT;
+      ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS label            TEXT;
+      ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS fingerprint_hash TEXT;
+    `);
+    console.log('[migration] api_keys key_prefix/label/fingerprint_hash columns ensured.');
+  } catch (err: any) {
+    console.warn(`[migration] api_keys column ensure failed (non-fatal): ${err.message?.slice(0, 200)}`);
+  }
+
   // Separately ensure merchants tables exist — not blocked by failures above.
   try {
     await db.query(MERCHANTS_MIGRATION);
