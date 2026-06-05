@@ -13,6 +13,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import get_settings
+from app.auth import ApiKeyContextMiddleware
 from app.rate_limit import limiter, TierRateLimitMiddleware, RedisPerMinuteRateLimitMiddleware
 from app.request_logging import RequestLoggingMiddleware
 from app.usage_metering import UsageMeteringMiddleware
@@ -261,6 +262,11 @@ app.add_middleware(RedisPerMinuteRateLimitMiddleware)
 app.add_middleware(TierRateLimitMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(UsageMeteringMiddleware)
+# Resolve API key into request.state BEFORE the rate-limit middlewares above.
+# Starlette runs middleware LIFO (last add = outermost = runs first), so this
+# must be added AFTER SlowAPIMiddleware / RedisPerMinuteRateLimitMiddleware /
+# TierRateLimitMiddleware to wrap them on the outside. (BUY-18559)
+app.add_middleware(ApiKeyContextMiddleware)
 
 if is_sentry_enabled():
     app.add_middleware(SentrySlowQueryMiddleware)
