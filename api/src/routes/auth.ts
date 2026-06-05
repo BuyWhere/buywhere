@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { createHash, randomBytes } from 'crypto';
-import { db, FREE_TIER, redis } from '../config';
+import { db, FREE_TIER, TIER_LIMITS, redis } from '../config';
+import { requireApiKey } from '../middleware/apiKey';
 import { trackRegistration, trackEmailVerified } from '../analytics/posthog';
 import { sendVerificationEmail } from '../email';
 import { sendError } from '../middleware/errors';
@@ -211,6 +212,45 @@ router.post('/resend-verification', async (req: Request, res: Response) => {
   await sendVerificationEmail(normalizedEmail, newToken);
 
   res.json({ message: 'Verification email resent.' });
+});
+
+// GET /v1/auth/me — inspect metadata for the authenticated key
+router.get('/me', requireApiKey, async (req: Request, res: Response) => {
+  const keyRecord = req.apiKeyRecord;
+  if (!keyRecord) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
+
+  const result = await db.query(
+    `SELECT id, email, tier, daily_limit, rpm_limit, created_at, last_used_at, total_queries
+     FROM api_keys
+     WHERE id = $1`,
+    [keyRecord.id]
+  );
+
+  if (result.rows.length === 0) {
+    res.status(404).json({ error: 'key not found' });
+    return;
+  }
+
+  const row = result.rows[0];
+  const tierLimits = TIER_LIMITS[row.tier] ?? FREE_TIER;
+  const dailyLimit = (row.daily_limit && row.daily_limit > 0) ? row.daily_limit : tierLimits.daily;
+  const rpmLimit = (row.rpm_limit && row.rpm_limit > 0) ? row.rpm_limit : tierLimits.rpm;
+
+  res.json({
+    key_id: row.id,
+    email: row.email || null,
+    tier: row.tier,
+    limits: {
+      queries_per_day: dailyLimit,
+      requests_per_second: rpmLimit,
+    },
+    created_at: row.created_at ? row.created_at.toISOString() : null,
+    last_used_at: row.last_used_at ? row.last_used_at.toISOString() : null,
+    total_queries: row.total_queries || 0,
+  });
 });
 
 // Infer signup channel from referer + UTM
