@@ -158,6 +158,13 @@ router.post('/products', apiKey_1.requireApiKey, asyncHandler(async (req, res) =
         });
         return;
     }
+    if (source === 'shopify') {
+        res.status(400).json({
+            run_id: null, status: 'failed', rows_inserted: 0, rows_updated: 0, rows_failed: 0,
+            errors: [{ index: 0, sku: 'request', error: 'Source "shopify" is deprecated; use "shopify_<domain>" (e.g. "shopify_focuscameracom")', code: 'deprecated_source' }],
+        });
+        return;
+    }
     if (!Array.isArray(body.products) || body.products.length === 0) {
         res.status(400).json({
             run_id: null, status: 'failed', rows_inserted: 0, rows_updated: 0, rows_failed: 0,
