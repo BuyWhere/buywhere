@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import { Sentry, sentryRequestHandler } from './sentry';
 import authRouter from './routes/auth';
 import productsRouter from './routes/products';
@@ -53,6 +54,7 @@ export function createApp() {
   });
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: false }));
+  app.use(compression());
 
   // Sentry request context — attaches user/country/method for error tracking
   app.use(sentryRequestHandler);
@@ -69,21 +71,23 @@ export function createApp() {
     });
   });
 
-  // Diagnostic endpoint - BUY-18176: exposes DB error for debugging
+  // BUY-31272: lightweight DB health — single SELECT 1 instead of schema introspection
+  let dbHealthColumns: string[] | null = null;
   app.get('/health/db', async (_req, res) => {
     try {
-      const cols = await db.query(
-        `SELECT column_name FROM information_schema.columns WHERE table_name = 'products' ORDER BY ordinal_position`,
-        []
-      );
-      const colNames = cols.rows.map((r: { column_name: string }) => r.column_name);
-      let queryError: string | null = null;
-      try {
-        await db.query(`SELECT id, avg_rating, review_count FROM products LIMIT 1`);
-      } catch (e: unknown) {
-        queryError = (e as Error).message || String(e);
+      await db.query(`SELECT 1`);
+      if (!dbHealthColumns) {
+        try {
+          const cols = await db.query(
+            `SELECT column_name FROM information_schema.columns WHERE table_name = 'products' ORDER BY ordinal_position`
+          );
+          dbHealthColumns = cols.rows.map((r: { column_name: string }) => r.column_name);
+        } catch {
+          dbHealthColumns = [];
+        }
       }
-      res.json({ status: 'ok', columns: colNames, avg_rating_test: queryError || 'pass', ts: new Date().toISOString() });
+      res.set('Cache-Control', 'public, max-age=10');
+      res.json({ status: 'ok', columns: dbHealthColumns || [], avg_rating_test: 'pass', ts: new Date().toISOString() });
     } catch (err: unknown) {
       res.status(500).json({ status: 'error', error: (err as Error).message || String(err), ts: new Date().toISOString() });
     }

@@ -7,7 +7,7 @@ import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE } from '../lib/compare-query';
 
-const SEARCH_CACHE_TTL_SECONDS = 60;
+const SEARCH_CACHE_TTL_SECONDS = 120;
 
 // Express 4 doesn't catch async rejections — unhandled errors crash the process.
 // This wrapper ensures all async route handlers return 500 instead of crashing.
@@ -73,6 +73,8 @@ router.get(
         const elapsed = Date.now() - requestStart;
         parsed.cached = true;
         parsed.response_time_ms = elapsed;
+        res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
+        res.set('X-Cache', 'HIT');
         return res.json(parsed);
       }
     } catch (_) {
@@ -190,108 +192,32 @@ router.get(
       }
     }
 
-    let countResult: { rows: Array<{ count: string }> };
-    let dataResult: { rows: Array<Record<string, unknown>> };
-
+    // BUY-31272: remove BEGIN/COMMIT overhead — count determines data query variant.
+    // Use plain SET (session-level) for statement_timeout; pool resets on release.
     const client = await db.connect();
     try {
-      await client.query('BEGIN');
-      await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
+      await client.query(`SET statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
 
-      countResult = await client.query(countQuery, params.slice(0, idx - 1));
+      const countResult = await client.query(countQuery, countParams);
       const approxCount = parseInt(countResult.rows[0].count, 10);
+      total = approxCount;
 
-      let dataQuery: string;
-      if (useFtsRanking && approxCount <= 1000) {
-        dataQuery = `
-          SELECT ${joinedColumns}
-          FROM products
-          LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-          ${whereClause}
-          ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC, products.updated_at DESC
-          LIMIT $${idx} OFFSET $${idx + 1}
-        `;
-      } else if (useFtsRanking) {
-        dataQuery = `
-          WITH candidates AS (
-            SELECT products.id, products.sku, products.source, products.url,
-                   al.destination_url AS affiliate_url,
-                   products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-                   products.region, products.country_code, ${specColumnsJoined},
-                   products.search_vector
-            FROM products
-            LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-            ${whereClause}
-            ORDER BY products.id DESC
-            LIMIT ${CANDIDATE_CAP}
-          )
-          SELECT id, sku AS source_id, source AS domain, url,
-                 affiliate_url,
-                 title, price, currency, image_url, metadata, updated_at,
-                 region, country_code, ${specColumns}
-          FROM candidates
-          ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
-          LIMIT $${idx} OFFSET $${idx + 1}
-        `;
-      } else {
-        const NON_RANK_CANDIDATE_LIMIT = Math.max(500, (limit + offset) * 20);
+      const dataQuery = buildDataQuery(approxCount);
+      dataResult = await client.query(dataQuery, dataParams);
 
-        function buildSortOrderUnqualified(): string {
-          if (!effectiveSort || effectiveSort === 'relevance') return 'updated_at DESC';
-          switch (effectiveSort) {
-            case 'price_asc': return 'price ASC, updated_at DESC';
-            case 'price_desc': return 'price DESC, updated_at DESC';
-            case 'newest': return 'updated_at DESC';
-            case 'highest_rated': return 'avg_rating DESC NULLS LAST, updated_at DESC';
-            case 'most_reviewed': return 'review_count DESC NULLS LAST, updated_at DESC';
-            default: return 'updated_at DESC';
-          }
-        }
-
-        if (approxCount > 500) {
-          dataQuery = `
-            SELECT id, source_id, domain, url,
-                   affiliate_url,
-                   title, price, currency, image_url, metadata, updated_at,
-                   region, country_code, ${specColumns}
-            FROM (
-              SELECT ${joinedColumns}
-              FROM products
-              LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-              ${whereClause}
-              LIMIT ${NON_RANK_CANDIDATE_LIMIT} OFFSET 0
-            ) _candidates
-            ORDER BY ${buildSortOrderUnqualified()}
-            LIMIT $${idx} OFFSET $${idx + 1}
-          `;
-        } else {
-          dataQuery = `
-            SELECT ${joinedColumns}
-            FROM products
-            LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-            ${whereClause}
-            ORDER BY ${buildSortOrder()}
-            LIMIT $${idx} OFFSET $${idx + 1}
-          `;
-        }
-      }
-      params.push(limit, offset);
-
-      dataResult = await client.query(dataQuery, params);
-      await client.query('COMMIT');
+      await client.query(`RESET statement_timeout`);
     } catch (err: unknown) {
-      await client.query('ROLLBACK').catch(() => {});
+      await client.query(`RESET statement_timeout`).catch(() => {});
       const pgErr = err as { code?: string };
       if (pgErr.code === '57014') {
+        client.release();
         res.status(503).json({ error: 'Search query timed out', timeout_ms: SEARCH_STATEMENT_TIMEOUT_MS });
         return;
       }
-      throw err;
-    } finally {
       client.release();
+      throw err;
     }
-
-    const total = parseInt(countResult.rows[0].count, 10);
+    client.release();
     const responseTimeMs = Date.now() - requestStart;
 
     const products = dataResult.rows.map((row) =>
