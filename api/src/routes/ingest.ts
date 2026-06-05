@@ -227,6 +227,24 @@ router.post(
       return;
     }
 
+    // Deduplicate by (sku, source) — PostgreSQL rejects ON CONFLICT DO UPDATE
+    // when the same row would be affected twice in a single command.
+    {
+      const seen = new Set<string>();
+      const unique: IngestProductItem[] = [];
+      for (const p of validProducts) {
+        if (seen.has(p.sku)) continue;
+        seen.add(p.sku);
+        unique.push(p);
+      }
+      if (unique.length < validProducts.length) {
+        const dupes = validProducts.length - unique.length;
+        validProducts.length = 0;
+        validProducts.push(...unique);
+        console.warn(`[ingest] Deduped ${dupes} duplicate sku(s) from ${source} batch`);
+      }
+    }
+
     let runId: number | null = null;
     try {
       const runResult = await withDbRetry(

@@ -1,240 +1,305 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const config_1 = require("../config");
-const apiKey_1 = require("../middleware/apiKey");
-const router = (0, express_1.Router)();
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var ingest_exports = {};
+__export(ingest_exports, {
+  default: () => ingest_default
+});
+module.exports = __toCommonJS(ingest_exports);
+var import_express = require("express");
+var import_config = require("../config");
+var import_apiKey = require("../middleware/apiKey");
+const router = (0, import_express.Router)();
 const SOURCE_NORMALIZATION = {
-    'challenger': 'challenger_sg',
-    'challenger.sg': 'challenger_sg',
-    'challenger_sg': 'challenger_sg',
-    'amazon_sg_toys': 'amazon_sg',
-    'ikea.com.sg': 'ikea_sg',
+  "challenger": "challenger_sg",
+  "challenger.sg": "challenger_sg",
+  "challenger_sg": "challenger_sg",
+  "amazon_sg_toys": "amazon_sg",
+  "ikea.com.sg": "ikea_sg"
 };
 const DB_LOCK_RETRYABLE_MESSAGES = [
-    'database is locked',
-    'database is busy',
-    'database schema has changed',
+  "database is locked",
+  "database is busy",
+  "database schema has changed"
 ];
 function isRetryableDbError(err) {
-    const message = (err?.message || '').toLowerCase();
-    const code = err?.code;
-    if (code === '55P03' || code === '40P01' || code === '40001')
-        return true;
-    return DB_LOCK_RETRYABLE_MESSAGES.some((pattern) => message.includes(pattern));
+  const message = (err?.message || "").toLowerCase();
+  const code = err?.code;
+  if (code === "55P03" || code === "40P01" || code === "40001") return true;
+  return DB_LOCK_RETRYABLE_MESSAGES.some((pattern) => message.includes(pattern));
 }
-const DB_RETRY_ATTEMPTS = parseInt(process.env.INGEST_DB_RETRY_ATTEMPTS || '8', 10);
+const DB_RETRY_ATTEMPTS = parseInt(process.env.INGEST_DB_RETRY_ATTEMPTS || "8", 10);
 function asyncHandler(fn) {
-    return (req, res) => {
-        fn(req, res).catch((err) => {
-            const message = err instanceof Error ? err.message : String(err);
-            console.error(`[ingest] unhandled error on ${req.method} ${req.path}:`, message);
-            if (!res.headersSent) {
-                res.status(500).json({
-                    run_id: null,
-                    status: 'failed',
-                    rows_inserted: 0,
-                    rows_updated: 0,
-                    rows_failed: Array.isArray(req.body?.products) ? req.body.products.length : 0,
-                    errors: [{ index: -1, sku: 'batch', error: `Unhandled ingest error: ${message}`, code: 'unhandled_error' }],
-                });
-            }
+  return (req, res) => {
+    fn(req, res).catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[ingest] unhandled error on ${req.method} ${req.path}:`, message);
+      if (!res.headersSent) {
+        res.status(500).json({
+          run_id: null,
+          status: "failed",
+          rows_inserted: 0,
+          rows_updated: 0,
+          rows_failed: Array.isArray(req.body?.products) ? req.body.products.length : 0,
+          errors: [{ index: -1, sku: "batch", error: `Unhandled ingest error: ${message}`, code: "unhandled_error" }]
         });
-    };
+      }
+    });
+  };
 }
 async function withDbRetry(operation, label, maxRetries = DB_RETRY_ATTEMPTS) {
-    let lastError;
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-            return await operation();
-        }
-        catch (err) {
-            lastError = err;
-            if (attempt >= maxRetries || !isRetryableDbError(err)) {
-                throw err;
-            }
-            const delayMs = Math.min(1000, 200 * Math.pow(2, attempt));
-            console.warn(`[ingest] ${label} retrying after lock error (attempt ${attempt + 1}/${maxRetries}) in ${delayMs}ms`);
-            await new Promise((resolve) => setTimeout(resolve, delayMs));
-        }
+  let lastError;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastError = err;
+      if (attempt >= maxRetries || !isRetryableDbError(err)) {
+        throw err;
+      }
+      const delayMs = Math.min(1e3, 200 * Math.pow(2, attempt));
+      console.warn(`[ingest] ${label} retrying after lock error (attempt ${attempt + 1}/${maxRetries}) in ${delayMs}ms`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
-    throw lastError;
+  }
+  throw lastError;
 }
 function normalizeSource(source) {
-    return SOURCE_NORMALIZATION[source] || source;
+  return SOURCE_NORMALIZATION[source] || source;
 }
 function validateProduct(item, index, source) {
-    if (!item || typeof item !== 'object') {
-        return {
-            valid: null,
-            error: { index, sku: 'unknown', error: 'Not an object', code: 'validation_error' },
-        };
-    }
-    const p = item;
-    const sku = typeof p.sku === 'string' ? p.sku : '';
-    const err = (msg, code) => ({ index, sku: sku || 'unknown', error: msg, code });
-    if (!sku)
-        return { valid: null, error: err('Missing sku', 'validation_sku_required') };
-    if (!p.merchant_id || typeof p.merchant_id !== 'string')
-        return { valid: null, error: err('Missing merchant_id', 'validation_merchant_id_required') };
-    if (!p.title || typeof p.title !== 'string')
-        return { valid: null, error: err('Missing title', 'validation_title_required') };
-    if (p.price === undefined || p.price === null || typeof p.price !== 'number' || p.price < 0) {
-        return { valid: null, error: err('Missing or invalid price (must be >= 0)', 'validation_price_non_positive') };
-    }
-    if (!p.url || typeof p.url !== 'string')
-        return { valid: null, error: err('Missing url', 'validation_url_invalid') };
-    const product = {
-        sku,
-        merchant_id: String(p.merchant_id),
-        title: String(p.title).slice(0, 1000),
-        price: p.price,
-        currency: typeof p.currency === 'string' ? p.currency : 'SGD',
-        url: String(p.url),
+  if (!item || typeof item !== "object") {
+    return {
+      valid: null,
+      error: { index, sku: "unknown", error: "Not an object", code: "validation_error" }
     };
-    if (typeof p.description === 'string')
-        product.description = String(p.description).slice(0, 5000);
-    if (typeof p.image_url === 'string')
-        product.image_url = p.image_url;
-    if (typeof p.category === 'string')
-        product.category = p.category;
-    if (Array.isArray(p.category_path))
-        product.category_path = p.category_path.map(String).slice(0, 10);
-    if (typeof p.brand === 'string')
-        product.brand = String(p.brand).slice(0, 200);
-    if (typeof p.is_active === 'boolean')
-        product.is_active = p.is_active;
-    if (typeof p.is_available === 'boolean')
-        product.is_available = p.is_available;
-    if (typeof p.in_stock === 'boolean')
-        product.in_stock = p.in_stock;
-    if (typeof p.stock_level === 'string')
-        product.stock_level = p.stock_level;
-    if (typeof p.availability === 'string')
-        product.availability = p.availability;
-    if (p.last_checked && typeof p.last_checked === 'string')
-        product.last_checked = p.last_checked;
-    if (p.metadata && typeof p.metadata === 'object')
-        product.metadata = p.metadata;
-    if (typeof p.country_code === 'string')
-        product.country_code = p.country_code;
-    else if (p.metadata && typeof p.metadata === 'object') {
-        const meta = p.metadata;
-        if (typeof meta.country_code === 'string')
-            product.country_code = meta.country_code;
-    }
-    if (typeof p.region === 'string')
-        product.region = p.region;
-    else if (p.metadata && typeof p.metadata === 'object') {
-        const meta = p.metadata;
-        if (typeof meta.region === 'string')
-            product.region = meta.region;
-    }
-    return { valid: product, error: null };
+  }
+  const p = item;
+  const sku = typeof p.sku === "string" ? p.sku : "";
+  const err = (msg, code) => ({ index, sku: sku || "unknown", error: msg, code });
+  if (!sku) return { valid: null, error: err("Missing sku", "validation_sku_required") };
+  if (!p.merchant_id || typeof p.merchant_id !== "string") return { valid: null, error: err("Missing merchant_id", "validation_merchant_id_required") };
+  if (!p.title || typeof p.title !== "string") return { valid: null, error: err("Missing title", "validation_title_required") };
+  if (p.price === void 0 || p.price === null || typeof p.price !== "number" || p.price < 0) {
+    return { valid: null, error: err("Missing or invalid price (must be >= 0)", "validation_price_non_positive") };
+  }
+  if (!p.url || typeof p.url !== "string") return { valid: null, error: err("Missing url", "validation_url_invalid") };
+  const product = {
+    sku,
+    merchant_id: String(p.merchant_id),
+    title: String(p.title).slice(0, 1e3),
+    price: p.price,
+    currency: typeof p.currency === "string" ? p.currency : "SGD",
+    url: String(p.url)
+  };
+  if (typeof p.description === "string") product.description = String(p.description).slice(0, 5e3);
+  if (typeof p.image_url === "string") product.image_url = p.image_url;
+  if (typeof p.category === "string") product.category = p.category;
+  if (Array.isArray(p.category_path)) product.category_path = p.category_path.map(String).slice(0, 10);
+  if (typeof p.brand === "string") product.brand = String(p.brand).slice(0, 200);
+  if (typeof p.is_active === "boolean") product.is_active = p.is_active;
+  if (typeof p.is_available === "boolean") product.is_available = p.is_available;
+  if (typeof p.in_stock === "boolean") product.in_stock = p.in_stock;
+  if (typeof p.stock_level === "string") product.stock_level = p.stock_level;
+  if (typeof p.availability === "string") product.availability = p.availability;
+  if (p.last_checked && typeof p.last_checked === "string") product.last_checked = p.last_checked;
+  if (p.metadata && typeof p.metadata === "object") product.metadata = p.metadata;
+  if (typeof p.country_code === "string") product.country_code = p.country_code;
+  else if (p.metadata && typeof p.metadata === "object") {
+    const meta = p.metadata;
+    if (typeof meta.country_code === "string") product.country_code = meta.country_code;
+  }
+  if (typeof p.region === "string") product.region = p.region;
+  else if (p.metadata && typeof p.metadata === "object") {
+    const meta = p.metadata;
+    if (typeof meta.region === "string") product.region = meta.region;
+  }
+  return { valid: product, error: null };
 }
 function buildCategoryPathLiteral(paths) {
-    if (!paths || paths.length === 0)
-        return '{}';
-    return `{${paths.map(c => `"${c.replace(/"/g, '\\"')}"`).join(',')}}`;
+  if (!paths || paths.length === 0) return "{}";
+  return `{${paths.map((c) => `"${c.replace(/"/g, '\\"')}"`).join(",")}}`;
 }
-router.get('/health', apiKey_1.requireApiKey, (_req, res) => {
-    res.json({ status: 'ok' });
+router.get("/health", import_apiKey.requireApiKey, (_req, res) => {
+  res.json({ status: "ok" });
 });
-router.post('/products', apiKey_1.requireApiKey, asyncHandler(async (req, res) => {
+router.post(
+  "/products",
+  import_apiKey.requireApiKey,
+  asyncHandler(async (req, res) => {
     const start = Date.now();
     const body = req.body;
-    if (!body || typeof body !== 'object' || Array.isArray(body)) {
-        res.status(400).json({
-            run_id: null, status: 'failed', rows_inserted: 0, rows_updated: 0, rows_failed: 0,
-            errors: [{ index: 0, sku: 'request', error: 'Body must be an object with source and products', code: 'validation_error' }],
-        });
-        return;
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      res.status(400).json({
+        run_id: null,
+        status: "failed",
+        rows_inserted: 0,
+        rows_updated: 0,
+        rows_failed: 0,
+        errors: [{ index: 0, sku: "request", error: "Body must be an object with source and products", code: "validation_error" }]
+      });
+      return;
     }
-    const source = normalizeSource(String(body.source || ''));
-    if (!source || source === 'undefined') {
-        res.status(400).json({
-            run_id: null, status: 'failed', rows_inserted: 0, rows_updated: 0, rows_failed: 0,
-            errors: [{ index: 0, sku: 'request', error: 'Missing source field', code: 'validation_error' }],
-        });
-        return;
+    const source = normalizeSource(String(body.source || ""));
+    if (!source || source === "undefined") {
+      res.status(400).json({
+        run_id: null,
+        status: "failed",
+        rows_inserted: 0,
+        rows_updated: 0,
+        rows_failed: 0,
+        errors: [{ index: 0, sku: "request", error: "Missing source field", code: "validation_error" }]
+      });
+      return;
     }
-    if (source === 'shopify') {
-        res.status(400).json({
-            run_id: null, status: 'failed', rows_inserted: 0, rows_updated: 0, rows_failed: 0,
-            errors: [{ index: 0, sku: 'request', error: 'Source "shopify" is deprecated; use "shopify_<domain>" (e.g. "shopify_focuscameracom")', code: 'deprecated_source' }],
-        });
-        return;
+    if (source === "shopify") {
+      res.status(400).json({
+        run_id: null,
+        status: "failed",
+        rows_inserted: 0,
+        rows_updated: 0,
+        rows_failed: 0,
+        errors: [{ index: 0, sku: "request", error: 'Source "shopify" is deprecated; use "shopify_<domain>" (e.g. "shopify_focuscameracom")', code: "deprecated_source" }]
+      });
+      return;
     }
     if (!Array.isArray(body.products) || body.products.length === 0) {
-        res.status(400).json({
-            run_id: null, status: 'failed', rows_inserted: 0, rows_updated: 0, rows_failed: 0,
-            errors: [{ index: 0, sku: 'request', error: 'products must be a non-empty array', code: 'validation_error' }],
-        });
-        return;
+      res.status(400).json({
+        run_id: null,
+        status: "failed",
+        rows_inserted: 0,
+        rows_updated: 0,
+        rows_failed: 0,
+        errors: [{ index: 0, sku: "request", error: "products must be a non-empty array", code: "validation_error" }]
+      });
+      return;
     }
-    if (body.products.length > 1000) {
-        res.status(400).json({
-            run_id: null, status: 'failed', rows_inserted: 0, rows_updated: 0, rows_failed: 0,
-            errors: [{ index: 0, sku: 'request', error: 'Maximum 1000 products per request', code: 'validation_error' }],
-        });
-        return;
+    if (body.products.length > 1e3) {
+      res.status(400).json({
+        run_id: null,
+        status: "failed",
+        rows_inserted: 0,
+        rows_updated: 0,
+        rows_failed: 0,
+        errors: [{ index: 0, sku: "request", error: "Maximum 1000 products per request", code: "validation_error" }]
+      });
+      return;
     }
     const validProducts = [];
     const errors = [];
     for (let i = 0; i < body.products.length; i++) {
-        const { valid, error } = validateProduct(body.products[i], i, source);
-        if (valid)
-            validProducts.push(valid);
-        if (error)
-            errors.push(error);
+      const { valid, error } = validateProduct(body.products[i], i, source);
+      if (valid) validProducts.push(valid);
+      if (error) errors.push(error);
     }
     if (validProducts.length === 0) {
-        res.status(207).json({
-            run_id: null, status: 'failed', rows_inserted: 0, rows_updated: 0,
-            rows_failed: errors.length, errors,
-        });
-        return;
+      res.status(207).json({
+        run_id: null,
+        status: "failed",
+        rows_inserted: 0,
+        rows_updated: 0,
+        rows_failed: errors.length,
+        errors
+      });
+      return;
+    }
+    {
+      const seen = /* @__PURE__ */ new Set();
+      const unique = [];
+      for (const p of validProducts) {
+        if (seen.has(p.sku)) continue;
+        seen.add(p.sku);
+        unique.push(p);
+      }
+      if (unique.length < validProducts.length) {
+        const dupes = validProducts.length - unique.length;
+        validProducts.length = 0;
+        validProducts.push(...unique);
+        console.warn(`[ingest] Deduped ${dupes} duplicate sku(s) from ${source} batch`);
+      }
     }
     let runId = null;
     try {
-        const runResult = await withDbRetry(() => config_1.db.query(`INSERT INTO ingestion_runs (source, status) VALUES ($1, 'running') RETURNING id`, [source]), 'create ingestion run');
-        runId = runResult.rows[0]?.id || null;
+      const runResult = await withDbRetry(
+        () => import_config.db.query(
+          `INSERT INTO ingestion_runs (source, status) VALUES ($1, 'running') RETURNING id`,
+          [source]
+        ),
+        "create ingestion run"
+      );
+      runId = runResult.rows[0]?.id || null;
+    } catch (e) {
+      console.warn("[ingest] Failed to create ingestion run record:", e.message);
     }
-    catch (e) {
-        console.warn('[ingest] Failed to create ingestion run record:', e.message);
-    }
-    const skus = validProducts.map(p => p.sku);
-    const existingResult = await withDbRetry(() => config_1.db.query(`SELECT sku FROM products WHERE sku = ANY($1::text[]) AND source = $2`, [skus, source]), 'select existing SKUs');
+    const skus = validProducts.map((p) => p.sku);
+    const existingResult = await withDbRetry(
+      () => import_config.db.query(
+        `SELECT sku FROM products WHERE sku = ANY($1::text[]) AND source = $2`,
+        [skus, source]
+      ),
+      "select existing SKUs"
+    );
     const existingSkus = new Set(existingResult.rows.map((r) => r.sku));
     let rowsInserted = 0;
     let rowsUpdated = 0;
     let rowsFailed = errors.length;
     try {
-        const values = [];
-        const placeholders = [];
-        for (const p of validProducts) {
-            const base = values.length + 1;
-            const metadata = {
-                ...(p.metadata || {}),
-                origin_merchant_id: p.merchant_id,
-                availability: p.availability || 'in_stock',
-                category: p.category || null,
-            };
-            if (p.in_stock !== undefined)
-                metadata.in_stock = p.in_stock;
-            if (p.stock_level !== undefined)
-                metadata.stock_level = p.stock_level;
-            if (p.is_available !== undefined)
-                metadata.is_available = p.is_available;
-            if (p.last_checked !== undefined)
-                metadata.last_checked = p.last_checked;
-            values.push(p.sku, source, p.merchant_id, p.title, p.description || null, p.price, p.currency || 'SGD', p.url, p.image_url || null, buildCategoryPathLiteral(p.category_path), p.brand || null, JSON.stringify(metadata), p.is_active !== false, p.region || null, p.country_code || null);
-            placeholders.push(`($${base},$${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},$${base + 13},$${base + 14})`);
-        }
-        await withDbRetry(() => config_1.db.query(`INSERT INTO products
+      const values = [];
+      const placeholders = [];
+      for (const p of validProducts) {
+        const base = values.length + 1;
+        const metadata = {
+          ...p.metadata || {},
+          origin_merchant_id: p.merchant_id,
+          availability: p.availability || "in_stock",
+          category: p.category || null
+        };
+        if (p.in_stock !== void 0) metadata.in_stock = p.in_stock;
+        if (p.stock_level !== void 0) metadata.stock_level = p.stock_level;
+        if (p.is_available !== void 0) metadata.is_available = p.is_available;
+        if (p.last_checked !== void 0) metadata.last_checked = p.last_checked;
+        values.push(
+          p.sku,
+          source,
+          p.merchant_id,
+          p.title,
+          p.description || null,
+          p.price,
+          p.currency || "SGD",
+          p.url,
+          p.image_url || null,
+          buildCategoryPathLiteral(p.category_path),
+          p.brand || null,
+          JSON.stringify(metadata),
+          p.is_active !== false,
+          p.region || null,
+          p.country_code || null
+        );
+        placeholders.push(
+          `($${base},$${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},$${base + 13},$${base + 14})`
+        );
+      }
+      await withDbRetry(
+        () => import_config.db.query(
+          `INSERT INTO products
            (sku, source, merchant_id, title, description, price, currency, url,
             image_url, category_path, brand, metadata, is_active, region, country_code)
-         VALUES ${placeholders.join(', ')}
+         VALUES ${placeholders.join(", ")}
          ON CONFLICT (sku, source)
          DO UPDATE SET
            title = EXCLUDED.title,
@@ -250,83 +315,151 @@ router.post('/products', apiKey_1.requireApiKey, asyncHandler(async (req, res) =
            is_active = true,
            region = COALESCE(EXCLUDED.region, products.region),
            country_code = COALESCE(EXCLUDED.country_code, products.country_code),
-           updated_at = NOW()`, values), 'upsert products batch');
-        for (const p of validProducts) {
-            if (existingSkus.has(p.sku)) {
-                rowsUpdated++;
-            }
-            else {
-                rowsInserted++;
-            }
+           updated_at = NOW()`,
+          values
+        ),
+        "upsert products batch"
+      );
+      for (const p of validProducts) {
+        if (existingSkus.has(p.sku)) {
+          rowsUpdated++;
+        } else {
+          rowsInserted++;
         }
-    }
-    catch (e) {
-        const msg = e.message;
-        console.error('[ingest] Bulk upsert failed:', msg);
-        rowsFailed += validProducts.length;
-        rowsInserted = 0;
-        rowsUpdated = 0;
-        if (!errors.some(err => err.code === 'database_error')) {
-            errors.unshift({ index: -1, sku: 'batch', error: `Database error: ${msg}`, code: 'database_error' });
-        }
-        if (runId !== null) {
-            await withDbRetry(() => config_1.db.query(`UPDATE ingestion_runs SET status = 'failed', error_message = $1, finished_at = NOW() WHERE id = $2`, [msg.slice(0, 500), runId]), 'mark run failed').catch(() => { });
-        }
-        res.status(207).json({
-            run_id: runId, status: 'failed', rows_inserted: 0, rows_updated: 0,
-            rows_failed: rowsFailed, errors,
+      }
+    } catch (e) {
+      const msg = e.message;
+      console.error("[ingest] Bulk upsert failed:", msg);
+      rowsFailed += validProducts.length;
+      rowsInserted = 0;
+      rowsUpdated = 0;
+      if (!errors.some((err) => err.code === "database_error")) {
+        errors.unshift({ index: -1, sku: "batch", error: `Database error: ${msg}`, code: "database_error" });
+      }
+      if (runId !== null) {
+        await withDbRetry(
+          () => import_config.db.query(
+            `UPDATE ingestion_runs SET status = 'failed', error_message = $1, finished_at = NOW() WHERE id = $2`,
+            [msg.slice(0, 500), runId]
+          ),
+          "mark run failed"
+        ).catch(() => {
         });
-        return;
+      }
+      res.status(207).json({
+        run_id: runId,
+        status: "failed",
+        rows_inserted: 0,
+        rows_updated: 0,
+        rows_failed: rowsFailed,
+        errors
+      });
+      return;
     }
     const priceHistoryValues = [];
     const phPlaceholders = [];
-    const finalResult = await withDbRetry(() => config_1.db.query(`SELECT id, sku FROM products WHERE sku = ANY($1::text[]) AND source = $2`, [skus, source]), 'select final product ids');
+    const finalResult = await withDbRetry(
+      () => import_config.db.query(
+        `SELECT id, sku FROM products WHERE sku = ANY($1::text[]) AND source = $2`,
+        [skus, source]
+      ),
+      "select final product ids"
+    );
     const skuToId = new Map(finalResult.rows.map((r) => [r.sku, r.id]));
     for (const p of validProducts) {
-        const productId = skuToId.get(p.sku);
-        if (productId) {
-            const base = priceHistoryValues.length + 1;
-            priceHistoryValues.push(productId, p.price, p.currency || 'SGD', source);
-            phPlaceholders.push(`($${base},$${base + 1},$${base + 2},$${base + 3})`);
-        }
+      const productId = skuToId.get(p.sku);
+      if (productId) {
+        const base = priceHistoryValues.length + 1;
+        priceHistoryValues.push(productId, p.price, p.currency || "SGD", source);
+        phPlaceholders.push(`($${base},$${base + 1},$${base + 2},$${base + 3})`);
+      }
     }
     if (priceHistoryValues.length > 0) {
-        try {
-            await withDbRetry(() => config_1.db.query(`INSERT INTO price_history (product_id, price, currency, source)
-           VALUES ${phPlaceholders.join(', ')}`, priceHistoryValues), 'insert price history');
-        }
-        catch (e) {
-            console.warn('[ingest] Price history insert failed:', e.message);
-        }
+      try {
+        await withDbRetry(
+          () => import_config.db.query(
+            `INSERT INTO price_history (product_id, price, currency, source)
+           VALUES ${phPlaceholders.join(", ")}`,
+            priceHistoryValues
+          ),
+          "insert price history"
+        );
+      } catch (e) {
+        console.warn("[ingest] Price history insert failed:", e.message);
+      }
     }
-    const status = rowsFailed === 0 ? 'completed' : 'completed_with_errors';
+    const status = rowsFailed === 0 ? "completed" : "completed_with_errors";
     if (runId !== null) {
-        await withDbRetry(() => config_1.db.query(`UPDATE ingestion_runs SET status = $1, rows_inserted = $2, rows_updated = $3, rows_failed = $4, finished_at = NOW() WHERE id = $5`, [status, rowsInserted, rowsUpdated, rowsFailed, runId]), 'mark run complete').catch(() => { });
+      await withDbRetry(
+        () => import_config.db.query(
+          `UPDATE ingestion_runs SET status = $1, rows_inserted = $2, rows_updated = $3, rows_failed = $4, finished_at = NOW() WHERE id = $5`,
+          [status, rowsInserted, rowsUpdated, rowsFailed, runId]
+        ),
+        "mark run complete"
+      ).catch(() => {
+      });
     }
     if (rowsInserted > 0 || rowsUpdated > 0) {
-        try {
-            const keys = await config_1.redis.keys('products:*');
-            if (keys.length > 0)
-                await config_1.redis.del(...keys);
-            const searchKeys = await config_1.redis.keys('search:*');
-            if (searchKeys.length > 0)
-                await config_1.redis.del(...searchKeys);
-            await config_1.redis.set(`bw:ingestion:last_success:${source}`, String(Date.now() / 1000));
-            await config_1.redis.set(`bw:ingestion:products_last_run:${source}`, String(rowsInserted + rowsUpdated));
-        }
-        catch (e) {
-            console.warn('[ingest] Cache invalidation failed:', e.message);
-        }
+      try {
+        const keys = await import_config.redis.keys("products:*");
+        if (keys.length > 0) await import_config.redis.del(...keys);
+        const searchKeys = await import_config.redis.keys("search:*");
+        if (searchKeys.length > 0) await import_config.redis.del(...searchKeys);
+        await import_config.redis.set(`bw:ingestion:last_success:${source}`, String(Date.now() / 1e3));
+        await import_config.redis.set(`bw:ingestion:products_last_run:${source}`, String(rowsInserted + rowsUpdated));
+      } catch (e) {
+        console.warn("[ingest] Cache invalidation failed:", e.message);
+      }
     }
     const durationMs = Date.now() - start;
-    res.set('X-Runtime-Ms', String(durationMs));
+    res.set("X-Runtime-Ms", String(durationMs));
     res.status(errors.length > 0 && rowsInserted + rowsUpdated > 0 ? 207 : errors.length > 0 ? 207 : 200).json({
-        run_id: runId,
-        status,
-        rows_inserted: rowsInserted,
-        rows_updated: rowsUpdated,
-        rows_failed: rowsFailed,
-        errors: errors.length > 0 ? errors : undefined,
+      run_id: runId,
+      status,
+      rows_inserted: rowsInserted,
+      rows_updated: rowsUpdated,
+      rows_failed: rowsFailed,
+      errors: errors.length > 0 ? errors : void 0
     });
+  })
+);
+router.get("/runs", import_apiKey.requireApiKey, asyncHandler(async (req, res) => {
+  const limit = Math.min(parseInt(String(req.query.limit), 10) || 50, 200);
+  const offset = parseInt(String(req.query.offset), 10) || 0;
+  const source = req.query.source;
+  let query = `SELECT id, source, status, rows_inserted, rows_updated, rows_failed,
+                      error_message, created_at, finished_at
+               FROM ingestion_runs`;
+  const params = [];
+  const conditions = [];
+  if (source) {
+    params.push(source);
+    conditions.push(`source = $${params.length}`);
+  }
+  if (conditions.length > 0) {
+    query += ` WHERE ${conditions.join(" AND ")}`;
+  }
+  query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+  params.push(limit, offset);
+  const result = await import_config.db.query(query, params);
+  res.json({ runs: result.rows, limit, offset });
 }));
-exports.default = router;
+router.get("/runs/:id", import_apiKey.requireApiKey, asyncHandler(async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid run id" });
+    return;
+  }
+  const result = await import_config.db.query(
+    `SELECT id, source, status, rows_inserted, rows_updated, rows_failed,
+            error_message, created_at, finished_at
+     FROM ingestion_runs WHERE id = $1`,
+    [id]
+  );
+  if (result.rows.length === 0) {
+    res.status(404).json({ error: "Run not found" });
+    return;
+  }
+  res.json(result.rows[0]);
+}));
+var ingest_default = router;
