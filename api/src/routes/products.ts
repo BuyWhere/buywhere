@@ -1000,7 +1000,10 @@ export async function warmSearchCache(): Promise<void> {
       const currency = country === 'US' ? 'USD' : 'SGD';
       const limit = 20;
       const offset = 0;
-      const cacheKey = `fts:${q}:::${country}::::::::${currency}:::${limit}:${offset}::f`;
+      // Must match the handler's cacheKey exactly:
+      // fts:q:domain:region:country:category:catId:catPath:brand:merchantId:avail:currency:minP:maxP:limit:offset:sort:fields:compact
+      // With all defaults empty: fts:q:::country:::::::currency:::limit:offset:::f
+      const cacheKey = `fts:${q}:::${country}:::::::${currency}:::${limit}:${offset}:::f`;
 
       const existing = await redis.get(cacheKey).catch(() => null);
       if (existing) {
