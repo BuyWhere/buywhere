@@ -163,11 +163,13 @@ router.get(
     }
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const COUNT_CAP = 1001;
-    const countQuery = `SELECT COUNT(*) FROM (SELECT 1 FROM products ${whereClause} LIMIT ${COUNT_CAP}) _sub`;
 
-    const SEARCH_STATEMENT_TIMEOUT_MS = 8000;
-    const CANDIDATE_CAP = 2000;
+    // BUY-31302: raised from 8s — covers cold-cache GIN scan (~10s) until partial
+    // country indexes are warmed. Partition routing (products_sg/products_us) means
+    // warm-cache queries take 12-40ms; this timeout is just a safety net.
+    const SEARCH_STATEMENT_TIMEOUT_MS = 20000;
+    // Top-N candidates ranked by ts_rank before joining full rows.
+    const CANDIDATE_CAP = 200;
 
     const specColumns = `created_at, description, brand, mpn, gtin, category_path, category, merchant_id, avg_rating, review_count`;
     const specColumnsJoined = `products.created_at, products.description, products.brand, products.mpn, products.gtin, products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
@@ -192,22 +194,53 @@ router.get(
       }
     }
 
-    // BUY-31272: remove BEGIN/COMMIT overhead — count determines data query variant.
-    // Use plain SET (session-level) for statement_timeout; pool resets on release.
+    // BUY-31302: fix broken search from BUY-28677 (countParams/dataParams/buildDataQuery were
+    // never defined, causing ReferenceError → 100% 500 rate).
+    // Use LIMIT-pushdown CTE: rank top CANDIDATE_CAP IDs via GIN index, join full rows for
+    // only those. Eliminates the separate COUNT query that doubled DB load. Over-fetch by 1
+    // to derive has_more without a second scan.
+    let dataResult: { rows: Array<Record<string, unknown>> };
+    let total: number;
+    let hasMore: boolean;
+
+    const dataParams = [...params, limit + 1, offset];
+
+    let dataQuery: string;
+    if (useFtsRanking) {
+      dataQuery = `
+        WITH top_ids AS (
+          SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+          FROM products
+          ${whereClause}
+          ORDER BY rank DESC
+          LIMIT ${CANDIDATE_CAP}
+        )
+        SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
+        FROM top_ids
+        JOIN products ON products.id = top_ids.id
+        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+        ORDER BY top_ids.rank DESC
+        LIMIT $${idx} OFFSET $${idx + 1}
+      `;
+    } else {
+      dataQuery = `
+        SELECT ${joinedColumns}
+        FROM products
+        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+        ${whereClause}
+        ORDER BY ${buildSortOrder()}
+        LIMIT $${idx} OFFSET $${idx + 1}
+      `;
+    }
+
     const client = await db.connect();
     try {
-      await client.query(`SET statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
-
-      const countResult = await client.query(countQuery, countParams);
-      const approxCount = parseInt(countResult.rows[0].count, 10);
-      total = approxCount;
-
-      const dataQuery = buildDataQuery(approxCount);
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
       dataResult = await client.query(dataQuery, dataParams);
-
-      await client.query(`RESET statement_timeout`);
+      await client.query('COMMIT');
     } catch (err: unknown) {
-      await client.query(`RESET statement_timeout`).catch(() => {});
+      await client.query('ROLLBACK').catch(() => {});
       const pgErr = err as { code?: string };
       if (pgErr.code === '57014') {
         client.release();
@@ -218,6 +251,11 @@ router.get(
       throw err;
     }
     client.release();
+
+    hasMore = dataResult.rows.length > limit;
+    if (hasMore) dataResult.rows.pop();
+    total = offset + dataResult.rows.length + (hasMore ? 1 : 0);
+
     const responseTimeMs = Date.now() - requestStart;
 
     const products = dataResult.rows.map((row) =>
@@ -250,7 +288,7 @@ router.get(
     }
 
     const responseBody = buildSearchResponse(
-      filteredProducts, total, limit, offset, responseTimeMs, false
+      filteredProducts, total, limit, offset, responseTimeMs, hasMore
     );
 
     // Cache result in Redis (fire-and-forget)
