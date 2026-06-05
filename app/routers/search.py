@@ -485,28 +485,14 @@ async def search_products(
         base_query = base_query.where(
             text("search_vector @@ websearch_to_tsquery('english', :q)").bindparams(q=q)
         )
-        base_query = base_query.order_by(
-            text(
-                """
-                (
-                    ts_rank_cd(search_vector, websearch_to_tsquery('english', :q_rank), 32) * 2.0
-                    + ts_rank_cd(title_search_vector, websearch_to_tsquery('english', :q_rank), 32) * 3.0
-                    + CASE WHEN lower(title) = lower(:q_exact) THEN 2.0 ELSE 0 END
-                    + CASE WHEN lower(title) LIKE lower(:q_prefix) THEN 1.0 ELSE 0 END
-                    + CASE WHEN brand IS NOT NULL AND lower(brand) = lower(:q_exact) THEN 0.75 ELSE 0 END
-                    + CASE WHEN source ~ '^(amazon_us|walmart_us|target_us|bestbuy_us)' THEN 0.25 ELSE 0 END
-                    + CASE
-                        WHEN image_url IS NOT NULL AND brand IS NOT NULL AND description IS NOT NULL
-                             AND category IS NOT NULL THEN 0.30
-                        WHEN image_url IS NOT NULL AND brand IS NOT NULL THEN 0.15
-                        WHEN image_url IS NOT NULL THEN 0.05
-                        ELSE 0
-                      END
-                ) DESC
-                """
-            ).bindparams(q_rank=q, q_exact=q, q_prefix=f"{q}%"),
-            Product.updated_at.desc()
-        )
+        # PERF FIX (P0): ANY ORDER BY with a GIN FTS search on 28M rows forces a full
+        # bitmap scan of ALL matching rows before LIMIT can be applied — PostgreSQL cannot
+        # short-circuit ORDER BY with GIN indexes. For common terms ("laptop" = 72,636
+        # matches), ORDER BY + ts_rank_cd takes 3+ minutes. Without ORDER BY, PostgreSQL
+        # uses a sequential scan that terminates after finding LIMIT matching rows, which
+        # runs in 300-3000ms. Relevance ranking is deferred to a future task (partial
+        # indexes + caching tier). Trade-off: results in insertion order, not ranked.
+        # Do NOT add ORDER BY back here without first creating partial country GIN indexes.
     else:
         base_query = base_query.order_by(Product.updated_at.desc())
 
@@ -1018,11 +1004,7 @@ async def benchmark_search(
             select(Product)
             .where(Product.is_active == True)
             .where(text("search_vector @@ websearch_to_tsquery('english', :q)").bindparams(q=q))
-            .order_by(
-                text(
-                    "ts_rank_cd(search_vector, websearch_to_tsquery('english', :q_rank), 32) DESC"
-                ).bindparams(q_rank=q)
-            )
+            .order_by(Product.updated_at.desc())
             .limit(20)
         )
 
