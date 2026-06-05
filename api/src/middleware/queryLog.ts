@@ -132,6 +132,8 @@ export function queryLogMiddleware(endpoint: string) {
 
       // BUY-22733: source-of-truth usage telemetry to PostHog.
       // Skip unauthenticated requests — no api_key_id to attribute.
+      // BUY-31298: route handlers set res.locals.queryIntent / productCategories /
+      // signupChannel / sourcePage so this single event carries all analytics context.
       if (apiKeyRecord?.id) {
         try {
           trackApiUsage({
@@ -142,6 +144,10 @@ export function queryLogMiddleware(endpoint: string) {
             resultStatus: res.statusCode,
             latencyMs: responseTimeMs,
             toolName: (res.locals.mcpToolName as string) || null,
+            queryIntent: (res.locals.queryIntent as string) || null,
+            productCategories: (res.locals.productCategories as string[]) || null,
+            signupChannel: (res.locals.signupChannel as string) || null,
+            sourcePage: (res.locals.sourcePage as string) || null,
           });
         } catch {
           // PostHog client errors must never affect the response.

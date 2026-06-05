@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db, redis } from '../config';
 import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
-import { trackApiQuery, trackProductSearch, trackProductView } from '../analytics/posthog';
+import { trackProductSearch, trackProductView } from '../analytics/posthog';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE } from '../lib/compare-query';
@@ -297,23 +297,17 @@ router.get(
     // Extract categories from results for analytics
     const categories = extractCategories(products);
 
-    // PostHog event (fire-and-forget)
+    // BUY-31298: pass behavioral context to queryLogMiddleware via res.locals so the
+    // single trackApiUsage call captures all fields (api_key_id, result_status, latency_ms
+    // are always present on the middleware event — no duplicate legacy event needed).
     if (req.apiKeyRecord) {
-      trackApiQuery({
-        apiKey: hashKey(req.apiKeyRecord.key),
-        agentFramework: req.agentInfo?.framework || 'unknown',
-        agentVersion: req.agentInfo?.version || '',
-        sdkLanguage: req.agentInfo?.sdkLanguage || 'unknown',
-        queryIntent: inferQueryIntent(q, domain, minPrice, maxPrice),
-        productCategories: categories,
-        resultCount: products.length,
-        responseTimeMs,
-        signupChannel: req.apiKeyRecord.signupChannel,
-        sourcePage: sourcePage || null,
-        endpoint: 'products.search',
-      });
+      res.locals.queryIntent = inferQueryIntent(q, domain, minPrice, maxPrice);
+      res.locals.productCategories = categories;
+      res.locals.signupChannel = req.apiKeyRecord.signupChannel;
+      res.locals.sourcePage = sourcePage || null;
       trackProductSearch({
         apiKey: hashKey(req.apiKeyRecord.key),
+        apiKeyId: req.apiKeyRecord.id,
         queryText: q,
         resultCount: products.length,
         responseTimeMs,
@@ -731,24 +725,19 @@ router.get(
     const product = buildProduct(row as Record<string, unknown>, 'SGD', false);
 
     if (req.apiKeyRecord) {
-      trackApiQuery({
-        apiKey: hashKey(req.apiKeyRecord.key),
-        agentFramework: req.agentInfo?.framework || 'unknown',
-        agentVersion: req.agentInfo?.version || '',
-        sdkLanguage: req.agentInfo?.sdkLanguage || 'unknown',
-        queryIntent: 'lookup',
-        productCategories: extractCategories([product]),
-        resultCount: 1,
-        responseTimeMs: Date.now() - start,
-        signupChannel: req.apiKeyRecord.signupChannel,
-        sourcePage: null,
-        endpoint: 'products.get',
-      });
+      const elapsedMs = Date.now() - start;
+      // BUY-31298: feed behavioral context through res.locals; trackApiUsage via
+      // queryLogMiddleware always captures api_key_id, result_status, latency_ms.
+      res.locals.queryIntent = 'lookup';
+      res.locals.productCategories = extractCategories([product]);
+      res.locals.signupChannel = req.apiKeyRecord.signupChannel;
       trackProductView({
         apiKey: hashKey(req.apiKeyRecord.key),
+        apiKeyId: req.apiKeyRecord.id,
         productId: row.id,
         retailer: row.domain,
         category: (Array.isArray(row.category_path) ? row.category_path[0] : (typeof row.category_path === 'string' ? row.category_path.split(' > ')[0] : null)) as string | null,
+        latencyMs: elapsedMs,
       });
     }
 

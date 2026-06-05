@@ -8,7 +8,7 @@ const posthog_1 = require("../analytics/posthog");
 const queryLog_1 = require("../middleware/queryLog");
 const response_1 = require("../lib/response");
 const compare_query_1 = require("../lib/compare-query");
-const SEARCH_CACHE_TTL_SECONDS = 60;
+const SEARCH_CACHE_TTL_SECONDS = 120;
 // Express 4 doesn't catch async rejections — unhandled errors crash the process.
 // This wrapper ensures all async route handlers return 500 instead of crashing.
 function asyncHandler(fn) {
@@ -64,6 +64,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             const elapsed = Date.now() - requestStart;
             parsed.cached = true;
             parsed.response_time_ms = elapsed;
+            res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
+            res.set('X-Cache', 'HIT');
             return res.json(parsed);
         }
     }
@@ -152,77 +154,63 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         idx++;
     }
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    // Cap count at 1001: if result set > 1000 rows, ts_rank ordering over all matches is expensive
-    // (500ms+ for broad queries like "apple iphone"). For large result sets, fall back to
-    // updated_at DESC which uses the index and avoids full-scan rank computation.
-    const COUNT_CAP = 1001;
-    const countQuery = `SELECT COUNT(*) FROM (SELECT 1 FROM products ${whereClause} LIMIT ${COUNT_CAP}) _sub`;
-    // Run count first (fast, capped) to decide ordering strategy, then fetch data
-    const countResult = await config_1.db.query(countQuery, params.slice(0, idx - 1));
-    const approxCount = parseInt(countResult.rows[0].count, 10);
+    // BUY-31302: raised from 8s — covers cold-cache GIN scan (~10s) until partial
+    // country indexes are warmed. Partition routing (products_sg/products_us) means
+    // warm-cache queries take 12-40ms; this timeout is just a safety net.
+    const SEARCH_STATEMENT_TIMEOUT_MS = 20000;
+    // Top-N candidates ranked by ts_rank before joining full rows.
+    const CANDIDATE_CAP = 200;
+    const specColumns = `created_at, description, brand, mpn, gtin, category_path, category, merchant_id, avg_rating, review_count`;
+    const specColumnsJoined = `products.created_at, products.description, products.brand, products.mpn, products.gtin, products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
+    const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
+               al.destination_url AS affiliate_url,
+               products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
+               products.region, products.country_code, ${specColumnsJoined}`;
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
     const useFtsRanking = (!effectiveSort || effectiveSort === 'relevance') && ftsParamIdx;
-    // Build ORDER BY for non-fts-ranking path
     function buildSortOrder() {
         if (!effectiveSort || effectiveSort === 'relevance')
-            return 'updated_at DESC';
+            return 'products.updated_at DESC';
         switch (effectiveSort) {
-            case 'price_asc': return 'price ASC, updated_at DESC';
-            case 'price_desc': return 'price DESC, updated_at DESC';
-            case 'newest': return 'updated_at DESC';
-            case 'highest_rated': return 'avg_rating DESC NULLS LAST, updated_at DESC';
-            case 'most_reviewed': return 'review_count DESC NULLS LAST, updated_at DESC';
-            default: return 'updated_at DESC';
+            case 'price_asc': return 'products.price ASC, products.updated_at DESC';
+            case 'price_desc': return 'products.price DESC, products.updated_at DESC';
+            case 'newest': return 'products.updated_at DESC';
+            case 'highest_rated': return 'products.avg_rating DESC NULLS LAST, products.updated_at DESC';
+            case 'most_reviewed': return 'products.review_count DESC NULLS LAST, products.updated_at DESC';
+            default: return 'products.updated_at DESC';
         }
     }
-    // For large result sets (>1000 rows), computing ts_rank over all matches is expensive.
-    // Instead, let the GIN index fetch up to CANDIDATE_LIMIT rows, rank those by ts_rank,
-    // then return the top N. This gives relevance ordering at a fraction of the cost.
-    // For small result sets (<= 1000 rows), ts_rank over all matches is fast.
-    const CANDIDATE_LIMIT = Math.max(500, (limit + offset) * 10);
-    const specColumns = `created_at, description, brand, mpn, gtin, category_path, category, merchant_id, avg_rating, review_count`;
+    // BUY-31302: fix broken search from BUY-28677 (countParams/dataParams/buildDataQuery were
+    // never defined, causing ReferenceError → 100% 500 rate).
+    // Use LIMIT-pushdown CTE: rank top CANDIDATE_CAP IDs via GIN index, join full rows for
+    // only those. Eliminates the separate COUNT query that doubled DB load. Over-fetch by 1
+    // to derive has_more without a second scan.
+    let dataResult;
+    let total;
+    let hasMore;
+    const dataParams = [...params, limit + 1, offset];
     let dataQuery;
-    if (useFtsRanking && approxCount <= 1000) {
+    if (useFtsRanking) {
         dataQuery = `
-        SELECT products.id, sku AS source_id, source AS domain, url,
-               al.destination_url AS affiliate_url,
-               title, price, currency, image_url, metadata, updated_at,
-               region, country_code, ${specColumns}
-        FROM products
-        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-        ${whereClause}
-        ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC, updated_at DESC
-        LIMIT $${idx} OFFSET $${idx + 1}
-      `;
-    }
-    else if (useFtsRanking) {
-        dataQuery = `
-        SELECT id, source_id, domain, url,
-               affiliate_url,
-               title, price, currency, image_url, metadata, updated_at,
-               region, country_code, ${specColumns}
-        FROM (
-        SELECT products.id, sku AS source_id, source AS domain, url,
-               al.destination_url AS affiliate_url,
-               title, price, currency, image_url, metadata, updated_at,
-               region, country_code, ${specColumns},
-               ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
-        FROM products
-        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+        WITH top_ids AS (
+          SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+          FROM products
           ${whereClause}
-          LIMIT ${CANDIDATE_LIMIT}
-        ) _candidates
-        ORDER BY rank DESC
+          ORDER BY rank DESC
+          LIMIT ${CANDIDATE_CAP}
+        )
+        SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
+        FROM top_ids
+        JOIN products ON products.id = top_ids.id
+        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+        ORDER BY top_ids.rank DESC
         LIMIT $${idx} OFFSET $${idx + 1}
       `;
     }
     else {
         dataQuery = `
-        SELECT products.id, sku AS source_id, source AS domain, url,
-               al.destination_url AS affiliate_url,
-               title, price, currency, image_url, metadata, updated_at,
-               region, country_code, ${specColumns}
+        SELECT ${joinedColumns}
         FROM products
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ${whereClause}
@@ -230,9 +218,29 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         LIMIT $${idx} OFFSET $${idx + 1}
       `;
     }
-    params.push(limit, offset);
-    const dataResult = await config_1.db.query(dataQuery, params);
-    const total = parseInt(countResult.rows[0].count, 10);
+    const client = await config_1.db.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
+        dataResult = await client.query(dataQuery, dataParams);
+        await client.query('COMMIT');
+    }
+    catch (err) {
+        await client.query('ROLLBACK').catch(() => { });
+        const pgErr = err;
+        if (pgErr.code === '57014') {
+            client.release();
+            res.status(503).json({ error: 'Search query timed out', timeout_ms: SEARCH_STATEMENT_TIMEOUT_MS });
+            return;
+        }
+        client.release();
+        throw err;
+    }
+    client.release();
+    hasMore = dataResult.rows.length > limit;
+    if (hasMore)
+        dataResult.rows.pop();
+    total = offset + dataResult.rows.length + (hasMore ? 1 : 0);
     const responseTimeMs = Date.now() - requestStart;
     const products = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
     // Apply field selection if `fields` param is specified
@@ -259,28 +267,22 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             });
         }
     }
-    const responseBody = (0, response_1.buildSearchResponse)(filteredProducts, total, limit, offset, responseTimeMs, false);
+    const responseBody = (0, response_1.buildSearchResponse)(filteredProducts, total, limit, offset, responseTimeMs, hasMore);
     // Cache result in Redis (fire-and-forget)
     config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
     // Extract categories from results for analytics
     const categories = extractCategories(products);
-    // PostHog event (fire-and-forget)
+    // BUY-31298: pass behavioral context to queryLogMiddleware via res.locals so the
+    // single trackApiUsage call captures all fields (api_key_id, result_status, latency_ms
+    // are always present on the middleware event — no duplicate legacy event needed).
     if (req.apiKeyRecord) {
-        (0, posthog_1.trackApiQuery)({
-            apiKey: (0, apiKey_1.hashKey)(req.apiKeyRecord.key),
-            agentFramework: req.agentInfo?.framework || 'unknown',
-            agentVersion: req.agentInfo?.version || '',
-            sdkLanguage: req.agentInfo?.sdkLanguage || 'unknown',
-            queryIntent: inferQueryIntent(q, domain, minPrice, maxPrice),
-            productCategories: categories,
-            resultCount: products.length,
-            responseTimeMs,
-            signupChannel: req.apiKeyRecord.signupChannel,
-            sourcePage: sourcePage || null,
-            endpoint: 'products.search',
-        });
+        res.locals.queryIntent = inferQueryIntent(q, domain, minPrice, maxPrice);
+        res.locals.productCategories = categories;
+        res.locals.signupChannel = req.apiKeyRecord.signupChannel;
+        res.locals.sourcePage = sourcePage || null;
         (0, posthog_1.trackProductSearch)({
             apiKey: (0, apiKey_1.hashKey)(req.apiKeyRecord.key),
+            apiKeyId: req.apiKeyRecord.id,
             queryText: q,
             resultCount: products.length,
             responseTimeMs,
@@ -314,11 +316,13 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     const dealParams = [currency];
     let dealIdx = 2;
     let useDiscountCol = true;
-    // Probe whether discount_pct column exists (cached per-process)
+    // Probe whether discount_pct column exists as GENERATED (cached per-process)
+    // BUY-22324: must verify is_generated = 'ALWAYS'; a plain column is 100% NULL
+    // and produces wrong results (get_deals returns total: 0).
     if (typeof router._hasDiscountPct === 'undefined') {
         try {
-            await config_1.db.query(`SELECT discount_pct FROM products LIMIT 0`);
-            router._hasDiscountPct = true;
+            const probe = await config_1.db.query(`SELECT is_generated FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`);
+            router._hasDiscountPct = probe.rows.length > 0 && probe.rows[0].is_generated === 'ALWAYS';
         }
         catch {
             router._hasDiscountPct = false;
@@ -583,24 +587,19 @@ router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, 
     const row = result.rows[0];
     const product = (0, response_1.buildProduct)(row, 'SGD', false);
     if (req.apiKeyRecord) {
-        (0, posthog_1.trackApiQuery)({
-            apiKey: (0, apiKey_1.hashKey)(req.apiKeyRecord.key),
-            agentFramework: req.agentInfo?.framework || 'unknown',
-            agentVersion: req.agentInfo?.version || '',
-            sdkLanguage: req.agentInfo?.sdkLanguage || 'unknown',
-            queryIntent: 'lookup',
-            productCategories: extractCategories([product]),
-            resultCount: 1,
-            responseTimeMs: Date.now() - start,
-            signupChannel: req.apiKeyRecord.signupChannel,
-            sourcePage: null,
-            endpoint: 'products.get',
-        });
+        const elapsedMs = Date.now() - start;
+        // BUY-31298: feed behavioral context through res.locals; trackApiUsage via
+        // queryLogMiddleware always captures api_key_id, result_status, latency_ms.
+        res.locals.queryIntent = 'lookup';
+        res.locals.productCategories = extractCategories([product]);
+        res.locals.signupChannel = req.apiKeyRecord.signupChannel;
         (0, posthog_1.trackProductView)({
             apiKey: (0, apiKey_1.hashKey)(req.apiKeyRecord.key),
+            apiKeyId: req.apiKeyRecord.id,
             productId: row.id,
             retailer: row.domain,
             category: (Array.isArray(row.category_path) ? row.category_path[0] : (typeof row.category_path === 'string' ? row.category_path.split(' > ')[0] : null)),
+            latencyMs: elapsedMs,
         });
     }
     const responseBody = (0, response_1.buildSearchResponse)([product], 1, 1, 0, Date.now() - start, false);
@@ -727,8 +726,14 @@ router.post('/ingest', apiKey_1.requireApiKey, asyncHandler(async (req, res) => 
     for (const r of rows) {
         const result = await config_1.db.query(`INSERT INTO products
            (sku, source, merchant_id, title, description, price, currency, url,
-            image_url, category_path, brand, metadata, is_active, region, country_code, gtin, mpn)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,true,$13,$14,$15,$16)
+            image_url, category_path, brand, metadata, is_active, region, country_code, gtin, mpn,
+            search_vector)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,true,$13,$14,$15,$16,
+                 to_tsvector('english',
+                   COALESCE($4,'') || ' ' ||
+                   COALESCE($11,'') || ' ' ||
+                   COALESCE(array_to_string($10::text[],' '),'')
+                 ))
          ON CONFLICT (sku, source)
          DO UPDATE SET
            title = EXCLUDED.title,
@@ -740,6 +745,11 @@ router.post('/ingest', apiKey_1.requireApiKey, asyncHandler(async (req, res) => 
            country_code = COALESCE(EXCLUDED.country_code, products.country_code),
            gtin = COALESCE(EXCLUDED.gtin, products.gtin),
            mpn = COALESCE(EXCLUDED.mpn, products.mpn),
+           search_vector = to_tsvector('english',
+             COALESCE(EXCLUDED.title,'') || ' ' ||
+             COALESCE(EXCLUDED.brand,'') || ' ' ||
+             COALESCE(array_to_string(EXCLUDED.category_path,' '),'')
+           ),
            updated_at = NOW()
          RETURNING (xmax = 0) AS is_insert`, [
             r.sku, r.platform, r.merchantId, r.name, r.description || null,

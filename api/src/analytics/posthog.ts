@@ -149,6 +149,8 @@ export async function shutdownPostHog(): Promise<void> {
 // BUY-22733: source-of-truth usage telemetry — one event per authenticated request.
 // `toolName` set on MCP `tools/call` → emits `mcp_tool_call`; otherwise `api_query`.
 // `timestamp` lets the backfill script post historical events at their original `query_log.created_at`.
+// BUY-31298: added behavioral context fields so route handlers can pass extra analytics
+// through res.locals without firing a separate legacy trackApiQuery event.
 export interface ApiUsageEvent {
   apiKeyId: string;
   endpoint: string;
@@ -159,12 +161,21 @@ export interface ApiUsageEvent {
   toolName?: string | null;
   timestamp?: Date;
   backfilled?: boolean;
+  queryIntent?: string | null;
+  productCategories?: string[] | null;
+  signupChannel?: string | null;
+  sourcePage?: string | null;
 }
 
 export function trackApiUsage(event: ApiUsageEvent): void {
   const ph = getClient();
   if (!ph) return;
   const isMcpToolCall = !!event.toolName;
+  const extra: Record<string, unknown> = {};
+  if (event.queryIntent) extra.query_intent = event.queryIntent;
+  if (event.productCategories?.length) extra.product_categories = event.productCategories;
+  if (event.signupChannel) extra.signup_channel = event.signupChannel;
+  if (event.sourcePage) extra.source_page = event.sourcePage;
   ph.capture({
     distinctId: event.apiKeyId,
     event: isMcpToolCall ? 'mcp_tool_call' : 'api_query',
@@ -177,6 +188,7 @@ export function trackApiUsage(event: ApiUsageEvent): void {
       latency_ms: event.latencyMs,
       ...(isMcpToolCall ? { tool_name: event.toolName } : {}),
       ...(event.backfilled ? { backfilled: true } : {}),
+      ...extra,
     },
     ...(event.timestamp ? { timestamp: event.timestamp } : {}),
   });
@@ -197,6 +209,7 @@ export function trackEmailVerified(apiKeyId: string, email: string): void {
 
 export interface ProductSearchEvent {
   apiKey: string;
+  apiKeyId: string;
   queryText: string;
   resultCount: number;
   responseTimeMs: number;
@@ -209,6 +222,9 @@ export function trackProductSearch(event: ProductSearchEvent): void {
     distinctId: event.apiKey,
     event: 'product_search',
     properties: {
+      api_key_id: event.apiKeyId,
+      result_status: 200,
+      latency_ms: event.responseTimeMs,
       query_text: event.queryText,
       result_count: event.resultCount,
       response_time_ms: event.responseTimeMs,
@@ -218,9 +234,11 @@ export function trackProductSearch(event: ProductSearchEvent): void {
 
 export interface ProductViewEvent {
   apiKey: string;
+  apiKeyId: string;
   productId: string;
   retailer: string;
   category: string | null;
+  latencyMs: number;
 }
 
 export function trackProductView(event: ProductViewEvent): void {
@@ -230,6 +248,9 @@ export function trackProductView(event: ProductViewEvent): void {
     distinctId: event.apiKey,
     event: 'product_view',
     properties: {
+      api_key_id: event.apiKeyId,
+      result_status: 200,
+      latency_ms: event.latencyMs,
       product_id: event.productId,
       retailer: event.retailer,
       category: event.category,

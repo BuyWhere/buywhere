@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.queryLogMiddleware = queryLogMiddleware;
 const config_1 = require("../config");
+const posthog_1 = require("../analytics/posthog");
 // Known human User-Agent patterns — browsers, Googlebot, etc.
 const HUMAN_UA_PATTERNS = [
     /mozilla/i,
@@ -123,6 +124,30 @@ function queryLogMiddleware(endpoint) {
             ]).catch(() => {
                 // Fire-and-forget — don't crash on log failure
             });
+            // BUY-22733: source-of-truth usage telemetry to PostHog.
+            // Skip unauthenticated requests — no api_key_id to attribute.
+            // BUY-31298: route handlers set res.locals.queryIntent / productCategories /
+            // signupChannel / sourcePage so this single event carries all analytics context.
+            if (apiKeyRecord?.id) {
+                try {
+                    (0, posthog_1.trackApiUsage)({
+                        apiKeyId: apiKeyRecord.id,
+                        endpoint,
+                        method: req.method,
+                        tier: apiKeyRecord.tier,
+                        resultStatus: res.statusCode,
+                        latencyMs: responseTimeMs,
+                        toolName: res.locals.mcpToolName || null,
+                        queryIntent: res.locals.queryIntent || null,
+                        productCategories: res.locals.productCategories || null,
+                        signupChannel: res.locals.signupChannel || null,
+                        sourcePage: res.locals.sourcePage || null,
+                    });
+                }
+                catch {
+                    // PostHog client errors must never affect the response.
+                }
+            }
         });
         next();
     };

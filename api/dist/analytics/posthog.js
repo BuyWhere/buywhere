@@ -6,6 +6,7 @@ exports.trackRegistration = trackRegistration;
 exports.trackComparePageView = trackComparePageView;
 exports.trackCompareRetailerClick = trackCompareRetailerClick;
 exports.shutdownPostHog = shutdownPostHog;
+exports.trackApiUsage = trackApiUsage;
 exports.trackEmailVerified = trackEmailVerified;
 exports.trackProductSearch = trackProductSearch;
 exports.trackProductView = trackProductView;
@@ -116,6 +117,37 @@ async function shutdownPostHog() {
         await client.shutdown();
     }
 }
+function trackApiUsage(event) {
+    const ph = getClient();
+    if (!ph)
+        return;
+    const isMcpToolCall = !!event.toolName;
+    const extra = {};
+    if (event.queryIntent)
+        extra.query_intent = event.queryIntent;
+    if (event.productCategories?.length)
+        extra.product_categories = event.productCategories;
+    if (event.signupChannel)
+        extra.signup_channel = event.signupChannel;
+    if (event.sourcePage)
+        extra.source_page = event.sourcePage;
+    ph.capture({
+        distinctId: event.apiKeyId,
+        event: isMcpToolCall ? 'mcp_tool_call' : 'api_query',
+        properties: {
+            endpoint: event.endpoint,
+            method: event.method,
+            tier: event.tier,
+            api_key_id: event.apiKeyId,
+            result_status: event.resultStatus,
+            latency_ms: event.latencyMs,
+            ...(isMcpToolCall ? { tool_name: event.toolName } : {}),
+            ...(event.backfilled ? { backfilled: true } : {}),
+            ...extra,
+        },
+        ...(event.timestamp ? { timestamp: event.timestamp } : {}),
+    });
+}
 function trackEmailVerified(apiKeyId, email) {
     const ph = getClient();
     if (!ph)
@@ -137,6 +169,9 @@ function trackProductSearch(event) {
         distinctId: event.apiKey,
         event: 'product_search',
         properties: {
+            api_key_id: event.apiKeyId,
+            result_status: 200,
+            latency_ms: event.responseTimeMs,
             query_text: event.queryText,
             result_count: event.resultCount,
             response_time_ms: event.responseTimeMs,
@@ -151,6 +186,9 @@ function trackProductView(event) {
         distinctId: event.apiKey,
         event: 'product_view',
         properties: {
+            api_key_id: event.apiKeyId,
+            result_status: 200,
+            latency_ms: event.latencyMs,
             product_id: event.productId,
             retailer: event.retailer,
             category: event.category,
