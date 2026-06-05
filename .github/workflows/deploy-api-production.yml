@@ -42,12 +42,13 @@ jobs:
       - name: Run regression tests
         env:
           REGRESSION_BASE_URL: https://api.buywhere.ai
+          BUYWHERE_API_KEY: ${{ secrets.BUYWHERE_SMOKE_KEY }}
         run: |
           SCOPE="${{ github.event.inputs.test_scope || 'all' }}"
           if [ "$SCOPE" = "all" ]; then
-            pytest tests/api/test_api_endpoints.py -v
+            pytest api/tests/api/test_api_endpoints.py -v
           else
-            pytest tests/api/test_api_endpoints.py -v -m "$SCOPE"
+            pytest api/tests/api/test_api_endpoints.py -v -m "$SCOPE"
           fi
 
   deploy:
@@ -166,6 +167,15 @@ jobs:
           docker compose exec -T api node dist/migrate.js || echo "Migration failed (non-fatal, check logs)"
           echo "Migration step complete."
           REMOTE
+
+      - name: Smoke test search endpoint
+        env:
+          BUYWHERE_API_KEY: ${{ secrets.BUYWHERE_SMOKE_KEY }}
+        run: |
+          sleep 5
+          echo "=== Smoke testing search endpoint (BUY-31302) ==="
+          chmod +x api/scripts/smoke-test-search.sh
+          MAX_TIME=1 api/scripts/smoke-test-search.sh
 
       - name: Smoke test agent-readiness headers
         run: |
