@@ -74,6 +74,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const clarityProjectId = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID;
   return (
     <html lang="en" className={inter.variable}>
       <head>
@@ -91,6 +92,18 @@ export default function RootLayout({
           src="https://plausible.io/js/pa-M_CbMUmDsm0yzuqLBDXQO.js"
           strategy="afterInteractive"
         />
+        {clarityProjectId && (
+          <>
+            <link rel="dns-prefetch" href="https://www.clarity.ms" />
+            <Script id="ms-clarity" strategy="afterInteractive">{`
+              (function(c,l,a,r,i,t,y){
+                c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+                t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+                y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+              })(window, document, "clarity", "script", "${clarityProjectId}");
+            `}</Script>
+          </>
+        )}
         {process.env.NEXT_PUBLIC_GTM_ID && (
           <>
             <Script id="gtm-head" strategy="afterInteractive">{`

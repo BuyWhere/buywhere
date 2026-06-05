@@ -4,6 +4,7 @@ import { USSearchAutocomplete } from "@/components/USSearchAutocomplete";
 import { USDealsSection } from "@/components/USDealsSection";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
+import { fetchCatalogStats, formatCompactProductCount } from "@/lib/catalog-stats";
 
 interface CategoryPageProps {
   params: Promise<{
@@ -126,13 +127,13 @@ function CategoryHero({ category }: { category: string }) {
   );
 }
 
-function TrustBadges() {
+function TrustBadges({ productCountLabel }: { productCountLabel: string }) {
   return (
     <section className="py-12 bg-white border-y border-gray-100">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
           <div>
-            <div className="text-2xl font-bold text-gray-900">50M+</div>
+            <div className="text-2xl font-bold text-gray-900">{productCountLabel}</div>
             <div className="text-sm text-gray-500">Products indexed</div>
           </div>
           <div>
@@ -294,6 +295,8 @@ export default async function USCategoryPage({ params }: CategoryPageProps) {
   const { category } = await params;
   const categoryData = CATEGORY_META[category] || DEFAULT_CATEGORY;
   const categoryName = formatCategoryName(category);
+  const stats = await fetchCatalogStats();
+  const productCountLabel = stats ? formatCompactProductCount(stats.totalProducts) : "Millions";
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",
@@ -350,7 +353,7 @@ export default async function USCategoryPage({ params }: CategoryPageProps) {
 
       <main id="main-content" className="flex-1">
         <CategoryHero category={category} />
-        <TrustBadges />
+        <TrustBadges productCountLabel={productCountLabel} />
         <SubcategoriesSection subcategories={categoryData.subcategories} />
         <WhyCompareSection category={category} />
         <USDealsSection />
