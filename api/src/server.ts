@@ -47,6 +47,8 @@ export function createApp() {
   app.use((_req, res, next) => {
     res.set('X-Content-Type-Options', 'nosniff');
     res.set('X-Frame-Options', 'DENY');
+    res.set('X-AI-Enabled', 'true');
+    res.set('X-MCP-Endpoint', 'https://api.buywhere.ai/mcp');
     next();
   });
   app.use(express.json({ limit: '10mb' }));
