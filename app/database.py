@@ -1,8 +1,10 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.exc import SQLAlchemyError
 from app.config import get_settings
 import logging
 import os
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -92,15 +94,44 @@ class Base(DeclarativeBase):
     pass
 
 async def get_db():
-    """Generator-based db session getter for dependency injection."""
+    """Generator-based db session getter for dependency injection with retry logic."""
     session_maker = get_session_maker()
-    async with session_maker() as session:
+    max_retries = 3
+    retry_delay = 1  # seconds
+
+    for attempt in range(max_retries):
+        session = session_maker()
         try:
             yield session
             await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
+            return  # Success, exit retry loop
+        except Exception as e:
+            error_msg = str(e)
+            # Check for connection-related errors that deserve retry
+            is_connection_error = any([
+                'InterfaceError' in error_msg,
+                'connection is closed' in error_msg,
+                'underlying connection is closed' in error_msg,
+                'ConnectionResetError' in error_msg,
+            ])
+
+            if is_connection_error and attempt < max_retries - 1:
+                logging.warning(f"Database connection error (attempt {attempt + 1}/{max_retries}): {e}. Retrying...")
+                try:
+                    await session.rollback()
+                except Exception:
+                    pass  # Ignore rollback errors on dead connections
+                finally:
+                    await session.close()
+
+                await asyncio.sleep(retry_delay * (2 ** attempt))  # Exponential backoff
+                continue  # Retry
+            else:
+                # Either not a connection error or last attempt - rollback and raise
+                await session.rollback()
+                raise
+        finally:
+            await session.close()
 
 def get_sync_db():
     from sqlalchemy.orm import sessionmaker
@@ -126,3 +157,36 @@ class _AsyncSessionLocal:
 
 AsyncSessionLocal = _AsyncSessionLocal()
 engine = property(lambda self: get_engine())
+
+
+async def with_db_retry(func, *args, max_retries=3, **kwargs):
+    """
+    Execute a database function with retry logic for connection errors.
+
+    Usage:
+        async def my_operation():
+            session = get_async_session()
+            result = await session.execute(query)
+            return result
+
+        result = await with_db_retry(my_operation)
+    """
+    for attempt in range(max_retries):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            error_msg = str(e)
+            is_connection_error = any([
+                'InterfaceError' in error_msg,
+                'connection is closed' in error_msg,
+                'underlying connection is closed' in error_msg,
+                'ConnectionResetError' in error_msg,
+            ])
+
+            if is_connection_error and attempt < max_retries - 1:
+                logger.warning(f"Database operation failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying...")
+                await asyncio.sleep(1 * (2 ** attempt))  # Exponential backoff
+                continue
+            else:
+                raise
+
