@@ -162,10 +162,10 @@ router.get('/health', requireApiKey, (_req: Request, res: Response) => {
   res.json({ status: 'ok' });
 });
 
-router.post(
-  '/products',
-  requireApiKey,
-  asyncHandler(async (req: Request, res: Response) => {
+// Shared ingestion handler — registered on /products, / (root), and /bulk
+// so that POST /v1/ingest, POST /v1/ingest/products, POST /v1/ingest/bulk,
+// POST /ingest/bulk, and POST /ingest all work (BUY-31929).
+async function handleIngest(req: Request, res: Response): Promise<void> {
     const start = Date.now();
     const body = req.body;
 
@@ -423,8 +423,12 @@ router.post(
       rows_failed: rowsFailed,
       errors: errors.length > 0 ? errors : undefined,
     });
-  })
-);
+}
+
+// Register the shared handler on all expected paths (BUY-31929)
+router.post('/products', requireApiKey, asyncHandler(handleIngest));
+router.post('/', requireApiKey, asyncHandler(handleIngest));       // POST /v1/ingest
+router.post('/bulk', requireApiKey, asyncHandler(handleIngest));   // POST /v1/ingest/bulk
 
 
 router.get('/runs', requireApiKey, asyncHandler(async (req: Request, res: Response) => {

@@ -96,6 +96,42 @@ const TOOLS = [
             },
         },
     },
+    {
+        name: 'ingest_products',
+        description: 'Ingest (upsert) a batch of products into the BuyWhere catalog. Use this to add or update product listings from any merchant/source. Requires a valid API key with ingest permissions. Accepts up to 1000 products per call with source, SKU, title, price, URL, and optional metadata.',
+        inputSchema: {
+            type: 'object',
+            required: ['source', 'products'],
+            properties: {
+                source: { type: 'string', description: 'Data source identifier (e.g. "shopee_sg", "amazon_sg", "lazada_sg")' },
+                products: {
+                    type: 'array',
+                    description: 'Array of product objects to ingest (max 1000)',
+                    items: {
+                        type: 'object',
+                        required: ['sku', 'merchant_id', 'title', 'price', 'url'],
+                        properties: {
+                            sku: { type: 'string', description: 'Unique stock keeping unit identifier' },
+                            merchant_id: { type: 'string', description: 'Merchant identifier' },
+                            title: { type: 'string', description: 'Product title' },
+                            description: { type: 'string', description: 'Product description' },
+                            price: { type: 'number', description: 'Current price (must be >= 0)' },
+                            currency: { type: 'string', description: 'Currency code (default: SGD)', default: 'SGD' },
+                            url: { type: 'string', description: 'Product URL on the merchant site' },
+                            image_url: { type: 'string', description: 'Main product image URL' },
+                            category: { type: 'string', description: 'Product category' },
+                            brand: { type: 'string', description: 'Brand name' },
+                            is_active: { type: 'boolean', description: 'Whether the product is active (default: true)' },
+                            is_available: { type: 'boolean', description: 'Whether the product is in stock' },
+                            country_code: { type: 'string', description: 'ISO country code (e.g. "SG", "US")' },
+                            region: { type: 'string', description: 'Region identifier (e.g. "sea", "us")' },
+                            metadata: { type: 'object', description: 'Additional product metadata' },
+                        },
+                    },
+                },
+            },
+        },
+    },
 ];
 let _hasDiscountPct;
 async function probeDiscountPctColumn() {
@@ -460,6 +496,217 @@ async function handleFindBestPrice(args) {
         meta: { total: data.length, country, response_time_ms: Date.now() - t0 },
     };
 }
+// BUY-31929: MCP tool to ingest products — delegates to the same logic as
+// POST /v1/ingest/products but via JSON-RPC tool call.
+async function handleIngestProducts(args) {
+    const t0 = Date.now();
+    const source = String(args.source || '');
+    const products = args.products;
+    if (!source || source === 'undefined') {
+        throw { code: -32602, message: 'Missing required parameter: source' };
+    }
+    if (!Array.isArray(products) || products.length === 0) {
+        throw { code: -32602, message: 'Missing required parameter: products (non-empty array)' };
+    }
+    if (products.length > 1000) {
+        throw { code: -32602, message: 'Maximum 1000 products per request' };
+    }
+    // Normalize source (reuse the same mapping as the REST endpoint)
+    const SOURCE_NORMALIZATION = {
+        'challenger': 'challenger_sg',
+        'challenger.sg': 'challenger_sg',
+        'challenger_sg': 'challenger_sg',
+        'amazon_sg_toys': 'amazon_sg',
+        'ikea.com.sg': 'ikea_sg',
+    };
+    const normalizedSource = SOURCE_NORMALIZATION[source] || source;
+    const validProducts = [];
+    const errors = [];
+    for (let i = 0; i < products.length; i++) {
+        const p = products[i];
+        if (!p || typeof p !== 'object') {
+            errors.push({ index: i, sku: 'unknown', error: 'Not an object' });
+            continue;
+        }
+        const sku = typeof p.sku === 'string' ? p.sku : '';
+        if (!sku) {
+            errors.push({ index: i, sku: 'unknown', error: 'Missing sku' });
+            continue;
+        }
+        if (!p.merchant_id || typeof p.merchant_id !== 'string') {
+            errors.push({ index: i, sku, error: 'Missing merchant_id' });
+            continue;
+        }
+        if (!p.title || typeof p.title !== 'string') {
+            errors.push({ index: i, sku, error: 'Missing title' });
+            continue;
+        }
+        if (p.price === undefined || p.price === null || typeof p.price !== 'number' || p.price < 0) {
+            errors.push({ index: i, sku, error: 'Missing or invalid price' });
+            continue;
+        }
+        if (!p.url || typeof p.url !== 'string') {
+            errors.push({ index: i, sku, error: 'Missing url' });
+            continue;
+        }
+        validProducts.push({
+            sku,
+            merchant_id: String(p.merchant_id),
+            title: String(p.title).slice(0, 1000),
+            price: p.price,
+            currency: typeof p.currency === 'string' ? p.currency : 'SGD',
+            url: String(p.url),
+            description: typeof p.description === 'string' ? String(p.description).slice(0, 5000) : undefined,
+            image_url: typeof p.image_url === 'string' ? p.image_url : undefined,
+            category: typeof p.category === 'string' ? p.category : undefined,
+            category_path: Array.isArray(p.category_path) ? p.category_path.map(String).slice(0, 10) : undefined,
+            brand: typeof p.brand === 'string' ? String(p.brand).slice(0, 200) : undefined,
+            is_active: typeof p.is_active === 'boolean' ? p.is_active : undefined,
+            is_available: typeof p.is_available === 'boolean' ? p.is_available : undefined,
+            in_stock: typeof p.in_stock === 'boolean' ? p.in_stock : undefined,
+            stock_level: typeof p.stock_level === 'string' ? p.stock_level : undefined,
+            country_code: typeof p.country_code === 'string' ? p.country_code : undefined,
+            region: typeof p.region === 'string' ? p.region : undefined,
+            metadata: (p.metadata && typeof p.metadata === 'object') ? p.metadata : undefined,
+        });
+    }
+    if (validProducts.length === 0) {
+        return {
+            status: 'failed',
+            rows_inserted: 0, rows_updated: 0, rows_failed: errors.length,
+            errors,
+            response_time_ms: Date.now() - t0,
+        };
+    }
+    // Create ingestion run record
+    let runId = null;
+    try {
+        const runResult = await config_1.db.query(`INSERT INTO ingestion_runs (source, status) VALUES ($1, 'running') RETURNING id`, [normalizedSource]);
+        runId = runResult.rows[0]?.id || null;
+    }
+    catch (e) {
+        console.warn('[mcp:ingest] Failed to create ingestion run record:', e.message);
+    }
+    // Check existing SKUs
+    const skus = validProducts.map(p => p.sku);
+    const existingResult = await config_1.db.query(`SELECT sku FROM products WHERE sku = ANY($1::text[]) AND source = $2`, [skus, normalizedSource]);
+    const existingSkus = new Set(existingResult.rows.map((r) => r.sku));
+    let rowsInserted = 0;
+    let rowsUpdated = 0;
+    try {
+        const values = [];
+        const placeholders = [];
+        for (const p of validProducts) {
+            const base = values.length + 1;
+            const metadata = {
+                ...(p.metadata || {}),
+                origin_merchant_id: p.merchant_id,
+                category: p.category || null,
+            };
+            if (p.in_stock !== undefined)
+                metadata.in_stock = p.in_stock;
+            if (p.stock_level !== undefined)
+                metadata.stock_level = p.stock_level;
+            if (p.is_available !== undefined)
+                metadata.is_available = p.is_available;
+            const catPath = (p.category_path && p.category_path.length > 0)
+                ? `{${p.category_path.map(c => `"${c.replace(/"/g, '\\"')}"`).join(',')}}`
+                : '{}';
+            values.push(p.sku, normalizedSource, p.merchant_id, p.title, p.description || null, p.price, p.currency || 'SGD', p.url, p.image_url || null, catPath, p.brand || null, JSON.stringify(metadata), p.is_active !== false, p.region || null, p.country_code || null);
+            placeholders.push(`($${base},$${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},$${base + 13},$${base + 14})`);
+        }
+        await config_1.db.query(`INSERT INTO products
+         (sku, source, merchant_id, title, description, price, currency, url,
+          image_url, category_path, brand, metadata, is_active, region, country_code)
+       VALUES ${placeholders.join(', ')}
+       ON CONFLICT (sku, source)
+       DO UPDATE SET
+         title = EXCLUDED.title,
+         description = EXCLUDED.description,
+         price = EXCLUDED.price,
+         currency = EXCLUDED.currency,
+         url = EXCLUDED.url,
+         image_url = COALESCE(NULLIF(EXCLUDED.image_url, ''), products.image_url),
+         brand = EXCLUDED.brand,
+         category_path = EXCLUDED.category_path,
+         merchant_id = EXCLUDED.merchant_id,
+         metadata = EXCLUDED.metadata,
+         is_active = true,
+         region = COALESCE(EXCLUDED.region, products.region),
+         country_code = COALESCE(EXCLUDED.country_code, products.country_code),
+         updated_at = NOW()`, values);
+        for (const p of validProducts) {
+            if (existingSkus.has(p.sku)) {
+                rowsUpdated++;
+            }
+            else {
+                rowsInserted++;
+            }
+        }
+    }
+    catch (e) {
+        const msg = e.message;
+        console.error('[mcp:ingest] Bulk upsert failed:', msg);
+        if (runId !== null) {
+            await config_1.db.query(`UPDATE ingestion_runs SET status = 'failed', error_message = $1, finished_at = NOW() WHERE id = $2`, [msg.slice(0, 500), runId]).catch(() => { });
+        }
+        return {
+            run_id: runId, status: 'failed',
+            rows_inserted: 0, rows_updated: 0, rows_failed: validProducts.length,
+            errors: [{ index: -1, sku: 'batch', error: `Database error: ${msg}` }, ...errors],
+            response_time_ms: Date.now() - t0,
+        };
+    }
+    // Insert price history
+    const finalResult = await config_1.db.query(`SELECT id, sku FROM products WHERE sku = ANY($1::text[]) AND source = $2`, [skus, normalizedSource]);
+    const skuToId = new Map(finalResult.rows.map((r) => [r.sku, r.id]));
+    const phValues = [];
+    const phPlaceholders = [];
+    for (const p of validProducts) {
+        const productId = skuToId.get(p.sku);
+        if (productId) {
+            const base = phValues.length + 1;
+            phValues.push(productId, p.price, p.currency || 'SGD', normalizedSource);
+            phPlaceholders.push(`($${base},$${base + 1},$${base + 2},$${base + 3})`);
+        }
+    }
+    if (phValues.length > 0) {
+        try {
+            await config_1.db.query(`INSERT INTO price_history (product_id, price, currency, source) VALUES ${phPlaceholders.join(', ')}`, phValues);
+        }
+        catch (e) {
+            console.warn('[mcp:ingest] Price history insert failed:', e.message);
+        }
+    }
+    const status = errors.length === 0 ? 'completed' : 'completed_with_errors';
+    if (runId !== null) {
+        await config_1.db.query(`UPDATE ingestion_runs SET status = $1, rows_inserted = $2, rows_updated = $3, rows_failed = $4, finished_at = NOW() WHERE id = $5`, [status, rowsInserted, rowsUpdated, errors.length, runId]).catch(() => { });
+    }
+    // Invalidate caches
+    if (rowsInserted > 0 || rowsUpdated > 0) {
+        try {
+            const keys = await config_1.redis.keys('products:*');
+            if (keys.length > 0)
+                await config_1.redis.del(...keys);
+            const searchKeys = await config_1.redis.keys('search:*');
+            if (searchKeys.length > 0)
+                await config_1.redis.del(...searchKeys);
+            await config_1.redis.set(`bw:ingestion:last_success:${normalizedSource}`, String(Date.now() / 1000));
+        }
+        catch (e) {
+            console.warn('[mcp:ingest] Cache invalidation failed:', e.message);
+        }
+    }
+    return {
+        run_id: runId,
+        status,
+        rows_inserted: rowsInserted,
+        rows_updated: rowsUpdated,
+        rows_failed: errors.length,
+        errors: errors.length > 0 ? errors : undefined,
+        response_time_ms: Date.now() - t0,
+    };
+}
 async function dispatchTool(name, args) {
     switch (name) {
         case 'search_products': return handleSearchProducts(args);
@@ -468,6 +715,7 @@ async function dispatchTool(name, args) {
         case 'get_deals': return handleGetDeals(args);
         case 'list_categories': return handleListCategories(args);
         case 'find_best_price': return handleFindBestPrice(args);
+        case 'ingest_products': return handleIngestProducts(args);
         default:
             throw { code: -32601, message: `Unknown tool: ${name}` };
     }
@@ -483,6 +731,51 @@ function jsonrpcErr(id, code, message, data, envelopeCode) {
     }
     return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) } };
 }
+// GET /mcp/health — public liveness probe (checks DB + Redis connectivity)
+router.get('/health', async (_req, res) => {
+    try {
+        const [, pong] = await Promise.all([
+            config_1.db.query('SELECT 1'),
+            config_1.redis.ping(),
+        ]);
+        res.json({
+            status: pong === 'PONG' ? 'ok' : 'degraded',
+            db: 'ok',
+            redis: pong === 'PONG' ? 'ok' : 'degraded',
+            ts: new Date().toISOString(),
+        });
+    }
+    catch (err) {
+        res.status(503).json({
+            status: 'down',
+            error: err.message || String(err),
+            ts: new Date().toISOString(),
+        });
+    }
+});
+// GET /mcp/health/authenticated — deeper probe requiring API key
+router.get('/health/authenticated', apiKey_1.requireApiKey, async (_req, res) => {
+    try {
+        const [countResult, pong] = await Promise.all([
+            config_1.db.query('SELECT reltuples::bigint AS count FROM pg_class WHERE relname = \'products\''),
+            config_1.redis.ping(),
+        ]);
+        res.json({
+            status: 'ok',
+            db: 'ok',
+            redis: pong === 'PONG' ? 'ok' : 'degraded',
+            product_count: countResult.rows[0]?.count ?? null,
+            ts: new Date().toISOString(),
+        });
+    }
+    catch (err) {
+        res.status(503).json({
+            status: 'down',
+            error: err.message || String(err),
+            ts: new Date().toISOString(),
+        });
+    }
+});
 // GET /mcp — info endpoint for browser / reviewer verification.
 // Returns a JSON descriptor instead of Express's default 404 so registry
 // reviewers and DevRel verifiers can confirm the endpoint is live without
