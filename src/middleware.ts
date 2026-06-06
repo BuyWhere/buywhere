@@ -33,7 +33,7 @@ function classifyUa(ua: string): { is_bot: boolean; agent_family: string } {
 
 async function capturePageviewServer(
   distinctId: string,
-  url: string,
+  url: URL,
   ua: string,
   ip: string | null
 ) {
@@ -47,7 +47,10 @@ async function capturePageviewServer(
         event: "pageview_server",
         distinct_id: distinctId,
         properties: {
-          $current_url: url,
+          $current_url: url.toString(),
+          pathname: url.pathname,
+          path: url.pathname + url.search,
+          host: url.host,
           $raw_user_agent: ua,
           $ip: ip,
           is_bot,
@@ -56,6 +59,15 @@ async function capturePageviewServer(
       }),
     });
   } catch {}
+}
+
+function canonicalRequestUrl(request: NextRequest): URL {
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const host = forwardedHost || request.headers.get("host") || request.nextUrl.host;
+  const proto = forwardedProto || request.nextUrl.protocol.replace(":", "");
+  const url = new URL(request.nextUrl.pathname + request.nextUrl.search, `${proto}://${host}`);
+  return url;
 }
 
 function hashIp(ip: string): string {
@@ -228,7 +240,7 @@ export function middleware(request: NextRequest) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? request.headers.get("x-real-ip") ?? null;
   const distinctId = ip ? hashIp(ip) : "srv_unknown";
 
-  capturePageviewServer(distinctId, request.url, ua, ip);
+  capturePageviewServer(distinctId, canonicalRequestUrl(request), ua, ip);
 
   const redirectPath = legacyRedirectPath(host, pathname);
   if (redirectPath) {
