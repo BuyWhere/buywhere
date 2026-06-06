@@ -43,8 +43,30 @@ CREATE INDEX IF NOT EXISTS idx_products_category_path ON products USING GIN(cate
 -- BUY-14332: discount_pct generated column handled separately in runMigrations()
 -- with an extended statement_timeout (5 min) to avoid timeout on 14M row tables.
 
--- BUY-14399: Deals cold-path optimization indexes handled separately in runMigrations()
--- with extended timeout to avoid blocking the main migration on 14M row table.
+-- BUY-14399: Deals cold-path optimization indexes for country/region filtering
+-- These indexes optimize /v1/deals queries that filter by country_code or region
+-- with discount percentage sorting, avoiding sequential scans on 14M+ row table.
+CREATE INDEX IF NOT EXISTS idx_products_deals_country ON products (
+  currency,
+  country_code,
+  (((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)),
+  updated_at DESC
+) WHERE is_active = true
+    AND price > 0
+    AND (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
+    AND (metadata->>'original_price')::numeric > price
+    AND (metadata->>'original_price')::numeric < price * 100;
+
+CREATE INDEX IF NOT EXISTS idx_products_deals_region ON products (
+  currency,
+  region,
+  (((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)),
+  updated_at DESC
+) WHERE is_active = true
+    AND price > 0
+    AND (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
+    AND (metadata->>'original_price')::numeric > price
+    AND (metadata->>'original_price')::numeric < price * 100;
 
 -- api_keys: create if not exists, then add any missing columns
 CREATE TABLE IF NOT EXISTS api_keys (
@@ -73,6 +95,9 @@ ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verification_sent_at   TIMES
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS email_verification_expires_at TIMESTAMPTZ;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS daily_request_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS daily_reset_at      TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '1 day');
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS key_prefix          TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS label               TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS fingerprint_hash    TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash) WHERE is_active = true;
 
@@ -337,35 +362,92 @@ async function runMigrations() {
     catch (err) {
         console.warn(`[migration] Full migration block failed (non-fatal): ${err.message?.slice(0, 200)}`);
     }
-    // BUY-14350: discount_pct GENERATED STORED column on 14M row table may exceed
-    // the pool's statement_timeout. Run it with an extended timeout in its own connection.
+    // BUY-22324: discount_pct GENERATED STORED column — must detect and fix a plain
+    // (non-generated) column left by a prior migration failure.
+    // Uses guarded CASE with regex to prevent dirty original_price from failing inserts.
+    const DISCOUNT_PCT_DDL = `
+    DO $$
+    DECLARE
+      _is_generated text;
+    BEGIN
+      SELECT c.is_generated INTO _is_generated
+        FROM information_schema.columns c
+       WHERE c.table_name = 'products' AND c.column_name = 'discount_pct';
+
+      IF _is_generated IS NULL THEN
+        ALTER TABLE products
+          ADD COLUMN discount_pct numeric
+          GENERATED ALWAYS AS (
+            CASE
+              WHEN (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
+               AND (metadata->>'original_price')::numeric > 0
+              THEN ROUND((1 - price / (metadata->>'original_price')::numeric) * 100)
+            END
+          ) STORED;
+      ELSIF _is_generated = 'NEVER' THEN
+        ALTER TABLE products DROP COLUMN discount_pct;
+        ALTER TABLE products
+          ADD COLUMN discount_pct numeric
+          GENERATED ALWAYS AS (
+            CASE
+              WHEN (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
+               AND (metadata->>'original_price')::numeric > 0
+              THEN ROUND((1 - price / (metadata->>'original_price')::numeric) * 100)
+            END
+          ) STORED;
+      END IF;
+    END$$;
+
+    CREATE INDEX IF NOT EXISTS idx_products_deals_discount_pct
+      ON products (currency, discount_pct DESC)
+      WHERE discount_pct IS NOT NULL AND price > 0;
+  `;
     try {
-        const hasCol = await config_1.db.query(`SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`);
-        if (hasCol.rows.length === 0) {
-            console.log('[migration] Adding discount_pct generated column (may take a while on large table)...');
-            // Use a dedicated client with extended timeout for this DDL
-            const client = await config_1.db.connect();
-            try {
-                await client.query('SET statement_timeout = 300000'); // 5 minutes for DDL
-                await client.query(`
-          ALTER TABLE products ADD COLUMN IF NOT EXISTS discount_pct NUMERIC
-            GENERATED ALWAYS AS (
-              ROUND((1 - price / NULLIF((metadata->>'original_price')::NUMERIC, 0)) * 100)
-            ) STORED
-        `);
-                await client.query(`
-          CREATE INDEX IF NOT EXISTS idx_products_deals ON products(currency, discount_pct DESC)
-            WHERE discount_pct IS NOT NULL
-        `);
-                console.log('[migration] discount_pct column and index created.');
-            }
-            finally {
-                client.release();
-            }
+        console.log('[migration] Ensuring discount_pct is a GENERATED STORED column (extended timeout for 14M row table)...');
+        const client = await config_1.db.connect();
+        try {
+            await client.query('SET statement_timeout = 360000');
+            await client.query(DISCOUNT_PCT_DDL);
+            console.log('[migration] discount_pct GENERATED column and index verified.');
         }
+        finally {
+            client.release();
+        }
+        const verify = await config_1.db.query(`SELECT is_generated FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct'`);
+        if (verify.rows.length === 0 || verify.rows[0].is_generated !== 'ALWAYS') {
+            throw new Error(`discount_pct column is missing or not GENERATED (is_generated=${verify.rows[0]?.is_generated})`);
+        }
+        const countCheck = await config_1.db.query(`SELECT count(*) AS cnt FROM products WHERE discount_pct IS NOT NULL`);
+        console.log(`[migration] discount_pct non-null rows: ${countCheck.rows[0].cnt}`);
     }
     catch (err) {
-        console.warn(`[migration] discount_pct column creation failed (non-fatal): ${err.message?.slice(0, 200)}`);
+        throw new Error(`[migration] FATAL: discount_pct GENERATED column failed: ${err.message}`);
+    }
+    // BUY-30968: Ensure api_keys columns added in BUY-29220/BUY-30073 are present even
+    // when the main MIGRATION block fails before reaching those ALTER TABLE statements.
+    try {
+        await config_1.db.query(`
+      ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS key_prefix       TEXT;
+      ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS label            TEXT;
+      ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS fingerprint_hash TEXT;
+    `);
+        console.log('[migration] api_keys key_prefix/label/fingerprint_hash columns ensured.');
+    }
+    catch (err) {
+        console.warn(`[migration] api_keys column ensure failed (non-fatal): ${err.message?.slice(0, 200)}`);
+    }
+    // BUY-31040: Prevent future google-shopping source rows (owner: postgres role via API).
+    // IF NOT EXISTS → idempotent; NOT VALID → skips full-table scan (0 rows exist).
+    try {
+        await config_1.db.query(`
+      ALTER TABLE products
+        ADD CONSTRAINT IF NOT EXISTS products_source_no_legacy_google_shopping
+        CHECK (source <> 'google-shopping'::text) NOT VALID;
+    `);
+        console.log('[migration] products_source_no_legacy_google_shopping constraint ensured (BUY-31040).');
+    }
+    catch (err) {
+        console.warn(`[migration] products_source_no_legacy_google_shopping constraint failed (non-fatal): ${err.message?.slice(0, 200)}`);
     }
     // Separately ensure merchants tables exist — not blocked by failures above.
     try {
@@ -375,39 +457,68 @@ async function runMigrations() {
     catch (err) {
         console.error(`[migration] Merchants table creation failed: ${err.message?.slice(0, 200)}`);
     }
-    // BUY-14399: Deals optimization indexes on 14M row table — run with extended timeout
-    const dealsIndexes = [
-        `CREATE INDEX IF NOT EXISTS idx_products_deals_country ON products (
-      currency, country_code,
-      (((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)),
-      updated_at DESC
-    ) WHERE is_active = true AND price > 0
-        AND (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
-        AND (metadata->>'original_price')::numeric > price
-        AND (metadata->>'original_price')::numeric < price * 100`,
-        `CREATE INDEX IF NOT EXISTS idx_products_deals_region ON products (
-      currency, region,
-      (((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)),
-      updated_at DESC
-    ) WHERE is_active = true AND price > 0
-        AND (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
-        AND (metadata->>'original_price')::numeric > price
-        AND (metadata->>'original_price')::numeric < price * 100`,
-    ];
-    for (const ddl of dealsIndexes) {
+    // BUY-24284: Restore the search_vector trigger that was dropped in a prior migration.
+    // Without it, every new product insert leaves search_vector NULL and FTS returns 0 results.
+    try {
+        const svClient = await config_1.db.connect();
         try {
-            const client = await config_1.db.connect();
-            try {
-                await client.query('SET statement_timeout = 300000');
-                await client.query(ddl);
+            await svClient.query(`
+        CREATE OR REPLACE FUNCTION products_search_vector_update()
+        RETURNS TRIGGER AS $$
+        BEGIN
+          NEW.search_vector := to_tsvector('english',
+            COALESCE(NEW.title, '') || ' ' ||
+            COALESCE(NEW.brand, '') || ' ' ||
+            COALESCE(array_to_string(NEW.category_path, ' '), '')
+          );
+          RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+
+        DROP TRIGGER IF EXISTS products_search_vector_trig ON products;
+        CREATE TRIGGER products_search_vector_trig
+          BEFORE INSERT OR UPDATE OF title, brand, category_path
+          ON products
+          FOR EACH ROW EXECUTE FUNCTION products_search_vector_update();
+      `);
+            console.log('[migration] search_vector trigger restored (BUY-24284).');
+        }
+        finally {
+            svClient.release();
+        }
+    }
+    catch (err) {
+        console.warn(`[migration] search_vector trigger creation failed (non-fatal): ${err.message?.slice(0, 200)}`);
+    }
+    // Backfill NULL search_vector rows — same 6-min timeout pattern as discount_pct.
+    // Non-fatal: the trigger above covers all new writes; this fixes the existing corpus.
+    try {
+        const backfillClient = await config_1.db.connect();
+        try {
+            await backfillClient.query('SET statement_timeout = 360000'); // 6 min
+            const { rows: countRows } = await backfillClient.query(`SELECT COUNT(*) AS cnt FROM products WHERE search_vector IS NULL`);
+            const nullCount = parseInt(countRows[0].cnt, 10);
+            if (nullCount > 0) {
+                console.log(`[migration] Backfilling search_vector for ${nullCount} NULL rows (BUY-24284)...`);
+                await backfillClient.query(`UPDATE products
+           SET search_vector = to_tsvector('english',
+             COALESCE(title, '') || ' ' ||
+             COALESCE(brand, '') || ' ' ||
+             COALESCE(array_to_string(category_path, ' '), '')
+           )
+           WHERE search_vector IS NULL`);
+                console.log('[migration] search_vector backfill complete.');
             }
-            finally {
-                client.release();
+            else {
+                console.log('[migration] search_vector already populated for all rows, skipping backfill.');
             }
         }
-        catch (err) {
-            console.warn(`[migration] Deals index creation skipped (non-fatal): ${err.message?.slice(0, 200)}`);
+        finally {
+            backfillClient.release();
         }
+    }
+    catch (err) {
+        console.warn(`[migration] search_vector backfill timed out or failed (non-fatal, trigger covers new rows): ${err.message?.slice(0, 200)}`);
     }
     console.log('Migrations complete.');
 }

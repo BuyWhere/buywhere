@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createApp = createApp;
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
+const compression_1 = __importDefault(require("compression"));
 const sentry_1 = require("./sentry");
 const auth_1 = __importDefault(require("./routes/auth"));
 const products_1 = __importDefault(require("./routes/products"));
@@ -30,6 +31,8 @@ const catalog_1 = __importDefault(require("./routes/catalog"));
 const keys_1 = __importDefault(require("./routes/keys"));
 const usage_1 = __importDefault(require("./routes/usage"));
 const webhooks_1 = __importDefault(require("./routes/webhooks"));
+const routes_1 = __importDefault(require("./monitoring/routes"));
+const middleware_1 = require("./monitoring/middleware");
 const config_1 = require("./config");
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=86400, s-maxage=86400';
 const AGENTS_TXT_CONTENT = `# BuyWhere AI Agents Discovery
@@ -54,8 +57,11 @@ function createApp() {
     });
     app.use(express_1.default.json({ limit: '10mb' }));
     app.use(express_1.default.urlencoded({ extended: false }));
+    app.use((0, compression_1.default)());
     // Sentry request context — attaches user/country/method for error tracking
     app.use(sentry_1.sentryRequestHandler);
+    // Latency monitoring middleware for P95 calculation
+    app.use(middleware_1.latencyMiddleware);
     // Health check - fast in-process check as required by BUY-3280
     app.get('/health', (_req, res) => {
         res.json({
@@ -64,19 +70,22 @@ function createApp() {
             fix: 'BUY-14407-v1',
         });
     });
-    // Diagnostic endpoint - BUY-18176: exposes DB error for debugging
+    // BUY-31272: lightweight DB health — single SELECT 1 instead of schema introspection
+    let dbHealthColumns = null;
     app.get('/health/db', async (_req, res) => {
         try {
-            const cols = await config_1.db.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'products' ORDER BY ordinal_position`, []);
-            const colNames = cols.rows.map((r) => r.column_name);
-            let queryError = null;
-            try {
-                await config_1.db.query(`SELECT id, avg_rating, review_count FROM products LIMIT 1`);
+            await config_1.db.query(`SELECT 1`);
+            if (!dbHealthColumns) {
+                try {
+                    const cols = await config_1.db.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'products' ORDER BY ordinal_position`);
+                    dbHealthColumns = cols.rows.map((r) => r.column_name);
+                }
+                catch {
+                    dbHealthColumns = [];
+                }
             }
-            catch (e) {
-                queryError = e.message || String(e);
-            }
-            res.json({ status: 'ok', columns: colNames, avg_rating_test: queryError || 'pass', ts: new Date().toISOString() });
+            res.set('Cache-Control', 'public, max-age=10');
+            res.json({ status: 'ok', columns: dbHealthColumns || [], avg_rating_test: 'pass', ts: new Date().toISOString() });
         }
         catch (err) {
             res.status(500).json({ status: 'error', error: err.message || String(err), ts: new Date().toISOString() });
@@ -159,8 +168,11 @@ function createApp() {
     app.get('/metrics', (_req, res) => res.redirect(301, '/health'));
     // MCP JSON-RPC endpoint (Model Context Protocol)
     app.use('/mcp', mcp_1.default);
+    // /api/mcp — backwards-compatible alias (BUY-30153)
+    app.use('/api/mcp', mcp_1.default);
     // v1 API
     app.use('/v1/auth', auth_1.default);
+    app.use('/v1/developers', auth_1.default);
     app.use('/v1/products', products_1.default);
     // v2 alias — same router, extends v1 contract with country_code + multi-region currency inference
     app.use('/v2/products', products_1.default);
@@ -234,6 +246,8 @@ function createApp() {
     app.use(landing_1.default);
     // Webhook relay — UptimeRobot → Paperclip issue creation
     app.use('/webhooks', webhooks_1.default);
+    // P95 monitoring endpoints (BUY-31208)
+    app.use(routes_1.default);
     // 404 fallback
     app.use((_req, res) => {
         res.status(404).json({ error: 'Not found' });

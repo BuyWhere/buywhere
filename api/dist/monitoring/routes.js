@@ -1,0 +1,180 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const p95_1 = require("./p95");
+const router = express_1.default.Router();
+router.get('/api/monitoring/p95', async (req, res) => {
+    try {
+        const { market } = req.query;
+        if (!market || typeof market !== 'string') {
+            return res.status(400).json({
+                error: 'INVALID_MARKET',
+                message: 'Market parameter is required and must be a string'
+            });
+        }
+        if (!(0, p95_1.isValidMarket)(market.toLowerCase())) {
+            return res.status(400).json({
+                error: 'INVALID_MARKET',
+                message: `Market must be one of: ${['sg', 'us', 'my', 'vn', 'th'].join(', ')}`
+            });
+        }
+        const record = await (0, p95_1.getLatestP95ForMarket)(market.toLowerCase());
+        if (!record) {
+            return res.status(404).json({
+                error: 'NO_DATA',
+                message: `No P95 data available for market ${market.toLowerCase()}`
+            });
+        }
+        const alertTriggered = record.p95_ms > p95_1.P95_THRESHOLD_MS;
+        const baselineMs = market.toLowerCase() === 'sg' ? 160 : 0;
+        res.json({
+            market: record.market,
+            p95_ms: record.p95_ms,
+            sample_size: record.sample_size,
+            window_start: record.window_start.toISOString(),
+            window_end: record.window_end.toISOString(),
+            alert_triggered: alertTriggered,
+            baseline_ms: baselineMs,
+            threshold_ms: p95_1.P95_THRESHOLD_MS
+        });
+    }
+    catch (error) {
+        console.error('[P95] Error fetching P95 data:', error);
+        res.status(500).json({
+            error: 'INTERNAL_ERROR',
+            message: 'Failed to fetch P95 data'
+        });
+    }
+});
+router.get('/api/monitoring/p95/history', async (req, res) => {
+    try {
+        const { market, from, to, limit } = req.query;
+        if (!market || typeof market !== 'string') {
+            return res.status(400).json({
+                error: 'INVALID_MARKET',
+                message: 'Market parameter is required'
+            });
+        }
+        if (!(0, p95_1.isValidMarket)(market.toLowerCase())) {
+            return res.status(400).json({
+                error: 'INVALID_MARKET',
+                message: `Market must be one of: ${['sg', 'us', 'my', 'vn', 'th'].join(', ')}`
+            });
+        }
+        const limitNum = limit ? parseInt(limit, 10) : 100;
+        if (isNaN(limitNum) || limitNum < 1 || limitNum > 1000) {
+            return res.status(400).json({
+                error: 'INVALID_LIMIT',
+                message: 'Limit must be between 1 and 1000'
+            });
+        }
+        const records = await (0, p95_1.getP95Latency)(market.toLowerCase(), limitNum);
+        let filteredRecords = records;
+        if (from || to) {
+            const fromTime = from ? new Date(parseInt(from, 10)) : new Date(0);
+            const toTime = to ? new Date(parseInt(to, 10)) : new Date();
+            filteredRecords = records.filter(r => r.window_end >= fromTime && r.window_end <= toTime);
+        }
+        res.json({
+            market: market.toLowerCase(),
+            data: filteredRecords.map(r => ({
+                p95_ms: r.p95_ms,
+                sample_size: r.sample_size,
+                window_start: r.window_start.toISOString(),
+                window_end: r.window_end.toISOString()
+            })),
+            count: filteredRecords.length
+        });
+    }
+    catch (error) {
+        console.error('[P95] Error fetching P95 history:', error);
+        res.status(500).json({
+            error: 'INTERNAL_ERROR',
+            message: 'Failed to fetch P95 history'
+        });
+    }
+});
+router.get('/api/monitoring/p95/all', async (req, res) => {
+    try {
+        const markets = await (0, p95_1.getAllLatestP95)();
+        res.json({
+            timestamp: new Date().toISOString(),
+            markets,
+            threshold_ms: p95_1.P95_THRESHOLD_MS
+        });
+    }
+    catch (error) {
+        console.error('[P95] Error fetching all P95 data:', error);
+        res.status(500).json({
+            error: 'INTERNAL_ERROR',
+            message: 'Failed to fetch P95 data for all markets'
+        });
+    }
+});
+router.get('/api/monitoring/p95/alerts', async (req, res) => {
+    try {
+        const { market } = req.query;
+        if (!market || typeof market !== 'string') {
+            return res.status(400).json({
+                error: 'INVALID_MARKET',
+                message: 'Market parameter is required'
+            });
+        }
+        if (!(0, p95_1.isValidMarket)(market.toLowerCase())) {
+            return res.status(400).json({
+                error: 'INVALID_MARKET',
+                message: `Market must be one of: ${['sg', 'us', 'my', 'vn', 'th'].join(', ')}`
+            });
+        }
+        const alerts = await (0, p95_1.getAlertHistory)(market.toLowerCase());
+        res.json({
+            market: market.toLowerCase(),
+            alerts: alerts.map(a => ({
+                id: a.id,
+                p95_ms: a.p95_ms,
+                threshold_ms: a.threshold_ms,
+                triggered_at: a.triggered_at.toISOString(),
+                acknowledged_at: a.acknowledged_at?.toISOString() || null,
+                acknowledged_by: a.acknowledged_by,
+                resolution_notes: a.resolution_notes
+            })),
+            count: alerts.length
+        });
+    }
+    catch (error) {
+        console.error('[P95] Error fetching alert history:', error);
+        res.status(500).json({
+            error: 'INTERNAL_ERROR',
+            message: 'Failed to fetch alert history'
+        });
+    }
+});
+router.post('/api/monitoring/p95/cleanup', async (req, res) => {
+    try {
+        const { retention_days } = req.body;
+        const retentionDays = retention_days ? parseInt(retention_days, 10) : 7;
+        if (isNaN(retentionDays) || retentionDays < 1) {
+            return res.status(400).json({
+                error: 'INVALID_RETENTION',
+                message: 'Retention days must be a positive integer'
+            });
+        }
+        const deletedCount = await (0, p95_1.cleanupOldData)(retentionDays);
+        res.json({
+            success: true,
+            deleted_count: deletedCount,
+            retention_days: retentionDays
+        });
+    }
+    catch (error) {
+        console.error('[P95] Error cleaning up old data:', error);
+        res.status(500).json({
+            error: 'INTERNAL_ERROR',
+            message: 'Failed to cleanup old P95 data'
+        });
+    }
+});
+exports.default = router;

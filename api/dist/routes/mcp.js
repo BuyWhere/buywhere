@@ -172,19 +172,21 @@ async function handleSearchProducts(args) {
     // Use a dedicated client with extended timeout — FTS on 14M rows can exceed the 10s pool default.
     const searchClient = await config_1.db.connect();
     try {
-        await searchClient.query('SET statement_timeout = 30000'); // 30s is generous for FTS with GIN index
+        await searchClient.query('SET statement_timeout = 10000'); // BUY-31540: reduced from 30s — ts_rank removed, <5s expected
         const COUNT_CAP = 1001;
         if (q) {
             const countResult = await searchClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`, params);
             total = parseInt(countResult.rows[0].count, 10);
+            // BUY-31540: removed ts_rank ORDER BY — forces materialization of ALL matching rows
+            // before LIMIT (70k+ for laptop+US = 20s timeout). Use updated_at DESC instead;
+            // PostgreSQL can short-circuit after LIMIT rows via GIN index.
             if (total <= 1000) {
                 params.push(limit, offset);
                 const result = await searchClient.query(`SELECT id, sku AS source, source AS domain, url, title,
                   price, currency, image_url, metadata, updated_at,
-                  region, country_code,
-                  ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
+                  region, country_code
            FROM products ${where}
-           ORDER BY rank DESC
+           ORDER BY updated_at DESC
            LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
                 rows = result.rows;
             }
@@ -193,10 +195,9 @@ async function handleSearchProducts(args) {
                 params.push(CANDIDATE_LIMIT);
                 const candidateResult = await searchClient.query(`SELECT id, sku AS source, source AS domain, url, title,
                   price, currency, image_url, metadata, updated_at,
-                  region, country_code,
-                  ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
+                  region, country_code
            FROM products ${where}
-           ORDER BY rank DESC
+           ORDER BY updated_at DESC
            LIMIT $${params.length}`, params);
                 rows = candidateResult.rows.slice(offset, offset + limit);
             }
@@ -432,11 +433,12 @@ async function handleFindBestPrice(args) {
     let result;
     try {
         await bestPriceClient.query('SET statement_timeout = 30000');
+        // BUY-31540: removed ts_rank from ORDER BY — price ordering is the primary sort here
+        // and ts_rank forces full result materialization before LIMIT.
         result = await bestPriceClient.query(`SELECT id, title, price, currency, source AS domain, url, image_url,
-              country_code,
-              ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
+              country_code
        FROM products ${where}
-       ORDER BY price ASC, rank DESC
+       ORDER BY price ASC, updated_at DESC
        LIMIT $${params.length}`, params);
     }
     finally {
@@ -483,6 +485,51 @@ function jsonrpcErr(id, code, message, data, envelopeCode) {
     }
     return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) } };
 }
+// GET /mcp/health — public liveness probe (checks DB + Redis connectivity)
+router.get('/health', async (_req, res) => {
+    try {
+        const [, pong] = await Promise.all([
+            config_1.db.query('SELECT 1'),
+            config_1.redis.ping(),
+        ]);
+        res.json({
+            status: pong === 'PONG' ? 'ok' : 'degraded',
+            db: 'ok',
+            redis: pong === 'PONG' ? 'ok' : 'degraded',
+            ts: new Date().toISOString(),
+        });
+    }
+    catch (err) {
+        res.status(503).json({
+            status: 'down',
+            error: err.message || String(err),
+            ts: new Date().toISOString(),
+        });
+    }
+});
+// GET /mcp/health/authenticated — deeper probe requiring API key
+router.get('/health/authenticated', apiKey_1.requireApiKey, async (_req, res) => {
+    try {
+        const [countResult, pong] = await Promise.all([
+            config_1.db.query('SELECT reltuples::bigint AS count FROM pg_class WHERE relname = \'products\''),
+            config_1.redis.ping(),
+        ]);
+        res.json({
+            status: 'ok',
+            db: 'ok',
+            redis: pong === 'PONG' ? 'ok' : 'degraded',
+            product_count: countResult.rows[0]?.count ?? null,
+            ts: new Date().toISOString(),
+        });
+    }
+    catch (err) {
+        res.status(503).json({
+            status: 'down',
+            error: err.message || String(err),
+            ts: new Date().toISOString(),
+        });
+    }
+});
 // GET /mcp — info endpoint for browser / reviewer verification.
 // Returns a JSON descriptor instead of Express's default 404 so registry
 // reviewers and DevRel verifiers can confirm the endpoint is live without

@@ -572,7 +572,7 @@ router.get('/demo/search', async (req, res) => {
              region, country_code
       FROM products
       ${whereClause}
-      ORDER BY ts_rank(search_vector, plainto_tsquery('english', $2)) DESC, updated_at DESC
+      ORDER BY updated_at DESC
       LIMIT $${idx} OFFSET $${idx + 1}
     `;
     params.push(limit, 0);

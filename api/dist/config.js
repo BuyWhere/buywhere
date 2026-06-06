@@ -39,13 +39,13 @@ exports.PORT = parseInt(process.env.PORT || '3000');
 exports.API_BASE_URL = process.env.API_BASE_URL || 'https://api.buywhere.ai';
 exports.FREE_TIER = {
     rpm: 10,
-    daily: 100,
+    daily: 10000,
 };
 exports.TIER_LIMITS = {
     free: exports.FREE_TIER,
     starter: { rpm: 100, daily: 10000 },
     pro: { rpm: 500, daily: 100000 },
-    unverified: { rpm: 5, daily: 50 },
+    unverified: { rpm: 10, daily: 10000 },
     enterprise: { rpm: 1000, daily: 100000 },
     internal: { rpm: 10000, daily: 999999 },
 };

@@ -4,6 +4,7 @@ const express_1 = require("express");
 const uuid_1 = require("uuid");
 const crypto_1 = require("crypto");
 const config_1 = require("../config");
+const apiKey_1 = require("../middleware/apiKey");
 const posthog_1 = require("../analytics/posthog");
 const email_1 = require("../email");
 const errors_1 = require("../middleware/errors");
@@ -17,8 +18,9 @@ function generateVerificationToken() {
     return (0, crypto_1.randomBytes)(32).toString('hex');
 }
 // POST /v1/auth/register
+// POST /v1/developers/signup
 // Headless agent self-registration — requires email for verification
-router.post('/register', async (req, res) => {
+async function registerAgent(req, res) {
     const { agent_name, email, contact, use_case } = req.body;
     if (!agent_name || typeof agent_name !== 'string') {
         res.status(400).json({ error: 'agent_name is required' });
@@ -38,11 +40,13 @@ router.post('/register', async (req, res) => {
     const signupChannel = resolveSignupChannel(req.headers['referer'], utmSource, utmMedium);
     const verificationToken = generateVerificationToken();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const id = (0, uuid_1.v4)();
     await config_1.db.query(`INSERT INTO api_keys
        (id, key_hash, name, email, contact, use_case, tier, is_active,
         signup_channel, attribution_source, developer_id,
         email_verification_token, email_verification_expires_at)
-      VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,'unverified',true,$6,$7,'self-registered',$8,$9)`, [
+      VALUES ($1,$2,$3,$4,$5,$6,'unverified',true,$7,$8,'self-registered',$9,$10)`, [
+        id,
         keyHash,
         agent_name.trim().slice(0, 200),
         emailAddr.slice(0, 500),
@@ -73,7 +77,9 @@ router.post('/register', async (req, res) => {
         },
         docs: 'https://api.buywhere.ai/docs',
     });
-});
+}
+router.post('/register', registerAgent);
+router.post('/signup', registerAgent);
 // GET /v1/auth/verify?token=xxx
 router.get('/verify', async (req, res) => {
     const { token } = req.query;
@@ -85,7 +91,7 @@ router.get('/verify', async (req, res) => {
        SET email_verified = true,
            email_verification_token = NULL,
            email_verification_expires_at = NULL,
-           tier = 'free'
+           tier = 'basic'
      WHERE email_verification_token = $1
        AND email_verified = false
        AND (email_verification_expires_at IS NULL OR email_verification_expires_at > NOW())
@@ -155,6 +161,37 @@ router.post('/resend-verification', async (req, res) => {
     await config_1.redis.set(rateLimitKey, '1', 'EX', 60);
     await (0, email_1.sendVerificationEmail)(normalizedEmail, newToken);
     res.json({ message: 'Verification email resent.' });
+});
+// GET /v1/auth/me — inspect metadata for the authenticated key
+router.get('/me', apiKey_1.requireApiKey, async (req, res) => {
+    const keyRecord = req.apiKeyRecord;
+    if (!keyRecord) {
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+    }
+    const result = await config_1.db.query(`SELECT id, email, tier, daily_limit, rpm_limit, created_at, last_used_at, total_queries
+     FROM api_keys
+     WHERE id = $1`, [keyRecord.id]);
+    if (result.rows.length === 0) {
+        res.status(404).json({ error: 'key not found' });
+        return;
+    }
+    const row = result.rows[0];
+    const tierLimits = config_1.TIER_LIMITS[row.tier] ?? config_1.FREE_TIER;
+    const dailyLimit = (row.daily_limit && row.daily_limit > 0) ? row.daily_limit : tierLimits.daily;
+    const rpmLimit = (row.rpm_limit && row.rpm_limit > 0) ? row.rpm_limit : tierLimits.rpm;
+    res.json({
+        key_id: row.id,
+        email: row.email || null,
+        tier: row.tier,
+        limits: {
+            queries_per_day: dailyLimit,
+            requests_per_second: rpmLimit,
+        },
+        created_at: row.created_at ? row.created_at.toISOString() : null,
+        last_used_at: row.last_used_at ? row.last_used_at.toISOString() : null,
+        total_queries: row.total_queries || 0,
+    });
 });
 // Infer signup channel from referer + UTM
 function resolveSignupChannel(referer, utmSource, utmMedium) {

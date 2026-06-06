@@ -1034,19 +1034,24 @@ export async function warmSearchCache(): Promise<void> {
                  products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
                  products.region, products.country_code, ${specColumnsJoined}`;
 
+      // BUY-32028: remove ts_rank ORDER BY (missed by e8f407dc BUY-31540 in warmSearchCache
+      // CTE). The warmSearchCache path was excluded from the original fix; on broad US queries
+      // (laptop+US = 70k+ matches) the CTE materializes all matches before LIMIT and
+      // exceeds the warm-up window, leaving cache cold and forcing the live handler onto the
+      // same slow path. Mirrors the live handler's CTE exactly so warm entries match cache keys.
       const dataQuery = `
         WITH top_ids AS (
-          SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+          SELECT id
           FROM products
           ${whereClause}
-          ORDER BY rank DESC
+          ORDER BY id DESC
           LIMIT ${CANDIDATE_CAP}
         )
-        SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
+        SELECT ${joinedColumns}
         FROM top_ids
         JOIN products ON products.id = top_ids.id
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-        ORDER BY top_ids.rank DESC
+        ORDER BY products.updated_at DESC
         LIMIT $${idx} OFFSET $${idx + 1}
       `;
 
