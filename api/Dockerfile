@@ -11,7 +11,9 @@ RUN npm ci
 
 COPY tsconfig.json ./
 COPY src/ src/
-RUN npx tsc; exit 0
+# BUY-32359: force fresh tsc build to pick up the monitoring export fix.
+# The `; exit 0` tail tolerates pre-existing @types/express type errors.
+RUN rm -rf dist && npx tsc; exit 0
 
 RUN npm prune --omit=dev
 
