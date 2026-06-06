@@ -278,37 +278,4 @@ router.post('/api/monitoring/p95/cleanup', async (req, res) => {
   }
 });
 
-router.get('/api/monitoring/p95/_debug', async (req, res) => {
-  try {
-    const { getAllLatestP95, getLatestP95ForMarket, isValidMarket, P95_THRESHOLD_MS, VALID_MARKETS } = await import('./p95');
-    const sample = await getLatestP95ForMarket('sg');
-    const debug = {
-      version: 'BUY-32359-v3-' + new Date().toISOString(),
-      exports: {
-        isValidMarket: typeof isValidMarket,
-        P95_THRESHOLD_MS: typeof P95_THRESHOLD_MS,
-        VALID_MARKETS: typeof VALID_MARKETS,
-        isValidMarketValue: isValidMarket('sg'),
-        P95_THRESHOLD_MSValue: P95_THRESHOLD_MS,
-        VALID_MARKETSValue: VALID_MARKETS
-      },
-      sample: sample ? {
-        keys: Object.keys(sample),
-        market: sample.market,
-        p95_ms: sample.p95_ms,
-        sample_size: sample.sample_size,
-        window_start_type: typeof sample.window_start,
-        window_start_isDate: sample.window_start instanceof Date,
-        window_end_type: typeof sample.window_end,
-        window_end_isDate: sample.window_end instanceof Date,
-        window_start_raw: String(sample.window_start),
-        window_end_raw: String(sample.window_end)
-      } : null
-    };
-    res.json(debug);
-  } catch (e: any) {
-    res.status(500).json({ error: 'DEBUG_ERROR', message: e.message, stack: e.stack });
-  }
-});
-
 export default router;
