@@ -14,6 +14,8 @@
     "refresh": "ts-node src/jobs/priceRefreshRunner.ts",
     "start:key-reset": "node dist/jobs/dailyKeyResetRunner.js",
     "key-reset": "ts-node src/jobs/dailyKeyResetRunner.ts",
+    "start:p95": "node dist/jobs/p95Runner.js",
+    "p95": "ts-node src/jobs/p95Runner.ts",
     "test": "node --test tests/response.test.mjs tests/search.test.mjs tests/auth-middleware.test.mjs tests/auth-middleware-integration.test.mjs",
     "test:mcp": "node --test tests/mcp-integration.test.mjs",
     "test:mcp:load": "node --test tests/load/staging-load-test.js",
