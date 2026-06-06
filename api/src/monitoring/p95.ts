@@ -167,4 +167,3 @@ export async function computeAndStoreP95(market: string, endpoint: string): Prom
   await insertP95Latency(market, endpoint, p95Ms, samples.length, windowStart, windowEnd);
   clearLatencySamples(market, endpoint);
 }
-// Redeploy trigger: BUY-32359 fix is on origin/main at 2026-06-06T12:08:48Z
