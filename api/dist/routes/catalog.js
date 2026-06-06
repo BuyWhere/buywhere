@@ -3,15 +3,60 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const config_1 = require("../config");
 const router = (0, express_1.Router)();
+// ─── Cache constants ───────────────────────────────────────────────────────
 const CACHE_KEY = 'catalog:stats:exact';
-const CACHE_TTL = 300;
+const CACHE_TTL = 900; // 15 min — reduces pressure on exact counts
 const REFRESH_LOCK_KEY = 'catalog:stats:refresh-lock';
-const REFRESH_LOCK_TTL = 30;
-async function tryExactCount() {
+const REFRESH_LOCK_TTL = 120; // 2 min lock to prevent thundering herd
+// ─── Fast estimate using pg_class + TABLESAMPLE ────────────────────────────
+// BUY-31222: Full COUNT(*) on 32M rows times out at 60s on Railway Postgres.
+// Use pg_class.reltuples for totals, TABLESAMPLE for active ratio,
+// and exact count on the much-smaller merchants table.
+async function collectStats() {
+    const now = new Date().toISOString();
+    const [productsEst, merchantsExact, activeRatio,] = await Promise.all([
+        // Total products: pg_class.reltuples (instant, no table scan)
+        config_1.db.query(`SELECT reltuples::bigint AS est FROM pg_class WHERE oid = 'public.products'::regclass`)
+            .then(r => Math.max(Number(r.rows?.[0]?.est || 0), 0))
+            .catch(() => 0),
+        // Total merchants: exact count (smaller table, completes fast)
+        config_1.db.query(`SELECT count(*) AS cnt FROM merchants`)
+            .then(r => Number(r.rows?.[0]?.cnt || 0))
+            .catch(() => config_1.db.query(`SELECT reltuples::bigint AS est FROM pg_class WHERE oid = 'public.merchants'::regclass`)
+            .then(r => Math.max(Number(r.rows?.[0]?.est || 0), 0))
+            .catch(() => 0)),
+        // Active ratio: TABLESAMPLE BERNOULLI(0.1) — scans ~0.1% of rows
+        config_1.db.query(`
+      SELECT
+        count(*) AS sample_total,
+        count(*) FILTER (WHERE is_active) AS sample_active
+      FROM products TABLESAMPLE BERNOULLI (0.1)
+    `).then(r => {
+            const sampleTotal = Number(r.rows?.[0]?.sample_total || 0);
+            const sampleActive = Number(r.rows?.[0]?.sample_active || 0);
+            return sampleTotal > 0 ? sampleActive / sampleTotal : 0.99;
+        }).catch(() => 0.99),
+    ]);
+    let activeProducts = Math.round(productsEst * activeRatio);
+    if (activeProducts > productsEst)
+        activeProducts = productsEst;
+    if (activeProducts < 0)
+        activeProducts = productsEst;
+    return {
+        total_products: productsEst,
+        active_products: activeProducts,
+        total_merchants: merchantsExact,
+        approximate: true,
+        source: 'pg_class_estimate',
+        collected_at: now,
+    };
+}
+// ─── Try exact count (background use, may time out on large tables) ─────
+async function tryExactCount(timeoutMs = 45000) {
     const client = await config_1.db.connect();
     try {
         await client.query('BEGIN');
-        await client.query('SET LOCAL statement_timeout = 10000');
+        await client.query(`SET LOCAL statement_timeout = ${timeoutMs}`);
         const result = await client.query(`
       SELECT
         count(*) AS total_products,
@@ -26,31 +71,63 @@ async function tryExactCount() {
             total_products: Number(row.total_products),
             active_products: Number(row.active_products),
             total_merchants: Number(row.total_merchants),
+            approximate: false,
+            source: 'public.products',
             collected_at: row.collected_at.toISOString(),
         };
     }
     catch (err) {
         await client.query('ROLLBACK').catch(() => { });
+        console.warn('[catalog/stats] exact count failed (timeout_ms=%d):', timeoutMs, err.message);
         return null;
     }
     finally {
         client.release();
     }
 }
+// ─── Background refresh ─────────────────────────────────────────────────
 async function triggerBackgroundRefresh() {
     try {
         const lock = await config_1.redis.set(REFRESH_LOCK_KEY, '1', 'EX', REFRESH_LOCK_TTL, 'NX');
         if (lock !== 'OK')
             return;
-        const stats = await tryExactCount();
-        if (stats) {
-            await config_1.redis.set(CACHE_KEY, JSON.stringify(stats), 'EX', CACHE_TTL);
+        const exact = await tryExactCount(45000);
+        if (exact) {
+            await config_1.redis.set(CACHE_KEY, JSON.stringify(exact), 'EX', CACHE_TTL);
+            console.log('[catalog/stats] background exact refresh ok: %d products', exact.total_products);
+            return;
         }
+        const stats = await collectStats();
+        await config_1.redis.set(CACHE_KEY, JSON.stringify(stats), 'EX', CACHE_TTL);
+        console.log('[catalog/stats] background estimate refresh ok: %d products', stats.total_products);
     }
-    catch { }
+    catch (err) {
+        console.warn('[catalog/stats] background refresh error:', err.message);
+    }
 }
+// ─── Warm-up on server start ────────────────────────────────────────────
+let warmupDone = false;
+async function warmUpCache() {
+    if (warmupDone)
+        return;
+    warmupDone = true;
+    console.log('[catalog/stats] warming cache with fast estimates…');
+    const stats = await collectStats();
+    await config_1.redis.set(CACHE_KEY, JSON.stringify(stats), 'EX', CACHE_TTL);
+    console.log('[catalog/stats] warm-up ok: %d products, %d merchants', stats.total_products, stats.total_merchants);
+    triggerBackgroundRefresh().catch(() => { });
+}
+warmUpCache().catch(() => { });
+// ─── Periodic refresh (every 10 min) ────────────────────────────────────
+const PERIODIC_INTERVAL_MS = 10 * 60 * 1000;
+const periodicTimer = setInterval(() => {
+    triggerBackgroundRefresh().catch(() => { });
+}, PERIODIC_INTERVAL_MS);
+periodicTimer.unref();
+// ─── GET /stats ─────────────────────────────────────────────────────────
 router.get('/stats', async (_req, res) => {
     try {
+        // 1. Try Redis cache first
         const cached = await config_1.redis.get(CACHE_KEY).catch(() => null);
         if (cached) {
             const stats = JSON.parse(cached);
@@ -62,47 +139,27 @@ router.get('/stats', async (_req, res) => {
                     active_products: stats.active_products,
                 },
                 meta: {
-                    approximate: false,
-                    source: 'public.products',
+                    approximate: stats.approximate,
+                    source: stats.source,
                     ts: stats.collected_at,
                 },
             });
             return;
         }
-        const fresh = await tryExactCount();
-        if (fresh) {
-            await config_1.redis.set(CACHE_KEY, JSON.stringify(fresh), 'EX', CACHE_TTL).catch(() => { });
-            res.json({
-                data: {
-                    total_products: fresh.total_products,
-                    total_merchants: fresh.total_merchants,
-                    active_products: fresh.active_products,
-                },
-                meta: {
-                    approximate: false,
-                    source: 'public.products',
-                    ts: fresh.collected_at,
-                },
-            });
-            return;
-        }
-        const [productsEst, merchantsEst] = await Promise.all([
-            config_1.db.query(`SELECT reltuples::bigint AS est FROM pg_class WHERE oid = 'public.products'::regclass`),
-            config_1.db.query(`SELECT reltuples::bigint AS est FROM pg_class WHERE oid = 'public.merchants'::regclass`),
-        ]);
-        const totalProducts = Math.max(Number(productsEst.rows[0]?.est || 0), 0);
-        const totalMerchants = Math.max(Number(merchantsEst.rows[0]?.est || 0), 0);
+        // 2. No cache — collect fresh stats (fast estimate)
+        const stats = await collectStats();
+        await config_1.redis.set(CACHE_KEY, JSON.stringify(stats), 'EX', CACHE_TTL).catch(() => { });
         triggerBackgroundRefresh().catch(() => { });
         res.json({
             data: {
-                total_products: totalProducts,
-                total_merchants: totalMerchants,
-                active_products: totalProducts,
+                total_products: stats.total_products,
+                total_merchants: stats.total_merchants,
+                active_products: stats.active_products,
             },
             meta: {
-                approximate: true,
-                source: 'pg_class_estimate',
-                ts: new Date().toISOString(),
+                approximate: stats.approximate,
+                source: stats.source,
+                ts: stats.collected_at,
             },
         });
     }
@@ -111,6 +168,76 @@ router.get('/stats', async (_req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+// ─── POST /stats/refresh — force refresh ────────────────────────────────
+router.post('/stats/refresh', async (_req, res) => {
+    try {
+        await config_1.redis.del(CACHE_KEY).catch(() => { });
+        await config_1.redis.del(REFRESH_LOCK_KEY).catch(() => { });
+        const exact = await tryExactCount(60000);
+        if (exact) {
+            await config_1.redis.set(CACHE_KEY, JSON.stringify(exact), 'EX', CACHE_TTL);
+            res.json({
+                data: {
+                    total_products: exact.total_products,
+                    total_merchants: exact.total_merchants,
+                    active_products: exact.active_products,
+                },
+                meta: { approximate: false, source: 'public.products', ts: exact.collected_at },
+            });
+            return;
+        }
+        const stats = await collectStats();
+        await config_1.redis.set(CACHE_KEY, JSON.stringify(stats), 'EX', CACHE_TTL);
+        res.json({
+            data: {
+                total_products: stats.total_products,
+                total_merchants: stats.total_merchants,
+                active_products: stats.active_products,
+            },
+            meta: { approximate: true, source: stats.source, ts: stats.collected_at },
+        });
+    }
+    catch (err) {
+        console.error('[catalog/stats/refresh] error:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+// ─── GET /stats/health — regression guard ───────────────────────────────
+router.get('/stats/health', async (_req, res) => {
+    try {
+        const cached = await config_1.redis.get(CACHE_KEY).catch(() => null);
+        if (!cached) {
+            res.json({ status: 'no_cache' });
+            return;
+        }
+        const stats = JSON.parse(cached);
+        const ageMin = Math.round((Date.now() - new Date(stats.collected_at).getTime()) / 60000);
+        let status = 'ok';
+        if (stats.approximate && stats.active_products === stats.total_products && stats.total_products > 1000000) {
+            status = 'regression';
+        }
+        else if (ageMin > 30) {
+            status = 'stale';
+        }
+        res.json({
+            status,
+            total_products: stats.total_products,
+            active_products: stats.active_products,
+            total_merchants: stats.total_merchants,
+            approximate: stats.approximate,
+            source: stats.source,
+            cached_at: stats.collected_at,
+            cache_age_min: ageMin,
+            active_ratio: stats.total_products > 0
+                ? (stats.active_products / stats.total_products * 100).toFixed(2) + '%'
+                : 'N/A',
+        });
+    }
+    catch (err) {
+        res.status(500).json({ status: 'error', error: err.message });
+    }
+});
+// ─── GET /categories (unchanged) ─────────────────────────────────────────
 router.get('/categories', async (_req, res) => {
     const start = Date.now();
     try {
@@ -122,11 +249,7 @@ router.get('/categories', async (_req, res) => {
         }));
         res.json({
             data: categories,
-            meta: {
-                total: categories.length,
-                source: 'mcp_category_summary',
-                response_time_ms: Date.now() - start,
-            },
+            meta: { total: categories.length, source: 'mcp_category_summary', response_time_ms: Date.now() - start },
         });
     }
     catch (err) {
