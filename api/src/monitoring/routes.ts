@@ -9,6 +9,7 @@ import {
   cleanupOldData,
   isValidMarket,
   P95_THRESHOLD_MS,
+  VALID_MARKETS,
 } from './p95';
 
 const router = express.Router();
@@ -90,7 +91,7 @@ router.get('/api/monitoring/p95', async (req, res) => {
     if (!isValidMarket(market.toLowerCase())) {
       return res.status(400).json({
         error: 'INVALID_MARKET',
-        message: `Market must be one of: ${['sg', 'us', 'my', 'vn', 'th'].join(', ')}`
+        message: `Market must be one of: ${VALID_MARKETS.join(', ')}`
       });
     }
 
@@ -139,7 +140,7 @@ router.get('/api/monitoring/p95/history', async (req, res) => {
     if (!isValidMarket(market.toLowerCase())) {
       return res.status(400).json({
         error: 'INVALID_MARKET',
-        message: `Market must be one of: ${['sg', 'us', 'my', 'vn', 'th'].join(', ')}`
+        message: `Market must be one of: ${VALID_MARKETS.join(', ')}`
       });
     }
 
@@ -214,7 +215,7 @@ router.get('/api/monitoring/p95/alerts', async (req, res) => {
     if (!isValidMarket(market.toLowerCase())) {
       return res.status(400).json({
         error: 'INVALID_MARKET',
-        message: `Market must be one of: ${['sg', 'us', 'my', 'vn', 'th'].join(', ')}`
+        message: `Market must be one of: ${VALID_MARKETS.join(', ')}`
       });
     }
 
