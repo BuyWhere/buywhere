@@ -188,6 +188,8 @@ export function createApp() {
   app.use('/v1/categories', categoriesRouter);
   app.use('/v1/merchants', merchantsRouter);
   app.use('/v1/ingest', ingestRouter);
+  // BUY-31929: backward-compat alias — /ingest/bulk, /ingest/products, etc.
+  app.use('/ingest', ingestRouter);
 
   // Backward-compat alias: /v1/search → /v1/products/search
   app.get("/v1/search", (req, res) => {

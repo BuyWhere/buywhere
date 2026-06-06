@@ -179,6 +179,8 @@ function createApp() {
     app.use('/v1/categories', categories_1.default);
     app.use('/v1/merchants', merchants_1.default);
     app.use('/v1/ingest', ingest_1.default);
+    // BUY-31929: backward-compat alias — /ingest/bulk, /ingest/products, etc.
+    app.use('/ingest', ingest_1.default);
     // Backward-compat alias: /v1/search → /v1/products/search
     app.get("/v1/search", (req, res) => {
         const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
