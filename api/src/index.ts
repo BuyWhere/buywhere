@@ -6,6 +6,7 @@ import { runMigrations } from './migrate';
 import { loadAffiliateConfigs } from './lib/affiliateWrapper';
 import { warmupMcpCaches } from './lib/mcpWarmup';
 import { warmSearchCache } from './routes/products';
+import { startP95Runner } from './jobs/p95Runner';
 
 // Initialize Sentry before anything else so all errors are captured
 initSentry();
@@ -26,6 +27,9 @@ async function start() {
   warmupMcpCaches().catch((err) => console.warn('[mcp-warmup] failed:', err?.message));
   // BUY-31302: seed Redis with top search queries so cold cache is always <5ms
   warmSearchCache().catch((err) => console.warn('[cache-warm] failed:', err?.message));
+
+  // BUY-32082: start P95 latency computation job (every 5 min)
+  startP95Runner();
 
   return new Promise<ReturnType<typeof app.listen>>((resolve) => {
     const server = app.listen(PORT, () => {

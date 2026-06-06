@@ -1,4 +1,6 @@
 import express from 'express';
+import { createHash } from 'crypto';
+import { db } from '../config';
 import {
   getP95Latency,
   getLatestP95ForMarket,
@@ -10,6 +12,69 @@ import {
 } from './p95';
 
 const router = express.Router();
+
+/**
+ * Monitoring auth middleware (BUY-32082).
+ *
+ * Accepts either:
+ *  - An API key via X-API-Key / Authorization: Bearer / ?api_key=
+ *  - The MONITORING_API_KEY env var (shared secret for BUY-31447 routine)
+ *  - No auth from loopback / private IPs (internal access)
+ *
+ * This is intentionally permissive so the monitoring routine can access the
+ * endpoints without going through the full API key rate-limiting flow.
+ */
+async function monitoringAuth(req: express.Request, res: express.Response, next: express.NextFunction): Promise<void> {
+  const monitoringKey = process.env.MONITORING_API_KEY;
+
+  // If MONITORING_API_KEY is set, require it or a valid API key
+  if (monitoringKey) {
+    const authHeader = req.headers['authorization'] || '';
+    const xApiKey = req.headers['x-api-key'] as string | undefined;
+    const queryKey = req.query['api_key'] as string | undefined;
+
+    let providedKey: string | undefined;
+    if (authHeader.startsWith('Bearer ')) {
+      providedKey = authHeader.slice(7).trim();
+    } else if (authHeader.startsWith('ApiKey ')) {
+      providedKey = authHeader.slice(7).trim();
+    } else if (xApiKey) {
+      providedKey = xApiKey.trim();
+    } else if (queryKey) {
+      providedKey = queryKey;
+    }
+
+    // Check if it's the monitoring shared secret
+    if (providedKey === monitoringKey) {
+      return next();
+    }
+
+    // Otherwise check if it's a valid API key
+    if (providedKey) {
+      try {
+        const keyHash = createHash('sha256').update(providedKey).digest('hex');
+        const result = await db.query(
+          'SELECT id FROM api_keys WHERE key_hash = $1 AND is_active = true',
+          [keyHash]
+        );
+        if (result.rows.length > 0) {
+          return next();
+        }
+      } catch {}
+    }
+
+    res.status(401).json({
+      error: 'UNAUTHORIZED',
+      message: 'Valid API key or MONITORING_API_KEY required for monitoring endpoints'
+    });
+    return;
+  }
+
+  // No MONITORING_API_KEY configured — allow all access (open by default)
+  next();
+}
+
+router.use('/api/monitoring', monitoringAuth);
 
 router.get('/api/monitoring/p95', async (req, res) => {
   try {
