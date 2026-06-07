@@ -325,6 +325,10 @@ router.get(
 
 // GET /v1/products/deals
 // Returns products on sale (original_price > price), sorted by discount %
+// BUY-33985: dedicated client with 5s statement_timeout + 5s res.setTimeout
+// so a slow fallback path (no discount_pct column) cannot hang the request
+// past 5s and leak the connection.
+const DEALS_RESPONSE_TIMEOUT_MS = 5000;
 router.get(
   '/deals',
   agentDetectMiddleware,
@@ -349,6 +353,17 @@ router.get(
         return res.json(parsed);
       }
     } catch (_) {}
+
+    // Express-side response timeout. Fires after DEALS_RESPONSE_TIMEOUT_MS
+    // regardless of the DB state — guarantees the socket closes within 5s
+    // so the client never sees a 30s+ hang.
+    res.setTimeout(DEALS_RESPONSE_TIMEOUT_MS, () => {
+      if (!res.headersSent) {
+        try {
+          res.status(504).json({ error: 'deals_upstream_timeout', message: 'Deals query exceeded server-side timeout' });
+        } catch (_) {}
+      }
+    });
 
     // Deals: prefer discount_pct generated column (BUY-14332), fall back to inline
     // computation if the column doesn't exist yet (migration may not have run).
@@ -397,12 +412,25 @@ router.get(
       : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
 
     const COUNT_CAP = 1001;
-    const [countResult, dataResult] = await Promise.all([
-      db.query(
+
+    // Dedicated client with 5s statement_timeout. The pool's default is 30s
+    // (config.ts PG_STATEMENT_TIMEOUT=30000) which is too generous for a
+    // user-facing read endpoint and was the source of the BUY-33985 30s+ hang.
+    // A 5s cap is well above the index-backed happy path (≈15ms) and well
+    // below the previous 30s client-visible ceiling. release() always runs.
+    const dealsClient = await db.connect();
+    let deals: ReturnType<typeof buildProduct>[] = [];
+    let total = 0;
+    try {
+      await dealsClient.query(`SET statement_timeout = ${DEALS_RESPONSE_TIMEOUT_MS}`);
+
+      const countResult = await dealsClient.query(
         `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${dealWhere} LIMIT ${COUNT_CAP}) _sub`,
         dealParams
-      ),
-      db.query(
+      );
+      total = parseInt(countResult.rows[0].count, 10);
+
+      const dataResult = await dealsClient.query(
         `SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
                 currency, image_url, metadata, updated_at,
@@ -414,13 +442,13 @@ router.get(
          ORDER BY ${discountOrder}, updated_at DESC
          LIMIT $${dealIdx} OFFSET $${dealIdx + 1}`,
         [...dealParams, limit, offset]
-      ),
-    ]);
-
-    const deals = dataResult.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, currency, false)
-    );
-    const total = parseInt(countResult.rows[0].count, 10);
+      );
+      deals = dataResult.rows.map((row) =>
+        buildProduct(row as Record<string, unknown>, currency, false)
+      );
+    } finally {
+      dealsClient.release();
+    }
 
     const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false);
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});

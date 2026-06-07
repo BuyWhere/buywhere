@@ -298,6 +298,10 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
 }));
 // GET /v1/products/deals
 // Returns products on sale (original_price > price), sorted by discount %
+// BUY-33985: dedicated client with 5s statement_timeout + 5s res.setTimeout
+// so a slow fallback path (no discount_pct column) cannot hang the request
+// past 5s and leak the connection.
+const DEALS_RESPONSE_TIMEOUT_MS = 5000;
 router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.deals'), asyncHandler(async (req, res) => {
     const start = Date.now();
     const currency = req.query.currency || 'SGD';
@@ -316,6 +320,17 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
         }
     }
     catch (_) { }
+    // Express-side response timeout. Fires after DEALS_RESPONSE_TIMEOUT_MS
+    // regardless of the DB state — guarantees the socket closes within 5s
+    // so the client never sees a 30s+ hang.
+    res.setTimeout(DEALS_RESPONSE_TIMEOUT_MS, () => {
+        if (!res.headersSent) {
+            try {
+                res.status(504).json({ error: 'deals_upstream_timeout', message: 'Deals query exceeded server-side timeout' });
+            }
+            catch (_) { }
+        }
+    });
     // Deals: prefer discount_pct generated column (BUY-14332), fall back to inline
     // computation if the column doesn't exist yet (migration may not have run).
     const dealConditions = ['currency = $1', 'price > 0'];
@@ -357,9 +372,19 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
         ? 'discount_pct DESC'
         : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
     const COUNT_CAP = 1001;
-    const [countResult, dataResult] = await Promise.all([
-        config_1.db.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${dealWhere} LIMIT ${COUNT_CAP}) _sub`, dealParams),
-        config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
+    // Dedicated client with 5s statement_timeout. The pool's default is 30s
+    // (config.ts PG_STATEMENT_TIMEOUT=30000) which is too generous for a
+    // user-facing read endpoint and was the source of the BUY-33985 30s+ hang.
+    // A 5s cap is well above the index-backed happy path (≈15ms) and well
+    // below the previous 30s client-visible ceiling. release() always runs.
+    const dealsClient = await config_1.db.connect();
+    let deals = [];
+    let total = 0;
+    try {
+        await dealsClient.query(`SET statement_timeout = ${DEALS_RESPONSE_TIMEOUT_MS}`);
+        const countResult = await dealsClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${dealWhere} LIMIT ${COUNT_CAP}) _sub`, dealParams);
+        total = parseInt(countResult.rows[0].count, 10);
+        const dataResult = await dealsClient.query(`SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
                 currency, image_url, metadata, updated_at,
                 region, country_code, created_at, description, brand, mpn, gtin,
@@ -368,10 +393,12 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
          FROM products
          WHERE ${dealWhere}
          ORDER BY ${discountOrder}, updated_at DESC
-         LIMIT $${dealIdx} OFFSET $${dealIdx + 1}`, [...dealParams, limit, offset]),
-    ]);
-    const deals = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, false));
-    const total = parseInt(countResult.rows[0].count, 10);
+         LIMIT $${dealIdx} OFFSET $${dealIdx + 1}`, [...dealParams, limit, offset]);
+        deals = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, false));
+    }
+    finally {
+        dealsClient.release();
+    }
     const responseBody = (0, response_1.buildSearchResponse)(deals, total, limit, offset, Date.now() - start, false);
     config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
     res.json(responseBody);
