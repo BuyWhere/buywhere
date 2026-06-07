@@ -359,8 +359,14 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const client = await config_1.db.connect();
     try {
         await client.query('BEGIN');
-        // BUY-34291: cap per-query work_mem to avoid shared_buffers pressure under load.
+        // BUY-34291: cap per-query work_mem + force index scan (no bitmap) under load.
+        // The partial GIN index `idx_products_partitioned_active_fts WHERE is_active = true`
+        // makes Bitmap Heap Scan attractive for the planner, but the bitmap needs 2MB+ of
+        // dynamic shared memory even with work_mem=4MB. Under concurrent load, the DB
+        // throws `could not resize shared memory segment ... No space left on device`.
+        // Disabling bitmap scan forces a Nested Loop index scan that doesn't need that pool.
         await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
+        await client.query(`SET LOCAL enable_bitmapscan = 'off'`);
         await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
         dataResult = await client.query(dataQuery, dataParams);
         await client.query('COMMIT');
