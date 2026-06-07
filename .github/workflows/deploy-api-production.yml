@@ -1,5 +1,19 @@
 name: Deploy TypeScript API to production
 
+# BUY-15318: Production API now lives on Railway (buywhere-api service
+# 945e8a6d-6f89-41f1-8256-b8cc6a872a33, env ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae).
+# The previous GCP Cloud Run + SSH-into-VM deploy path is retired. The
+# push-to-main path is owned by .github/workflows/deploy-railway.yml; this
+# workflow is the manual / on-demand entry point (workflow_dispatch) that
+# re-deploys against a chosen image tag (or git SHA).
+#
+# Secrets:
+#   RAILWAY_TOKEN          Project-scoped Railway deploy token
+#   BUYWHERE_SMOKE_KEY     API key for regression + smoke tests
+#
+# See: BUY-15318 (Railway migration), BUY-33837 (re-deployed routes),
+#      BUY-33907 (AQS route + workflow / aqs_cycles table deploy together).
+
 on:
   workflow_dispatch:
     inputs:
@@ -16,12 +30,16 @@ on:
           - search
           - products
           - categories
+      service_id:
+        description: 'Railway service id (default: buywhere-api 945e8a6d-...)'
+        required: false
+        default: '945e8a6d-6f89-41f1-8256-b8cc6a872a33'
+      environment_id:
+        description: 'Railway environment id (default: production ebcb2ca2-...)'
+        required: false
+        default: 'ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae'
 
 env:
-  GCP_PROJECT_ID: gaia-calendar-488606
-  GCP_REGION: asia-southeast1
-  ARTIFACT_REGISTRY: asia-southeast1-docker.pkg.dev
-  IMAGE_REPO: buywhere
   SERVICE_NAME: buywhere-api
 
 jobs:
@@ -59,114 +77,48 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-        with:
-          project_id: ${{ env.GCP_PROJECT_ID }}
-
-      - name: Configure Docker for Artifact Registry
-        run: |
-          gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }} --quiet
-
       - name: Set image tag
         id: tag
         run: |
           TAG="${{ github.event.inputs.image_tag || github.sha }}"
           echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
-          FULL_IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.IMAGE_REPO }}/api:${TAG}"
-          echo "full_image=${FULL_IMAGE}" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push API image
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy buywhere-api to Railway
         env:
-          FULL_IMAGE: ${{ steps.tag.outputs.full_image }}
-        run: |
-          docker build -t "$FULL_IMAGE" ./api
-          docker push "$FULL_IMAGE"
-
-      - name: Generate Artifact Registry auth token
-        id: gar_token
-        run: |
-          TOKEN=$(gcloud auth print-access-token)
-          echo "::add-mask::${TOKEN}"
-          echo "token=${TOKEN}" >> $GITHUB_OUTPUT
-
-      - name: Set up SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.PRODUCTION_DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${{ secrets.PRODUCTION_DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-
-      - name: Deploy API on production VM
-        env:
-          FULL_IMAGE: ${{ steps.tag.outputs.full_image }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          SERVICE_ID: ${{ github.event.inputs.service_id || '945e8a6d-6f89-41f1-8256-b8cc6a872a33' }}
+          ENVIRONMENT_ID: ${{ github.event.inputs.environment_id || 'ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae' }}
           IMAGE_TAG: ${{ steps.tag.outputs.image_tag }}
-          SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
-          SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
-          APP_DIR: ${{ secrets.PRODUCTION_APP_DIR || '/opt/buywhere' }}
-          GAR_TOKEN: ${{ steps.gar_token.outputs.token }}
         run: |
-          ssh -i ~/.ssh/id_ed25519 "${SSH_USER}@${SSH_HOST}" \
-            env FULL_IMAGE="${FULL_IMAGE}" IMAGE_TAG="${IMAGE_TAG}" APP_DIR="${APP_DIR}" GAR_TOKEN="${GAR_TOKEN}" \
-            bash -s <<'REMOTE'
-          set -euo pipefail
-          echo "api-deploy: image=${FULL_IMAGE} tag=${IMAGE_TAG}"
+          railway up \
+            --service "${SERVICE_ID}" \
+            --environment "${ENVIRONMENT_ID}" \
+            --detach \
+            -m "Deploy ${SERVICE_NAME} (image_tag=${IMAGE_TAG}, sha=${GITHUB_SHA::7})"
+          echo "Railway deploy triggered (image_tag=${IMAGE_TAG})"
 
-          # Authenticate Docker to Artifact Registry using CI-generated token
-          echo "${GAR_TOKEN}" | docker login -u oauth2accesstoken --password-stdin asia-southeast1-docker.pkg.dev
+      - name: Wait for deploy
+        run: |
+          echo "Waiting 120s for Railway to roll out..."
+          sleep 120
 
-          # Pull the new image
-          docker pull "${FULL_IMAGE}"
-
-          # Update and restart the API container (docker-compose)
-          cd "${APP_DIR}"
-          # Tag as latest for docker-compose
-          docker tag "${FULL_IMAGE}" buywhere-api:latest
-
-          # Restart only the api service (zero-downtime: compose will replace container)
-          docker compose up -d --no-deps --force-recreate api
-
-          echo "API container restarted — waiting for health check..."
-
-          # Retry health check with backoff (container may need time for startup + migration)
-          for i in 1 2 3 4 5 6; do
-            HTTP=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health 2>/dev/null || echo "000")
-            if [[ "$HTTP" == "200" ]]; then
-              echo "GET /health → HTTP 200 (attempt $i)"
-              break
+      - name: Smoke test Railway endpoint
+        run: |
+          echo "=== Smoke testing api.buywhere.ai ==="
+          for ENDPOINT in /health /v1/aqs/health "/v1/ingest/health"; do
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" "https://api.buywhere.ai${ENDPOINT}")
+            echo "GET $ENDPOINT → HTTP $HTTP"
+            if [[ "$ENDPOINT" == "/health" && "$HTTP" != "200" ]]; then
+              echo "ERROR: /health should return 200" && exit 1
             fi
-            echo "GET /health → HTTP ${HTTP} (attempt $i, waiting...)"
-            sleep $((i * 3))
+            if [[ "$ENDPOINT" == "/v1/ingest/health" && "$HTTP" == "404" ]]; then
+              echo "ERROR: /v1/ingest/health returned 404 — route not deployed" && exit 1
+            fi
           done
-
-          if [[ "$HTTP" != "200" ]]; then
-            echo "ERROR: API health check failed after 6 attempts"
-            exit 1
-          fi
-          echo "API healthy (${IMAGE_TAG})"
-          REMOTE
-
-      - name: Run database migration
-        continue-on-error: true
-        env:
-          SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
-          SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
-          APP_DIR: ${{ secrets.PRODUCTION_APP_DIR || '/opt/buywhere' }}
-        run: |
-          ssh -i ~/.ssh/id_ed25519 "${SSH_USER}@${SSH_HOST}" \
-            env APP_DIR="${APP_DIR}" \
-            bash -s <<'REMOTE'
-          set -euo pipefail
-          echo "Running database migration..."
-          cd "${APP_DIR}"
-          docker compose exec -T api node dist/migrate.js || echo "Migration failed (non-fatal, check logs)"
-          echo "Migration step complete."
-          REMOTE
+          echo "Smoke tests passed"
 
       - name: Smoke test search endpoint
         env:
@@ -186,23 +138,18 @@ jobs:
 
           echo "=== Smoke testing agent-readiness ==="
 
-          # Content-Signal on robots.txt
           CS=$(curl -sI https://api.buywhere.ai/robots.txt | grep -i "content-signal" || echo "MISSING")
           echo "Content-Signal: ${CS}"
 
-          # Link header on /
           LINK=$(curl -sI https://api.buywhere.ai/ | grep -i "^link:" || echo "MISSING")
           echo "Link (on /): ${LINK}"
 
-          # Markdown negotiation on /
           CT=$(curl -sI -H "Accept: text/markdown" https://api.buywhere.ai/ | grep -i "content-type" || echo "MISSING")
           echo "Content-Type (markdown req): ${CT}"
 
-          # Markdown on /docs/guides/mcp
           CT_DOCS=$(curl -sI -H "Accept: text/markdown" https://api.buywhere.ai/docs/guides/mcp | grep -i "content-type" || echo "MISSING")
           echo "Content-Type /docs/guides/mcp: ${CT_DOCS}"
 
-          # Fail if any are missing
           if echo "${CS}${LINK}${CT}${CT_DOCS}" | grep -q "MISSING"; then
             echo "ERROR: one or more agent-readiness headers missing after deploy"
             exit 1
