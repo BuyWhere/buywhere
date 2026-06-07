@@ -1,0 +1,40 @@
+{
+  "name": "BuyWhere",
+  "description": "Structured product catalog and price comparison API for AI agents. Real-time pricing, availability, and product data from Singapore's major e-commerce platforms.",
+  "url": "https://api.buywhere.ai",
+  "version": "1.0.0",
+  "apiProtocol": "MCP",
+  "mcpEndpoint": "https://api.buywhere.ai/mcp",
+  "authentication": {
+    "type": "bearer",
+    "description": "Bearer token (bw_live_YOUR_API_KEY)"
+  },
+  "endpoints": [
+    {
+      "path": "/v1/products",
+      "method": "GET",
+      "description": "Search and filter products"
+    },
+    {
+      "path": "/v1/offers",
+      "method": "GET",
+      "description": "Get price offers for products"
+    },
+    {
+      "path": "/v1/categories",
+      "method": "GET",
+      "description": "List product categories"
+    },
+    {
+      "path": "/v1/auth/register",
+      "method": "POST",
+      "description": "Register for API access"
+    }
+  ],
+  "documentationUrl": "https://docs.buywhere.ai",
+  "termsOfService": "https://buywhere.ai/terms",
+  "contact": {
+    "email": "support@buywhere.ai",
+    "website": "https://buywhere.ai/contact"
+  }
+}
