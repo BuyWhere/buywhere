@@ -9,9 +9,17 @@ import {
   cleanupOldData,
   isValidMarket,
   P95_THRESHOLD_MS,
+  VALID_MARKETS,
 } from './p95';
 
 const router = express.Router();
+
+const toIso = (v: Date | string | null | undefined): string | null => {
+  if (v == null) return null;
+  if (v instanceof Date) return v.toISOString();
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+};
 
 /**
  * Monitoring auth middleware (BUY-32082).
@@ -90,7 +98,7 @@ router.get('/api/monitoring/p95', async (req, res) => {
     if (!isValidMarket(market.toLowerCase())) {
       return res.status(400).json({
         error: 'INVALID_MARKET',
-        message: `Market must be one of: ${['sg', 'us', 'my', 'vn', 'th'].join(', ')}`
+        message: `Market must be one of: ${VALID_MARKETS.join(', ')}`
       });
     }
 
@@ -110,8 +118,8 @@ router.get('/api/monitoring/p95', async (req, res) => {
       market: record.market,
       p95_ms: record.p95_ms,
       sample_size: record.sample_size,
-      window_start: record.window_start.toISOString(),
-      window_end: record.window_end.toISOString(),
+      window_start: toIso(record.window_start),
+      window_end: toIso(record.window_end),
       alert_triggered: alertTriggered,
       baseline_ms: baselineMs,
       threshold_ms: P95_THRESHOLD_MS
@@ -139,7 +147,7 @@ router.get('/api/monitoring/p95/history', async (req, res) => {
     if (!isValidMarket(market.toLowerCase())) {
       return res.status(400).json({
         error: 'INVALID_MARKET',
-        message: `Market must be one of: ${['sg', 'us', 'my', 'vn', 'th'].join(', ')}`
+        message: `Market must be one of: ${VALID_MARKETS.join(', ')}`
       });
     }
 
@@ -168,8 +176,8 @@ router.get('/api/monitoring/p95/history', async (req, res) => {
       data: filteredRecords.map(r => ({
         p95_ms: r.p95_ms,
         sample_size: r.sample_size,
-        window_start: r.window_start.toISOString(),
-        window_end: r.window_end.toISOString()
+        window_start: toIso(r.window_start),
+        window_end: toIso(r.window_end)
       })),
       count: filteredRecords.length
     });
@@ -214,7 +222,7 @@ router.get('/api/monitoring/p95/alerts', async (req, res) => {
     if (!isValidMarket(market.toLowerCase())) {
       return res.status(400).json({
         error: 'INVALID_MARKET',
-        message: `Market must be one of: ${['sg', 'us', 'my', 'vn', 'th'].join(', ')}`
+        message: `Market must be one of: ${VALID_MARKETS.join(', ')}`
       });
     }
 
@@ -226,8 +234,8 @@ router.get('/api/monitoring/p95/alerts', async (req, res) => {
         id: a.id,
         p95_ms: a.p95_ms,
         threshold_ms: a.threshold_ms,
-        triggered_at: a.triggered_at.toISOString(),
-        acknowledged_at: a.acknowledged_at?.toISOString() || null,
+        triggered_at: toIso(a.triggered_at),
+        acknowledged_at: toIso(a.acknowledged_at),
         acknowledged_by: a.acknowledged_by,
         resolution_notes: a.resolution_notes
       })),

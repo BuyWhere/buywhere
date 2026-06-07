@@ -1,8 +1,8 @@
 import { db } from '../config';
 import { Request, Response, NextFunction } from 'express';
 
-const VALID_MARKETS = ['sg', 'us', 'my', 'vn', 'th'] as const;
-const P95_THRESHOLD_MS = parseInt(process.env.P95_THRESHOLD_MS || '300', 10);
+export const VALID_MARKETS = ['sg', 'us', 'my', 'vn', 'th'] as const;
+export const P95_THRESHOLD_MS = parseInt(process.env.P95_THRESHOLD_MS || '300', 10);
 
 export interface P95LatencyRecord {
   id: number;
@@ -26,7 +26,7 @@ export interface AlertRecord {
   resolution_notes: string | null;
 }
 
-function isValidMarket(market: string): market is typeof VALID_MARKETS[number] {
+export function isValidMarket(market: string): market is typeof VALID_MARKETS[number] {
   return VALID_MARKETS.includes(market as any);
 }
 

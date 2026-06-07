@@ -520,6 +520,66 @@ async function runMigrations() {
     catch (err) {
         console.warn(`[migration] search_vector backfill timed out or failed (non-fatal, trigger covers new rows): ${err.message?.slice(0, 200)}`);
     }
+    // BUY-32082: P95 monitoring schema — stores latency samples and alert history for
+    // all 5 markets (SG, US, MY, VN, TH). The p95_latency table is written by the
+    // monitoring job every 5 minutes; alert_history tracks threshold breaches.
+    try {
+        await config_1.db.query(`
+      CREATE SCHEMA IF NOT EXISTS monitoring;
+
+      CREATE TABLE IF NOT EXISTS monitoring.p95_latency (
+        id            BIGSERIAL   PRIMARY KEY,
+        market        VARCHAR(2)  NOT NULL CHECK (market IN ('sg','us','my','vn','th')),
+        endpoint      TEXT        NOT NULL,
+        p95_ms        INTEGER     NOT NULL,
+        sample_size   INTEGER     NOT NULL,
+        window_start  TIMESTAMPTZ NOT NULL,
+        window_end    TIMESTAMPTZ NOT NULL,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS monitoring.idx_p95_latency_market_time
+        ON monitoring.p95_latency (market, window_end DESC);
+      CREATE INDEX IF NOT EXISTS monitoring.idx_p95_latency_endpoint
+        ON monitoring.p95_latency (endpoint, window_end DESC);
+
+      CREATE TABLE IF NOT EXISTS monitoring.alert_history (
+        id                BIGSERIAL   PRIMARY KEY,
+        market            VARCHAR(2)  NOT NULL CHECK (market IN ('sg','us','my','vn','th')),
+        p95_ms            INTEGER     NOT NULL,
+        threshold_ms      INTEGER     NOT NULL DEFAULT 300,
+        triggered_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        acknowledged_at   TIMESTAMPTZ,
+        acknowledged_by   TEXT,
+        resolution_notes  TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS monitoring.idx_alert_history_market_time
+        ON monitoring.alert_history (market, triggered_at DESC);
+
+      -- Cleanup function: delete rows older than retention_days in both tables.
+      -- Safe to call periodically; used by the /api/monitoring/p95/cleanup endpoint.
+      CREATE OR REPLACE FUNCTION monitoring.cleanup_old_p95_data(retention_days INTEGER DEFAULT 7)
+        RETURNS INTEGER
+        LANGUAGE plpgsql AS $$
+      DECLARE
+        deleted INTEGER;
+      BEGIN
+        DELETE FROM monitoring.p95_latency
+          WHERE created_at < NOW() - (retention_days || ' days')::INTERVAL;
+        GET DIAGNOSTICS deleted = ROW_COUNT;
+
+        DELETE FROM monitoring.alert_history
+          WHERE triggered_at < NOW() - (retention_days || ' days')::INTERVAL;
+        RETURN deleted;
+      END;
+      $$;
+    `);
+        console.log('[migration] P95 monitoring schema ensured (BUY-32082).');
+    }
+    catch (err) {
+        console.warn(`[migration] P95 monitoring schema failed (non-fatal): ${err.message?.slice(0, 200)}`);
+    }
     console.log('Migrations complete.');
 }
 async function migrate() {

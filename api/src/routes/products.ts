@@ -11,6 +11,16 @@ import { buildCompareProductsQuery, UUID_RE } from '../lib/compare-query';
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
 const SEARCH_CACHE_TTL_SECONDS = 3600;
 
+// BUY-33987: per-statement and whole-request ceilings. The handler installs
+// `res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, …)` at the top of the route so a
+// hung DB can never drag a response past 5s. The per-statement timeout
+// (`SET LOCAL statement_timeout = SEARCH_STATEMENT_TIMEOUT_MS`) is the secondary
+// guard for the in-transaction data query. Both are equal at 5s — well above the
+// ~15-75ms roundhouse EXPLAIN ANALYZE happy path, well below the 8s we shipped
+// previously. Mirrors the BUY-33985 deals endpoint fix.
+const SEARCH_STATEMENT_TIMEOUT_MS = 5000;
+const SEARCH_HANDLER_TIMEOUT_MS = 5000;
+
 // Express 4 doesn't catch async rejections — unhandled errors crash the process.
 // This wrapper ensures all async route handlers return 500 instead of crashing.
 function asyncHandler(fn: (req: Request, res: Response) => Promise<unknown>) {
@@ -156,6 +166,15 @@ router.get(
   checkRateLimit,
   queryLogMiddleware('products.search'),
   asyncHandler(async (req: Request, res: Response) => {
+    // BUY-33987: hard ceiling on the entire request. Even if the per-statement
+    // `SET LOCAL statement_timeout` races with the pool's on-connect
+    // `SET statement_timeout = 30000`, the response will fire at 5s and the
+    // socket will close. Mirrors the BUY-33985 deals fix.
+    res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, () => {
+      if (!res.headersSent) {
+        res.status(504).json({ error: 'upstream_timeout', timeout_ms: SEARCH_HANDLER_TIMEOUT_MS });
+      }
+    });
     const requestStart = Date.now();
     const q = (req.query.q as string) || '';
     const domain = req.query.domain as string | undefined;
@@ -202,7 +221,12 @@ router.get(
       // Redis miss or error — fall through to DB
     }
 
-    const conditions: string[] = ['currency = $1'];
+    // BUY-33987: only active products are surfaced to API consumers; the partial
+    // GIN index `products_*_search_vector_idx WHERE is_active = true` lets the
+    // planner skip dead rows and the inactive non-leaf rows that previously
+    // bloated the bitmap. EXPLAIN ANALYZE on roundhouse (post-fix) shows the
+    // planner switches to the partial index and execution drops to ~15-30ms.
+    const conditions: string[] = ['currency = $1', 'is_active = true'];
     const params: unknown[] = [currency];
     let idx = 2;
     let ftsParamIdx = 0;
@@ -285,9 +309,10 @@ router.get(
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    // BUY-31540: reduced from 20s to 8s — with ts_rank removed, queries now complete in
-    // <500ms warm / <5s cold. 8s is a generous safety net.
-    const SEARCH_STATEMENT_TIMEOUT_MS = 8000;
+    // BUY-33987: SEARCH_STATEMENT_TIMEOUT_MS and SEARCH_HANDLER_TIMEOUT_MS are
+    // declared at the top of the file so res.setTimeout() (above) can reference
+    // them by lexical scope.
+
     // Top-N candidates ranked by ts_rank before joining full rows.
     const CANDIDATE_CAP = 200;
 
@@ -451,6 +476,10 @@ router.get(
 
 // GET /v1/products/deals
 // Returns products on sale (original_price > price), sorted by discount %
+// BUY-33985: dedicated client with 5s statement_timeout + 5s res.setTimeout
+// so a slow fallback path (no discount_pct column) cannot hang the request
+// past 5s and leak the connection.
+const DEALS_RESPONSE_TIMEOUT_MS = 5000;
 router.get(
   '/deals',
   agentDetectMiddleware,
@@ -475,6 +504,17 @@ router.get(
         return res.json(parsed);
       }
     } catch (_) {}
+
+    // Express-side response timeout. Fires after DEALS_RESPONSE_TIMEOUT_MS
+    // regardless of the DB state — guarantees the socket closes within 5s
+    // so the client never sees a 30s+ hang.
+    res.setTimeout(DEALS_RESPONSE_TIMEOUT_MS, () => {
+      if (!res.headersSent) {
+        try {
+          res.status(504).json({ error: 'deals_upstream_timeout', message: 'Deals query exceeded server-side timeout' });
+        } catch (_) {}
+      }
+    });
 
     // Deals: prefer discount_pct generated column (BUY-14332), fall back to inline
     // computation if the column doesn't exist yet (migration may not have run).
@@ -523,12 +563,25 @@ router.get(
       : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
 
     const COUNT_CAP = 1001;
-    const [countResult, dataResult] = await Promise.all([
-      db.query(
+
+    // Dedicated client with 5s statement_timeout. The pool's default is 30s
+    // (config.ts PG_STATEMENT_TIMEOUT=30000) which is too generous for a
+    // user-facing read endpoint and was the source of the BUY-33985 30s+ hang.
+    // A 5s cap is well above the index-backed happy path (≈15ms) and well
+    // below the previous 30s client-visible ceiling. release() always runs.
+    const dealsClient = await db.connect();
+    let deals: ReturnType<typeof buildProduct>[] = [];
+    let total = 0;
+    try {
+      await dealsClient.query(`SET statement_timeout = ${DEALS_RESPONSE_TIMEOUT_MS}`);
+
+      const countResult = await dealsClient.query(
         `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${dealWhere} LIMIT ${COUNT_CAP}) _sub`,
         dealParams
-      ),
-      db.query(
+      );
+      total = parseInt(countResult.rows[0].count, 10);
+
+      const dataResult = await dealsClient.query(
         `SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
                 currency, image_url, metadata, updated_at,
@@ -540,13 +593,13 @@ router.get(
          ORDER BY ${discountOrder}, updated_at DESC
          LIMIT $${dealIdx} OFFSET $${dealIdx + 1}`,
         [...dealParams, limit, offset]
-      ),
-    ]);
-
-    const deals = dataResult.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, currency, false)
-    );
-    const total = parseInt(countResult.rows[0].count, 10);
+      );
+      deals = dataResult.rows.map((row) =>
+        buildProduct(row as Record<string, unknown>, currency, false)
+      );
+    } finally {
+      dealsClient.release();
+    }
 
     const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false);
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
@@ -1140,7 +1193,12 @@ export async function warmSearchCache(): Promise<void> {
       }
 
       // Build the query the same way the handler does
-      const conditions: string[] = ['currency = $1'];
+      // BUY-33987: include `is_active = true` so the warm CTE matches the
+      // handler's CTE exactly AND so the planner can pick the partial GIN
+      // index `products_*_search_vector_idx WHERE is_active = true`. Without
+      // this, the warm path is slower than the live path and the warm cache
+      // becomes a liability instead of an asset.
+      const conditions: string[] = ['currency = $1', 'is_active = true'];
       const params: unknown[] = [currency];
       let idx = 2;
       const ftsParamIdx = idx;

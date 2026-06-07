@@ -3,7 +3,7 @@ import { AffiliateDisclosure } from "@/components/ui/AffiliateDisclosure";
 
 export default function Footer() {
   return (
-    <footer className="bg-gray-50 border-t border-gray-200 mt-auto">
+    <footer role="contentinfo" aria-label="Site footer" className="bg-gray-50 border-t border-gray-200 mt-auto">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           <div className="col-span-2 md:col-span-1">
@@ -20,9 +20,9 @@ export default function Footer() {
           </div>
 
           <div>
-            <h4 className="text-sm font-semibold text-gray-900 mb-3">Product</h4>
-            <ul className="space-y-2 text-sm text-gray-500">
-              <li><Link href="/quickstart" className="hover:text-indigo-600">Quickstart</Link></li>
+            <h4 id="footer-h-product" className="text-sm font-semibold text-gray-900 mb-3">Product</h4>
+            <ul aria-labelledby="footer-h-product" className="space-y-2 text-sm text-gray-500" role="list">
+              <li role="listitem"><Link href="/quickstart" className="hover:text-indigo-600">Quickstart</Link></li>
               <li><Link href="/merchants" className="hover:text-indigo-600">Merchants</Link></li>
               <li><Link href="/partners" className="hover:text-indigo-600">Partners</Link></li>
               <li><Link href="/pricing" className="hover:text-indigo-600">Pricing</Link></li>
@@ -30,27 +30,27 @@ export default function Footer() {
           </div>
 
           <div>
-            <h4 className="text-sm font-semibold text-gray-900 mb-3">Company</h4>
-            <ul className="space-y-2 text-sm text-gray-500">
-              <li><Link href="/about" className="hover:text-indigo-600">About</Link></li>
+            <h4 id="footer-h-company" className="text-sm font-semibold text-gray-900 mb-3">Company</h4>
+            <ul aria-labelledby="footer-h-company" className="space-y-2 text-sm text-gray-500" role="list">
+              <li role="listitem"><Link href="/about" className="hover:text-indigo-600">About</Link></li>
               <li><Link href="/use-cases" className="hover:text-indigo-600">Use Cases</Link></li>
               <li><Link href="/contact" className="hover:text-indigo-600">Contact</Link></li>
             </ul>
           </div>
 
           <div>
-            <h4 className="text-sm font-semibold text-gray-900 mb-3">Legal</h4>
-            <ul className="space-y-2 text-sm text-gray-500">
-              <li><Link href="/terms" className="hover:text-indigo-600">Terms of Service</Link></li>
+            <h4 id="footer-h-legal" className="text-sm font-semibold text-gray-900 mb-3">Legal</h4>
+            <ul aria-labelledby="footer-h-legal" className="space-y-2 text-sm text-gray-500" role="list">
+              <li role="listitem"><Link href="/terms" className="hover:text-indigo-600">Terms of Service</Link></li>
               <li><Link href="/privacy" className="hover:text-indigo-600">Privacy Policy</Link></li>
               <li><Link href="/affiliate-disclosure" className="hover:text-indigo-600">Affiliate Disclosure</Link></li>
             </ul>
           </div>
 
           <div>
-            <h4 className="text-sm font-semibold text-gray-900 mb-3">Connect</h4>
-            <ul className="space-y-2 text-sm text-gray-500">
-              <li><a href="https://t.me/buywhere_bot" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600">Telegram</a></li>
+            <h4 id="footer-h-connect" className="text-sm font-semibold text-gray-900 mb-3">Connect</h4>
+            <ul aria-labelledby="footer-h-connect" className="space-y-2 text-sm text-gray-500" role="list">
+              <li role="listitem"><a href="https://t.me/buywhere_bot" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600">Telegram</a></li>
               <li><a href="https://github.com/BuyWhere/buywhere-mcp" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600">GitHub</a></li>
             </ul>
           </div>
@@ -61,7 +61,7 @@ export default function Footer() {
             <AffiliateDisclosure variant="inline" />
           </div>
           <div className="flex flex-col sm:flex-row justify-between items-center gap-2 text-sm text-gray-400">
-            <span>© {new Date().getFullYear()} BuyWhere Pte. Ltd. All rights reserved.</span>
+            <span tabIndex={0} aria-label={`Copyright ${new Date().getFullYear()} BuyWhere Pte. Ltd. All rights reserved.`}>© {new Date().getFullYear()} BuyWhere Pte. Ltd. All rights reserved.</span>
           </div>
         </div>
       </div>

@@ -220,9 +220,9 @@ export default function HomePage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(webApplicationSchema) }}
       />
 
-      <main id="main-content">
+      <main id="main-content" role="main" tabIndex={-1} aria-label="Main content">
       {/* Hero */}
-      <section className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white">
+      <section role="region" aria-label="Content section" className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-24 md:py-32">
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 bg-white/10 text-white/90 text-sm font-medium px-3 py-1 rounded-full mb-6">
@@ -261,7 +261,7 @@ export default function HomePage() {
 
       {/* Trust strip */}
       <TrustLayer />
-      <section className="py-20 bg-white">
+      <section role="region" aria-label="Content section" className="py-20 bg-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Who BuyWhere is for</h2>
@@ -291,7 +291,7 @@ export default function HomePage() {
       </section>
 
       {/* How it works */}
-      <section className="py-20 bg-gray-50">
+      <section role="region" aria-label="Content section" className="py-20 bg-gray-50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">How BuyWhere works</h2>
@@ -319,7 +319,7 @@ export default function HomePage() {
       </section>
 
       {/* Code demo */}
-      <section className="bg-gray-900 py-16">
+      <section role="region" aria-label="Content section" className="bg-gray-900 py-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex flex-col md:flex-row items-start gap-12">
             <div className="flex-1 text-white">
@@ -352,7 +352,7 @@ export default function HomePage() {
       </section>
 
       {/* Value props */}
-      <section className="py-20 bg-white">
+      <section role="region" aria-label="Content section" className="py-20 bg-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Why developers use BuyWhere</h2>
@@ -378,7 +378,7 @@ export default function HomePage() {
       </section>
 
        {/* Why now */}
-       <section className="py-20 bg-indigo-50">
+       <section role="region" aria-label="Content section" className="py-20 bg-indigo-50">
          <div className="max-w-6xl mx-auto px-4 sm:px-6">
            <div className="max-w-3xl mx-auto text-center">
              <h2 className="text-3xl font-bold text-gray-900 mb-6">Why AI shopping needs a neutral catalog layer</h2>
@@ -399,7 +399,7 @@ export default function HomePage() {
        </section>
 
        {/* FAQ */}
-      <section className="py-20 bg-white border-t border-gray-100">
+      <section role="region" aria-label="Content section" className="py-20 bg-white border-t border-gray-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="max-w-3xl mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">FAQ for agent builders</h2>
@@ -419,7 +419,7 @@ export default function HomePage() {
       </section>
 
       {/* Price comparisons hub — crawlable entry point into /compare cluster */}
-      <section className="py-16 bg-slate-50 border-t border-gray-100">
+      <section role="region" aria-label="Content section" className="py-16 bg-slate-50 border-t border-gray-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="max-w-3xl mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-3">Price comparison guides</h2>
@@ -455,7 +455,7 @@ export default function HomePage() {
       </section>
 
       {/* CTA */}
-      <section className="py-20 bg-indigo-600 text-white">
+      <section role="region" aria-label="Content section" className="py-20 bg-indigo-600 text-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-3xl font-bold mb-4">Launch product-aware agents without building a catalog pipeline.</h2>
           <p className="text-indigo-200 mb-8 text-lg">

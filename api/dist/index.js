@@ -8,6 +8,7 @@ const migrate_1 = require("./migrate");
 const affiliateWrapper_1 = require("./lib/affiliateWrapper");
 const mcpWarmup_1 = require("./lib/mcpWarmup");
 const products_1 = require("./routes/products");
+const p95Runner_1 = require("./jobs/p95Runner");
 // Initialize Sentry before anything else so all errors are captured
 (0, sentry_1.initSentry)();
 const app = (0, server_1.createApp)();
@@ -25,6 +26,8 @@ async function start() {
     (0, mcpWarmup_1.warmupMcpCaches)().catch((err) => console.warn('[mcp-warmup] failed:', err?.message));
     // BUY-31302: seed Redis with top search queries so cold cache is always <5ms
     (0, products_1.warmSearchCache)().catch((err) => console.warn('[cache-warm] failed:', err?.message));
+    // BUY-32082: start P95 latency computation job (every 5 min)
+    (0, p95Runner_1.startP95Runner)();
     return new Promise((resolve) => {
         const server = app.listen(config_1.PORT, () => {
             console.log(`BuyWhere API v1 listening on :${config_1.PORT}`);
