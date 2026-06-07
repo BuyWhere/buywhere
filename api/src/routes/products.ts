@@ -26,6 +26,125 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<unknown>) {
 
 const router = Router();
 
+// GET /v1/products
+// List products with pagination + filter + sort (API v1 contract).
+// Query params: page (default 1), limit (default 20, max 100),
+//               category (slug, matches category_path[1] case-insensitively),
+//               sort (price|name|created_at), order (asc|desc),
+//               country_code (default SG), currency
+// Response: { data: Product[], pagination: { page, limit, total, total_pages } }
+const LIST_SORT_COLUMNS: Record<string, string> = {
+  price: 'price',
+  name: 'title',
+  created_at: 'created_at',
+};
+const LIST_SORT_TTL_SECONDS = 60;
+
+router.get(
+  '/',
+  agentDetectMiddleware,
+  requireApiKey,
+  checkRateLimit,
+  queryLogMiddleware('products.list'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const requestStart = Date.now();
+
+    // Pagination — contract defaults: page=1, limit=20, max 100
+    const rawPage = parseInt((req.query.page as string) || '1');
+    const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+    const rawLimit = parseInt((req.query.limit as string) || '20');
+    const limit = Math.min(Math.max(1, Number.isFinite(rawLimit) ? rawLimit : 20), 100);
+    const offset = (page - 1) * limit;
+
+    // Filters — country defaults to SG to prevent cross-region pollution (BUY-6598)
+    const category = req.query.category as string | undefined;
+    const countryCode = (req.query.country_code as string | undefined)?.toUpperCase() || 'SG';
+    const currency = (req.query.currency as string) || (COUNTRY_CURRENCY[countryCode] || 'SGD');
+
+    // Sort — whitelist to safe columns, default to created_at desc
+    const sortParam = (req.query.sort as string) || 'created_at';
+    const sortColumn = LIST_SORT_COLUMNS[sortParam] || 'created_at';
+    const orderParam = (req.query.order as string)?.toLowerCase();
+    const order = orderParam === 'asc' ? 'ASC' : 'DESC';
+
+    const cacheKey = `list:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}`;
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        parsed.pagination.response_time_ms = Date.now() - requestStart;
+        res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
+        res.set('X-Cache', 'HIT');
+        return res.json(parsed);
+      }
+    } catch (_) {
+      // Redis miss or error — fall through to DB
+    }
+
+    const conditions: string[] = ['currency = $1', 'is_active = true'];
+    const params: unknown[] = [currency];
+    let idx = 2;
+
+    if (countryCode) {
+      conditions.push(`country_code = $${idx}`);
+      params.push(countryCode);
+      idx++;
+    }
+    if (category) {
+      // Treat the contract's `category` param as a slug — match category_path[1]
+      // case-insensitively so "electronics" and "Electronics" both work.
+      conditions.push(`LOWER(category_path[1]) = LOWER($${idx})`);
+      params.push(category);
+      idx++;
+    }
+
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
+
+    const SELECT_COLUMNS = `id, sku AS source_id, source AS domain, url,
+                al.destination_url AS affiliate_url,
+                title, price, currency, image_url, metadata, updated_at,
+                region, country_code, created_at, description, brand, mpn, gtin,
+                category_path, category, merchant_id, avg_rating, review_count`;
+
+    // Default secondary sort keeps results stable when the primary sort has ties
+    // (e.g. multiple products at the same price).
+    const orderBy = `ORDER BY ${sortColumn} ${order} NULLS LAST, updated_at DESC`;
+
+    const [countResult, dataResult] = await Promise.all([
+      db.query(`SELECT COUNT(*) FROM products ${whereClause}`, params),
+      db.query(
+        `SELECT ${SELECT_COLUMNS}
+         FROM products
+         LEFT JOIN affiliate_links al ON al.product_id = products.id AND al.is_active = true
+         ${whereClause}
+         ${orderBy}
+         LIMIT $${idx} OFFSET $${idx + 1}`,
+        [...params, limit, offset]
+      ),
+    ]);
+
+    const total = parseInt(countResult.rows[0].count, 10);
+    const total_pages = total === 0 ? 0 : Math.ceil(total / limit);
+    const data = dataResult.rows.map((row) =>
+      buildProduct(row as Record<string, unknown>, currency, false)
+    );
+
+    const body = {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        total_pages,
+        response_time_ms: Date.now() - requestStart,
+      },
+    };
+
+    redis.set(cacheKey, JSON.stringify(body), 'EX', LIST_SORT_TTL_SECONDS).catch(() => {});
+    res.json(body);
+  })
+);
+
 // GET /v1/products/search
 // Query params: q, domain, region, country, category, category_id, category_path,
 //               brand, merchant_id, availability, min_price, max_price,
@@ -208,23 +327,30 @@ router.get(
 
     let dataQuery: string;
     if (useFtsRanking) {
-      // BUY-31540: removed ts_rank ORDER BY from CTE — it forces materialization of ALL
-      // matching rows (70k+ for laptop+US) before LIMIT, causing 20s structural timeout.
-      // Using ORDER BY id DESC lets PostgreSQL short-circuit after CANDIDATE_CAP rows via
-      // GIN index, cutting latency from 20s to <500ms warm / <5s cold.
+      // BUY-32228: kept ts_rank ORDER BY in the CTE. BUY-31540 replaced this with
+      // `ORDER BY id DESC` + outer `ORDER BY products.updated_at DESC`, but on the
+      // partitioned `products` table (products_sg / products_us / products_default,
+      // 4.1M rows total) that combination forces the planner into a Merge Append
+      // across ALL partitions sorted by updated_at before the top_ids filter runs.
+      // Measured 2026-06-06 against prod DB: `laptop&country=US` 1447ms with
+      // id DESC vs 41ms with ts_rank (1.4M row products_us, planner chooses
+      // Bitmap Heap Scan → 200 pkey lookups via Nested Loop). Outer ORDER BY
+      // top_ids.rank DESC is also used here (matches warmSearchCache CTE), so
+      // relevance ranking survives. The 8s statement_timeout guard from
+      // BUY-31228 stays in place as the safety net.
       dataQuery = `
         WITH top_ids AS (
-          SELECT id
+          SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
           FROM products
           ${whereClause}
-          ORDER BY id DESC
+          ORDER BY rank DESC
           LIMIT ${CANDIDATE_CAP}
         )
-        SELECT ${joinedColumns}
+        SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
         FROM top_ids
         JOIN products ON products.id = top_ids.id
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-        ORDER BY products.updated_at DESC
+        ORDER BY top_ids.rank DESC
         LIMIT $${idx} OFFSET $${idx + 1}
       `;
     } else {
