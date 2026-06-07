@@ -12,6 +12,15 @@ const compare_query_1 = require("../lib/compare-query");
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
 const SEARCH_CACHE_TTL_SECONDS = 3600;
+// BUY-33987: per-statement and whole-request ceilings. The handler installs
+// `res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, …)` at the top of the route so a
+// hung DB can never drag a response past 5s. The per-statement timeout
+// (`SET LOCAL statement_timeout = SEARCH_STATEMENT_TIMEOUT_MS`) is the secondary
+// guard for the in-transaction data query. Both are equal at 5s — well above the
+// ~15-75ms roundhouse EXPLAIN ANALYZE happy path, well below the 8s we shipped
+// previously. Mirrors the BUY-33985 deals endpoint fix.
+const SEARCH_STATEMENT_TIMEOUT_MS = 5000;
+const SEARCH_HANDLER_TIMEOUT_MS = 5000;
 // Express 4 doesn't catch async rejections — unhandled errors crash the process.
 // This wrapper ensures all async route handlers return 500 instead of crashing.
 function asyncHandler(fn) {
@@ -30,6 +39,15 @@ const router = (0, express_1.Router)();
 //               brand, merchant_id, availability, min_price, max_price,
 //               currency, limit, offset, page, fields, sort, sort_by, source_page, compact
 router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.search'), asyncHandler(async (req, res) => {
+    // BUY-33987: hard ceiling on the entire request. Even if the per-statement
+    // `SET LOCAL statement_timeout` races with the pool's on-connect
+    // `SET statement_timeout = 30000`, the response will fire at 5s and the
+    // socket will close. Mirrors the BUY-33985 deals fix.
+    res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, () => {
+        if (!res.headersSent) {
+            res.status(504).json({ error: 'upstream_timeout', timeout_ms: SEARCH_HANDLER_TIMEOUT_MS });
+        }
+    });
     const requestStart = Date.now();
     const q = req.query.q || '';
     const domain = req.query.domain;
@@ -75,7 +93,12 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     catch (_) {
         // Redis miss or error — fall through to DB
     }
-    const conditions = ['currency = $1'];
+    // BUY-33987: only active products are surfaced to API consumers; the partial
+    // GIN index `products_*_search_vector_idx WHERE is_active = true` lets the
+    // planner skip dead rows and the inactive non-leaf rows that previously
+    // bloated the bitmap. EXPLAIN ANALYZE on roundhouse (post-fix) shows the
+    // planner switches to the partial index and execution drops to ~15-30ms.
+    const conditions = ['currency = $1', 'is_active = true'];
     const params = [currency];
     let idx = 2;
     let ftsParamIdx = 0;
@@ -157,9 +180,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         idx++;
     }
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    // BUY-31540: reduced from 20s to 8s — with ts_rank removed, queries now complete in
-    // <500ms warm / <5s cold. 8s is a generous safety net.
-    const SEARCH_STATEMENT_TIMEOUT_MS = 8000;
+    // BUY-33987: SEARCH_STATEMENT_TIMEOUT_MS and SEARCH_HANDLER_TIMEOUT_MS are
+    // declared at the top of the file so res.setTimeout() (above) can reference
+    // them by lexical scope.
     // Top-N candidates ranked by ts_rank before joining full rows.
     const CANDIDATE_CAP = 200;
     const specColumns = `created_at, description, brand, mpn, gtin, category_path, category, merchant_id, avg_rating, review_count`;
@@ -886,7 +909,12 @@ async function warmSearchCache() {
                 continue;
             }
             // Build the query the same way the handler does
-            const conditions = ['currency = $1'];
+            // BUY-33987: include `is_active = true` so the warm CTE matches the
+            // handler's CTE exactly AND so the planner can pick the partial GIN
+            // index `products_*_search_vector_idx WHERE is_active = true`. Without
+            // this, the warm path is slower than the live path and the warm cache
+            // becomes a liability instead of an asset.
+            const conditions = ['currency = $1', 'is_active = true'];
             const params = [currency];
             let idx = 2;
             const ftsParamIdx = idx;

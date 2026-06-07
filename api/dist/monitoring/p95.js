@@ -1,5 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.P95_THRESHOLD_MS = exports.VALID_MARKETS = void 0;
+exports.isValidMarket = isValidMarket;
 exports.calculateP95 = calculateP95;
 exports.getP95Latency = getP95Latency;
 exports.getLatestP95ForMarket = getLatestP95ForMarket;
@@ -13,10 +15,10 @@ exports.getLatencySamples = getLatencySamples;
 exports.clearLatencySamples = clearLatencySamples;
 exports.computeAndStoreP95 = computeAndStoreP95;
 const config_1 = require("../config");
-const VALID_MARKETS = ['sg', 'us', 'my', 'vn', 'th'];
-const P95_THRESHOLD_MS = parseInt(process.env.P95_THRESHOLD_MS || '300', 10);
+exports.VALID_MARKETS = ['sg', 'us', 'my', 'vn', 'th'];
+exports.P95_THRESHOLD_MS = parseInt(process.env.P95_THRESHOLD_MS || '300', 10);
 function isValidMarket(market) {
-    return VALID_MARKETS.includes(market);
+    return exports.VALID_MARKETS.includes(market);
 }
 function calculateP95(values) {
     if (values.length === 0)
@@ -47,10 +49,10 @@ async function getAllLatestP95() {
     for (const row of result.rows) {
         markets[row.market] = {
             p95_ms: row.p95_ms,
-            alert_triggered: row.p95_ms > P95_THRESHOLD_MS
+            alert_triggered: row.p95_ms > exports.P95_THRESHOLD_MS
         };
     }
-    for (const market of VALID_MARKETS) {
+    for (const market of exports.VALID_MARKETS) {
         if (!markets[market]) {
             markets[market] = { p95_ms: 0, alert_triggered: false };
         }
@@ -60,8 +62,8 @@ async function getAllLatestP95() {
 async function insertP95Latency(market, endpoint, p95Ms, sampleSize, windowStart, windowEnd) {
     await config_1.db.query(`INSERT INTO monitoring.p95_latency (market, endpoint, p95_ms, sample_size, window_start, window_end)
      VALUES ($1, $2, $3, $4, $5, $6)`, [market, endpoint, p95Ms, sampleSize, windowStart, windowEnd]);
-    if (p95Ms > P95_THRESHOLD_MS) {
-        await insertAlert(market, p95Ms, P95_THRESHOLD_MS);
+    if (p95Ms > exports.P95_THRESHOLD_MS) {
+        await insertAlert(market, p95Ms, exports.P95_THRESHOLD_MS);
     }
 }
 async function insertAlert(market, p95Ms, thresholdMs) {

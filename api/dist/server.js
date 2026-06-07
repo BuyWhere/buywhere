@@ -193,6 +193,28 @@ function createApp() {
     app.use('/v1/usage', usage_1.default);
     app.use('/v1/compare', aiCrawlerHeaders, compareSlug_1.default);
     app.use('/api/v1/compare', aiCrawlerHeaders, compareSlug_1.default); // alias — FE integration uses /api prefix
+    // BUY-33837: /api/server/status — process status endpoint. Registered
+    // before the 404 catch-all so it doesn't fall through to Next.js-shaped
+    // {"error":"Not found"}. Public, no auth — same surface as the old
+    // standalone mcp-server-production.js.
+    app.get('/api/server/status', (_req, res) => {
+        const mu = process.memoryUsage();
+        res.json({
+            status: 'ok',
+            uptime: process.uptime(),
+            port: process.env.PORT || 3000,
+            environment: process.env.NODE_ENV || 'production',
+            memory: {
+                used: mu.heapUsed,
+                total: mu.heapTotal,
+                external: mu.external,
+                rss: mu.rss,
+            },
+            node: process.version,
+            platform: process.platform,
+            ts: new Date().toISOString(),
+        });
+    });
     // Admin editorial CRUD (ADMIN_API_KEY auth, not rate-limited)
     app.use('/admin/comparison-pages', adminCompare_1.default);
     // Outbound click tracking (BUY-4869): /api/click redirect + /admin/clicks analytics

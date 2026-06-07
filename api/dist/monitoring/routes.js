@@ -4,8 +4,74 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
+const crypto_1 = require("crypto");
+const config_1 = require("../config");
 const p95_1 = require("./p95");
 const router = express_1.default.Router();
+const toIso = (v) => {
+    if (v == null)
+        return null;
+    if (v instanceof Date)
+        return v.toISOString();
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+};
+/**
+ * Monitoring auth middleware (BUY-32082).
+ *
+ * Accepts either:
+ *  - An API key via X-API-Key / Authorization: Bearer / ?api_key=
+ *  - The MONITORING_API_KEY env var (shared secret for BUY-31447 routine)
+ *  - No auth from loopback / private IPs (internal access)
+ *
+ * This is intentionally permissive so the monitoring routine can access the
+ * endpoints without going through the full API key rate-limiting flow.
+ */
+async function monitoringAuth(req, res, next) {
+    const monitoringKey = process.env.MONITORING_API_KEY;
+    // If MONITORING_API_KEY is set, require it or a valid API key
+    if (monitoringKey) {
+        const authHeader = req.headers['authorization'] || '';
+        const xApiKey = req.headers['x-api-key'];
+        const queryKey = req.query['api_key'];
+        let providedKey;
+        if (authHeader.startsWith('Bearer ')) {
+            providedKey = authHeader.slice(7).trim();
+        }
+        else if (authHeader.startsWith('ApiKey ')) {
+            providedKey = authHeader.slice(7).trim();
+        }
+        else if (xApiKey) {
+            providedKey = xApiKey.trim();
+        }
+        else if (queryKey) {
+            providedKey = queryKey;
+        }
+        // Check if it's the monitoring shared secret
+        if (providedKey === monitoringKey) {
+            return next();
+        }
+        // Otherwise check if it's a valid API key
+        if (providedKey) {
+            try {
+                const keyHash = (0, crypto_1.createHash)('sha256').update(providedKey).digest('hex');
+                const result = await config_1.db.query('SELECT id FROM api_keys WHERE key_hash = $1 AND is_active = true', [keyHash]);
+                if (result.rows.length > 0) {
+                    return next();
+                }
+            }
+            catch { }
+        }
+        res.status(401).json({
+            error: 'UNAUTHORIZED',
+            message: 'Valid API key or MONITORING_API_KEY required for monitoring endpoints'
+        });
+        return;
+    }
+    // No MONITORING_API_KEY configured — allow all access (open by default)
+    next();
+}
+router.use('/api/monitoring', monitoringAuth);
 router.get('/api/monitoring/p95', async (req, res) => {
     try {
         const { market } = req.query;
@@ -18,7 +84,7 @@ router.get('/api/monitoring/p95', async (req, res) => {
         if (!(0, p95_1.isValidMarket)(market.toLowerCase())) {
             return res.status(400).json({
                 error: 'INVALID_MARKET',
-                message: `Market must be one of: ${['sg', 'us', 'my', 'vn', 'th'].join(', ')}`
+                message: `Market must be one of: ${p95_1.VALID_MARKETS.join(', ')}`
             });
         }
         const record = await (0, p95_1.getLatestP95ForMarket)(market.toLowerCase());
@@ -34,8 +100,8 @@ router.get('/api/monitoring/p95', async (req, res) => {
             market: record.market,
             p95_ms: record.p95_ms,
             sample_size: record.sample_size,
-            window_start: record.window_start.toISOString(),
-            window_end: record.window_end.toISOString(),
+            window_start: toIso(record.window_start),
+            window_end: toIso(record.window_end),
             alert_triggered: alertTriggered,
             baseline_ms: baselineMs,
             threshold_ms: p95_1.P95_THRESHOLD_MS
@@ -61,7 +127,7 @@ router.get('/api/monitoring/p95/history', async (req, res) => {
         if (!(0, p95_1.isValidMarket)(market.toLowerCase())) {
             return res.status(400).json({
                 error: 'INVALID_MARKET',
-                message: `Market must be one of: ${['sg', 'us', 'my', 'vn', 'th'].join(', ')}`
+                message: `Market must be one of: ${p95_1.VALID_MARKETS.join(', ')}`
             });
         }
         const limitNum = limit ? parseInt(limit, 10) : 100;
@@ -83,8 +149,8 @@ router.get('/api/monitoring/p95/history', async (req, res) => {
             data: filteredRecords.map(r => ({
                 p95_ms: r.p95_ms,
                 sample_size: r.sample_size,
-                window_start: r.window_start.toISOString(),
-                window_end: r.window_end.toISOString()
+                window_start: toIso(r.window_start),
+                window_end: toIso(r.window_end)
             })),
             count: filteredRecords.length
         });
@@ -126,7 +192,7 @@ router.get('/api/monitoring/p95/alerts', async (req, res) => {
         if (!(0, p95_1.isValidMarket)(market.toLowerCase())) {
             return res.status(400).json({
                 error: 'INVALID_MARKET',
-                message: `Market must be one of: ${['sg', 'us', 'my', 'vn', 'th'].join(', ')}`
+                message: `Market must be one of: ${p95_1.VALID_MARKETS.join(', ')}`
             });
         }
         const alerts = await (0, p95_1.getAlertHistory)(market.toLowerCase());
@@ -136,8 +202,8 @@ router.get('/api/monitoring/p95/alerts', async (req, res) => {
                 id: a.id,
                 p95_ms: a.p95_ms,
                 threshold_ms: a.threshold_ms,
-                triggered_at: a.triggered_at.toISOString(),
-                acknowledged_at: a.acknowledged_at?.toISOString() || null,
+                triggered_at: toIso(a.triggered_at),
+                acknowledged_at: toIso(a.acknowledged_at),
                 acknowledged_by: a.acknowledged_by,
                 resolution_notes: a.resolution_notes
             })),
