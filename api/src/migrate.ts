@@ -351,6 +351,30 @@ CREATE INDEX IF NOT EXISTS idx_merchant_events_merchant_id ON merchant_events(me
 CREATE INDEX IF NOT EXISTS idx_merchant_events_event_type ON merchant_events(event_type);
 `;
 
+// BUY-33907: AQS (Agent Quality Score) cycles — written by the
+// .github/workflows/aqs-ingest.yml scheduled job that calls
+// scripts/aqs_calculator.py with --store. Idempotent.
+const AQS_MIGRATION = `
+CREATE TABLE IF NOT EXISTS aqs_cycles (
+  id                BIGSERIAL    PRIMARY KEY,
+  cycle_id          TEXT         NOT NULL UNIQUE,
+  computed_at       TIMESTAMPTZ  NOT NULL,
+  aqs               NUMERIC(5,2) NOT NULL,
+  grade             TEXT         NOT NULL,
+  escalations_count INTEGER      NOT NULL DEFAULT 0,
+  dimensions        JSONB        NOT NULL,
+  sub_metrics       JSONB,
+  escalations       JSONB,
+  raw_payload       JSONB,
+  source            TEXT         NOT NULL DEFAULT 'github-actions',
+  created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_aqs_cycles_computed_at ON aqs_cycles (computed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_aqs_cycles_grade      ON aqs_cycles (grade);
+CREATE INDEX IF NOT EXISTS idx_aqs_cycles_aqs        ON aqs_cycles (aqs);
+`;
+
 export async function runMigrations() {
   console.log('Running migrations...');
 
@@ -583,6 +607,16 @@ export async function runMigrations() {
     console.log('[migration] P95 monitoring schema ensured (BUY-32082).');
   } catch (err: any) {
     console.warn(`[migration] P95 monitoring schema failed (non-fatal): ${err.message?.slice(0, 200)}`);
+  }
+
+  // BUY-33907: AQS (Agent Quality Score) cycles table — written by the scheduled
+  // .github/workflows/aqs-ingest.yml job. Non-fatal: the workflow can still write to
+  // /tmp/aqs-output (file fallback) if the table create fails for any reason.
+  try {
+    await db.query(AQS_MIGRATION);
+    console.log('[migration] aqs_cycles table ensured (BUY-33907).');
+  } catch (err: any) {
+    console.warn(`[migration] aqs_cycles table create failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
   console.log('Migrations complete.');

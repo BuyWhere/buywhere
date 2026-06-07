@@ -10,12 +10,14 @@ Designed to run every 15 minutes (cron / Cloud Scheduler).
 Usage:
     python scripts/aqs_calculator.py [--cycle-file PATH] [--output-file PATH]
                                      [--history-file PATH] [--dry-run]
+                                     [--store] [--source TEXT]
 
 Environment:
     AQS_CYCLE_DIR   Directory where test-cycle JSON files are written
                     (default: /tmp/aqs-cycles)
     AQS_OUTPUT_DIR  Directory where computed AQS outputs are written
                     (default: /tmp/aqs-output)
+    DATABASE_URL    Postgres connection string. Required when --store is set.
 """
 from __future__ import annotations
 
@@ -109,6 +111,9 @@ def run(
     cycle_dir: Path = DEFAULT_CYCLE_DIR,
     output_dir: Path = DEFAULT_OUTPUT_DIR,
     dry_run: bool = False,
+    store: bool = False,
+    source: str = "github-actions",
+    database_url: str | None = None,
 ) -> dict:
     """Compute AQS for the latest cycle.  Returns the result dict."""
 
@@ -167,6 +172,18 @@ def run(
     _append_history(history_file, result_dict)
     log.info("History updated at %s", history_file)
 
+    # 6. Optionally persist to Postgres (BUY-33907 / aqs-ingest workflow).
+    if store:
+        try:
+            from app.services.aqs_storage import store_aqs_cycle
+            row_id = store_aqs_cycle(result_dict, database_url=database_url, source=source)
+            log.info("AQS cycle persisted to aqs_cycles row_id=%s", row_id)
+        except Exception as e:
+            log.error("AQS Postgres persist failed (non-fatal — JSONL fallback intact): %s", e)
+            # Do not re-raise; the file-based history above is the source of truth
+            # for offline replay, and BUY-16518's verify endpoint can read from
+            # either. Workflow run is still considered successful.
+
     return result_dict
 
 
@@ -178,6 +195,9 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--cycle-dir", type=Path, default=DEFAULT_CYCLE_DIR)
     p.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     p.add_argument("--dry-run", action="store_true", help="Print result but do not write files")
+    p.add_argument("--store", action="store_true", help="Persist result to Postgres (aqs_cycles table)")
+    p.add_argument("--source", default="github-actions", help="Source label stored in aqs_cycles.source")
+    p.add_argument("--database-url", default=None, help="Override DATABASE_URL")
     return p.parse_args()
 
 
@@ -190,4 +210,7 @@ if __name__ == "__main__":
         cycle_dir=args.cycle_dir,
         output_dir=args.output_dir,
         dry_run=args.dry_run,
+        store=args.store,
+        source=args.source,
+        database_url=args.database_url,
     )
