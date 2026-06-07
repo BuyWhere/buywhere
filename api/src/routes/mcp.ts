@@ -848,6 +848,65 @@ function jsonrpcErr(id: unknown, code: number, message: string, data?: unknown, 
   return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) } };
 }
 
+// GET /mcp/auth/token — token endpoint descriptor (public, no auth).
+// BUY-33837: matches the pre-migration mcp-server-production.js surface so
+// legacy probes and OAuth-style clients still receive a JSON descriptor
+// at /api/mcp/auth/token. Real token issuance moved to /v1/keys (API keys).
+router.get('/auth/token', (_req: Request, res: Response) => {
+  res.json({
+    endpoint: '/api/mcp/auth/token',
+    methods: ['GET'],
+    grant_types_supported: ['client_credentials'],
+    token_types_supported: ['Bearer'],
+    response_type: 'json',
+    note: 'Token issuance moved to /v1/keys (API key). This endpoint is informational.',
+    production: true,
+    domain: 'api.buywhere.ai',
+    ts: new Date().toISOString(),
+  });
+});
+
+// GET /mcp/auth/verify — bearer-token introspection (requires API key).
+// Returns the scopes and identity bound to the presented key. Useful for
+// agents that want to confirm a freshly-issued key before use.
+router.get('/auth/verify', requireApiKey, (req: Request, res: Response) => {
+  const k = (req as Request & { apiKey?: { clientId?: string; keyId?: string; scopes?: string[] } }).apiKey;
+  res.json({
+    authenticated: true,
+    method: 'bearer_token',
+    clientId: k?.clientId ?? null,
+    keyId: k?.keyId ?? null,
+    scopes: k?.scopes ?? [],
+    timestamp: new Date().toISOString(),
+    production: true,
+    domain: 'api.buywhere.ai',
+  });
+});
+
+// GET /mcp/metrics — process/system metrics (public, no auth).
+// BUY-33837: process-scoped counters for ops dashboards. Cheap (no DB or
+// Redis calls) and safe to expose unauthenticated.
+router.get('/metrics', (_req: Request, res: Response) => {
+  const mu = process.memoryUsage();
+  res.json({
+    timestamp: new Date().toISOString(),
+    system: {
+      uptime: process.uptime(),
+      memory: {
+        used: mu.heapUsed,
+        total: mu.heapTotal,
+        external: mu.external,
+        rss: mu.rss,
+      },
+      cpu: process.cpuUsage(),
+      version: process.version,
+      platform: process.platform,
+    },
+    production: true,
+    domain: 'api.buywhere.ai',
+  });
+});
+
 // GET /mcp/health — public liveness probe (checks DB + Redis connectivity)
 router.get('/health', async (_req: Request, res: Response) => {
   try {
