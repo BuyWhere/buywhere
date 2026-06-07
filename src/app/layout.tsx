@@ -67,7 +67,8 @@ export const metadata: Metadata = {
 };
 
 // Avoid long-lived stale HTML referencing removed hashed static assets after deploy.
-export const revalidate = 300;
+// BUY-22833: reduced to 60s so security header / a11y rollouts land quickly.
+export const revalidate = 60;
 
 export default function RootLayout({
   children,
