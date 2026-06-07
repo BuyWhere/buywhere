@@ -19,7 +19,13 @@
     "test": "node --test tests/response.test.mjs tests/search.test.mjs tests/auth-middleware.test.mjs tests/auth-middleware-integration.test.mjs",
     "test:mcp": "node --test tests/mcp-integration.test.mjs",
     "test:mcp:load": "node --test tests/load/staging-load-test.js",
-    "test:openai-latency": "node tests/load/openai-function-calling-latency.mjs"
+    "test:openai-latency": "node tests/load/openai-function-calling-latency.mjs",
+    "load:harness": "node tests/load/load-harness.mjs",
+    "load:smoke": "PROFILE=smoke node tests/load/load-harness.mjs",
+    "load:normal": "PROFILE=normal node tests/load/load-harness.mjs",
+    "load:peak": "PROFILE=peak node tests/load/load-harness.mjs",
+    "load:stress": "PROFILE=stress node tests/load/load-harness.mjs",
+    "load:suite": "bash tests/load/run-load-suite.sh"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.1024.0",
