@@ -64,6 +64,32 @@ if (process.env.CATALOG_DATABASE_URL) {
   });
 }
 
+// BUY-33815: swallow idle-client errors so a Postgres restart (which terminates
+// every in-flight socket) does not surface as a process-level uncaughtException.
+// The pool will reconnect on the next checkout. Sentry still sees it via the
+// global uncaughtException/unhandledRejection handlers in index.ts, but the
+// process stays up. Without this, BUY-33735-style crashes recurred on every
+// Railway Postgres maintenance window.
+db.on('error', (err) => {
+  const code = (err as NodeJS.ErrnoException | undefined)?.code;
+  const isConnectionLoss =
+    code === 'ECONNRESET' ||
+    code === '08006' || // SQLSTATE connection_failure
+    code === '57P' ||   // admin_shutdown (Postgres fast shutdown)
+    code === '57P01' || // admin_shutdown
+    code === '57P02' || // crash_shutdown
+    code === '57P03';   // cannot_connect_now
+  if (isConnectionLoss) {
+    console.warn(
+      '[pg-pool] idle client error (expected during PG restart, pool will reconnect):',
+      (err as Error).message
+    );
+    return;
+  }
+  // Unknown error on an idle client — log loudly but do not crash.
+  console.error('[pg-pool] unexpected idle client error:', err);
+});
+
 export const redis = new Redis({
   host: process.env.REDIS_HOST || '127.0.0.1',
   port: parseInt(process.env.REDIS_PORT || '6380'),

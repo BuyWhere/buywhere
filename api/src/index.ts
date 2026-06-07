@@ -75,12 +75,45 @@ const shutdown = async () => {
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
+// BUY-33815: identify Postgres connection-loss errors that fire during a Postgres
+// service restart (Railway maintenance, failover, etc.). On a restart, every
+// in-flight pg socket is terminated and node-pg emits a 'Connection terminated'
+// / ECONNRESET / SQLSTATE 08006 error. Without this, uncaughtException killed
+// the process and Railway kept the container down — see BUY-33735 (49-min outage).
+function isPgConnectionLoss(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { code?: string; message?: string; errors?: Array<{ code?: string; message?: string }> };
+  const codes = [e.code, ...(Array.isArray(e.errors) ? e.errors.map((x) => x.code) : [])].filter(
+    (c): c is string => typeof c === 'string'
+  );
+  if (codes.some((c) => c === 'ECONNRESET' || c === '08006' || c === '57P' || c === '57P01' || c === '57P02' || c === '57P03')) {
+    return true;
+  }
+  const msg = String(e.message || '');
+  return /Connection terminated/i.test(msg) || /connection terminated unexpectedly/i.test(msg);
+}
+
 process.on('uncaughtException', (err) => {
+  if (isPgConnectionLoss(err)) {
+    // Pool will recreate connections on next checkout. Stay up.
+    console.warn(
+      '[pg-conn-loss] uncaughtException from pg client (process kept alive, pool will reconnect):',
+      (err as Error).message
+    );
+    return;
+  }
   console.error('[FATAL] uncaughtException:', err);
   if (server) server.close(() => process.exit(1));
   setTimeout(() => process.exit(1), 5000);
 });
 
 process.on('unhandledRejection', (reason) => {
+  if (isPgConnectionLoss(reason)) {
+    console.warn(
+      '[pg-conn-loss] unhandledRejection from pg client (process kept alive, pool will reconnect):',
+      (reason as Error)?.message || String(reason)
+    );
+    return;
+  }
   console.error('[WARN] unhandledRejection:', reason);
 });
