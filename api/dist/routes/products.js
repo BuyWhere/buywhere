@@ -21,6 +21,15 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 // previously. Mirrors the BUY-33985 deals endpoint fix.
 const SEARCH_STATEMENT_TIMEOUT_MS = 5000;
 const SEARCH_HANDLER_TIMEOUT_MS = 5000;
+// BUY-34291: cap per-query work_mem to 4MB (down from 64MB default) so concurrent
+// search requests don't compete for shared_buffers. Without this, the planner's
+// Bitmap Heap Scan on the partial GIN index uses up to 64MB per query, and
+// with 50-slot pool × 64MB = 3.2GB potential — exceeds the 2GB shared_buffers.
+// Observed production symptom: queries that plan in 29ms in isolation take 10s+
+// under concurrent load with PostgreSQL errors
+// `could not resize shared memory segment... No space left on device` (SQLSTATE 53200).
+// 4MB is enough for the 200-row top-N sort + Nested Loop pkey lookups.
+const SEARCH_WORK_MEM = '4MB';
 // Express 4 doesn't catch async rejections — unhandled errors crash the process.
 // This wrapper ensures all async route handlers return 500 instead of crashing.
 function asyncHandler(fn) {
@@ -350,6 +359,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const client = await config_1.db.connect();
     try {
         await client.query('BEGIN');
+        // BUY-34291: cap per-query work_mem to avoid shared_buffers pressure under load.
+        await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
         await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
         dataResult = await client.query(dataQuery, dataParams);
         await client.query('COMMIT');
@@ -360,6 +371,14 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         if (pgErr.code === '57014') {
             client.release();
             res.status(503).json({ error: 'Search query timed out', timeout_ms: SEARCH_STATEMENT_TIMEOUT_MS });
+            return;
+        }
+        // BUY-34291: shared_buffers exhaustion (SQLSTATE 53200) under load — return
+        // 503 with retry hint instead of crashing. The query was correct; the DB
+        // is just under memory pressure. Client should retry.
+        if (pgErr.code === '53200' || (typeof err?.message === 'string' && err.message.includes('No space left on device'))) {
+            client.release();
+            res.status(503).json({ error: 'Search temporarily unavailable', reason: 'db_memory_pressure', retry_after_ms: 1000 });
             return;
         }
         client.release();
@@ -504,6 +523,8 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     let deals = [];
     let total = 0;
     try {
+        // BUY-34291: cap work_mem too (same shared_buffers pressure reasoning as search)
+        await dealsClient.query(`SET work_mem = '${SEARCH_WORK_MEM}'`);
         await dealsClient.query(`SET statement_timeout = ${DEALS_RESPONSE_TIMEOUT_MS}`);
         const countResult = await dealsClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${dealWhere} LIMIT ${COUNT_CAP}) _sub`, dealParams);
         total = parseInt(countResult.rows[0].count, 10);
