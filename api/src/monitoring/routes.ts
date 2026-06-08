@@ -193,10 +193,25 @@ router.get('/api/monitoring/p95/history', async (req, res) => {
 router.get('/api/monitoring/p95/all', async (req, res) => {
   try {
     const markets = await getAllLatestP95();
+    const serializedMarkets = Object.fromEntries(
+      Object.entries(markets).map(([market, record]) => [
+        market,
+        {
+          endpoint: record.endpoint,
+          p95_ms: record.p95_ms,
+          sample_size: record.sample_size,
+          window_start: toIso(record.window_start),
+          window_end: toIso(record.window_end),
+          alert_triggered: record.alert_triggered,
+          baseline_ms: record.baseline_ms,
+          threshold_ms: record.threshold_ms,
+        },
+      ])
+    );
 
     res.json({
       timestamp: new Date().toISOString(),
-      markets,
+      markets: serializedMarkets,
       threshold_ms: P95_THRESHOLD_MS
     });
   } catch (error) {

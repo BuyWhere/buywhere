@@ -22,6 +22,7 @@ const AGGREGATION_WINDOW_MINUTES = 5;
 const AGGREGATION_LOOKBACK_WINDOWS = 3;
 const FRESHNESS_GRACE_MINUTES = 15;
 const REQUEST_TIMEOUT_MS = 10000;
+const MONITORED_ENDPOINT = '/api/monitoring/p95';
 const API_BASE_URL = process.env.BUYWHERE_API_BASE_URL
     || (process.env.RAILWAY_SERVICE_BUYWHERE_API_URL ? `https://${process.env.RAILWAY_SERVICE_BUYWHERE_API_URL}` : 'https://api.buywhere.ai');
 const SYSTEM_API_KEY = process.env.BUYWHERE_SYSTEM_API_KEY || '';
@@ -142,33 +143,51 @@ async function getP95Latency(market, limit = 100) {
     await ensureFreshP95Data(market);
     const result = await config_1.db.query(`SELECT * FROM monitoring.p95_latency
      WHERE market = $1
+       AND endpoint = $2
      ORDER BY window_end DESC
-     LIMIT $2`, [market, limit]);
+     LIMIT $3`, [market, MONITORED_ENDPOINT, limit]);
     return result.rows;
 }
 async function getLatestP95ForMarket(market) {
     await ensureFreshP95Data(market);
     const result = await config_1.db.query(`SELECT * FROM monitoring.p95_latency
      WHERE market = $1
+       AND endpoint = $2
      ORDER BY window_end DESC
-     LIMIT 1`, [market]);
+     LIMIT 1`, [market, MONITORED_ENDPOINT]);
     return result.rows[0] || null;
 }
 async function getAllLatestP95() {
     await ensureFreshP95Data();
-    const result = await config_1.db.query(`SELECT DISTINCT ON (market) market, p95_ms, window_end
+    const result = await config_1.db.query(`SELECT DISTINCT ON (market) market, endpoint, p95_ms, sample_size, window_start, window_end
      FROM monitoring.p95_latency
-     ORDER BY market, window_end DESC`);
+     WHERE endpoint = $1
+     ORDER BY market, window_end DESC`, [MONITORED_ENDPOINT]);
     const markets = {};
     for (const row of result.rows) {
         markets[row.market] = {
+            endpoint: row.endpoint,
             p95_ms: row.p95_ms,
-            alert_triggered: row.p95_ms > exports.P95_THRESHOLD_MS
+            sample_size: row.sample_size,
+            window_start: row.window_start,
+            window_end: row.window_end,
+            alert_triggered: row.p95_ms > exports.P95_THRESHOLD_MS,
+            baseline_ms: row.market === 'sg' ? 160 : 0,
+            threshold_ms: exports.P95_THRESHOLD_MS,
         };
     }
     for (const market of exports.VALID_MARKETS) {
         if (!markets[market]) {
-            markets[market] = { p95_ms: 0, alert_triggered: false };
+            markets[market] = {
+                endpoint: MONITORED_ENDPOINT,
+                p95_ms: 0,
+                sample_size: 0,
+                window_start: null,
+                window_end: null,
+                alert_triggered: false,
+                baseline_ms: market === 'sg' ? 160 : 0,
+                threshold_ms: exports.P95_THRESHOLD_MS,
+            };
         }
     }
     return markets;
