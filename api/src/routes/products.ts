@@ -505,11 +505,7 @@ router.get(
 // BUY-33985: dedicated client with 5s statement_timeout + 5s res.setTimeout
 // so a slow fallback path (no discount_pct column) cannot hang the request
 // past 5s and leak the connection.
-// BUY-35409: reduced to 1s — the happy path is ~12ms count / ~59ms data via
-// products_sg_currency_discount_pct_idx, so 5s is gross over-allocation. 1s is
-// ~20× the index-path p99 and well below the old 5s ceiling, so genuine stalls
-// (pool starvation, lock waits) still fail fast without timing out healthy queries.
-const DEALS_RESPONSE_TIMEOUT_MS = 1000;
+const DEALS_RESPONSE_TIMEOUT_MS = 5000;
 router.get(
   '/deals',
   agentDetectMiddleware,
@@ -594,12 +590,11 @@ router.get(
 
     const COUNT_CAP = 1001;
 
-    // Dedicated client with 1s statement_timeout (mirrors DEALS_RESPONSE_TIMEOUT_MS).
-    // The pool's default is 30s (config.ts PG_STATEMENT_TIMEOUT=30000) which is too
-    // generous for a user-facing read endpoint and was the source of the BUY-33985
-    // 30s+ hang. The 1s cap is well above the index-backed happy path (~12ms count,
-    // ~59ms data) and well below the previous 5s client-visible ceiling. release()
-    // always runs.
+    // Dedicated client with 5s statement_timeout. The pool's default is 30s
+    // (config.ts PG_STATEMENT_TIMEOUT=30000) which is too generous for a
+    // user-facing read endpoint and was the source of the BUY-33985 30s+ hang.
+    // A 5s cap is well above the index-backed happy path (≈15ms) and well
+    // below the previous 30s client-visible ceiling. release() always runs.
     const dealsClient = await db.connect();
     let deals: ReturnType<typeof buildProduct>[] = [];
     let total = 0;

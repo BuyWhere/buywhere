@@ -3,6 +3,18 @@
 
 const p95Service = require('./p95');
 
+function parseResolutionNotes(note) {
+  if (!note) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(note);
+  } catch (_) {
+    return note;
+  }
+}
+
 /**
  * Register all monitoring routes
  */
@@ -130,6 +142,53 @@ function registerRoutes(app, pool) {
   });
 
   /**
+   * GET /api/monitoring/alerts?kind=deploy_fail&market=sg&limit=20
+   * Returns recent alert history, including BUY-35392 deploy-fail alerts.
+   */
+  app.get(`${apiBase}/alerts`, async (req, res) => {
+    try {
+      const { market, kind, limit = '50' } = req.query;
+      const limitNum = parseInt(limit, 10);
+
+      if (market && !p95Service.MARKETS.includes(market)) {
+        return res.status(400).json({
+          error: 'INVALID_MARKET',
+          message: `Market must be one of: ${p95Service.MARKETS.join(', ')}`
+        });
+      }
+
+      const alerts = await p95Service.getAlertHistory(pool, {
+        market: market || null,
+        kind: kind || null,
+        limit: Number.isNaN(limitNum) ? 50 : limitNum,
+      });
+
+      res.json({
+        timestamp: new Date().toISOString(),
+        count: alerts.length,
+        alerts: alerts.map((alert) => ({
+          id: alert.id,
+          market: alert.market,
+          kind: alert.kind,
+          p95_ms: alert.p95_ms,
+          threshold_ms: alert.threshold_ms,
+          triggered_at: alert.triggered_at,
+          acknowledged_at: alert.acknowledged_at,
+          acknowledged_by: alert.acknowledged_by,
+          resolution_notes: alert.resolution_notes,
+          details: parseResolutionNotes(alert.resolution_notes),
+        })),
+      });
+    } catch (error) {
+      console.error('Error fetching alert history:', error);
+      res.status(500).json({
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to fetch alert history'
+      });
+    }
+  });
+
+  /**
    * POST /api/monitoring/p95/record
    * Record a latency measurement (for instrumentation)
    */
@@ -223,7 +282,11 @@ function registerRoutes(app, pool) {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       service: 'buywhere-monitoring-api',
-      version: '1.1.0'
+      version: '1.1.0',
+      probes: {
+        deploy_fail_poll_interval_ms: p95Service.DEPLOY_FAIL_POLL_INTERVAL_MS,
+        deploy_fail_statuses: Array.from(p95Service.DEPLOY_FAIL_STATUSES),
+      }
     });
   });
 

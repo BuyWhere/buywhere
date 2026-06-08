@@ -20,6 +20,24 @@ const SYSTEM_API_KEY = process.env.BUYWHERE_SYSTEM_API_KEY || '';
 const HEALTH_INTERVAL_MS = 30 * 1000;     // 30s for /health across 5 regions
 const CATALOG_STATS_INTERVAL_MS = 60 * 1000;   // 60s for /v1/catalog/stats (sg)
 const MCP_LIST_CATEGORIES_INTERVAL_MS = 60 * 1000;  // 60s for mcp:list_categories (sg)
+const DEPLOY_FAIL_POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 min for Railway deploy failures
+
+// BUY-35392: Railway failed-deploy poller defaults to the BuyWhere prod project.
+const RAILWAY_GRAPHQL_URL = process.env.RAILWAY_GRAPHQL_URL || 'https://backboard.railway.com/graphql/v2';
+const RAILWAY_TOKEN = process.env.RAILWAY_TOKEN || '';
+const RAILWAY_PROJECT_ID = process.env.RAILWAY_PROJECT_ID || 'a9456c30-63f8-4701-baa1-ecc9274e95ed';
+const RAILWAY_ENVIRONMENT_ID = process.env.RAILWAY_ENVIRONMENT_ID || 'ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae';
+const DEPLOY_FAIL_MARKET = process.env.DEPLOY_FAIL_ALERT_MARKET || 'sg';
+const DEPLOY_FAIL_SERVICE_IDS = (process.env.RAILWAY_DEPLOY_FAIL_SERVICE_IDS || '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+const DEPLOY_FAIL_STATUSES = new Set(
+  (process.env.RAILWAY_FAILED_DEPLOY_STATUSES || 'FAILED')
+    .split(',')
+    .map((value) => value.trim().toUpperCase())
+    .filter(Boolean)
+);
 
 // Internal: scheduler state
 let schedulerTimers = [];
@@ -171,8 +189,8 @@ async function storeP95(pool, market, endpoint, p95Ms, sampleSize, windowStart, 
 async function triggerAlert(pool, market, p95Ms) {
   await pool.query(
     `INSERT INTO monitoring.alert_history
-     (market, p95_ms, threshold_ms)
-     VALUES ($1, $2, $3)`,
+     (market, p95_ms, threshold_ms, kind)
+     VALUES ($1, $2, $3, 'p95')`,
     [market, p95Ms, THRESHOLD_MS]
   );
 
@@ -195,6 +213,213 @@ async function cleanupOldData(pool, retentionDays = 7) {
   );
 
   return result.rows[0].deleted_count;
+}
+
+/**
+ * Read recent alert history with optional filters.
+ */
+async function getAlertHistory(pool, options = {}) {
+  const {
+    market = null,
+    kind = null,
+    limit = 50,
+  } = options;
+
+  const values = [];
+  const filters = [];
+
+  if (market) {
+    values.push(market);
+    filters.push(`market = $${values.length}`);
+  }
+
+  if (kind) {
+    values.push(kind);
+    filters.push(`kind = $${values.length}`);
+  }
+
+  values.push(Math.min(Math.max(limit, 1), 500));
+  const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
+
+  const result = await pool.query(
+    `SELECT id, market, p95_ms, threshold_ms, kind, triggered_at, acknowledged_at,
+            acknowledged_by, resolution_notes
+       FROM monitoring.alert_history
+       ${whereClause}
+      ORDER BY triggered_at DESC
+      LIMIT $${values.length}`,
+    values
+  );
+
+  return result.rows;
+}
+
+async function railwayGraphql(query, variables = {}, options = {}) {
+  const token = options.token || RAILWAY_TOKEN;
+  const fetchImpl = options.fetchImpl || fetch;
+
+  if (!token) {
+    throw new Error('RAILWAY_TOKEN_MISSING');
+  }
+
+  const response = await fetchImpl(RAILWAY_GRAPHQL_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.errors?.length) {
+    const message = payload.errors?.map((error) => error.message).join('; ')
+      || `HTTP ${response.status}`;
+    throw new Error(`RAILWAY_GRAPHQL_FAILED: ${message}`);
+  }
+
+  return payload.data;
+}
+
+async function listProjectServiceInstances(options = {}) {
+  const projectId = options.projectId || RAILWAY_PROJECT_ID;
+  const environmentId = options.environmentId || RAILWAY_ENVIRONMENT_ID;
+  const serviceIds = options.serviceIds || DEPLOY_FAIL_SERVICE_IDS;
+
+  const projectData = await railwayGraphql(
+    `query ProjectServices($projectId: String!) {
+      project(id: $projectId) {
+        services {
+          edges {
+            node {
+              id
+              name
+            }
+          }
+        }
+      }
+    }`,
+    { projectId },
+    options
+  );
+
+  const services = (projectData.project?.services?.edges || [])
+    .map((edge) => edge.node)
+    .filter((node) => !serviceIds.length || serviceIds.includes(node.id));
+
+  return Promise.all(services.map(async (service) => {
+    const serviceData = await railwayGraphql(
+      `query ServiceInstance($environmentId: String!, $serviceId: String!) {
+        serviceInstance(environmentId: $environmentId, serviceId: $serviceId) {
+          serviceId
+          serviceName
+          latestDeployment {
+            id
+            status
+            createdAt
+            updatedAt
+            deploymentStopped
+            staticUrl
+          }
+        }
+      }`,
+      { environmentId, serviceId: service.id },
+      options
+    );
+
+    return serviceData.serviceInstance
+      ? { ...serviceData.serviceInstance, serviceId: service.id, serviceName: service.name }
+      : null;
+  })).then((rows) => rows.filter(Boolean));
+}
+
+function buildDeployFailFingerprint(serviceInstance) {
+  return JSON.stringify({
+    kind: 'deploy_fail',
+    serviceId: serviceInstance.serviceId,
+    serviceName: serviceInstance.serviceName,
+    deploymentId: serviceInstance.latestDeployment.id,
+    status: serviceInstance.latestDeployment.status,
+    staticUrl: serviceInstance.latestDeployment.staticUrl || null,
+  });
+}
+
+async function hasDeployFailAlert(pool, fingerprint) {
+  const result = await pool.query(
+    `SELECT 1
+       FROM monitoring.alert_history
+      WHERE kind = 'deploy_fail'
+        AND resolution_notes = $1
+      LIMIT 1`,
+    [fingerprint]
+  );
+
+  return result.rowCount > 0;
+}
+
+async function insertDeployFailAlert(pool, serviceInstance, fingerprint) {
+  const result = await pool.query(
+    `INSERT INTO monitoring.alert_history
+       (market, p95_ms, threshold_ms, kind, resolution_notes)
+     VALUES ($1, 0, 0, 'deploy_fail', $2)
+     RETURNING id, triggered_at`,
+    [DEPLOY_FAIL_MARKET, fingerprint]
+  );
+
+  console.warn(
+    `[BUY-35392 Alert] Railway deploy status ${serviceInstance.latestDeployment.status}`
+    + ` service=${serviceInstance.serviceName}`
+    + ` deployment=${serviceInstance.latestDeployment.id}`
+    + ` updated_at=${serviceInstance.latestDeployment.updatedAt}`
+  );
+
+  return result.rows[0];
+}
+
+async function pollRailwayFailedDeployments(pool, options = {}) {
+  let serviceInstances;
+  try {
+    serviceInstances = await listProjectServiceInstances(options);
+  } catch (err) {
+    if (String(err.message || '').includes('RAILWAY_TOKEN_MISSING')) {
+      console.warn('[deploy-fail] RAILWAY_TOKEN missing; skipping Railway deploy poll');
+      return { skipped: true, reason: 'RAILWAY_TOKEN_MISSING', inspected: 0, failing: 0, created: [] };
+    }
+    throw err;
+  }
+
+  const failing = serviceInstances.filter((serviceInstance) => {
+    const status = serviceInstance.latestDeployment?.status?.toUpperCase();
+    return status && DEPLOY_FAIL_STATUSES.has(status);
+  });
+
+  const created = [];
+  for (const serviceInstance of failing) {
+    const fingerprint = buildDeployFailFingerprint(serviceInstance);
+    const alreadyRecorded = await hasDeployFailAlert(pool, fingerprint);
+    if (alreadyRecorded) {
+      continue;
+    }
+
+    const row = await insertDeployFailAlert(pool, serviceInstance, fingerprint);
+    created.push({
+      id: row.id,
+      triggered_at: row.triggered_at,
+      service: serviceInstance.serviceName,
+      serviceId: serviceInstance.serviceId,
+      deploymentId: serviceInstance.latestDeployment.id,
+      status: serviceInstance.latestDeployment.status,
+      staticUrl: serviceInstance.latestDeployment.staticUrl || null,
+      resolution_notes: fingerprint,
+    });
+  }
+
+  return {
+    skipped: false,
+    inspected: serviceInstances.length,
+    failing: failing.length,
+    created,
+  };
 }
 
 /**
@@ -334,8 +559,14 @@ function startProbeScheduler(pool, opts = {}) {
   schedulerTimers.push(setInterval(() => { void probeHealth(pool); }, HEALTH_INTERVAL_MS));
   schedulerTimers.push(setInterval(() => { void probeCatalogStats(pool); }, CATALOG_STATS_INTERVAL_MS));
   schedulerTimers.push(setInterval(() => { void probeMcpListCategories(pool); }, MCP_LIST_CATEGORIES_INTERVAL_MS));
+  schedulerTimers.push(setInterval(() => { void pollRailwayFailedDeployments(pool); }, DEPLOY_FAIL_POLL_INTERVAL_MS));
 
-  console.log(`[probe] scheduler started (health ${HEALTH_INTERVAL_MS}ms × ${MARKETS.length} regions, catalog_stats ${CATALOG_STATS_INTERVAL_MS}ms, mcp:list_categories ${MCP_LIST_CATEGORIES_INTERVAL_MS}ms)`);
+  console.log(
+    `[probe] scheduler started (health ${HEALTH_INTERVAL_MS}ms × ${MARKETS.length} regions,`
+    + ` catalog_stats ${CATALOG_STATS_INTERVAL_MS}ms,`
+    + ` mcp:list_categories ${MCP_LIST_CATEGORIES_INTERVAL_MS}ms,`
+    + ` deploy_fail ${DEPLOY_FAIL_POLL_INTERVAL_MS}ms)`
+  );
   return schedulerTimers;
 }
 
@@ -350,6 +581,7 @@ async function runAllProbes(pool) {
     probeHealth(pool),
     probeCatalogStats(pool),
     probeMcpListCategories(pool),
+    pollRailwayFailedDeployments(pool),
   ]);
 }
 
@@ -361,10 +593,15 @@ module.exports = {
   HEALTH_INTERVAL_MS,
   CATALOG_STATS_INTERVAL_MS,
   MCP_LIST_CATEGORIES_INTERVAL_MS,
+  DEPLOY_FAIL_POLL_INTERVAL_MS,
+  DEPLOY_FAIL_STATUSES,
+  RAILWAY_PROJECT_ID,
+  RAILWAY_ENVIRONMENT_ID,
   recordLatency,
   getCurrentP95,
   getAllMarketsP95,
   getHistory,
+  getAlertHistory,
   storeP95,
   computeAndStoreP95,
   cleanupOldData,
@@ -374,5 +611,8 @@ module.exports = {
   probeHealth,
   probeCatalogStats,
   probeMcpListCategories,
+  listProjectServiceInstances,
+  pollRailwayFailedDeployments,
+  buildDeployFailFingerprint,
   recordRawMeasurement,
 };

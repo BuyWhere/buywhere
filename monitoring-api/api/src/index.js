@@ -51,13 +51,15 @@ app.get('/', (req, res) => {
       p95_current: '/api/monitoring/p95?market=sg',
       p95_history: '/api/monitoring/p95/history?market=sg',
       p95_all: '/api/monitoring/p95/all',
+      alerts: '/api/monitoring/alerts?kind=deploy_fail',
       record: 'POST /api/monitoring/p95/record',
       compute: 'POST /api/monitoring/p95/compute'
     },
     probes: {
       health: { interval_ms: 30_000, regions: ['sg', 'us', 'my', 'vn', 'th'] },
       catalog_stats: { interval_ms: 60_000, regions: ['sg'] },
-      mcp_list_categories: { interval_ms: 60_000, regions: ['sg'] }
+      mcp_list_categories: { interval_ms: 60_000, regions: ['sg'] },
+      railway_deploy_fail: { interval_ms: 300_000, statuses: ['FAILED'] }
     },
     documentation: 'BUY-31208 P95 Monitoring Infrastructure, BUY-22737 extended probes'
   });
