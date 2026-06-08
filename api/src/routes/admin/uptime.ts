@@ -57,12 +57,12 @@ router.get('/v1/admin/uptime', async (req: Request, res: Response) => {
     const regionParams: any[] = [from.toISOString()];
     let regionFilter = '';
     if (region) {
-      regionFilter = ' AND market = $2';
+      regionFilter = ' AND region = $2';
       regionParams.push(region);
     }
     const regionSql = `
       SELECT
-        market AS region,
+        region,
         SUM(total)::text     AS total,
         SUM(ok_count)::text  AS ok_count,
         ROUND(AVG(p50_ms))::text AS p50_ms,
@@ -70,8 +70,8 @@ router.get('/v1/admin/uptime', async (req: Request, res: Response) => {
         ROUND(AVG(p99_ms))::text AS p99_ms
       FROM monitoring.uptime_daily
       WHERE day >= $1::date ${regionFilter}
-      GROUP BY market
-      ORDER BY market`;
+      GROUP BY region
+      ORDER BY region`;
     const regionRes = await db.query<RegionRow>(regionSql, regionParams);
     byRegion = regionRes.rows.map((r) => {
       const total = num(r.total);
@@ -91,7 +91,7 @@ router.get('/v1/admin/uptime', async (req: Request, res: Response) => {
     const epParams: any[] = [from.toISOString()];
     let epFilter = '';
     if (region) {
-      epFilter = ' AND market = $2';
+      epFilter = ' AND region = $2';
       epParams.push(region);
     }
     const epSql = `
