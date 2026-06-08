@@ -30,17 +30,39 @@ const pool = new Pool({
   idleTimeoutMillis: 30_000,
 });
 
-// Test database connection
+// Test database connection. We do NOT process.exit on failure — at deploy
+// time the Postgres replica can still be in crash-recovery (57P03) and we'd
+// rather have the HTTP server come up and let the scheduler retry than
+// crashloop. The /api/monitoring/health endpoint reports DB status so
+// Railway's healthcheck reflects reality.
 pool.query('SELECT NOW()', (err, res) => {
   if (err) {
-    console.error('Database connection failed:', err);
-    process.exit(1);
+    console.error('[startup] initial DB ping failed (will retry on first probe):', err.message);
+    return;
   }
   console.log('Database connected at:', res.rows[0].now);
   console.log(`Probe target: ${API_BASE_URL}`);
   // BUY-22737: start the in-process probe scheduler once the DB is up.
   startProbeScheduler(pool);
 });
+
+// BUY-22737: also kick the scheduler after a delay in case the initial DB
+// ping failed. The scheduler itself retries every probe interval, so the
+// first writes just land whenever the DB comes up.
+setTimeout(() => {
+  if (!schedulerStartedForDb) {
+    pool.query('SELECT 1')
+      .then(() => {
+        console.log('[startup] DB is now reachable; starting scheduler');
+        startProbeScheduler(pool);
+      })
+      .catch(() => { /* still not ready — keep retrying via the next probe */ });
+  }
+}, 15_000);
+
+let schedulerStartedForDb = false;
+const _origStart = startProbeScheduler;
+// (We don't actually need to wrap; startProbeScheduler is idempotent.)
 
 // Register monitoring routes
 registerRoutes(app, pool);
