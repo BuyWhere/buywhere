@@ -212,19 +212,27 @@ function registerRoutes(app, pool) {
 
   /**
    * GET /api/monitoring/health
-   * Health check endpoint
+   * Health check endpoint — process liveness only. The DB ping was removed
+   * because the Postgres replica can be in crash-recovery (57P03) right after
+   * a restart; we want Railway to see the process as healthy and let the
+   * scheduler retry. DB readiness is reported via the per-probe status_code
+   * column in monitoring.p95_raw_measurements.
    */
-  app.get(`${apiBase}/health`, async (req, res) => {
-    try {
-      // Check database connection
-      await pool.query('SELECT 1');
+  app.get(`${apiBase}/health`, (_req, res) => {
+    res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      service: 'buywhere-monitoring-api',
+      version: '1.1.0'
+    });
+  });
 
-      res.json({
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        service: 'buywhere-monitoring-api',
-        version: '1.0.0'
-      });
+  // Optional: keep the old DB-aware path at /api/monitoring/health/db for
+  // ops dashboards that want to know the actual DB state.
+  app.get(`${apiBase}/health/db`, async (_req, res) => {
+    try {
+      await pool.query('SELECT 1');
+      res.json({ status: 'healthy', timestamp: new Date().toISOString() });
     } catch (error) {
       res.status(503).json({
         status: 'unhealthy',
