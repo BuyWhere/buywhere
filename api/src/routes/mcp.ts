@@ -7,6 +7,29 @@ import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } f
 
 const router = Router();
 
+// BUY-35409: per-tool response-level ceilings. Mirrors the REST pattern in
+// routes/products.ts (res.setTimeout at the top of the route) so a hung pool
+// acquire cannot pin the MCP request for minutes. Pool's connectionTimeoutMillis
+// is 5s but statement_timeout on the deals/find_best_price clients is 30s/5min,
+// and a long in-flight query can keep the response socket alive far past the
+// 28s edge timeout. The MCP response must close the socket on the same budget
+// as REST or clients see a 502 instead of a 504.
+//
+// Why per-tool instead of one default: search_products is naturally fast (10s
+// pool default + tsquery GIN) so a 2s ceiling is plenty and matches the search
+// route. deals/find_best_price have the same 1s budget as REST once the index
+// path is used. ingest/list_categories are admin/bulk and keep the 30s budget
+// because their queries are intentionally long.
+const MCP_TOOL_TIMEOUT_MS: Record<string, number> = {
+  search_products: 2000,
+  get_deals: 1000,
+  find_best_price: 1000,
+  list_categories: 30000,
+  ingest_products: 30000,
+  get_product: 2000,
+  compare_products: 5000,
+};
+
 // MCP tools manifest
 const TOOLS = [
   {
@@ -405,16 +428,20 @@ async function handleGetDeals(args: Record<string, unknown>) {
     ? 'discount_pct DESC'
     : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
 
-  // Use dedicated client with extended timeout when discount_pct column is absent.
-  // When discount_pct exists (happy path), this query is fast via idx_products_deals.
-  // Without it, the metadata regex+cast fallback can exceed the default 10s statement_timeout.
+  // Use dedicated client with a tight statement_timeout that matches the MCP
+  // response-level ceiling (MCP_TOOL_TIMEOUT_MS.get_deals = 1000). The 5min
+  // default that was here before BUY-35409 leaked pool connections on every
+  // starved request — pool max=50, 6 of which can be pinned by one hung deals
+  // query for the full 5 minutes. The response-level timeout closes the
+  // socket, but the connection is only released when statement_timeout fires,
+  // so the two must be aligned to keep the pool healthy. The fallback
+  // (no discount_pct column) is dead code in prod since BUY-14332; if it's
+  // ever needed again the budget can move to a worker, not a user request.
   const dealsClient = await db.connect();
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
   try {
-    // 5-minute timeout for both paths: fast path is index-backed but deals index may
-    // still lag on very large scans; fallback regex on 13.7M rows needs the headroom.
-    await dealsClient.query('SET statement_timeout = 300000');
+    await dealsClient.query('SET statement_timeout = 1000');
     const countResult = await dealsClient.query(
       `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`,
       params
@@ -507,7 +534,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const category = (args.category as string) || '';
   const limit = 10;
 
-  const conditions: string[] = ['is_active = true'];
+  const conditions: string[] = ['is_active = true', 'price > 0'];
   const params: unknown[] = [];
 
   params.push(productName);
@@ -529,11 +556,18 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   params.push(limit);
   const where = `WHERE ${conditions.join(' AND ')}`;
 
-  // Dedicated client with 30s timeout — FTS on 14M rows can exceed the 10s pool default.
+  // Dedicated client with 1s statement_timeout (BUY-35409) — matches the
+  // MCP_TOOL_TIMEOUT_MS.find_best_price ceiling. The pool's 10s default and
+  // the previous 30s dedicated timeout were both too generous for a
+  // user-facing read endpoint; the GIN-backed FTS happy path returns in
+  // well under 1s. If statement_timeout fires before res.setTimeout, the
+  // connection is released cleanly into the pool; if res.setTimeout fires
+  // first the response goes out 504-shaped and the connection is released
+  // when the statement eventually times out.
   const bestPriceClient = await db.connect();
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 30000');
+    await bestPriceClient.query('SET statement_timeout = 1000');
     // BUY-31540: removed ts_rank from ORDER BY — price ordering is the primary sort here
     // and ts_rank forces full result materialization before LIMIT.
     result = await bestPriceClient.query(
@@ -1014,10 +1048,34 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         // BUY-22733: surface tool name to queryLog middleware so the finish
         // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
         res.locals.mcpToolName = toolName;
-        const result = await dispatchTool(toolName, toolArgs);
-        return res.json(jsonrpcOk(id, {
-          content: [{ type: 'text', text: JSON.stringify(result) }],
-        }));
+        // BUY-35409: install per-tool response-level timeout. Fires before
+        // statement_timeout / pool acquire, so a saturated pool (max=50 all
+        // pinned by long recursive queries) gets a 504-shaped JSON-RPC error
+        // within the budget instead of a 28s+ edge timeout. Mirrors the REST
+        // res.setTimeout pattern in routes/products.ts.
+        const toolTimeoutMs = MCP_TOOL_TIMEOUT_MS[toolName] ?? 5000;
+        let mcpTimeoutFired = false;
+        res.setTimeout(toolTimeoutMs, () => {
+          if (!res.headersSent) {
+            mcpTimeoutFired = true;
+            try {
+              res.status(504).json(jsonrpcErr(id, -32000,
+                `MCP tool '${toolName}' exceeded server-side timeout`,
+                { timeout_ms: toolTimeoutMs, error_code: 'mcp_tool_timeout' },
+                ErrorCode.UPSTREAM_ERROR));
+            } catch (_) { /* socket may already be closing */ }
+          }
+        });
+        try {
+          const result = await dispatchTool(toolName, toolArgs);
+          if (mcpTimeoutFired) return; // response already sent
+          return res.json(jsonrpcOk(id, {
+            content: [{ type: 'text', text: JSON.stringify(result) }],
+          }));
+        } catch (innerErr) {
+          if (mcpTimeoutFired) return; // response already sent
+          throw innerErr;
+        }
       }
 
       default:
