@@ -3,6 +3,8 @@ import { Request, Response, NextFunction } from 'express';
 
 export const VALID_MARKETS = ['sg', 'us', 'my', 'vn', 'th'] as const;
 export const P95_THRESHOLD_MS = parseInt(process.env.P95_THRESHOLD_MS || '300', 10);
+const AGGREGATION_WINDOW_MINUTES = 5;
+const AGGREGATION_LOOKBACK_WINDOWS = 3;
 
 export interface P95LatencyRecord {
   id: number;
@@ -38,6 +40,8 @@ export function calculateP95(values: number[]): number {
 }
 
 export async function getP95Latency(market: string, limit = 100): Promise<P95LatencyRecord[]> {
+  await refreshRecentP95Windows();
+
   const result = await db.query(
     `SELECT * FROM monitoring.p95_latency
      WHERE market = $1
@@ -49,6 +53,8 @@ export async function getP95Latency(market: string, limit = 100): Promise<P95Lat
 }
 
 export async function getLatestP95ForMarket(market: string): Promise<P95LatencyRecord | null> {
+  await refreshRecentP95Windows();
+
   const result = await db.query(
     `SELECT * FROM monitoring.p95_latency
      WHERE market = $1
@@ -60,6 +66,8 @@ export async function getLatestP95ForMarket(market: string): Promise<P95LatencyR
 }
 
 export async function getAllLatestP95(): Promise<Record<string, { p95_ms: number; alert_triggered: boolean }>> {
+  await refreshRecentP95Windows();
+
   const result = await db.query(
     `SELECT DISTINCT ON (market) market, p95_ms, window_end
      FROM monitoring.p95_latency
@@ -127,6 +135,41 @@ export async function cleanupOldData(retentionDays: number = 7): Promise<number>
     [retentionDays]
   );
   return result.rows[0].deleted_count;
+}
+
+export async function refreshRecentP95Windows(
+  lookbackWindows: number = AGGREGATION_LOOKBACK_WINDOWS
+): Promise<void> {
+  const safeLookbackWindows = Math.max(1, Number(lookbackWindows) || AGGREGATION_LOOKBACK_WINDOWS);
+  const lookbackMinutes = safeLookbackWindows * AGGREGATION_WINDOW_MINUTES;
+
+  await db.query(
+    `WITH aggregated AS (
+       SELECT
+         market,
+         endpoint,
+         percentile_disc(0.95) WITHIN GROUP (ORDER BY response_time_ms)::integer AS p95_ms,
+         COUNT(*)::integer AS sample_size,
+         to_timestamp(floor(extract(epoch FROM measured_at) / 300) * 300) AS window_start,
+         to_timestamp(floor(extract(epoch FROM measured_at) / 300) * 300) + interval '5 minutes' AS window_end
+       FROM monitoring.p95_raw_measurements
+       WHERE measured_at >= NOW() - ($1::integer * interval '1 minute')
+       GROUP BY market, endpoint, window_start, window_end
+     ),
+     deleted AS (
+       DELETE FROM monitoring.p95_latency existing
+       USING aggregated
+       WHERE existing.market = aggregated.market
+         AND existing.endpoint = aggregated.endpoint
+         AND existing.window_start = aggregated.window_start
+         AND existing.window_end = aggregated.window_end
+     )
+     INSERT INTO monitoring.p95_latency
+       (market, endpoint, p95_ms, sample_size, window_start, window_end)
+     SELECT market, endpoint, p95_ms, sample_size, window_start, window_end
+     FROM aggregated`,
+    [lookbackMinutes]
+  );
 }
 
 const latencySamples = new Map<string, number[]>();
