@@ -3,6 +3,15 @@ import { Request, Response, NextFunction } from 'express';
 
 export const VALID_MARKETS = ['sg', 'us', 'my', 'vn', 'th'] as const;
 export const P95_THRESHOLD_MS = parseInt(process.env.P95_THRESHOLD_MS || '300', 10);
+const AGGREGATION_WINDOW_MINUTES = 5;
+const AGGREGATION_LOOKBACK_WINDOWS = 3;
+const FRESHNESS_GRACE_MINUTES = 15;
+const REQUEST_TIMEOUT_MS = 10_000;
+const API_BASE_URL = process.env.BUYWHERE_API_BASE_URL
+  || (process.env.RAILWAY_SERVICE_BUYWHERE_API_URL ? `https://${process.env.RAILWAY_SERVICE_BUYWHERE_API_URL}` : 'https://api.buywhere.ai');
+const SYSTEM_API_KEY = process.env.BUYWHERE_SYSTEM_API_KEY || '';
+
+let freshnessRecoveryPromise: Promise<void> | null = null;
 
 export interface P95LatencyRecord {
   id: number;
@@ -37,7 +46,143 @@ export function calculateP95(values: number[]): number {
   return Math.round(sorted[p95Index]);
 }
 
+function parseTimestampMillis(value: Date | string | null | undefined): number | null {
+  if (!value) return null;
+  const millis = Date.parse(value instanceof Date ? value.toISOString() : value);
+  return Number.isFinite(millis) ? millis : null;
+}
+
+function isWindowFresh(
+  windowEnd: Date | string | null | undefined,
+  nowMillis = Date.now(),
+  maxAgeMinutes = FRESHNESS_GRACE_MINUTES
+): boolean {
+  const parsedMillis = parseTimestampMillis(windowEnd);
+  if (parsedMillis === null) {
+    return false;
+  }
+
+  return (nowMillis - parsedMillis) <= (maxAgeMinutes * 60 * 1000);
+}
+
+async function queryLatestWindowEnd(market?: string): Promise<Date | null> {
+  if (market) {
+    const result = await db.query(
+      `SELECT MAX(window_end) AS window_end
+       FROM monitoring.p95_latency
+       WHERE market = $1`,
+      [market]
+    );
+    return result.rows[0]?.window_end || null;
+  }
+
+  const result = await db.query(
+    `SELECT MAX(window_end) AS window_end
+     FROM monitoring.p95_latency`
+  );
+  return result.rows[0]?.window_end || null;
+}
+
+async function recordRawMeasurement(
+  market: string,
+  endpoint: string,
+  responseTimeMs: number,
+  statusCode: number
+): Promise<void> {
+  await db.query(
+    `INSERT INTO monitoring.p95_raw_measurements
+       (market, endpoint, response_time_ms, status_code, measured_at)
+     VALUES ($1, $2, $3, $4, NOW())`,
+    [market, endpoint, responseTimeMs, statusCode]
+  );
+}
+
+async function timedFetch(url: string, init: RequestInit = {}): Promise<{ statusCode: number; latencyMs: number }> {
+  const startedAt = Date.now();
+
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    try {
+      await response.text();
+    } catch {}
+    return { statusCode: response.status, latencyMs: Date.now() - startedAt };
+  } catch {
+    return { statusCode: 0, latencyMs: Date.now() - startedAt };
+  }
+}
+
+async function probeHealth(): Promise<void> {
+  for (const market of VALID_MARKETS) {
+    const { statusCode, latencyMs } = await timedFetch(`${API_BASE_URL}/health`);
+    await recordRawMeasurement(market, '/health', latencyMs, statusCode);
+  }
+}
+
+async function probeCatalogStats(): Promise<void> {
+  const { statusCode, latencyMs } = await timedFetch(`${API_BASE_URL}/v1/catalog/stats`);
+  await recordRawMeasurement('sg', '/v1/catalog/stats', latencyMs, statusCode);
+}
+
+async function probeMcpListCategories(): Promise<void> {
+  if (!SYSTEM_API_KEY) {
+    return;
+  }
+
+  const { statusCode, latencyMs } = await timedFetch(`${API_BASE_URL}/mcp`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${SYSTEM_API_KEY}`,
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 'probe:list_categories',
+      method: 'tools/call',
+      params: { name: 'list_categories', arguments: {} },
+    }),
+  });
+
+  await recordRawMeasurement('sg', 'mcp:list_categories', latencyMs, statusCode);
+}
+
+async function runFreshnessRecovery(): Promise<void> {
+  await Promise.allSettled([
+    probeHealth(),
+    probeCatalogStats(),
+    probeMcpListCategories(),
+  ]);
+
+  await refreshRecentP95Windows();
+}
+
+async function ensureFreshP95Data(market?: string): Promise<void> {
+  await refreshRecentP95Windows();
+
+  const latestWindowEnd = await queryLatestWindowEnd(market);
+  if (isWindowFresh(latestWindowEnd)) {
+    return;
+  }
+
+  if (!freshnessRecoveryPromise) {
+    freshnessRecoveryPromise = (async () => {
+      try {
+        await runFreshnessRecovery();
+      } finally {
+        freshnessRecoveryPromise = null;
+      }
+    })();
+  }
+
+  await freshnessRecoveryPromise;
+}
+
 export async function getP95Latency(market: string, limit = 100): Promise<P95LatencyRecord[]> {
+  await ensureFreshP95Data(market);
+
   const result = await db.query(
     `SELECT * FROM monitoring.p95_latency
      WHERE market = $1
@@ -49,6 +194,8 @@ export async function getP95Latency(market: string, limit = 100): Promise<P95Lat
 }
 
 export async function getLatestP95ForMarket(market: string): Promise<P95LatencyRecord | null> {
+  await ensureFreshP95Data(market);
+
   const result = await db.query(
     `SELECT * FROM monitoring.p95_latency
      WHERE market = $1
@@ -60,6 +207,8 @@ export async function getLatestP95ForMarket(market: string): Promise<P95LatencyR
 }
 
 export async function getAllLatestP95(): Promise<Record<string, { p95_ms: number; alert_triggered: boolean }>> {
+  await ensureFreshP95Data();
+
   const result = await db.query(
     `SELECT DISTINCT ON (market) market, p95_ms, window_end
      FROM monitoring.p95_latency
@@ -127,6 +276,41 @@ export async function cleanupOldData(retentionDays: number = 7): Promise<number>
     [retentionDays]
   );
   return result.rows[0].deleted_count;
+}
+
+export async function refreshRecentP95Windows(
+  lookbackWindows: number = AGGREGATION_LOOKBACK_WINDOWS
+): Promise<void> {
+  const safeLookbackWindows = Math.max(1, Number(lookbackWindows) || AGGREGATION_LOOKBACK_WINDOWS);
+  const lookbackMinutes = safeLookbackWindows * AGGREGATION_WINDOW_MINUTES;
+
+  await db.query(
+    `WITH aggregated AS (
+       SELECT
+         market,
+         endpoint,
+         percentile_disc(0.95) WITHIN GROUP (ORDER BY response_time_ms)::integer AS p95_ms,
+         COUNT(*)::integer AS sample_size,
+         to_timestamp(floor(extract(epoch FROM measured_at) / 300) * 300) AS window_start,
+         to_timestamp(floor(extract(epoch FROM measured_at) / 300) * 300) + interval '5 minutes' AS window_end
+       FROM monitoring.p95_raw_measurements
+       WHERE measured_at >= NOW() - ($1::integer * interval '1 minute')
+       GROUP BY market, endpoint, window_start, window_end
+     ),
+     deleted AS (
+       DELETE FROM monitoring.p95_latency existing
+       USING aggregated
+       WHERE existing.market = aggregated.market
+         AND existing.endpoint = aggregated.endpoint
+         AND existing.window_start = aggregated.window_start
+         AND existing.window_end = aggregated.window_end
+     )
+     INSERT INTO monitoring.p95_latency
+       (market, endpoint, p95_ms, sample_size, window_start, window_end)
+     SELECT market, endpoint, p95_ms, sample_size, window_start, window_end
+     FROM aggregated`,
+    [lookbackMinutes]
+  );
 }
 
 const latencySamples = new Map<string, number[]>();
