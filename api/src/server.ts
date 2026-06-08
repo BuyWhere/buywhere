@@ -27,6 +27,9 @@ import usageRouter from './routes/usage';
 import webhooksRouter from './routes/webhooks';
 import monitoringRouter from './monitoring/routes';
 import { latencyMiddleware } from './monitoring/middleware';
+import { histogramLatencyMiddleware } from './middleware/latency';
+import adminUptimeRouter from './routes/admin/uptime';
+import adminMetricsRouter from './routes/admin/metrics';
 import { db, redis } from './config';
 
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=86400, s-maxage=86400';
@@ -61,6 +64,11 @@ export function createApp() {
 
   // Latency monitoring middleware for P95 calculation
   app.use(latencyMiddleware);
+
+  // BUY-22737 / BUY-35381: per-request histogram ring buffer. Mounted after
+  // the existing market-based latency middleware so it doesn't interfere.
+  // Skips /v1/admin/* so internal polling does not pollute customer metrics.
+  app.use(histogramLatencyMiddleware);
 
   // Health check - fast in-process check as required by BUY-3280
   app.get('/health', (_req, res) => {
@@ -299,6 +307,11 @@ export function createApp() {
 
   // P95 monitoring endpoints (BUY-31208)
   app.use(monitoringRouter);
+
+  // BUY-22737 / BUY-35381: admin endpoints (uptime + metrics).
+  // Auth is handled inside each router via Authorization: Bearer <admin key>.
+  app.use(adminUptimeRouter);
+  app.use(adminMetricsRouter);
 
   // 404 fallback
   app.use((_req, res) => {
