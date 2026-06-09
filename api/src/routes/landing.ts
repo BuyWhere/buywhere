@@ -77,7 +77,7 @@ ${regionMerchants}
 
 function homepageHtml(base: string, locale: 'en_SG' | 'en_US'): string {
   const isSG = locale === 'en_SG';
-  const canonicalPath = isSG ? '/' : '/us/';
+  const canonicalPath = isSG ? '/' : '/us';
   const regionLabel = isSG ? 'Singapore' : 'United States';
   const regionCurrency = isSG ? 'SGD' : 'USD';
   const regionMerchants = isSG
@@ -98,9 +98,9 @@ function homepageHtml(base: string, locale: 'en_SG' | 'en_US'): string {
 <meta property="og:locale" content="${locale}" />
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="alternate" hreflang="en-sg" href="${base}/" />
-<link rel="alternate" hreflang="en-us" href="${base}/us/" />
+<link rel="alternate" hreflang="en-us" href="${base}/us" />
 <link rel="alternate" hreflang="x-default" href="${base}/" />
-${!isSG ? `<link rel="canonical" href="${base}/us/" />` : ''}
+${!isSG ? `<link rel="canonical" href="${base}/us" />` : ''}
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
