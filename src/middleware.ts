@@ -87,6 +87,7 @@ const DISCOVERY_LINK =
 
 const ACTIVE_DOC_PATHS = new Set([
   "/docs",
+  "/docs/getting-started",
   "/docs/API_DOCUMENTATION",
   "/docs/quickstart-mcp",
   "/docs/developer-quickstart-sea-shopping-agent",
@@ -124,7 +125,10 @@ function normalizePathname(pathname: string): string {
   return pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
 }
 
-function legacyRedirectPath(host: string, pathname: string): string | null {
+// Redirect result: null = pass through, string = redirect to path
+type LegacyRedirectResult = string | null;
+
+function legacyRedirectPath(host: string, pathname: string): LegacyRedirectResult {
   const normalizedPath = normalizePathname(pathname);
   const isDocsHost = host === "docs.buywhere.ai";
 
@@ -146,14 +150,20 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
       return isDocsHost ? "/blog" : null;
     }
 
-    return ACTIVE_BLOG_SLUGS.has(slug) ? (isDocsHost ? normalizedPath : null) : "/blog";
+    // Dead blog slugs (not in ACTIVE_BLOG_SLUGS) are handled separately
+    // in the middleware to return 410 Gone — do NOT redirect to /blog here.
+    if (!ACTIVE_BLOG_SLUGS.has(slug)) {
+      return "__DEAD_BLOG_SLUG__";
+    }
+
+    return isDocsHost ? normalizedPath : null;
   }
 
   if (normalizedPath === "/docs/launch-day-runbook" || normalizedPath === "/docs/launch/launch-day-runbook") {
     return "/docs/launch-runbook";
   }
 
-  if (normalizedPath === "/docs/quickstart" || normalizedPath === "/docs/getting-started") {
+  if (normalizedPath === "/docs/quickstart") {
     return "/quickstart";
   }
 
@@ -243,6 +253,10 @@ export function middleware(request: NextRequest) {
   capturePageviewServer(distinctId, canonicalRequestUrl(request), ua, ip);
 
   const redirectPath = legacyRedirectPath(host, pathname);
+  if (redirectPath === "__DEAD_BLOG_SLUG__") {
+    // Dead blog slugs → 410 Gone (not a redirect to /blog)
+    return new NextResponse(null, { status: 410 });
+  }
   if (redirectPath) {
     const url = request.nextUrl.clone();
     url.host = "buywhere.ai";
