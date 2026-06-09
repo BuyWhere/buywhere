@@ -7,6 +7,7 @@ const AGGREGATION_WINDOW_MINUTES = 5;
 const AGGREGATION_LOOKBACK_WINDOWS = 3;
 const FRESHNESS_GRACE_MINUTES = 15;
 const REQUEST_TIMEOUT_MS = 10_000;
+const MONITORED_ENDPOINT = '/api/monitoring/p95';
 const API_BASE_URL = process.env.BUYWHERE_API_BASE_URL
   || (process.env.RAILWAY_SERVICE_BUYWHERE_API_URL ? `https://${process.env.RAILWAY_SERVICE_BUYWHERE_API_URL}` : 'https://api.buywhere.ai');
 const SYSTEM_API_KEY = process.env.BUYWHERE_SYSTEM_API_KEY || '';
@@ -33,6 +34,17 @@ export interface AlertRecord {
   acknowledged_at: Date | null;
   acknowledged_by: string | null;
   resolution_notes: string | null;
+}
+
+export interface LatestP95MarketSummary {
+  endpoint: string;
+  p95_ms: number;
+  sample_size: number;
+  window_start: Date | null;
+  window_end: Date | null;
+  alert_triggered: boolean;
+  baseline_ms: number;
+  threshold_ms: number;
 }
 
 export function isValidMarket(market: string): market is typeof VALID_MARKETS[number] {
@@ -186,9 +198,10 @@ export async function getP95Latency(market: string, limit = 100): Promise<P95Lat
   const result = await db.query(
     `SELECT * FROM monitoring.p95_latency
      WHERE market = $1
+       AND endpoint = $2
      ORDER BY window_end DESC
-     LIMIT $2`,
-    [market, limit]
+     LIMIT $3`,
+    [market, MONITORED_ENDPOINT, limit]
   );
   return result.rows;
 }
@@ -199,33 +212,52 @@ export async function getLatestP95ForMarket(market: string): Promise<P95LatencyR
   const result = await db.query(
     `SELECT * FROM monitoring.p95_latency
      WHERE market = $1
+       AND endpoint = $2
      ORDER BY window_end DESC
      LIMIT 1`,
-    [market]
+    [market, MONITORED_ENDPOINT]
   );
   return result.rows[0] || null;
 }
 
-export async function getAllLatestP95(): Promise<Record<string, { p95_ms: number; alert_triggered: boolean }>> {
+export async function getAllLatestP95(): Promise<Record<string, LatestP95MarketSummary>> {
   await ensureFreshP95Data();
 
   const result = await db.query(
-    `SELECT DISTINCT ON (market) market, p95_ms, window_end
+    `SELECT DISTINCT ON (market) market, endpoint, p95_ms, sample_size, window_start, window_end
      FROM monitoring.p95_latency
+     WHERE endpoint = $1
      ORDER BY market, window_end DESC`
+    ,
+    [MONITORED_ENDPOINT]
   );
   
-  const markets: Record<string, { p95_ms: number; alert_triggered: boolean }> = {};
+  const markets: Record<string, LatestP95MarketSummary> = {};
   for (const row of result.rows) {
     markets[row.market] = {
+      endpoint: row.endpoint,
       p95_ms: row.p95_ms,
-      alert_triggered: row.p95_ms > P95_THRESHOLD_MS
+      sample_size: row.sample_size,
+      window_start: row.window_start,
+      window_end: row.window_end,
+      alert_triggered: row.p95_ms > P95_THRESHOLD_MS,
+      baseline_ms: row.market === 'sg' ? 160 : 0,
+      threshold_ms: P95_THRESHOLD_MS,
     };
   }
   
   for (const market of VALID_MARKETS) {
     if (!markets[market]) {
-      markets[market] = { p95_ms: 0, alert_triggered: false };
+      markets[market] = {
+        endpoint: MONITORED_ENDPOINT,
+        p95_ms: 0,
+        sample_size: 0,
+        window_start: null,
+        window_end: null,
+        alert_triggered: false,
+        baseline_ms: market === 'sg' ? 160 : 0,
+        threshold_ms: P95_THRESHOLD_MS,
+      };
     }
   }
   

@@ -548,6 +548,20 @@ export async function runMigrations() {
       CREATE INDEX IF NOT EXISTS monitoring.idx_p95_latency_endpoint
         ON monitoring.p95_latency (endpoint, window_end DESC);
 
+      CREATE TABLE IF NOT EXISTS monitoring.p95_raw_measurements (
+        id               BIGSERIAL   PRIMARY KEY,
+        market           VARCHAR(2)  NOT NULL CHECK (market IN ('sg','us','my','vn','th')),
+        endpoint         TEXT        NOT NULL,
+        response_time_ms INTEGER     NOT NULL,
+        status_code      INTEGER     NOT NULL,
+        measured_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS monitoring.idx_p95_raw_market_time
+        ON monitoring.p95_raw_measurements (market, measured_at DESC);
+      CREATE INDEX IF NOT EXISTS monitoring.idx_p95_raw_endpoint_time
+        ON monitoring.p95_raw_measurements (endpoint, measured_at DESC);
+
       CREATE TABLE IF NOT EXISTS monitoring.alert_history (
         id                BIGSERIAL   PRIMARY KEY,
         market            VARCHAR(2)  NOT NULL CHECK (market IN ('sg','us','my','vn','th')),
