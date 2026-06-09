@@ -3,8 +3,22 @@ import { Request, Response, NextFunction } from 'express';
 
 export const VALID_MARKETS = ['sg', 'us', 'my', 'vn', 'th'] as const;
 export const P95_THRESHOLD_MS = parseInt(process.env.P95_THRESHOLD_MS || '300', 10);
+export const INTERNAL_P95_PROBE_HEADER = 'x-buywhere-internal-p95-probe';
+
 const AGGREGATION_WINDOW_MINUTES = 5;
 const AGGREGATION_LOOKBACK_WINDOWS = 3;
+const FRESHNESS_GRACE_MINUTES = 15;
+const REQUEST_TIMEOUT_MS = 10_000;
+const MONITORED_ENDPOINT = '/api/monitoring/p95';
+const API_BASE_URL = process.env.BUYWHERE_API_BASE_URL
+  || (process.env.RAILWAY_SERVICE_BUYWHERE_API_URL ? `https://${process.env.RAILWAY_SERVICE_BUYWHERE_API_URL}` : 'https://api.buywhere.ai');
+const SYSTEM_API_KEY = process.env.BUYWHERE_SYSTEM_API_KEY || '';
+
+let freshnessRecoveryPromise: Promise<void> | null = null;
+
+interface P95QueryOptions {
+  skipFreshness?: boolean;
+}
 
 export interface P95LatencyRecord {
   id: number;
@@ -22,10 +36,28 @@ export interface AlertRecord {
   market: string;
   p95_ms: number;
   threshold_ms: number;
+  kind: string;
   triggered_at: Date;
   acknowledged_at: Date | null;
   acknowledged_by: string | null;
   resolution_notes: string | null;
+}
+
+export interface AlertHistoryOptions {
+  market?: string | null;
+  kind?: string | null;
+  limit?: number;
+}
+
+export interface LatestP95MarketSummary {
+  endpoint: string;
+  p95_ms: number;
+  sample_size: number;
+  window_start: Date | null;
+  window_end: Date | null;
+  alert_triggered: boolean;
+  baseline_ms: number;
+  threshold_ms: number;
 }
 
 export function isValidMarket(market: string): market is typeof VALID_MARKETS[number] {
@@ -39,55 +71,254 @@ export function calculateP95(values: number[]): number {
   return Math.round(sorted[p95Index]);
 }
 
-export async function getP95Latency(market: string, limit = 100): Promise<P95LatencyRecord[]> {
+function parseTimestampMillis(value: Date | string | null | undefined): number | null {
+  if (!value) return null;
+  const millis = Date.parse(value instanceof Date ? value.toISOString() : value);
+  return Number.isFinite(millis) ? millis : null;
+}
+
+function isWindowFresh(
+  windowEnd: Date | string | null | undefined,
+  nowMillis = Date.now(),
+  maxAgeMinutes = FRESHNESS_GRACE_MINUTES
+): boolean {
+  const parsedMillis = parseTimestampMillis(windowEnd);
+  if (parsedMillis === null) {
+    return false;
+  }
+
+  return (nowMillis - parsedMillis) <= (maxAgeMinutes * 60 * 1000);
+}
+
+async function queryLatestWindowEnd(market?: string): Promise<Date | null> {
+  if (market) {
+    const result = await db.query(
+      `SELECT MAX(window_end) AS window_end
+       FROM monitoring.p95_latency
+       WHERE market = $1
+         AND endpoint = $2`,
+      [market, MONITORED_ENDPOINT]
+    );
+    return result.rows[0]?.window_end || null;
+  }
+
+  const result = await db.query(
+    `SELECT MAX(window_end) AS window_end
+     FROM monitoring.p95_latency
+     WHERE endpoint = $1`,
+    [MONITORED_ENDPOINT]
+  );
+  return result.rows[0]?.window_end || null;
+}
+
+async function recordRawMeasurement(
+  market: string,
+  endpoint: string,
+  responseTimeMs: number,
+  statusCode: number
+): Promise<void> {
+  await db.query(
+    `INSERT INTO monitoring.p95_raw_measurements
+       (market, endpoint, response_time_ms, status_code, measured_at)
+     VALUES ($1, $2, $3, $4, NOW())`,
+    [market, endpoint, responseTimeMs, statusCode]
+  );
+}
+
+async function timedFetch(url: string, init: RequestInit = {}): Promise<{ statusCode: number; latencyMs: number }> {
+  const startedAt = Date.now();
+
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    try {
+      await response.text();
+    } catch {}
+    return { statusCode: response.status, latencyMs: Date.now() - startedAt };
+  } catch {
+    return { statusCode: 0, latencyMs: Date.now() - startedAt };
+  }
+}
+
+async function probeHealth(): Promise<void> {
+  for (const market of VALID_MARKETS) {
+    const { statusCode, latencyMs } = await timedFetch(`${API_BASE_URL}/health`);
+    await recordRawMeasurement(market, '/health', latencyMs, statusCode);
+  }
+}
+
+async function probeCatalogStats(): Promise<void> {
+  const { statusCode, latencyMs } = await timedFetch(`${API_BASE_URL}/v1/catalog/stats`);
+  await recordRawMeasurement('sg', '/v1/catalog/stats', latencyMs, statusCode);
+}
+
+async function probeMcpListCategories(): Promise<void> {
+  if (!SYSTEM_API_KEY) {
+    return;
+  }
+
+  const { statusCode, latencyMs } = await timedFetch(`${API_BASE_URL}/mcp`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${SYSTEM_API_KEY}`,
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 'probe:list_categories',
+      method: 'tools/call',
+      params: { name: 'list_categories', arguments: {} },
+    }),
+  });
+
+  await recordRawMeasurement('sg', 'mcp:list_categories', latencyMs, statusCode);
+}
+
+function buildInternalMonitoringProbeHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    [INTERNAL_P95_PROBE_HEADER]: '1',
+  };
+
+  const monitoringApiKey = process.env.MONITORING_API_KEY;
+  if (monitoringApiKey) {
+    headers.Authorization = `Bearer ${monitoringApiKey}`;
+  }
+
+  return headers;
+}
+
+export async function recordMonitoredEndpointProbeSamples(
+  markets: readonly (typeof VALID_MARKETS[number])[] = VALID_MARKETS
+): Promise<void> {
+  const headers = buildInternalMonitoringProbeHeaders();
+
+  for (const market of markets) {
+    const { statusCode, latencyMs } = await timedFetch(
+      `${API_BASE_URL}${MONITORED_ENDPOINT}?market=${encodeURIComponent(market)}`,
+      { headers }
+    );
+    await recordRawMeasurement(market, MONITORED_ENDPOINT, latencyMs, statusCode);
+  }
+}
+
+async function runFreshnessRecovery(): Promise<void> {
+  await Promise.allSettled([
+    probeHealth(),
+    probeCatalogStats(),
+    probeMcpListCategories(),
+    recordMonitoredEndpointProbeSamples(),
+  ]);
+
   await refreshRecentP95Windows();
+}
+
+async function ensureFreshP95Data(market?: string): Promise<void> {
+  await refreshRecentP95Windows();
+
+  const latestWindowEnd = await queryLatestWindowEnd(market);
+  if (isWindowFresh(latestWindowEnd)) {
+    return;
+  }
+
+  if (!freshnessRecoveryPromise) {
+    freshnessRecoveryPromise = (async () => {
+      try {
+        await runFreshnessRecovery();
+      } finally {
+        freshnessRecoveryPromise = null;
+      }
+    })();
+  }
+
+  await freshnessRecoveryPromise;
+}
+
+export async function getP95Latency(
+  market: string,
+  limit = 100,
+  options: P95QueryOptions = {}
+): Promise<P95LatencyRecord[]> {
+  if (!options.skipFreshness) {
+    await ensureFreshP95Data(market);
+  }
 
   const result = await db.query(
     `SELECT * FROM monitoring.p95_latency
      WHERE market = $1
+       AND endpoint = $2
      ORDER BY window_end DESC
-     LIMIT $2`,
-    [market, limit]
+     LIMIT $3`,
+    [market, MONITORED_ENDPOINT, limit]
   );
   return result.rows;
 }
 
-export async function getLatestP95ForMarket(market: string): Promise<P95LatencyRecord | null> {
-  await refreshRecentP95Windows();
+export async function getLatestP95ForMarket(
+  market: string,
+  options: P95QueryOptions = {}
+): Promise<P95LatencyRecord | null> {
+  if (!options.skipFreshness) {
+    await ensureFreshP95Data(market);
+  }
 
   const result = await db.query(
     `SELECT * FROM monitoring.p95_latency
      WHERE market = $1
+       AND endpoint = $2
      ORDER BY window_end DESC
      LIMIT 1`,
-    [market]
+    [market, MONITORED_ENDPOINT]
   );
   return result.rows[0] || null;
 }
 
-export async function getAllLatestP95(): Promise<Record<string, { p95_ms: number; alert_triggered: boolean }>> {
-  await refreshRecentP95Windows();
+export async function getAllLatestP95(
+  options: P95QueryOptions = {}
+): Promise<Record<string, LatestP95MarketSummary>> {
+  if (!options.skipFreshness) {
+    await ensureFreshP95Data();
+  }
 
   const result = await db.query(
-    `SELECT DISTINCT ON (market) market, p95_ms, window_end
+    `SELECT DISTINCT ON (market) market, endpoint, p95_ms, sample_size, window_start, window_end
      FROM monitoring.p95_latency
-     ORDER BY market, window_end DESC`
+     WHERE endpoint = $1
+     ORDER BY market, window_end DESC`,
+    [MONITORED_ENDPOINT]
   );
-  
-  const markets: Record<string, { p95_ms: number; alert_triggered: boolean }> = {};
+
+  const markets: Record<string, LatestP95MarketSummary> = {};
   for (const row of result.rows) {
     markets[row.market] = {
+      endpoint: row.endpoint,
       p95_ms: row.p95_ms,
-      alert_triggered: row.p95_ms > P95_THRESHOLD_MS
+      sample_size: row.sample_size,
+      window_start: row.window_start,
+      window_end: row.window_end,
+      alert_triggered: row.p95_ms > P95_THRESHOLD_MS,
+      baseline_ms: row.market === 'sg' ? 160 : 0,
+      threshold_ms: P95_THRESHOLD_MS,
     };
   }
-  
+
   for (const market of VALID_MARKETS) {
     if (!markets[market]) {
-      markets[market] = { p95_ms: 0, alert_triggered: false };
+      markets[market] = {
+        endpoint: MONITORED_ENDPOINT,
+        p95_ms: 0,
+        sample_size: 0,
+        window_start: null,
+        window_end: null,
+        alert_triggered: false,
+        baseline_ms: market === 'sg' ? 160 : 0,
+        threshold_ms: P95_THRESHOLD_MS,
+      };
     }
   }
-  
+
   return markets;
 }
 
@@ -112,19 +343,42 @@ export async function insertP95Latency(
 
 export async function insertAlert(market: string, p95Ms: number, thresholdMs: number): Promise<void> {
   await db.query(
-    `INSERT INTO monitoring.alert_history (market, p95_ms, threshold_ms)
-     VALUES ($1, $2, $3)`,
+    `INSERT INTO monitoring.alert_history (market, p95_ms, threshold_ms, kind)
+     VALUES ($1, $2, $3, 'p95')`,
     [market, p95Ms, thresholdMs]
   );
 }
 
-export async function getAlertHistory(market: string, limit = 50): Promise<AlertRecord[]> {
+export async function getAlertHistory(options: AlertHistoryOptions = {}): Promise<AlertRecord[]> {
+  const {
+    market = null,
+    kind = null,
+    limit = 50,
+  } = options;
+
+  const values: Array<string | number> = [];
+  const filters: string[] = [];
+
+  if (market) {
+    values.push(market);
+    filters.push(`market = $${values.length}`);
+  }
+
+  if (kind) {
+    values.push(kind);
+    filters.push(`kind = $${values.length}`);
+  }
+
+  values.push(Math.min(Math.max(limit, 1), 500));
+  const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
+
   const result = await db.query(
-    `SELECT * FROM monitoring.alert_history
-     WHERE market = $1
+    `SELECT *
+       FROM monitoring.alert_history
+       ${whereClause}
      ORDER BY triggered_at DESC
-     LIMIT $2`,
-    [market, limit]
+     LIMIT $${values.length}`,
+    values
   );
   return result.rows;
 }
@@ -181,7 +435,7 @@ export function recordLatencySample(market: string, endpoint: string, latencyMs:
   }
   const samples = latencySamples.get(key)!;
   samples.push(latencyMs);
-  
+
   if (samples.length > 1000) {
     samples.shift();
   }

@@ -7,6 +7,7 @@ import { loadAffiliateConfigs } from './lib/affiliateWrapper';
 import { warmupMcpCaches } from './lib/mcpWarmup';
 import { warmSearchCache } from './routes/products';
 import { startP95Runner } from './jobs/p95Runner';
+import { startP95ProbeScheduler, stopP95ProbeScheduler } from './jobs/p95ProbeScheduler';
 
 // Initialize Sentry before anything else so all errors are captured
 initSentry();
@@ -30,6 +31,7 @@ async function start() {
 
   // BUY-32082: start P95 latency computation job (every 5 min)
   startP95Runner();
+  startP95ProbeScheduler();
 
   return new Promise<ReturnType<typeof app.listen>>((resolve) => {
     const server = app.listen(PORT, () => {
@@ -55,6 +57,7 @@ start().then((s) => {
 const shutdown = async () => {
   console.log('Shutting down...');
   await shutdownPostHog();
+  stopP95ProbeScheduler();
   if (server) server.close(() => process.exit(0));
   else process.exit(0);
 };

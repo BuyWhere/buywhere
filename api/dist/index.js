@@ -9,6 +9,7 @@ const affiliateWrapper_1 = require("./lib/affiliateWrapper");
 const mcpWarmup_1 = require("./lib/mcpWarmup");
 const products_1 = require("./routes/products");
 const p95Runner_1 = require("./jobs/p95Runner");
+const p95ProbeScheduler_1 = require("./jobs/p95ProbeScheduler");
 // Initialize Sentry before anything else so all errors are captured
 (0, sentry_1.initSentry)();
 const app = (0, server_1.createApp)();
@@ -28,6 +29,7 @@ async function start() {
     (0, products_1.warmSearchCache)().catch((err) => console.warn('[cache-warm] failed:', err?.message));
     // BUY-32082: start P95 latency computation job (every 5 min)
     (0, p95Runner_1.startP95Runner)();
+    (0, p95ProbeScheduler_1.startP95ProbeScheduler)();
     return new Promise((resolve) => {
         const server = app.listen(config_1.PORT, () => {
             console.log(`BuyWhere API v1 listening on :${config_1.PORT}`);
@@ -49,6 +51,7 @@ start().then((s) => {
 const shutdown = async () => {
     console.log('Shutting down...');
     await (0, posthog_1.shutdownPostHog)();
+    (0, p95ProbeScheduler_1.stopP95ProbeScheduler)();
     if (server)
         server.close(() => process.exit(0));
     else

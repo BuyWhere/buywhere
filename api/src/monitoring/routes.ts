@@ -7,6 +7,7 @@ import {
   getAllLatestP95,
   getAlertHistory,
   cleanupOldData,
+  INTERNAL_P95_PROBE_HEADER,
   isValidMarket,
   P95_THRESHOLD_MS,
   VALID_MARKETS,
@@ -20,6 +21,18 @@ const toIso = (v: Date | string | null | undefined): string | null => {
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 };
+
+function parseResolutionNotes(note: string | null): unknown {
+  if (!note) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(note);
+  } catch {
+    return note;
+  }
+}
 
 /**
  * Monitoring auth middleware (BUY-32082).
@@ -35,7 +48,6 @@ const toIso = (v: Date | string | null | undefined): string | null => {
 async function monitoringAuth(req: express.Request, res: express.Response, next: express.NextFunction): Promise<void> {
   const monitoringKey = process.env.MONITORING_API_KEY;
 
-  // If MONITORING_API_KEY is set, require it or a valid API key
   if (monitoringKey) {
     const authHeader = req.headers['authorization'] || '';
     const xApiKey = req.headers['x-api-key'] as string | undefined;
@@ -52,12 +64,10 @@ async function monitoringAuth(req: express.Request, res: express.Response, next:
       providedKey = queryKey;
     }
 
-    // Check if it's the monitoring shared secret
     if (providedKey === monitoringKey) {
       return next();
     }
 
-    // Otherwise check if it's a valid API key
     if (providedKey) {
       try {
         const keyHash = createHash('sha256').update(providedKey).digest('hex');
@@ -78,7 +88,6 @@ async function monitoringAuth(req: express.Request, res: express.Response, next:
     return;
   }
 
-  // No MONITORING_API_KEY configured — allow all access (open by default)
   next();
 }
 
@@ -87,6 +96,7 @@ router.use('/api/monitoring', monitoringAuth);
 router.get('/api/monitoring/p95', async (req, res) => {
   try {
     const { market } = req.query;
+    const skipFreshness = req.headers[INTERNAL_P95_PROBE_HEADER] === '1';
 
     if (!market || typeof market !== 'string') {
       return res.status(400).json({
@@ -102,7 +112,7 @@ router.get('/api/monitoring/p95', async (req, res) => {
       });
     }
 
-    const record = await getLatestP95ForMarket(market.toLowerCase());
+    const record = await getLatestP95ForMarket(market.toLowerCase(), { skipFreshness });
 
     if (!record) {
       return res.status(404).json({
@@ -165,15 +175,15 @@ router.get('/api/monitoring/p95/history', async (req, res) => {
     if (from || to) {
       const fromTime = from ? new Date(parseInt(from as string, 10)) : new Date(0);
       const toTime = to ? new Date(parseInt(to as string, 10)) : new Date();
-      
-      filteredRecords = records.filter(r => 
+
+      filteredRecords = records.filter((r) =>
         r.window_end >= fromTime && r.window_end <= toTime
       );
     }
 
     res.json({
       market: market.toLowerCase(),
-      data: filteredRecords.map(r => ({
+      data: filteredRecords.map((r) => ({
         p95_ms: r.p95_ms,
         sample_size: r.sample_size,
         window_start: toIso(r.window_start),
@@ -193,10 +203,25 @@ router.get('/api/monitoring/p95/history', async (req, res) => {
 router.get('/api/monitoring/p95/all', async (req, res) => {
   try {
     const markets = await getAllLatestP95();
+    const serializedMarkets = Object.fromEntries(
+      Object.entries(markets).map(([market, record]) => [
+        market,
+        {
+          endpoint: record.endpoint,
+          p95_ms: record.p95_ms,
+          sample_size: record.sample_size,
+          window_start: toIso(record.window_start),
+          window_end: toIso(record.window_end),
+          alert_triggered: record.alert_triggered,
+          baseline_ms: record.baseline_ms,
+          threshold_ms: record.threshold_ms,
+        },
+      ])
+    );
 
     res.json({
       timestamp: new Date().toISOString(),
-      markets,
+      markets: serializedMarkets,
       threshold_ms: P95_THRESHOLD_MS
     });
   } catch (error) {
@@ -208,36 +233,65 @@ router.get('/api/monitoring/p95/all', async (req, res) => {
   }
 });
 
-router.get('/api/monitoring/p95/alerts', async (req, res) => {
+async function handleAlertsRequest(req: express.Request, res: express.Response): Promise<void> {
   try {
-    const { market } = req.query;
+    const { market, kind, limit } = req.query;
 
-    if (!market || typeof market !== 'string') {
-      return res.status(400).json({
+    if (market && typeof market !== 'string') {
+      res.status(400).json({
         error: 'INVALID_MARKET',
-        message: 'Market parameter is required'
+        message: 'Market parameter must be a string'
       });
+      return;
     }
 
-    if (!isValidMarket(market.toLowerCase())) {
-      return res.status(400).json({
+    const normalizedMarket = market ? market.toLowerCase() : null;
+    if (normalizedMarket && !isValidMarket(normalizedMarket)) {
+      res.status(400).json({
         error: 'INVALID_MARKET',
         message: `Market must be one of: ${VALID_MARKETS.join(', ')}`
       });
+      return;
     }
 
-    const alerts = await getAlertHistory(market.toLowerCase());
+    if (kind && typeof kind !== 'string') {
+      res.status(400).json({
+        error: 'INVALID_KIND',
+        message: 'kind parameter must be a string'
+      });
+      return;
+    }
+
+    const limitNum = limit ? parseInt(limit as string, 10) : 50;
+    if (isNaN(limitNum) || limitNum < 1 || limitNum > 500) {
+      res.status(400).json({
+        error: 'INVALID_LIMIT',
+        message: 'Limit must be between 1 and 500'
+      });
+      return;
+    }
+
+    const alerts = await getAlertHistory({
+      market: normalizedMarket,
+      kind: kind || null,
+      limit: limitNum,
+    });
 
     res.json({
-      market: market.toLowerCase(),
-      alerts: alerts.map(a => ({
+      timestamp: new Date().toISOString(),
+      market: normalizedMarket,
+      kind: kind || null,
+      alerts: alerts.map((a) => ({
         id: a.id,
+        market: a.market,
+        kind: a.kind,
         p95_ms: a.p95_ms,
         threshold_ms: a.threshold_ms,
         triggered_at: toIso(a.triggered_at),
         acknowledged_at: toIso(a.acknowledged_at),
         acknowledged_by: a.acknowledged_by,
-        resolution_notes: a.resolution_notes
+        resolution_notes: a.resolution_notes,
+        details: parseResolutionNotes(a.resolution_notes),
       })),
       count: alerts.length
     });
@@ -248,7 +302,10 @@ router.get('/api/monitoring/p95/alerts', async (req, res) => {
       message: 'Failed to fetch alert history'
     });
   }
-});
+}
+
+router.get('/api/monitoring/alerts', handleAlertsRequest);
+router.get('/api/monitoring/p95/alerts', handleAlertsRequest);
 
 router.post('/api/monitoring/p95/cleanup', async (req, res) => {
   try {
