@@ -297,6 +297,9 @@ export function middleware(request: NextRequest) {
   }
 
   const redirectPath = legacyRedirectPath(host, pathname);
+  if (redirectPath === "__DEAD_BLOG_SLUG__") {
+    return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
+  }
   if (redirectPath) {
     const url = request.nextUrl.clone();
     url.host = "buywhere.ai";

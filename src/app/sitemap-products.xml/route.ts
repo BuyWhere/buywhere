@@ -13,7 +13,7 @@ export async function GET(request: Request): Promise<Response> {
   try {
     totalPages = await getProductSitemapChunkCount();
   } catch {
-    return new Response("Product sitemap unavailable", { status: 503 });
+    return buildSitemapResponse(renderUrlSet([]));
   }
 
   if (page > totalPages) {
