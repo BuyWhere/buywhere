@@ -118,6 +118,8 @@ router.post('/stripe', async (req: Request, res: Response) => {
     return res.status(503).json({ error: 'Stripe not configured' });
   }
 
+  const stripeClient = stripe;
+
   const sig = req.headers['stripe-signature'] as string;
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -127,11 +129,11 @@ router.post('/stripe', async (req: Request, res: Response) => {
     return;
   }
 
-  let event: Stripe.Event;
+  let event: ReturnType<typeof stripeClient.webhooks.constructEvent>;
 
   try {
     const rawBody = JSON.stringify(req.body);
-    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+    event = stripeClient.webhooks.constructEvent(rawBody, sig, webhookSecret);
   } catch (err) {
     console.error('[webhooks/stripe] Signature verification failed:', err);
     res.status(400).json({ error: 'Invalid signature' });
@@ -143,32 +145,32 @@ router.post('/stripe', async (req: Request, res: Response) => {
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session;
+        const session = event.data.object as { id: string; customer?: string | null };
         console.log(`[webhooks/stripe] Checkout completed: ${session.id}, customer: ${session.customer}`);
         break;
       }
 
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
-        const subscription = event.data.object as Stripe.Subscription;
+        const subscription = event.data.object as { id: string; status?: string | null };
         console.log(`[webhooks/stripe] Subscription ${event.type}: ${subscription.id}, status: ${subscription.status}`);
         break;
       }
 
       case 'customer.subscription.deleted': {
-        const subscription = event.data.object as Stripe.Subscription;
+        const subscription = event.data.object as { id: string };
         console.log(`[webhooks/stripe] Subscription deleted: ${subscription.id}`);
         break;
       }
 
       case 'invoice.payment_succeeded': {
-        const invoice = event.data.object as Stripe.Invoice;
+        const invoice = event.data.object as { id: string; subscription?: string | null };
         console.log(`[webhooks/stripe] Invoice paid: ${invoice.id}, subscription: ${invoice.subscription}`);
         break;
       }
 
       case 'invoice.payment_failed': {
-        const invoice = event.data.object as Stripe.Invoice;
+        const invoice = event.data.object as { id: string };
         console.log(`[webhooks/stripe] Invoice payment failed: ${invoice.id}`);
         break;
       }

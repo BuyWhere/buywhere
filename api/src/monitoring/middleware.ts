@@ -53,8 +53,8 @@ export function latencyMiddleware(req: Request, res: Response, next: NextFunctio
   const market = extractMarketFromRequest(req);
   const endpoint = req.path;
 
-  const originalSend = res.send;
-  res.send = function(this: Response, ...args: any[]) {
+  const originalSend = res.send.bind(res);
+  res.send = function(this: Response, body?: any): Response {
     const endTime = Date.now();
     const latencyMs = endTime - startTime;
 
@@ -62,8 +62,8 @@ export function latencyMiddleware(req: Request, res: Response, next: NextFunctio
       recordLatencySample(market, endpoint, latencyMs);
     }
 
-    return originalSend.apply(this, args);
-  };
+    return originalSend(body);
+  } as Response['send'];
 
   next();
 }
