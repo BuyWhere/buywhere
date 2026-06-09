@@ -124,6 +124,43 @@ function normalizePathname(pathname: string): string {
   return pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
 }
 
+/**
+ * Dead blog slugs — URLs that were once valid articles but the content has been
+ * removed.  Google Search Console treats a 308→/blog redirect as "Page with
+ * redirect" which keeps the URL in the index indefinitely.  Returning 410 Gone
+ * tells Google to drop the URL cleanly.
+ */
+const DEAD_BLOG_SLUGS = new Set([
+  "where-to-buy-ps5-singapore",
+  "where-to-buy-xbox-series-x-singapore",
+  "where-to-buy-nintendo-switch-singapore",
+  "where-to-buy-airpods-singapore",
+  "where-to-buy-macbook-singapore",
+  "where-to-buy-ipad-singapore",
+  "where-to-buy-samsung-galaxy-s-singapore",
+  "where-to-buy-dyson-singapore",
+  "where-to-buy-iphone-singapore",
+  "where-to-buy-fitbit-singapore",
+  "where-to-buy-apple-watch-singapore",
+  "where-to-buy-gopro-singapore",
+  "where-to-buy-sony-wh-1000xm5-singapore",
+  "where-to-buy-kindle-singapore",
+  "where-to-buy-samsung-tv-singapore",
+  "where-to-buy-roborock-singapore",
+  "where-to-buy-dyson-v15-singapore",
+  "where-to-buy-bose-qc45-singapore",
+  "where-to-buy-logitech-mx-master-singapore",
+  "where-to-buy-steam-deck-singapore",
+  "where-to-buy-meta-quest-3-singapore",
+]);
+
+function isDeadBlogSlug(pathname: string): boolean {
+  const normalized = normalizePathname(pathname);
+  if (!normalized.startsWith("/blog/")) return false;
+  const slug = normalized.slice("/blog/".length);
+  return DEAD_BLOG_SLUGS.has(slug);
+}
+
 function legacyRedirectPath(host: string, pathname: string): string | null {
   const normalizedPath = normalizePathname(pathname);
   const isDocsHost = host === "docs.buywhere.ai";
@@ -146,7 +183,7 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
       return isDocsHost ? "/blog" : null;
     }
 
-    return ACTIVE_BLOG_SLUGS.has(slug) ? (isDocsHost ? normalizedPath : null) : "/blog";
+    return ACTIVE_BLOG_SLUGS.has(slug) ? (isDocsHost ? normalizedPath : null) : (DEAD_BLOG_SLUGS.has(slug) ? null : "/blog");
   }
 
   if (normalizedPath === "/docs/launch-day-runbook" || normalizedPath === "/docs/launch/launch-day-runbook") {
@@ -241,6 +278,23 @@ export function middleware(request: NextRequest) {
   const distinctId = ip ? hashIp(ip) : "srv_unknown";
 
   capturePageviewServer(distinctId, canonicalRequestUrl(request), ua, ip);
+
+  // Dead blog slugs → 410 Gone (clean removal signal for Google, not a redirect)
+  if (isDeadBlogSlug(pathname)) {
+    return new NextResponse(null, {
+      status: 410,
+      headers: { "Content-Type": "text/plain" },
+    });
+  }
+
+  // Trailing-slash rewrite: serve the non-slash path directly (200) instead of
+  // letting Next.js emit a 308 redirect.  Google was seeing 308 on every
+  // trailing-slash URL and reporting "Page with redirect", preventing indexing.
+  if (pathname !== "/" && pathname.endsWith("/")) {
+    const url = request.nextUrl.clone();
+    url.pathname = pathname.slice(0, -1);
+    return NextResponse.rewrite(url);
+  }
 
   const redirectPath = legacyRedirectPath(host, pathname);
   if (redirectPath) {
