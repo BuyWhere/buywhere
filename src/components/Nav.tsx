@@ -70,12 +70,7 @@ function DevDropdown() {
 
 export default function Nav() {
   const [open, setOpen] = useState(false);
-  const [isClient, setIsClient] = useState(false);
   const [devOpen, setDevOpen] = useState(false);
-
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100">
@@ -96,6 +91,7 @@ export default function Nav() {
           <Link href="/partners" className="hover:text-indigo-600 transition-colors">Partners</Link>
           <Link href="/pricing" className="hover:text-indigo-600 transition-colors">Pricing</Link>
           <Link href="/about" className="hover:text-indigo-600 transition-colors">About</Link>
+          <Link href="/blog" className="hover:text-indigo-600 transition-colors">Blog</Link>
           <div className="flex items-center gap-3 ml-4 pl-4 border-l border-gray-200">
             <Link href="/login" className="hover:text-indigo-600 transition-colors">Log In</Link>
             <Link href="/register" className="rounded-lg bg-indigo-600 px-4 py-2 text-white transition-colors hover:bg-indigo-700">
@@ -104,28 +100,27 @@ export default function Nav() {
           </div>
         </nav>
 
-        {/* Mobile hamburger */}
-        {isClient && (
-          <button
-            className="md:hidden p-2 rounded-lg hover:bg-gray-100"
-            onClick={() => setOpen(!open)}
-            aria-label={open ? "Close menu" : "Open menu"}
-            aria-expanded={open}
-            aria-controls="mobile-nav"
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              {open ? (
-                <path d="M4 4l12 12M16 4L4 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              ) : (
-                <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              )}
-            </svg>
-          </button>
-        )}
+        {/* Keep the mobile trigger in SSR output so small screens are navigable before hydration. */}
+        <button
+          type="button"
+          className="md:hidden p-2 rounded-lg hover:bg-gray-100"
+          onClick={() => setOpen(!open)}
+          aria-label={open ? "Close menu" : "Open menu"}
+          aria-expanded={open}
+          aria-controls="mobile-nav"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            {open ? (
+              <path d="M4 4l12 12M16 4L4 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            ) : (
+              <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            )}
+          </svg>
+        </button>
       </div>
 
       {/* Mobile menu */}
-      {isClient && open && (
+      {open && (
         <nav
           id="mobile-nav"
           className="md:hidden border-t border-gray-100 bg-white px-4 pb-4 flex flex-col gap-1 text-sm font-medium text-gray-700"
@@ -168,6 +163,7 @@ export default function Nav() {
           <Link href="/partners" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Partners</Link>
           <Link href="/pricing" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Pricing</Link>
           <Link href="/about" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">About</Link>
+          <Link href="/blog" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Blog</Link>
           <div className="pt-3 mt-3 border-t border-gray-100 flex flex-col gap-3">
             <Link href="/login" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Log In</Link>
             <Link href="/register" onClick={() => setOpen(false)} className="rounded-lg bg-indigo-600 px-4 py-2 text-center text-white font-semibold">
