@@ -65,6 +65,7 @@ const runStats = {
   batches: 0,
   ingestErrors: 0,
 };
+let rateLimitState = null;
 
 function nowIso() {
   return new Date().toISOString();
@@ -268,6 +269,18 @@ async function ingestBatch(products) {
   } else {
     runStats.rowsFailed += products.length;
     runStats.ingestErrors += 1;
+    if (res.status === 429 && res.body && typeof res.body === 'object') {
+      const resetAt = typeof res.body.reset_at === 'string' ? res.body.reset_at : null;
+      rateLimitState = {
+        at: nowIso(),
+        resetAt,
+        message: res.body.message || res.error || 'rate_limit_exceeded',
+        tier: res.body.tier || null,
+        limit: res.body.limit || null,
+      };
+      shuttingDown = true;
+      warn('ingest rate limited; entering cooldown and stopping worker until reset', rateLimitState);
+    }
     errorLog('ingest failed', { url, status: res.status, error: res.error, sample: typeof res.body === 'string' ? res.body.slice(0, 200) : res.body });
   }
 }
@@ -307,6 +320,15 @@ async function writeStatus() {
     meetsTarget: rowsPerHour >= TARGET_ROWS_PER_HOUR,
     ingestApiUrl: INGEST_API_URL,
     dryRun: args.dryRun,
+    cooldownActive: Boolean(
+      rateLimitState
+      && rateLimitState.resetAt
+      && !Number.isNaN(Date.parse(rateLimitState.resetAt))
+      && Date.parse(rateLimitState.resetAt) > Date.now()
+    ),
+    pauseUntil: rateLimitState && rateLimitState.resetAt ? rateLimitState.resetAt : null,
+    pauseReason: rateLimitState ? 'ingest_rate_limit' : null,
+    lastRateLimit: rateLimitState,
     ...runStats,
   };
   try {

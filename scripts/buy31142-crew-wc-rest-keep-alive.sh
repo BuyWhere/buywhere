@@ -29,6 +29,7 @@ DATA_DIR="${WC_LANE_STATE_DIR:-$REPO_ROOT/data}"
 WORKER="$SCRIPT_DIR/buy31142-crew-wc-rest.mjs"
 PIDFILE="$DATA_DIR/buy31142-crew-wc-rest.pid"
 HEARTBEATFILE="$DATA_DIR/buy31142-crew-wc-rest.heartbeat"
+STATUSFILE="$DATA_DIR/buy31142-crew-wc-rest-status.json"
 ESCALATIONFILE="$DATA_DIR/buy31142-keep-alive-escalation.json"
 TICKLOG="$DATA_DIR/buy31142-crew-wc-rest-keep-alive.log"
 WORKERLOG="${WC_WORKER_LOG:-$DATA_DIR/buy31142-crew-wc-rest-worker.log}"
@@ -56,6 +57,7 @@ const fs = require('fs');
 const PATHS = {
   pid: process.env.PIDFILE,
   hb: process.env.HEARTBEATFILE,
+  status: process.env.STATUSFILE,
   esc: process.env.ESCALATIONFILE,
 };
 const STALL_SEC = Number(process.env.STALL_SEC || 120);
@@ -95,8 +97,21 @@ try {
   } catch {}
   out.heartbeat_age_sec = ageSec;
 
+  const status = readJson(PATHS.status, {});
+  let cooldownUntil = null;
+  let cooldownActive = false;
+  if (status && typeof status.pauseUntil === 'string') {
+    const pauseTs = Date.parse(status.pauseUntil);
+    if (!Number.isNaN(pauseTs) && pauseTs > now) {
+      cooldownActive = true;
+      cooldownUntil = status.pauseUntil;
+    }
+  }
+  out.cooldown_active = cooldownActive ? 1 : 0;
+  out.cooldown_until = cooldownUntil || '';
+
   const heartbeatFresh = ageSec >= 0 && ageSec <= STALL_SEC;
-  const alive = procAlive && cmdlineOk && heartbeatFresh;
+  const alive = cooldownActive || (procAlive && cmdlineOk && heartbeatFresh);
   out.alive = alive ? 1 : 0;
 
   const esc = readJson(PATHS.esc, null) || {
@@ -115,6 +130,8 @@ try {
   if (alive) {
     esc.consecutive_dead_ticks = 0;
     esc.last_alive_at = new Date(now).toISOString();
+    esc.cooldown_until = cooldownActive ? cooldownUntil : null;
+    esc.cooldown_reason = cooldownActive ? (status.pauseReason || 'ingest_rate_limit') : null;
   } else {
     esc.consecutive_dead_ticks = (Number(esc.consecutive_dead_ticks) || 0) + 1;
     esc.last_dead_at = new Date(now).toISOString();
@@ -157,7 +174,7 @@ try {
 JS
 
 eval "$(
-  PIDFILE="$PIDFILE" HEARTBEATFILE="$HEARTBEATFILE" ESCALATIONFILE="$ESCALATIONFILE" \
+  PIDFILE="$PIDFILE" HEARTBEATFILE="$HEARTBEATFILE" STATUSFILE="$STATUSFILE" ESCALATIONFILE="$ESCALATIONFILE" \
   STALL_SEC="$STALL_SEC" ESCALATE_THRESHOLD="$ESCALATE_THRESHOLD" MARKER="$MARKER" \
   "$NODE_BIN" --input-type=commonjs -e "$CHECK_JS" \
   | while IFS='=' read -r k v; do [ -n "$k" ] && printf '%s=%q\n' "$k" "$v"; done
@@ -169,7 +186,14 @@ eval "$(
 : "${streak:=0}"
 : "${escalate:=0}"
 : "${respawn:=1}"
+: "${cooldown_active:=0}"
+: "${cooldown_until:=}"
 : "${heartbeat_age_sec:=-1}"
+
+if [ "${cooldown_active}" = "1" ]; then
+  say "paused: cooldown active until ${cooldown_until}; worker respawn suppressed"
+  exit 0
+fi
 
 if [ "${alive}" = "1" ]; then
   say "alive: pid=${pid} heartbeat_age=${heartbeat_age_sec}s streak=0 (reset)"
