@@ -1,6 +1,17 @@
 name: Deploy site to production
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/middleware.ts'
+      - 'next.config.mjs'
+      - 'site.Dockerfile'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'content/**'
+      - 'public/**'
+      - '.github/workflows/deploy-site-production.yml'
   workflow_dispatch:
     inputs:
       image_tag:
