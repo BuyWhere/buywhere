@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { permanentRedirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import fs from "node:fs";
@@ -19,12 +19,25 @@ type DocsFrontmatter = {
   lastUpdated?: string;
   author?: string;
   status?: string;
+  public?: boolean;
 };
 
 type DocRouteParams = {
   params: {
     slug: string[];
   };
+};
+
+type DocRecord = {
+  slug: string;
+  title: string;
+  description: string;
+  version: string;
+  lastUpdated: string;
+  author: string;
+  status: string;
+  isPublic: boolean;
+  body: string;
 };
 
 function getMarkdownFiles(directory: string, baseDirectory = directory): string[] {
@@ -70,14 +83,19 @@ function parseDocs(relativePath: string) {
     lastUpdated: frontmatter.lastUpdated || "",
     author: frontmatter.author || "",
     status: frontmatter.status || "",
+    isPublic: frontmatter.public === true,
     body: content.trim(),
   };
 }
 
-function getAllDocs() {
+function isPublicDoc(doc: DocRecord | null): doc is DocRecord {
+  return doc !== null && doc.isPublic;
+}
+
+function getAllDocs(): DocRecord[] {
   return getMarkdownFiles(docsDirectory)
     .map(parseDocs)
-    .filter((doc) => doc !== null);
+    .filter(isPublicDoc);
 }
 
 function getDocBySlug(slugParts: string[]) {
@@ -100,7 +118,12 @@ export async function generateMetadata({ params }: DocRouteParams): Promise<Meta
   const doc = getDocBySlug(params.slug);
 
   if (!doc) {
-    return {};
+    return {
+      robots: {
+        index: false,
+        follow: false,
+      },
+    };
   }
 
   return {
@@ -116,6 +139,10 @@ export async function generateMetadata({ params }: DocRouteParams): Promise<Meta
       url: toSiteUrl(`/docs/${doc.slug}`),
       siteName: "BuyWhere Documentation",
     },
+    robots: {
+      index: true,
+      follow: true,
+    },
   };
 }
 
@@ -124,7 +151,7 @@ export default function DocPage({ params }: DocRouteParams) {
   const allDocs = getAllDocs();
 
   if (!doc) {
-    permanentRedirect("/docs/");
+    notFound();
   }
 
   const formatDate = (dateString: string) => {
@@ -205,12 +232,16 @@ export default function DocPage({ params }: DocRouteParams) {
                     <p className="mt-5 text-base leading-8 text-slate-700">{children}</p>
                   ),
                   a: ({ href, children }) => (
-                    <a
-                      href={href}
-                      className="font-medium text-indigo-600 underline decoration-indigo-200 underline-offset-4"
-                    >
-                      {children}
-                    </a>
+                    href && !href.startsWith("/BUY/") && !href.startsWith("/PAP/") && !href.startsWith("/home/") ? (
+                      <a
+                        href={href}
+                        className="font-medium text-indigo-600 underline decoration-indigo-200 underline-offset-4"
+                      >
+                        {children}
+                      </a>
+                    ) : (
+                      <span>{children}</span>
+                    )
                   ),
                   ul: ({ children }) => (
                     <ul className="mt-5 list-disc space-y-3 pl-6 text-base leading-8 text-slate-700">
