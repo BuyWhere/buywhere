@@ -1,0 +1,26 @@
+{
+  "description": "Known WooCommerce (WC) merchants for the Crew REST sub-lane deep-pager — BUY-31015 / BUY-31142 / BUY-38482. Consumed by scripts/buy31142-crew-wc-rest.mjs, which probes /wp-json/wc/store/products and /wp-json/wc/v3/products per domain and upserts into maglev.products with source=woocommerce_deep. This is a seed list derived from discovery data; the worker validates each domain actually exposes a WC REST surface and skips non-Woo domains gracefully.",
+  "source_attribution": "discovery_compact",
+  "ingest_source": "woocommerce_deep",
+  "country": "US",
+  "currency": "USD",
+  "count": 16,
+  "merchants": [
+    { "domain": "sabian.com",            "platform": "woocommerce", "country": "US", "currency": "USD", "category": "musical_instruments" },
+    { "domain": "summitracing.com",      "platform": "woocommerce", "country": "US", "currency": "USD", "category": "automotive" },
+    { "domain": "malonetuning.com",      "platform": "woocommerce", "country": "US", "currency": "USD", "category": "automotive" },
+    { "domain": "tirerack.com",          "platform": "woocommerce", "country": "US", "currency": "USD", "category": "automotive" },
+    { "domain": "odysseybattery.com",    "platform": "woocommerce", "country": "US", "currency": "USD", "category": "automotive" },
+    { "domain": "hondata.com",           "platform": "woocommerce", "country": "US", "currency": "USD", "category": "automotive" },
+    { "domain": "ginger.io",             "platform": "woocommerce", "country": "US", "currency": "USD", "category": "health_wellness" },
+    { "domain": "levels.us",             "platform": "woocommerce", "country": "US", "currency": "USD", "category": "health_wellness" },
+    { "domain": "invisalign.com",        "platform": "woocommerce", "country": "US", "currency": "USD", "category": "health_wellness" },
+    { "domain": "biostrap.com",          "platform": "woocommerce", "country": "US", "currency": "USD", "category": "health_wellness" },
+    { "domain": "personanutrition.com",  "platform": "woocommerce", "country": "US", "currency": "USD", "category": "health_wellness" },
+    { "domain": "labcorpondemand.com",   "platform": "woocommerce", "country": "US", "currency": "USD", "category": "health_wellness" },
+    { "domain": "dickssportinggoods.com","platform": "woocommerce", "country": "US", "currency": "USD", "category": "sporting_goods" },
+    { "domain": "diamondsports.com",     "platform": "woocommerce", "country": "US", "currency": "USD", "category": "sporting_goods" },
+    { "domain": "insidetracker.com",     "platform": "woocommerce", "country": "US", "currency": "USD", "category": "health_wellness" },
+    { "domain": "srixon.com",            "platform": "woocommerce", "country": "US", "currency": "USD", "category": "sporting_goods" }
+  ]
+}
