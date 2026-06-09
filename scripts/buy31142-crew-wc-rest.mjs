@@ -122,13 +122,15 @@ async function loadMerchants() {
     }));
 }
 
-async function fetchJson(url, { headers = {}, timeoutMs = REQUEST_TIMEOUT_MS, method, body } = {}) {
+async function fetchJson(url, { headers = {}, timeoutMs = REQUEST_TIMEOUT_MS, method, body: requestBody } = {}) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const opts = { headers, signal: ctrl.signal, redirect: 'follow' };
     if (method) opts.method = method;
-    if (body !== undefined) opts.body = typeof body === 'string' ? body : JSON.stringify(body);
+    if (requestBody !== undefined) {
+      opts.body = typeof requestBody === 'string' ? requestBody : JSON.stringify(requestBody);
+    }
     const res = await fetch(url, opts);
     const ctype = res.headers.get('content-type') || '';
     if (!ctype.includes('json')) {
@@ -136,11 +138,11 @@ async function fetchJson(url, { headers = {}, timeoutMs = REQUEST_TIMEOUT_MS, me
       const text = await res.text().catch(() => '');
       return { ok: false, status: res.status, error: `non-json content-type (${ctype})`, sample: text.slice(0, 120) };
     }
-    const body = await res.json().catch(() => null);
+    const responseBody = await res.json().catch(() => null);
     if (!res.ok) {
-      return { ok: false, status: res.status, error: `http ${res.status}`, body };
+      return { ok: false, status: res.status, error: `http ${res.status}`, body: responseBody };
     }
-    return { ok: true, status: res.status, body };
+    return { ok: true, status: res.status, body: responseBody };
   } catch (err) {
     const msg = err && err.name === 'AbortError' ? 'timeout' : String(err && err.message || err);
     return { ok: false, status: 0, error: msg };
