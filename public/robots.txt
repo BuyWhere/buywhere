@@ -7,20 +7,15 @@ Disallow: /v1/
 Disallow: /v2/
 Disallow: /api/
 Disallow: /api-reference/
-Disallow: /docs/social/
-Disallow: /docs/emails/
-Disallow: /docs/content/
-Disallow: /docs/challenges/
-Disallow: /docs/blog/
-Disallow: /docs/guides/
-Disallow: /docs/tutorials/
-Disallow: /docs/dashboard/
-Disallow: /docs/bd/
-Disallow: /docs/knowledge-base/
-Disallow: /docs/pipelines/
-Disallow: /docs/recipes/
-Disallow: /docs/samples/
-Disallow: /docs/analytics
+# Allow docs that are in the public sitemap
+Allow: /docs$
+Allow: /docs/mcp
+Allow: /docs/quickstart-mcp
+Allow: /docs/developer-quickstart-sea-shopping-agent
+Allow: /docs/agent-onboarding-flow
+Allow: /docs/rate-limits
+Allow: /docs/API_DOCUMENTATION
+# Private/internal docs paths
 Disallow: /docs/on-call-runbook
 Disallow: /docs/staging-deploy-hardening-checklist
 Disallow: /docs/product-hunt-launch-copy
