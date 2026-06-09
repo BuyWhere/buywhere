@@ -42,58 +42,65 @@ export async function warmupMcpCaches(): Promise<void> {
     `);
     console.log('[mcp-warmup] discount_pct column and index verified.');
 
-    // Ensure mcp_category_summary summary table exists (used by /v1/categories fast path)
+    // BUY-21057: Use MATERIALIZED VIEW so pg_cron/pgAgent can refresh it on a schedule,
+    // eliminating the 68s GROUP BY on 14M rows that caused INTERNAL_ERROR timeouts.
     await client.query(`
-      CREATE TABLE IF NOT EXISTS mcp_category_summary (
-        slug TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        product_count BIGINT NOT NULL
-      )
-    `);
-
-    // Pre-warm list_categories cache (MCP route key)
-    const cacheKey = 'categories_mcp:top100';
-    const existingCache = await redis.get(cacheKey).catch(() => null);
-
-    // Check if summary table is already populated
-    const summaryCount = await client.query(`SELECT COUNT(*) AS cnt FROM mcp_category_summary`);
-    const summaryHasData = parseInt(summaryCount.rows[0].cnt, 10) > 0;
-
-    if (!existingCache || !summaryHasData) {
-      console.log('[mcp-warmup] Pre-warming list_categories cache and summary table...');
-      const t0 = Date.now();
-      const result = await client.query(`
+      CREATE MATERIALIZED VIEW IF NOT EXISTS mcp_category_summary AS
         SELECT category_path[1] AS slug,
                category_path[1] AS name,
-               COUNT(*) AS product_count
+               COUNT(*)         AS product_count
         FROM products
         WHERE category_path[1] IS NOT NULL
         GROUP BY category_path[1]
         ORDER BY product_count DESC
-        LIMIT 100
-      `);
+    `);
+    await client.query(`
+      CREATE MATERIALIZED VIEW IF NOT EXISTS mcp_category_summary_by_country AS
+        SELECT country_code,
+               category_path[1] AS slug,
+               category_path[1] AS name,
+               COUNT(*)         AS product_count
+        FROM products
+        WHERE country_code IS NOT NULL
+          AND category_path[1] IS NOT NULL
+        GROUP BY country_code, category_path[1]
+        ORDER BY country_code, product_count DESC
+    `);
+
+    // Check if materialized view has data (REFRESH is fast; initial population may be slow)
+    const summaryCount = await client.query(`SELECT COUNT(*) AS cnt FROM mcp_category_summary`);
+    const summaryHasData = parseInt(summaryCount.rows[0].cnt, 10) > 0;
+    const countrySummaryCount = await client.query(`SELECT COUNT(*) AS cnt FROM mcp_category_summary_by_country`);
+    const countrySummaryHasData = parseInt(countrySummaryCount.rows[0].cnt, 10) > 0;
+
+    if (summaryHasData) {
+      await client.query(`REFRESH MATERIALIZED VIEW mcp_category_summary`);
+    }
+    if (countrySummaryHasData) {
+      await client.query(`REFRESH MATERIALIZED VIEW mcp_category_summary_by_country`);
+    }
+
+    for (const country of ['SG', 'US', 'VN', 'TH', 'MY']) {
+      const cacheKey = `categories_mcp:top100:${country}`;
+      const existingCache = await redis.get(cacheKey).catch(() => null);
+      if (existingCache && countrySummaryHasData) continue;
+
+      console.log(`[mcp-warmup] Pre-warming list_categories cache for ${country}...`);
+      const t0 = Date.now();
+      const result = await client.query(
+        `SELECT slug, name, product_count
+         FROM mcp_category_summary_by_country
+         WHERE country_code = $1
+         ORDER BY product_count DESC
+         LIMIT 100`,
+        [country]
+      );
       const data = {
         data: result.rows,
-        meta: { total: result.rows.length, response_time_ms: Date.now() - t0, cached: false },
+        meta: { total: result.rows.length, country_code: country, response_time_ms: Date.now() - t0, cached: false },
       };
       await redis.set(cacheKey, JSON.stringify(data), 'EX', 86400).catch(() => {});
-
-      // Upsert into summary table for the /v1/categories fast path
-      if (!summaryHasData) {
-        await client.query(`DELETE FROM mcp_category_summary`);
-        for (const row of result.rows) {
-          await client.query(
-            `INSERT INTO mcp_category_summary (slug, name, product_count) VALUES ($1, $2, $3)
-             ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, product_count = EXCLUDED.product_count`,
-            [row.slug, row.name, row.product_count]
-          );
-        }
-        console.log(`[mcp-warmup] mcp_category_summary populated (${result.rows.length} rows).`);
-      }
-
-      console.log(`[mcp-warmup] list_categories cached (${result.rows.length} categories, ${Date.now() - t0}ms).`);
-    } else {
-      console.log('[mcp-warmup] list_categories cache already warm.');
+      console.log(`[mcp-warmup] list_categories ${country} cached (${result.rows.length} categories, ${Date.now() - t0}ms).`);
     }
   } finally {
     client.release();

@@ -143,10 +143,11 @@ export const BUYWHERE_FUNCTIONS = [
       parameters: {
         type: 'object',
         properties: {
-          currency: {
+          country_code: {
             type: 'string',
-            default: 'SGD',
-            description: 'Currency for product counts',
+            enum: ['SG', 'US', 'VN', 'TH', 'MY'],
+            default: 'SG',
+            description: 'Country to scope categories to',
           },
         },
       },

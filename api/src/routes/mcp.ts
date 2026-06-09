@@ -78,7 +78,10 @@ const TOOLS = [
     description: 'List top-level product categories available in the BuyWhere catalog.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Defaults to SG.' },
+        country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+      },
     },
   },
   {
@@ -451,9 +454,10 @@ async function handleGetDeals(args: Record<string, unknown>) {
   return result;
 }
 
-async function handleListCategories(_args: Record<string, unknown>) {
+async function handleListCategories(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const cacheKey = 'categories_mcp:top100';
+  const country = (((args.country_code as string) || (args.country as string)) || 'SG').toUpperCase();
+  const cacheKey = `categories_mcp:top100:${country}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -466,14 +470,19 @@ async function handleListCategories(_args: Record<string, unknown>) {
   const client = await db.connect();
   try {
     const tableCheck = await client.query(
-      `SELECT to_regclass('public.mcp_category_summary') AS tbl`
+      `SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`
     );
     let rows: Array<{ slug: string; name: string; product_count: number }>;
     if (tableCheck.rows[0]?.tbl) {
-      const result = await client.query(
-        `SELECT slug, name, product_count FROM mcp_category_summary ORDER BY product_count DESC LIMIT 100`
+      const summaryResult = await client.query(
+        `SELECT slug, name, product_count
+         FROM mcp_category_summary_by_country
+         WHERE country_code = $1
+         ORDER BY product_count DESC
+         LIMIT 100`,
+        [country]
       );
-      rows = result.rows;
+      rows = summaryResult.rows;
     } else {
       // Summary table not yet created — fall back to expensive GROUP BY with extended timeout
       await client.query('SET statement_timeout = 300000'); // 5 min
@@ -483,13 +492,15 @@ async function handleListCategories(_args: Record<string, unknown>) {
                 COUNT(*) AS product_count
          FROM products
          WHERE category_path[1] IS NOT NULL
+           AND country_code = $1
          GROUP BY category_path[1]
          ORDER BY product_count DESC
-         LIMIT 100`
+         LIMIT 100`,
+        [country]
       );
       rows = result.rows;
     }
-    const data = { data: rows, meta: { total: rows.length, response_time_ms: Date.now() - t0, cached: false } };
+    const data = { data: rows, meta: { total: rows.length, country_code: country, response_time_ms: Date.now() - t0, cached: false } };
     redis.set(cacheKey, JSON.stringify(data), 'EX', 86400).catch(() => {});
     return data;
   } finally {
