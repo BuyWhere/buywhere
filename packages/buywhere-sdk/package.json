@@ -33,18 +33,27 @@
     "price-comparison",
     "deals",
     "shopping",
-    "agent-sdk"
+    "agent-sdk",
+    "e-commerce",
+    "product-catalog",
+    "price-tracking",
+    "deal-discovery",
+    "retail",
+    "api-sdk",
+    "ai-agent",
+    "product-discovery",
+    "comparison-shopping"
   ],
   "author": "BuyWhere",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/buywhere/buywhere-site.git",
+    "url": "git+https://github.com/buywhere/buywhere.git",
     "directory": "packages/buywhere-sdk"
   },
   "homepage": "https://buywhere.ai",
   "bugs": {
-    "url": "https://github.com/buywhere/buywhere-site/issues"
+    "url": "https://github.com/buywhere/buywhere/issues"
   },
   "publishConfig": {
     "access": "public",
