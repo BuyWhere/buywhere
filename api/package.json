@@ -1,7 +1,7 @@
 {
   "name": "buywhere-api",
   "version": "0.1.0",
-  "description": "BuyWhere product catalog API — agent-native",
+  "description": "BuyWhere product catalog API \u2014 agent-native",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -17,7 +17,7 @@
     "start:p95": "node dist/jobs/p95Runner.js",
     "p95": "ts-node src/jobs/p95Runner.ts",
     "test": "node --test tests/response.test.mjs tests/search.test.mjs tests/auth-middleware.test.mjs tests/auth-middleware-integration.test.mjs tests/ts-rank-guard.test.mjs",
-    "test:mcp": "node --test tests/mcp-integration.test.mjs",
+    "test:mcp": "node --test --test-force-exit tests/mcp-integration.test.mjs",
     "test:mcp:load": "node --test tests/load/staging-load-test.js",
     "test:openai-latency": "node tests/load/openai-function-calling-latency.mjs",
     "load:harness": "node tests/load/load-harness.mjs",
