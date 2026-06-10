@@ -1,6 +1,7 @@
 ---
 title: "Best Time to Buy TVs — Seasonal Price Guide"
 slug: "best-time-to-buy-tvs"
+publishedAt: "2026-05-08"
 description: "Guide to the best times to buy TVs in Singapore and the US. Covers OLED, QLED, 4K, 8K, and smart TVs. Includes Black Friday, Super Bowl clearance, new model release timing, and strategic buying tips."
 category: Blog
 tags:
