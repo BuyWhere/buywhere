@@ -1,6 +1,7 @@
 ---
 title: "Best Time to Buy Headphones — Seasonal Price Guide"
 slug: "best-time-to-buy-headphones"
+publishedAt: "2026-05-08"
 description: "Guide to the best times to buy headphones in Singapore and the US. Covers over-ear, earbuds, true wireless, noise cancelling, and audiophile headphones. Includes Black Friday, Prime Day, new model release timing, and strategic buying tips."
 category: Blog
 tags:

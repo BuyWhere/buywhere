@@ -1,6 +1,7 @@
 ---
 title: "Best Time to Buy Cameras — Seasonal Price Guide"
 slug: "best-time-to-buy-cameras"
+publishedAt: "2026-05-08"
 description: "Guide to the best times to buy cameras, lenses, and photography equipment. Covers DSLR, mirrorless, action cameras, and lenses. Includes major sale events, new model release cycles, and how price tracking helps you catch the lowest price."
 category: Blog
 tags:

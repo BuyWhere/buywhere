@@ -1,6 +1,7 @@
 ---
 title: "Best Time to Buy Laptops — Seasonal Price Guide"
 slug: "best-time-to-buy-laptops"
+publishedAt: "2026-05-08"
 description: "Guide to the best times to buy laptops in Singapore and the US. Covers ultraportable, gaming, business, and student laptops. Includes Black Friday, Prime Day, new model release timing, and strategic buying tips."
 category: Blog
 tags:

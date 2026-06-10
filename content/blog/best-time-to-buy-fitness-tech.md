@@ -1,6 +1,7 @@
 ---
 title: "Best Time to Buy Fitness Tech — Seasonal Price Guide"
 slug: "best-time-to-buy-fitness-tech"
+publishedAt: "2026-05-08"
 description: "Guide to the best times to buy fitness trackers, smartwatches, and gym equipment in Singapore and the US. Covers major sale events, seasonal price patterns, and how price tracking helps you catch the lowest price on Garmin, Apple Watch, Fitbit, Peloton, and more."
 category: Blog
 tags:
