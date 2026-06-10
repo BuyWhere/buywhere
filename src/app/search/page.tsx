@@ -19,6 +19,7 @@ export async function generateMetadata({ searchParams }: SearchPageProps): Promi
 
   return {
     title,
+    robots: { index: false, follow: true },
     alternates: {
       canonical: query
         ? toSiteUrl(`/search?q=${encodeURIComponent(query)}`)
