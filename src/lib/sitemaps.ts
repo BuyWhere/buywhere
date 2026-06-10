@@ -1,4 +1,5 @@
 import { getAllBlogPosts } from "@/lib/blog";
+import { seoLandingPages } from "@/lib/seo-landing-pages";
 import { PRODUCT_TAXONOMY, US_CATEGORY_META } from "@/lib/taxonomy";
 import { getUSProducts, type USProductForSitemap } from "@/lib/us-products";
 import { getSGProducts, type SGProductForSitemap } from "@/lib/sg-products";
@@ -51,7 +52,8 @@ const CATEGORY_PAGE_SLUGS = [
   "toys-games",
 ] as const;
 
-const STATIC_SITEMAP_ROUTES = [
+// Core static pages (non-SEO)
+const CORE_SITEMAP_ROUTES = [
   { path: "/", priority: 1.0, changeFrequency: "weekly" as const },
   { path: "/docs", priority: 1.0, changeFrequency: "weekly" as const },
   { path: "/developers", priority: 0.9, changeFrequency: "weekly" as const },
@@ -69,16 +71,30 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/pricing", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/about", priority: 0.6, changeFrequency: "monthly" as const },
   { path: "/contact", priority: 0.5, changeFrequency: "monthly" as const },
-  { path: "/best-gaming-laptops-us", priority: 0.9, changeFrequency: "weekly" as const },
-  { path: "/iphone-16-price-singapore", priority: 0.9, changeFrequency: "weekly" as const },
-  { path: "/laptop-singapore", priority: 0.9, changeFrequency: "weekly" as const },
-  { path: "/air-purifier-singapore", priority: 0.9, changeFrequency: "weekly" as const },
-  { path: "/best-robot-vacuums-2026", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/mcp-ecommerce", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/challenge", priority: 0.9, changeFrequency: "daily" as const },
   { path: "/privacy", priority: 0.3, changeFrequency: "yearly" as const },
   { path: "/terms", priority: 0.3, changeFrequency: "yearly" as const },
+  { path: "/affiliate-disclosure", priority: 0.3, changeFrequency: "yearly" as const },
+  { path: "/faq", priority: 0.5, changeFrequency: "monthly" as const },
+  { path: "/directory", priority: 0.6, changeFrequency: "weekly" as const },
+  { path: "/retailers", priority: 0.6, changeFrequency: "weekly" as const },
+  { path: "/deals/us", priority: 0.8, changeFrequency: "daily" as const },
+  { path: "/affiliates", priority: 0.6, changeFrequency: "monthly" as const },
 ] as const;
+
+// All SEO landing page slugs from config — dynamically included in sitemap
+const SEO_LANDING_PAGE_SLUGS = Object.keys(seoLandingPages);
+
+// Combined static routes = core pages + all SEO landing pages
+const STATIC_SITEMAP_ROUTES = [
+  ...CORE_SITEMAP_ROUTES,
+  ...SEO_LANDING_PAGE_SLUGS.map((slug) => ({
+    path: `/${slug}`,
+    priority: 0.8 as const,
+    changeFrequency: "weekly" as const,
+  })),
+];
 
 function xmlEscape(value: string): string {
   return value
