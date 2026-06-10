@@ -221,7 +221,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // Use a dedicated client with extended timeout — FTS on 14M rows can exceed the 10s pool default.
   const searchClient = await db.connect();
   try {
-    await searchClient.query('SET statement_timeout = 10000'); // BUY-31540: reduced from 30s — ts_rank removed, <5s expected
+    await searchClient.query('SET statement_timeout = 10000');
     const COUNT_CAP = 1001;
     if (q) {
       const countResult = await searchClient.query(
@@ -230,35 +230,25 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       );
       total = parseInt(countResult.rows[0].count, 10);
 
-      // BUY-31540: removed ts_rank ORDER BY — forces materialization of ALL matching rows
-      // before LIMIT (70k+ for laptop+US = 20s timeout). Use updated_at DESC instead;
-      // PostgreSQL can short-circuit after LIMIT rows via GIN index.
-      if (total <= 1000) {
-        params.push(limit, offset);
-        const result = await searchClient.query(
-          `SELECT id, sku AS source, source AS domain, url, title,
+      // BUY-31962: ORDER BY updated_at DESC on large FTS result sets forces PostgreSQL to
+      // sort all matching rows (100k+ for "laptop") before applying LIMIT, exceeding the 10s
+      // timeout. Fix: fetch candidates via GIN index (no sort) in a subquery, then sort the
+      // small candidate set. This turns an O(N log N) sort into O(C log C) where C << N.
+      const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
+      params.push(CANDIDATE_LIMIT, limit, offset);
+      const result = await searchClient.query(
+        `SELECT * FROM (
+           SELECT id, sku AS source, source AS domain, url, title,
                   price, currency, image_url, metadata, updated_at,
                   region, country_code
            FROM products ${where}
-           ORDER BY updated_at DESC
-           LIMIT $${params.length - 1} OFFSET $${params.length}`,
-          params
-        );
-        rows = result.rows;
-      } else {
-        const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
-        params.push(CANDIDATE_LIMIT);
-        const candidateResult = await searchClient.query(
-          `SELECT id, sku AS source, source AS domain, url, title,
-                  price, currency, image_url, metadata, updated_at,
-                  region, country_code
-           FROM products ${where}
-           ORDER BY updated_at DESC
-           LIMIT $${params.length}`,
-          params
-        );
-        rows = candidateResult.rows.slice(offset, offset + limit);
-      }
+           LIMIT $${params.length - 2}
+         ) _candidates
+         ORDER BY updated_at DESC
+         LIMIT $${params.length - 1} OFFSET $${params.length}`,
+        params
+      );
+      rows = result.rows;
     } else {
       const countResult = await searchClient.query(
         `SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`,
@@ -537,20 +527,24 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     conditions.push(`category ILIKE $${params.length}`);
   }
 
-  params.push(limit);
+  const CANDIDATE_POOL = Math.max(limit * 50, 500);
+  params.push(CANDIDATE_POOL, limit);
   const where = `WHERE ${conditions.join(' AND ')}`;
 
-  // Dedicated client with 30s timeout — FTS on 14M rows can exceed the 10s pool default.
+  // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
+  // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
+  // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
   const bestPriceClient = await db.connect();
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 30000');
-    // BUY-31540: removed ts_rank from ORDER BY — price ordering is the primary sort here
-    // and ts_rank forces full result materialization before LIMIT.
+    await bestPriceClient.query('SET statement_timeout = 10000');
     result = await bestPriceClient.query(
-      `SELECT id, title, price, currency, source AS domain, url, image_url,
-              country_code
-       FROM products ${where}
+      `SELECT * FROM (
+         SELECT id, title, price, currency, source AS domain, url, image_url,
+                country_code, updated_at
+         FROM products ${where}
+         LIMIT $${params.length - 1}
+       ) _candidates
        ORDER BY price ASC, updated_at DESC
        LIMIT $${params.length}`,
       params
