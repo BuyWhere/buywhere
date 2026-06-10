@@ -250,11 +250,12 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       );
       rows = result.rows;
     } else {
-      const countResult = await searchClient.query(
-        `SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`,
-        params
+      // No FTS — use reltuples for a cheap approximate count instead of COUNT(*)
+      // which can timeout on filtered scans (e.g. country_code = 'SG' on 14M rows).
+      const approxResult = await searchClient.query(
+        `SELECT reltuples::bigint AS estimate FROM pg_class WHERE relname = 'products'`
       );
-      total = parseInt(countResult.rows[0].count, 10);
+      total = parseInt(approxResult.rows[0]?.estimate ?? '0', 10);
       params.push(limit, offset);
       const result = await searchClient.query(
         `SELECT id, sku AS source, source AS domain, url, title,
