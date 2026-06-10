@@ -1,6 +1,7 @@
 ---
 title: "Best Time to Buy Electronics — Seasonal Price Guide"
 slug: "best-time-to-buy-electronics"
+publishedAt: "2026-05-07"
 description: "Guide to the best times to buy electronics in Singapore and the US. Covers major sale events, seasonal price patterns, and how price tracking tools can help you catch the lowest price on laptops, phones, headphones, and TVs."
 category: Blog
 tags:
