@@ -287,6 +287,12 @@ export function middleware(request: NextRequest) {
     });
   }
 
+  // Dead top-level paths that no longer exist — return 410 Gone so Google stops retrying
+  const normalizedForDead = normalizePathname(pathname);
+  if (normalizedForDead === "/merchants/join") {
+    return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
+  }
+
   // Trailing-slash rewrite: serve the non-slash path directly (200) instead of
   // letting Next.js emit a 308 redirect.  Google was seeing 308 on every
   // trailing-slash URL and reporting "Page with redirect", preventing indexing.
