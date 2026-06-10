@@ -336,9 +336,15 @@ async function handleCompareProducts(args: Record<string, unknown>) {
   if (!ids || !Array.isArray(ids) || ids.length < 2) {
     throw { code: -32602, message: 'Provide at least 2 product IDs' };
   }
+  if (ids.length > 10) {
+    throw { code: -32602, message: 'Provide at most 10 product IDs' };
+  }
   const validIds = ids.filter((id) => id != null && String(id).trim());
   if (validIds.length < 2) {
     throw { code: -32602, message: 'Provide at least 2 valid product IDs' };
+  }
+  if (validIds.length > 10) {
+    throw { code: -32602, message: 'Provide at most 10 valid product IDs' };
   }
   const placeholders = validIds.map((_, i) => `$${i + 1}`).join(',');
   let result;
