@@ -64,9 +64,6 @@ describe('NL search queries — response correctness', () => {
   let port;
 
   before(async () => {
-    mock.module('pg', { namedExports: { Pool: MockPool } });
-    mock.module('ioredis', { defaultExport: MockRedis });
-
     const express = require('express');
     const productsRouter = require('../dist/routes/products').default;
 
@@ -414,9 +411,6 @@ describe('NL search queries — error handling', () => {
   let port;
 
   before(async () => {
-    mock.module('pg', { namedExports: { Pool: MockPool } });
-    mock.module('ioredis', { defaultExport: MockRedis });
-
     const express = require('express');
     const productsRouter = require('../dist/routes/products').default;
 
@@ -492,9 +486,6 @@ describe('NL search — Redis caching behavior', () => {
   let port;
 
   before(async () => {
-    mock.module('pg', { namedExports: { Pool: MockPool } });
-    mock.module('ioredis', { defaultExport: MockRedis });
-
     const express = require('express');
     const productsRouter = require('../dist/routes/products').default;
 
