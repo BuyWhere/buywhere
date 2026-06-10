@@ -463,10 +463,16 @@ async function handleGetDeals(args: Record<string, unknown>) {
   return result;
 }
 
+// Single-flight guard: at most one DB scan runs per country at a time.
+// Concurrent cache-misses coalesce on the same Promise instead of spawning N parallel GROUP-BY scans.
+const categoryListInflight = new Map<string, Promise<{ data: unknown[]; meta: Record<string, unknown> }>>();
+
 async function handleListCategories(args: Record<string, unknown>) {
   const t0 = Date.now();
   const country = (((args.country_code as string) || (args.country as string)) || 'SG').toUpperCase();
   const cacheKey = `categories_mcp:top100:${country}`;
+
+  // 1. Redis fast path
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -475,45 +481,61 @@ async function handleListCategories(args: Record<string, unknown>) {
     }
   } catch (_) {}
 
-  // Try the pre-aggregated summary table first (instant); fall back to slow GROUP BY if it doesn't exist yet.
-  const client = await db.connect();
-  try {
-    const tableCheck = await client.query(
-      `SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`
-    );
-    let rows: Array<{ slug: string; name: string; product_count: number }>;
-    if (tableCheck.rows[0]?.tbl) {
-      const summaryResult = await client.query(
-        `SELECT slug, name, product_count
-         FROM mcp_category_summary_by_country
-         WHERE country_code = $1
-         ORDER BY product_count DESC
-         LIMIT 100`,
-        [country]
+  // 2. Single-flight: if a query is already in-flight for this country, piggyback on it
+  const inflight = categoryListInflight.get(country);
+  if (inflight) {
+    const result = await inflight;
+    return { ...result, meta: { ...result.meta, cached: true, response_time_ms: Date.now() - t0 } };
+  }
+
+  // 3. No in-flight query — start one and register it so concurrent callers coalesce
+  const queryPromise = (async () => {
+    const client = await db.connect();
+    try {
+      const tableCheck = await client.query(
+        `SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`
       );
-      rows = summaryResult.rows;
-    } else {
-      // Summary table not yet created — fall back to expensive GROUP BY with extended timeout
-      await client.query('SET statement_timeout = 300000'); // 5 min
-      const result = await client.query(
-        `SELECT category_path[1] AS slug,
-                category_path[1] AS name,
-                COUNT(*) AS product_count
-         FROM products
-         WHERE category_path[1] IS NOT NULL
-           AND country_code = $1
-         GROUP BY category_path[1]
-         ORDER BY product_count DESC
-         LIMIT 100`,
-        [country]
-      );
-      rows = result.rows;
+      let rows: Array<{ slug: string; name: string; product_count: number }>;
+      if (tableCheck.rows[0]?.tbl) {
+        const summaryResult = await client.query(
+          `SELECT slug, name, product_count
+           FROM mcp_category_summary_by_country
+           WHERE country_code = $1
+           ORDER BY product_count DESC
+           LIMIT 100`,
+          [country]
+        );
+        rows = summaryResult.rows;
+      } else {
+        // Fallback GROUP BY — fast via idx_products_country_cat1 (sub-second with partial index)
+        const result = await client.query(
+          `SELECT category_path[1] AS slug,
+                  category_path[1] AS name,
+                  COUNT(*) AS product_count
+           FROM products
+           WHERE category_path[1] IS NOT NULL
+             AND country_code = $1
+           GROUP BY category_path[1]
+           ORDER BY product_count DESC
+           LIMIT 100`,
+          [country]
+        );
+        rows = result.rows;
+      }
+      const data = { data: rows, meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false } };
+      redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
+      return data;
+    } finally {
+      client.release();
     }
-    const data = { data: rows, meta: { total: rows.length, country_code: country, response_time_ms: Date.now() - t0, cached: false } };
-    redis.set(cacheKey, JSON.stringify(data), 'EX', 86400).catch(() => {});
-    return data;
+  })();
+
+  categoryListInflight.set(country, queryPromise);
+  try {
+    const result = await queryPromise;
+    return { ...result, meta: { ...result.meta, response_time_ms: Date.now() - t0 } };
   } finally {
-    client.release();
+    categoryListInflight.delete(country);
   }
 }
 

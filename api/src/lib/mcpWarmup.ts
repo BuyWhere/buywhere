@@ -54,6 +54,11 @@ export async function warmupMcpCaches(): Promise<void> {
         GROUP BY category_path[1]
         ORDER BY product_count DESC
     `);
+    // Unique index required for REFRESH MATERIALIZED VIEW CONCURRENTLY (non-blocking reads during refresh)
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS mcp_category_summary_slug_idx
+        ON mcp_category_summary (slug)
+    `);
     await client.query(`
       CREATE MATERIALIZED VIEW IF NOT EXISTS mcp_category_summary_by_country AS
         SELECT country_code,
@@ -66,6 +71,10 @@ export async function warmupMcpCaches(): Promise<void> {
         GROUP BY country_code, category_path[1]
         ORDER BY country_code, product_count DESC
     `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS mcp_category_summary_by_country_pk_idx
+        ON mcp_category_summary_by_country (country_code, slug)
+    `);
 
     // Check if materialized view has data (REFRESH is fast; initial population may be slow)
     const summaryCount = await client.query(`SELECT COUNT(*) AS cnt FROM mcp_category_summary`);
@@ -74,10 +83,10 @@ export async function warmupMcpCaches(): Promise<void> {
     const countrySummaryHasData = parseInt(countrySummaryCount.rows[0].cnt, 10) > 0;
 
     if (summaryHasData) {
-      await client.query(`REFRESH MATERIALIZED VIEW mcp_category_summary`);
+      await client.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary`);
     }
     if (countrySummaryHasData) {
-      await client.query(`REFRESH MATERIALIZED VIEW mcp_category_summary_by_country`);
+      await client.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary_by_country`);
     }
 
     for (const country of ['SG', 'US', 'VN', 'TH', 'MY']) {
@@ -99,9 +108,46 @@ export async function warmupMcpCaches(): Promise<void> {
         data: result.rows,
         meta: { total: result.rows.length, country_code: country, response_time_ms: Date.now() - t0, cached: false },
       };
-      await redis.set(cacheKey, JSON.stringify(data), 'EX', 86400).catch(() => {});
+      await redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
       console.log(`[mcp-warmup] list_categories ${country} cached (${result.rows.length} categories, ${Date.now() - t0}ms).`);
     }
+  } finally {
+    client.release();
+  }
+}
+
+const CATEGORY_REFRESH_COUNTRIES = ['SG', 'US', 'VN', 'TH', 'MY'];
+
+// Lightweight periodic refresh — called every 5 min from index.ts.
+// Uses CONCURRENTLY so reads are never blocked during the refresh.
+export async function refreshCategorySummaries(): Promise<void> {
+  const client = await db.connect();
+  try {
+    const viewCheck = await client.query(
+      `SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`
+    );
+    if (!viewCheck.rows[0]?.tbl) return; // view not yet created; warmup will handle it on next deploy
+
+    await client.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary`);
+    await client.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary_by_country`);
+
+    for (const country of CATEGORY_REFRESH_COUNTRIES) {
+      const t0 = Date.now();
+      const result = await client.query(
+        `SELECT slug, name, product_count
+         FROM mcp_category_summary_by_country
+         WHERE country_code = $1
+         ORDER BY product_count DESC
+         LIMIT 100`,
+        [country]
+      );
+      const data = {
+        data: result.rows,
+        meta: { total: result.rows.length, country_code: country, response_time_ms: Date.now() - t0, cached: false },
+      };
+      await redis.set(`categories_mcp:top100:${country}`, JSON.stringify(data), 'EX', 600).catch(() => {});
+    }
+    console.log('[category-refresh] materialized views and Redis caches refreshed.');
   } finally {
     client.release();
   }
