@@ -12,16 +12,18 @@ const redisIncrMock = mock.fn(() => Promise.resolve(1));
 const redisExpireMock = mock.fn(() => Promise.resolve(1));
 const redisOnMock = mock.fn();
 
-class MockPool {
-  constructor() { this.query = queryMock; this.connect = mock.fn(); this.end = mock.fn(); }
-}
-
-class MockRedis {
-  constructor() {
-    this.get = redisGetMock; this.set = redisSetMock; this.on = redisOnMock;
-    this.incr = redisIncrMock; this.expire = redisExpireMock;
-  }
-}
+// Direct config mocking — mock.module() unavailable in CI's Node version
+const config = require('../dist/config');
+const mockClient = { query: queryMock, release: () => {} };
+config.db.query = queryMock;
+config.db.connect = () => Promise.resolve(mockClient);
+config.db.end = () => {};
+config.redis.get = redisGetMock;
+config.redis.set = redisSetMock;
+config.redis.incr = redisIncrMock;
+config.redis.expire = redisExpireMock;
+config.redis.on = redisOnMock;
+config.redis.disconnect = () => {};
 
 function makeProduct(id, overrides = {}) {
   return {
