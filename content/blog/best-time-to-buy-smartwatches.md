@@ -1,6 +1,7 @@
 ---
 title: "Best Time to Buy Smartwatches — Seasonal Price Guide"
 slug: "best-time-to-buy-smartwatches"
+publishedAt: "2026-05-08"
 description: "Guide to the best times to buy smartwatches in Singapore and the US. Covers Apple Watch, Samsung Galaxy Watch, Garmin, Wear OS, and Fitbit smartwatches. Includes Black Friday, Prime Day, new model release timing, and strategic buying tips."
 category: Blog
 tags:
