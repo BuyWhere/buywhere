@@ -16,7 +16,13 @@ const redisIncrMock = mock.fn(() => Promise.resolve(1));
 const redisExpireMock = mock.fn(() => Promise.resolve(1));
 
 const config = require('../dist/config');
+// Mock client returned by db.connect() — the route uses db.connect() for search queries
+const mockClient = {
+  query: queryMock,
+  release: () => {},
+};
 config.db.query = queryMock;
+config.db.connect = mock.fn(() => Promise.resolve(mockClient));
 config.redis.get = redisGetMock;
 config.redis.set = redisSetMock;
 config.redis.incr = redisIncrMock;
