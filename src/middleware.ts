@@ -305,6 +305,18 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
 
+  // Dead Singapore product slug pages — thin-content pages (Google soft 404 bucket BUY-37750)
+  // These pages only render a product name + description with no prices (client-side only).
+  // 410 Gone signals permanent removal; Google drops them faster than noindex.
+  if (normalizedForDead.startsWith("/products/sg/")) {
+    return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
+  }
+
+  // Dead US product slug pages — same thin-content issue
+  if (normalizedForDead.startsWith("/products/us/")) {
+    return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
+  }
+
   // Trailing-slash rewrite: serve the non-slash path directly (200) instead of
   // letting Next.js emit a 308 redirect.  Google was seeing 308 on every
   // trailing-slash URL and reporting "Page with redirect", preventing indexing.
