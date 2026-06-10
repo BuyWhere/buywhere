@@ -250,8 +250,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       );
       rows = result.rows;
     } else {
-      // No FTS — use reltuples for a cheap approximate count instead of COUNT(*)
-      // which can timeout on filtered scans (e.g. country_code = 'SG' on 14M rows).
+      // No FTS — no search term means no meaningful ranking; use reltuples for
+      // approximate total and skip ORDER BY to avoid slow filtered sorts on 14M+ rows.
       const approxResult = await searchClient.query(
         `SELECT reltuples::bigint AS estimate FROM pg_class WHERE relname = 'products'`
       );
@@ -262,7 +262,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
                 price, currency, image_url, metadata, updated_at,
                 region, country_code
          FROM products ${where}
-         ORDER BY updated_at DESC
          LIMIT $${params.length - 1} OFFSET $${params.length}`,
         params
       );
