@@ -159,9 +159,12 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const domain = (args.domain as string) || '';
   const region = (args.region as string) || '';
   // country_code is canonical; `country` kept as alias for backward compat
-  // Default to SG when no country/region specified (BUY-6598: SG market is primary)
+  // BUY-6598: Default to SG for search queries. BUY-31962: skip default for
+  // empty-q browse mode — no index on country_code makes filtered scan slow,
+  // and recent rows are predominantly US/null so SG filter finds nothing.
   const rawCountry = (((args.country_code as string) || (args.country as string)) || '').toUpperCase();
-  const country = rawCountry || (!region ? 'SG' : '');
+  const hasExplicitCountry = !!(args.country_code || args.country);
+  const country = rawCountry || (q && !region ? 'SG' : '');
   const category = (args.category as string) || '';
   const minPrice = args.min_price != null ? Number(args.min_price) : null;
   const maxPrice = args.max_price != null ? Number(args.max_price) : null;
@@ -250,22 +253,38 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       );
       rows = result.rows;
     } else {
-      // No FTS — no search term means no meaningful ranking; use reltuples for
-      // approximate total and skip ORDER BY to avoid slow filtered sorts on 14M+ rows.
+      // No FTS — browse mode. Use reltuples for approximate total and fetch
+      // recent products via idx_products_updated_at (3ms for 500 rows).
+      // If user explicitly passed country_code/region, overfetch and filter
+      // in-application (no composite index on country_code+updated_at).
       const approxResult = await searchClient.query(
         `SELECT reltuples::bigint AS estimate FROM pg_class WHERE relname = 'products'`
       );
       total = parseInt(approxResult.rows[0]?.estimate ?? '0', 10);
-      params.push(limit, offset);
-      const result = await searchClient.query(
+
+      const needsFilter = !!(country || region);
+      const fetchLimit = needsFilter ? Math.min((limit + offset) * 20, 5000) : limit + offset;
+      const rawResult = await searchClient.query(
         `SELECT id, sku AS source, source AS domain, url, title,
                 price, currency, image_url, metadata, updated_at,
                 region, country_code
-         FROM products ${where}
-         LIMIT $${params.length - 1} OFFSET $${params.length}`,
-        params
+         FROM products
+         ORDER BY updated_at DESC
+         LIMIT $1`,
+        [fetchLimit]
       );
-      rows = result.rows;
+      if (needsFilter) {
+        let filtered = rawResult.rows as Record<string, unknown>[];
+        if (country) {
+          filtered = filtered.filter(r => (r.country_code as string || '').toUpperCase() === country);
+        }
+        if (region) {
+          filtered = filtered.filter(r => (r.region as string || '').toLowerCase() === region.toLowerCase());
+        }
+        rows = filtered.slice(offset, offset + limit);
+      } else {
+        rows = (rawResult.rows as unknown[]).slice(offset, offset + limit);
+      }
     }
   } finally {
     searchClient.release();
