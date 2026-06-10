@@ -1,0 +1,156 @@
+{
+  "execution_issue": "BUY-38909",
+  "parent_monitoring": "BUY-12992",
+  "generated_at": "2026-06-10T16:07:36.333Z",
+  "status": "WARN",
+  "exit_code": 1,
+  "fix_mode": true,
+  "fix_result": {
+    "zombies_marked": 0,
+    "errors": []
+  },
+  "api": {
+    "base": "https://api.buywhere.ai",
+    "health": {
+      "name": "liveness",
+      "ok": true,
+      "detail": "GET /v1/ingest/health → 200 (40ms)",
+      "latencyMs": 40,
+      "statusCode": 200,
+      "body": {
+        "status": "ok"
+      }
+    },
+    "database": {
+      "name": "database",
+      "ok": true,
+      "detail": "PostgreSQL reachable (20ms)",
+      "latencyMs": 20
+    }
+  },
+  "thresholds": {
+    "stale_hours": 24,
+    "zombie_hours": 1
+  },
+  "markets": [
+    {
+      "market": "sg",
+      "product_count": 5242,
+      "last_updated_at": "2026-06-10T10:29:15.882Z",
+      "last_run_finished_at": "2026-06-05T06:36:17.462Z",
+      "updated_last_1h": 0,
+      "updated_last_24h": 1,
+      "runs_24h": 0,
+      "completed_24h": 0,
+      "partial_24h": 0,
+      "failed_24h": 0,
+      "success_rate_24h": null,
+      "status": "fresh",
+      "age_hours": 5.639013888888889
+    },
+    {
+      "market": "us",
+      "product_count": 9073,
+      "last_updated_at": "2026-06-10T16:07:22.992Z",
+      "last_run_finished_at": null,
+      "updated_last_1h": 108,
+      "updated_last_24h": 108,
+      "runs_24h": 0,
+      "completed_24h": 0,
+      "partial_24h": 0,
+      "failed_24h": 0,
+      "success_rate_24h": null,
+      "status": "fresh",
+      "age_hours": 0.0037055555555555557
+    },
+    {
+      "market": "my",
+      "product_count": 9888,
+      "last_updated_at": "2026-06-09T08:16:12.297Z",
+      "last_run_finished_at": "2026-05-28T07:44:08.015Z",
+      "updated_last_1h": 0,
+      "updated_last_24h": 0,
+      "runs_24h": 0,
+      "completed_24h": 0,
+      "partial_24h": 0,
+      "failed_24h": 0,
+      "success_rate_24h": null,
+      "status": "stale",
+      "age_hours": 31.85667638888889
+    },
+    {
+      "market": "vn",
+      "product_count": 0,
+      "last_updated_at": null,
+      "last_run_finished_at": "2026-06-04T22:27:59.764Z",
+      "updated_last_1h": 0,
+      "updated_last_24h": 0,
+      "runs_24h": 0,
+      "completed_24h": 0,
+      "partial_24h": 0,
+      "failed_24h": 0,
+      "success_rate_24h": null,
+      "status": "stale",
+      "age_hours": null
+    },
+    {
+      "market": "th",
+      "product_count": 4509,
+      "last_updated_at": "2026-06-09T09:37:00.399Z",
+      "last_run_finished_at": "2026-06-04T23:28:43.868Z",
+      "updated_last_1h": 0,
+      "updated_last_24h": 0,
+      "runs_24h": 0,
+      "completed_24h": 0,
+      "partial_24h": 0,
+      "failed_24h": 0,
+      "success_rate_24h": null,
+      "status": "stale",
+      "age_hours": 30.50998138888889
+    },
+    {
+      "market": "id",
+      "product_count": 0,
+      "last_updated_at": null,
+      "last_run_finished_at": "2026-05-28T09:26:13.202Z",
+      "updated_last_1h": 0,
+      "updated_last_24h": 0,
+      "runs_24h": 0,
+      "completed_24h": 0,
+      "partial_24h": 0,
+      "failed_24h": 0,
+      "success_rate_24h": null,
+      "status": "stale",
+      "age_hours": null
+    },
+    {
+      "market": "ph",
+      "product_count": 0,
+      "last_updated_at": null,
+      "last_run_finished_at": "2026-05-28T08:12:11.357Z",
+      "updated_last_1h": 0,
+      "updated_last_24h": 0,
+      "runs_24h": 0,
+      "completed_24h": 0,
+      "partial_24h": 0,
+      "failed_24h": 0,
+      "success_rate_24h": null,
+      "status": "stale",
+      "age_hours": null
+    }
+  ],
+  "source_alerts": [
+    {
+      "source": "woocommerce_deep",
+      "failure_runs": 19,
+      "partial_runs": 0,
+      "last_error": "null value in column \"region\" of relation \"products_sg\" violates not-null constraint",
+      "last_failure_at": "2026-06-10T10:28:09.866Z",
+      "rows_failed_total": 0,
+      "zombie_runs": 0,
+      "longest_running_seconds": 0
+    }
+  ],
+  "zombie_runs": [],
+  "db_errors": []
+}
