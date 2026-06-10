@@ -221,7 +221,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // Use a dedicated client with extended timeout — FTS on 14M rows can exceed the 10s pool default.
   const searchClient = await db.connect();
   try {
-    await searchClient.query('SET statement_timeout = 10000');
+    await searchClient.query('SET statement_timeout = 30000'); // BUY-31962: bumped from 10s — non-FTS filtered scans on 14M rows can approach 10s
     const COUNT_CAP = 1001;
     if (q) {
       const countResult = await searchClient.query(
