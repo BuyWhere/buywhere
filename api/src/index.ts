@@ -4,7 +4,7 @@ import { PORT } from './config';
 import { shutdownPostHog } from './analytics/posthog';
 import { runMigrations } from './migrate';
 import { loadAffiliateConfigs } from './lib/affiliateWrapper';
-import { warmupMcpCaches } from './lib/mcpWarmup';
+import { warmupMcpCaches, refreshCategorySummaries } from './lib/mcpWarmup';
 import { warmSearchCache } from './routes/products';
 import { startP95Runner } from './jobs/p95Runner';
 import { startP95ProbeScheduler, stopP95ProbeScheduler } from './jobs/p95ProbeScheduler';
@@ -32,6 +32,12 @@ async function start() {
   // BUY-32082: start P95 latency computation job (every 5 min)
   startP95Runner();
   startP95ProbeScheduler();
+
+  // Refresh category materialized views + Redis caches every 5 min so counts stay
+  // current as products are ingested, and the Redis TTL (600s) never expires cold.
+  setInterval(() => {
+    refreshCategorySummaries().catch((err) => console.warn('[category-refresh] failed:', err?.message));
+  }, 5 * 60 * 1000);
 
   return new Promise<ReturnType<typeof app.listen>>((resolve) => {
     const server = app.listen(PORT, () => {
