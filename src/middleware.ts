@@ -312,7 +312,7 @@ export function middleware(request: NextRequest) {
     url.port = "";
     url.protocol = "https:";
     url.pathname = redirectPath;
-    return NextResponse.redirect(url, 308);
+    return NextResponse.redirect(url, 301);
   }
 
   // Content negotiation: rewrite to dedicated markdown route handlers.
