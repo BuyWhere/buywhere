@@ -83,7 +83,12 @@ before(async () => {
   port = server.address().port;
 });
 
-after(() => { server?.close(); });
+after(() => {
+  server?.close();
+  // Disconnect Redis and Pool to prevent event-loop hang
+  try { config.redis.disconnect(); } catch {}
+  try { config.db.end(); } catch {}
+});
 beforeEach(() => { setupDefaultMocks(); });
 
 describe('MCP JSON-RPC — public methods (no auth)', () => {
