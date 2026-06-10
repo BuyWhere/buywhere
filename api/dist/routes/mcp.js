@@ -78,7 +78,10 @@ const TOOLS = [
         description: 'List top-level product categories available in the BuyWhere catalog.',
         inputSchema: {
             type: 'object',
-            properties: {},
+            properties: {
+                country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Defaults to SG.' },
+                country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+            },
         },
     },
     {
@@ -151,9 +154,12 @@ async function handleSearchProducts(args) {
     const domain = args.domain || '';
     const region = args.region || '';
     // country_code is canonical; `country` kept as alias for backward compat
-    // Default to SG when no country/region specified (BUY-6598: SG market is primary)
+    // BUY-6598: Default to SG for search queries. BUY-31962: skip default for
+    // empty-q browse mode — no index on country_code makes filtered scan slow,
+    // and recent rows are predominantly US/null so SG filter finds nothing.
     const rawCountry = ((args.country_code || args.country) || '').toUpperCase();
-    const country = rawCountry || (!region ? 'SG' : '');
+    const hasExplicitCountry = !!(args.country_code || args.country);
+    const country = rawCountry || (q && !region ? 'SG' : '');
     const category = args.category || '';
     const minPrice = args.min_price != null ? Number(args.min_price) : null;
     const maxPrice = args.max_price != null ? Number(args.max_price) : null;
@@ -208,47 +214,56 @@ async function handleSearchProducts(args) {
     // Use a dedicated client with extended timeout — FTS on 14M rows can exceed the 10s pool default.
     const searchClient = await config_1.db.connect();
     try {
-        await searchClient.query('SET statement_timeout = 10000'); // BUY-31540: reduced from 30s — ts_rank removed, <5s expected
+        await searchClient.query('SET statement_timeout = 30000'); // BUY-31962: bumped from 10s — non-FTS filtered scans on 14M rows can approach 10s
         const COUNT_CAP = 1001;
         if (q) {
             const countResult = await searchClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`, params);
             total = parseInt(countResult.rows[0].count, 10);
-            // BUY-31540: removed ts_rank ORDER BY — forces materialization of ALL matching rows
-            // before LIMIT (70k+ for laptop+US = 20s timeout). Use updated_at DESC instead;
-            // PostgreSQL can short-circuit after LIMIT rows via GIN index.
-            if (total <= 1000) {
-                params.push(limit, offset);
-                const result = await searchClient.query(`SELECT id, sku AS source, source AS domain, url, title,
+            // BUY-31962: ORDER BY updated_at DESC on large FTS result sets forces PostgreSQL to
+            // sort all matching rows (100k+ for "laptop") before applying LIMIT, exceeding the 10s
+            // timeout. Fix: fetch candidates via GIN index (no sort) in a subquery, then sort the
+            // small candidate set. This turns an O(N log N) sort into O(C log C) where C << N.
+            const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
+            params.push(CANDIDATE_LIMIT, limit, offset);
+            const result = await searchClient.query(`SELECT * FROM (
+           SELECT id, sku AS source, source AS domain, url, title,
                   price, currency, image_url, metadata, updated_at,
                   region, country_code
            FROM products ${where}
-           ORDER BY updated_at DESC
-           LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
-                rows = result.rows;
-            }
-            else {
-                const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
-                params.push(CANDIDATE_LIMIT);
-                const candidateResult = await searchClient.query(`SELECT id, sku AS source, source AS domain, url, title,
-                  price, currency, image_url, metadata, updated_at,
-                  region, country_code
-           FROM products ${where}
-           ORDER BY updated_at DESC
-           LIMIT $${params.length}`, params);
-                rows = candidateResult.rows.slice(offset, offset + limit);
-            }
-        }
-        else {
-            const countResult = await searchClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`, params);
-            total = parseInt(countResult.rows[0].count, 10);
-            params.push(limit, offset);
-            const result = await searchClient.query(`SELECT id, sku AS source, source AS domain, url, title,
-                price, currency, image_url, metadata, updated_at,
-                region, country_code
-         FROM products ${where}
+           LIMIT $${params.length - 2}
+         ) _candidates
          ORDER BY updated_at DESC
          LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
             rows = result.rows;
+        }
+        else {
+            // No FTS — browse mode. Use reltuples for approximate total and fetch
+            // recent products via idx_products_updated_at (3ms for 500 rows).
+            // If user explicitly passed country_code/region, overfetch and filter
+            // in-application (no composite index on country_code+updated_at).
+            const approxResult = await searchClient.query(`SELECT reltuples::bigint AS estimate FROM pg_class WHERE relname = 'products'`);
+            total = parseInt(approxResult.rows[0]?.estimate ?? '0', 10);
+            const needsFilter = !!(country || region);
+            const fetchLimit = needsFilter ? Math.min((limit + offset) * 20, 5000) : limit + offset;
+            const rawResult = await searchClient.query(`SELECT id, sku AS source, source AS domain, url, title,
+                price, currency, image_url, metadata, updated_at,
+                region, country_code
+         FROM products
+         ORDER BY updated_at DESC
+         LIMIT $1`, [fetchLimit]);
+            if (needsFilter) {
+                let filtered = rawResult.rows;
+                if (country) {
+                    filtered = filtered.filter(r => (r.country_code || '').toUpperCase() === country);
+                }
+                if (region) {
+                    filtered = filtered.filter(r => (r.region || '').toLowerCase() === region.toLowerCase());
+                }
+                rows = filtered.slice(offset, offset + limit);
+            }
+            else {
+                rows = rawResult.rows.slice(offset, offset + limit);
+            }
         }
     }
     finally {
@@ -396,9 +411,10 @@ async function handleGetDeals(args) {
     config_1.redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => { });
     return result;
 }
-async function handleListCategories(_args) {
+async function handleListCategories(args) {
     const t0 = Date.now();
-    const cacheKey = 'categories_mcp:top100';
+    const country = ((args.country_code || args.country) || 'SG').toUpperCase();
+    const cacheKey = `categories_mcp:top100:${country}`;
     try {
         const cached = await config_1.redis.get(cacheKey);
         if (cached) {
@@ -410,11 +426,15 @@ async function handleListCategories(_args) {
     // Try the pre-aggregated summary table first (instant); fall back to slow GROUP BY if it doesn't exist yet.
     const client = await config_1.db.connect();
     try {
-        const tableCheck = await client.query(`SELECT to_regclass('public.mcp_category_summary') AS tbl`);
+        const tableCheck = await client.query(`SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`);
         let rows;
         if (tableCheck.rows[0]?.tbl) {
-            const result = await client.query(`SELECT slug, name, product_count FROM mcp_category_summary ORDER BY product_count DESC LIMIT 100`);
-            rows = result.rows;
+            const summaryResult = await client.query(`SELECT slug, name, product_count
+         FROM mcp_category_summary_by_country
+         WHERE country_code = $1
+         ORDER BY product_count DESC
+         LIMIT 100`, [country]);
+            rows = summaryResult.rows;
         }
         else {
             // Summary table not yet created — fall back to expensive GROUP BY with extended timeout
@@ -424,12 +444,13 @@ async function handleListCategories(_args) {
                 COUNT(*) AS product_count
          FROM products
          WHERE category_path[1] IS NOT NULL
+           AND country_code = $1
          GROUP BY category_path[1]
          ORDER BY product_count DESC
-         LIMIT 100`);
+         LIMIT 100`, [country]);
             rows = result.rows;
         }
-        const data = { data: rows, meta: { total: rows.length, response_time_ms: Date.now() - t0, cached: false } };
+        const data = { data: rows, meta: { total: rows.length, country_code: country, response_time_ms: Date.now() - t0, cached: false } };
         config_1.redis.set(cacheKey, JSON.stringify(data), 'EX', 86400).catch(() => { });
         return data;
     }
@@ -462,18 +483,22 @@ async function handleFindBestPrice(args) {
         params.push(`%${category}%`);
         conditions.push(`category ILIKE $${params.length}`);
     }
-    params.push(limit);
+    const CANDIDATE_POOL = Math.max(limit * 50, 500);
+    params.push(CANDIDATE_POOL, limit);
     const where = `WHERE ${conditions.join(' AND ')}`;
-    // Dedicated client with 30s timeout — FTS on 14M rows can exceed the 10s pool default.
+    // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
+    // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
+    // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
     const bestPriceClient = await config_1.db.connect();
     let result;
     try {
-        await bestPriceClient.query('SET statement_timeout = 30000');
-        // BUY-31540: removed ts_rank from ORDER BY — price ordering is the primary sort here
-        // and ts_rank forces full result materialization before LIMIT.
-        result = await bestPriceClient.query(`SELECT id, title, price, currency, source AS domain, url, image_url,
-              country_code
-       FROM products ${where}
+        await bestPriceClient.query('SET statement_timeout = 10000');
+        result = await bestPriceClient.query(`SELECT * FROM (
+         SELECT id, title, price, currency, source AS domain, url, image_url,
+                country_code, updated_at
+         FROM products ${where}
+         LIMIT $${params.length - 1}
+       ) _candidates
        ORDER BY price ASC, updated_at DESC
        LIMIT $${params.length}`, params);
     }
@@ -551,6 +576,9 @@ async function handleIngestProducts(args) {
             errors.push({ index: i, sku, error: 'Missing url' });
             continue;
         }
+        // BUY-39599: Default country_code to 'SG' and region to country_code.toLowerCase()
+        // to prevent NULL violations on NOT NULL partition columns.
+        const cc = typeof p.country_code === 'string' ? p.country_code : 'SG';
         validProducts.push({
             sku,
             merchant_id: String(p.merchant_id),
@@ -567,8 +595,8 @@ async function handleIngestProducts(args) {
             is_available: typeof p.is_available === 'boolean' ? p.is_available : undefined,
             in_stock: typeof p.in_stock === 'boolean' ? p.in_stock : undefined,
             stock_level: typeof p.stock_level === 'string' ? p.stock_level : undefined,
-            country_code: typeof p.country_code === 'string' ? p.country_code : undefined,
-            region: typeof p.region === 'string' ? p.region : undefined,
+            country_code: cc,
+            region: typeof p.region === 'string' ? p.region : cc.toLowerCase(),
             metadata: (p.metadata && typeof p.metadata === 'object') ? p.metadata : undefined,
         });
     }
@@ -579,6 +607,25 @@ async function handleIngestProducts(args) {
             errors,
             response_time_ms: Date.now() - t0,
         };
+    }
+    // BUY-39599: Deduplicate by (sku, country_code) — PostgreSQL rejects ON CONFLICT
+    // DO UPDATE when the same row would be affected twice in a single command.
+    {
+        const seen = new Set();
+        const unique = [];
+        for (const p of validProducts) {
+            const dedupKey = `${p.sku}\0${p.country_code || 'SG'}`;
+            if (seen.has(dedupKey))
+                continue;
+            seen.add(dedupKey);
+            unique.push(p);
+        }
+        if (unique.length < validProducts.length) {
+            const dupes = validProducts.length - unique.length;
+            validProducts.length = 0;
+            validProducts.push(...unique);
+            console.warn(`[mcp:ingest] Deduped ${dupes} duplicate sku(s) from ${normalizedSource} batch`);
+        }
     }
     // Create ingestion run record
     let runId = null;
@@ -614,14 +661,14 @@ async function handleIngestProducts(args) {
             const catPath = (p.category_path && p.category_path.length > 0)
                 ? `{${p.category_path.map(c => `"${c.replace(/"/g, '\\"')}"`).join(',')}}`
                 : '{}';
-            values.push(p.sku, normalizedSource, p.merchant_id, p.title, p.description || null, p.price, p.currency || 'SGD', p.url, p.image_url || null, catPath, p.brand || null, JSON.stringify(metadata), p.is_active !== false, p.region || null, p.country_code || null);
+            values.push(p.sku, normalizedSource, p.merchant_id, p.title, p.description || null, p.price, p.currency || 'SGD', p.url, p.image_url || null, catPath, p.brand || null, JSON.stringify(metadata), p.is_active !== false, p.region || (p.country_code || 'SG').toLowerCase(), p.country_code || 'SG');
             placeholders.push(`($${base},$${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},$${base + 13},$${base + 14})`);
         }
         await config_1.db.query(`INSERT INTO products
          (sku, source, merchant_id, title, description, price, currency, url,
           image_url, category_path, brand, metadata, is_active, region, country_code)
        VALUES ${placeholders.join(', ')}
-       ON CONFLICT (sku, source)
+       ON CONFLICT (sku, source, country_code)
        DO UPDATE SET
          title = EXCLUDED.title,
          description = EXCLUDED.description,

@@ -580,6 +580,32 @@ async function runMigrations() {
     catch (err) {
         console.warn(`[migration] P95 monitoring schema failed (non-fatal): ${err.message?.slice(0, 200)}`);
     }
+    // BUY-39599: Unique index on (sku, source, country_code) so the ON CONFLICT
+    // upsert in ingest.ts and mcp.ts actually matches a constraint.  Also backfill
+    // any NULL region values that slipped through before defaults were enforced.
+    try {
+        // Backfill NULL region values (region is NOT NULL on partition tables).
+        const regionResult = await config_1.db.query(`
+      UPDATE products SET region = LOWER(COALESCE(country_code, 'SG'))
+      WHERE region IS NULL
+    `);
+        if (regionResult.rowCount && regionResult.rowCount > 0) {
+            console.log(`[migration] BUY-39599: backfilled ${regionResult.rowCount} NULL region values.`);
+        }
+        // Create unique index — CONCURRENTLY to avoid blocking writes on the live table.
+        const idxCheck = await config_1.db.query(`SELECT 1 FROM pg_indexes WHERE indexname = 'idx_products_sku_source_country'`);
+        if (idxCheck.rows.length === 0) {
+            console.log('[migration] BUY-39599: creating unique index idx_products_sku_source_country (concurrent, may take a minute)...');
+            await config_1.db.query(`CREATE UNIQUE INDEX CONCURRENTLY idx_products_sku_source_country ON products(sku, source, country_code)`);
+            console.log('[migration] BUY-39599: unique index created.');
+        }
+        else {
+            console.log('[migration] BUY-39599: unique index already exists.');
+        }
+    }
+    catch (err) {
+        console.warn(`[migration] BUY-39599: migration step failed (non-fatal): ${err.message?.slice(0, 300)}`);
+    }
     console.log('Migrations complete.');
 }
 async function migrate() {

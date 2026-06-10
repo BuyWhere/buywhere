@@ -645,6 +645,9 @@ async function handleIngestProducts(args: Record<string, unknown>) {
     if (p.price === undefined || p.price === null || typeof p.price !== 'number' || p.price < 0) { errors.push({ index: i, sku, error: 'Missing or invalid price' }); continue; }
     if (!p.url || typeof p.url !== 'string') { errors.push({ index: i, sku, error: 'Missing url' }); continue; }
 
+    // BUY-39599: Default country_code to 'SG' and region to country_code.toLowerCase()
+    // to prevent NULL violations on NOT NULL partition columns.
+    const cc = typeof p.country_code === 'string' ? p.country_code : 'SG';
     validProducts.push({
       sku,
       merchant_id: String(p.merchant_id),
@@ -661,8 +664,8 @@ async function handleIngestProducts(args: Record<string, unknown>) {
       is_available: typeof p.is_available === 'boolean' ? p.is_available : undefined,
       in_stock: typeof p.in_stock === 'boolean' ? p.in_stock : undefined,
       stock_level: typeof p.stock_level === 'string' ? p.stock_level : undefined,
-      country_code: typeof p.country_code === 'string' ? p.country_code : undefined,
-      region: typeof p.region === 'string' ? p.region : undefined,
+      country_code: cc,
+      region: typeof p.region === 'string' ? p.region : cc.toLowerCase(),
       metadata: (p.metadata && typeof p.metadata === 'object') ? p.metadata as Record<string, unknown> : undefined,
     });
   }
@@ -674,6 +677,25 @@ async function handleIngestProducts(args: Record<string, unknown>) {
       errors,
       response_time_ms: Date.now() - t0,
     };
+  }
+
+  // BUY-39599: Deduplicate by (sku, country_code) — PostgreSQL rejects ON CONFLICT
+  // DO UPDATE when the same row would be affected twice in a single command.
+  {
+    const seen = new Set<string>();
+    const unique: ValidProduct[] = [];
+    for (const p of validProducts) {
+      const dedupKey = `${p.sku}\0${p.country_code || 'SG'}`;
+      if (seen.has(dedupKey)) continue;
+      seen.add(dedupKey);
+      unique.push(p);
+    }
+    if (unique.length < validProducts.length) {
+      const dupes = validProducts.length - unique.length;
+      validProducts.length = 0;
+      validProducts.push(...unique);
+      console.warn(`[mcp:ingest] Deduped ${dupes} duplicate sku(s) from ${normalizedSource} batch`);
+    }
   }
 
   // Create ingestion run record
@@ -727,8 +749,8 @@ async function handleIngestProducts(args: Record<string, unknown>) {
         p.brand || null,
         JSON.stringify(metadata),
         p.is_active !== false,
-        p.region || null,
-        p.country_code || null,
+        p.region || (p.country_code || 'SG').toLowerCase(),
+        p.country_code || 'SG',
       );
 
       placeholders.push(
@@ -741,7 +763,7 @@ async function handleIngestProducts(args: Record<string, unknown>) {
          (sku, source, merchant_id, title, description, price, currency, url,
           image_url, category_path, brand, metadata, is_active, region, country_code)
        VALUES ${placeholders.join(', ')}
-       ON CONFLICT (sku, source)
+       ON CONFLICT (sku, source, country_code)
        DO UPDATE SET
          title = EXCLUDED.title,
          description = EXCLUDED.description,
