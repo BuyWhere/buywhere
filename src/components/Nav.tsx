@@ -96,6 +96,7 @@ export default function Nav() {
           <Link href="/partners" className="hover:text-indigo-600 transition-colors">Partners</Link>
           <Link href="/pricing" className="hover:text-indigo-600 transition-colors">Pricing</Link>
           <Link href="/about" className="hover:text-indigo-600 transition-colors">About</Link>
+          <Link href="/blog" className="hover:text-indigo-600 transition-colors">Blog</Link>
           <div className="flex items-center gap-3 ml-4 pl-4 border-l border-gray-200">
             <Link href="/login" className="hover:text-indigo-600 transition-colors">Log In</Link>
             <Link href="/register" className="rounded-lg bg-indigo-600 px-4 py-2 text-white transition-colors hover:bg-indigo-700">
@@ -168,6 +169,7 @@ export default function Nav() {
           <Link href="/partners" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Partners</Link>
           <Link href="/pricing" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Pricing</Link>
           <Link href="/about" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">About</Link>
+          <Link href="/blog" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Blog</Link>
           <div className="pt-3 mt-3 border-t border-gray-100 flex flex-col gap-3">
             <Link href="/login" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Log In</Link>
             <Link href="/register" onClick={() => setOpen(false)} className="rounded-lg bg-indigo-600 px-4 py-2 text-center text-white font-semibold">
