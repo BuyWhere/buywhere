@@ -76,11 +76,14 @@ function extractResultCount(body: unknown, statusCode: number): number | null {
 }
 
 /**
- * Express middleware that logs authenticated API requests to the query_log table.
+ * Express middleware that logs API requests to the query_log table.
  * Fire-and-forget — never blocks the response.
  *
- * Attach AFTER agentDetectMiddleware and requireApiKey so req.agentInfo and
- * req.apiKeyRecord are populated.
+ * Can be attached BEFORE requireApiKey (e.g. on MCP routes) so that
+ * unauthenticated requests (initialize, tools/list, auth failures) are also
+ * captured with null api_key_id. The finish handler reads req.apiKeyRecord
+ * at response time, so it is correctly populated for authenticated requests
+ * regardless of where in the middleware chain this middleware runs.
  */
 export function queryLogMiddleware(endpoint: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
@@ -103,8 +106,9 @@ export function queryLogMiddleware(endpoint: string) {
       const responseTimeMs = Date.now() - start;
       const isAgent = classifyIsAgent(req);
 
-      // Extract query text from common params
-      const queryText = (req.query.q as string) || (req.query.ids as string) || null;
+      // Extract query text: res.locals.queryText set by route handlers (e.g. MCP
+      // search_products body param), then fall back to URL query params.
+      const queryText = (res.locals.queryText as string) || (req.query.q as string) || (req.query.ids as string) || null;
 
       db.query(
         `INSERT INTO query_log

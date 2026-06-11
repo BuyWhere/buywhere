@@ -1022,9 +1022,18 @@ router.get('/', (_req: Request, res: Response) => {
   });
 });
 
-// POST /mcp — public methods (no auth): initialize + tools/list
-// Directory scanners (Glama, Smithery) call these without credentials to introspect the server.
-router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+// POST /mcp — log ALL MCP POST requests up front (BUY-31507).
+// queryLogMiddleware registers its finish handler on `res` before either the
+// public or authenticated handler runs. Because `res` is shared across the
+// entire request, the finish handler fires when *any* downstream handler
+// sends the response — including initialize/tools/list (public), 401s from
+// requireApiKey, and tools/call (authenticated). This closes the null rate
+// gaps: every request now gets latency_ms + result_status + api_key_id
+// (null only for unauthenticated callers, which is correct and expected).
+//
+// Directory scanners (Glama, Smithery) call initialize + tools/list without
+// credentials; those are handled here before auth runs.
+router.post('/', queryLogMiddleware('mcp'), async (req: Request, res: Response, next: NextFunction) => {
   const body = req.body;
   if (!body || body.jsonrpc !== '2.0' || !body.method) {
     return next(); // let the authenticated handler return the 400
@@ -1043,8 +1052,9 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   return next();
 });
 
-// POST /mcp — authenticated methods: tools/call (and any future additions)
-router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async (req: Request, res: Response) => {
+// POST /mcp — authenticated methods: tools/call (and any future additions).
+// queryLogMiddleware is already registered above; do NOT add it here.
+router.post('/', requireApiKey, checkRateLimit, async (req: Request, res: Response) => {
   const body = req.body;
 
   // Validate JSON-RPC envelope
@@ -1066,6 +1076,10 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         // BUY-22733: surface tool name to queryLog middleware so the finish
         // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
         res.locals.mcpToolName = toolName;
+        // BUY-31507: surface query text for search_products so query_log captures it.
+        if (toolName === 'search_products') {
+          res.locals.queryText = (toolArgs.q as string) || null;
+        }
         const result = await dispatchTool(toolName, toolArgs);
         return res.json(jsonrpcOk(id, {
           content: [{ type: 'text', text: JSON.stringify(result) }],
