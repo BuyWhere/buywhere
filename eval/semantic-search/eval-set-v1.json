@@ -1,0 +1,2456 @@
+{
+  "schema_version": "1.0",
+  "frozen": false,
+  "created_by": "Atlas QA",
+  "created_at": "2026-06-11T12:09:14.113Z",
+  "description": "Semantic search eval set — gates M1 launch gate (BUY-41139)",
+  "segment_counts": {
+    "english-broad": 100,
+    "sea-th": 20,
+    "sea-id": 20,
+    "sea-vi": 20,
+    "sea-zh-CN": 20,
+    "sea-zh-TW": 10,
+    "sea-fil": 10,
+    "sku-exact": 60,
+    "find-similar": 50
+  },
+  "total_cases": 310,
+  "cases": [
+    {
+      "id": "eval-0001",
+      "segment": "english-broad",
+      "query": "birthday gift for mom who loves to cook",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #1"
+    },
+    {
+      "id": "eval-0002",
+      "segment": "english-broad",
+      "query": "something to keep drinks cold at a party",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #2"
+    },
+    {
+      "id": "eval-0003",
+      "segment": "english-broad",
+      "query": "items needed for a backyard barbecue",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #3"
+    },
+    {
+      "id": "eval-0004",
+      "segment": "english-broad",
+      "query": "things to make my home smell nice",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #4"
+    },
+    {
+      "id": "eval-0005",
+      "segment": "english-broad",
+      "query": "gift for someone who just moved into a new house",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #5"
+    },
+    {
+      "id": "eval-0006",
+      "segment": "english-broad",
+      "query": "items for a romantic dinner at home",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #6"
+    },
+    {
+      "id": "eval-0007",
+      "segment": "english-broad",
+      "query": "ways to organize my small kitchen",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #7"
+    },
+    {
+      "id": "eval-0008",
+      "segment": "english-broad",
+      "query": "what do I need for a home coffee bar",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #8"
+    },
+    {
+      "id": "eval-0009",
+      "segment": "english-broad",
+      "query": "products to help me sleep better",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #9"
+    },
+    {
+      "id": "eval-0010",
+      "segment": "english-broad",
+      "query": "things for my home office to boost productivity",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #10"
+    },
+    {
+      "id": "eval-0011",
+      "segment": "english-broad",
+      "query": "gift ideas under $50 for a wedding",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #11"
+    },
+    {
+      "id": "eval-0012",
+      "segment": "english-broad",
+      "query": "how to set a formal dining table",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #12"
+    },
+    {
+      "id": "eval-0013",
+      "segment": "english-broad",
+      "query": "items for a picnic basket",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #13"
+    },
+    {
+      "id": "eval-0014",
+      "segment": "english-broad",
+      "query": "things I need for camping",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #14"
+    },
+    {
+      "id": "eval-0015",
+      "segment": "english-broad",
+      "query": "home gym essentials",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #15"
+    },
+    {
+      "id": "eval-0016",
+      "segment": "english-broad",
+      "query": "products to clean my air fryer",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #16"
+    },
+    {
+      "id": "eval-0017",
+      "segment": "english-broad",
+      "query": "things for a baby shower gift",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #17"
+    },
+    {
+      "id": "eval-0018",
+      "segment": "english-broad",
+      "query": "items for a tea party",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #18"
+    },
+    {
+      "id": "eval-0019",
+      "segment": "english-broad",
+      "query": "how to arrange flowers like a professional",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #19"
+    },
+    {
+      "id": "eval-0020",
+      "segment": "english-broad",
+      "query": "things for outdoor movie nights",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #20"
+    },
+    {
+      "id": "eval-0021",
+      "segment": "english-broad",
+      "query": "gift for someone who loves wine",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #21"
+    },
+    {
+      "id": "eval-0022",
+      "segment": "english-broad",
+      "query": "ways to decorate a console table",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #22"
+    },
+    {
+      "id": "eval-0023",
+      "segment": "english-broad",
+      "query": "items needed for a pancake breakfast",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #23"
+    },
+    {
+      "id": "eval-0024",
+      "segment": "english-broad",
+      "query": "things for setting up a reading nook",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #24"
+    },
+    {
+      "id": "eval-0025",
+      "segment": "english-broad",
+      "query": "products for a beach day",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #25"
+    },
+    {
+      "id": "eval-0026",
+      "segment": "english-broad",
+      "query": "what to get for a hostess gift",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #26"
+    },
+    {
+      "id": "eval-0027",
+      "segment": "english-broad",
+      "query": "items for a winter soup station",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #27"
+    },
+    {
+      "id": "eval-0028",
+      "segment": "english-broad",
+      "query": "ways to organize my closet",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #28"
+    },
+    {
+      "id": "eval-0029",
+      "segment": "english-broad",
+      "query": "things for a game night",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #29"
+    },
+    {
+      "id": "eval-0030",
+      "segment": "english-broad",
+      "query": "home bar essentials",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #30"
+    },
+    {
+      "id": "eval-0031",
+      "segment": "english-broad",
+      "query": "gifts for someone who has everything",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #31"
+    },
+    {
+      "id": "eval-0032",
+      "segment": "english-broad",
+      "query": "things to put in a gift basket",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #32"
+    },
+    {
+      "id": "eval-0033",
+      "segment": "english-broad",
+      "query": "items for an outdoor fire pit area",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #33"
+    },
+    {
+      "id": "eval-0034",
+      "segment": "english-broad",
+      "query": "how to style open shelving in kitchen",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #34"
+    },
+    {
+      "id": "eval-0035",
+      "segment": "english-broad",
+      "query": "products for canning at home",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #35"
+    },
+    {
+      "id": "eval-0036",
+      "segment": "english-broad",
+      "query": "things for a pet-friendly home",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #36"
+    },
+    {
+      "id": "eval-0037",
+      "segment": "english-broad",
+      "query": "gift for a new dad",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #37"
+    },
+    {
+      "id": "eval-0038",
+      "segment": "english-broad",
+      "query": "ways to improve my patio",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #38"
+    },
+    {
+      "id": "eval-0039",
+      "segment": "english-broad",
+      "query": "items for a self-care day at home",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #39"
+    },
+    {
+      "id": "eval-0040",
+      "segment": "english-broad",
+      "query": "things for maintaining cast iron cookware",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #40"
+    },
+    {
+      "id": "eval-0041",
+      "segment": "english-broad",
+      "query": "products for a homework station",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #41"
+    },
+    {
+      "id": "eval-0042",
+      "segment": "english-broad",
+      "query": "what to serve at a brunch party",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #42"
+    },
+    {
+      "id": "eval-0043",
+      "segment": "english-broad",
+      "query": "items for a hotel-style bedroom",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #43"
+    },
+    {
+      "id": "eval-0044",
+      "segment": "english-broad",
+      "query": "things for organizing craft supplies",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #44"
+    },
+    {
+      "id": "eval-0045",
+      "segment": "english-broad",
+      "query": "gift for someone learning to cook",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #45"
+    },
+    {
+      "id": "eval-0046",
+      "segment": "english-broad",
+      "query": "ways to add lighting to a dark room",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #46"
+    },
+    {
+      "id": "eval-0047",
+      "segment": "english-broad",
+      "query": "products for outdoor string lights",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #47"
+    },
+    {
+      "id": "eval-0048",
+      "segment": "english-broad",
+      "query": "things for a Thanksgiving centerpiece",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #48"
+    },
+    {
+      "id": "eval-0049",
+      "segment": "english-broad",
+      "query": "items for a cocktail party",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #49"
+    },
+    {
+      "id": "eval-0050",
+      "segment": "english-broad",
+      "query": "how to organize my spice cabinet",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #50"
+    },
+    {
+      "id": "eval-0051",
+      "segment": "english-broad",
+      "query": "things for a nursery room",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #51"
+    },
+    {
+      "id": "eval-0052",
+      "segment": "english-broad",
+      "query": "gifts for a wine lover under $100",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #52"
+    },
+    {
+      "id": "eval-0053",
+      "segment": "english-broad",
+      "query": "products to organize my desk",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #53"
+    },
+    {
+      "id": "eval-0054",
+      "segment": "english-broad",
+      "query": "items for a minimalist home",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #54"
+    },
+    {
+      "id": "eval-0055",
+      "segment": "english-broad",
+      "query": "things for making homemade pasta",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #55"
+    },
+    {
+      "id": "eval-0056",
+      "segment": "english-broad",
+      "query": "what to get for a teachers gift",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #56"
+    },
+    {
+      "id": "eval-0057",
+      "segment": "english-broad",
+      "query": "ways to display family photos",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #57"
+    },
+    {
+      "id": "eval-0058",
+      "segment": "english-broad",
+      "query": "items for a mudroom",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #58"
+    },
+    {
+      "id": "eval-0059",
+      "segment": "english-broad",
+      "query": "products for cleaning barbecue grill",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #59"
+    },
+    {
+      "id": "eval-0060",
+      "segment": "english-broad",
+      "query": "things for a summer garden party",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #60"
+    },
+    {
+      "id": "eval-0061",
+      "segment": "english-broad",
+      "query": "gifts for someone who entertains often",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #61"
+    },
+    {
+      "id": "eval-0062",
+      "segment": "english-broad",
+      "query": "items for a first apartment",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #62"
+    },
+    {
+      "id": "eval-0063",
+      "segment": "english-broad",
+      "query": "ways to organize under the sink",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #63"
+    },
+    {
+      "id": "eval-0064",
+      "segment": "english-broad",
+      "query": "products for a more sustainable kitchen",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #64"
+    },
+    {
+      "id": "eval-0065",
+      "segment": "english-broad",
+      "query": "things for a cocktail making kit",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #65"
+    },
+    {
+      "id": "eval-0066",
+      "segment": "english-broad",
+      "query": "how to arrange throw pillows",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #66"
+    },
+    {
+      "id": "eval-0067",
+      "segment": "english-broad",
+      "query": "items for a DIY pizza night",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #67"
+    },
+    {
+      "id": "eval-0068",
+      "segment": "english-broad",
+      "query": "gift for a coffee snob",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #68"
+    },
+    {
+      "id": "eval-0069",
+      "segment": "english-broad",
+      "query": "things for outdoor string lights setup",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #69"
+    },
+    {
+      "id": "eval-0070",
+      "segment": "english-broad",
+      "query": "products for washing delicate clothes",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #70"
+    },
+    {
+      "id": "eval-0071",
+      "segment": "english-broad",
+      "query": "items for a bedside reading setup",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #71"
+    },
+    {
+      "id": "eval-0072",
+      "segment": "english-broad",
+      "query": "ways to organize my recipes",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #72"
+    },
+    {
+      "id": "eval-0073",
+      "segment": "english-broad",
+      "query": "things for a luxury guest room",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #73"
+    },
+    {
+      "id": "eval-0074",
+      "segment": "english-broad",
+      "query": "products for removing wine stains",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #74"
+    },
+    {
+      "id": "eval-0075",
+      "segment": "english-broad",
+      "query": "gift for someone who loves to bake",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #75"
+    },
+    {
+      "id": "eval-0076",
+      "segment": "english-broad",
+      "query": "items for an herb garden indoors",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #76"
+    },
+    {
+      "id": "eval-0077",
+      "segment": "english-broad",
+      "query": "things for organizing kids toys",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #77"
+    },
+    {
+      "id": "eval-0078",
+      "segment": "english-broad",
+      "query": "ways to add storage to a tiny bathroom",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #78"
+    },
+    {
+      "id": "eval-0079",
+      "segment": "english-broad",
+      "query": "products for a cozy movie night",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #79"
+    },
+    {
+      "id": "eval-0080",
+      "segment": "english-broad",
+      "query": "what to put in a charcuterie board",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #80"
+    },
+    {
+      "id": "eval-0081",
+      "segment": "english-broad",
+      "query": "items for maintaining outdoor furniture",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #81"
+    },
+    {
+      "id": "eval-0082",
+      "segment": "english-broad",
+      "query": "things for a romantic anniversary dinner",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #82"
+    },
+    {
+      "id": "eval-0083",
+      "segment": "english-broad",
+      "query": "gift for someone who is hard to buy for",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #83"
+    },
+    {
+      "id": "eval-0084",
+      "segment": "english-broad",
+      "query": "ways to organize my vanity",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #84"
+    },
+    {
+      "id": "eval-0085",
+      "segment": "english-broad",
+      "query": "products for cleaning copper pans",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #85"
+    },
+    {
+      "id": "eval-0086",
+      "segment": "english-broad",
+      "query": "items for a childs birthday party",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #86"
+    },
+    {
+      "id": "eval-0087",
+      "segment": "english-broad",
+      "query": "things to make a small bathroom look bigger",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #87"
+    },
+    {
+      "id": "eval-0088",
+      "segment": "english-broad",
+      "query": "how to set up a juice bar at home",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #88"
+    },
+    {
+      "id": "eval-0089",
+      "segment": "english-broad",
+      "query": "gift for a fitness enthusiast",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #89"
+    },
+    {
+      "id": "eval-0090",
+      "segment": "english-broad",
+      "query": "products for organizing cables and cords",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #90"
+    },
+    {
+      "id": "eval-0091",
+      "segment": "english-broad",
+      "query": "items for a summer salad bar",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #91"
+    },
+    {
+      "id": "eval-0092",
+      "segment": "english-broad",
+      "query": "things for a dog-friendly living room",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #92"
+    },
+    {
+      "id": "eval-0093",
+      "segment": "english-broad",
+      "query": "ways to improve dining room ambiance",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #93"
+    },
+    {
+      "id": "eval-0094",
+      "segment": "english-broad",
+      "query": "products for removing pet hair from furniture",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #94"
+    },
+    {
+      "id": "eval-0095",
+      "segment": "english-broad",
+      "query": "what to pack for a staycation",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #95"
+    },
+    {
+      "id": "eval-0096",
+      "segment": "english-broad",
+      "query": "items for a vintage kitchen look",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #96"
+    },
+    {
+      "id": "eval-0097",
+      "segment": "english-broad",
+      "query": "gift for someone who loves Scandinavian design",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #97"
+    },
+    {
+      "id": "eval-0098",
+      "segment": "english-broad",
+      "query": "things for organizing a linen closet",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #98"
+    },
+    {
+      "id": "eval-0099",
+      "segment": "english-broad",
+      "query": "ways to style a bookshelf",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #99"
+    },
+    {
+      "id": "eval-0100",
+      "segment": "english-broad",
+      "query": "products for deep cleaning a dishwasher",
+      "expected_product_ids": [],
+      "notes": "Intent-category query #100"
+    },
+    {
+      "id": "eval-0101",
+      "segment": "sea-th",
+      "query": "กาแฟดำไม่มีน้ำตาล",
+      "expected_product_ids": [],
+      "notes": "Black coffee no sugar"
+    },
+    {
+      "id": "eval-0102",
+      "segment": "sea-th",
+      "query": "หม้อทอดไร้น้ำมัน ยี่ห้อดี",
+      "expected_product_ids": [],
+      "notes": "Good air fryer brand"
+    },
+    {
+      "id": "eval-0103",
+      "segment": "sea-th",
+      "query": "ชุดจีนสำหรับงานเลี้ยง",
+      "expected_product_ids": [],
+      "notes": "Chinese dining set for banquet"
+    },
+    {
+      "id": "eval-0104",
+      "segment": "sea-th",
+      "query": "เครื่องชงกาแฟสำหรับบ้าน",
+      "expected_product_ids": [],
+      "notes": "Home coffee maker"
+    },
+    {
+      "id": "eval-0105",
+      "segment": "sea-th",
+      "query": "ที่นอนยางพารา 6 ฟุต",
+      "expected_product_ids": [],
+      "notes": "6-foot latex mattress"
+    },
+    {
+      "id": "eval-0106",
+      "segment": "sea-th",
+      "query": "ชุดเครื่องนอนลอฟท์",
+      "expected_product_ids": [],
+      "notes": "Loft bedding set"
+    },
+    {
+      "id": "eval-0107",
+      "segment": "sea-th",
+      "query": "ตู้เก็บรองเท้า ราคาถูก",
+      "expected_product_ids": [],
+      "notes": "Cheap shoe cabinet"
+    },
+    {
+      "id": "eval-0108",
+      "segment": "sea-th",
+      "query": "โต๊ะกินข้าว 4 ที่นั่ง",
+      "expected_product_ids": [],
+      "notes": "4-seater dining table"
+    },
+    {
+      "id": "eval-0109",
+      "segment": "sea-th",
+      "query": "ผ้าม่านกันแดด สำหรับห้องนอน",
+      "expected_product_ids": [],
+      "notes": "Blackout curtains for bedroom"
+    },
+    {
+      "id": "eval-0110",
+      "segment": "sea-th",
+      "query": "เตาอบไฟฟ้า ขนาดเล็ก",
+      "expected_product_ids": [],
+      "notes": "Small electric oven"
+    },
+    {
+      "id": "eval-0111",
+      "segment": "sea-th",
+      "query": "กระถางต้นไม้ บนโต๊ะ",
+      "expected_product_ids": [],
+      "notes": "Tabletop plant pots"
+    },
+    {
+      "id": "eval-0112",
+      "segment": "sea-th",
+      "query": "ชุดถ้วยกาแฟเซรามิก",
+      "expected_product_ids": [],
+      "notes": "Ceramic coffee cup set"
+    },
+    {
+      "id": "eval-0113",
+      "segment": "sea-th",
+      "query": "ที่วางรองเท้า สำหรับทางเข้าบ้าน",
+      "expected_product_ids": [],
+      "notes": "Entryway shoe rack"
+    },
+    {
+      "id": "eval-0114",
+      "segment": "sea-th",
+      "query": "ผ้าปูที่นอน ผ้าฝ้าย 100%",
+      "expected_product_ids": [],
+      "notes": "100% cotton bed sheet"
+    },
+    {
+      "id": "eval-0115",
+      "segment": "sea-th",
+      "query": "เครื่องทำน้ำแข็ง สำหรับบ้าน",
+      "expected_product_ids": [],
+      "notes": "Home ice maker"
+    },
+    {
+      "id": "eval-0116",
+      "segment": "sea-th",
+      "query": "โคมไฟตั้งพื้น สำหรับห้องนั่งเล่น",
+      "expected_product_ids": [],
+      "notes": "Living room floor lamp"
+    },
+    {
+      "id": "eval-0117",
+      "segment": "sea-th",
+      "query": "กล่องเก็บของ ใต้เตียง",
+      "expected_product_ids": [],
+      "notes": "Under-bed storage boxes"
+    },
+    {
+      "id": "eval-0118",
+      "segment": "sea-th",
+      "query": "ชุดเครื่องปิงกิ้ง แบรนด์ดัง",
+      "expected_product_ids": [],
+      "notes": "Famous brand baking set"
+    },
+    {
+      "id": "eval-0119",
+      "segment": "sea-th",
+      "query": "ตู้เย็น ขนาดเล็ก ราคาดี",
+      "expected_product_ids": [],
+      "notes": "Good price small refrigerator"
+    },
+    {
+      "id": "eval-0120",
+      "segment": "sea-th",
+      "query": "ถ้วยเซรามิก สำหรับชา",
+      "expected_product_ids": [],
+      "notes": "Ceramic tea cups"
+    },
+    {
+      "id": "eval-0121",
+      "segment": "sea-id",
+      "query": "mesin kopi untuk rumah",
+      "expected_product_ids": [],
+      "notes": "Home coffee machine"
+    },
+    {
+      "id": "eval-0122",
+      "segment": "sea-id",
+      "query": "piring makan malam minimalis",
+      "expected_product_ids": [],
+      "notes": "Minimalist dinner plates"
+    },
+    {
+      "id": "eval-0123",
+      "segment": "sea-id",
+      "query": "tanaman hias dalam ruangan besar",
+      "expected_product_ids": [],
+      "notes": "Large indoor decorative plants"
+    },
+    {
+      "id": "eval-0124",
+      "segment": "sea-id",
+      "query": "rak buku kayu jati",
+      "expected_product_ids": [],
+      "notes": "Teak wood bookshelf"
+    },
+    {
+      "id": "eval-0125",
+      "segment": "sea-id",
+      "query": "kasur busa 2 layer",
+      "expected_product_ids": [],
+      "notes": "2-layer foam mattress"
+    },
+    {
+      "id": "eval-0126",
+      "segment": "sea-id",
+      "query": "lampu tidur minimalis untuk kamar",
+      "expected_product_ids": [],
+      "notes": "Minimalist bedroom night lamp"
+    },
+    {
+      "id": "eval-0127",
+      "segment": "sea-id",
+      "query": "perlengkapan masak stainless steel",
+      "expected_product_ids": [],
+      "notes": "Stainless steel cookware set"
+    },
+    {
+      "id": "eval-0128",
+      "segment": "sea-id",
+      "query": "cermin bulat besar untuk ruang tamu",
+      "expected_product_ids": [],
+      "notes": "Large round mirror for living room"
+    },
+    {
+      "id": "eval-0129",
+      "segment": "sea-id",
+      "query": "selimut tebal untuk musim dingin",
+      "expected_product_ids": [],
+      "notes": "Thick blanket for winter"
+    },
+    {
+      "id": "eval-0130",
+      "segment": "sea-id",
+      "query": "kursi kerja ergonomis",
+      "expected_product_ids": [],
+      "notes": "Ergonomic office chair"
+    },
+    {
+      "id": "eval-0131",
+      "segment": "sea-id",
+      "query": "lemari pakaian 2 pintu",
+      "expected_product_ids": [],
+      "notes": "2-door wardrobe cabinet"
+    },
+    {
+      "id": "eval-0132",
+      "segment": "sea-id",
+      "query": "set meja makan 6 kursi",
+      "expected_product_ids": [],
+      "notes": "6-chair dining set"
+    },
+    {
+      "id": "eval-0133",
+      "segment": "sea-id",
+      "query": "tempat sampah otomatis",
+      "expected_product_ids": [],
+      "notes": "Automatic trash can"
+    },
+    {
+      "id": "eval-0134",
+      "segment": "sea-id",
+      "query": "oven gas kecil",
+      "expected_product_ids": [],
+      "notes": "Small gas oven"
+    },
+    {
+      "id": "eval-0135",
+      "segment": "sea-id",
+      "query": "carpet bulu tebal untuk ruang keluarga",
+      "expected_product_ids": [],
+      "notes": "Thick carpet for family room"
+    },
+    {
+      "id": "eval-0136",
+      "segment": "sea-id",
+      "query": "gorden blackout untuk kamar tidur",
+      "expected_product_ids": [],
+      "notes": "Blackout curtains for bedroom"
+    },
+    {
+      "id": "eval-0137",
+      "segment": "sea-id",
+      "query": "organizer dapur stainless steel",
+      "expected_product_ids": [],
+      "notes": "Stainless steel kitchen organizer"
+    },
+    {
+      "id": "eval-0138",
+      "segment": "sea-id",
+      "query": "bantal tidur memory foam",
+      "expected_product_ids": [],
+      "notes": "Memory foam sleep pillow"
+    },
+    {
+      "id": "eval-0139",
+      "segment": "sea-id",
+      "query": "teko listrik stainless steel",
+      "expected_product_ids": [],
+      "notes": "Stainless steel electric kettle"
+    },
+    {
+      "id": "eval-0140",
+      "segment": "sea-id",
+      "query": "rak sepatu minimalis",
+      "expected_product_ids": [],
+      "notes": "Minimalist shoe rack"
+    },
+    {
+      "id": "eval-0141",
+      "segment": "sea-vi",
+      "query": "bình giữ nhiệt tốt nhất",
+      "expected_product_ids": [],
+      "notes": "Best thermos flask"
+    },
+    {
+      "id": "eval-0142",
+      "segment": "sea-vi",
+      "query": "nồi chiên không dầu cho gia đình",
+      "expected_product_ids": [],
+      "notes": "Air fryer for family"
+    },
+    {
+      "id": "eval-0143",
+      "segment": "sea-vi",
+      "query": "bộ sưu tập ly rượu vang",
+      "expected_product_ids": [],
+      "notes": "Wine glass collection"
+    },
+    {
+      "id": "eval-0144",
+      "segment": "sea-vi",
+      "query": "đệm foam cho giường đôi",
+      "expected_product_ids": [],
+      "notes": "Foam mattress for double bed"
+    },
+    {
+      "id": "eval-0145",
+      "segment": "sea-vi",
+      "query": "kệ sách bằng gỗ tự nhiên",
+      "expected_product_ids": [],
+      "notes": "Natural wood bookshelf"
+    },
+    {
+      "id": "eval-0146",
+      "segment": "sea-vi",
+      "query": "máy pha cà phê cho văn phòng",
+      "expected_product_ids": [],
+      "notes": "Office coffee machine"
+    },
+    {
+      "id": "eval-0147",
+      "segment": "sea-vi",
+      "query": "bộ chăn ga gối cao cấp",
+      "expected_product_ids": [],
+      "notes": "Premium bedding set"
+    },
+    {
+      "id": "eval-0148",
+      "segment": "sea-vi",
+      "query": "đèn ngủ thông minh",
+      "expected_product_ids": [],
+      "notes": "Smart night light"
+    },
+    {
+      "id": "eval-0149",
+      "segment": "sea-vi",
+      "query": "ghế xoay văn phòng thoải mái",
+      "expected_product_ids": [],
+      "notes": "Comfortable office swivel chair"
+    },
+    {
+      "id": "eval-0150",
+      "segment": "sea-vi",
+      "query": "tủ lạnh nhỏ cho phòng trọ",
+      "expected_product_ids": [],
+      "notes": "Small fridge for rental room"
+    },
+    {
+      "id": "eval-0151",
+      "segment": "sea-vi",
+      "query": "bếp gas đôi cao cấp",
+      "expected_product_ids": [],
+      "notes": "Premium double gas stove"
+    },
+    {
+      "id": "eval-0152",
+      "segment": "sea-vi",
+      "query": "kệ đựng gia vị xoay",
+      "expected_product_ids": [],
+      "notes": "Rotating spice rack"
+    },
+    {
+      "id": "eval-0153",
+      "segment": "sea-vi",
+      "query": "bộ dao bếp sắc bén",
+      "expected_product_ids": [],
+      "notes": "Sharp kitchen knife set"
+    },
+    {
+      "id": "eval-0154",
+      "segment": "sea-vi",
+      "query": "thảm trải sàn phòng khách",
+      "expected_product_ids": [],
+      "notes": "Living room floor carpet"
+    },
+    {
+      "id": "eval-0155",
+      "segment": "sea-vi",
+      "query": "tranh trang trí phòng ngủ",
+      "expected_product_ids": [],
+      "notes": "Bedroom wall art"
+    },
+    {
+      "id": "eval-0156",
+      "segment": "sea-vi",
+      "query": "máy lọc không khí cho nhà có trẻ em",
+      "expected_product_ids": [],
+      "notes": "Air purifier for home with children"
+    },
+    {
+      "id": "eval-0157",
+      "segment": "sea-vi",
+      "query": "nồi nấu cháo cho bé",
+      "expected_product_ids": [],
+      "notes": "Baby porridge cooker"
+    },
+    {
+      "id": "eval-0158",
+      "segment": "sea-vi",
+      "query": "bàn làm việc đứng",
+      "expected_product_ids": [],
+      "notes": "Standing desk"
+    },
+    {
+      "id": "eval-0159",
+      "segment": "sea-vi",
+      "query": "giá đỡ TV treo tường",
+      "expected_product_ids": [],
+      "notes": "Wall-mounted TV bracket"
+    },
+    {
+      "id": "eval-0160",
+      "segment": "sea-vi",
+      "query": "hộp đựng thực phẩm thủy tinh",
+      "expected_product_ids": [],
+      "notes": "Glass food storage containers"
+    },
+    {
+      "id": "eval-0161",
+      "segment": "sea-zh-CN",
+      "query": "家用咖啡机 全自动",
+      "expected_product_ids": [],
+      "notes": "Fully automatic home coffee machine"
+    },
+    {
+      "id": "eval-0162",
+      "segment": "sea-zh-CN",
+      "query": "双人记忆棉枕头",
+      "expected_product_ids": [],
+      "notes": "Double memory foam pillow"
+    },
+    {
+      "id": "eval-0163",
+      "segment": "sea-zh-CN",
+      "query": "6人位实木餐桌",
+      "expected_product_ids": [],
+      "notes": "6-seater solid wood dining table"
+    },
+    {
+      "id": "eval-0164",
+      "segment": "sea-zh-CN",
+      "query": "卧室LED吸顶灯",
+      "expected_product_ids": [],
+      "notes": "Bedroom LED ceiling lamp"
+    },
+    {
+      "id": "eval-0165",
+      "segment": "sea-zh-CN",
+      "query": "小型迷你冰箱",
+      "expected_product_ids": [],
+      "notes": "Small mini refrigerator"
+    },
+    {
+      "id": "eval-0166",
+      "segment": "sea-zh-CN",
+      "query": "全自动洗衣机",
+      "expected_product_ids": [],
+      "notes": "Fully automatic washing machine"
+    },
+    {
+      "id": "eval-0167",
+      "segment": "sea-zh-CN",
+      "query": "真皮办公椅",
+      "expected_product_ids": [],
+      "notes": "Leather office chair"
+    },
+    {
+      "id": "eval-0168",
+      "segment": "sea-zh-CN",
+      "query": "厨房置物架 不锈钢",
+      "expected_product_ids": [],
+      "notes": "Stainless steel kitchen rack"
+    },
+    {
+      "id": "eval-0169",
+      "segment": "sea-zh-CN",
+      "query": "儿童学习桌椅套装",
+      "expected_product_ids": [],
+      "notes": "Kids study desk chair set"
+    },
+    {
+      "id": "eval-0170",
+      "segment": "sea-zh-CN",
+      "query": "电动按摩椅 家用",
+      "expected_product_ids": [],
+      "notes": "Home electric massage chair"
+    },
+    {
+      "id": "eval-0171",
+      "segment": "sea-zh-CN",
+      "query": "北欧风格客厅地毯",
+      "expected_product_ids": [],
+      "notes": "Nordic style living room carpet"
+    },
+    {
+      "id": "eval-0172",
+      "segment": "sea-zh-CN",
+      "query": "双门实木衣柜",
+      "expected_product_ids": [],
+      "notes": "Double-door solid wood wardrobe"
+    },
+    {
+      "id": "eval-0173",
+      "segment": "sea-zh-CN",
+      "query": "智能扫地机器人",
+      "expected_product_ids": [],
+      "notes": "Smart robot vacuum cleaner"
+    },
+    {
+      "id": "eval-0174",
+      "segment": "sea-zh-CN",
+      "query": "即热式饮水机",
+      "expected_product_ids": [],
+      "notes": "Instant hot water dispenser"
+    },
+    {
+      "id": "eval-0175",
+      "segment": "sea-zh-CN",
+      "query": "阳台伸缩晾衣架",
+      "expected_product_ids": [],
+      "notes": "Balcony retractable clothes rack"
+    },
+    {
+      "id": "eval-0176",
+      "segment": "sea-zh-CN",
+      "query": "家用保险柜 小型",
+      "expected_product_ids": [],
+      "notes": "Small home safe"
+    },
+    {
+      "id": "eval-0177",
+      "segment": "sea-zh-CN",
+      "query": "落地灯 北欧简约",
+      "expected_product_ids": [],
+      "notes": "Nordic minimalist floor lamp"
+    },
+    {
+      "id": "eval-0178",
+      "segment": "sea-zh-CN",
+      "query": "厨房料理盆套装",
+      "expected_product_ids": [],
+      "notes": "Kitchen mixing bowl set"
+    },
+    {
+      "id": "eval-0179",
+      "segment": "sea-zh-CN",
+      "query": "婴儿智能监护仪",
+      "expected_product_ids": [],
+      "notes": "Baby smart monitor"
+    },
+    {
+      "id": "eval-0180",
+      "segment": "sea-zh-CN",
+      "query": "多功能电饭煲",
+      "expected_product_ids": [],
+      "notes": "Multi-function rice cooker"
+    },
+    {
+      "id": "eval-0181",
+      "segment": "sea-zh-TW",
+      "query": "家用半自動咖啡機",
+      "expected_product_ids": [],
+      "notes": "Home semi-automatic coffee machine"
+    },
+    {
+      "id": "eval-0182",
+      "segment": "sea-zh-TW",
+      "query": "雙人記憶枕",
+      "expected_product_ids": [],
+      "notes": "Double memory pillow"
+    },
+    {
+      "id": "eval-0183",
+      "segment": "sea-zh-TW",
+      "query": "實木六人餐桌",
+      "expected_product_ids": [],
+      "notes": "Solid wood 6-person dining table"
+    },
+    {
+      "id": "eval-0184",
+      "segment": "sea-zh-TW",
+      "query": "北歐風臥室LED吊燈",
+      "expected_product_ids": [],
+      "notes": "Nordic bedroom LED chandelier"
+    },
+    {
+      "id": "eval-0185",
+      "segment": "sea-zh-TW",
+      "query": "小型迷你冰箱",
+      "expected_product_ids": [],
+      "notes": "Compact mini fridge"
+    },
+    {
+      "id": "eval-0186",
+      "segment": "sea-zh-TW",
+      "query": "全自動洗衣機",
+      "expected_product_ids": [],
+      "notes": "Fully automatic washing machine"
+    },
+    {
+      "id": "eval-0187",
+      "segment": "sea-zh-TW",
+      "query": "真皮辦公椅",
+      "expected_product_ids": [],
+      "notes": "Leather office chair"
+    },
+    {
+      "id": "eval-0188",
+      "segment": "sea-zh-TW",
+      "query": "不鏽鋼廚房置物架",
+      "expected_product_ids": [],
+      "notes": "Stainless steel kitchen rack"
+    },
+    {
+      "id": "eval-0189",
+      "segment": "sea-zh-TW",
+      "query": "兒童學習桌椅套裝",
+      "expected_product_ids": [],
+      "notes": "Kids study desk set"
+    },
+    {
+      "id": "eval-0190",
+      "segment": "sea-zh-TW",
+      "query": "家用電動按摩椅",
+      "expected_product_ids": [],
+      "notes": "Home electric massage chair"
+    },
+    {
+      "id": "eval-0191",
+      "segment": "sea-fil",
+      "query": "kulang ng kutsara sa hapagkainan",
+      "expected_product_ids": [],
+      "notes": "Missing spoon for dining"
+    },
+    {
+      "id": "eval-0192",
+      "segment": "sea-fil",
+      "query": "plantang ornamental para sa bahay",
+      "expected_product_ids": [],
+      "notes": "Ornamental plants for home"
+    },
+    {
+      "id": "eval-0193",
+      "segment": "sea-fil",
+      "query": "lampaso para sa sala",
+      "expected_product_ids": [],
+      "notes": "Living room carpet"
+    },
+    {
+      "id": "eval-0194",
+      "segment": "sea-fil",
+      "query": "kama sa kwarto ng mga bata",
+      "expected_product_ids": [],
+      "notes": "Bed for kids room"
+    },
+    {
+      "id": "eval-0195",
+      "segment": "sea-fil",
+      "query": "aparador para sa kusina",
+      "expected_product_ids": [],
+      "notes": "Kitchen cabinet"
+    },
+    {
+      "id": "eval-0196",
+      "segment": "sea-fil",
+      "query": "lampara ng mesa para sa study",
+      "expected_product_ids": [],
+      "notes": "Desk lamp for studying"
+    },
+    {
+      "id": "eval-0197",
+      "segment": "sea-fil",
+      "query": "timpla ng kape para sa umaga",
+      "expected_product_ids": [],
+      "notes": "Coffee blend for morning"
+    },
+    {
+      "id": "eval-0198",
+      "segment": "sea-fil",
+      "query": "mahating kutsilyo sa kusina",
+      "expected_product_ids": [],
+      "notes": "Sharp kitchen knife"
+    },
+    {
+      "id": "eval-0199",
+      "segment": "sea-fil",
+      "query": "shower curtain para sa banyo",
+      "expected_product_ids": [],
+      "notes": "Shower curtain for bathroom"
+    },
+    {
+      "id": "eval-0200",
+      "segment": "sea-fil",
+      "query": "cabinet para sa sala",
+      "expected_product_ids": [],
+      "notes": "Living room cabinet"
+    },
+    {
+      "id": "eval-0201",
+      "segment": "sku-exact",
+      "query": "williams-sonoma.com/mauviel-mcook-tradition-teakettle",
+      "expected_product_ids": [
+        "williams-sonoma.com/mauviel-mcook-tradition-teakettle"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0202",
+      "segment": "sku-exact",
+      "query": "williams-sonoma.com/chemex-wood-collar-glass-coffeemaker",
+      "expected_product_ids": [
+        "williams-sonoma.com/chemex-wood-collar-glass-coffeemaker"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0203",
+      "segment": "sku-exact",
+      "query": "williams-sonoma.com/cuisinart-supreme-grind-automatic-burr-mill-grinder",
+      "expected_product_ids": [
+        "williams-sonoma.com/cuisinart-supreme-grind-automatic-burr-mill-grinder"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0204",
+      "segment": "sku-exact",
+      "query": "williams-sonoma.com/le-creuset-stainless-steel-tea-kettle",
+      "expected_product_ids": [
+        "williams-sonoma.com/le-creuset-stainless-steel-tea-kettle"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0205",
+      "segment": "sku-exact",
+      "query": "williams-sonoma.com/all-clad-5-qt-gourmet-plus-slow-cooker",
+      "expected_product_ids": [
+        "williams-sonoma.com/all-clad-5-qt-gourmet-plus-slow-cooker"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0206",
+      "segment": "sku-exact",
+      "query": "williams-sonoma.com/wusthof-gourmet-bread-knife",
+      "expected_product_ids": [
+        "williams-sonoma.com/wusthof-gourmet-bread-knife"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0207",
+      "segment": "sku-exact",
+      "query": "williams-sonoma.com/shark-pet-plus-cordless-stick-vacuum",
+      "expected_product_ids": [
+        "williams-sonoma.com/shark-pet-plus-cordless-stick-vacuum"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0208",
+      "segment": "sku-exact",
+      "query": "williams-sonoma.com/scanpan-haptiq-dutch-oven",
+      "expected_product_ids": [
+        "williams-sonoma.com/scanpan-haptiq-dutch-oven"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0209",
+      "segment": "sku-exact",
+      "query": "williams-sonoma.com/laguiole-en-aubrac-waiters-corkscrew-olivewood",
+      "expected_product_ids": [
+        "williams-sonoma.com/laguiole-en-aubrac-waiters-corkscrew-olivewood"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0210",
+      "segment": "sku-exact",
+      "query": "williams-sonoma.com/simplehuman-5l-slim-step-can",
+      "expected_product_ids": [
+        "williams-sonoma.com/simplehuman-5l-slim-step-can"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0211",
+      "segment": "sku-exact",
+      "query": "williams-sonoma.com/coravin-pivot-plus",
+      "expected_product_ids": [
+        "williams-sonoma.com/coravin-pivot-plus"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0212",
+      "segment": "sku-exact",
+      "query": "williams-sonoma.com/silpat-silicone-muffin-pan-12-well",
+      "expected_product_ids": [
+        "williams-sonoma.com/silpat-silicone-muffin-pan-12-well"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0213",
+      "segment": "sku-exact",
+      "query": "williams-sonoma.com/breville-the-steam-wand-cleaner",
+      "expected_product_ids": [
+        "williams-sonoma.com/breville-the-steam-wand-cleaner"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0214",
+      "segment": "sku-exact",
+      "query": "williams-sonoma.com/williams-sonoma-signature-nonstick-pasta-fork",
+      "expected_product_ids": [
+        "williams-sonoma.com/williams-sonoma-signature-nonstick-pasta-fork"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0215",
+      "segment": "sku-exact",
+      "query": "williams-sonoma.com/wusthof-in-drawer-7-slot-knife-organizer",
+      "expected_product_ids": [
+        "williams-sonoma.com/wusthof-in-drawer-7-slot-knife-organizer"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0216",
+      "segment": "sku-exact",
+      "query": "potterybarn.com/byo-aptos-outdoor-sectional-components",
+      "expected_product_ids": [
+        "potterybarn.com/byo-aptos-outdoor-sectional-components"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0217",
+      "segment": "sku-exact",
+      "query": "potterybarn.com/fauna-bird-print-shower-curtain",
+      "expected_product_ids": [
+        "potterybarn.com/fauna-bird-print-shower-curtain"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0218",
+      "segment": "sku-exact",
+      "query": "potterybarn.com/fibreworks-custom-boucle-wool-rug-ivory",
+      "expected_product_ids": [
+        "potterybarn.com/fibreworks-custom-boucle-wool-rug-ivory"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0219",
+      "segment": "sku-exact",
+      "query": "potterybarn.com/big-sur-roll-arm-deep-upholstered-3-pc-l-shaped-corner-sectional",
+      "expected_product_ids": [
+        "potterybarn.com/big-sur-roll-arm-deep-upholstered-3-pc-l-shaped-corner-sectional"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0220",
+      "segment": "sku-exact",
+      "query": "potterybarn.com/chunky-hand-knit-throw",
+      "expected_product_ids": [
+        "potterybarn.com/chunky-hand-knit-throw"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0221",
+      "segment": "sku-exact",
+      "query": "potterybarn.com/performance-canvas-pillow-mp",
+      "expected_product_ids": [
+        "potterybarn.com/performance-canvas-pillow-mp"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0222",
+      "segment": "sku-exact",
+      "query": "potterybarn.com/winslet-dining-table",
+      "expected_product_ids": [
+        "potterybarn.com/winslet-dining-table"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0223",
+      "segment": "sku-exact",
+      "query": "potterybarn.com/irving-upholstered-armchair",
+      "expected_product_ids": [
+        "potterybarn.com/irving-upholstered-armchair"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0224",
+      "segment": "sku-exact",
+      "query": "potterybarn.com/layton-leather-grand-dining-chair",
+      "expected_product_ids": [
+        "potterybarn.com/layton-leather-grand-dining-chair"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0225",
+      "segment": "sku-exact",
+      "query": "potterybarn.com/turner-leather-chaise-sofa-sectional",
+      "expected_product_ids": [
+        "potterybarn.com/turner-leather-chaise-sofa-sectional"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0226",
+      "segment": "sku-exact",
+      "query": "potterybarn.com/loveshackfancy-taper-candle",
+      "expected_product_ids": [
+        "potterybarn.com/loveshackfancy-taper-candle"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0227",
+      "segment": "sku-exact",
+      "query": "potterybarn.com/elise-quilt",
+      "expected_product_ids": [
+        "potterybarn.com/elise-quilt"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0228",
+      "segment": "sku-exact",
+      "query": "potterybarn.com/wooden-dough-bowl-tray-mp",
+      "expected_product_ids": [
+        "potterybarn.com/wooden-dough-bowl-tray-mp"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0229",
+      "segment": "sku-exact",
+      "query": "potterybarn.com/moro-double-sink-vanity-60-mp",
+      "expected_product_ids": [
+        "potterybarn.com/moro-double-sink-vanity-60-mp"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0230",
+      "segment": "sku-exact",
+      "query": "potterybarn.com/rockport-mesh-outdoor-single-chaise",
+      "expected_product_ids": [
+        "potterybarn.com/rockport-mesh-outdoor-single-chaise"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0231",
+      "segment": "sku-exact",
+      "query": "potterybarn.com/lane-pendant-mp",
+      "expected_product_ids": [
+        "potterybarn.com/lane-pendant-mp"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0232",
+      "segment": "sku-exact",
+      "query": "potterybarn.com/mark-sikes-stripe-towels",
+      "expected_product_ids": [
+        "potterybarn.com/mark-sikes-stripe-towels"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0233",
+      "segment": "sku-exact",
+      "query": "potterybarn.com/kravet-shell-dinnerware-collection",
+      "expected_product_ids": [
+        "potterybarn.com/kravet-shell-dinnerware-collection"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0234",
+      "segment": "sku-exact",
+      "query": "westelm.com/live-6-pothos-w-hanging-planter-d10419",
+      "expected_product_ids": [
+        "westelm.com/live-6-pothos-w-hanging-planter-d10419"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0235",
+      "segment": "sku-exact",
+      "query": "westelm.com/schott-zwiesel-crystal-cocktail-glasses-e3527",
+      "expected_product_ids": [
+        "westelm.com/schott-zwiesel-crystal-cocktail-glasses-e3527"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0236",
+      "segment": "sku-exact",
+      "query": "westelm.com/branch-adjustable-laptop-stand-h12593",
+      "expected_product_ids": [
+        "westelm.com/branch-adjustable-laptop-stand-h12593"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0237",
+      "segment": "sku-exact",
+      "query": "westelm.com/snail-table-lamp-d17495",
+      "expected_product_ids": [
+        "westelm.com/snail-table-lamp-d17495"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0238",
+      "segment": "sku-exact",
+      "query": "westelm.com/mp-indu-console-table-mp577",
+      "expected_product_ids": [
+        "westelm.com/mp-indu-console-table-mp577"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0239",
+      "segment": "sku-exact",
+      "query": "westelm.com/faux-botanicals-potted-cactus-d6177",
+      "expected_product_ids": [
+        "westelm.com/faux-botanicals-potted-cactus-d6177"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0240",
+      "segment": "sku-exact",
+      "query": "westelm.com/mp-herringbone-wood-buffet-h10423",
+      "expected_product_ids": [
+        "westelm.com/mp-herringbone-wood-buffet-h10423"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0241",
+      "segment": "sku-exact",
+      "query": "westelm.com/ume-storage-jar-set-b346",
+      "expected_product_ids": [
+        "westelm.com/ume-storage-jar-set-b346"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0242",
+      "segment": "sku-exact",
+      "query": "westelm.com/mp-jenning-tiered-end-table-25-mp226",
+      "expected_product_ids": [
+        "westelm.com/mp-jenning-tiered-end-table-25-mp226"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0243",
+      "segment": "sku-exact",
+      "query": "westelm.com/tower-storage-hamper-d7952",
+      "expected_product_ids": [
+        "westelm.com/tower-storage-hamper-d7952"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0244",
+      "segment": "sku-exact",
+      "query": "westelm.com/minted-for-west-elm-cotton-rainbow-w4114",
+      "expected_product_ids": [
+        "westelm.com/minted-for-west-elm-cotton-rainbow-w4114"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0245",
+      "segment": "sku-exact",
+      "query": "westelm.com/surf-shack-quilt-d18692",
+      "expected_product_ids": [
+        "westelm.com/surf-shack-quilt-d18692"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0246",
+      "segment": "sku-exact",
+      "query": "westelm.com/textured-luxe-stripe-linen-curtain-artic-blue-t6454",
+      "expected_product_ids": [
+        "westelm.com/textured-luxe-stripe-linen-curtain-artic-blue-t6454"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0247",
+      "segment": "sku-exact",
+      "query": "westelm.com/tower-dish-storage-rack-h5254",
+      "expected_product_ids": [
+        "westelm.com/tower-dish-storage-rack-h5254"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0248",
+      "segment": "sku-exact",
+      "query": "westelm.com/laurent-3-piece-bumper-chaise-sectional-h12102",
+      "expected_product_ids": [
+        "westelm.com/laurent-3-piece-bumper-chaise-sectional-h12102"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0249",
+      "segment": "sku-exact",
+      "query": "Le Creuset tea kettle",
+      "expected_product_ids": [
+        "williams-sonoma.com/le-creuset-stainless-steel-tea-kettle"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0250",
+      "segment": "sku-exact",
+      "query": "WÜSTHOF 8 inch bread knife",
+      "expected_product_ids": [
+        "williams-sonoma.com/wusthof-gourmet-bread-knife"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0251",
+      "segment": "sku-exact",
+      "query": "SCANPAN Dutch oven 7 quart",
+      "expected_product_ids": [
+        "williams-sonoma.com/scanpan-haptiq-dutch-oven"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0252",
+      "segment": "sku-exact",
+      "query": "Chemex coffee maker wood collar",
+      "expected_product_ids": [
+        "williams-sonoma.com/chemex-wood-collar-glass-coffeemaker"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0253",
+      "segment": "sku-exact",
+      "query": "Cuisinart burr mill grinder",
+      "expected_product_ids": [
+        "williams-sonoma.com/cuisinart-supreme-grind-automatic-burr-mill-grinder"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0254",
+      "segment": "sku-exact",
+      "query": "All-Clad slow cooker 5 quart",
+      "expected_product_ids": [
+        "williams-sonoma.com/all-clad-5-qt-gourmet-plus-slow-cooker"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0255",
+      "segment": "sku-exact",
+      "query": "simplehuman slim step trash can 5 liter",
+      "expected_product_ids": [
+        "williams-sonoma.com/simplehuman-5l-slim-step-can"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0256",
+      "segment": "sku-exact",
+      "query": "Coravin Pivot wine preservation system",
+      "expected_product_ids": [
+        "williams-sonoma.com/coravin-pivot-plus"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0257",
+      "segment": "sku-exact",
+      "query": "Silpat nonstick muffin pan 12 well",
+      "expected_product_ids": [
+        "williams-sonoma.com/silpat-silicone-muffin-pan-12-well"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0258",
+      "segment": "sku-exact",
+      "query": "Shark Pet Plus cordless stick vacuum",
+      "expected_product_ids": [
+        "williams-sonoma.com/shark-pet-plus-cordless-stick-vacuum"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0259",
+      "segment": "sku-exact",
+      "query": "Mauviel M'cook tradition tea kettle",
+      "expected_product_ids": [
+        "williams-sonoma.com/mauviel-mcook-tradition-teakettle"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0260",
+      "segment": "sku-exact",
+      "query": "Laguiole waiters corkscrew olivewood",
+      "expected_product_ids": [
+        "williams-sonoma.com/laguiole-en-aubrac-waiters-corkscrew-olivewood"
+      ],
+      "notes": "SKU or brand+model exact match — no-regression verification"
+    },
+    {
+      "id": "eval-0261",
+      "segment": "find-similar",
+      "source_product_id": "williams-sonoma.com/le-creuset-stainless-steel-tea-kettle",
+      "expected_product_ids": [
+        "williams-sonoma.com/mauviel-mcook-tradition-teakettle",
+        "williams-sonoma.com/chemex-wood-collar-glass-coffeemaker"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0262",
+      "segment": "find-similar",
+      "source_product_id": "williams-sonoma.com/chemex-wood-collar-glass-coffeemaker",
+      "expected_product_ids": [
+        "williams-sonoma.com/cuisinart-supreme-grind-automatic-burr-mill-grinder",
+        "williams-sonoma.com/breville-the-steam-wand-cleaner"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0263",
+      "segment": "find-similar",
+      "source_product_id": "williams-sonoma.com/scanpan-haptiq-dutch-oven",
+      "expected_product_ids": [
+        "williams-sonoma.com/all-clad-5-qt-gourmet-plus-slow-cooker",
+        "williams-sonoma.com/mauviel-mcook-tradition-teakettle"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0264",
+      "segment": "find-similar",
+      "source_product_id": "williams-sonoma.com/wusthof-gourmet-bread-knife",
+      "expected_product_ids": [
+        "williams-sonoma.com/wusthof-in-drawer-7-slot-knife-organizer",
+        "williams-sonoma.com/williams-sonoma-signature-nonstick-pasta-fork"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0265",
+      "segment": "find-similar",
+      "source_product_id": "williams-sonoma.com/laguiole-en-aubrac-waiters-corkscrew-olivewood",
+      "expected_product_ids": [
+        "williams-sonoma.com/coravin-pivot-plus",
+        "westelm.com/schott-zwiesel-crystal-cocktail-glasses-e3527"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0266",
+      "segment": "find-similar",
+      "source_product_id": "williams-sonoma.com/simplehuman-5l-slim-step-can",
+      "expected_product_ids": [
+        "williams-sonoma.com/trinity-garage-7pc-storage-track-with-hooks",
+        "westelm.com/tower-storage-hamper-d7952"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0267",
+      "segment": "find-similar",
+      "source_product_id": "williams-sonoma.com/shark-pet-plus-cordless-stick-vacuum",
+      "expected_product_ids": [
+        "williams-sonoma.com/simplehuman-5l-slim-step-can"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0268",
+      "segment": "find-similar",
+      "source_product_id": "williams-sonoma.com/silpat-silicone-muffin-pan-12-well",
+      "expected_product_ids": [
+        "williams-sonoma.com/peach-chamomille-shrub-cocktail-set",
+        "williams-sonoma.com/famille-rose-pasta-bowls"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0269",
+      "segment": "find-similar",
+      "source_product_id": "williams-sonoma.com/coravin-pivot-plus",
+      "expected_product_ids": [
+        "williams-sonoma.com/laguiole-en-aubrac-waiters-corkscrew-olivewood",
+        "westelm.com/schott-zwiesel-crystal-cocktail-glasses-e3527"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0270",
+      "segment": "find-similar",
+      "source_product_id": "potterybarn.com/big-sur-roll-arm-deep-upholstered-3-pc-l-shaped-corner-sectional",
+      "expected_product_ids": [
+        "potterybarn.com/turner-leather-chaise-sofa-sectional",
+        "westelm.com/laurent-3-piece-bumper-chaise-sectional-h12102"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0271",
+      "segment": "find-similar",
+      "source_product_id": "potterybarn.com/irving-upholstered-armchair",
+      "expected_product_ids": [
+        "potterybarn.com/layton-leather-grand-dining-chair",
+        "potterybarn.com/winslet-dining-table"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0272",
+      "segment": "find-similar",
+      "source_product_id": "potterybarn.com/winslet-dining-table",
+      "expected_product_ids": [
+        "potterybarn.com/irving-upholstered-armchair",
+        "westelm.com/mp-indu-console-table-mp577"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0273",
+      "segment": "find-similar",
+      "source_product_id": "potterybarn.com/chunky-hand-knit-throw",
+      "expected_product_ids": [
+        "potterybarn.com/elise-quilt",
+        "westelm.com/surf-shack-quilt-d18692"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0274",
+      "segment": "find-similar",
+      "source_product_id": "potterybarn.com/performance-canvas-pillow-mp",
+      "expected_product_ids": [
+        "potterybarn.com/fauna-bird-print-shower-curtain",
+        "potterybarn.com/mark-sikes-stripe-towels"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0275",
+      "segment": "find-similar",
+      "source_product_id": "potterybarn.com/fauna-bird-print-shower-curtain",
+      "expected_product_ids": [
+        "potterybarn.com/performance-canvas-pillow-mp",
+        "potterybarn.com/mark-sikes-stripe-towels"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0276",
+      "segment": "find-similar",
+      "source_product_id": "potterybarn.com/fibreworks-custom-boucle-wool-rug-ivory",
+      "expected_product_ids": [
+        "potterybarn.com/elise-quilt",
+        "westelm.com/textured-luxe-stripe-linen-curtain-artic-blue-t6454"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0277",
+      "segment": "find-similar",
+      "source_product_id": "potterybarn.com/moro-double-sink-vanity-60-mp",
+      "expected_product_ids": [
+        "potterybarn.com/irving-upholstered-armchair",
+        "westelm.com/mp-indu-console-table-mp577"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0278",
+      "segment": "find-similar",
+      "source_product_id": "potterybarn.com/rockport-mesh-outdoor-single-chaise",
+      "expected_product_ids": [
+        "potterybarn.com/big-sur-roll-arm-deep-upholstered-3-pc-l-shaped-corner-sectional",
+        "westelm.com/laurent-3-piece-bumper-chaise-sectional-h12102"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0279",
+      "segment": "find-similar",
+      "source_product_id": "potterybarn.com/lane-pendant-mp",
+      "expected_product_ids": [
+        "westelm.com/snail-table-lamp-d17495",
+        "westelm.com/textured-luxe-stripe-linen-curtain-artic-blue-t6454"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0280",
+      "segment": "find-similar",
+      "source_product_id": "potterybarn.com/loveshackfancy-taper-candle",
+      "expected_product_ids": [
+        "potterybarn.com/kravet-shell-dinnerware-collection",
+        "westelm.com/ume-storage-jar-set-b346"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0281",
+      "segment": "find-similar",
+      "source_product_id": "potterybarn.com/kravet-shell-dinnerware-collection",
+      "expected_product_ids": [
+        "potterybarn.com/loveshackfancy-taper-candle",
+        "williams-sonoma.com/famille-rose-pasta-bowls"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0282",
+      "segment": "find-similar",
+      "source_product_id": "potterybarn.com/wooden-dough-bowl-tray-mp",
+      "expected_product_ids": [
+        "westelm.com/ume-storage-jar-set-b346",
+        "williams-sonoma.com/silpat-silicone-muffin-pan-12-well"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0283",
+      "segment": "find-similar",
+      "source_product_id": "westelm.com/live-6-pothos-w-hanging-planter-d10419",
+      "expected_product_ids": [
+        "westelm.com/faux-botanicals-potted-cactus-d6177"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0284",
+      "segment": "find-similar",
+      "source_product_id": "westelm.com/schott-zwiesel-crystal-cocktail-glasses-e3527",
+      "expected_product_ids": [
+        "williams-sonoma.com/laguiole-en-aubrac-waiters-corkscrew-olivewood",
+        "williams-sonoma.com/coravin-pivot-plus"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0285",
+      "segment": "find-similar",
+      "source_product_id": "westelm.com/branch-adjustable-laptop-stand-h12593",
+      "expected_product_ids": [
+        "westelm.com/textured-luxe-stripe-linen-curtain-artic-blue-t6454"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0286",
+      "segment": "find-similar",
+      "source_product_id": "westelm.com/snail-table-lamp-d17495",
+      "expected_product_ids": [
+        "westelm.com/lane-pendant-mp",
+        "potterybarn.com/lane-pendant-mp"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0287",
+      "segment": "find-similar",
+      "source_product_id": "westelm.com/mp-indu-console-table-mp577",
+      "expected_product_ids": [
+        "potterybarn.com/winslet-dining-table",
+        "westelm.com/mp-herringbone-wood-buffet-h10423"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0288",
+      "segment": "find-similar",
+      "source_product_id": "westelm.com/faux-botanicals-potted-cactus-d6177",
+      "expected_product_ids": [
+        "westelm.com/live-6-pothos-w-hanging-planter-d10419"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0289",
+      "segment": "find-similar",
+      "source_product_id": "westelm.com/mp-herringbone-wood-buffet-h10423",
+      "expected_product_ids": [
+        "westelm.com/mp-indu-console-table-mp577",
+        "westelm.com/mp-jenning-tiered-end-table-25-mp226"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0290",
+      "segment": "find-similar",
+      "source_product_id": "westelm.com/ume-storage-jar-set-b346",
+      "expected_product_ids": [
+        "westelm.com/tower-dish-storage-rack-h5254",
+        "potterybarn.com/wooden-dough-bowl-tray-mp"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0291",
+      "segment": "find-similar",
+      "source_product_id": "westelm.com/mp-jenning-tiered-end-table-25-mp226",
+      "expected_product_ids": [
+        "westelm.com/mp-herringbone-wood-buffet-h10423",
+        "westelm.com/mp-indu-console-table-mp577"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0292",
+      "segment": "find-similar",
+      "source_product_id": "westelm.com/tower-storage-hamper-d7952",
+      "expected_product_ids": [
+        "westelm.com/tower-dish-storage-rack-h5254",
+        "williams-sonoma.com/trinity-garage-7pc-storage-track-with-hooks"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0293",
+      "segment": "find-similar",
+      "source_product_id": "westelm.com/minted-for-west-elm-cotton-rainbow-w4114",
+      "expected_product_ids": [
+        "westelm.com/textured-luxe-stripe-linen-curtain-artic-blue-t6454"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0294",
+      "segment": "find-similar",
+      "source_product_id": "westelm.com/surf-shack-quilt-d18692",
+      "expected_product_ids": [
+        "potterybarn.com/chunky-hand-knit-throw",
+        "potterybarn.com/elise-quilt"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0295",
+      "segment": "find-similar",
+      "source_product_id": "westelm.com/textured-luxe-stripe-linen-curtain-artic-blue-t6454",
+      "expected_product_ids": [
+        "westelm.com/snail-table-lamp-d17495",
+        "westelm.com/minted-for-west-elm-cotton-rainbow-w4114"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0296",
+      "segment": "find-similar",
+      "source_product_id": "westelm.com/tower-dish-storage-rack-h5254",
+      "expected_product_ids": [
+        "westelm.com/tower-storage-hamper-d7952",
+        "westelm.com/ume-storage-jar-set-b346"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0297",
+      "segment": "find-similar",
+      "source_product_id": "westelm.com/laurent-3-piece-bumper-chaise-sectional-h12102",
+      "expected_product_ids": [
+        "potterybarn.com/big-sur-roll-arm-deep-upholstered-3-pc-l-shaped-corner-sectional",
+        "potterybarn.com/turner-leather-chaise-sofa-sectional"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0298",
+      "segment": "find-similar",
+      "source_product_id": "williams-sonoma.com/peach-chamomille-shrub-cocktail-set",
+      "expected_product_ids": [
+        "williams-sonoma.com/silpat-silicone-muffin-pan-12-well",
+        "williams-sonoma.com/famille-rose-pasta-bowls"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0299",
+      "segment": "find-similar",
+      "source_product_id": "williams-sonoma.com/famille-rose-pasta-bowls",
+      "expected_product_ids": [
+        "williams-sonoma.com/peach-chamomille-shrub-cocktail-set",
+        "potterybarn.com/kravet-shell-dinnerware-collection"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0300",
+      "segment": "find-similar",
+      "source_product_id": "williams-sonoma.com/trinity-garage-7pc-storage-track-with-hooks",
+      "expected_product_ids": [
+        "williams-sonoma.com/simplehuman-5l-slim-step-can",
+        "westelm.com/tower-storage-hamper-d7952"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0301",
+      "segment": "find-similar",
+      "source_product_id": "williams-sonoma.com/williams-sonoma-signature-nonstick-pasta-fork",
+      "expected_product_ids": [
+        "williams-sonoma.com/wusthof-gourmet-bread-knife",
+        "williams-sonoma.com/wusthof-in-drawer-7-slot-knife-organizer"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0302",
+      "segment": "find-similar",
+      "source_product_id": "williams-sonoma.com/wusthof-in-drawer-7-slot-knife-organizer",
+      "expected_product_ids": [
+        "williams-sonoma.com/wusthof-gourmet-bread-knife",
+        "williams-sonoma.com/williams-sonoma-signature-nonstick-pasta-fork"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0303",
+      "segment": "find-similar",
+      "source_product_id": "williams-sonoma.com/blue-waves-series",
+      "expected_product_ids": [
+        "williams-sonoma.com/famille-rose-pasta-bowls",
+        "williams-sonoma.com/peach-chamomille-shrub-cocktail-set"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0304",
+      "segment": "find-similar",
+      "source_product_id": "williams-sonoma.com/free-spirits-non-alcoholic-tequila",
+      "expected_product_ids": [
+        "westelm.com/schott-zwiesel-crystal-cocktail-glasses-e3527",
+        "williams-sonoma.com/laguiole-en-aubrac-waiters-corkscrew-olivewood"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0305",
+      "segment": "find-similar",
+      "source_product_id": "williams-sonoma.com/breville-the-steam-wand-cleaner",
+      "expected_product_ids": [
+        "williams-sonoma.com/chemex-wood-collar-glass-coffeemaker",
+        "williams-sonoma.com/cuisinart-supreme-grind-automatic-burr-mill-grinder"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0306",
+      "segment": "find-similar",
+      "source_product_id": "potterybarn.com/elise-quilt",
+      "expected_product_ids": [
+        "potterybarn.com/chunky-hand-knit-throw",
+        "westelm.com/surf-shack-quilt-d18692"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0307",
+      "segment": "find-similar",
+      "source_product_id": "potterybarn.com/mark-sikes-stripe-towels",
+      "expected_product_ids": [
+        "potterybarn.com/fauna-bird-print-shower-curtain",
+        "potterybarn.com/performance-canvas-pillow-mp"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0308",
+      "segment": "find-similar",
+      "source_product_id": "potterybarn.com/turner-leather-chaise-sofa-sectional",
+      "expected_product_ids": [
+        "potterybarn.com/big-sur-roll-arm-deep-upholstered-3-pc-l-shaped-corner-sectional",
+        "westelm.com/laurent-3-piece-bumper-chaise-sectional-h12102"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0309",
+      "segment": "find-similar",
+      "source_product_id": "potterybarn.com/layton-leather-grand-dining-chair",
+      "expected_product_ids": [
+        "potterybarn.com/irving-upholstered-armchair",
+        "potterybarn.com/winslet-dining-table"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    },
+    {
+      "id": "eval-0310",
+      "segment": "find-similar",
+      "source_product_id": "potterybarn.com/byo-aptos-outdoor-sectional-components",
+      "expected_product_ids": [
+        "potterybarn.com/big-sur-roll-arm-deep-upholstered-3-pc-l-shaped-corner-sectional",
+        "westelm.com/laurent-3-piece-bumper-chaise-sectional-h12102"
+      ],
+      "notes": "Find-Similar — human-curated related product pool"
+    }
+  ]
+}
