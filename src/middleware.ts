@@ -308,13 +308,21 @@ export function middleware(request: NextRequest) {
   // Dead Singapore product slug pages — thin-content pages (Google soft 404 bucket BUY-37750)
   // These pages only render a product name + description with no prices (client-side only).
   // 410 Gone signals permanent removal; Google drops them faster than noindex.
+  // New merchant+product detail URLs (/products/sg/merchant/product-id) have 2 path segments
+  // after the prefix — allow those through (BUY-40757).
   if (normalizedForDead.startsWith("/products/sg/")) {
-    return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
+    const afterSgPrefix = normalizedForDead.slice("/products/sg/".length);
+    if (afterSgPrefix.split("/").filter(Boolean).length <= 1) {
+      return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
+    }
   }
 
-  // Dead US product slug pages — same thin-content issue
+  // Dead US product slug pages — same thin-content issue (BUY-40757: allow 2-segment paths)
   if (normalizedForDead.startsWith("/products/us/")) {
-    return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
+    const afterUsPrefix = normalizedForDead.slice("/products/us/".length);
+    if (afterUsPrefix.split("/").filter(Boolean).length <= 1) {
+      return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
+    }
   }
 
   // Trailing-slash rewrite: serve the non-slash path directly (200) instead of
