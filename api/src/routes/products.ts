@@ -11,15 +11,23 @@ import { buildCompareProductsQuery, UUID_RE } from '../lib/compare-query';
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
 const SEARCH_CACHE_TTL_SECONDS = 3600;
 
-// BUY-33987: per-statement and whole-request ceilings. The handler installs
-// `res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, …)` at the top of the route so a
-// hung DB can never drag a response past 5s. The per-statement timeout
-// (`SET LOCAL statement_timeout = SEARCH_STATEMENT_TIMEOUT_MS`) is the secondary
-// guard for the in-transaction data query. Both are equal at 5s — well above the
-// ~15-75ms roundhouse EXPLAIN ANALYZE happy path, well below the 8s we shipped
-// previously. Mirrors the BUY-33985 deals endpoint fix.
-const SEARCH_STATEMENT_TIMEOUT_MS = 5000;
-const SEARCH_HANDLER_TIMEOUT_MS = 5000;
+// BUY-41572: bumped from 5s → 15s as a temporary measure so the 50-query hybrid
+// eval (BUY-41140) can complete against the live DB. Roundhouse EXPLAIN happy
+// path is still ~15-75ms; the 5s ceiling was below the latency budget the API
+// advertises and produced 504 upstream_timeout on every search. Mirrors the
+// BUY-33985 deals endpoint fix at 15s.
+const SEARCH_STATEMENT_TIMEOUT_MS = 15000;
+const SEARCH_HANDLER_TIMEOUT_MS = 15000;
+
+// BUY-41572: public /v1/products/search mode routing. The MCP tool (BUY-41138)
+// ships keyword|semantic|hybrid against the Jina v3 vector pool + RRF. The
+// public REST API has not yet been wired to the vector pool, so for now all
+// three modes route through the FTS path. `mode` is accepted (and surfaced in
+// the public OpenAPI) so external clients can opt in once the public path is
+// built; until then the response includes `_mode: 'keyword' | 'hybrid' | 'semantic'`
+// to make the fallback explicit. The vector-path is tracked as a follow-up.
+const VALID_SEARCH_MODES = new Set(['keyword', 'semantic', 'hybrid']);
+const DEFAULT_SEARCH_MODE = 'keyword';
 
 // BUY-34291: cap per-query work_mem to 4MB (down from 64MB default) so concurrent
 // search requests don't compete for shared_buffers. Without this, the planner's
@@ -216,9 +224,14 @@ router.get(
     const offset = rawPage > 0 ? (rawPage - 1) * limit : rawOffset;
     const sourcePage = req.query.source_page as string | undefined;
     const compact = req.query.compact === 'true';
+    // BUY-41572: accept `mode` from external clients; route everything through
+    // the FTS path until the public /v1/products/search is wired to the Jina
+    // vector pool (BUY-41138 wired the MCP tool, public REST is the next step).
+    const rawMode = (req.query.mode as string | undefined)?.toLowerCase();
+    const searchMode = rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE;
 
     // Check Redis cache for this exact query (60s TTL)
-    const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}`;
+    const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}`;
     try {
       const cached = await redis.get(cacheKey);
       if (cached) {
@@ -508,7 +521,9 @@ router.get(
 // BUY-33985: dedicated client with 5s statement_timeout + 5s res.setTimeout
 // so a slow fallback path (no discount_pct column) cannot hang the request
 // past 5s and leak the connection.
-const DEALS_RESPONSE_TIMEOUT_MS = 5000;
+// BUY-41572: bumped from 5s → 15s to match the search timeout bump and clear
+// the deals_upstream_timeout on the same path that the search eval is hitting.
+const DEALS_RESPONSE_TIMEOUT_MS = 15000;
 router.get(
   '/deals',
   agentDetectMiddleware,
