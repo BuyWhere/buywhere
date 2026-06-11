@@ -42,11 +42,13 @@ export const FREE_TIER = {
   daily: 10000,
 };
 
-export const TIER_LIMITS: Record<string, { rpm: number; daily: number }> = {
+export const TIER_LIMITS: Record<string, { rpm: number; daily: number; monthlyCap?: number; overageRate?: number }> = {
   free: FREE_TIER,
   starter: { rpm: 100, daily: 10000 },
   pro: { rpm: 500, daily: 100000 },
-  unverified: { rpm: 10, daily: 10000 },
+  unverified: { rpm: 20, daily: 1000 },
+  verified_agent: { rpm: 200, daily: 10000 },
   enterprise: { rpm: 1000, daily: 100000 },
+  platform_starter: { rpm: 500, daily: 500000, monthlyCap: 500000, overageRate: 0.002 },
   internal: { rpm: 10000, daily: 999999 },
 };
