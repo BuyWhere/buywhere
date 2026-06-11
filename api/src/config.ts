@@ -52,3 +52,14 @@ export const TIER_LIMITS: Record<string, { rpm: number; daily: number; monthlyCa
   platform_starter: { rpm: 500, daily: 500000, monthlyCap: 500000, overageRate: 0.002 },
   internal: { rpm: 10000, daily: 999999 },
 };
+// Vector DB pool — separate Railway Postgres with pgvector 0.8 (BUY-41135).
+// Null when VECTOR_DB_URL is unset; consumers must check before using.
+export const vectorDb: import('pg').Pool | null = process.env.VECTOR_DB_URL
+  ? new (require('pg').Pool)({
+      connectionString: process.env.VECTOR_DB_URL,
+      max: 5,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    })
+  : null;
+
