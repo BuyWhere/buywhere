@@ -2,8 +2,12 @@
 /**
  * @buywhere/mcp-server — stdio MCP server for BuyWhere product catalog.
  *
- * Implements search_products, get_product, compare_products, get_deals,
- * and list_categories tools via the BuyWhere REST API.
+ * Bridges stdio (Claude Desktop, Cursor, Windsurf, etc.) to the BuyWhere
+ * remote MCP endpoint (api.buywhere.ai/mcp) via JSON-RPC 2.0. All tool
+ * calls are forwarded to the live server, keeping tool schemas in sync.
+ *
+ * Tools: search_products, get_product, compare_products, get_deals,
+ *        list_categories, find_best_price
  *
  * Environment variables:
  *   BUYWHERE_API_KEY   — Required. Bearer token for API auth.
@@ -15,69 +19,143 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
   type Tool,
+  type CallToolResult,
 } from '@modelcontextprotocol/sdk/types.js';
 
-const API_BASE_URL = process.env.BUYWHERE_API_URL ?? 'https://api.buywhere.ai';
+const API_BASE_URL = (process.env.BUYWHERE_API_URL ?? 'https://api.buywhere.ai').replace(/\/$/, '');
 const API_KEY = process.env.BUYWHERE_API_KEY ?? '';
+const MCP_URL = `${API_BASE_URL}/mcp`;
 
 if (!API_KEY) {
   process.stderr.write('Error: BUYWHERE_API_KEY environment variable is required.\n');
   process.exit(1);
 }
 
-async function apiGet(path: string, params: Record<string, unknown> = {}): Promise<unknown> {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== null && v !== '') {
-      qs.set(k, String(v));
-    }
-  }
-  const queryString = qs.toString();
-  const url = `${API_BASE_URL}${path}${queryString ? `?${queryString}` : ''}`;
+const REQUEST_TIMEOUT_MS = 30_000;
+const MAX_RETRIES = 2;
+const RETRY_DELAY_BASE_MS = 1_000;
 
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`BuyWhere API error ${res.status}: ${body}`);
-  }
-
-  return res.json();
+interface JsonRpcResponse {
+  result?: CallToolResult;
+  error?: { code: number; message: string };
 }
 
+async function callRemoteTool(
+  toolName: string,
+  toolArgs: Record<string, unknown>,
+): Promise<CallToolResult> {
+  const body = JSON.stringify({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/call',
+    params: { name: toolName, arguments: toolArgs },
+  });
+
+  let lastError: Error | undefined;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      await new Promise<void>(resolve => setTimeout(resolve, RETRY_DELAY_BASE_MS * attempt));
+    }
+    try {
+      const res = await fetch(MCP_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+
+      const json = (await res.json()) as JsonRpcResponse;
+
+      // JSON-RPC application-level error — surface as tool error, don't retry param errors
+      if (json.error) {
+        const msg = json.error.message;
+        const isParamError = json.error.code === -32602 || json.error.code === -32601;
+        if (isParamError) {
+          return { content: [{ type: 'text', text: `Error: ${msg}` }], isError: true };
+        }
+        lastError = new Error(msg);
+        continue;
+      }
+
+      if (!res.ok) {
+        const isRetryable = res.status === 429 || res.status >= 500;
+        if (!isRetryable) {
+          throw new Error(`BuyWhere API error ${res.status}`);
+        }
+        lastError = new Error(`BuyWhere API error ${res.status}`);
+        continue;
+      }
+
+      return json.result ?? { content: [{ type: 'text', text: '{}' }] };
+    } catch (err) {
+      if (err instanceof Error && /^BuyWhere API error 4(?!29)/.test(err.message)) {
+        return { content: [{ type: 'text', text: `Error: ${err.message}` }], isError: true };
+      }
+      const isTimeout =
+        err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
+      if (isTimeout) {
+        process.stderr.write(
+          `[buywhere-mcp] timeout (attempt ${attempt + 1}/${MAX_RETRIES + 1}): ${toolName}\n`,
+        );
+        lastError = new Error(`Request timed out after ${REQUEST_TIMEOUT_MS}ms`);
+      } else {
+        lastError = err instanceof Error ? err : new Error(String(err));
+      }
+    }
+  }
+  throw lastError ?? new Error('Unknown error');
+}
+
+// Tool schemas mirror the live /mcp endpoint (ingest_products excluded — admin-only).
 const TOOLS: Tool[] = [
   {
     name: 'search_products',
     description:
-      'Search the BuyWhere product catalog by keyword. Returns products from e-commerce platforms across multiple regions (Singapore, US, etc.).',
+      'Search the BuyWhere product catalog by keyword. Returns products from e-commerce platforms across multiple regions (Singapore, US, etc.). Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields.',
     inputSchema: {
       type: 'object',
       properties: {
         q: { type: 'string', description: 'Keyword search query' },
-        domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
+        domain: {
+          type: 'string',
+          description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)',
+        },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: {
           type: 'string',
           enum: ['SG', 'US', 'VN', 'TH', 'MY'],
-          description: 'Filter by ISO country code',
+          description:
+            'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).',
         },
-        min_price: { type: 'number', description: 'Minimum price' },
-        max_price: { type: 'number', description: 'Maximum price' },
-        limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
+        min_price: {
+          type: 'number',
+          description:
+            'Minimum price (in currency inferred from country_code, or SGD by default)',
+        },
+        max_price: {
+          type: 'number',
+          description:
+            'Maximum price (in currency inferred from country_code, or SGD by default)',
+        },
+        limit: {
+          type: 'integer',
+          description: 'Number of results (max 100, default 20)',
+          default: 20,
+        },
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
         compact: {
           type: 'boolean',
-          description: 'Return agent-optimized compact shape with structured_specs and comparison_attributes',
+          description:
+            'Return agent-optimized compact shape: structured_specs, comparison_attributes, normalized_price_usd. Reduces response size ~40%. Recommended for agent tool-use.',
           default: false,
         },
         category: {
           type: 'string',
-          description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Televisions"). Use to exclude accessories and get actual products.',
+          description:
+            'Filter by product category name (e.g. "Laptops", "Smartphones", "Televisions"). Use to exclude accessories and get actual products.',
         },
       },
     },
@@ -95,7 +173,8 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'compare_products',
-    description: 'Compare multiple products side-by-side. Returns price, brand, rating, and category for each.',
+    description:
+      'Compare multiple products side-by-side. Returns price, brand, rating, and category for each.',
     inputSchema: {
       type: 'object',
       required: ['ids'],
@@ -112,14 +191,32 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'get_deals',
-    description: 'Get discounted products sorted by discount percentage.',
+    description:
+      'Get discounted products sorted by discount percentage. Returns products with original price and discount percentage. Supports currency, region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters.',
     inputSchema: {
       type: 'object',
       properties: {
-        min_discount: { type: 'number', description: 'Minimum discount percentage (default 10)', default: 10 },
+        min_discount: {
+          type: 'number',
+          description: 'Minimum discount percentage (default 10)',
+          default: 10,
+        },
+        currency: {
+          type: 'string',
+          description: 'Filter by currency code (SGD, USD, MYR, VND, THB). Defaults to SGD.',
+          default: 'SGD',
+        },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
-        country: { type: 'string', description: 'Filter by ISO country code (SG, US, VN, MY)' },
-        limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
+        country_code: {
+          type: 'string',
+          enum: ['SG', 'US', 'VN', 'TH', 'MY'],
+          description: 'Filter by ISO country code.',
+        },
+        limit: {
+          type: 'integer',
+          description: 'Number of results (max 100, default 20)',
+          default: 20,
+        },
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
       },
     },
@@ -129,40 +226,46 @@ const TOOLS: Tool[] = [
     description: 'List top-level product categories available in the BuyWhere catalog.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        country_code: {
+          type: 'string',
+          enum: ['SG', 'US', 'VN', 'TH', 'MY'],
+          description: 'Filter by ISO country code. Defaults to SG.',
+        },
+      },
+    },
+  },
+  {
+    name: 'find_best_price',
+    description:
+      "Use this whenever a user asks about prices, wants to find the cheapest option, or asks \"what's the best price for X\" or \"where can I buy X for the lowest price\". This finds the best current price across all merchants.",
+    inputSchema: {
+      type: 'object',
+      required: ['product_name'],
+      properties: {
+        product_name: {
+          type: 'string',
+          description:
+            'Product name to find best price for (e.g., "iphone 15 pro 256gb", "samsung galaxy s24")',
+        },
+        category: { type: 'string', description: 'Category to filter by' },
+        country_code: {
+          type: 'string',
+          enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'],
+          description: 'Country to search in (defaults to SG).',
+        },
+        region: {
+          type: 'string',
+          enum: ['us', 'sea'],
+          description: 'Region filter — use "us" for United States or "sea" for Southeast Asia',
+        },
+      },
     },
   },
 ];
 
-async function handleToolCall(name: string, args: Record<string, unknown>): Promise<unknown> {
-  switch (name) {
-    case 'search_products':
-      // BUY-6484: Must call /v1/products/search, NOT /v1/products
-      return apiGet('/v1/products/search', args);
-
-    case 'get_product': {
-      const id = String(args.id);
-      return apiGet(`/v1/products/${encodeURIComponent(id)}`);
-    }
-
-    case 'compare_products': {
-      const ids = (args.ids as string[]).join(',');
-      return apiGet('/v1/products/compare', { ids });
-    }
-
-    case 'get_deals':
-      return apiGet('/v1/products/deals', args);
-
-    case 'list_categories':
-      return apiGet('/v1/categories');
-
-    default:
-      throw new Error(`Unknown tool: ${name}`);
-  }
-}
-
 const server = new Server(
-  { name: 'buywhere-catalog', version: '0.1.4' },
+  { name: 'buywhere-catalog', version: '0.4.0' },
   { capabilities: { tools: {} } },
 );
 
@@ -171,10 +274,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }))
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args = {} } = request.params;
   try {
-    const result = await handleToolCall(name, args as Record<string, unknown>);
-    return {
-      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-    };
+    return await callRemoteTool(name, args as Record<string, unknown>);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return {
