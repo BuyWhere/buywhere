@@ -181,9 +181,9 @@ router.get('/health', async (req: Request, res: Response) => {
 
       // Last ingestion run per source (recent 24 h) — quick scan
       const runsResult = await db.query(
-        `SELECT source, status, MAX(created_at) AS last_run, COUNT(*) AS run_count
+        `SELECT source, status, MAX(started_at) AS last_run, COUNT(*) AS run_count
            FROM ingestion_runs
-          WHERE created_at > NOW() - INTERVAL '24 hours'
+          WHERE started_at > NOW() - INTERVAL '24 hours'
           GROUP BY source, status
           ORDER BY source, last_run DESC`
       );
@@ -222,7 +222,7 @@ router.get('/health', async (req: Request, res: Response) => {
       // Zombie runs: stuck in 'running' > 1 hour
       const zombieResult = await db.query(
         `SELECT COUNT(*) AS cnt FROM ingestion_runs
-          WHERE status = 'running' AND created_at < NOW() - INTERVAL '1 hour'`
+          WHERE status = 'running' AND started_at < NOW() - INTERVAL '1 hour'`
       );
       const zombieCount = parseInt(zombieResult.rows[0]?.cnt ?? '0', 10);
 
