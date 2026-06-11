@@ -45,7 +45,10 @@ function slugToDisplayName(slug: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-/** Returns null on API failure (non-404); returns undefined on explicit 404 */
+/**
+ * Lookup merchant by slug.
+ * Returns MerchantInfo if found, null if API unavailable/auth error, undefined if explicitly not found.
+ */
 async function getMerchantBySlug(
   merchantSlug: string,
   country: string
@@ -60,21 +63,10 @@ async function getMerchantBySlug(
     ? { Authorization: `Bearer ${apiKey}` }
     : {};
 
+  // Primary: fetch all ingested merchants for the country and match by derived slug.
+  // The merchant ID in the API is the full domain (e.g. www.watsons.com.sg), not the slug.
+  // The derived slug (watsons-sg) will NOT match a direct ID lookup, so we always use the list.
   try {
-    // Try direct ID lookup first
-    const directRes = await fetch(
-      `${baseUrl}/v1/merchants/${encodeURIComponent(merchantSlug)}`,
-      { headers, next: { revalidate: 3600 }, signal: AbortSignal.timeout(5000) }
-    );
-    if (directRes.ok) {
-      const data = (await directRes.json()) as MerchantInfo;
-      if (data?.id) return data;
-    }
-    if (directRes.status === 404) return undefined;
-  } catch {}
-
-  try {
-    // Fallback: fetch ingested merchant list and match by derived slug
     const listRes = await fetch(
       `${baseUrl}/v1/merchants?country=${country.toUpperCase()}&onboarding_stage=ingested&is_active=true&limit=500`,
       { headers, next: { revalidate: 3600 }, signal: AbortSignal.timeout(10000) }
@@ -83,11 +75,13 @@ async function getMerchantBySlug(
       const data = (await listRes.json()) as { merchants?: MerchantInfo[] };
       const merchants = data.merchants ?? [];
       const match = merchants.find((m) => deriveMerchantSlug(m) === merchantSlug);
-      return match ?? null;
+      // List API succeeded — if no match, the merchant genuinely doesn't exist
+      return match ?? undefined;
     }
+    // Auth error, 5xx, etc. — fall through to null (unknown, not absent)
   } catch {}
 
-  // API unavailable / auth error — return null (not undefined) to signal "unknown, not absent"
+  // API unavailable — return null so the page renders with slug-derived name
   return null;
 }
 
@@ -106,7 +100,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const merchant = await getMerchantBySlug(merchantSlug, region);
 
   if (merchant === undefined) {
-    // Explicit 404 from API
+    // API confirmed this merchant doesn't exist
     return { title: "Merchant Not Found" };
   }
 
@@ -138,7 +132,7 @@ export default async function MerchantProductsPage({ params }: PageProps) {
   const merchant = await getMerchantBySlug(merchantSlug, region);
 
   if (merchant === undefined) {
-    // API explicitly returned 404 for this merchant slug
+    // API confirmed this merchant doesn't exist
     notFound();
   }
 
