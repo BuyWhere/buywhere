@@ -1,5 +1,4 @@
 import { getAllBlogPosts } from "@/lib/blog";
-import { seoLandingPages } from "@/lib/seo-landing-pages";
 import { PRODUCT_TAXONOMY, US_CATEGORY_META } from "@/lib/taxonomy";
 import { getUSProducts, type USProductForSitemap } from "@/lib/us-products";
 import { getSGProducts, type SGProductForSitemap } from "@/lib/sg-products";
@@ -52,16 +51,25 @@ const CATEGORY_PAGE_SLUGS = [
   "toys-games",
 ] as const;
 
-// Core static pages (non-SEO)
-const CORE_SITEMAP_ROUTES = [
+const STATIC_SITEMAP_ROUTES = [
   { path: "/", priority: 1.0, changeFrequency: "weekly" as const },
   { path: "/docs", priority: 1.0, changeFrequency: "weekly" as const },
   { path: "/developers", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/agents", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/blog", priority: 0.9, changeFrequency: "weekly" as const },
+  { path: "/blog/cheapest-iphone-singapore-2026", priority: 0.8, changeFrequency: "monthly" as const },
+  { path: "/blog/best-laptop-deals-singapore", priority: 0.8, changeFrequency: "monthly" as const },
+  { path: "/blog/compare-headphones-singapore-2026", priority: 0.8, changeFrequency: "monthly" as const },
+  { path: "/blog/home-appliance-deals-singapore-2026", priority: 0.8, changeFrequency: "monthly" as const },
+  { path: "/blog/compare-product-prices-singapore-2026", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/quickstart", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/integrate", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/api-keys", priority: 0.9, changeFrequency: "monthly" as const },
+  { path: "/docs/API_DOCUMENTATION", priority: 0.9, changeFrequency: "weekly" as const },
+  { path: "/docs/quickstart-mcp", priority: 0.9, changeFrequency: "weekly" as const },
+  { path: "/docs/developer-quickstart-sea-shopping-agent", priority: 0.9, changeFrequency: "weekly" as const },
+  { path: "/docs/agent-onboarding-flow", priority: 0.8, changeFrequency: "monthly" as const },
+  { path: "/docs/rate-limits", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/us", priority: 0.8, changeFrequency: "weekly" as const },
   { path: "/us/signup", priority: 0.8, changeFrequency: "weekly" as const },
   { path: "/merchants", priority: 0.9, changeFrequency: "weekly" as const },
@@ -71,30 +79,16 @@ const CORE_SITEMAP_ROUTES = [
   { path: "/pricing", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/about", priority: 0.6, changeFrequency: "monthly" as const },
   { path: "/contact", priority: 0.5, changeFrequency: "monthly" as const },
+  { path: "/best-gaming-laptops-us", priority: 0.9, changeFrequency: "weekly" as const },
+  { path: "/iphone-16-price-singapore", priority: 0.9, changeFrequency: "weekly" as const },
+  { path: "/laptop-singapore", priority: 0.9, changeFrequency: "weekly" as const },
+  { path: "/air-purifier-singapore", priority: 0.9, changeFrequency: "weekly" as const },
+  { path: "/best-robot-vacuums-2026", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/mcp-ecommerce", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/challenge", priority: 0.9, changeFrequency: "daily" as const },
   { path: "/privacy", priority: 0.3, changeFrequency: "yearly" as const },
   { path: "/terms", priority: 0.3, changeFrequency: "yearly" as const },
-  { path: "/affiliate-disclosure", priority: 0.3, changeFrequency: "yearly" as const },
-  { path: "/faq", priority: 0.5, changeFrequency: "monthly" as const },
-  { path: "/directory", priority: 0.6, changeFrequency: "weekly" as const },
-  { path: "/retailers", priority: 0.6, changeFrequency: "weekly" as const },
-  { path: "/deals/us", priority: 0.8, changeFrequency: "daily" as const },
-  { path: "/affiliates", priority: 0.6, changeFrequency: "monthly" as const },
 ] as const;
-
-// All SEO landing page slugs from config — dynamically included in sitemap
-const SEO_LANDING_PAGE_SLUGS = Object.keys(seoLandingPages);
-
-// Combined static routes = core pages + all SEO landing pages
-const STATIC_SITEMAP_ROUTES = [
-  ...CORE_SITEMAP_ROUTES,
-  ...SEO_LANDING_PAGE_SLUGS.map((slug) => ({
-    path: `/${slug}`,
-    priority: 0.8 as const,
-    changeFrequency: "weekly" as const,
-  })),
-];
 
 function xmlEscape(value: string): string {
   return value
@@ -180,12 +174,9 @@ export function getCategorySitemapEntries(): SitemapUrlEntry[] {
   const now = new Date();
   const entries = new Map<string, SitemapUrlEntry>();
 
-  // Category URLs use trailing slashes — aligns with the URL Google actually crawls
-  // (middleware rewrites /path/ to /path internally, so trailing slash is the crawled form).
   const addEntry = (path: string, priority = 0.8) => {
-    const trailingPath = path === "/" ? path : path.endsWith("/") ? path : `${path}/`;
     entries.set(path, {
-      url: `${SITEMAP_BASE_URL}${trailingPath}`,
+      url: toSiteUrl(path),
       lastModified: now,
       changeFrequency: "daily",
       priority,
@@ -276,112 +267,4 @@ export async function getSGProductSitemapChunk(page: number): Promise<SitemapUrl
   const products = await getSGProductSitemapEntries();
   const start = (page - 1) * MAX_URLS_PER_SITEMAP;
   return products.slice(start, start + MAX_URLS_PER_SITEMAP);
-}
-
-interface MerchantRecord {
-  id: string;
-  name: string;
-  country: string;
-  is_active: boolean;
-  onboarding_stage: string;
-}
-
-function deriveMerchantSlug(merchant: MerchantRecord): string {
-  const id = merchant.id;
-  const country = merchant.country.toLowerCase();
-  if (id.includes(".")) {
-    const cleaned = id.replace(/^www\./, "");
-    const mainPart = cleaned.split(".")[0].toLowerCase();
-    return `${mainPart}-${country}`;
-  }
-  const nameSlug = merchant.name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return `${nameSlug}-${country}`;
-}
-
-async function fetchIngestedMerchants(
-  country: string
-): Promise<MerchantRecord[]> {
-  const baseUrl =
-    process.env.BUYWHERE_API_INTERNAL_URL ||
-    process.env.NEXT_PUBLIC_BUYWHERE_API_URL ||
-    "https://api.buywhere.ai";
-  const apiKey =
-    process.env.BUYWHERE_API_KEY ||
-    process.env.NEXT_PUBLIC_BUYWHERE_API_KEY ||
-    "";
-  const headers: Record<string, string> = apiKey
-    ? { Authorization: `Bearer ${apiKey}` }
-    : {};
-
-  const merchants: MerchantRecord[] = [];
-  let offset = 0;
-  const limit = 500;
-
-  try {
-    while (true) {
-      const res = await fetch(
-        `${baseUrl}/v1/merchants?country=${country}&onboarding_stage=ingested&is_active=true&limit=${limit}&offset=${offset}`,
-        { headers, cache: "no-store", signal: AbortSignal.timeout(10000) }
-      );
-      if (!res.ok) break;
-      const data = (await res.json()) as {
-        merchants?: MerchantRecord[];
-        has_more?: boolean;
-      };
-      const batch = data.merchants ?? [];
-      merchants.push(...batch);
-      if (!data.has_more || batch.length < limit) break;
-      offset += limit;
-    }
-  } catch {}
-
-  return merchants;
-}
-
-export async function getMerchantListingSitemapEntries(): Promise<SitemapUrlEntry[]> {
-  const now = new Date();
-  const entries: SitemapUrlEntry[] = [];
-
-  const sgMerchants = await fetchIngestedMerchants("SG");
-  for (const merchant of sgMerchants) {
-    if (!merchant.is_active) continue;
-    const slug = deriveMerchantSlug(merchant);
-    const country = merchant.country.toLowerCase();
-    entries.push({
-      url: `${SITEMAP_BASE_URL}/${country}/${slug}/products/`,
-      lastModified: now,
-      changeFrequency: "daily",
-      priority: 0.8,
-    });
-  }
-
-  return entries;
-}
-
-export async function getAllRegionMerchantListingSitemapEntries(): Promise<SitemapUrlEntry[]> {
-  const now = new Date();
-  const ALL_REGIONS = ["SG", "US", "MY", "TH", "ID", "PH", "VN"];
-
-  const results = await Promise.allSettled(ALL_REGIONS.map((r) => fetchIngestedMerchants(r)));
-
-  const entries: SitemapUrlEntry[] = [];
-  for (const result of results) {
-    if (result.status !== "fulfilled") continue;
-    for (const merchant of result.value) {
-      if (!merchant.is_active) continue;
-      const slug = deriveMerchantSlug(merchant);
-      const country = merchant.country.toLowerCase();
-      entries.push({
-        url: `${SITEMAP_BASE_URL}/${country}/${slug}/products/`,
-        lastModified: now,
-        changeFrequency: "daily",
-        priority: 0.8,
-      });
-    }
-  }
-
-  return entries;
 }
