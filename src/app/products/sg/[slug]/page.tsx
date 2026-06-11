@@ -7,6 +7,61 @@ interface PageProps {
   params: { slug: string };
 }
 
+const SG_RETAILERS = [
+  { name: "Lazada", description: "Official store prices with seller ratings" },
+  { name: "Shopee", description: "Live deals from verified sellers" },
+  { name: "Amazon Singapore", description: "Prime-eligible and fulfilled offers" },
+  { name: "FairPrice Online", description: "NTUC FairPrice official listings" },
+  { name: "Courts", description: "Electronics retailer with financing options" },
+  { name: "Harvey Norman", description: "Retail and online prices compared" },
+];
+
+interface SGProductPriceData {
+  merchant: string;
+  price: string | null;
+  currency: string;
+  inStock: boolean;
+  url: string;
+}
+
+async function fetchSGProductPrices(productId: string, productName: string): Promise<SGProductPriceData[]> {
+  const baseUrl = process.env.BUYWHERE_API_INTERNAL_URL || process.env.NEXT_PUBLIC_BUYWHERE_API_URL || "https://api.buywhere.ai";
+  const apiKey = process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
+  const numericId = parseInt(productId.replace(/[^0-9]/g, ""), 10) || 1;
+
+  try {
+    const res = await fetch(`${baseUrl}/v1/products/${numericId}/prices`, {
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+      next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (res.ok) {
+      const data = await res.json() as { prices?: Array<{ merchant: string; price: number; currency: string; in_stock: boolean; url: string }> };
+      if (data.prices && data.prices.length > 0) {
+        return data.prices.map((p) => ({
+          merchant: p.merchant,
+          price: p.price ? `SGD ${p.price.toFixed(2)}` : null,
+          currency: p.currency || "SGD",
+          inStock: p.in_stock,
+          url: p.url || "#",
+        }));
+      }
+    }
+  } catch {
+    // API unavailable
+  }
+
+  // Return structured placeholder retailers for SSR content
+  return SG_RETAILERS.map((r) => ({
+    merchant: r.name,
+    price: null,
+    currency: "SGD",
+    inStock: true,
+    url: "#",
+  }));
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedProduct = await resolveSGProductRoute(params.slug);
   if (!resolvedProduct) return { title: "Product Not Found" };
@@ -15,13 +70,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   return {
     title: `${resolvedProduct.name} - Compare Prices Singapore | BuyWhere`,
-    description: `Compare prices for ${resolvedProduct.name} across Lazada, Shopee, Amazon SG, and top Singapore retailers.`,
+    description: `Compare prices for ${resolvedProduct.name} across Lazada, Shopee, Amazon SG, FairPrice, and top Singapore retailers. Find the best deal in SGD.`,
     alternates: {
       canonical: pageUrl,
     },
     openGraph: {
       title: `${resolvedProduct.name} - Compare Prices Singapore | BuyWhere`,
-      description: `Compare prices for ${resolvedProduct.name} across Lazada, Shopee, Amazon SG, and top Singapore retailers.`,
+      description: `Compare prices for ${resolvedProduct.name} across Lazada, Shopee, Amazon SG, FairPrice, and top Singapore retailers.`,
       url: pageUrl,
       type: "website",
       siteName: "BuyWhere",
@@ -38,7 +93,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     twitter: {
       card: "summary_large_image",
       title: `${resolvedProduct.name} - Compare Prices Singapore | BuyWhere`,
-      description: `Compare prices for ${resolvedProduct.name} across Lazada, Shopee, Amazon SG, and top Singapore retailers.`,
+      description: `Compare prices for ${resolvedProduct.name} across Lazada, Shopee, Amazon SG, FairPrice, and top Singapore retailers.`,
     },
     robots: {
       index: true,
@@ -54,17 +109,29 @@ export default async function SGProductSlugPage({ params }: PageProps) {
     notFound();
   }
 
+  const prices = await fetchSGProductPrices(resolvedProduct.id, resolvedProduct.name);
+  const availablePrices = prices.filter((p) => p.price !== null);
+  const pageUrl = toSiteUrl(`/products/sg/${resolvedProduct.slug}`);
+
   const productSchema = {
     "@context": "https://schema.org",
     "@type": "Product",
     name: resolvedProduct.name,
     description: `Compare prices for ${resolvedProduct.name} across top Singapore retailers including Lazada, Shopee, Amazon SG, FairPrice, and Courts.`,
-    url: toSiteUrl(`/products/sg/${resolvedProduct.slug}`),
-    offers: {
-      "@type": "AggregateOffer",
-      priceCurrency: "SGD",
-      availability: "https://schema.org/InStock",
-    },
+    url: pageUrl,
+    offers: availablePrices.length > 0
+      ? {
+          "@type": "AggregateOffer",
+          priceCurrency: "SGD",
+          offerCount: availablePrices.length,
+          lowPrice: availablePrices.map((p) => parseFloat((p.price || "0").replace(/[^0-9.]/g, ""))).sort((a, b) => a - b)[0],
+          availability: "https://schema.org/InStock",
+        }
+      : {
+          "@type": "AggregateOffer",
+          priceCurrency: "SGD",
+          availability: "https://schema.org/InStock",
+        },
   };
 
   const breadcrumbSchema = {
@@ -72,8 +139,8 @@ export default async function SGProductSlugPage({ params }: PageProps) {
     "@type": "BreadcrumbList",
     itemListElement: [
       { "@type": "ListItem", position: 1, name: "Home", item: "https://buywhere.ai/" },
-      { "@type": "ListItem", position: 2, name: "Products", item: "https://buywhere.ai/compare/" },
-      { "@type": "ListItem", position: 3, name: resolvedProduct.name },
+      { "@type": "ListItem", position: 2, name: "Singapore Products", item: "https://buywhere.ai/products/sg/" },
+      { "@type": "ListItem", position: 3, name: resolvedProduct.name, item: pageUrl },
     ],
   };
 
@@ -89,14 +156,75 @@ export default async function SGProductSlugPage({ params }: PageProps) {
       />
       <div className="flex flex-col min-h-screen">
         <main id="main-content" className="flex-1">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">
-              {resolvedProduct.name}
-            </h1>
-            <p className="text-lg text-gray-600 mb-8">
-              Compare prices for {resolvedProduct.name} across top Singapore and Southeast Asia retailers.
-            </p>
-          </div>
+          <section className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white py-10">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6">
+              <nav className="text-sm text-indigo-200 mb-4" aria-label="Breadcrumb">
+                <a href="/" className="hover:text-white">Home</a>
+                <span className="mx-2">/</span>
+                <a href="/products/sg/" className="hover:text-white">Singapore Products</a>
+                <span className="mx-2">/</span>
+                <span className="text-white">{resolvedProduct.name}</span>
+              </nav>
+              <h1 className="text-3xl font-bold mb-3">{resolvedProduct.name}</h1>
+              <p className="text-lg text-indigo-100">
+                Compare prices across {SG_RETAILERS.length} Singapore retailers and find the best deal in SGD.
+              </p>
+            </div>
+          </section>
+
+          <section className="py-10 bg-gray-50">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">
+                Price Comparison — {resolvedProduct.name}
+              </h2>
+
+              {availablePrices.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                  {availablePrices.map((p) => (
+                    <div key={p.merchant} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                      <div className="font-semibold text-gray-800 mb-1">{p.merchant}</div>
+                      <div className="text-2xl font-bold text-indigo-600 mb-2">{p.price}</div>
+                      <div className="text-sm text-gray-500">
+                        {p.inStock ? "In stock" : "Check availability"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-8">
+                  <p className="text-gray-600 mb-4">
+                    BuyWhere tracks live prices for <strong>{resolvedProduct.name}</strong> across these Singapore retailers:
+                  </p>
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {SG_RETAILERS.map((r) => (
+                      <li key={r.name} className="flex items-start gap-3">
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 text-xs font-bold flex-shrink-0 mt-0.5">✓</span>
+                        <div>
+                          <span className="font-medium text-gray-900">{r.name}</span>
+                          <span className="block text-sm text-gray-500">{r.description}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-3">
+                  About {resolvedProduct.name}
+                </h2>
+                <p className="text-gray-600 mb-4">
+                  BuyWhere helps you find the best price for <strong>{resolvedProduct.name}</strong> in Singapore.
+                  We compare prices in real time across Lazada, Shopee, Amazon Singapore, FairPrice Online,
+                  Courts, and Harvey Norman so you never overpay.
+                </p>
+                <p className="text-gray-600">
+                  Prices are updated regularly and include promotions, vouchers, and seller discounts.
+                  Click on a retailer to buy at today&apos;s lowest price.
+                </p>
+              </div>
+            </div>
+          </section>
         </main>
       </div>
     </>
