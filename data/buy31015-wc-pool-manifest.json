@@ -1,0 +1,10 @@
+{
+  "generated_at": "2026-06-11T07:15:24+00:00",
+  "source": "buywhere_api_v1_merchants_woocommerce",
+  "total_pool_entries": 48545,
+  "total_known_entries": 48545,
+  "tier_A_count": 48545,
+  "expected_hit_rate": ">90% (BuyWhere confirmed WC merchants)",
+  "pool_file": "data/buy31015-wc-domain-pool.jsonl",
+  "known_file": "data/buy31015-wc-known-merchants.json"
+}
