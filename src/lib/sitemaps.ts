@@ -360,3 +360,28 @@ export async function getMerchantListingSitemapEntries(): Promise<SitemapUrlEntr
 
   return entries;
 }
+
+export async function getAllRegionMerchantListingSitemapEntries(): Promise<SitemapUrlEntry[]> {
+  const now = new Date();
+  const ALL_REGIONS = ["SG", "US", "MY", "TH", "ID", "PH", "VN"];
+
+  const results = await Promise.allSettled(ALL_REGIONS.map((r) => fetchIngestedMerchants(r)));
+
+  const entries: SitemapUrlEntry[] = [];
+  for (const result of results) {
+    if (result.status !== "fulfilled") continue;
+    for (const merchant of result.value) {
+      if (!merchant.is_active) continue;
+      const slug = deriveMerchantSlug(merchant);
+      const country = merchant.country.toLowerCase();
+      entries.push({
+        url: `${SITEMAP_BASE_URL}/${country}/${slug}/products/`,
+        lastModified: now,
+        changeFrequency: "daily",
+        priority: 0.8,
+      });
+    }
+  }
+
+  return entries;
+}

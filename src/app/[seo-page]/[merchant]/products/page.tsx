@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
-const VALID_REGIONS = new Set(["sg", "my", "ph", "th", "id", "vn"]);
+const VALID_REGIONS = new Set(["sg", "us", "my", "ph", "th", "id", "vn"]);
 
 const COUNTRY_NAMES: Record<string, string> = {
   sg: "Singapore",
+  us: "United States",
   my: "Malaysia",
   ph: "Philippines",
   th: "Thailand",
