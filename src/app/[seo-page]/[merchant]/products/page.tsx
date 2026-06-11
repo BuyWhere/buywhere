@@ -4,12 +4,21 @@ import Link from "next/link";
 
 const VALID_REGIONS = new Set(["sg", "my", "ph", "th", "id", "vn"]);
 
+const COUNTRY_NAMES: Record<string, string> = {
+  sg: "Singapore",
+  my: "Malaysia",
+  ph: "Philippines",
+  th: "Thailand",
+  id: "Indonesia",
+  vn: "Vietnam",
+};
+
 interface MerchantInfo {
   id: string;
   name: string;
   country: string;
-  is_active: boolean;
-  onboarding_stage: string;
+  is_active?: boolean;
+  onboarding_stage?: string;
   description?: string;
   logo_url?: string | null;
 }
@@ -29,10 +38,18 @@ function deriveMerchantSlug(merchant: MerchantInfo): string {
   return `${nameSlug}-${country}`;
 }
 
+function slugToDisplayName(slug: string): string {
+  return slug
+    .replace(/-sg$|-my$|-ph$|-th$|-id$|-vn$/, "")
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Returns null on API failure (non-404); returns undefined on explicit 404 */
 async function getMerchantBySlug(
   merchantSlug: string,
   country: string
-): Promise<MerchantInfo | null> {
+): Promise<MerchantInfo | null | undefined> {
   const baseUrl =
     process.env.BUYWHERE_API_INTERNAL_URL ||
     process.env.NEXT_PUBLIC_BUYWHERE_API_URL ||
@@ -44,7 +61,7 @@ async function getMerchantBySlug(
     : {};
 
   try {
-    // First try direct ID lookup
+    // Try direct ID lookup first
     const directRes = await fetch(
       `${baseUrl}/v1/merchants/${encodeURIComponent(merchantSlug)}`,
       { headers, next: { revalidate: 3600 }, signal: AbortSignal.timeout(5000) }
@@ -53,23 +70,24 @@ async function getMerchantBySlug(
       const data = (await directRes.json()) as MerchantInfo;
       if (data?.id) return data;
     }
+    if (directRes.status === 404) return undefined;
   } catch {}
 
   try {
-    // Fallback: fetch all ingested merchants for the country and match by slug
+    // Fallback: fetch ingested merchant list and match by derived slug
     const listRes = await fetch(
       `${baseUrl}/v1/merchants?country=${country.toUpperCase()}&onboarding_stage=ingested&is_active=true&limit=500`,
       { headers, next: { revalidate: 3600 }, signal: AbortSignal.timeout(10000) }
     );
     if (listRes.ok) {
-      const data = (await listRes.json()) as {
-        merchants?: MerchantInfo[];
-      };
+      const data = (await listRes.json()) as { merchants?: MerchantInfo[] };
       const merchants = data.merchants ?? [];
-      return merchants.find((m) => deriveMerchantSlug(m) === merchantSlug) ?? null;
+      const match = merchants.find((m) => deriveMerchantSlug(m) === merchantSlug);
+      return match ?? null;
     }
   } catch {}
 
+  // API unavailable / auth error — return null (not undefined) to signal "unknown, not absent"
   return null;
 }
 
@@ -84,32 +102,26 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return { title: "Page Not Found" };
   }
 
-  const countryName: Record<string, string> = {
-    sg: "Singapore",
-    my: "Malaysia",
-    ph: "Philippines",
-    th: "Thailand",
-    id: "Indonesia",
-    vn: "Vietnam",
-  };
-
+  const regionLabel = COUNTRY_NAMES[region] ?? region.toUpperCase();
   const merchant = await getMerchantBySlug(merchantSlug, region);
-  if (!merchant) {
+
+  if (merchant === undefined) {
+    // Explicit 404 from API
     return { title: "Merchant Not Found" };
   }
 
-  const regionLabel = countryName[region] ?? region.toUpperCase();
+  const displayName = merchant?.name ?? slugToDisplayName(merchantSlug);
   const canonicalUrl = `https://buywhere.ai/${region}/${merchantSlug}/products/`;
 
   return {
-    title: `${merchant.name} Products in ${regionLabel} | BuyWhere`,
+    title: `${displayName} Products in ${regionLabel} | BuyWhere`,
     description:
-      merchant.description ??
-      `Browse all products from ${merchant.name} in ${regionLabel}. Compare prices and find the best deals on BuyWhere.`,
+      merchant?.description ??
+      `Browse all products from ${displayName} in ${regionLabel}. Compare prices and find the best deals on BuyWhere.`,
     alternates: { canonical: canonicalUrl },
     openGraph: {
-      title: `${merchant.name} Products in ${regionLabel} | BuyWhere`,
-      description: `Browse ${merchant.name} products in ${regionLabel}`,
+      title: `${displayName} Products in ${regionLabel} | BuyWhere`,
+      description: `Browse ${displayName} products in ${regionLabel}`,
       url: canonicalUrl,
       type: "website",
     },
@@ -124,19 +136,15 @@ export default async function MerchantProductsPage({ params }: PageProps) {
   }
 
   const merchant = await getMerchantBySlug(merchantSlug, region);
-  if (!merchant) {
+
+  if (merchant === undefined) {
+    // API explicitly returned 404 for this merchant slug
     notFound();
   }
 
-  const countryName: Record<string, string> = {
-    sg: "Singapore",
-    my: "Malaysia",
-    ph: "Philippines",
-    th: "Thailand",
-    id: "Indonesia",
-    vn: "Vietnam",
-  };
-  const regionLabel = countryName[region] ?? region.toUpperCase();
+  // merchant is null (API unavailable) or a MerchantInfo object
+  const regionLabel = COUNTRY_NAMES[region] ?? region.toUpperCase();
+  const displayName = merchant?.name ?? slugToDisplayName(merchantSlug);
   const canonicalUrl = `https://buywhere.ai/${region}/${merchantSlug}/products/`;
 
   const breadcrumbSchema = {
@@ -147,7 +155,7 @@ export default async function MerchantProductsPage({ params }: PageProps) {
       {
         "@type": "ListItem",
         position: 2,
-        name: `${merchant.name} Products`,
+        name: `${displayName} Products`,
         item: canonicalUrl,
       },
     ],
@@ -156,9 +164,9 @@ export default async function MerchantProductsPage({ params }: PageProps) {
   const orgSchema = {
     "@context": "https://schema.org",
     "@type": "Store",
-    name: merchant.name,
+    name: displayName,
     url: canonicalUrl,
-    ...(merchant.logo_url && { logo: merchant.logo_url }),
+    ...(merchant?.logo_url && { logo: merchant.logo_url }),
     areaServed: regionLabel,
   };
 
@@ -187,26 +195,26 @@ export default async function MerchantProductsPage({ params }: PageProps) {
               </Link>
             </li>
             <li aria-hidden="true">/</li>
-            <li className="text-gray-900 font-medium">{merchant.name} Products</li>
+            <li className="text-gray-900 font-medium">{displayName} Products</li>
           </ol>
         </nav>
 
         <header className="mb-8">
-          {merchant.logo_url && (
+          {merchant?.logo_url && (
             <div className="mb-4">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={merchant.logo_url}
-                alt={`${merchant.name} logo`}
+                alt={`${displayName} logo`}
                 className="h-16 w-auto object-contain"
               />
             </div>
           )}
           <h1 className="text-3xl font-bold text-gray-900">
-            {merchant.name} Products
+            {displayName} Products
           </h1>
           <p className="mt-2 text-gray-600">
-            Browse all products from {merchant.name} available in {regionLabel}.
+            Browse all products from {displayName} available in {regionLabel}.
           </p>
         </header>
 
@@ -215,7 +223,7 @@ export default async function MerchantProductsPage({ params }: PageProps) {
             Product listings coming soon. Check back shortly for the full catalogue.
           </p>
           <p className="mt-3 text-sm text-gray-400">
-            Merchant: {merchant.name} &middot; Region: {regionLabel}
+            Merchant: {displayName} &middot; Region: {regionLabel}
           </p>
         </div>
       </main>
