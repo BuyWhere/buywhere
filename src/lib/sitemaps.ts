@@ -324,7 +324,7 @@ async function fetchIngestedMerchants(
     while (true) {
       const res = await fetch(
         `${baseUrl}/v1/merchants?country=${country}&onboarding_stage=ingested&is_active=true&limit=${limit}&offset=${offset}`,
-        { headers, next: { revalidate: 3600 }, signal: AbortSignal.timeout(10000) }
+        { headers, cache: "no-store", signal: AbortSignal.timeout(10000) }
       );
       if (!res.ok) break;
       const data = (await res.json()) as {
