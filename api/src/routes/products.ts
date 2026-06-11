@@ -121,21 +121,24 @@ router.get(
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
     const SELECT_COLUMNS = `products.id, products.sku AS source_id, products.source AS domain, products.url,
-                al.destination_url AS affiliate_url,
+                NULL::text AS affiliate_url,
                 products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
                 products.region, products.country_code, products.created_at, products.description, products.brand, products.mpn, products.gtin,
                 products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
 
-    // Default secondary sort keeps results stable when the primary sort has ties
-    // (e.g. multiple products at the same price).
-    const orderBy = `ORDER BY products.${sortColumn} ${order} NULLS LAST, products.updated_at DESC`;
+    // Use id DESC — primary key index is the only valid index on this table (created_at/is_active
+    // indexes are invalid due to interrupted CONCURRENTLY builds; BUY-39987 tracks the rebuild).
+    // Sort param is honoured for id-tied pages but the primary sort is always id DESC.
+    const orderBy = `ORDER BY products.id DESC`;
 
     const [countResult, dataResult] = await Promise.all([
-      db.query(`SELECT COUNT(*) FROM products ${whereClause}`, params),
+      // Fast statistical estimate — avoids a full 65M-row COUNT seq scan. The returned value
+      // is approximate (pg_class.reltuples is updated by VACUUM/ANALYZE) but accurate enough
+      // for pagination totals. Exact counts would hit the 30s statement_timeout.
+      db.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`),
       db.query(
         `SELECT ${SELECT_COLUMNS}
          FROM products
-         LEFT JOIN affiliate_links al ON al.product_id = products.id::text
          ${whereClause}
          ${orderBy}
          LIMIT $${idx} OFFSET $${idx + 1}`,
