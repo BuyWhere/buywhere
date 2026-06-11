@@ -712,6 +712,7 @@ function generateMockReviewSummary(productName: string): ReviewSummary {
 
 interface USProductDetailProps {
   productId: string;
+  initialData?: USProduct;
 }
 
 function ProductLoadingSkeleton() {
@@ -812,12 +813,12 @@ function ProductNotFoundState() {
   );
 }
 
-export default function USProductDetail({ productId }: USProductDetailProps) {
-  const [product, setProduct] = useState<USProduct | null>(null);
+export default function USProductDetail({ productId, initialData }: USProductDetailProps) {
+  const [product, setProduct] = useState<USProduct | null>(initialData ?? null);
   const [priceHistory, setPriceHistory] = useState<PriceHistoryEntry[]>([]);
   const [reviewSummary, setReviewSummary] = useState<ReviewSummary | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<RelatedProduct[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
