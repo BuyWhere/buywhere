@@ -1,10 +1,26 @@
 {
-  "generated_at": "2026-06-11T07:15:24+00:00",
+  "generated_at": "2026-06-11T07:23:56+00:00",
   "source": "buywhere_api_v1_merchants_woocommerce",
-  "total_pool_entries": 48545,
-  "total_known_entries": 48545,
-  "tier_A_count": 48545,
-  "expected_hit_rate": ">90% (BuyWhere confirmed WC merchants)",
+  "total_pool_entries": 23748,
+  "total_known_entries": 23753,
+  "tier_A_count": 23748,
+  "filtering": {
+    "original_api_count": 74815,
+    "original_unique_domains": 48545,
+    "removed_html_filenames": 23806,
+    "removed_myshopify": 985,
+    "removed_other_invalid": 6,
+    "after_filter": 23748
+  },
+  "empirical_validation": {
+    "probe_sample_size": 30,
+    "confirmed_wc_hits": 4,
+    "hit_rate_pct": 13.3,
+    "method": "wp-json/wc/store/products probe + auth-gated detection",
+    "acceptance_criteria": ">= 10%",
+    "passes": true
+  },
+  "expected_new_merchants": "approx 3000 from 23748 candidates at 13% hit rate",
   "pool_file": "data/buy31015-wc-domain-pool.jsonl",
   "known_file": "data/buy31015-wc-known-merchants.json"
 }
