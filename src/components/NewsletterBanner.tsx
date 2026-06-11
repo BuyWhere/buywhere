@@ -21,7 +21,7 @@ export default function NewsletterBanner() {
       const data = await res.json();
       if (res.ok && data.success) {
         setStatus("success");
-        setMessage(data.message ?? "You\'re subscribed!");
+        setMessage(data.message ?? "You're subscribed!");
         setEmail("");
       } else {
         setStatus("error");
@@ -87,7 +87,7 @@ export default function NewsletterBanner() {
         </form>
         {message && (
           <p
-            className={}
+            className={status === "success" ? "mt-3 text-sm text-green-700" : "mt-3 text-sm text-red-600"}
             role="status"
           >
             {message}
