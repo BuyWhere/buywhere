@@ -328,9 +328,24 @@ export function middleware(request: NextRequest) {
   // Trailing-slash rewrite: serve the non-slash path directly (200) instead of
   // letting Next.js emit a 308 redirect.  Google was seeing 308 on every
   // trailing-slash URL and reporting "Page with redirect", preventing indexing.
+  // Check legacyRedirectPath first so /docs/guides/foo/ and unknown /blog/foo/
+  // still get 410 or redirect rather than bypassing that logic via rewrite.
   if (pathname !== "/" && pathname.endsWith("/")) {
+    const nonSlashPath = pathname.slice(0, -1);
+    const trailingSlashRedirect = legacyRedirectPath(host, nonSlashPath);
+    if (trailingSlashRedirect === "__DEAD_BLOG_SLUG__") {
+      return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
+    }
+    if (trailingSlashRedirect) {
+      const url = request.nextUrl.clone();
+      url.host = "buywhere.ai";
+      url.port = "";
+      url.protocol = "https:";
+      url.pathname = trailingSlashRedirect;
+      return NextResponse.redirect(url, 301);
+    }
     const url = request.nextUrl.clone();
-    url.pathname = pathname.slice(0, -1);
+    url.pathname = nonSlashPath;
     return NextResponse.rewrite(url);
   }
 
