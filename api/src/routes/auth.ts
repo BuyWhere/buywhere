@@ -90,8 +90,8 @@ async function registerAgent(req: Request, res: Response): Promise<void> {
     tier: 'unverified',
     email_verified: false,
     rate_limit: {
-      rpm: FREE_TIER.rpm,
-      daily: FREE_TIER.daily,
+      rpm: TIER_LIMITS.unverified.rpm,
+      daily: TIER_LIMITS.unverified.daily,
     },
     docs: 'https://api.buywhere.ai/docs',
   });
@@ -114,7 +114,7 @@ router.get('/verify', async (req: Request, res: Response) => {
        SET email_verified = true,
            email_verification_token = NULL,
            email_verification_expires_at = NULL,
-           tier = 'basic'
+           tier = 'verified_agent'
      WHERE email_verification_token = $1
        AND email_verified = false
        AND (email_verification_expires_at IS NULL OR email_verification_expires_at > NOW())
@@ -140,6 +140,8 @@ router.get('/verify', async (req: Request, res: Response) => {
   }
 
   const { id, email: verifiedEmail, tier, rpm_limit, daily_limit } = result.rows[0];
+  const effectiveDaily = daily_limit ?? (TIER_LIMITS[tier] ?? FREE_TIER).daily;
+  const effectiveRpm = rpm_limit ?? (TIER_LIMITS[tier] ?? FREE_TIER).rpm;
 
   trackEmailVerified(id, verifiedEmail);
 
@@ -147,8 +149,8 @@ router.get('/verify', async (req: Request, res: Response) => {
     message: 'Email verified successfully.',
     tier,
     rate_limit: {
-      rpm: rpm_limit,
-      daily: daily_limit,
+      rpm: effectiveRpm,
+      daily: effectiveDaily,
     },
   });
 });
