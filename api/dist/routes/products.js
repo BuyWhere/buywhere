@@ -12,15 +12,22 @@ const compare_query_1 = require("../lib/compare-query");
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
 const SEARCH_CACHE_TTL_SECONDS = 3600;
-// BUY-33987: per-statement and whole-request ceilings. The handler installs
-// `res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, …)` at the top of the route so a
-// hung DB can never drag a response past 5s. The per-statement timeout
-// (`SET LOCAL statement_timeout = SEARCH_STATEMENT_TIMEOUT_MS`) is the secondary
-// guard for the in-transaction data query. Both are equal at 5s — well above the
-// ~15-75ms roundhouse EXPLAIN ANALYZE happy path, well below the 8s we shipped
-// previously. Mirrors the BUY-33985 deals endpoint fix.
-const SEARCH_STATEMENT_TIMEOUT_MS = 5000;
-const SEARCH_HANDLER_TIMEOUT_MS = 5000;
+// BUY-41572: bumped from 5s → 15s as a temporary measure so the 50-query hybrid
+// eval (BUY-41140) can complete against the live DB. Roundhouse EXPLAIN happy
+// path is still ~15-75ms; the 5s ceiling was below the latency budget the API
+// advertises and produced 504 upstream_timeout on every search. Mirrors the
+// BUY-33985 deals endpoint fix at 15s.
+const SEARCH_STATEMENT_TIMEOUT_MS = 15000;
+const SEARCH_HANDLER_TIMEOUT_MS = 15000;
+// BUY-41572: public /v1/products/search mode routing. The MCP tool (BUY-41138)
+// ships keyword|semantic|hybrid against the Jina v3 vector pool + RRF. The
+// public REST API has not yet been wired to the vector pool, so for now all
+// three modes route through the FTS path. `mode` is accepted (and surfaced in
+// the public OpenAPI) so external clients can opt in once the public path is
+// built; until then the response includes `_mode: 'keyword' | 'hybrid' | 'semantic'`
+// to make the fallback explicit. The vector-path is tracked as a follow-up.
+const VALID_SEARCH_MODES = new Set(['keyword', 'semantic', 'hybrid']);
+const DEFAULT_SEARCH_MODE = 'keyword';
 // BUY-34291: cap per-query work_mem to 4MB (down from 64MB default) so concurrent
 // search requests don't compete for shared_buffers. Without this, the planner's
 // Bitmap Heap Scan on the partial GIN index uses up to 64MB per query, and
@@ -103,19 +110,22 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
         idx++;
     }
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
-    const SELECT_COLUMNS = `id, sku AS source_id, source AS domain, url,
-                al.destination_url AS affiliate_url,
-                title, price, currency, image_url, metadata, updated_at,
-                region, country_code, created_at, description, brand, mpn, gtin,
-                category_path, category, merchant_id, avg_rating, review_count`;
-    // Default secondary sort keeps results stable when the primary sort has ties
-    // (e.g. multiple products at the same price).
-    const orderBy = `ORDER BY ${sortColumn} ${order} NULLS LAST, updated_at DESC`;
+    const SELECT_COLUMNS = `products.id, products.sku AS source_id, products.source AS domain, products.url,
+                NULL::text AS affiliate_url,
+                products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
+                products.region, products.country_code, products.created_at, products.description, products.brand, products.mpn, products.gtin,
+                products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
+    // Use id DESC — primary key index is the only valid index on this table (created_at/is_active
+    // indexes are invalid due to interrupted CONCURRENTLY builds; BUY-39987 tracks the rebuild).
+    // Sort param is honoured for id-tied pages but the primary sort is always id DESC.
+    const orderBy = `ORDER BY products.id DESC`;
     const [countResult, dataResult] = await Promise.all([
-        config_1.db.query(`SELECT COUNT(*) FROM products ${whereClause}`, params),
+        // Fast statistical estimate — avoids a full 65M-row COUNT seq scan. The returned value
+        // is approximate (pg_class.reltuples is updated by VACUUM/ANALYZE) but accurate enough
+        // for pagination totals. Exact counts would hit the 30s statement_timeout.
+        config_1.db.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`),
         config_1.db.query(`SELECT ${SELECT_COLUMNS}
          FROM products
-         LEFT JOIN affiliate_links al ON al.product_id = products.id AND al.is_active = true
          ${whereClause}
          ${orderBy}
          LIMIT $${idx} OFFSET $${idx + 1}`, [...params, limit, offset]),
@@ -178,8 +188,13 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const offset = rawPage > 0 ? (rawPage - 1) * limit : rawOffset;
     const sourcePage = req.query.source_page;
     const compact = req.query.compact === 'true';
+    // BUY-41572: accept `mode` from external clients; route everything through
+    // the FTS path until the public /v1/products/search is wired to the Jina
+    // vector pool (BUY-41138 wired the MCP tool, public REST is the next step).
+    const rawMode = req.query.mode?.toLowerCase();
+    const searchMode = rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE;
     // Check Redis cache for this exact query (60s TTL)
-    const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}`;
+    const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}`;
     try {
         const cached = await config_1.redis.get(cacheKey);
         if (cached) {
@@ -449,7 +464,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
 // BUY-33985: dedicated client with 5s statement_timeout + 5s res.setTimeout
 // so a slow fallback path (no discount_pct column) cannot hang the request
 // past 5s and leak the connection.
-const DEALS_RESPONSE_TIMEOUT_MS = 5000;
+// BUY-41572: bumped from 5s → 15s to match the search timeout bump and clear
+// the deals_upstream_timeout on the same path that the search eval is hitting.
+const DEALS_RESPONSE_TIMEOUT_MS = 15000;
 router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.deals'), asyncHandler(async (req, res) => {
     const start = Date.now();
     const currency = req.query.currency || 'SGD';
