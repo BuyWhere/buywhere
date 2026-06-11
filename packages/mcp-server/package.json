@@ -1,6 +1,6 @@
 {
   "name": "@buywhere/mcp-server",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "BuyWhere MCP server — search and compare products from Singapore, SEA, and US markets via Model Context Protocol. Cross-border e-commerce product catalog for AI agents.",
   "type": "module",
   "bin": {

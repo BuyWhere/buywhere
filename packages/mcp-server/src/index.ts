@@ -25,6 +25,14 @@ if (!API_KEY) {
   process.exit(1);
 }
 
+const REQUEST_TIMEOUT_MS = 20_000;
+const MAX_RETRIES = 2;
+const RETRY_DELAY_BASE_MS = 1_000;
+
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
 async function apiGet(path: string, params: Record<string, unknown> = {}): Promise<unknown> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
@@ -35,19 +43,48 @@ async function apiGet(path: string, params: Record<string, unknown> = {}): Promi
   const queryString = qs.toString();
   const url = `${API_BASE_URL}${path}${queryString ? `?${queryString}` : ''}`;
 
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-  });
+  let lastError: Error | undefined;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      await new Promise<void>(resolve => setTimeout(resolve, RETRY_DELAY_BASE_MS * attempt));
+    }
+    try {
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`BuyWhere API error ${res.status}: ${body}`);
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        if (!isRetryableStatus(res.status)) {
+          throw new Error(`BuyWhere API error ${res.status}: ${body}`);
+        }
+        lastError = new Error(`BuyWhere API error ${res.status}: ${body}`);
+        continue;
+      }
+
+      return res.json();
+    } catch (err) {
+      // Non-retryable 4xx API errors propagate immediately (except 429)
+      if (
+        err instanceof Error &&
+        /^BuyWhere API error 4(?!29)/.test(err.message)
+      ) {
+        throw err;
+      }
+      const isTimeout = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
+      if (isTimeout) {
+        process.stderr.write(`[buywhere-mcp] request timeout (attempt ${attempt + 1}/${MAX_RETRIES + 1}): ${url}\n`);
+        lastError = new Error(`Request timed out after ${REQUEST_TIMEOUT_MS}ms`);
+      } else {
+        lastError = err instanceof Error ? err : new Error(String(err));
+      }
+    }
   }
-
-  return res.json();
+  throw lastError ?? new Error('Unknown error');
 }
 
 const TOOLS: Tool[] = [
