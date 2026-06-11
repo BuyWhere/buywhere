@@ -136,11 +136,12 @@ describe('NL search queries — response correctness', () => {
     });
     assert.equal(res.status, 200);
 
-    const countQueryCall = queryMock.mock.calls.find(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('COUNT') && c.arguments[0].includes('country_code')
+    // Implementation uses CTE over-fetch (no separate COUNT); check filter is in data query
+    const queryCall = queryMock.mock.calls.find(
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('country_code') && c.arguments[0].includes('FROM products')
     );
-    assert.ok(countQueryCall, 'Expected country_code filter in count query');
-    assert.ok(countQueryCall.arguments[0].includes(`country_code = $`));
+    assert.ok(queryCall, 'Expected country_code filter in query');
+    assert.ok(queryCall.arguments[0].includes(`country_code = $`));
   });
 
   it('accepts country_code=US to override default SG', async () => {
@@ -172,12 +173,13 @@ describe('NL search queries — response correctness', () => {
     });
     assert.equal(res.status, 200);
 
-    const countCall = queryMock.mock.calls.find(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('COUNT')
+    // Implementation uses CTE over-fetch (no separate COUNT); check filters are in data query
+    const dataCall = queryMock.mock.calls.find(
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('price >=')
     );
-    assert.ok(countCall);
-    assert.ok(countCall.arguments[0].includes('price >='));
-    assert.ok(countCall.arguments[0].includes('price <='));
+    assert.ok(dataCall, 'Expected price range filter in query');
+    assert.ok(dataCall.arguments[0].includes('price >='));
+    assert.ok(dataCall.arguments[0].includes('price <='));
   });
 
   it('handles empty query (filter-only search)', async () => {
@@ -309,11 +311,12 @@ describe('NL search queries — response correctness', () => {
     });
     assert.equal(res.status, 200);
 
-    const countCall = queryMock.mock.calls.find(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('COUNT')
+    // Implementation uses CTE over-fetch (no separate COUNT); check filter is in data query
+    const dataCall = queryMock.mock.calls.find(
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('source =')
     );
-    assert.ok(countCall);
-    assert.ok(countCall.arguments[0].includes('source ='));
+    assert.ok(dataCall, 'Expected source= filter in query');
+    assert.ok(dataCall.arguments[0].includes('source ='));
   });
 
   it('preserves backward-compat `country` param alias', async () => {
@@ -324,11 +327,8 @@ describe('NL search queries — response correctness', () => {
       if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
         return Promise.resolve({ rows: [] });
       }
-      if (typeof sql === 'string' && sql.includes('COUNT')) {
-        const hasMY = sql.includes("'MY'") || (Array.isArray(arguments[1]) && arguments[1].includes('MY'));
-        return Promise.resolve({ rows: [{ count: hasMY ? '2' : '0' }] });
-      }
-      return Promise.resolve({ rows: [makeProduct('1', { country_code: 'MY' })] });
+      // total is derived from row count (CTE over-fetch), not a COUNT query — return 2 rows
+      return Promise.resolve({ rows: [makeProduct('1', { country_code: 'MY' }), makeProduct('2', { country_code: 'MY' })] });
     });
 
     const res = await fetch(`http://localhost:${port}/v1/products/search?q=shoe&country=MY`, {
@@ -345,11 +345,12 @@ describe('NL search queries — response correctness', () => {
     });
     assert.equal(res.status, 200);
 
-    const countCall = queryMock.mock.calls.find(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('COUNT')
+    // Implementation uses CTE over-fetch (no separate COUNT); check filter is in data query
+    const dataCall = queryMock.mock.calls.find(
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('region =')
     );
-    assert.ok(countCall);
-    assert.ok(countCall.arguments[0].includes('region ='));
+    assert.ok(dataCall, 'Expected region= filter in query');
+    assert.ok(dataCall.arguments[0].includes('region ='));
   });
 
   it('uses small-result-set ordering (ts_rank) when approxCount <= 1000', async () => {
@@ -380,16 +381,13 @@ describe('NL search queries — response correctness', () => {
     assert.ok(!dataCall.arguments[0].includes('_candidates'));
   });
 
-  it('uses candidate-limit path when approxCount > 1000', async () => {
+  it('always uses top_ids CTE candidate-limit path for FTS queries', async () => {
     queryMock.mock.mockImplementation((sql) => {
       if (typeof sql === 'string' && sql.includes('api_keys')) {
         return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
       }
       if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
         return Promise.resolve({ rows: [] });
-      }
-      if (typeof sql === 'string' && sql.includes('COUNT')) {
-        return Promise.resolve({ rows: [{ count: '2500' }] });
       }
       return Promise.resolve({
         rows: [makeProduct('1', { title: 'Gaming Laptop', price: 1299, metadata: { brand: 'ASUS' } })],
@@ -401,10 +399,11 @@ describe('NL search queries — response correctness', () => {
     });
     assert.equal(res.status, 200);
 
+    // FTS always uses WITH top_ids AS (...) CTE to cap candidates before ranking
     const dataCall = queryMock.mock.calls.find(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('_candidates')
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('top_ids')
     );
-    assert.ok(dataCall, 'Expected candidate-limit subquery (large result set path)');
+    assert.ok(dataCall, 'Expected CTE with top_ids subquery for FTS queries');
   });
 });
 
@@ -523,7 +522,7 @@ describe('NL search — Redis caching behavior', () => {
     );
     assert.ok(cacheSetCalls.length >= 1, 'Expected Redis cache set for query');
     assert.equal(cacheSetCalls[0].arguments[2], 'EX');
-    assert.equal(cacheSetCalls[0].arguments[3], 60);
+    assert.equal(cacheSetCalls[0].arguments[3], 3600); // BUY-31302: raised from 60s to 3600s
   });
 
   it('uses correct cache key format', async () => {
