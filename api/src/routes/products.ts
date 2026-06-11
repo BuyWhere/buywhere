@@ -120,15 +120,15 @@ router.get(
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
-    const SELECT_COLUMNS = `id, sku AS source_id, source AS domain, url,
+    const SELECT_COLUMNS = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                 al.destination_url AS affiliate_url,
-                title, price, currency, image_url, metadata, updated_at,
-                region, country_code, created_at, description, brand, mpn, gtin,
-                category_path, category, merchant_id, avg_rating, review_count`;
+                products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
+                products.region, products.country_code, products.created_at, products.description, products.brand, products.mpn, products.gtin,
+                products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
 
     // Default secondary sort keeps results stable when the primary sort has ties
     // (e.g. multiple products at the same price).
-    const orderBy = `ORDER BY ${sortColumn} ${order} NULLS LAST, updated_at DESC`;
+    const orderBy = `ORDER BY products.${sortColumn} ${order} NULLS LAST, products.updated_at DESC`;
 
     const [countResult, dataResult] = await Promise.all([
       db.query(`SELECT COUNT(*) FROM products ${whereClause}`, params),
