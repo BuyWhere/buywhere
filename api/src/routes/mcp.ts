@@ -225,6 +225,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const searchClient = await db.connect();
   try {
     await searchClient.query('SET statement_timeout = 30000'); // BUY-31962: bumped from 10s — non-FTS filtered scans on 14M rows can approach 10s
+    await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
     const COUNT_CAP = 1001;
     if (q) {
       const countResult = await searchClient.query(
@@ -555,7 +556,8 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const category = (args.category as string) || '';
   const limit = 10;
 
-  const conditions: string[] = ['is_active = true'];
+  // BUY-26343: price > 0 prevents returning corrupt zero-price records
+  const conditions: string[] = ['is_active = true', 'price > 0'];
   const params: unknown[] = [];
 
   params.push(productName);

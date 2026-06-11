@@ -78,11 +78,14 @@ async function warmupMcpCaches() {
     } else {
       console.log('[mcp-warmup] discount_pct GENERATED column already exists.');
     }
+    // BUY-26343: Use CONCURRENTLY so startup doesn't hold a lock on 68M row table.
+    // Note: CONCURRENTLY cannot run inside a transaction; it is fire-and-forget here.
+    // The index may not exist immediately after — a separate deploy kit ensures it.
     await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_products_deals_discount_pct
+      CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_products_deals_discount_pct
         ON products (currency, discount_pct DESC)
         WHERE discount_pct IS NOT NULL AND price > 0
-    `);
+    `).catch(e => console.warn('[mcp-warmup] deals index skipped:', e.message));
     console.log('[mcp-warmup] discount_pct column and index verified.');
 
     await client.query(`
