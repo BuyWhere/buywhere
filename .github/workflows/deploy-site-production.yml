@@ -16,7 +16,7 @@ env:
   GCP_PROJECT_ID: gaia-calendar-488606
   GCP_REGION: asia-southeast1
   ARTIFACT_REGISTRY: asia-southeast1-docker.pkg.dev
-  IMAGE_REPO: buywhere
+  IMAGE_REPO: cloud-run-source-deploy
   SERVICE_NAME: buywhere-site
 
 jobs:
