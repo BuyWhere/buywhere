@@ -135,7 +135,7 @@ router.get(
       db.query(
         `SELECT ${SELECT_COLUMNS}
          FROM products
-         LEFT JOIN affiliate_links al ON al.product_id = products.id AND al.is_active = true
+         LEFT JOIN affiliate_links al ON al.product_id = products.id::text
          ${whereClause}
          ${orderBy}
          LIMIT $${idx} OFFSET $${idx + 1}`,
