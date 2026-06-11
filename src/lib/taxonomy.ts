@@ -88,6 +88,22 @@ export const PRODUCT_TAXONOMY: TaxonomyCategory[] = [
     icon: '🐕',
     regions: ['us', 'sg', 'sea'],
   },
+  {
+    id: 'books-stationery',
+    name: 'Books & Stationery',
+    slug: 'books-stationery',
+    description: 'Books, notebooks, pens, and office supplies',
+    icon: '📚',
+    regions: ['us', 'sg', 'sea'],
+  },
+  {
+    id: 'garden-outdoor',
+    name: 'Garden & Outdoor',
+    slug: 'garden-outdoor',
+    description: 'Gardening tools, outdoor furniture, and garden accessories',
+    icon: '🌿',
+    regions: ['us', 'sg', 'sea'],
+  },
 ];
 
 export const US_CATEGORY_META: Record<string, { name: string; slug: string; description: string; breadcrumbs: { name: string; href?: string }[] }> = {
