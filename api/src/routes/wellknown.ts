@@ -255,9 +255,10 @@ router.get('/openapi.json', (_req: Request, res: Response) => {
             { name: 'compact', in: 'query', schema: { type: 'boolean', default: false }, description: 'Return minimal payload for AI agents (id, title, price, currency, url, specs)' },
             { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, maximum: 100 } },
             { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
+            { name: 'mode', in: 'query', schema: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], default: 'keyword' }, description: 'Search mode. `keyword` (default) is full-text search on the indexed search_vector. `hybrid` and `semantic` are accepted for forward-compatibility with the MCP `search_products` tool (BUY-41138) and currently route through the FTS path; once the public REST API is wired to the Jina v3 vector pool, `hybrid` will RRF-merge FTS and cosine ranks and `semantic` will be vector-only.' },
           ],
           responses: {
-            '200': { description: 'Product list with meta (total, response_time_ms, cached)' },
+            '200': { description: 'Product list with meta (total, response_time_ms, cached, mode)' },
             '401': { description: 'Missing or invalid API key' },
             '429': { description: 'Rate limit exceeded' },
           },
