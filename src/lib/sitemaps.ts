@@ -35,19 +35,19 @@ export interface SitemapUrlEntry {
   priority?: number;
 }
 
+// Only slugs that resolve via getCategoryBySlug (PRODUCT_TAXONOMY) are listed.
+// Removed soft-404 slugs flagged in BUY-39762 / BUY-41940:
+//   - books-stationery, garden-outdoor (noindex Category Not Found template)
+//   - sports-outdoors, pet-supplies (404 / alternate page)
 const CATEGORY_PAGE_SLUGS = [
   "automotive",
   "beauty-health",
-  "books-stationery",
   "electronics",
   "fashion",
   "food-beverages",
-  "garden-outdoor",
   "grocery",
   "health-wellness",
   "home-living",
-  "pet-supplies",
-  "sports-outdoors",
   "toys-games",
 ] as const;
 
@@ -174,6 +174,10 @@ export function getCategorySitemapEntries(): SitemapUrlEntry[] {
   const now = new Date();
   const entries = new Map<string, SitemapUrlEntry>();
 
+  // Category URLs use the canonical (no trailing slash) form so the sitemap
+  // matches <link rel="canonical"> on each page. Trailing-slash form was
+  // reconciled to the canonical by Google and flagged as
+  // "Page with redirect" / "Duplicate canonical" (BUY-39762, BUY-41940).
   const addEntry = (path: string, priority = 0.8) => {
     entries.set(path, {
       url: toSiteUrl(path),
