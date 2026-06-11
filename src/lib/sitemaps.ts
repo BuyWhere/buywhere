@@ -272,3 +272,111 @@ export async function getSGProductSitemapChunk(page: number): Promise<SitemapUrl
   const start = (page - 1) * MAX_URLS_PER_SITEMAP;
   return products.slice(start, start + MAX_URLS_PER_SITEMAP);
 }
+
+interface MerchantRecord {
+  id: string;
+  name: string;
+  country: string;
+  is_active: boolean;
+  onboarding_stage: string;
+}
+
+function deriveMerchantSlug(merchant: MerchantRecord): string {
+  const id = merchant.id;
+  const country = merchant.country.toLowerCase();
+  if (id.includes(".")) {
+    const cleaned = id.replace(/^www\./, "");
+    const mainPart = cleaned.split(".")[0].toLowerCase();
+    return `${mainPart}-${country}`;
+  }
+  const nameSlug = merchant.name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `${nameSlug}-${country}`;
+}
+
+async function fetchIngestedMerchants(
+  country: string
+): Promise<MerchantRecord[]> {
+  const baseUrl =
+    process.env.BUYWHERE_API_INTERNAL_URL ||
+    process.env.NEXT_PUBLIC_BUYWHERE_API_URL ||
+    "https://api.buywhere.ai";
+  const apiKey =
+    process.env.BUYWHERE_API_KEY ||
+    process.env.NEXT_PUBLIC_BUYWHERE_API_KEY ||
+    "";
+  const headers: Record<string, string> = apiKey
+    ? { Authorization: `Bearer ${apiKey}` }
+    : {};
+
+  const merchants: MerchantRecord[] = [];
+  let offset = 0;
+  const limit = 500;
+
+  try {
+    while (true) {
+      const res = await fetch(
+        `${baseUrl}/v1/merchants?country=${country}&onboarding_stage=ingested&is_active=true&limit=${limit}&offset=${offset}`,
+        { headers, cache: "no-store", signal: AbortSignal.timeout(10000) }
+      );
+      if (!res.ok) break;
+      const data = (await res.json()) as {
+        merchants?: MerchantRecord[];
+        has_more?: boolean;
+      };
+      const batch = data.merchants ?? [];
+      merchants.push(...batch);
+      if (!data.has_more || batch.length < limit) break;
+      offset += limit;
+    }
+  } catch {}
+
+  return merchants;
+}
+
+export async function getMerchantListingSitemapEntries(): Promise<SitemapUrlEntry[]> {
+  const now = new Date();
+  const entries: SitemapUrlEntry[] = [];
+
+  const sgMerchants = await fetchIngestedMerchants("SG");
+  for (const merchant of sgMerchants) {
+    if (!merchant.is_active) continue;
+    const slug = deriveMerchantSlug(merchant);
+    const country = merchant.country.toLowerCase();
+    entries.push({
+      url: `${SITEMAP_BASE_URL}/${country}/${slug}/products/`,
+      lastModified: now,
+      changeFrequency: "daily",
+      priority: 0.8,
+    });
+  }
+
+  return entries;
+}
+
+export async function getAllRegionMerchantListingSitemapEntries(): Promise<SitemapUrlEntry[]> {
+  const now = new Date();
+  const ALL_REGIONS = ["SG", "US", "MY", "TH", "ID", "PH", "VN"];
+
+  const results = await Promise.allSettled(ALL_REGIONS.map((r) => fetchIngestedMerchants(r)));
+
+  const entries: SitemapUrlEntry[] = [];
+  for (const result of results) {
+    if (result.status !== "fulfilled") continue;
+    for (const merchant of result.value) {
+      if (!merchant.is_active) continue;
+      const slug = deriveMerchantSlug(merchant);
+      const country = merchant.country.toLowerCase();
+      entries.push({
+        url: `${SITEMAP_BASE_URL}/${country}/${slug}/products/`,
+        lastModified: now,
+        changeFrequency: "daily",
+        priority: 0.8,
+      });
+    }
+  }
+
+  return entries;
+}
