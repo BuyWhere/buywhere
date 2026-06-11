@@ -53,9 +53,10 @@ Savings: Buy from US Merchant, save up to $68 on Sony WH-1000XM5.
 |------|-------------|
 | `search_products` | Search catalog by keyword, category, price, region |
 | `get_product` | Full product details by ID (prices, specs, images) |
-| `compare_products` | Side-by-side comparison of 2–5 products |
+| `compare_products` | Side-by-side comparison of 2–10 products |
 | `get_deals` | Current price drops and promotions across markets |
 | `list_categories` | Available product category taxonomy |
+| `find_best_price` | Find lowest price for a product across all merchants |
 
 ## Claude Desktop Setup
 
