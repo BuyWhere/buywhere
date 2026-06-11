@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// Prevent Next.js from trying to pre-render this route at build time.
+// It uses request.headers (dynamic), so must always be rendered at runtime.
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Get API key from Authorization header
