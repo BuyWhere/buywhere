@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { db, redis } from '../config';
+import { db, redis, vectorDb } from '../config';
+import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
@@ -26,6 +27,7 @@ const TOOLS = [
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
         compact: { type: 'boolean', description: 'Return agent-optimized compact shape: structured_specs, comparison_attributes, normalized_price_usd. Reduces response size ~40%. Recommended for agent tool-use.', default: false },
         category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Televisions"). Use to exclude accessories and get actual products.' },
+        mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend (default). Falls back to keyword if vector DB unavailable.', default: 'hybrid' },
       },
     },
   },
@@ -100,6 +102,18 @@ const TOOLS = [
     },
   },
   {
+    name: 'find_similar',
+    description: 'Find products similar to a given product using vector similarity. Returns up to 10 nearest neighbours by semantic meaning (title+description). Useful for "more like this" recommendations.',
+    inputSchema: {
+      type: 'object',
+      required: ['product_id'],
+      properties: {
+        product_id: { type: 'string', description: 'UUID of the source product' },
+        limit: { type: 'integer', description: 'Number of similar products to return (1-10, default 10)', default: 10 },
+      },
+    },
+  },
+  {
     name: 'ingest_products',
     description: 'Ingest (upsert) a batch of products into the BuyWhere catalog. Use this to add or update product listings from any merchant/source. Requires a valid API key with ingest permissions. Accepts up to 1000 products per call with source, SKU, title, price, URL, and optional metadata.',
     inputSchema: {
@@ -156,6 +170,8 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
   const q = (args.q as string) || '';
+  const mode = (args.mode as string) || 'hybrid';
+  const useVector = vectorDb != null && process.env.JINA_API_KEY && q && (mode === 'hybrid' || mode === 'semantic');
   const domain = (args.domain as string) || '';
   const region = (args.region as string) || '';
   // country_code is canonical; `country` kept as alias for backward compat
@@ -173,7 +189,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const compact = args.compact === true;
   const currency = country ? (COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
 
-  const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}`;
+  const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -238,21 +254,117 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       // sort all matching rows (100k+ for "laptop") before applying LIMIT, exceeding the 10s
       // timeout. Fix: fetch candidates via GIN index (no sort) in a subquery, then sort the
       // small candidate set. This turns an O(N log N) sort into O(C log C) where C << N.
-      const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
-      params.push(CANDIDATE_LIMIT, limit, offset);
-      const result = await searchClient.query(
-        `SELECT * FROM (
-           SELECT id, sku AS source, source AS domain, url, title,
-                  price, currency, image_url, metadata, updated_at,
-                  region, country_code
-           FROM products ${where}
-           LIMIT $${params.length - 2}
-         ) _candidates
-         ORDER BY updated_at DESC
-         LIMIT $${params.length - 1} OFFSET $${params.length}`,
-        params
-      );
-      rows = result.rows;
+
+      if (useVector && mode !== 'keyword') {
+        // Hybrid / semantic path: embed the query and blend with FTS via RRF
+        let queryVec: string | null = null;
+        try {
+          // Cache query embedding 60s to avoid re-embedding repeated queries
+          const embedCacheKey = `qembed:${Buffer.from(q).toString('base64').slice(0, 40)}`;
+          const cachedVec = await redis.get(embedCacheKey).catch(() => null);
+          if (cachedVec) {
+            queryVec = cachedVec;
+          } else {
+            queryVec = await embedQuery(q, process.env.JINA_API_KEY!);
+            await redis.set(embedCacheKey, queryVec, 'EX', 60).catch(() => {});
+          }
+        } catch (embedErr) {
+          console.warn('[search] embed failed, falling back to FTS:', (embedErr as Error).message);
+        }
+
+        if (queryVec && vectorDb) {
+          // Non-filter params for the WHERE clause (already in params[])
+          const vecParams = [...params, queryVec, limit + offset];
+          const ftsRankParam = params.length + 1; // $N for query_vec
+          const vecLimitParam = params.length + 2;
+
+          let rrfQuery: string;
+          if (mode === 'semantic') {
+            // Vector-only: rank purely by cosine similarity
+            rrfQuery = `
+              SELECT p.id, p.sku AS source, p.source AS domain, p.url, p.title,
+                     p.price, p.currency, p.image_url, p.metadata, p.updated_at,
+                     p.region, p.country_code
+              FROM product_embeddings pe
+              JOIN products p ON p.id = pe.product_id
+              WHERE p.is_active = true
+              ORDER BY pe.embedding <=> $${ftsRankParam}::vector
+              LIMIT $${vecLimitParam} OFFSET 0`;
+          } else {
+            // Hybrid: RRF of FTS ranks + vector ranks
+            rrfQuery = `
+              WITH fts_cands AS (
+                SELECT id,
+                       rank() OVER (ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC) AS r
+                FROM products ${where}
+                LIMIT 200
+              ),
+              vec_cands AS (
+                SELECT pe.product_id AS id,
+                       rank() OVER (ORDER BY pe.embedding <=> $${ftsRankParam}::vector) AS r
+                FROM product_embeddings pe
+                ORDER BY pe.embedding <=> $${ftsRankParam}::vector
+                LIMIT 200
+              ),
+              rrf AS (
+                SELECT COALESCE(f.id, v.id) AS id,
+                       1.0/(60 + COALESCE(f.r, 201)) + 1.0/(60 + COALESCE(v.r, 201)) AS score
+                FROM fts_cands f FULL OUTER JOIN vec_cands v ON f.id = v.id
+                ORDER BY score DESC
+                LIMIT $${vecLimitParam}
+              )
+              SELECT p.id, p.sku AS source, p.source AS domain, p.url, p.title,
+                     p.price, p.currency, p.image_url, p.metadata, p.updated_at,
+                     p.region, p.country_code
+              FROM rrf JOIN products p ON p.id = rrf.id`;
+          }
+
+          const rrfResult = await searchClient.query(rrfQuery, vecParams);
+          let resultRows = rrfResult.rows as Record<string, unknown>[];
+          // Apply remaining filters in-application (domain, minPrice, maxPrice done via WHERE above for FTS;
+          // vec path needs post-filter for these since it bypasses the WHERE clause)
+          if (domain) resultRows = resultRows.filter(r => r.domain === domain);
+          if (country) resultRows = resultRows.filter(r => (r.country_code as string || '').toUpperCase() === country);
+          if (region) resultRows = resultRows.filter(r => (r.region as string || '') === region);
+          if (category) resultRows = resultRows.filter(r => ((r.metadata as Record<string,unknown> || {})['category'] as string || '').toLowerCase().includes(category.toLowerCase()));
+          rows = resultRows.slice(offset, offset + limit);
+          total = rows.length < limit ? offset + rows.length : offset + rows.length + 1; // approximate
+        } else {
+          // Embed failed — fall through to FTS below
+          const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
+          params.push(CANDIDATE_LIMIT, limit, offset);
+          const result = await searchClient.query(
+            `SELECT * FROM (
+               SELECT id, sku AS source, source AS domain, url, title,
+                      price, currency, image_url, metadata, updated_at,
+                      region, country_code
+               FROM products ${where}
+               LIMIT $${params.length - 2}
+             ) _candidates
+             ORDER BY updated_at DESC
+             LIMIT $${params.length - 1} OFFSET $${params.length}`,
+            params
+          );
+          rows = result.rows;
+        }
+      } else {
+        // Keyword (FTS) path — unchanged
+        const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
+        params.push(CANDIDATE_LIMIT, limit, offset);
+        const result = await searchClient.query(
+          `SELECT * FROM (
+             SELECT id, sku AS source, source AS domain, url, title,
+                    price, currency, image_url, metadata, updated_at,
+                    region, country_code
+             FROM products ${where}
+             LIMIT $${params.length - 2}
+           ) _candidates
+           ORDER BY updated_at DESC
+           LIMIT $${params.length - 1} OFFSET $${params.length}`,
+          params
+        );
+        rows = result.rows;
+      }
     } else {
       // No FTS — browse mode. Use reltuples for approximate total and fetch
       // recent products via idx_products_updated_at (3ms for 500 rows).
@@ -876,6 +988,53 @@ async function handleIngestProducts(args: Record<string, unknown>) {
   };
 }
 
+
+async function handleFindSimilar(args: Record<string, unknown>) {
+  const t0 = Date.now();
+  const productId = (args.product_id as string || '').trim();
+  const limit = Math.min(Number(args.limit) || 10, 10);
+
+  if (!productId) {
+    throw { code: -32602, message: 'missing required parameter: product_id' };
+  }
+  if (!vectorDb) {
+    throw { code: -32001, message: 'Vector search not available — vector DB not configured' };
+  }
+
+  const { rows } = await vectorDb.query<{ id: string; title: string; price: number; currency: string; domain: string; url: string; image_url: string; distance: number }>(
+    `SELECT p.id, p.title, p.price, p.currency,
+            p.source AS domain, p.url, p.image_url,
+            (pe2.embedding <=> ref.embedding)::float AS distance
+     FROM product_embeddings ref
+     JOIN product_embeddings pe2 ON pe2.product_id != ref.product_id
+     JOIN products p ON p.id = pe2.product_id AND p.is_active = true
+     WHERE ref.product_id = $1
+     ORDER BY distance
+     LIMIT $2`,
+    [productId, limit]
+  );
+
+  if (rows.length === 0) {
+    throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
+  }
+
+  return {
+    product_id: productId,
+    similar: rows.map(r => ({
+      id: r.id,
+      title: r.title,
+      price: r.price,
+      currency: r.currency,
+      domain: r.domain,
+      url: r.url,
+      image_url: r.image_url,
+      similarity: +(1 - r.distance).toFixed(4),
+    })),
+    total: rows.length,
+    response_time_ms: Date.now() - t0,
+  };
+}
+
 async function dispatchTool(name: string, args: Record<string, unknown>) {
   switch (name) {
     case 'search_products':  return handleSearchProducts(args);
@@ -885,6 +1044,7 @@ async function dispatchTool(name: string, args: Record<string, unknown>) {
     case 'list_categories':  return handleListCategories(args);
     case 'find_best_price':  return handleFindBestPrice(args);
     case 'ingest_products':  return handleIngestProducts(args);
+    case 'find_similar':     return handleFindSimilar(args);
     default:
       throw { code: -32601, message: `Unknown tool: ${name}` };
   }
