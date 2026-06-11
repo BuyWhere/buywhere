@@ -27,7 +27,7 @@ const TOOLS = [
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
         compact: { type: 'boolean', description: 'Return agent-optimized compact shape: structured_specs, comparison_attributes, normalized_price_usd. Reduces response size ~40%. Recommended for agent tool-use.', default: false },
         category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Televisions"). Use to exclude accessories and get actual products.' },
-        mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend (default). Falls back to keyword if vector DB unavailable.', default: 'hybrid' },
+        mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or JINA_API_KEY unavailable.', default: 'hybrid' },
       },
     },
   },
@@ -103,7 +103,7 @@ const TOOLS = [
   },
   {
     name: 'find_similar',
-    description: 'Find products similar to a given product using vector similarity. Returns up to 10 nearest neighbours by semantic meaning (title+description). Useful for "more like this" recommendations.',
+    description: 'Find products similar to a given product using vector similarity. Returns up to 10 nearest neighbours by semantic meaning (title+description embedding). Useful for "more like this" recommendations.',
     inputSchema: {
       type: 'object',
       required: ['product_id'],
@@ -171,7 +171,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
   const q = (args.q as string) || '';
   const mode = (args.mode as string) || 'hybrid';
-  const useVector = vectorDb != null && process.env.JINA_API_KEY && q && (mode === 'hybrid' || mode === 'semantic');
+  const jinaKey = process.env.JINA_API_KEY ?? '';
+  const useVector = vectorDb != null && jinaKey !== '' && q !== '' && mode !== 'keyword';
   const domain = (args.domain as string) || '';
   const region = (args.region as string) || '';
   // country_code is canonical; `country` kept as alias for backward compat
@@ -250,94 +251,84 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       );
       total = parseInt(countResult.rows[0].count, 10);
 
-      // BUY-31962: ORDER BY updated_at DESC on large FTS result sets forces PostgreSQL to
-      // sort all matching rows (100k+ for "laptop") before applying LIMIT, exceeding the 10s
-      // timeout. Fix: fetch candidates via GIN index (no sort) in a subquery, then sort the
-      // small candidate set. This turns an O(N log N) sort into O(C log C) where C << N.
-
-      if (useVector && mode !== 'keyword') {
-        // Hybrid / semantic path: embed the query and blend with FTS via RRF
+      // BUY-31962 / BUY-41138: hybrid search (RRF) or keyword FTS fallback.
+      // Hybrid and semantic paths embed the query via Jina AI, query the vector DB
+      // separately, then merge in application code (two separate PG instances).
+      if (useVector) {
+        // Embed query (retrieval.query task); Redis-cache 60s keyed by base64 query
         let queryVec: string | null = null;
         try {
-          // Cache query embedding 60s to avoid re-embedding repeated queries
-          const embedCacheKey = `qembed:${Buffer.from(q).toString('base64').slice(0, 40)}`;
-          const cachedVec = await redis.get(embedCacheKey).catch(() => null);
-          if (cachedVec) {
-            queryVec = cachedVec;
-          } else {
-            queryVec = await embedQuery(q, process.env.JINA_API_KEY!);
-            await redis.set(embedCacheKey, queryVec, 'EX', 60).catch(() => {});
+          const embedKey = `qembed:${Buffer.from(q).toString('base64').slice(0, 48)}`;
+          queryVec = await redis.get(embedKey).catch(() => null);
+          if (!queryVec) {
+            queryVec = await embedQuery(q, jinaKey);
+            await redis.set(embedKey, queryVec, 'EX', 60).catch(() => {});
           }
         } catch (embedErr) {
-          console.warn('[search] embed failed, falling back to FTS:', (embedErr as Error).message);
+          console.warn('[search] embed query failed, falling back to FTS:', (embedErr as Error).message);
         }
 
         if (queryVec && vectorDb) {
-          // Non-filter params for the WHERE clause (already in params[])
-          const vecParams = [...params, queryVec, limit + offset];
-          const ftsRankParam = params.length + 1; // $N for query_vec
-          const vecLimitParam = params.length + 2;
+          let candidateIds: string[];
 
-          let rrfQuery: string;
           if (mode === 'semantic') {
-            // Vector-only: rank purely by cosine similarity
-            rrfQuery = `
-              SELECT p.id, p.sku AS source, p.source AS domain, p.url, p.title,
-                     p.price, p.currency, p.image_url, p.metadata, p.updated_at,
-                     p.region, p.country_code
-              FROM product_embeddings pe
-              JOIN products p ON p.id = pe.product_id
-              WHERE p.is_active = true
-              ORDER BY pe.embedding <=> $${ftsRankParam}::vector
-              LIMIT $${vecLimitParam} OFFSET 0`;
+            // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
+            const vecRows = await vectorDb.query<{ product_id: string }>(
+              `SELECT product_id FROM product_embeddings
+               ORDER BY embedding <=> $1::vector LIMIT 200`,
+              [queryVec]
+            );
+            candidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
           } else {
-            // Hybrid: RRF of FTS ranks + vector ranks
-            rrfQuery = `
-              WITH fts_cands AS (
-                SELECT id,
-                       rank() OVER (ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC) AS r
-                FROM products ${where}
-                LIMIT 200
+            // Hybrid: app-level RRF of FTS ranks + vector ranks
+            const [ftsResult, vecResult] = await Promise.all([
+              searchClient.query<{ id: string }>(
+                `SELECT id FROM products ${where} LIMIT 200`,
+                params
               ),
-              vec_cands AS (
-                SELECT pe.product_id AS id,
-                       rank() OVER (ORDER BY pe.embedding <=> $${ftsRankParam}::vector) AS r
-                FROM product_embeddings pe
-                ORDER BY pe.embedding <=> $${ftsRankParam}::vector
-                LIMIT 200
+              vectorDb.query<{ product_id: string }>(
+                `SELECT product_id FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT 200`,
+                [queryVec]
               ),
-              rrf AS (
-                SELECT COALESCE(f.id, v.id) AS id,
-                       1.0/(60 + COALESCE(f.r, 201)) + 1.0/(60 + COALESCE(v.r, 201)) AS score
-                FROM fts_cands f FULL OUTER JOIN vec_cands v ON f.id = v.id
-                ORDER BY score DESC
-                LIMIT $${vecLimitParam}
-              )
-              SELECT p.id, p.sku AS source, p.source AS domain, p.url, p.title,
-                     p.price, p.currency, p.image_url, p.metadata, p.updated_at,
-                     p.region, p.country_code
-              FROM rrf JOIN products p ON p.id = rrf.id`;
+            ]);
+            const ftsRank = new Map(ftsResult.rows.map((r, i) => [r.id, i + 1]));
+            const vecRank = new Map(vecResult.rows.map((r, i) => [r.product_id, i + 1]));
+            const allIds = new Set([...ftsRank.keys(), ...vecRank.keys()]);
+            candidateIds = [...allIds]
+              .map(id => ({
+                id,
+                score: 1 / (60 + (ftsRank.get(id) ?? 201)) + 1 / (60 + (vecRank.get(id) ?? 201)),
+              }))
+              .sort((a, b) => b.score - a.score)
+              .slice(0, limit + offset)
+              .map(s => s.id);
           }
 
-          const rrfResult = await searchClient.query(rrfQuery, vecParams);
-          let resultRows = rrfResult.rows as Record<string, unknown>[];
-          // Apply remaining filters in-application (domain, minPrice, maxPrice done via WHERE above for FTS;
-          // vec path needs post-filter for these since it bypasses the WHERE clause)
-          if (domain) resultRows = resultRows.filter(r => r.domain === domain);
-          if (country) resultRows = resultRows.filter(r => (r.country_code as string || '').toUpperCase() === country);
-          if (region) resultRows = resultRows.filter(r => (r.region as string || '') === region);
-          if (category) resultRows = resultRows.filter(r => ((r.metadata as Record<string,unknown> || {})['category'] as string || '').toLowerCase().includes(category.toLowerCase()));
-          rows = resultRows.slice(offset, offset + limit);
-          total = rows.length < limit ? offset + rows.length : offset + rows.length + 1; // approximate
+          total = candidateIds.length;
+          const pageIds = candidateIds.slice(offset, offset + limit);
+
+          if (pageIds.length === 0) {
+            rows = [];
+          } else {
+            const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
+            const detailResult = await searchClient.query(
+              `SELECT id, sku AS source, source AS domain, url, title,
+                      price, currency, image_url, metadata, updated_at, region, country_code
+               FROM products WHERE id IN (${ph}) AND is_active = true`,
+              pageIds
+            );
+            // Preserve ranking order
+            const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
+            rows = pageIds.map(id => byId.get(id)).filter(Boolean) as Record<string, unknown>[];
+          }
         } else {
-          // Embed failed — fall through to FTS below
+          // Embed failed — fall through to keyword FTS
           const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
           params.push(CANDIDATE_LIMIT, limit, offset);
           const result = await searchClient.query(
             `SELECT * FROM (
                SELECT id, sku AS source, source AS domain, url, title,
-                      price, currency, image_url, metadata, updated_at,
-                      region, country_code
+                      price, currency, image_url, metadata, updated_at, region, country_code
                FROM products ${where}
                LIMIT $${params.length - 2}
              ) _candidates
@@ -348,14 +339,13 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           rows = result.rows;
         }
       } else {
-        // Keyword (FTS) path — unchanged
+        // Keyword (FTS) path — BUY-31962 subquery pattern
         const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
         params.push(CANDIDATE_LIMIT, limit, offset);
         const result = await searchClient.query(
           `SELECT * FROM (
              SELECT id, sku AS source, source AS domain, url, title,
-                    price, currency, image_url, metadata, updated_at,
-                    region, country_code
+                    price, currency, image_url, metadata, updated_at, region, country_code
              FROM products ${where}
              LIMIT $${params.length - 2}
            ) _candidates
@@ -1001,36 +991,61 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     throw { code: -32001, message: 'Vector search not available — vector DB not configured' };
   }
 
-  const { rows } = await vectorDb.query<{ id: string; title: string; price: number; currency: string; domain: string; url: string; image_url: string; distance: number }>(
-    `SELECT p.id, p.title, p.price, p.currency,
-            p.source AS domain, p.url, p.image_url,
-            (pe2.embedding <=> ref.embedding)::float AS distance
-     FROM product_embeddings ref
-     JOIN product_embeddings pe2 ON pe2.product_id != ref.product_id
-     JOIN products p ON p.id = pe2.product_id AND p.is_active = true
-     WHERE ref.product_id = $1
-     ORDER BY distance
-     LIMIT $2`,
-    [productId, limit]
+  // Step 1: get reference embedding from vector DB
+  const refResult = await vectorDb.query<{ embedding: string }>(
+    `SELECT embedding::text FROM product_embeddings WHERE product_id = $1`,
+    [productId]
   );
-
-  if (rows.length === 0) {
+  if (!refResult.rows.length) {
     throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
   }
+  const refEmbedding = refResult.rows[0].embedding;
+
+  // Step 2: find nearest neighbours in vector DB (excluding source product)
+  const nearResult = await vectorDb.query<{ product_id: string; distance: number }>(
+    `SELECT product_id, (embedding <=> $1::vector)::float AS distance
+     FROM product_embeddings WHERE product_id != $2
+     ORDER BY distance LIMIT $3`,
+    [refEmbedding, productId, limit]
+  );
+  if (!nearResult.rows.length) {
+    throw { code: -32001, message: 'No similar products found' };
+  }
+
+  // Step 3: fetch product details from main DB
+  const nearIds = nearResult.rows.map(r => r.product_id);
+  const ph = nearIds.map((_, i) => `$${i + 1}`).join(',');
+  const detailResult = await db.query(
+    `SELECT id, title, price, currency, source AS domain, url, image_url
+     FROM products WHERE id IN (${ph}) AND is_active = true`,
+    nearIds
+  );
+
+  // Step 4: merge, preserving similarity order
+  const distMap = new Map(nearResult.rows.map(r => [r.product_id, r.distance]));
+  const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
+  const similar = nearIds
+    .map(id => {
+      const p = byId.get(id) as Record<string, unknown> | undefined;
+      if (!p) return null;
+      const dist = distMap.get(id) ?? 1;
+      return {
+        id: p.id,
+        title: p.title,
+        price: p.price,
+        currency: p.currency,
+        domain: p.domain,
+        url: p.url,
+        image_url: p.image_url,
+        similarity: +Math.max(0, 1 - dist).toFixed(4),
+      };
+    })
+    .filter(Boolean);
 
   return {
     product_id: productId,
-    similar: rows.map(r => ({
-      id: r.id,
-      title: r.title,
-      price: r.price,
-      currency: r.currency,
-      domain: r.domain,
-      url: r.url,
-      image_url: r.image_url,
-      similarity: +(1 - r.distance).toFixed(4),
-    })),
-    total: rows.length,
+    similar,
+    total: similar.length,
     response_time_ms: Date.now() - t0,
   };
 }
