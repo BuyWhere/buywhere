@@ -3,6 +3,60 @@ export interface PreprocessedQuery {
   extractedMinPrice?: number;
   extractedMaxPrice?: number;
   sortIntent?: string;
+  canonicalSources?: string[]; // SG retailer source slugs detected from query
+}
+
+/**
+ * SG retailer brand → source slug mapping.
+ * When a user searches for a retailer name, we need to filter by source field
+ * because the retailer name is not in individual product titles/brands.
+ * Covers BUY-42589 canonicalization pattern (cf. BUY-28453 Dyson Airwrap fix).
+ */
+const SG_RETAILER_SOURCE_MAP: Record<string, string> = {
+  'harvey norman': 'harvey_norman_sg',
+  'harvey norman sg': 'harvey_norman_sg',
+  'harveynorman': 'harvey_norman_sg',
+  'harvey_norman': 'harvey_norman_sg',
+  'courts': 'courts_sg',
+  'courts sg': 'courts_sg',
+  'gaincity': 'gaincity_sg',
+  'gain city': 'gaincity_sg',
+  'gaincity.com': 'gaincity_sg',
+  'gaincity.sg': 'gaincity_sg',
+  'audiohouse': 'audiohouse_sg',
+  'audio house': 'audiohouse_sg',
+  'best denki': 'bestdenki_sg',
+  'bestdenki': 'bestdenki_sg',
+  'best denki sg': 'bestdenki_sg',
+};
+
+/**
+ * Detects SG retailer brand names in the query and returns the corresponding
+ * source slug(s). Used to expand FTS with a source= filter so searching
+ * "harvey norman" returns all products from that retailer regardless of
+ * whether the retailer name appears in the product title/brand.
+ *
+ * Returns { canonicalSources, remainingQuery } where canonicalSources may be empty.
+ */
+export function detectRetailerSources(
+  q: string,
+): { canonicalSources: string[]; remainingQuery: string } {
+  const lower = q.toLowerCase().trim();
+  const matchedSources: string[] = [];
+  let remaining = lower;
+
+  for (const [retailerName, sourceSlug] of Object.entries(SG_RETAILER_SOURCE_MAP)) {
+    // Match whole-word retailer name (handles "harvey norman fridge" → match on "harvey norman")
+    const pattern = new RegExp(`\\b${retailerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (pattern.test(lower)) {
+      if (!matchedSources.includes(sourceSlug)) {
+        matchedSources.push(sourceSlug);
+      }
+      remaining = remaining.replace(pattern, '').replace(/\s+/g, ' ').trim();
+    }
+  }
+
+  return { canonicalSources: matchedSources, remainingQuery: remaining };
 }
 
 const NOISE_WORDS = new Set([
@@ -20,8 +74,14 @@ export function preprocessSearchQuery(
 ): PreprocessedQuery {
   if (!q || !q.trim()) return { cleanedQuery: q };
 
-  const result: PreprocessedQuery = { cleanedQuery: q };
-  let workingQuery = q.trim();
+  // Detect SG retailer brand names and extract source filters before price/query cleaning
+  const { canonicalSources, remainingQuery } = detectRetailerSources(q);
+  const hasRetailerMatch = canonicalSources.length > 0;
+  const result: PreprocessedQuery = {
+    cleanedQuery: remainingQuery || q.trim(),
+    canonicalSources: canonicalSources.length > 0 ? canonicalSources : undefined,
+  };
+  let workingQuery = (hasRetailerMatch ? remainingQuery : q.trim()) || q.trim();
 
   // 1. Extract sort intent from original query (before cleaning removes signal words)
   const lower = workingQuery.toLowerCase();
