@@ -6,6 +6,9 @@ import { trackProductSearch, trackProductView } from '../analytics/posthog';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE } from '../lib/compare-query';
+import { hybridSearchWithAlpha } from '../lib/semanticSearch';
+import { preprocessSearchQuery } from '../lib/queryPreprocessor';
+import { cacheStats as embeddingCacheStats } from '../lib/embeddingCache';
 
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
@@ -197,7 +200,7 @@ router.get(
       }
     });
     const requestStart = Date.now();
-    const q = (req.query.q as string) || '';
+    const rawQuery = (req.query.q as string) || '';
     const domain = req.query.domain as string | undefined;
     const region = req.query.region as string | undefined;
     const category = req.query.category as string | undefined;
@@ -229,6 +232,12 @@ router.get(
     // vector pool (BUY-41138 wired the MCP tool, public REST is the next step).
     const rawMode = (req.query.mode as string | undefined)?.toLowerCase();
     const searchMode = rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE;
+
+    // BUY-42589: canonicalize SG retailer brand names (harvey norman, courts, gaincity, etc.)
+    // to source= filters. The retailer name is in the source field, not in product titles,
+    // so FTS alone returns near-zero matches even when 10k+ products exist.
+    const { cleanedQuery, canonicalSources } = preprocessSearchQuery(rawQuery, minPrice, maxPrice);
+    const q = cleanedQuery || rawQuery;
 
     // Check Redis cache for this exact query (60s TTL)
     const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}`;
@@ -265,6 +274,18 @@ router.get(
       params.push(q);
       idx++;
     }
+
+    // BUY-42589: SG retailer brand queries (harvey norman, courts, gaincity, etc.)
+    // map to source= filters since the retailer name is in the source field, not
+    // in individual product titles/brands. When only the retailer name was typed
+    // (cleanedQuery is empty), fall back to source-only search.
+    if (canonicalSources && canonicalSources.length > 0) {
+      const sourcePlaceholders = canonicalSources.map((_, i) => `$${idx + i}`).join(',');
+      conditions.push(`source IN (${sourcePlaceholders})`);
+      params.push(...canonicalSources);
+      idx += canonicalSources.length;
+    }
+
     if (domain) {
       conditions.push(`source = $${idx}`);
       params.push(domain);
@@ -513,6 +534,156 @@ router.get(
     }
 
     res.json(responseBody);
+  })
+);
+
+// POST /v1/products/search/hybrid — BUY-41134
+// Hybrid full-text + semantic search with Reciprocal Rank Fusion.
+// Query params (GET-compatible for browser testing):
+//   q           — search query string
+//   alpha       — semantic weight 0-1 (default from SEARCH_ALPHA env, fallback 0.3)
+//   limit       — max results (default 20, max 100)
+//   currency    — price currency filter (default SGD)
+//   country     — country_code filter
+//   region      — region filter
+//   domain      — source/platform filter
+//   brand       — brand filter (ILIKE)
+// Latency target: p95 ≤ 500 ms under 2× peak QPS with ≥ 1M embedded products.
+router.post(
+  '/search/hybrid',
+  agentDetectMiddleware,
+  requireApiKey,
+  checkRateLimit,
+  queryLogMiddleware('products.search.hybrid'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const t0 = Date.now();
+
+    // Support both POST body and GET query params for ergonomics.
+    const body = (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0)
+      ? req.body
+      : {};
+    const rawQ = ((req.query.q as string) || (body.q as string) || '').trim();
+    const alpha = parseFloat((req.query.alpha as string) || (body.alpha as string) || '');
+    const effectiveAlpha = Number.isFinite(alpha) ? Math.min(1, Math.max(0, alpha)) : 0.3;
+    const limit = Math.min(parseInt((req.query.limit as string) || (body.limit as string) || '20'), 100);
+    const currency = ((req.query.currency as string) || (body.currency as string)) || 'SGD';
+    const countryCode = (((req.query.country_code as string) || (body.country_code as string) || '') as string).toUpperCase() || undefined;
+    const region = ((req.query.region as string) || (body.region as string)) as string | undefined;
+    const domain = ((req.query.domain as string) || (body.domain as string)) as string | undefined;
+    const brand = ((req.query.brand as string) || (body.brand as string)) as string | undefined;
+    const sort = ((req.query.sort as string) || (body.sort as string)) as string | undefined;
+
+    // BUY-42589: canonicalize SG retailer brand names to source= filters.
+    const { cleanedQuery: q, canonicalSources } = preprocessSearchQuery(rawQ);
+
+    // Validate we have a query
+    if (!q && (!canonicalSources || canonicalSources.length === 0)) {
+      res.status(400).json({ error: 'q (query) is required' });
+      return;
+    }
+
+    const ftsConditions: string[] = ['currency = $1', 'is_active = true'];
+    const ftsParams: unknown[] = [currency];
+    let idx = 2;
+
+    if (countryCode) {
+      ftsConditions.push(`country_code = $${idx}`);
+      ftsParams.push(countryCode);
+      idx++;
+    }
+    if (region) {
+      ftsConditions.push(`region = $${idx}`);
+      ftsParams.push(region);
+      idx++;
+    }
+    if (domain) {
+      ftsConditions.push(`source = $${idx}`);
+      ftsParams.push(domain);
+      idx++;
+    }
+    if (brand) {
+      ftsConditions.push(`brand ILIKE $${idx}`);
+      ftsParams.push(`%${brand}%`);
+      idx++;
+    }
+
+    const whereClause = `WHERE ${ftsConditions.join(' AND ')}`;
+
+    // BUY-42589: SG retailer source-only queries (no FTS text) — skip ts_rank/fts condition.
+    const CANDIDATE_CAP = 50;
+    let hybridQuery: string;
+    let hybridParams: unknown[];
+    if (q) {
+      hybridQuery = `
+        SELECT id,
+               ts_rank(search_vector, plainto_tsquery('english', $1)) AS fts_rank
+        FROM products
+        ${whereClause}
+          AND search_vector @@ plainto_tsquery('english', $1)
+        ORDER BY fts_rank DESC
+        LIMIT ${CANDIDATE_CAP}
+      `;
+      hybridParams = [q, ...ftsParams.slice(1)];
+    } else {
+      // Retailer-only query: no FTS text, only source filter. Order by updated_at.
+      hybridQuery = `
+        SELECT id, 0 AS fts_rank
+        FROM products
+        ${whereClause}
+        ORDER BY updated_at DESC
+        LIMIT ${CANDIDATE_CAP}
+      `;
+      hybridParams = ftsParams.slice(1); // ftsParams[0]=currency is hardcoded in WHERE, skip it
+    }
+    const client = await db.connect();
+    let ftsResults: Array<{ id: string; fts_rank: number }> = [];
+    let ftsTotal = 0;
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
+      const ftsResult = await client.query(hybridQuery, hybridParams);
+      ftsResults = ftsResult.rows.map((r) => ({ id: r.id as string, fts_rank: r.fts_rank as number }));
+      ftsTotal = ftsResult.rows.length;
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      const pgErr = err as { code?: string };
+      if (pgErr.code === '57014') {
+        client.release();
+        res.status(503).json({ error: 'Search query timed out', timeout_ms: SEARCH_STATEMENT_TIMEOUT_MS });
+        return;
+      }
+      client.release();
+      throw err;
+    } finally {
+      if (client) client.release();
+    }
+
+    // Hybrid fusion — alpha override takes precedence over SEARCH_ALPHA env
+    const SEARCH_ALPHA = parseFloat(process.env.SEARCH_ALPHA || '0.3');
+    const alphaToUse = Number.isFinite(alpha) ? effectiveAlpha : SEARCH_ALPHA;
+
+    const results = await hybridSearchWithAlpha(
+      ftsResults.map((r) => ({ product_id: r.id, fts_rank: r.fts_rank })),
+      ftsTotal,
+      q,
+      limit,
+      alphaToUse
+    );
+
+    const responseTimeMs = Date.now() - t0;
+    res.json({
+      data: results,
+      meta: {
+        query: q,
+        alpha: alphaToUse,
+        fts_candidates: ftsTotal,
+        fused_count: results.length,
+        response_time_ms: responseTimeMs,
+        semantic_available: results[0]?.semantic_available ?? false,
+        cache_stats: results[0]?.cache_stats ?? embeddingCacheStats(),
+      },
+    });
   })
 );
 
@@ -815,9 +986,10 @@ router.get(
   })
 );
 
-// GET /v1/products/:id/similar — return up to 8 similar products for 'related products' widget
-// Strategy: same brand+category first (fast index lookup), then FTS title fallback to pad to 8.
-// Target: <50ms p99 — both paths use GIN/B-tree indexes only.
+// GET /v1/products/:id/similar — BUY-41134 Find-Similar endpoint
+// Primary: KNN on pre-computed embedding from embedding-store.product_embeddings.
+// Fallback: same brand + category (B-tree index) if embedding not yet populated.
+// Latency target: p95 ≤ 200 ms under load.
 router.get(
   '/:id/similar',
   agentDetectMiddleware,
@@ -827,11 +999,11 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
     const { id } = req.params;
-    const limit = Math.min(parseInt((req.query.limit as string) || '8'), 20);
+    const limit = Math.min(parseInt((req.query.limit as string) || '10'), 20);
 
-    // Fetch the source product
+    // Verify product exists in main DB
     const srcResult = await db.query(
-      `SELECT id, title, brand, category_path, currency, country_code, search_vector
+      `SELECT id, title, brand, category_path, currency, country_code
        FROM products WHERE id = $1`,
       [id]
     );
@@ -840,66 +1012,122 @@ router.get(
       return;
     }
     const src = srcResult.rows[0];
-    const currency = src.currency || 'SGD';
-    const sourceCountry = src.country_code || null;
 
-    // Phase 1: same brand + same first category element (indexed columns)
-    const brand = src.brand || null;
-    const topCategory = src.category_path?.[0] || null;
+    // Phase 1: Try embedding-based KNN (vector store)
+    const VECTOR_STORE_DATABASE_URL = process.env.VECTOR_STORE_DATABASE_URL || '';
+    let similar: Array<Record<string, unknown>> = [];
+    let similarityFallback = false;
 
-    let similar: unknown[] = [];
+    if (VECTOR_STORE_DATABASE_URL) {
+      try {
+        const { Pool } = await import('pg');
+        const vecPool = new Pool({ connectionString: VECTOR_STORE_DATABASE_URL, max: 5 });
+        try {
+          // Fetch pre-computed embedding for this product
+          const embResult = await vecPool.query<{ embedding: string }>(
+            `SELECT embedding FROM embedding_store.product_embeddings
+             WHERE product_id = $1`,
+            [id]
+          );
+          if (embResult.rows.length > 0) {
+            const embeddingStr: string = embResult.rows[0].embedding;
+            // KNN: rows with smallest cosine distance first
+            const knnResult = await vecPool.query<{
+              product_id: string;
+              score: string;
+            }>(
+              `SELECT product_id,
+                      1 - (embedding <=> $1::vector) AS score
+               FROM embedding_store.product_embeddings
+               WHERE product_id != $2
+               ORDER BY embedding <=> $1::vector
+               LIMIT $3`,
+              [embeddingStr, id, limit]
+            );
+            const knnIds = knnResult.rows.map((r) => r.product_id);
+            const knnScores = new Map(knnResult.rows.map((r) => [r.product_id, parseFloat(r.score)]));
 
-    if (brand && topCategory) {
-      const brandCatParams: unknown[] = [id, brand, topCategory, currency];
-      let brandCatWhere = `id != $1 AND brand = $2 AND category_path[1] = $3 AND currency = $4`;
-      if (sourceCountry) {
-        brandCatWhere += ` AND country_code = $5`;
-        brandCatParams.push(sourceCountry);
+            if (knnIds.length > 0) {
+              // Fetch full product details from main DB
+              const placeholders = knnIds.map((_, i) => `$${i + 1}`).join(',');
+              const detailResult = await db.query(
+                `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
+                        image_url, brand, category_path, region, country_code
+                 FROM products
+                 WHERE id IN (${placeholders})`,
+                knnIds
+              );
+              similar = detailResult.rows.map((row) => ({
+                ...row,
+                _similarity: knnScores.get(row.id as string) ?? null,
+              }));
+            }
+          } else {
+            // No embedding yet — fall through to fallback
+            similarityFallback = true;
+          }
+        } finally {
+          await vecPool.end();
+        }
+      } catch (err) {
+        console.warn('[similar] vector KNN failed, using fallback:', (err as Error).message);
+        similarityFallback = true;
       }
-      brandCatParams.push(limit);
-      const brandCatResult = await db.query(
-        `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                image_url, brand, category_path, region, country_code
-         FROM products
-         WHERE ${brandCatWhere}
-         ORDER BY updated_at DESC
-         LIMIT $${brandCatParams.length}`,
-        brandCatParams
-      );
-      similar = brandCatResult.rows;
+    } else {
+      similarityFallback = true;
     }
 
-    // Phase 2: FTS on title to pad remaining slots (if < limit results so far)
-    if (similar.length < limit && src.title) {
-      const needed = limit - similar.length;
-      const existingIds = [id, ...(similar as Array<{ id: string }>).map((r) => r.id)];
-      const placeholders = existingIds.map((_, i) => `$${i + 1}`).join(',');
-      let ftsIdx = existingIds.length + 1;
-      let ftsWhere = `id NOT IN (${placeholders}) AND currency = $${ftsIdx}`;
-      const ftsParams: unknown[] = [...existingIds, currency];
-      ftsIdx++;
-      ftsWhere += ` AND search_vector @@ plainto_tsquery('english', $${ftsIdx})`;
-      ftsParams.push(src.title);
-      ftsIdx++;
-      if (sourceCountry) {
-        ftsWhere += ` AND country_code = $${ftsIdx}`;
-        ftsParams.push(sourceCountry);
+    // Phase 2 (fallback): same brand + category, or FTS on title
+    if (similarityFallback || similar.length === 0) {
+      const currency = src.currency || 'SGD';
+      const sourceCountry = src.country_code || null;
+      const brand = src.brand || null;
+      const topCategory = src.category_path?.[0] || null;
+
+      if (brand && topCategory) {
+        const params: unknown[] = [id, brand, topCategory, currency];
+        let where = `id != $1 AND brand = $2 AND category_path[1] = $3 AND currency = $4`;
+        if (sourceCountry) { where += ` AND country_code = $5`; params.push(sourceCountry); }
+        params.push(limit);
+        const bcResult = await db.query(
+          `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
+                  image_url, brand, category_path, region, country_code
+           FROM products
+           WHERE ${where}
+           ORDER BY updated_at DESC
+           LIMIT $${params.length}`,
+          params
+        );
+        similar = bcResult.rows.map((row) => ({ ...row, _similarity: null }));
+      }
+
+      if (similar.length < limit && src.title) {
+        const needed = limit - similar.length;
+        const existingIds = [id, ...similar.map((r) => r.id as string)];
+        const placeholders = existingIds.map((_, i) => `$${i + 1}`).join(',');
+        let ftsIdx = existingIds.length + 1;
+        let ftsWhere = `id NOT IN (${placeholders}) AND currency = $${ftsIdx}`;
+        const ftsParams: unknown[] = [...existingIds, currency];
         ftsIdx++;
+        ftsWhere += ` AND search_vector @@ plainto_tsquery('english', $${ftsIdx})`;
+        ftsParams.push(src.title);
+        ftsIdx++;
+        if (sourceCountry) { ftsWhere += ` AND country_code = $${ftsIdx}`; ftsParams.push(sourceCountry); ftsIdx++; }
+        ftsParams.push(needed);
+        const ftsResult = await db.query(
+          `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
+                  image_url, brand, category_path, region, country_code
+           FROM products
+           WHERE ${ftsWhere}
+           ORDER BY updated_at DESC
+           LIMIT $${ftsParams.length}`,
+          ftsParams
+        );
+        similar = [...similar, ...ftsResult.rows.map((row) => ({ ...row, _similarity: null }))];
       }
-      ftsParams.push(needed);
-      const ftsResult = await db.query(
-        `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                image_url, brand, category_path, region, country_code
-         FROM products
-         WHERE ${ftsWhere}
-         ORDER BY updated_at DESC
-         LIMIT $${ftsParams.length}`,
-        ftsParams
-      );
-      similar = [...similar, ...ftsResult.rows];
     }
 
-    const data = (similar as Array<Record<string, unknown>>).map((row) => ({
+    const data = similar.slice(0, limit).map((row) => ({
       id: row.id,
       source: row.source_id,
       domain: row.domain,
@@ -912,9 +1140,18 @@ router.get(
       category_path: row.category_path || null,
       region: row.region || null,
       country_code: row.country_code || null,
+      similarity: row._similarity ?? null,
     }));
 
-    res.json({ data, meta: { source_id: id, count: data.length, response_time_ms: Date.now() - start } });
+    res.json({
+      data,
+      meta: {
+        source_id: id,
+        count: data.length,
+        method: VECTOR_STORE_DATABASE_URL && !similar.length ? 'fallback' : VECTOR_STORE_DATABASE_URL ? 'knn' : 'fallback',
+        response_time_ms: Date.now() - start,
+      },
+    });
   })
 );
 

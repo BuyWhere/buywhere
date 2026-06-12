@@ -275,9 +275,19 @@ export async function getLatestP95ForMarket(
   return result.rows[0] || null;
 }
 
+// In-memory cache for getAllLatestP95 to prevent repeated expensive aggregation/probe runs.
+// Cache is shared across all callers; keyed on options (freshness check is the only variant that matters).
+const P95_ALL_CACHE_TTL_MS = 30_000; // 30-second cache window
+let p95AllCache: { data: Record<string, LatestP95MarketSummary>; expiresAt: number } | null = null;
+
 export async function getAllLatestP95(
   options: P95QueryOptions = {}
 ): Promise<Record<string, LatestP95MarketSummary>> {
+  // Only cache when freshness checks are enabled (skipFreshness=false, the default).
+  if (!options.skipFreshness && p95AllCache && Date.now() < p95AllCache.expiresAt) {
+    return p95AllCache.data;
+  }
+
   if (!options.skipFreshness) {
     await ensureFreshP95Data();
   }
@@ -317,6 +327,11 @@ export async function getAllLatestP95(
         threshold_ms: P95_THRESHOLD_MS,
       };
     }
+  }
+
+  // Populate cache when freshness checks are enabled (skipFreshness=false).
+  if (!options.skipFreshness) {
+    p95AllCache = { data: markets, expiresAt: Date.now() + P95_ALL_CACHE_TTL_MS };
   }
 
   return markets;

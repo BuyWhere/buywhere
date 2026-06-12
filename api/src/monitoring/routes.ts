@@ -91,7 +91,15 @@ async function monitoringAuth(req: express.Request, res: express.Response, next:
   next();
 }
 
-router.use('/api/monitoring', monitoringAuth);
+// Hard timeout for all monitoring endpoints — prevents any single request from hanging
+// indefinitely (e.g., slow DB aggregation + stale-freshness probes). BUY-44164
+router.use('/api/monitoring',
+  (req, _res, next) => {
+    req.setTimeout(10_000, () => {});
+    next();
+  },
+  monitoringAuth
+);
 
 router.get('/api/monitoring/p95', async (req, res) => {
   try {
