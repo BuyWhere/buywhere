@@ -339,9 +339,17 @@ async function fetchIngestedMerchants(
 
   try {
     while (true) {
+      // ISR-friendly: revalidate with the route's 1h cadence so a no-store
+      // fetch here doesn't force the surrounding sitemap route back to
+      // dynamic (which is what re-ran the 7-regions fan-out on every
+      // crawler hit and tripped the API 429 — BUY-42890).
       const res = await fetch(
         `${baseUrl}/v1/merchants?country=${country}&onboarding_stage=ingested&is_active=true&limit=${limit}&offset=${offset}`,
-        { headers, cache: "no-store", signal: AbortSignal.timeout(10000) }
+        {
+          headers,
+          next: { revalidate: 3600, tags: [`sitemap-merchants-${country}`] },
+          signal: AbortSignal.timeout(10000),
+        }
       );
       if (!res.ok) {
         logOnce(res.status);
