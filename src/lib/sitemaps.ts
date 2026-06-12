@@ -385,6 +385,7 @@ async function fetchIngestedMerchantsFresh(
   let offset = 0;
   const limit = 500;
 
+  let ok = false;
   try {
     while (true) {
       const res = await fetch(
@@ -395,6 +396,7 @@ async function fetchIngestedMerchantsFresh(
         logOnce(res.status);
         break;
       }
+      ok = true;
       const data = (await res.json()) as {
         merchants?: MerchantRecord[];
         has_more?: boolean;
@@ -411,10 +413,19 @@ async function fetchIngestedMerchantsFresh(
     );
   }
 
-  merchantCache.set(country, {
-    data: merchants,
-    expiresAt: Date.now() + CACHE_TTL_MS,
-  });
+  // Only cache SUCCESSFUL responses. A 429 / 401 / network error must
+  // NOT be cached for the full TTL — that would mean serving an empty
+  // sitemap for an hour while the API is rate-limited and recovering
+  // (this is exactly the trap we hit on BUY-42890: the warm-up 429
+  // poisoned the cache, the sitemaps stayed empty for the full TTL,
+  // and Googlebot's refresh window passed). On failure, return the
+  // empty result this call but let the next request retry.
+  if (ok) {
+    merchantCache.set(country, {
+      data: merchants,
+      expiresAt: Date.now() + CACHE_TTL_MS,
+    });
+  }
   return merchants;
 }
 
@@ -447,7 +458,21 @@ export async function getAllRegionMerchantListingSitemapEntries(): Promise<Sitem
   const now = new Date();
   const ALL_REGIONS = ["SG", "US", "MY", "TH", "ID", "PH", "VN"];
 
-  const results = await Promise.allSettled(ALL_REGIONS.map((r) => fetchIngestedMerchants(r)));
+  // Serialize with a small stagger so 7 parallel /v1/merchants calls
+  // don't burst-trip the API key's rpm limit (BUY-42890). With ~150ms
+  // between calls, 7 regions = ~1.05s, well under any reasonable
+  // burst window. Warm cache hits are unaffected — only the cold
+  // regeneration pays this cost.
+  const results: Array<{ status: "fulfilled"; value: MerchantRecord[] } | { status: "rejected"; reason: unknown }> = [];
+  for (const region of ALL_REGIONS) {
+    try {
+      const value = await fetchIngestedMerchants(region);
+      results.push({ status: "fulfilled", value });
+    } catch (reason) {
+      results.push({ status: "rejected", reason });
+    }
+    await new Promise((r) => setTimeout(r, 150));
+  }
 
   const entries: SitemapUrlEntry[] = [];
   for (const result of results) {
