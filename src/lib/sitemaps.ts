@@ -311,6 +311,28 @@ async function fetchIngestedMerchants(
     ? { Authorization: `Bearer ${apiKey}` }
     : {};
 
+  // Sitemaps MUST be observable: if the API is unauthenticated or
+  // returns a non-2xx, log it once per (region, status) so we don't
+  // serve an empty <urlset/> silently — which is what GSC reports as
+  // an empty sitemap and what triggered BUY-42727.  See also
+  // src/app/sitemap-products.xml/route.ts and the route file in
+  // src/app/sitemap-merchants.xml/route.ts.
+  const logOnce = (() => {
+    const seen = new Set<string>();
+    return (status: number) => {
+      const key = `${country}:${status}:${apiKey ? "auth" : "anon"}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[sitemap] fetchIngestedMerchants country=${country} base=${baseUrl} ` +
+          `auth=${apiKey ? "yes" : "no"} status=${status} — ` +
+          `sitemap will be empty for this region. ` +
+          `Set BUYWHERE_API_KEY (or NEXT_PUBLIC_BUYWHERE_API_KEY) on the deploy.`
+      );
+    };
+  })();
+
   const merchants: MerchantRecord[] = [];
   let offset = 0;
   const limit = 500;
@@ -321,7 +343,10 @@ async function fetchIngestedMerchants(
         `${baseUrl}/v1/merchants?country=${country}&onboarding_stage=ingested&is_active=true&limit=${limit}&offset=${offset}`,
         { headers, cache: "no-store", signal: AbortSignal.timeout(10000) }
       );
-      if (!res.ok) break;
+      if (!res.ok) {
+        logOnce(res.status);
+        break;
+      }
       const data = (await res.json()) as {
         merchants?: MerchantRecord[];
         has_more?: boolean;
@@ -331,7 +356,12 @@ async function fetchIngestedMerchants(
       if (!data.has_more || batch.length < limit) break;
       offset += limit;
     }
-  } catch {}
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[sitemap] fetchIngestedMerchants country=${country} threw: ${(err as Error)?.message ?? err}`
+    );
+  }
 
   return merchants;
 }
@@ -346,7 +376,12 @@ export async function getMerchantListingSitemapEntries(): Promise<SitemapUrlEntr
     const slug = deriveMerchantSlug(merchant);
     const country = merchant.country.toLowerCase();
     entries.push({
-      url: `${SITEMAP_BASE_URL}/${country}/${slug}/products/`,
+      // Canonical form (no trailing slash) — matches the <link rel="canonical">
+      // emitted by /[seo-page]/[merchant]/products/page.tsx and the actual
+      // route on disk. Trailing-slash URLs get rewritten (200 via
+      // x-middleware-rewrite) which Google Search Console reports as
+      // "Page with redirect" (BUY-42727, BUY-41940, BUY-40084).
+      url: toSiteUrl(`/${country}/${slug}/products`),
       lastModified: now,
       changeFrequency: "daily",
       priority: 0.8,
@@ -370,7 +405,9 @@ export async function getAllRegionMerchantListingSitemapEntries(): Promise<Sitem
       const slug = deriveMerchantSlug(merchant);
       const country = merchant.country.toLowerCase();
       entries.push({
-        url: `${SITEMAP_BASE_URL}/${country}/${slug}/products/`,
+        // See getMerchantListingSitemapEntries above for the canonical-form
+        // rationale (BUY-42727 trailing-slash 301 fix).
+        url: toSiteUrl(`/${country}/${slug}/products`),
         lastModified: now,
         changeFrequency: "daily",
         priority: 0.8,

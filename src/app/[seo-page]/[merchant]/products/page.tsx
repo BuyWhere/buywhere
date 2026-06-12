@@ -106,7 +106,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const displayName = merchant?.name ?? slugToDisplayName(merchantSlug);
-  const canonicalUrl = `https://buywhere.ai/${region}/${merchantSlug}/products/`;
+  // Canonical (no trailing slash) — matches the on-disk route and the
+  // URL emitted by the merchant/product sitemaps. Trailing-slash URLs
+  // get rewritten via x-middleware-rewrite which GSC still reports as
+  // "Page with redirect" (BUY-42727, BUY-41940, BUY-40084).
+  const canonicalUrl = `https://buywhere.ai/${region}/${merchantSlug}/products`;
 
   return {
     title: `${displayName} Products in ${regionLabel} | BuyWhere`,
@@ -140,7 +144,8 @@ export default async function MerchantProductsPage({ params }: PageProps) {
   // merchant is null (API unavailable) or a MerchantInfo object
   const regionLabel = COUNTRY_NAMES[region] ?? region.toUpperCase();
   const displayName = merchant?.name ?? slugToDisplayName(merchantSlug);
-  const canonicalUrl = `https://buywhere.ai/${region}/${merchantSlug}/products/`;
+  // See canonicalUrl comment in generateMetadata above.
+  const canonicalUrl = `https://buywhere.ai/${region}/${merchantSlug}/products`;
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",
