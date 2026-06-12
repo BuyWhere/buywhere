@@ -25,6 +25,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DATA_DIR="${WC_LANE_STATE_DIR:-$REPO_ROOT/data}"
+ENV_FILE="${WC_LANE_STATE_DIR:-$REPO_ROOT/data}/.env.buy31015-lane"
 
 WORKER="$SCRIPT_DIR/buy31142-crew-wc-rest.mjs"
 PIDFILE="$DATA_DIR/buy31142-crew-wc-rest.pid"
@@ -212,7 +213,15 @@ fi
 rm -f "$PIDFILE"
 
 # Spawn detached so it survives this tick's exit.
-setsid "$NODE_BIN" "$WORKER" --duration-sec="$DURATION_SEC" \
+# Source env before spawning so worker has BUYWHERE_API_KEY and other vars.
+# The setsid --ctty detaches from the terminal, so we embed the env export
+# in a subshell that sets vars before exec-ing node.
+setsid bash -c '
+  set -a
+  [ -f "$1" ] && . "$1"
+  set +a
+  exec "$2" "$3" --duration-sec="$4"
+' _ "$ENV_FILE" "$NODE_BIN" "$WORKER" "$DURATION_SEC" \
   >> "$WORKERLOG" 2>&1 < /dev/null &
 NEW_PID=$!
 disown 2>/dev/null || true
