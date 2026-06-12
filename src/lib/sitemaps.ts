@@ -296,7 +296,55 @@ function deriveMerchantSlug(merchant: MerchantRecord): string {
   return `${nameSlug}-${country}`;
 }
 
+// In-memory cache for /v1/merchants responses, keyed by country.
+//
+// Why: the sitemap routes are force-dynamic (so they pick up the runtime
+// env: BUYWHERE_API_KEY / BUYWHERE_API_INTERNAL_URL are NOT set in the
+// Railway build env, only at runtime). Without a cache, every crawler /
+// scraper hit re-ran the 7-regions fan-out and tripped the API's per-key
+// rpm limit → 429s on every region → empty <urlset/> (BUY-42890).
+//
+// Why in-memory and not Next.js data cache: the route is force-dynamic,
+// so the data cache is bypassed on every request. A module-scope Map
+// keyed by (country, expiresAt) is the simplest thing that actually
+// works at runtime.
+//
+// Why a mutex: when the cache expires, multiple in-flight requests
+// would otherwise all start their own /v1/merchants fan-out. The mutex
+// dedupes that into a single flight per region, and the rest await the
+// same Promise.
+//
+// Scope: per-Node-process. Railway runs 1 container per service
+// instance (auto-scale is OFF for buywhere), so this is effectively
+// per-deployment. Cold deploy = empty cache = one warm-up cycle of 7
+// API calls, then steady state of 7 calls per hour.
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const merchantCache = new Map<
+  string,
+  { data: MerchantRecord[]; expiresAt: number }
+>();
+const merchantInflight = new Map<string, Promise<MerchantRecord[]>>();
+
 async function fetchIngestedMerchants(
+  country: string
+): Promise<MerchantRecord[]> {
+  const cached = merchantCache.get(country);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.data;
+  }
+
+  // Mutex: dedupe concurrent cache misses for the same country.
+  const inflight = merchantInflight.get(country);
+  if (inflight) return inflight;
+
+  const promise = fetchIngestedMerchantsFresh(country).finally(() => {
+    merchantInflight.delete(country);
+  });
+  merchantInflight.set(country, promise);
+  return promise;
+}
+
+async function fetchIngestedMerchantsFresh(
   country: string
 ): Promise<MerchantRecord[]> {
   const baseUrl =
@@ -339,17 +387,9 @@ async function fetchIngestedMerchants(
 
   try {
     while (true) {
-      // ISR-friendly: revalidate with the route's 1h cadence so a no-store
-      // fetch here doesn't force the surrounding sitemap route back to
-      // dynamic (which is what re-ran the 7-regions fan-out on every
-      // crawler hit and tripped the API 429 — BUY-42890).
       const res = await fetch(
         `${baseUrl}/v1/merchants?country=${country}&onboarding_stage=ingested&is_active=true&limit=${limit}&offset=${offset}`,
-        {
-          headers,
-          next: { revalidate: 3600, tags: [`sitemap-merchants-${country}`] },
-          signal: AbortSignal.timeout(10000),
-        }
+        { headers, signal: AbortSignal.timeout(10000) }
       );
       if (!res.ok) {
         logOnce(res.status);
@@ -371,6 +411,10 @@ async function fetchIngestedMerchants(
     );
   }
 
+  merchantCache.set(country, {
+    data: merchants,
+    expiresAt: Date.now() + CACHE_TTL_MS,
+  });
   return merchants;
 }
 

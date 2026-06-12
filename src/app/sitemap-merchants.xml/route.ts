@@ -1,12 +1,13 @@
 import { buildSitemapResponse, getMerchantListingSitemapEntries, renderUrlSet } from "@/lib/sitemaps";
 
-// ISR: regenerate at most once per hour. Without this, force-dynamic made
-// the route uncacheable and the merchant list was re-read from the API on
-// every crawler/scraper hit, which tripped the API's per-key rpm limit
-// (429s — see BUY-42727 + BUY-42890). 1h cadence is well under Googlebot's
-// sitemap-refresh patience and matches the existing cache-control header
-// (max-age=3600, s-maxage=3600) emitted by buildSitemapResponse.
-export const revalidate = 3600;
+// Dynamic at the route level (regenerated on every request) so the
+// runtime env (BUYWHERE_API_KEY / BUYWHERE_API_INTERNAL_URL) is used —
+// the Railway build environment does NOT have those vars, so ISR
+// pre-render would hit /v1/merchants unauthenticated and produce an
+// empty sitemap (BUY-42890). Rate-limit safety is provided by an
+// in-memory cache inside getMerchantListingSitemapEntries
+// (see src/lib/sitemaps.ts), keyed by region, TTL 1h, mutex-deduped.
+export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
   const entries = await getMerchantListingSitemapEntries();
