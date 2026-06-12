@@ -550,7 +550,7 @@ router.get('/runs', requireApiKey, asyncHandler(async (req: Request, res: Respon
   const source = req.query.source as string | undefined;
 
   let query = `SELECT id, source, status, rows_inserted, rows_updated, rows_failed,
-                      error_message, created_at, finished_at
+                      error_message, started_at, finished_at
                FROM ingestion_runs`;
   const params: unknown[] = [];
   const conditions: string[] = [];
@@ -564,7 +564,7 @@ router.get('/runs', requireApiKey, asyncHandler(async (req: Request, res: Respon
     query += ` WHERE ${conditions.join(' AND ')}`;
   }
 
-  query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+  query += ` ORDER BY started_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
   params.push(limit, offset);
 
   const result = await db.query(query, params);
@@ -579,7 +579,7 @@ router.get('/runs/:id', requireApiKey, asyncHandler(async (req: Request, res: Re
   }
   const result = await db.query(
     `SELECT id, source, status, rows_inserted, rows_updated, rows_failed,
-            error_message, created_at, finished_at
+            error_message, started_at, finished_at
      FROM ingestion_runs WHERE id = $1`,
     [id]
   );

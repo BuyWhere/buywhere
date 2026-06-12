@@ -359,7 +359,7 @@ router.get('/runs', apiKey_1.requireApiKey, asyncHandler(async (req, res) => {
     const offset = parseInt(String(req.query.offset), 10) || 0;
     const source = req.query.source;
     let query = `SELECT id, source, status, rows_inserted, rows_updated, rows_failed,
-                      error_message, created_at, finished_at
+                      error_message, started_at, finished_at
                FROM ingestion_runs`;
     const params = [];
     const conditions = [];
@@ -370,7 +370,7 @@ router.get('/runs', apiKey_1.requireApiKey, asyncHandler(async (req, res) => {
     if (conditions.length > 0) {
         query += ` WHERE ${conditions.join(' AND ')}`;
     }
-    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    query += ` ORDER BY started_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limit, offset);
     const result = await config_1.db.query(query, params);
     res.json({ runs: result.rows, limit, offset });
@@ -382,7 +382,7 @@ router.get('/runs/:id', apiKey_1.requireApiKey, asyncHandler(async (req, res) =>
         return;
     }
     const result = await config_1.db.query(`SELECT id, source, status, rows_inserted, rows_updated, rows_failed,
-            error_message, created_at, finished_at
+            error_message, started_at, finished_at
      FROM ingestion_runs WHERE id = $1`, [id]);
     if (result.rows.length === 0) {
         res.status(404).json({ error: 'Run not found' });
