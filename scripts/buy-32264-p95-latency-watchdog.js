@@ -35,6 +35,12 @@ const ALERT_SINK = process.env.P95_ALERT_SINK || 'BUY-31463';
 const MONITORING_API_KEY = process.env.P95_MONITORING_API_KEY || process.env.MONITORING_API_KEY || '';
 // The endpoint can take 7+ seconds; set high enough to avoid false BLOCKs on slow-but-healthy responses.
 const REQUEST_TIMEOUT_MS = 30_000;
+// Retry transient upstream failures (network errors, timeouts, 5xx, 429, empty body)
+// once before declaring BLOCK, so brief 502s during deploys / DB lock waits don't
+// produce a false BLOCK verdict. The overall watchdog still finishes well within its
+// rotation window: worst case is (retries+1) requests plus retry delays.
+const FETCH_RETRIES = parseInt(process.env.P95_FETCH_RETRIES || '1', 10);
+const RETRY_DELAY_MS = parseInt(process.env.P95_RETRY_DELAY_MS || '2000', 10);
 const MARKETS = ['sg', 'us', 'my', 'vn', 'th'];
 
 function fetchMonitoring() {
@@ -72,6 +78,34 @@ function fetchMonitoring() {
     });
     req.end();
   });
+}
+
+// A failure worth retrying: the upstream may simply be mid-deploy, waiting on a DB
+// lock, or returning a transient 5xx/429. A 4xx (e.g. auth) will not self-heal, so we
+// do not retry those — they fall straight through to the BLOCK verdict.
+function isTransientFailure(result) {
+  if (!result) return true;
+  if (result.statusCode === 0) return true; // network error / timeout
+  if (result.statusCode >= 500) return true; // 5xx upstream hiccup
+  if (result.statusCode === 429) return true; // rate limited
+  if (!result.body) return true; // empty / unparseable body
+  return false;
+}
+
+// Wrap fetchMonitoring with bounded retries on transient failures before the caller
+// is allowed to declare BLOCK. Returns the final attempt's result (annotated with the
+// number of attempts made) so the verdict logic can report it.
+async function fetchMonitoringWithRetry(retries = FETCH_RETRIES, delayMs = RETRY_DELAY_MS) {
+  let result;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    result = await fetchMonitoring();
+    result.attempts = attempt + 1;
+    if (!isTransientFailure(result)) return result;
+    if (attempt < retries) {
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  return result; // final attempt — transient failure persisted, caller will BLOCK
 }
 
 function readState() {
@@ -114,16 +148,19 @@ function buildResult({ fetchResult, state, threshold, consecutiveRequired, gener
   let blockedReason = null;
   let alert = null;
 
+  const attemptSuffix =
+    fetchResult && fetchResult.attempts > 1 ? ` (after ${fetchResult.attempts} attempts)` : '';
+
   if (!fetchResult || fetchResult.statusCode === 0 || !fetchResult.body) {
     verdict = 'BLOCK';
     blockedReason =
-      fetchResult?.error
+      (fetchResult?.error
         ? `Upstream probe error: ${fetchResult.error}`
-        : 'Upstream monitoring endpoint did not respond.';
+        : 'Upstream monitoring endpoint did not respond.') + attemptSuffix;
     notes.push(blockedReason);
   } else if (fetchResult.statusCode !== 200 || !fetchResult.body.markets) {
     verdict = 'BLOCK';
-    blockedReason = `Monitoring endpoint returned HTTP ${fetchResult.statusCode} without a markets object.`;
+    blockedReason = `Monitoring endpoint returned HTTP ${fetchResult.statusCode} without a markets object.${attemptSuffix}`;
     notes.push(blockedReason);
   } else {
     let anyFresh = false;
@@ -244,7 +281,7 @@ function buildResult({ fetchResult, state, threshold, consecutiveRequired, gener
 async function main() {
   const generatedAt = new Date().toISOString();
   const state = readState();
-  const fetchResult = await fetchMonitoring();
+  const fetchResult = await fetchMonitoringWithRetry();
   const result = buildResult({
     fetchResult,
     state,
