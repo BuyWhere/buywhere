@@ -7,9 +7,12 @@ import { trackProductSearch, trackProductView } from '../analytics/posthog';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE } from '../lib/compare-query';
-import { hybridSearchWithAlpha } from '../lib/semanticSearch';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
-import { cacheStats as embeddingCacheStats } from '../lib/embeddingCache';
+// BUY-45741: removed imports of '../lib/semanticSearch' (hybridSearchWithAlpha)
+// and '../lib/embeddingCache' (cacheStats) — those modules were never committed
+// in the BUY-45553 merge (aaea1e415), making `main` crash-loop at startup. The
+// POST /v1/products/search/hybrid route that used them is removed below until the
+// modules land (BUY-41134). See BUY-45741.
 
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
@@ -546,156 +549,6 @@ router.get(
     }
 
     res.json(responseBody);
-  })
-);
-
-// POST /v1/products/search/hybrid — BUY-41134
-// Hybrid full-text + semantic search with Reciprocal Rank Fusion.
-// Query params (GET-compatible for browser testing):
-//   q           — search query string
-//   alpha       — semantic weight 0-1 (default from SEARCH_ALPHA env, fallback 0.3)
-//   limit       — max results (default 20, max 100)
-//   currency    — price currency filter (default SGD)
-//   country     — country_code filter
-//   region      — region filter
-//   domain      — source/platform filter
-//   brand       — brand filter (ILIKE)
-// Latency target: p95 ≤ 500 ms under 2× peak QPS with ≥ 1M embedded products.
-router.post(
-  '/search/hybrid',
-  agentDetectMiddleware,
-  requireApiKey,
-  checkRateLimit,
-  queryLogMiddleware('products.search.hybrid'),
-  asyncHandler(async (req: Request, res: Response) => {
-    const t0 = Date.now();
-
-    // Support both POST body and GET query params for ergonomics.
-    const body = (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0)
-      ? req.body
-      : {};
-    const rawQ = ((req.query.q as string) || (body.q as string) || '').trim();
-    const alpha = parseFloat((req.query.alpha as string) || (body.alpha as string) || '');
-    const effectiveAlpha = Number.isFinite(alpha) ? Math.min(1, Math.max(0, alpha)) : 0.3;
-    const limit = Math.min(parseInt((req.query.limit as string) || (body.limit as string) || '20'), 100);
-    const currency = ((req.query.currency as string) || (body.currency as string)) || 'SGD';
-    const countryCode = (((req.query.country_code as string) || (body.country_code as string) || '') as string).toUpperCase() || undefined;
-    const region = ((req.query.region as string) || (body.region as string)) as string | undefined;
-    const domain = ((req.query.domain as string) || (body.domain as string)) as string | undefined;
-    const brand = ((req.query.brand as string) || (body.brand as string)) as string | undefined;
-    const sort = ((req.query.sort as string) || (body.sort as string)) as string | undefined;
-
-    // BUY-42589: canonicalize SG retailer brand names to source= filters.
-    const { cleanedQuery: q, canonicalSources } = preprocessSearchQuery(rawQ);
-
-    // Validate we have a query
-    if (!q && (!canonicalSources || canonicalSources.length === 0)) {
-      res.status(400).json({ error: 'q (query) is required' });
-      return;
-    }
-
-    const ftsConditions: string[] = ['currency = $1', 'is_active = true'];
-    const ftsParams: unknown[] = [currency];
-    let idx = 2;
-
-    if (countryCode) {
-      ftsConditions.push(`country_code = $${idx}`);
-      ftsParams.push(countryCode);
-      idx++;
-    }
-    if (region) {
-      ftsConditions.push(`region = $${idx}`);
-      ftsParams.push(region);
-      idx++;
-    }
-    if (domain) {
-      ftsConditions.push(`source = $${idx}`);
-      ftsParams.push(domain);
-      idx++;
-    }
-    if (brand) {
-      ftsConditions.push(`brand ILIKE $${idx}`);
-      ftsParams.push(`%${brand}%`);
-      idx++;
-    }
-
-    const whereClause = `WHERE ${ftsConditions.join(' AND ')}`;
-
-    // BUY-42589: SG retailer source-only queries (no FTS text) — skip ts_rank/fts condition.
-    const CANDIDATE_CAP = 50;
-    let hybridQuery: string;
-    let hybridParams: unknown[];
-    if (q) {
-      hybridQuery = `
-        SELECT id,
-               ts_rank(search_vector, plainto_tsquery('english', $1)) AS fts_rank
-        FROM products
-        ${whereClause}
-          AND search_vector @@ plainto_tsquery('english', $1)
-        ORDER BY fts_rank DESC
-        LIMIT ${CANDIDATE_CAP}
-      `;
-      hybridParams = [q, ...ftsParams.slice(1)];
-    } else {
-      // Retailer-only query: no FTS text, only source filter. Order by updated_at.
-      hybridQuery = `
-        SELECT id, 0 AS fts_rank
-        FROM products
-        ${whereClause}
-        ORDER BY updated_at DESC
-        LIMIT ${CANDIDATE_CAP}
-      `;
-      hybridParams = ftsParams.slice(1); // ftsParams[0]=currency is hardcoded in WHERE, skip it
-    }
-    const client = await db.connect();
-    let ftsResults: Array<{ id: string; fts_rank: number }> = [];
-    let ftsTotal = 0;
-    try {
-      await client.query('BEGIN');
-      await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
-      const ftsResult = await client.query(hybridQuery, hybridParams);
-      ftsResults = ftsResult.rows.map((r) => ({ id: r.id as string, fts_rank: r.fts_rank as number }));
-      ftsTotal = ftsResult.rows.length;
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK').catch(() => {});
-      const pgErr = err as { code?: string };
-      if (pgErr.code === '57014') {
-        client.release();
-        res.status(503).json({ error: 'Search query timed out', timeout_ms: SEARCH_STATEMENT_TIMEOUT_MS });
-        return;
-      }
-      client.release();
-      throw err;
-    } finally {
-      if (client) client.release();
-    }
-
-    // Hybrid fusion — alpha override takes precedence over SEARCH_ALPHA env
-    const SEARCH_ALPHA = parseFloat(process.env.SEARCH_ALPHA || '0.3');
-    const alphaToUse = Number.isFinite(alpha) ? effectiveAlpha : SEARCH_ALPHA;
-
-    const results = await hybridSearchWithAlpha(
-      ftsResults.map((r) => ({ product_id: r.id, fts_rank: r.fts_rank })),
-      ftsTotal,
-      q,
-      limit,
-      alphaToUse
-    );
-
-    const responseTimeMs = Date.now() - t0;
-    res.json({
-      data: results,
-      meta: {
-        query: q,
-        alpha: alphaToUse,
-        fts_candidates: ftsTotal,
-        fused_count: results.length,
-        response_time_ms: responseTimeMs,
-        semantic_available: results[0]?.semantic_available ?? false,
-        cache_stats: results[0]?.cache_stats ?? embeddingCacheStats(),
-      },
-    });
   })
 );
 
