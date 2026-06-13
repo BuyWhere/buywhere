@@ -103,7 +103,13 @@ export default function BlogPostPage({ params }: PageProps) {
             <div className="mt-6 flex flex-wrap gap-3 text-sm text-slate-500">
               <span>{post.author}</span>
               <span>•</span>
-              <span>{formatDate(post.publishedAt)}</span>
+              <span>Published {formatDate(post.publishedAt)}</span>
+              {post.lastUpdatedAt && post.lastUpdatedAt !== post.publishedAt && (
+                <>
+                  <span>•</span>
+                  <span>Last updated {formatDate(post.lastUpdatedAt)}</span>
+                </>
+              )}
             </div>
           </div>
         </section>

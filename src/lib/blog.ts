@@ -10,6 +10,7 @@ export type BlogPost = {
   description: string;
   author: string;
   publishedAt: string;
+  lastUpdatedAt?: string;
   canonicalUrl?: string;
   coverImage?: string;
   tags: string[];
@@ -22,6 +23,7 @@ type Frontmatter = {
   description?: string;
   author?: string;
   publishedAt?: string;
+  lastUpdatedAt?: string;
   slug?: string;
   canonicalUrl?: string;
   coverImage?: string;
@@ -56,15 +58,25 @@ function parseBlogPost(fileName: string): BlogPost | null {
 
   const publishedAtValue = frontmatter.publishedAt as string | Date;
 
+  const publishedAtStr =
+    publishedAtValue instanceof Date
+      ? publishedAtValue.toISOString().slice(0, 10)
+      : String(publishedAtValue);
+
+  const lastUpdatedAtRaw = frontmatter.lastUpdatedAt;
+  const lastUpdatedAtStr = lastUpdatedAtRaw
+    ? lastUpdatedAtRaw instanceof Date
+      ? lastUpdatedAtRaw.toISOString().slice(0, 10)
+      : String(lastUpdatedAtRaw)
+    : publishedAtStr;
+
   return {
     slug: frontmatter.slug,
     title: frontmatter.title,
     description: frontmatter.description,
     author: frontmatter.author ?? "BuyWhere Team",
-    publishedAt:
-      publishedAtValue instanceof Date
-        ? publishedAtValue.toISOString().slice(0, 10)
-        : String(publishedAtValue),
+    publishedAt: publishedAtStr,
+    lastUpdatedAt: lastUpdatedAtStr,
     canonicalUrl: frontmatter.canonicalUrl,
     coverImage: frontmatter.coverImage,
     tags: frontmatter.tags ?? [],

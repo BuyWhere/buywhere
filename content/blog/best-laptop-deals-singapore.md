@@ -4,6 +4,7 @@ title: "Best Laptop Deals Singapore 2026 — Compare Prices Across All Retailers
 description: "Compare current laptop prices from Apple Store, Shopee, Lazada, Challenger, Courts, Harvey Norman, and Amazon SG. Find the best laptop deals in Singapore for 2026."
 author: "BuyWhere Team"
 publishedAt: "2026-06-19"
+lastUpdatedAt: "2026-06-13"
 tags: ["laptops", "singapore", "pricing", "comparison", "electronics"]
 jsonLd: >
   {

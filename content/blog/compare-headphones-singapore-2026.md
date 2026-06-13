@@ -4,6 +4,7 @@ title: "Best Wireless Headphones in Singapore 2026 — Sony, Apple, Bose Price C
 description: "Compare Sony WH-1000XM5, Apple AirPods Max, Bose QuietComfort Ultra, Samsung Galaxy Buds3 Pro, and Sennheiser Momentum 4 prices across all major Singapore merchants — real prices for 2026."
 author: "BuyWhere Team"
 publishedAt: "2026-06-19"
+lastUpdatedAt: "2026-06-13"
 tags: ["headphones", "singapore", "pricing", "comparison", "audio"]
 jsonLd: >
   {
