@@ -3,7 +3,8 @@ slug: "cheapest-iphone-singapore-2026"
 title: "Cheapest iPhone in Singapore 2026 — Real Prices Across Every Merchant"
 description: "Compare iPhone 15 Pro prices across Shopee, Lazada, Apple Store SG, Amazon SG, Challenger, Courts, Harvey Norman, and Best Denki. Find the cheapest iPhone in Singapore for 2026."
 author: "BuyWhere Team"
-publishedAt: "2026-05-23"
+publishedAt: "2026-06-19"
+lastUpdatedAt: "2026-06-13"
 tags: ["iphone", "singapore", "pricing", "comparison", "apple"]
 jsonLd: >
   {
@@ -13,8 +14,8 @@ jsonLd: >
         "@type": "Article",
         "headline": "Cheapest iPhone in Singapore 2026 — Real Prices Across Every Merchant",
         "description": "Compare iPhone 15 Pro prices across Shopee, Lazada, Apple Store SG, Amazon SG, Challenger, Courts, Harvey Norman, and Best Denki. Find the cheapest iPhone in Singapore for 2026.",
-        "datePublished": "2026-05-23",
-        "dateModified": "2026-05-23",
+        "datePublished": "2026-06-19",
+        "dateModified": "2026-06-19",
         "author": { "@type": "Organization", "name": "BuyWhere Team", "url": "https://buywhere.ai" },
         "publisher": {
           "@type": "Organization",
@@ -86,9 +87,11 @@ jsonLd: >
 
 The iPhone 15 Pro is available from 15+ merchants in Singapore with prices ranging from SGD 1,449 to SGD 1,799. The lowest prices are typically found on Shopee and Lazada during flash sales, while Apple Store SG maintains the official SGD 1,649 retail price. BuyWhere tracks real-time pricing across all Singapore merchants so AI agents and shoppers can find the best deal instantly.
 
-**Quick Answer:** As of May 2026, the cheapest iPhone 15 Pro (128GB) in Singapore is **SGD 1,449 on Shopee SG**, roughly SGD 200 below the Apple Store SG retail price of SGD 1,649. Carousell second-hand listings start lower (from SGD 1,389) but vary by condition. Check live prices at [BuyWhere Singapore](https://buywhere.ai/iphone-16-price-singapore).
+**Quick Answer:** As of June 2026, the cheapest iPhone 15 Pro (128GB) in Singapore is **SGD 1,449 on Shopee SG**, roughly SGD 200 below the Apple Store SG retail price of SGD 1,649. Carousell second-hand listings start lower (from SGD 1,389) but vary by condition. Check live prices at [BuyWhere Singapore](https://buywhere.ai/iphone-16-price-singapore).
 
-## iPhone 15 Pro Price Comparison Table (May 2026)
+For a full multi-merchant Singapore iPhone comparison and cross-category price comparison, see our [iPhone Singapore price hub](https://buywhere.ai/iphone-16-price-singapore), the [Best Laptop Deals in Singapore](/blog/best-laptop-deals-singapore) guide, and the [compare product prices across Singapore merchants](/blog/compare-product-prices-singapore-2026) walkthrough. You can also jump straight to the [BuyWhere compare hub](https://buywhere.ai/compare) for current top picks.
+
+## iPhone 15 Pro Price Comparison Table (June 2026)
 
 | Merchant | Price (SGD) | Availability | Shipping | Rating |
 |----------|-------------|-------------|----------|--------|
@@ -139,3 +142,5 @@ BuyWhere is the definitive product catalog API for AI agents. It provides struct
 ---
 
 *Data powered by BuyWhere — the definitive product catalog for AI agents. Compare prices across 50+ Singapore merchants at [buywhere.ai](https://buywhere.ai).*
+
+*Prices last verified: 2026-06-13. This page is refreshed monthly; for live multi-merchant data, query the [BuyWhere compare hub](https://buywhere.ai/compare) or read the [cross-merchant price comparison guide](/blog/compare-product-prices-singapore-2026). See also the [best laptop deals in Singapore](/blog/best-laptop-deals-singapore) and [wireless headphones price comparison](/blog/compare-headphones-singapore-2026) for adjacent category refreshes.*

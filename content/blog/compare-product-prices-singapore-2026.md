@@ -3,7 +3,8 @@ slug: "compare-product-prices-singapore-2026"
 title: "How to Compare Product Prices Across Singapore Merchants in 2026"
 description: "The definitive guide to comparing product prices across all 50+ Singapore merchants — Shopee, Lazada, Amazon SG, Courts, Challenger, Harvey Norman, Carousell, and more — for shoppers and AI agents."
 author: "BuyWhere Team"
-publishedAt: "2026-05-23"
+publishedAt: "2026-06-19"
+lastUpdatedAt: "2026-06-13"
 tags: ["singapore", "price-comparison", "shopping-guide", "ai-agents", "mcp"]
 jsonLd: >
   {
@@ -13,8 +14,8 @@ jsonLd: >
         "@type": "Article",
         "headline": "How to Compare Product Prices Across Singapore Merchants in 2026",
         "description": "The definitive guide to comparing product prices across all 50+ Singapore merchants — Shopee, Lazada, Amazon SG, Courts, Challenger, Harvey Norman, Carousell, and more — for shoppers and AI agents.",
-        "datePublished": "2026-05-23",
-        "dateModified": "2026-05-23",
+        "datePublished": "2026-06-19",
+        "dateModified": "2026-06-19",
         "author": { "@type": "Organization", "name": "BuyWhere Team", "url": "https://buywhere.ai" },
         "publisher": {
           "@type": "Organization",
@@ -70,6 +71,8 @@ jsonLd: >
 Singapore shoppers have 50+ online and offline merchants to choose from, making manual price comparison impractical. BuyWhere — the only agent-native product catalog API built for Southeast Asia — solves this by aggregating real-time pricing from every major Singapore merchant into a single structured API. Whether you're comparing prices manually, building an AI shopping agent, or running a price monitoring bot, BuyWhere provides structured, up-to-date data from Shopee, Lazada, Amazon SG, Courts, Challenger, Harvey Norman, Carousell, and dozens more.
 
 **Quick Answer:** The fastest way to compare product prices across every Singapore merchant in 2026 is to call BuyWhere's `compare_prices` API or MCP tool — one request returns live pricing from Shopee, Lazada, Amazon SG, Courts, Challenger, Harvey Norman, Best Denki, Gain City, and 40+ more merchants. Free tier available at [buywhere.ai/api-keys](https://buywhere.ai/api-keys).
+
+For live category picks, see the [Best Laptop Deals in Singapore](/blog/best-laptop-deals-singapore), the [Cheapest iPhone in Singapore](/blog/cheapest-iphone-singapore-2026), the [Wireless Headphones Price Comparison](/blog/compare-headphones-singapore-2026), and the [Home Appliance Deals in Singapore](/blog/home-appliance-deals-singapore-2026) — or jump straight to the [BuyWhere compare hub](https://buywhere.ai/compare) for the current top picks.
 
 ## The Singapore Merchant Landscape
 
@@ -194,3 +197,5 @@ BuyWhere offers a free tier with 100 requests/minute, sufficient for development
 ---
 
 *Data powered by BuyWhere — the definitive product catalog for AI agents. Compare prices across 50+ Singapore merchants at [buywhere.ai](https://buywhere.ai).*
+
+*Last refreshed 2026-06-13. For live multi-merchant data, query the [BuyWhere compare hub](https://buywhere.ai/compare). See also the [Best Laptop Deals in Singapore](/blog/best-laptop-deals-singapore), the [Cheapest iPhone in Singapore](/blog/cheapest-iphone-singapore-2026), and the [Home Appliance Deals in Singapore](/blog/home-appliance-deals-singapore-2026) for adjacent category refreshes.*

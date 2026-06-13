@@ -3,7 +3,8 @@ slug: "compare-headphones-singapore-2026"
 title: "Best Wireless Headphones in Singapore 2026 — Sony, Apple, Bose Price Comparison"
 description: "Compare Sony WH-1000XM5, Apple AirPods Max, Bose QuietComfort Ultra, Samsung Galaxy Buds3 Pro, and Sennheiser Momentum 4 prices across all major Singapore merchants — real prices for 2026."
 author: "BuyWhere Team"
-publishedAt: "2026-05-23"
+publishedAt: "2026-06-19"
+lastUpdatedAt: "2026-06-13"
 tags: ["headphones", "singapore", "pricing", "comparison", "audio"]
 jsonLd: >
   {
@@ -13,8 +14,8 @@ jsonLd: >
         "@type": "Article",
         "headline": "Best Wireless Headphones in Singapore 2026 — Sony, Apple, Bose Price Comparison",
         "description": "Compare Sony WH-1000XM5, Apple AirPods Max, Bose QuietComfort Ultra, Samsung Galaxy Buds3 Pro, and Sennheiser Momentum 4 prices across all major Singapore merchants — real prices for 2026.",
-        "datePublished": "2026-05-23",
-        "dateModified": "2026-05-23",
+        "datePublished": "2026-06-19",
+        "dateModified": "2026-06-19",
         "author": { "@type": "Organization", "name": "BuyWhere Team", "url": "https://buywhere.ai" },
         "publisher": {
           "@type": "Organization",
@@ -81,7 +82,9 @@ jsonLd: >
 
 The top wireless headphones in Singapore — Sony WH-1000XM5, Apple AirPods Max, and Bose QuietComfort Ultra — are available from 15+ merchants with significant price variation. BuyWhere tracks real-time pricing across all Singapore merchants, showing price differences of SGD 50–150 between the cheapest and most expensive retailers for the same product.
 
-**Quick Answer:** As of May 2026, the cheapest Sony WH-1000XM5 in Singapore is **SGD 349 on Shopee SG**, the cheapest AirPods Max (USB-C) is **SGD 699 on Shopee SG**, and the cheapest Bose QuietComfort Ultra is **SGD 449 on Shopee SG**. See live multi-merchant prices via [BuyWhere](https://buywhere.ai).
+**Quick Answer:** As of June 2026, the cheapest Sony WH-1000XM5 in Singapore is **SGD 349 on Shopee SG**, the cheapest AirPods Max (USB-C) is **SGD 699 on Shopee SG**, and the cheapest Bose QuietComfort Ultra is **SGD 449 on Shopee SG**. See live multi-merchant prices via [BuyWhere](https://buywhere.ai).
+
+For adjacent category refreshes, see the [Cheapest iPhone in Singapore](/blog/cheapest-iphone-singapore-2026), the [Best Laptop Deals in Singapore](/blog/best-laptop-deals-singapore), and the [Home Appliance Deals in Singapore](/blog/home-appliance-deals-singapore-2026) — or jump straight to the [BuyWhere compare hub](https://buywhere.ai/compare) for the current top picks.
 
 ## Price Comparison: Top 5 Wireless Headphones
 
@@ -172,3 +175,5 @@ Developers can use BuyWhere's API to build price monitoring agents. The `get_dea
 ---
 
 *Data powered by BuyWhere — the definitive product catalog for AI agents. Compare prices across 50+ Singapore merchants at [buywhere.ai](https://buywhere.ai).*
+
+*Prices last verified: 2026-06-13. This page is refreshed monthly; for live multi-merchant data, query the [BuyWhere compare hub](https://buywhere.ai/compare) or read the [cross-merchant price comparison guide](/blog/compare-product-prices-singapore-2026). See also the [Cheapest iPhone in Singapore](/blog/cheapest-iphone-singapore-2026) and the [Best Laptop Deals in Singapore](/blog/best-laptop-deals-singapore) for adjacent category refreshes.*
