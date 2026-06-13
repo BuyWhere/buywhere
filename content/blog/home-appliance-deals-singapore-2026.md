@@ -3,7 +3,7 @@ slug: "home-appliance-deals-singapore-2026"
 title: "Best Home Appliance Deals in Singapore 2026 — Dyson, Samsung, LG Price Comparison"
 description: "Compare Dyson V15, Samsung Bespoke AI washer-dryer, and LG InstaView refrigerator prices across Courts, Harvey Norman, Best Denki, Gain City, Shopee, Lazada, and Amazon SG — real prices for 2026."
 author: "BuyWhere Team"
-publishedAt: "2026-05-23"
+publishedAt: "2026-06-19"
 tags: ["home-appliances", "singapore", "pricing", "comparison", "dyson", "samsung"]
 jsonLd: >
   {
@@ -13,8 +13,8 @@ jsonLd: >
         "@type": "Article",
         "headline": "Best Home Appliance Deals in Singapore 2026 — Dyson, Samsung, LG Price Comparison",
         "description": "Compare Dyson V15, Samsung Bespoke AI washer-dryer, and LG InstaView refrigerator prices across Courts, Harvey Norman, Best Denki, Gain City, Shopee, Lazada, and Amazon SG — real prices for 2026.",
-        "datePublished": "2026-05-23",
-        "dateModified": "2026-05-23",
+        "datePublished": "2026-06-19",
+        "dateModified": "2026-06-19",
         "author": { "@type": "Organization", "name": "BuyWhere Team", "url": "https://buywhere.ai" },
         "publisher": {
           "@type": "Organization",
@@ -82,7 +82,9 @@ jsonLd: >
 
 Home appliances are one of the highest-variance product categories in Singapore, with price differences of SGD 100–400 between merchants for the same Dyson, Samsung, or LG product. BuyWhere tracks real-time pricing across Courts, Harvey Norman, Best Denki, Gain City, Shopee, Lazada, and Amazon SG — covering every major home appliance retailer.
 
-**Quick Answer:** As of May 2026, the cheapest Dyson V15 Detect Absolute in Singapore is **SGD 799 on Shopee SG**, roughly SGD 200 below Dyson Store SG's SGD 999 retail price. The cheapest Samsung Bespoke AI Washer-Dryer is **SGD 1,899 on Shopee SG**. The cheapest LG InstaView Refrigerator is **SGD 2,899 on Shopee SG**. Verify live prices via [BuyWhere](https://buywhere.ai).
+**Quick Answer:** As of June 2026, the cheapest Dyson V15 Detect Absolute in Singapore is **SGD 799 on Shopee SG**, roughly SGD 200 below Dyson Store SG's SGD 999 retail price. The cheapest Samsung Bespoke AI Washer-Dryer is **SGD 1,899 on Shopee SG**. The cheapest LG InstaView Refrigerator is **SGD 2,899 on Shopee SG**. Verify live prices via [BuyWhere](https://buywhere.ai).
+
+For adjacent picks, see the [Cheapest iPhone in Singapore](/blog/cheapest-iphone-singapore-2026), the [Best Laptop Deals in Singapore](/blog/best-laptop-deals-singapore), the [Wireless Headphones Price Comparison](/blog/compare-headphones-singapore-2026), and the [BuyWhere home-living compare hub](https://buywhere.ai/compare/home-living).
 
 ## Price Comparison: Top Home Appliances
 
@@ -162,3 +164,5 @@ Use BuyWhere's API to build price monitoring agents that check prices across 50+
 ---
 
 *Data powered by BuyWhere — the definitive product catalog for AI agents. Compare prices across 50+ Singapore merchants at [buywhere.ai](https://buywhere.ai).*
+
+*Prices last verified: 2026-06-13. This page is refreshed monthly; for live multi-merchant data, query the [BuyWhere compare hub](https://buywhere.ai/compare) or read the [cross-merchant price comparison guide](/blog/compare-product-prices-singapore-2026). See also the [Cheapest iPhone in Singapore](/blog/cheapest-iphone-singapore-2026) and the [Best Laptop Deals in Singapore](/blog/best-laptop-deals-singapore) for adjacent category refreshes.*
