@@ -78,6 +78,11 @@ async function tryExactCount(timeoutMs = 45000): Promise<CatalogStatsResult | nu
   try {
     await client.query('BEGIN');
     await client.query(`SET LOCAL statement_timeout = ${timeoutMs}`);
+    // BUY-45691: match the heavy-read caps used by /v1/products/search and
+    // /v1/products/deals so this full-table COUNT can't spawn parallel bitmap
+    // workers (the BUY-34291 shared-memory 53200 trigger) or balloon work_mem.
+    await client.query(`SET LOCAL work_mem = '4MB'`);
+    await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
     const result = await client.query(`
       SELECT
         count(*) AS total_products,
