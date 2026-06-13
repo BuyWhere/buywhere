@@ -363,35 +363,94 @@ export async function runMigrations() {
     console.warn(`[migration] Full migration block failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
-  // BUY-45553: Drop redundant duplicate indexes on the products partitioned table.
-  // A second, out-of-band set named `idx_products_partitioned_*` (plus a standalone
-  // `products_us_active_fts`) had been created with definitions IDENTICAL to the
-  // code-owned `idx_products_*` set below. Every upsert had to maintain BOTH copies —
-  // including 5 extra ~270MB GIN trees per partition — which pushed woocommerce_deep
-  // ingest batches past the 30s budget (0 rows/hr on the WC REST lane). These drops are
-  // safe: an identical valid index from the `idx_products_*` set remains for every query.
-  // Idempotent (IF EXISTS) so it's a no-op once the duplicates are gone.
-  const DEDUP_PRODUCT_INDEXES = [
-    'idx_products_partitioned_search_vector',
-    'idx_products_partitioned_search_country',
-    'idx_products_partitioned_search_region',
-    'idx_products_partitioned_active_fts',
-    'idx_products_partitioned_is_active',
-    'idx_products_partitioned_region',
-    'idx_products_partitioned_country_code',
-    'idx_products_partitioned_deals_currency_updated',
-    'products_us_active_fts',
-  ];
+  // BUY-45553: Prune redundant DUPLICATE indexes on the products partitioned table.
+  //
+  // Over time the products table accumulated two parallel sets of byte-identical
+  // indexes (e.g. a code-owned `idx_products_*` set plus an out-of-band
+  // `idx_products_partitioned_*` set, and standalone per-partition copies like
+  // `products_us_active_fts`). Every INSERT/UPDATE had to maintain BOTH copies of
+  // each index — and the products table carries ~13 GIN indexes per partition on a
+  // multi-GB heap, so the duplicate GIN trees dominate write cost. Under real
+  // woocommerce_deep batches this pushed `POST /v1/ingest` past the 30s budget,
+  // landing 0 rows/hr on the WC REST deep lane.
+  //
+  // This sweep is generic (matches duplicates by normalized definition, not by name)
+  // so it self-corrects whatever auto-generated names exist in a given environment.
+  // It is SAFE: for each group of identical indexes it keeps exactly one and drops
+  // the rest, so every query still has an index to use. It never touches indexes that
+  // back a constraint (PK/UNIQUE). Bounded lock_timeout prevents blocking live writes;
+  // idempotent (no-op once duplicates are gone).
+  const DEDUP_DUPLICATE_PRODUCT_INDEXES = `
+    DO $dedup$
+    DECLARE
+      r record;
+    BEGIN
+      -- 1) Duplicate PARTITIONED parent indexes on public.products.
+      --    Dropping a parent partitioned index cascades to every partition.
+      FOR r IN
+        WITH parent_idx AS (
+          SELECT c.relname AS idxname,
+                 regexp_replace(pg_get_indexdef(i.indexrelid),
+                                '^CREATE (UNIQUE )?INDEX \\S+ ON', 'ON') AS norm
+          FROM pg_index i
+          JOIN pg_class c ON c.oid = i.indexrelid
+          WHERE i.indrelid = 'public.products'::regclass
+            AND NOT EXISTS (SELECT 1 FROM pg_constraint con WHERE con.conindid = i.indexrelid)
+        ), ranked AS (
+          SELECT idxname,
+                 row_number() OVER (
+                   PARTITION BY norm
+                   -- keep the most "canonical" name: prefer non-_partitioned_, non
+                   -- numeric-suffixed, then lexical order; drop the rest.
+                   ORDER BY (idxname ~ '_partitioned_')::int,
+                            (idxname ~ '_idx[0-9]+$')::int,
+                            idxname
+                 ) AS rn
+          FROM parent_idx
+        )
+        SELECT idxname FROM ranked WHERE rn > 1
+      LOOP
+        EXECUTE format('DROP INDEX IF EXISTS public.%I', r.idxname);
+        RAISE NOTICE 'BUY-45553: dropped duplicate partitioned product index %', r.idxname;
+      END LOOP;
+
+      -- 2) Standalone per-partition duplicate indexes NOT attached to a parent
+      --    partitioned index (these can't be reached via the parent in step 1).
+      --    Compare against all indexes on the same partition; only ever drop the
+      --    detached copy, keeping an attached/canonical one.
+      FOR r IN
+        WITH part_idx AS (
+          SELECT i.indrelid,
+                 ic.relname AS idxname,
+                 EXISTS (SELECT 1 FROM pg_inherits pii WHERE pii.inhrelid = i.indexrelid) AS attached,
+                 regexp_replace(pg_get_indexdef(i.indexrelid),
+                                '^CREATE (UNIQUE )?INDEX \\S+ ON', 'ON') AS norm
+          FROM pg_index i
+          JOIN pg_class ic ON ic.oid = i.indexrelid
+          WHERE i.indrelid IN (SELECT inhrelid FROM pg_inherits
+                               WHERE inhparent = 'public.products'::regclass)
+            AND NOT EXISTS (SELECT 1 FROM pg_constraint con WHERE con.conindid = i.indexrelid)
+        ), ranked AS (
+          SELECT idxname, attached,
+                 row_number() OVER (
+                   PARTITION BY indrelid, norm
+                   ORDER BY attached DESC,                  -- keep attached/canonical copy
+                            (idxname ~ '_idx[0-9]+$')::int,
+                            idxname
+                 ) AS rn
+          FROM part_idx
+        )
+        SELECT idxname FROM ranked WHERE rn > 1 AND NOT attached
+      LOOP
+        EXECUTE format('DROP INDEX IF EXISTS public.%I', r.idxname);
+        RAISE NOTICE 'BUY-45553: dropped duplicate partition product index %', r.idxname;
+      END LOOP;
+    END $dedup$;
+  `;
   try {
-    await db.query("SET statement_timeout = 30000");
+    await db.query("SET statement_timeout = 60000");
     await db.query("SET lock_timeout = 4000");
-    for (const idx of DEDUP_PRODUCT_INDEXES) {
-      try {
-        await db.query(`DROP INDEX IF EXISTS public.${idx}`);
-      } catch (e: any) {
-        console.warn(`[migration] dedup drop ${idx} skipped (non-fatal): ${e.message?.slice(0, 120)}`);
-      }
-    }
+    await db.query(DEDUP_DUPLICATE_PRODUCT_INDEXES);
     console.log('[migration] Redundant duplicate product indexes pruned (BUY-45553).');
   } catch (err: any) {
     console.warn(`[migration] Index dedup step failed (non-fatal): ${err.message?.slice(0, 200)}`);
