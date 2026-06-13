@@ -63,7 +63,7 @@ function parseBlogPost(fileName: string): BlogPost | null {
       ? publishedAtValue.toISOString().slice(0, 10)
       : String(publishedAtValue);
 
-  const lastUpdatedAtRaw = frontmatter.lastUpdatedAt;
+  const lastUpdatedAtRaw = frontmatter.lastUpdatedAt as string | Date | undefined;
   const lastUpdatedAtStr = lastUpdatedAtRaw
     ? lastUpdatedAtRaw instanceof Date
       ? lastUpdatedAtRaw.toISOString().slice(0, 10)
