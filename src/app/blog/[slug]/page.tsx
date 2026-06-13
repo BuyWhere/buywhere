@@ -1,6 +1,5 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import Script from "next/script";
 import { notFound } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -70,10 +69,8 @@ export default function BlogPostPage({ params }: PageProps) {
   }
 
   const jsonLd = post.jsonLd ? (
-    <Script
-      id="blog-post-jsonld"
+    <script
       type="application/ld+json"
-      strategy="beforeInteractive"
       dangerouslySetInnerHTML={{ __html: post.jsonLd }}
     />
   ) : null;
