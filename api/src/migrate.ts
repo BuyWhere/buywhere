@@ -363,6 +363,40 @@ export async function runMigrations() {
     console.warn(`[migration] Full migration block failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
+  // BUY-45553: Drop redundant duplicate indexes on the products partitioned table.
+  // A second, out-of-band set named `idx_products_partitioned_*` (plus a standalone
+  // `products_us_active_fts`) had been created with definitions IDENTICAL to the
+  // code-owned `idx_products_*` set below. Every upsert had to maintain BOTH copies —
+  // including 5 extra ~270MB GIN trees per partition — which pushed woocommerce_deep
+  // ingest batches past the 30s budget (0 rows/hr on the WC REST lane). These drops are
+  // safe: an identical valid index from the `idx_products_*` set remains for every query.
+  // Idempotent (IF EXISTS) so it's a no-op once the duplicates are gone.
+  const DEDUP_PRODUCT_INDEXES = [
+    'idx_products_partitioned_search_vector',
+    'idx_products_partitioned_search_country',
+    'idx_products_partitioned_search_region',
+    'idx_products_partitioned_active_fts',
+    'idx_products_partitioned_is_active',
+    'idx_products_partitioned_region',
+    'idx_products_partitioned_country_code',
+    'idx_products_partitioned_deals_currency_updated',
+    'products_us_active_fts',
+  ];
+  try {
+    await db.query("SET statement_timeout = 30000");
+    await db.query("SET lock_timeout = 4000");
+    for (const idx of DEDUP_PRODUCT_INDEXES) {
+      try {
+        await db.query(`DROP INDEX IF EXISTS public.${idx}`);
+      } catch (e: any) {
+        console.warn(`[migration] dedup drop ${idx} skipped (non-fatal): ${e.message?.slice(0, 120)}`);
+      }
+    }
+    console.log('[migration] Redundant duplicate product indexes pruned (BUY-45553).');
+  } catch (err: any) {
+    console.warn(`[migration] Index dedup step failed (non-fatal): ${err.message?.slice(0, 200)}`);
+  }
+
   // BUY-22324: discount_pct GENERATED STORED column — must detect and fix a plain
   // (non-generated) column left by a prior migration failure.
   // Uses guarded CASE with regex to prevent dirty original_price from failing inserts.
