@@ -21,6 +21,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 const https = require('https');
 
 const STATE_FILE = process.env.P95_STATE_FILE || '/tmp/buy-32264-p95-state.json';
@@ -36,6 +37,13 @@ const MONITORING_API_KEY = process.env.P95_MONITORING_API_KEY || process.env.MON
 // The endpoint can take 7+ seconds; set high enough to avoid false BLOCKs on slow-but-healthy responses.
 const REQUEST_TIMEOUT_MS = 30_000;
 const MARKETS = ['sg', 'us', 'my', 'vn', 'th'];
+
+// Paperclip API for posting the alert comment directly (BUY-46628). Delivery
+// must not depend on the routine execution engine picking up the exit code.
+const PAPERCLIP_API_URL = (process.env.PAPERCLIP_API_URL || '').replace(/\/$/, '');
+const PAPERCLIP_API_KEY = process.env.PAPERCLIP_API_KEY || '';
+const PAPERCLIP_RUN_ID = process.env.PAPERCLIP_RUN_ID || '';
+const PAPERCLIP_TIMEOUT_MS = 15_000;
 
 function fetchMonitoring() {
   return new Promise((resolve) => {
@@ -241,9 +249,126 @@ function buildResult({ fetchResult, state, threshold, consecutiveRequired, gener
   };
 }
 
+function paperclipRequest({ method, urlPath, body }) {
+  return new Promise((resolve) => {
+    if (!PAPERCLIP_API_URL || !PAPERCLIP_API_KEY) {
+      resolve({
+        ok: false,
+        statusCode: 0,
+        error: 'PAPERCLIP_API_URL or PAPERCLIP_API_KEY missing from environment',
+      });
+      return;
+    }
+    let target;
+    try {
+      target = new URL(`${PAPERCLIP_API_URL}${urlPath}`);
+    } catch (err) {
+      resolve({ ok: false, statusCode: 0, error: `bad PAPERCLIP_API_URL: ${err.message}` });
+      return;
+    }
+    const lib = target.protocol === 'http:' ? http : https;
+    const payload = body ? JSON.stringify(body) : '';
+    const headers = {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'buy-32397-p95-watchdog/1.0',
+      Authorization: `Bearer ${PAPERCLIP_API_KEY}`,
+    };
+    if (PAPERCLIP_RUN_ID) headers['X-Paperclip-Run-Id'] = PAPERCLIP_RUN_ID;
+    if (payload) headers['Content-Length'] = Buffer.byteLength(payload);
+
+    const req = lib.request(
+      {
+        method,
+        hostname: target.hostname,
+        port: target.port || (target.protocol === 'http:' ? 80 : 443),
+        path: target.pathname + target.search,
+        timeout: PAPERCLIP_TIMEOUT_MS,
+        headers,
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk) => (data += chunk));
+        res.on('end', () => {
+          let json = null;
+          try {
+            json = data ? JSON.parse(data) : null;
+          } catch {
+            // leave json null
+          }
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve({ ok: true, statusCode: res.statusCode, body: json });
+          } else {
+            resolve({
+              ok: false,
+              statusCode: res.statusCode,
+              body: json,
+              rawBody: data.slice(0, 500),
+              error: `HTTP ${res.statusCode}`,
+            });
+          }
+        });
+      }
+    );
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+    req.on('error', (err) => resolve({ ok: false, statusCode: 0, error: err.message }));
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+
+function buildAlertComment(result) {
+  const alert = result.alert;
+  const lines = [
+    `🚨 **P95 Latency ALERT — BUY-32397 watchdog**`,
+    ``,
+    alert.message,
+    ``,
+    `| Market | P95 | Samples | Window End | Fresh | Consecutive | Status |`,
+    `|--------|-----|---------|------------|-------|-------------|--------|`,
+  ];
+  for (const m of result.markets) {
+    const win = m.window_end || 'n/a';
+    const fresh = m.fresh ? 'yes' : 'no';
+    lines.push(
+      `| ${m.market.toUpperCase()} | ${m.p95_ms ?? 'n/a'}ms | ${m.sample_size} | ${win} | ${fresh} | ${m.consecutiveBreaches} | ${m.status} |`
+    );
+  }
+  lines.push(
+    ``,
+    `- Triggered at: \`${alert.triggeredAt}\``,
+    `- Breached markets: ${alert.eligibleMarkets.map((m) => '`' + m.toUpperCase() + '`').join(', ')}`,
+    `- Threshold: \`${result.threshold_ms}ms\` for \`${result.consecutive_required}\` consecutive rotations`,
+    `- Execution issue: \`${result.execution_identifier}\``,
+    `- Monitoring endpoint: \`${result.monitoring_url}\``,
+    ``,
+    `_Posted directly by the watchdog script (BUY-46628 fix); delivery no longer depends on the routine execution engine picking up the ALERT exit code._`
+  );
+  return lines.join('\n');
+}
+
+// Post the alert comment to the sink issue directly. Returns
+// { ok, commentId?, statusCode, error? } so main() can advance or roll back
+// the per-market cooldown stamps accordingly.
+async function postAlertComment(result) {
+  const res = await paperclipRequest({
+    method: 'POST',
+    urlPath: `/api/issues/${result.alert.sink}/comments`,
+    body: { body: buildAlertComment(result) },
+  });
+  const commentId = res.body && (res.body.id || res.body.commentId || res.body.comment?.id);
+  return { ...res, commentId: commentId || null };
+}
+
 async function main() {
   const generatedAt = new Date().toISOString();
   const state = readState();
+  // Snapshot prior alert timestamps so a failed post can roll back the
+  // cooldown stamps buildResult() advanced — otherwise a delivery failure
+  // would suppress the next rotation's retry (the very bug BUY-46628 is about).
+  const priorAlertedAt = {};
+  for (const m of MARKETS) priorAlertedAt[m] = state.markets[m]?.lastAlertedAt || null;
+
   const fetchResult = await fetchMonitoring();
   const result = buildResult({
     fetchResult,
@@ -252,6 +377,28 @@ async function main() {
     consecutiveRequired: CONSECUTIVE_REQUIRED,
     generatedAt,
   });
+
+  // Post the alert directly to the sink issue (BUY-46628). Done before
+  // writeState() so the cooldown can be rolled back on a failed post.
+  if (result.status === 'ALERT' && result.alert) {
+    const postRes = await postAlertComment(result);
+    result.alert.posted = postRes.ok;
+    if (postRes.ok) {
+      result.alert.comment_id = postRes.commentId;
+      result.notes.push(
+        `Alert posted to ${result.alert.sink}${postRes.commentId ? ` (comment ${postRes.commentId})` : ''}.`
+      );
+    } else {
+      // Roll back cooldown so the next rotation re-attempts delivery.
+      for (const market of result.alert.eligibleMarkets) {
+        if (state.markets[market]) state.markets[market].lastAlertedAt = priorAlertedAt[market];
+      }
+      result.alert.post_error = postRes.error || `HTTP ${postRes.statusCode}`;
+      result.notes.push(
+        `Alert post to ${result.alert.sink} FAILED (${result.alert.post_error}); cooldown not advanced, will retry next rotation.`
+      );
+    }
+  }
 
   writeState(state);
 
