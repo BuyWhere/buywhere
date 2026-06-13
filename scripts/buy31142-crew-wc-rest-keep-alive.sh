@@ -36,7 +36,7 @@ TICKLOG="$DATA_DIR/buy31142-crew-wc-rest-keep-alive.log"
 WORKERLOG="${WC_WORKER_LOG:-$DATA_DIR/buy31142-crew-wc-rest-worker.log}"
 
 DURATION_SEC="${DURATION_SEC:-240}"        # worker run window (must be < tick interval)
-STALL_SEC="${STALL_SEC:-120}"             # heartbeat older than this => stalled => dead
+STALL_SEC="${STALL_SEC:-240}"             # heartbeat older than this => stalled => dead (match DURATION_SEC; BUY-45468)
 ESCALATE_THRESHOLD="${ESCALATE_THRESHOLD:-4}"  # >= this many consecutive dead ticks => escalate
 NODE_BIN="${NODE_BIN:-node}"
 MARKER="buy31142-crew-wc-rest"
@@ -61,7 +61,7 @@ const PATHS = {
   status: process.env.STATUSFILE,
   esc: process.env.ESCALATIONFILE,
 };
-const STALL_SEC = Number(process.env.STALL_SEC || 120);
+const STALL_SEC = Number(process.env.STALL_SEC || 240);
 const THRESHOLD = Number(process.env.ESCALATE_THRESHOLD || 4);
 const MARKER = process.env.MARKER || 'buy31142-crew-wc-rest';
 const now = Date.now();
