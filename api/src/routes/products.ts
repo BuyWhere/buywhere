@@ -439,14 +439,25 @@ router.get(
     const client = await db.connect();
     try {
       await client.query('BEGIN');
-      // BUY-34291: cap per-query work_mem + force index scan (no bitmap) under load.
-      // The partial GIN index `idx_products_partitioned_active_fts WHERE is_active = true`
-      // makes Bitmap Heap Scan attractive for the planner, but the bitmap needs 2MB+ of
-      // dynamic shared memory even with work_mem=4MB. Under concurrent load, the DB
-      // throws `could not resize shared memory segment ... No space left on device`.
-      // Disabling bitmap scan forces a Nested Loop index scan that doesn't need that pool.
+      // BUY-45671: cap per-query work_mem and disable *parallel* query under load.
+      //
+      // History: BUY-34291 set `enable_bitmapscan = off` to avoid the
+      // `could not resize shared memory segment ... No space left on device`
+      // (SQLSTATE 53200) error. But disabling bitmap scans entirely makes the
+      // GIN `search_vector` partial index unusable (GIN is only reachable via a
+      // bitmap scan), so the planner fell back to a `products_*_currency_idx`
+      // btree scan + filter — a near-full scan of products_us (~860k rows).
+      // Measured on prod 2026-06-13: `enable_bitmapscan=off` → 35,400ms (504s on
+      // every search); `enable_bitmapscan=on` → 161-267ms via the GIN index.
+      //
+      // The 53200 error came from *parallel* bitmap heap scans: each parallel
+      // worker allocates its bitmap in dynamic shared memory (/dev/shm). A
+      // single-process bitmap heap scan uses work_mem only and never touches
+      // that pool. So we keep bitmap scans on (index usable) but force the
+      // search query to run non-parallel. The 53200 catch below stays as a
+      // belt-and-suspenders 503 fallback.
       await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
-      await client.query(`SET LOCAL enable_bitmapscan = 'off'`);
+      await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
       await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
       dataResult = await client.query(dataQuery, dataParams);
       await client.query('COMMIT');
