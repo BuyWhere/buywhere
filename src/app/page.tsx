@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { TrustLayer } from "@/components/TrustLayer";
+import { PopularComparisons } from "@/components/PopularComparisons";
 
 export const metadata: Metadata = {
   alternates: {
@@ -453,6 +454,9 @@ export default function HomePage() {
           </Link>
         </div>
       </section>
+
+      {/* PopularComparisons — 5 marketing page cards */}
+      <PopularComparisons variant="hero" />
 
       {/* CTA */}
       <section role="region" aria-label="Content section" className="py-20 bg-indigo-600 text-white">

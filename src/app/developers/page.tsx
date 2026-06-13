@@ -5,6 +5,7 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { TrustLayer } from "@/components/TrustLayer";
 import { toSiteUrl } from "@/lib/site-url";
+import { PopularComparisons } from "@/components/PopularComparisons";
 
 export const metadata: Metadata = {
   title: "Developer Portal — BuyWhere MCP & API for AI Agents",
@@ -204,6 +205,7 @@ export default function DevelopersPage() {
       </section>
 
       <TrustLayer />
+      <PopularComparisons variant="footer" />
       <Footer />
     </div>
   );

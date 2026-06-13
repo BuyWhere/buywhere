@@ -3,6 +3,7 @@ import Footer from "@/components/Footer";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { toSiteUrl } from "@/lib/site-url";
+import { PopularComparisons } from "@/components/PopularComparisons";
 
 export const metadata: Metadata = {
   title: "Use Cases — BuyWhere",
@@ -219,6 +220,8 @@ export default function UseCasesPage() {
           </div>
         </div>
       </section>
+
+      <PopularComparisons variant="footer" />
 
       <Footer />
     </div>

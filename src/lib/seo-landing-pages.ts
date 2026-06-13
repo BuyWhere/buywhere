@@ -85,6 +85,8 @@ export type SeoLandingPageConfig = {
   shopperCta?: Cta;
   developerCta?: Cta;
   fallbackProducts: LandingProduct[];
+  /** Render RelatedCategoryBlock on this page */
+  showRelatedCategory?: boolean;
 };
 
 function formatMerchantName(value?: string | null) {
@@ -361,6 +363,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       { id: "ap4", name: "Sharp Plasmacluster FP-J80E", price: 399, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=Sharp+Plasmacluster+FP-J80E&country=sg", brand: "Sharp", category: "Air Purifiers" },
       { id: "ap5", name: "Sterra Breeze Pro", price: 329, currency: "SGD", merchant: "Sterra", imageUrl: null, href: "/search?q=Sterra+Breeze+Pro&country=sg", brand: "Sterra", category: "Air Purifiers" },
     ],
+    showRelatedCategory: true,
   },
   "laptop-singapore": {
     slug: "laptop-singapore",
@@ -446,6 +449,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
       { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: null, href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
     ],
+    showRelatedCategory: true,
   },
   "best-gaming-laptops-us": {
     slug: "best-gaming-laptops-us",
@@ -533,6 +537,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       { id: "g5", name: "Acer Predator Helios Neo 16", price: 1499, currency: "USD", merchant: "Acer", imageUrl: null, href: "/search?q=Acer+Predator+Helios+Neo+16&country=us", brand: "Acer", category: "Gaming Laptops" },
       { id: "g6", name: "ASUS TUF Gaming A15", price: 1199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=ASUS+TUF+Gaming+A15&country=us", brand: "ASUS", category: "Gaming Laptops" },
     ],
+    showRelatedCategory: true,
   },
   "iphone-16-price-singapore": {
     slug: "iphone-16-price-singapore",
@@ -620,6 +625,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       { id: "i5", name: "Apple iPhone 16 128GB", price: 1279, currency: "SGD", merchant: "Challenger", imageUrl: null, href: "/search?q=iPhone%2016%20128GB&country=sg", brand: "Apple", category: "Smartphones" },
       { id: "i6", name: "Apple iPhone 16 128GB", price: 1279, currency: "SGD", merchant: "Courts", imageUrl: null, href: "/search?q=iPhone%2016%20128GB&country=sg", brand: "Apple", category: "Smartphones" },
     ],
+    showRelatedCategory: true,
   },
   "best-robot-vacuums-2026": {
     slug: "best-robot-vacuums-2026",
@@ -707,6 +713,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       { id: "r5", name: "eufy X10 Pro Omni", price: 799, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=eufy+X10+Pro+Omni&country=us", brand: "eufy", category: "Robot Vacuums" },
       { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
     ],
+    showRelatedCategory: true,
   },
   "airpods-singapore": {
     slug: "airpods-singapore",
