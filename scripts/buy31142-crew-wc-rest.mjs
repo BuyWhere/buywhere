@@ -19,7 +19,7 @@
 // Target: >= 5k rows/hr sustained. Run many sweeps within the duration window.
 
 import fs from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -32,6 +32,7 @@ const MERCHANTS_PATH = process.env.WC_KNOWN_MERCHANTS_PATH
 const PIDFILE = path.join(DATA_DIR, 'buy31142-crew-wc-rest.pid');
 const HEARTBEATFILE = path.join(DATA_DIR, 'buy31142-crew-wc-rest.heartbeat');
 const STATUSFILE = path.join(DATA_DIR, 'buy31142-crew-wc-rest-status.json');
+const WORKER_LOG = process.env.WC_WORKER_LOG || path.join(DATA_DIR, 'buy31142-crew-wc-rest-worker.log');
 
 const INGEST_SOURCE = 'woocommerce_deep';
 
@@ -71,9 +72,18 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function appendWorkerLog(line) {
+  try {
+    mkdirSync(path.dirname(WORKER_LOG), { recursive: true });
+    appendFileSync(WORKER_LOG, `${line}\n`);
+  } catch {}
+}
+
 function log(level, message, extra) {
-  const line = `[crew-wc-rest ${nowIso()}] [${level}] ${message}`;
-  console[level === 'error' ? 'error' : 'log'](extra ? `${line} ${JSON.stringify(extra)}` : line);
+  const base = `[crew-wc-rest ${nowIso()}] [${level}] ${message}`;
+  const rendered = extra ? `${base} ${JSON.stringify(extra)}` : base;
+  appendWorkerLog(rendered);
+  console[level === 'error' ? 'error' : 'log'](rendered);
 }
 const info = (m, e) => log('info', m, e);
 const warn = (m, e) => log('warn', m, e);
@@ -229,6 +239,16 @@ function clean(product) {
     if (v !== undefined) out[k] = v;
   }
   return out;
+}
+
+function dedupeProducts(products) {
+  const deduped = new Map();
+  for (const p of products) {
+    const key = `${p.merchant_id}|${p.sku}`;
+    if (deduped.has(key)) continue;
+    deduped.set(key, p);
+  }
+  return [...deduped.values()];
 }
 
 async function ingestBatch(products) {
@@ -387,17 +407,37 @@ async function fetchV3Products(merchant) {
 
 async function visitMerchant(merchant) {
   runStats.merchantsVisited += 1;
-  // Prefer the public Store API; fall back to v3 (auth) when available.
-  let result = await fetchStoreProducts(merchant);
-  let products = result.products;
-  if ((!products.length) && (!shuttingDown)) {
-    const v3 = await fetchV3Products(merchant);
-    if (v3.products.length) products = v3.products;
+  // Harvest from both public Store API and authenticated v3 API, then dedupe.
+  // This maximizes coverage in cases where one surface is partial.
+  const storeResult = await fetchStoreProducts(merchant);
+  const via = [storeResult.via];
+  let products = [...storeResult.products];
+  let v3Result = null;
+  let lastError = storeResult.lastError;
+  if (!shuttingDown) {
+    v3Result = await fetchV3Products(merchant);
+    via.push(v3Result.via);
+    if (v3Result.products.length) products.push(...v3Result.products);
+    if (!lastError) lastError = v3Result.lastError;
   }
+  products = dedupeProducts(products);
   if (products.length) {
-    info('merchant harvested', { domain: merchant.domain, count: products.length, via: result.via });
+    info('merchant harvested', {
+      domain: merchant.domain,
+      count: products.length,
+      via: via.filter(Boolean).join('+'),
+      storeCount: storeResult.products.length,
+      v3Count: v3Result ? v3Result.products.length : 0,
+      skipped: v3Result && v3Result.skipped ? v3Result.skipped : undefined,
+    });
   } else {
-    info('merchant yielded no products', { domain: merchant.domain, lastError: result.lastError });
+    info('merchant yielded no products', {
+      domain: merchant.domain,
+      storeLastError: storeResult.lastError,
+      v3LastError: v3Result && v3Result.lastError,
+      lastError,
+      skipped: v3Result && v3Result.skipped ? v3Result.skipped : undefined,
+    });
   }
   // Flush this merchant's products in ingest-sized batches.
   for (let i = 0; i < products.length; i += INGEST_BATCH) {
