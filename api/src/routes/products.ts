@@ -9,6 +9,7 @@ import { buildCompareProductsQuery, UUID_RE } from '../lib/compare-query';
 import { hybridSearchWithAlpha } from '../lib/semanticSearch';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { cacheStats as embeddingCacheStats } from '../lib/embeddingCache';
+import { assertQueryWithinCost, handleQueryTooExpensive } from '../lib/queryCostGate';
 
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
@@ -795,13 +796,38 @@ router.get(
     // user-facing read endpoint and was the source of the BUY-33985 30s+ hang.
     // A 5s cap is well above the index-backed happy path (≈15ms) and well
     // below the previous 30s client-visible ceiling. release() always runs.
+    const dealDataSql =
+      `SELECT id, sku AS source_id, source AS domain, url,
+              title, price, (metadata->>'original_price')::numeric AS original_price,
+              currency, image_url, metadata, updated_at,
+              region, country_code, created_at, description, brand, mpn, gtin,
+              category_path, category, merchant_id, avg_rating, review_count,
+              ${discountSelect}
+       FROM products
+       WHERE ${dealWhere}
+       ORDER BY ${discountOrder}, updated_at DESC
+       LIMIT $${dealIdx} OFFSET $${dealIdx + 1}`;
+    const dealDataParams = [...dealParams, limit, offset];
+
     const dealsClient = await db.connect();
     let deals: ReturnType<typeof buildProduct>[] = [];
     let total = 0;
     try {
-      // BUY-34291: cap work_mem too (same shared_buffers pressure reasoning as search)
-      await dealsClient.query(`SET work_mem = '${SEARCH_WORK_MEM}'`);
-      await dealsClient.query(`SET statement_timeout = ${DEALS_RESPONSE_TIMEOUT_MS}`);
+      // BUY-34291 / BUY-45691: cap work_mem and force single-process execution on
+      // this heavy read path, matching /v1/products/search. Use SET LOCAL inside a
+      // transaction so the caps roll back on COMMIT and never leak onto the pooled
+      // connection (a plain `SET` persists for the next borrower of this client).
+      await dealsClient.query('BEGIN');
+      await dealsClient.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
+      await dealsClient.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
+      await dealsClient.query(`SET LOCAL statement_timeout = ${DEALS_RESPONSE_TIMEOUT_MS}`);
+
+      // BUY-45691: planner-cost gate. If a loose filter (e.g. min_discount=0 with
+      // no country_code) would make the ORDER BY discount_pct sort scan a whole
+      // products_* partition, EXPLAIN catches it before it runs to the timeout.
+      // Defaults to observe-mode (logs only); QUERY_COST_GATE_MODE=enforce makes
+      // it short-circuit with a 422 query_too_expensive.
+      await assertQueryWithinCost(dealsClient, dealDataSql, dealDataParams, { label: 'products.deals' });
 
       const countResult = await dealsClient.query(
         `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${dealWhere} LIMIT ${COUNT_CAP}) _sub`,
@@ -809,22 +835,16 @@ router.get(
       );
       total = parseInt(countResult.rows[0].count, 10);
 
-      const dataResult = await dealsClient.query(
-        `SELECT id, sku AS source_id, source AS domain, url,
-                title, price, (metadata->>'original_price')::numeric AS original_price,
-                currency, image_url, metadata, updated_at,
-                region, country_code, created_at, description, brand, mpn, gtin,
-                category_path, category, merchant_id, avg_rating, review_count,
-                ${discountSelect}
-         FROM products
-         WHERE ${dealWhere}
-         ORDER BY ${discountOrder}, updated_at DESC
-         LIMIT $${dealIdx} OFFSET $${dealIdx + 1}`,
-        [...dealParams, limit, offset]
-      );
+      const dataResult = await dealsClient.query(dealDataSql, dealDataParams);
       deals = dataResult.rows.map((row) =>
         buildProduct(row as Record<string, unknown>, currency, false)
       );
+      await dealsClient.query('COMMIT');
+    } catch (err) {
+      await dealsClient.query('ROLLBACK').catch(() => {});
+      // `finally` releases the client on both the return and the rethrow below.
+      if (handleQueryTooExpensive(err, res)) return;
+      throw err;
     } finally {
       dealsClient.release();
     }
