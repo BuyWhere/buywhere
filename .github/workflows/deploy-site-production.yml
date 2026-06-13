@@ -74,10 +74,11 @@ jobs:
       - name: Post-deploy smoke test
         run: |
           echo "=== Smoke testing ${SITE_URL} ==="
-          # Homepage must serve 200.
+          # Homepage must serve 200. Retry for cold-start latency — a freshly
+          # started Railway container can take a few seconds to accept traffic.
           ok=0
           for i in $(seq 1 20); do
-            HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "${SITE_URL}/" || echo "000")
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${SITE_URL}/" || echo "000")
             echo "GET / -> HTTP ${HTTP} (attempt ${i})"
             if [ "$HTTP" = "200" ]; then ok=1; break; fi
             sleep 10
@@ -88,14 +89,25 @@ jobs:
           fi
 
           # Content-level health endpoint must report status ok (not degraded/down).
-          HEALTH_JSON=$(curl -fsS --max-time 20 "${SITE_URL}/api/health/site")
-          echo "$HEALTH_JSON"
-          STATUS=$(echo "$HEALTH_JSON" | python3 -c "import sys,json;print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
-          if [ "$STATUS" != "ok" ]; then
-            echo "ERROR: /api/health/site status='${STATUS}' (expected 'ok')"
+          # This endpoint runs several internal sub-fetches (homepage keyword +
+          # static assets), so it is slow on a cold container — retry rather than
+          # hard-failing on the first attempt. Each curl is guarded with `|| echo`
+          # so a transient timeout can't trip `set -e` mid-loop.
+          health_ok=0
+          HEALTH_JSON=""
+          for i in $(seq 1 12); do
+            HEALTH_JSON=$(curl -fsS --max-time 30 "${SITE_URL}/api/health/site" || echo "")
+            STATUS=$(printf '%s' "$HEALTH_JSON" | python3 -c "import sys,json;print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
+            echo "GET /api/health/site -> status='${STATUS}' (attempt ${i})"
+            if [ "$STATUS" = "ok" ]; then health_ok=1; break; fi
+            sleep 10
+          done
+          if [ "$health_ok" != "1" ]; then
+            echo "ERROR: /api/health/site never reported status=ok after deploy"
+            echo "${HEALTH_JSON}"
             exit 1
           fi
-          echo "Site healthy after deploy (status=${STATUS})"
+          echo "Site healthy after deploy (status=ok)"
 
   # ──────────────────────────────────────────────────────────────────────────
   # Post-deploy e2e: Playwright smoke against the freshly-deployed production
