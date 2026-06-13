@@ -100,7 +100,9 @@ const ACTIVE_DOC_PATHS = new Set([
 ]);
 
 const ACTIVE_BLOG_SLUGS = new Set([
+  "best-gaming-laptops-us-2026",
   "best-laptop-deals-singapore",
+  "best-laptop-deals-singapore-june-2026",
   "best-laptop-deals-under-sgd-2000-singapore",
   "best-price-tracking-tools-singapore",
   "best-time-to-buy-cameras",
