@@ -110,6 +110,16 @@ export function createApp() {
     });
   });
 
+  // BUY-47470: watchdogs still probing /api/monitoring/health on api.buywhere.ai
+  // need a public process-liveness surface, not the auth-gated reporting routes.
+  app.get('/api/monitoring/health', (_req, res) => {
+    res.json({
+      status: 'ok',
+      ts: new Date().toISOString(),
+      fix: 'BUY-47470-v1',
+    });
+  });
+
   // /healthz — backwards-compatible alias for /health (BUY-18347)
   // Old dedicated MCP container (Cloud Run) used /healthz as its Knative liveness probe path.
   // Railway buywhere-api now owns mcp.buywhere.ai; alias keeps legacy probes and monitors working.
