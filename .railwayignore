@@ -6,7 +6,15 @@ node_modules/
 dist/
 app/.next/
 app/node_modules/
+# Exclude markdown documentation but allow blog content (AEO articles).
+# Without the negation rules below, `content/blog/*.md` was being filtered
+# out of the Railway build context (snapshot dropped from ~3MB to 2.1MB),
+# which made `generateStaticParams()` return empty and the [slug] route
+# fall through to notFound() at request time. See BUY-45847 / BUY-46949.
 *.md
+!content/
+!content/blog/
+!content/blog/*.md
 *.sh
 data/
 output/
