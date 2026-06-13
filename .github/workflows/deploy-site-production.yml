@@ -1,6 +1,28 @@
 name: Deploy site to production
 
 on:
+  # Auto-deploy on merge to main when site-relevant code changes (BUY-46217).
+  # The e2e smoke gate below still runs first and blocks bad deploys; path
+  # filters keep doc-only / unrelated merges from rebuilding+redeploying the
+  # site. Emergency / manual deploys remain available via workflow_dispatch.
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'src/**'
+      - 'content/**'
+      - 'public/**'
+      - 'packages/**'
+      - 'site.Dockerfile'
+      - 'next.config.mjs'
+      - 'postcss.config.mjs'
+      - 'tailwind.config.ts'
+      - 'tsconfig.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'sentry.client.config.ts'
+      - 'sentry.server.config.ts'
+      - '.github/workflows/deploy-site-production.yml'
   workflow_dispatch:
     inputs:
       image_tag:
