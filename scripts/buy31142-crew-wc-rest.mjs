@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// @title BUY-31142 Crew REST sub-lane worker (BUY-38482 keep-alive target)
+// @title BUY-31142 Crew REST sub-lane worker
 //
 // Deep-pages known WooCommerce (WC) merchants from
 //   data/buy31015-wc-known-merchants.json
@@ -307,7 +307,7 @@ async function writeStatus() {
   const rowsPerHour = Math.round((rows / elapsedSec) * 3600);
   const status = {
     lane: 'crew-wc-rest',
-    issue: 'BUY-38482',
+    issue: 'BUY-31142',
     source: INGEST_SOURCE,
     pid: process.pid,
     startedAt: new Date(startedAtMs).toISOString(),

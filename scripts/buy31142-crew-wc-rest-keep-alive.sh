@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# BUY-31142 Crew REST sub-lane keep-alive tick (BUY-38482).
+# BUY-31142 Crew REST sub-lane keep-alive tick (BUY-31142).
 #
 # Run this on every heartbeat tick (interval must be < worker --duration-sec,
 # i.e. sub-5-min, so a successfully spawned worker is still alive on the next
@@ -64,6 +64,11 @@ const PATHS = {
 const STALL_SEC = Number(process.env.STALL_SEC || 120);
 const THRESHOLD = Number(process.env.ESCALATE_THRESHOLD || 4);
 const MARKER = process.env.MARKER || 'buy31142-crew-wc-rest';
+const CANON = {
+  lane: 'crew-wc-rest',
+  issue: 'BUY-31142',
+  worker: 'scripts/buy31142-crew-wc-rest.mjs',
+};
 const now = Date.now();
 const out = {};
 
@@ -115,17 +120,16 @@ try {
   const alive = cooldownActive || (procAlive && cmdlineOk && heartbeatFresh);
   out.alive = alive ? 1 : 0;
 
-  const esc = readJson(PATHS.esc, null) || {
-    lane: 'crew-wc-rest',
-    issue: 'BUY-38482',
-    worker: 'scripts/buy31142-crew-wc-rest.mjs',
-    consecutive_dead_ticks: 0,
-    last_alive_at: null,
-    last_dead_at: null,
-    last_pid: null,
-    last_heartbeat_age_sec: null,
-    escalations: [],
-  };
+  const esc = readJson(PATHS.esc, null) || {};
+  if (!Number.isInteger(Number(esc.consecutive_dead_ticks))) esc.consecutive_dead_ticks = 0;
+  if (typeof esc.last_alive_at !== 'string') esc.last_alive_at = null;
+  if (typeof esc.last_dead_at !== 'string') esc.last_dead_at = null;
+  if (!Array.isArray(esc.escalations)) esc.escalations = [];
+  esc.lane = CANON.lane;
+  esc.issue = CANON.issue;
+  esc.worker = CANON.worker;
+  esc.last_caller = 'buy31142-crew-wc-rest-keep-alive';
+  if (!Number.isInteger(Number(esc.last_heartbeat_age_sec))) esc.last_heartbeat_age_sec = null;
   esc.last_tick_at = new Date(now).toISOString();
 
   if (alive) {
@@ -149,6 +153,7 @@ try {
         streak: esc.consecutive_dead_ticks,
         pid: pid || null,
         heartbeat_age_sec: ageSec,
+        caller: 'buy31142-crew-wc-rest-keep-alive',
         reason,
       });
       // Cap the escalation history so the file stays bounded.
@@ -184,6 +189,7 @@ eval "$(
 : "${alive:=0}"
 : "${proc_alive:=0}"
 : "${pid:=0}"
+: "${cmdline_ok:=0}"
 : "${streak:=0}"
 : "${escalate:=0}"
 : "${respawn:=1}"
@@ -202,9 +208,10 @@ if [ "${alive}" = "1" ]; then
 fi
 
 # --- dead branch: bump already recorded; now (re)spawn -------------------
-# If a stalled worker process is still alive (proc up but heartbeat stale), or
-# a recycled PID holds the pidfile, stop it so the new worker can reclaim.
-if [ "${proc_alive}" = "1" ] && [ "${pid}" != "0" ]; then
+# If the previous lane PID is still a live worker process (pid match + marker
+# match), stop it before spawning a fresh worker so the PID/cgroup namespace can
+# be reclaimed cleanly.
+if [ "${proc_alive}" = "1" ] && [ "${cmdline_ok}" = "1" ] && [ "${pid}" != "0" ]; then
   say "stopping stale/stalled pid=${pid} before respawn"
   kill "${pid}" 2>/dev/null || true
   sleep 1
