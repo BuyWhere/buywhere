@@ -8,6 +8,7 @@ import {
   type LandingProduct,
   type SeoLandingPageConfig,
 } from "@/lib/seo-landing-pages";
+import { RelatedCategoryBlock } from "@/components/RelatedCategoryBlock";
 
 function formatPrice(price: number | null, currency: string) {
   if (price === null) {
@@ -258,6 +259,8 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
           </div>
         </section>
       </main>
+
+      {config.showRelatedCategory && <RelatedCategoryBlock slug={config.slug} />}
 
       <Footer />
     </div>

@@ -4,6 +4,7 @@ import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
+import { PopularComparisons } from "@/components/PopularComparisons";
 
 export const metadata: Metadata = {
   title: "BuyWhere Quickstart",
@@ -389,6 +390,7 @@ export default function QuickstartPage() {
         </div>
       </section>
 
+      <PopularComparisons variant="footer" />
       <Footer />
     </div>
   );
