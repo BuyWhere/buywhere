@@ -16,6 +16,30 @@ const SYSTEM_API_KEY = process.env.BUYWHERE_SYSTEM_API_KEY || '';
 
 let freshnessRecoveryPromise: Promise<void> | null = null;
 
+// BUY-46193: the read/reporting endpoints (/api/monitoring/p95, /p95/all, /p95/history)
+// must never run the heavy freshness work (window aggregation + nested HTTP probe
+// recovery) on the request path. That work routinely took >5s and, under stale data or
+// load, blew past the 10s hard route timeout — the socket was destroyed and Railway
+// returned 502 "Application failed to respond", which in turn self-blocked the P95
+// monitoring routine. Reads now serve last-known data from the DB (and the 30s cache)
+// immediately, while freshness is refreshed in the background for the next request.
+let backgroundFreshnessPromise: Promise<void> | null = null;
+
+function triggerBackgroundFreshness(market?: string): void {
+  if (backgroundFreshnessPromise) {
+    return;
+  }
+  backgroundFreshnessPromise = (async () => {
+    try {
+      await ensureFreshP95Data(market);
+    } catch (error) {
+      console.error('[P95] Background freshness refresh failed:', error);
+    } finally {
+      backgroundFreshnessPromise = null;
+    }
+  })();
+}
+
 interface P95QueryOptions {
   skipFreshness?: boolean;
 }
@@ -242,7 +266,7 @@ export async function getP95Latency(
   options: P95QueryOptions = {}
 ): Promise<P95LatencyRecord[]> {
   if (!options.skipFreshness) {
-    await ensureFreshP95Data(market);
+    triggerBackgroundFreshness(market);
   }
 
   const result = await db.query(
@@ -261,7 +285,7 @@ export async function getLatestP95ForMarket(
   options: P95QueryOptions = {}
 ): Promise<P95LatencyRecord | null> {
   if (!options.skipFreshness) {
-    await ensureFreshP95Data(market);
+    triggerBackgroundFreshness(market);
   }
 
   const result = await db.query(
@@ -289,7 +313,7 @@ export async function getAllLatestP95(
   }
 
   if (!options.skipFreshness) {
-    await ensureFreshP95Data();
+    triggerBackgroundFreshness();
   }
 
   const result = await db.query(
