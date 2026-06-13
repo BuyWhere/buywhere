@@ -134,3 +134,4 @@ docker-compose up
 ## License
 
 Proprietary — © 2026 BuyWhere. All rights reserved.
+
