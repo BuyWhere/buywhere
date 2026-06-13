@@ -210,7 +210,7 @@ router.get('/api/monitoring/p95/history', async (req, res) => {
 
 router.get('/api/monitoring/p95/all', async (req, res) => {
   try {
-    const markets = await getAllLatestP95();
+    const markets = await getAllLatestP95({ skipFreshness: true });
     const serializedMarkets = Object.fromEntries(
       Object.entries(markets).map(([market, record]) => [
         market,

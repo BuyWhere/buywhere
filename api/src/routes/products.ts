@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db, redis } from '../config';
+import { readDb } from '../lib/readReplica';
 import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
@@ -795,7 +796,10 @@ router.get(
     // user-facing read endpoint and was the source of the BUY-33985 30s+ hang.
     // A 5s cap is well above the index-backed happy path (≈15ms) and well
     // below the previous 30s client-visible ceiling. release() always runs.
-    const dealsClient = await db.connect();
+    // BUY-45692: deals is a heavy aggregate rollup — route to the read replica
+    // when available (readDb() falls back to primary if unconfigured or lagging),
+    // isolating it from interactive /v1/products/search on the primary.
+    const dealsClient = await readDb().connect();
     let deals: ReturnType<typeof buildProduct>[] = [];
     let total = 0;
     try {
