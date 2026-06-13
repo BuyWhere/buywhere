@@ -59,6 +59,7 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/blog", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/blog/cheapest-iphone-singapore-2026", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/blog/best-laptop-deals-singapore", priority: 0.8, changeFrequency: "monthly" as const },
+  { path: "/blog/best-gaming-laptops-us-2026", priority: 0.8, changeFrequency: "weekly" as const },
   { path: "/blog/compare-headphones-singapore-2026", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/blog/home-appliance-deals-singapore-2026", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/blog/compare-product-prices-singapore-2026", priority: 0.8, changeFrequency: "monthly" as const },
