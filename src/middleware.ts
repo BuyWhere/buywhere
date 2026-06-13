@@ -105,6 +105,7 @@ const ACTIVE_BLOG_SLUGS = new Set([
   "best-laptop-deals-singapore-june-2026",
   "best-laptop-deals-under-sgd-2000-singapore",
   "best-price-tracking-tools-singapore",
+  "best-robot-vacuums-2026-pricing-compared",
   "best-time-to-buy-cameras",
   "best-time-to-buy-electronics",
   "best-time-to-buy-fitness-tech",
@@ -112,10 +113,14 @@ const ACTIVE_BLOG_SLUGS = new Set([
   "best-time-to-buy-laptops",
   "best-time-to-buy-smartwatches",
   "best-time-to-buy-tvs",
+  "cheapest-iphone-17-singapore-june-2026",
   "cheapest-iphone-singapore-2026",
+  "cheapest-macbook-air-m3-12-countries-compared",
+  "airpods-pro-2-cheapest-us-sg-my-jp",
   "compare-headphones-singapore-2026",
   "compare-product-prices-singapore-2026",
   "home-appliance-deals-singapore-2026",
+  "iphone-16-vs-iphone-17-upgrade-worth-it-2026",
 ]);
 
 function normalizePathname(pathname: string): string {
