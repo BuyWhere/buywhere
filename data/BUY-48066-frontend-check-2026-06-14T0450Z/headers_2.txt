@@ -1,0 +1,26 @@
+HTTP/2 200 
+date: Sun, 14 Jun 2026 04:52:33 GMT
+content-type: text/html; charset=utf-8
+cache-control: s-maxage=300, stale-while-revalidate
+x-permitted-cross-domain-policies: none
+x-frame-options: DENY
+link: <https://buywhere.ai/llms.txt>; rel="describedby"; type="text/plain", <https://buywhere.ai/.well-known/api-catalog>; rel="service-desc"; type="application/json", <https://buywhere.ai/.well-known/mcp/server-card.json>; rel="service-desc"; type="application/json", <https://buywhere.ai/openapi.json>; rel="service-desc"; type="application/json"
+server: cloudflare
+vary: RSC, Next-Router-State-Tree, Next-Router-Prefetch, Accept-Encoding
+x-nextjs-cache: HIT
+x-powered-by: Next.js
+x-railway-edge: railway/asia-southeast1-eqsg3a
+x-railway-request-id: f1hviEZyRlSyqaE6V7rehQ
+x-hikari-trace: hnd1.y5sc
+cf-cache-status: DYNAMIC
+x-xss-protection: 1; mode=block
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=PeJuGmYOwn28OvyW1OENfYkEdYm4CKpoJJtUY7pJkXAj9uBPYCU6BDsbLpCq6H%2Bewt%2BuX4%2Bob20n5elzGtCLUDneBth%2B8FDfh69aVGX%2Fw5NGbwEPlOksIo565x63qZQJSJAtJxiaoBD7QA%3D%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+content-security-policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://*.google-analytics.com https://*.gstatic.com https://www.googletagmanager.com https://www.clarity.ms https://plausible.io; style-src 'self' 'unsafe-inline' https://*.googleapis.com https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.railway.app https://buywhere.ai https://api.openai.com https://*.openai.com https://*.google-analytics.com https://www.clarity.ms https://*.clarity.ms https://*.posthog.com https://us.i.posthog.com https://plausible.io https://images.unsplash.com https://picsum.photos; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests; block-all-mixed-content
+permissions-policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+referrer-policy: strict-origin-when-cross-origin
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+x-content-type-options: nosniff
+cf-ray: a0b6b9ec2ad9fe1d-SIN
+alt-svc: h3=":443"; ma=86400
+

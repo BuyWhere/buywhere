@@ -1,0 +1,32 @@
+{
+  "tick": "N+240",
+  "issue": "BUY-48066",
+  "target": "https://buywhere.ai",
+  "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "runs": [
+    {"run":1,"http":200,"total_ms":249.9,"ttfb_ms":248.3,"size":106198,"md5":"907d6c5c21cb648472d811cf8cae651c","keyword_count":69},
+    {"run":2,"http":200,"total_ms":256.4,"ttfb_ms":254.5,"size":106198,"md5":"907d6c5c21cb648472d811cf8cae651c","keyword_count":69},
+    {"run":3,"http":200,"total_ms":249.2,"ttfb_ms":247.7,"size":106198,"md5":"907d6c5c21cb648472d811cf8cae651c","keyword_count":69},
+    {"run":4,"http":200,"total_ms":257.0,"ttfb_ms":255.6,"size":106198,"md5":"907d6c5c21cb648472d811cf8cae651c","keyword_count":69},
+    {"run":5,"http":200,"total_ms":234.0,"ttfb_ms":231.7,"size":106198,"md5":"907d6c5c21cb648472d811cf8cae651c","keyword_count":69}
+  ],
+  "verdict": "PASS",
+  "summary": {
+    "http_2xx": "5/5",
+    "keyword_present": "5/5",
+    "md5_held": "907d6c5c 106198B HELD 7th consecutive 5/5",
+    "latency_ms": {"r1":249.9,"r2":256.4,"r3":249.2,"r4":257.0,"r5":234.0,"avg":249.3,"median":249.9,"min":234.0,"max":257.0},
+    "spikes": 0,
+    "cold_start": false,
+    "title": "BuyWhere — MCP Server and Product Catalog API for AI Agents",
+    "x_nextjs_cache": "HIT 5/5",
+    "cf_cache_status": "DYNAMIC 5/5",
+    "cf_ray_distinct": 5,
+    "cf_ray_pops": "all SIN",
+    "x_railway_edge": "eqsg3a 5/5",
+    "alt_svc": "h3 5/5"
+  },
+  "alternation_N134_to_N240": "18×552acc/7×a3bafa/29×814314fa/11×f7ed15cc/1×efdfecd5/2×e234af28/2×461ac785/3×d0f460c0/7×907d6c5c (10 distinct targets)",
+  "consecutive_healthy": 240,
+  "incidents_open": 0
+}

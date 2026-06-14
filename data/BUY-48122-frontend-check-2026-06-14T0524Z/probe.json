@@ -1,0 +1,17 @@
+{
+  "issue": "BUY-48122",
+  "tick": "N+247",
+  "result": "PASS",
+  "url": "https://buywhere.ai",
+  "ts": "2026-06-14T05:24:54Z",
+  "probes": [
+    {"i":1,"http":200,"buywhere":69,"md5":"907d6c5c21cb648472d811cf8cae651c","size":106198},
+    {"i":2,"http":200,"buywhere":69,"md5":"907d6c5c21cb648472d811cf8cae651c","size":106198},
+    {"i":3,"http":200,"buywhere":69,"md5":"907d6c5c21cb648472d811cf8cae651c","size":106198},
+    {"i":4,"http":200,"buywhere":69,"md5":"907d6c5c21cb648472d811cf8cae651c","size":106198},
+    {"i":5,"http":200,"buywhere":69,"md5":"907d6c5c21cb648472d811cf8cae651c","size":106198}
+  ],
+  "md5": "907d6c5c21cb648472d811cf8cae651c",
+  "size": 106198,
+  "held_consecutive": 14
+}
