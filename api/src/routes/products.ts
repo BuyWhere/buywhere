@@ -574,6 +574,33 @@ router.get(
     const limit = Math.min(parseInt((req.query.limit as string) || '20'), 100);
     const offset = parseInt((req.query.offset as string) || '0');
 
+    // BUY-48017: ?explain=1 returns the planner's chosen plan + present
+    // discount_pct-related indexes so the next regression that returns
+    // total:0 / 504 / empty results is diagnosable in one curl call. Same
+    // auth as the normal endpoint so a leaked key can't be used to learn
+    // schema internals beyond what the JSON already returns. Safe to keep
+    // in main — costs nothing on the hot path.
+    if ((req.query.explain as string | undefined) === '1') {
+      const probe = await db.query(
+        `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT 1 FROM products
+         WHERE currency = $1 AND price > 0 AND discount_pct >= $2
+         LIMIT 1`,
+        [currency, minDiscount]
+      );
+      const idx = await db.query(
+        `SELECT indexname, indexdef FROM pg_indexes
+         WHERE tablename = 'products' AND indexdef LIKE '%discount_pct%'`
+      );
+      return res.json({
+        query_plan: probe.rows[0]?.['QUERY PLAN'] ?? null,
+        discount_pct_indexes: idx.rows,
+        currency,
+        min_discount: minDiscount,
+        country_code: countryCode ?? null,
+        response_time_ms: Date.now() - start,
+      });
+    }
+
     const cacheKey = `deals:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
     try {
       const cached = await redis.get(cacheKey);
