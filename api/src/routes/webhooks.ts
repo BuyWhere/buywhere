@@ -31,19 +31,88 @@ interface UptimeRobotAlert {
   monitorStatusCode?: string;
 }
 
-const createPaperclipIssue = async (alert: UptimeRobotAlert, isDown: boolean): Promise<void> => {
-  if (!PAPERCLIP_BASE_URL || !PAPERCLIP_API_KEY) {
-    console.warn('[webhooks/uptime-robot] Relay not configured (missing URL or API key)');
-    return;
-  }
+const INCIDENT_TITLE_PREFIX = '[INCIDENT]';
 
+const closePaperclipIncident = async (issueId: string, friendlyName: string): Promise<void> => {
+  const timestamp = new Date().toISOString();
+  const commentBody = [
+    `## ✅ UptimeRobot Recovery — ${timestamp}`,
+    `**Monitor:** ${friendlyName}`,
+    `**Action:** Incident closed on UP event (webhook relay)`,
+    ``,
+    `*Closed automatically by buywhere-api webhook relay (BUY-47930)*`,
+  ].join('\n');
+
+  try {
+    // Add recovery comment
+    await fetch(`${ISSUES_ENDPOINT}/${issueId}/comments`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${PAPERCLIP_API_KEY}`,
+      },
+      body: JSON.stringify({ body: commentBody }),
+    });
+    // Close the issue
+    const closeResp = await fetch(`${ISSUES_ENDPOINT}/${issueId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${PAPERCLIP_API_KEY}`,
+      },
+      body: JSON.stringify({ status: 'done' }),
+    });
+    if (closeResp.ok) {
+      console.log(`[webhooks/uptime-robot] Closed existing incident ${issueId} for monitor '${friendlyName}'`);
+    } else {
+      const body = await closeResp.text().catch(() => '');
+      console.warn(`[webhooks/uptime-robot] Failed to close incident ${issueId}: ${closeResp.status} — ${body}`);
+    }
+  } catch (error) {
+    console.error('[webhooks/uptime-robot] Error closing incident:', error);
+  }
+};
+
+const findOpenIncidentByMonitor = async (friendlyName: string): Promise<string | null> => {
+  // Search for open incidents matching the monitor friendly name
+  // Use the issues list endpoint filtered by status=todo
+  try {
+    const listResp = await fetch(`${ISSUES_ENDPOINT}?status=todo&limit=20`, {
+      headers: {
+        'Authorization': `Bearer ${PAPERCLIP_API_KEY}`,
+      },
+    });
+    if (!listResp.ok) {
+      console.warn(`[webhooks/uptime-robot] Failed to search incidents: ${listResp.status}`);
+      return null;
+    }
+    const data = await listResp.json() as { issues?: Array<{ id: string; title: string }> };
+    const issues = data.issues || [];
+    for (const issue of issues) {
+      if (
+        issue.title.includes(INCIDENT_TITLE_PREFIX) &&
+        issue.title.includes(friendlyName)
+      ) {
+        return issue.id;
+      }
+    }
+  } catch (error) {
+    console.error('[webhooks/uptime-robot] Error searching incidents:', error);
+  }
+  return null;
+};
+
+const createPaperclipIncident = async (
+  alert: UptimeRobotAlert,
+  isDown: boolean,
+): Promise<void> => {
   const friendlyName = alert.monitorFriendlyName || alert.monitorName || alert.monitor_name || 'unknown';
   const monitorURL = alert.monitorURL || 'unknown';
   const alertDetails = alert.alertDetails || alert.alert_details || '';
   const status = isDown ? 'DOWN' : 'UP';
   const timestamp = new Date().toISOString();
 
-  const title = `[INCIDENT] ${status} — ${friendlyName}`;
+  const title = `${INCIDENT_TITLE_PREFIX} ${status} — ${friendlyName}`;
   const description = [
     `**Service:** ${friendlyName}`,
     `**Status:** ${status}`,
@@ -86,6 +155,29 @@ const createPaperclipIssue = async (alert: UptimeRobotAlert, isDown: boolean): P
   } catch (error) {
     console.error('[webhooks/uptime-robot] Paperclip API request failed:', error);
   }
+};
+
+const createPaperclipIssue = async (alert: UptimeRobotAlert, isDown: boolean): Promise<void> => {
+  if (!PAPERCLIP_BASE_URL || !PAPERCLIP_API_KEY) {
+    console.warn('[webhooks/uptime-robot] Relay not configured (missing URL or API key)');
+    return;
+  }
+
+  if (!isDown) {
+    // UP event: try to find and close the matching open DOWN incident first
+    const friendlyName = alert.monitorFriendlyName || alert.monitorName || alert.monitor_name || 'unknown';
+    const existingId = await findOpenIncidentByMonitor(friendlyName);
+    if (existingId) {
+      await closePaperclipIncident(existingId, friendlyName);
+      return; // Don't create a new standalone issue
+    }
+    // No open incident found — log and skip (don't create spurious UP issue)
+    console.log(`[webhooks/uptime-robot] No open incident found for '${friendlyName}' on UP — skipping`);
+    return;
+  }
+
+  // DOWN event: always create a new incident
+  await createPaperclipIncident(alert, true);
 };
 
 router.post('/uptime-robot', (req: Request, res: Response) => {
