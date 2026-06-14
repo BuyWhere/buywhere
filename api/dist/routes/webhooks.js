@@ -70,6 +70,21 @@ const createPaperclipIssue = async (alert, isDown) => {
     }
 };
 router.post('/uptime-robot', (req, res) => {
+    const sharedSecret = process.env.UPTIMEROBOT_WEBHOOK_SHARED_SECRET?.trim() || '';
+    if (!sharedSecret) {
+        console.error('[webhooks/uptime-robot] UPTIMEROBOT_WEBHOOK_SHARED_SECRET not configured');
+        res.status(503).json({ error: 'Webhook auth not configured' });
+        return;
+    }
+    const headerSecret = req.headers['x-uptimerobot-secret'];
+    const authHeader = req.headers['authorization'];
+    const bearerSecret = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+    const providedSecret = headerSecret ?? bearerSecret;
+    if (!providedSecret || providedSecret !== sharedSecret) {
+        console.warn('[webhooks/uptime-robot] Auth rejected — invalid or missing secret');
+        res.status(401).json({ error: 'Invalid webhook secret' });
+        return;
+    }
     const payload = req.body;
     console.log('[webhooks/uptime-robot] Received alert:', JSON.stringify(payload));
     const alertType = payload?.alertType ?? payload?.alert_type;
@@ -95,6 +110,7 @@ router.post('/stripe', async (req, res) => {
     if (!stripe) {
         return res.status(503).json({ error: 'Stripe not configured' });
     }
+    const stripeClient = stripe;
     const sig = req.headers['stripe-signature'];
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
     if (!webhookSecret) {
@@ -105,7 +121,7 @@ router.post('/stripe', async (req, res) => {
     let event;
     try {
         const rawBody = JSON.stringify(req.body);
-        event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+        event = stripeClient.webhooks.constructEvent(rawBody, sig, webhookSecret);
     }
     catch (err) {
         console.error('[webhooks/stripe] Signature verification failed:', err);

@@ -89,6 +89,25 @@ const createPaperclipIssue = async (alert: UptimeRobotAlert, isDown: boolean): P
 };
 
 router.post('/uptime-robot', (req: Request, res: Response) => {
+  const sharedSecret = process.env.UPTIMEROBOT_WEBHOOK_SHARED_SECRET?.trim() || '';
+
+  if (!sharedSecret) {
+    console.error('[webhooks/uptime-robot] UPTIMEROBOT_WEBHOOK_SHARED_SECRET not configured');
+    res.status(503).json({ error: 'Webhook auth not configured' });
+    return;
+  }
+
+  const headerSecret = req.headers['x-uptimerobot-secret'] as string | undefined;
+  const authHeader = req.headers['authorization'] as string | undefined;
+  const bearerSecret = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+  const providedSecret = headerSecret ?? bearerSecret;
+
+  if (!providedSecret || providedSecret !== sharedSecret) {
+    console.warn('[webhooks/uptime-robot] Auth rejected — invalid or missing secret');
+    res.status(401).json({ error: 'Invalid webhook secret' });
+    return;
+  }
+
   const payload = req.body as UptimeRobotAlert;
   console.log('[webhooks/uptime-robot] Received alert:', JSON.stringify(payload));
 
