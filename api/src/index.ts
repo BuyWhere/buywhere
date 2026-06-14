@@ -2,11 +2,15 @@ import { initSentry } from './sentry';
 import { createApp } from './server';
 import { PORT } from './config';
 import { shutdownPostHog } from './analytics/posthog';
+import { startDiskSpaceRunner } from './jobs/diskSpaceRunner';
 
 // Initialize Sentry before anything else so all errors are captured
 initSentry();
 
 const app = createApp();
+
+// Start disk space monitoring (BUY-48801)
+startDiskSpaceRunner();
 
 const server = app.listen(PORT, () => {
   console.log(`BuyWhere API v1 listening on :${PORT}`);
