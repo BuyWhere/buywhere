@@ -501,6 +501,12 @@ export async function runMigrations() {
     console.log('[migration] Ensuring discount_pct is a GENERATED STORED column (extended timeout for 14M row table)...');
     const client = await db.connect();
     try {
+      // BUY-48789: bound lock_timeout so a concurrent ingest/search DML
+      // transaction that holds an AccessExclusive lock on products does NOT
+      // pin the entire pool for the full 6 min statement_timeout. If the
+      // lock isn't available in 4s the DDL aborts with a clear error and
+      // the rest of runMigrations() (and the server's listen) proceeds.
+      await client.query('SET lock_timeout = 4000');
       await client.query('SET statement_timeout = 360000');
       await client.query(DISCOUNT_PCT_DDL);
       console.log('[migration] discount_pct GENERATED column and index verified.');
@@ -514,8 +520,12 @@ export async function runMigrations() {
     if (verify.rows.length === 0 || verify.rows[0].is_generated !== 'ALWAYS') {
       throw new Error(`discount_pct column is missing or not GENERATED (is_generated=${verify.rows[0]?.is_generated})`);
     }
-    const countCheck = await db.query(`SELECT count(*) AS cnt FROM products WHERE discount_pct IS NOT NULL`);
-    console.log(`[migration] discount_pct non-null rows: ${countCheck.rows[0].cnt}`);
+    // BUY-48789: removed `countCheck` (`SELECT count(*) ... WHERE discount_pct IS NOT NULL`)
+    // — it was a full 14M-row scan inside the startup hot path, and the
+    // default 30s statement_timeout reliably tripped on it under load.
+    // The column's existence and GENERATED property are the only invariants
+    // that actually matter; row count is purely diagnostic and not worth a
+    // 6-min tail every boot.
   } catch (err: any) {
     throw new Error(`[migration] FATAL: discount_pct GENERATED column failed: ${err.message}`);
   }
