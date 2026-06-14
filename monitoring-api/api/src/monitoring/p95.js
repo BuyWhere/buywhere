@@ -21,6 +21,7 @@ const HEALTH_INTERVAL_MS = 30 * 1000;     // 30s for /health across 5 regions
 const CATALOG_STATS_INTERVAL_MS = 60 * 1000;   // 60s for /v1/catalog/stats (sg)
 const MCP_LIST_CATEGORIES_INTERVAL_MS = 60 * 1000;  // 60s for mcp:list_categories (sg)
 const DEPLOY_FAIL_POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 min for Railway deploy failures
+const DISK_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 min for /dev/vda1 disk space (BUY-48087)
 
 // BUY-35392: Railway failed-deploy poller defaults to the BuyWhere prod project.
 const RAILWAY_GRAPHQL_URL = process.env.RAILWAY_GRAPHQL_URL || 'https://backboard.railway.com/graphql/v2';
@@ -543,6 +544,158 @@ async function probeMcpListCategories(pool) {
   await recordRawMeasurement(pool, 'sg', 'mcp:list_categories', latencyMs, statusCode);
 }
 
+// BUY-48087: Disk space monitoring for /dev/vda1
+const { exec } = require('child_process');
+const { promisify } = require('util');
+const execAsync = promisify(exec);
+
+// Paperclip API configuration for disk incident creation
+const PAPERCLIP_BASE_URL = process.env.PAPERCLIP_BASE_URL?.trim() || '';
+const PAPERCLIP_API_KEY = process.env.PAPERCLIP_API_KEY?.trim() || '';
+const PAPERCLIP_COMPANY_ID = process.env.PAPERCLIP_COMPANY_ID?.trim() || '177bc805-e3c8-4336-84cb-8e1e482d5a17';
+const DISK_AGENT_ID = process.env.DISK_AGENT_ID?.trim() || '8ca957f8-0911-4e81-a963-e2cf54c97d44'; // Rex
+const DISK_PARENT_ISSUE_ID = process.env.DISK_PARENT_ISSUE_ID?.trim() || '79d50257-93fa-43d2-9042-bc14bcafd4b4'; // BUY-13701
+const DISK_GOAL_ID = process.env.DISK_GOAL_ID?.trim() || '2c19e8cc-3e32-4144-8fcb-c4f206cb9fa4';
+const DISK_ISSUES_ENDPOINT = `${PAPERCLIP_BASE_URL}/api/companies/${PAPERCLIP_COMPANY_ID}/issues`;
+
+/**
+ * Create a Paperclip incident for critical disk space.
+ * Best-effort: errors are logged but never thrown.
+ */
+async function createDiskIncident(pool, status, availGB, totalGB, usedGB, usedPct) {
+  if (!PAPERCLIP_BASE_URL || !PAPERCLIP_API_KEY) {
+    console.warn('[probe] disk: Paperclip API not configured (missing PAPERCLIP_BASE_URL or PAPERCLIP_API_KEY)');
+    return;
+  }
+
+  const timestamp = new Date().toISOString();
+  const isCritical = status === 'CRITICAL';
+  const title = `[${isCritical ? 'CRITICAL' : 'WARN'}] Disk Space Alert — /dev/vda1 ${availGB}GB free`;
+
+  const description = [
+    `**Device:** /dev/vda1`,
+    `**Status:** ${status}`,
+    `**Available:** ${availGB}GB`,
+    `**Used:** ${usedGB}GB / ${totalGB}GB (${usedPct})`,
+    `**Threshold:** ${isCritical ? '< 5GB (CRITICAL)' : '< 20GB (WARN)'}`,
+    `**Time:** ${timestamp}`,
+    `**Action required:** ${isCritical ? 'Immediate investigation needed — disk running critically low' : 'Monitor closely — disk space degrading'}`,
+  ];
+
+  const issuePayload = {
+    title,
+    description: description.join('\n'),
+    status: 'todo',
+    priority: isCritical ? 'critical' : 'high',
+    assigneeAgentId: DISK_AGENT_ID,
+    parentId: DISK_PARENT_ISSUE_ID,
+    goalId: DISK_GOAL_ID,
+  };
+
+  try {
+    const response = await fetch(DISK_ISSUES_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${PAPERCLIP_API_KEY}`,
+      },
+      body: JSON.stringify(issuePayload),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      console.warn(`[probe] disk: Paperclip incident creation failed: ${response.status} — ${body}`);
+    } else {
+      console.log(`[probe] disk: Created Paperclip incident: ${title}`);
+    }
+  } catch (err) {
+    console.error(`[probe] disk: Paperclip API request failed: ${err.message}`);
+  }
+}
+
+/**
+ * Check if a disk incident was already created recently (within last hour).
+ * Prevents duplicate incidents for the same disk state.
+ */
+async function hasRecentDiskIncident(pool) {
+  try {
+    const result = await pool.query(
+      `SELECT 1
+         FROM monitoring.alert_history
+        WHERE kind = 'disk_critical'
+          AND triggered_at > now() - interval '1 hour'
+        LIMIT 1`
+    );
+    return result.rowCount > 0;
+  } catch (err) {
+    console.error(`[probe] disk: failed to check recent incidents: ${err.message}`);
+    return false;
+  }
+}
+
+async function probeDisk(pool) {
+  // Check /dev/vda1 free space and create Paperclip incidents if thresholds breached
+  // WARN at 20GB free, CRITICAL at 5GB free
+  try {
+    const { stdout } = await execAsync('df -BG /dev/vda1');
+    const lines = stdout.trim().split('\n');
+    if (lines.length < 2) {
+      console.warn('[probe] disk: unexpected df output');
+      return;
+    }
+
+    const parts = lines[1].split();
+    if (parts.length < 4) {
+      console.warn('[probe] disk: unexpected df format');
+      return;
+    }
+
+    const totalGB = parseFloat(parts[1].replace('G', ''));
+    const usedGB = parseFloat(parts[2].replace('G', ''));
+    const availGB = parseFloat(parts[3].replace('G', ''));
+    const usedPct = parts[4];
+
+    let status = 'OK';
+    if (availGB < 5) {
+      status = 'CRITICAL';
+    } else if (availGB < 20) {
+      status = 'WARN';
+    }
+
+    console.log(`[probe] disk /dev/vda1 -> ${status} ${availGB}GB free (${usedGB}GB/${totalGB}GB used, ${usedPct} capacity)`);
+
+    // If CRITICAL or WARN, trigger Paperclip incident (with deduplication)
+    if (status === 'CRITICAL' || status === 'WARN') {
+      const hasRecent = await hasRecentDiskIncident(pool);
+      if (!hasRecent) {
+        await createDiskIncident(pool, status, availGB, totalGB, usedGB, usedPct);
+      } else {
+        console.log(`[probe] disk: recent ${status} incident already exists, skipping Paperclip creation`);
+      }
+
+      // Always record to alert_history for tracking
+      try {
+        await pool.query(
+          `INSERT INTO monitoring.alert_history (market, p95_ms, threshold_ms, kind, resolution_notes)
+           VALUES ('disk', $1, $2, 'disk_critical', $3)
+           ON CONFLICT DO NOTHING`,
+          [availGB, status === 'CRITICAL' ? 5 : 20, JSON.stringify({ device: '/dev/vda1', total: totalGB, used: usedGB, pct: usedPct, status })]
+        );
+      } catch (dbErr) {
+        console.error(`[probe] disk: failed to record alert: ${dbErr.message}`);
+      }
+    }
+
+    // Record as a raw measurement for uptime tracking (using disk as "market")
+    // Map status to HTTP-like codes: OK=200, WARN=200 (with context), CRITICAL=503
+    const statusCode = status === 'CRITICAL' ? 503 : 200;
+    await recordRawMeasurement(pool, 'disk', 'df_vda1', 0, statusCode);
+  } catch (err) {
+    console.error(`[probe] disk: df command failed: ${err.message}`);
+    await recordRawMeasurement(pool, 'disk', 'df_vda1', 0, 0);
+  }
+}
+
 /**
  * Start the in-process probe scheduler. Idempotent: calling twice is a no-op.
  * Returns the array of timer handles (mostly for tests).
@@ -560,12 +713,14 @@ function startProbeScheduler(pool, opts = {}) {
   schedulerTimers.push(setInterval(() => { void probeCatalogStats(pool); }, CATALOG_STATS_INTERVAL_MS));
   schedulerTimers.push(setInterval(() => { void probeMcpListCategories(pool); }, MCP_LIST_CATEGORIES_INTERVAL_MS));
   schedulerTimers.push(setInterval(() => { void pollRailwayFailedDeployments(pool); }, DEPLOY_FAIL_POLL_INTERVAL_MS));
+  schedulerTimers.push(setInterval(() => { void probeDisk(pool); }, DISK_CHECK_INTERVAL_MS));
 
   console.log(
     `[probe] scheduler started (health ${HEALTH_INTERVAL_MS}ms × ${MARKETS.length} regions,`
     + ` catalog_stats ${CATALOG_STATS_INTERVAL_MS}ms,`
     + ` mcp:list_categories ${MCP_LIST_CATEGORIES_INTERVAL_MS}ms,`
-    + ` deploy_fail ${DEPLOY_FAIL_POLL_INTERVAL_MS}ms)`
+    + ` deploy_fail ${DEPLOY_FAIL_POLL_INTERVAL_MS}ms,`
+    + ` disk ${DISK_CHECK_INTERVAL_MS}ms)`
   );
   return schedulerTimers;
 }
@@ -582,6 +737,7 @@ async function runAllProbes(pool) {
     probeCatalogStats(pool),
     probeMcpListCategories(pool),
     pollRailwayFailedDeployments(pool),
+    probeDisk(pool),
   ]);
 }
 
@@ -594,6 +750,7 @@ module.exports = {
   CATALOG_STATS_INTERVAL_MS,
   MCP_LIST_CATEGORIES_INTERVAL_MS,
   DEPLOY_FAIL_POLL_INTERVAL_MS,
+  DISK_CHECK_INTERVAL_MS,
   DEPLOY_FAIL_STATUSES,
   RAILWAY_PROJECT_ID,
   RAILWAY_ENVIRONMENT_ID,
@@ -611,6 +768,7 @@ module.exports = {
   probeHealth,
   probeCatalogStats,
   probeMcpListCategories,
+  probeDisk,
   listProjectServiceInstances,
   pollRailwayFailedDeployments,
   buildDeployFailFingerprint,

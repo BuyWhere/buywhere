@@ -1,0 +1,2 @@
+tick_start_utc=2026-06-14T04:52:32Z
+tick_end_utc=2026-06-14T04:52:34Z

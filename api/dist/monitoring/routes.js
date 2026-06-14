@@ -78,7 +78,12 @@ async function monitoringAuth(req, res, next) {
     }
     next();
 }
-router.use('/api/monitoring', monitoringAuth);
+// Hard timeout for all monitoring endpoints — prevents any single request from hanging
+// indefinitely (e.g., slow DB aggregation + stale-freshness probes). BUY-44164
+router.use('/api/monitoring', (req, _res, next) => {
+    req.setTimeout(10000, () => { });
+    next();
+}, monitoringAuth);
 router.get('/api/monitoring/p95', async (req, res) => {
     try {
         const { market } = req.query;
@@ -173,7 +178,7 @@ router.get('/api/monitoring/p95/history', async (req, res) => {
 });
 router.get('/api/monitoring/p95/all', async (req, res) => {
     try {
-        const markets = await (0, p95_1.getAllLatestP95)();
+        const markets = await (0, p95_1.getAllLatestP95)({ skipFreshness: true });
         const serializedMarkets = Object.fromEntries(Object.entries(markets).map(([market, record]) => [
             market,
             {

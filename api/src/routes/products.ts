@@ -59,6 +59,16 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<unknown>) {
   };
 }
 
+// BUY-48789: products.id is BIGINT, so a non-numeric req.params.id (e.g. /v1/products/count)
+// would hit pg with `WHERE id = $1` where $1 = "count" and raise 22P02
+// `invalid input syntax for type bigint: "count"`. Validate up-front and return 400.
+// Accepts only non-negative integers; products.id is monotonically assigned so no leading zeros.
+function isValidNumericProductId(id: string | undefined): boolean {
+  if (!id) return false;
+  if (id.length > 20) return false; // bigint max is 9223372036854775807 (19 digits)
+  return /^[1-9][0-9]*$/.test(id) || id === '0';
+}
+
 const router = Router();
 
 // GET /v1/products
@@ -745,6 +755,10 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
     const { id } = req.params;
+    if (!isValidNumericProductId(id)) {
+      res.status(400).json({ error: 'Invalid product id', id });
+      return;
+    }
     const days = Math.min(parseInt((req.query.days as string) || '30'), 180);
 
     const [productResult, historyResult] = await Promise.all([
@@ -809,6 +823,10 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
     const { id } = req.params;
+    if (!isValidNumericProductId(id)) {
+      res.status(400).json({ error: 'Invalid product id', id });
+      return;
+    }
     const days = Math.min(parseInt((req.query.days as string) || '30'), 90);
 
     const [productResult, historyResult] = await Promise.all([
@@ -867,6 +885,10 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
     const { id } = req.params;
+    if (!isValidNumericProductId(id)) {
+      res.status(400).json({ error: 'Invalid product id', id });
+      return;
+    }
     const limit = Math.min(parseInt((req.query.limit as string) || '10'), 20);
 
     // Verify product exists in main DB
@@ -1033,6 +1055,10 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
     const { id } = req.params;
+    if (!isValidNumericProductId(id)) {
+      res.status(400).json({ error: 'Invalid product id', id });
+      return;
+    }
 
     let result;
     try {
