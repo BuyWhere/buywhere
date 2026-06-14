@@ -4,9 +4,12 @@ const sentry_1 = require("./sentry");
 const server_1 = require("./server");
 const config_1 = require("./config");
 const posthog_1 = require("./analytics/posthog");
+const diskSpaceRunner_1 = require("./jobs/diskSpaceRunner");
 // Initialize Sentry before anything else so all errors are captured
 (0, sentry_1.initSentry)();
 const app = (0, server_1.createApp)();
+// Start disk space monitoring (BUY-48801)
+(0, diskSpaceRunner_1.startDiskSpaceRunner)();
 const server = app.listen(config_1.PORT, () => {
     console.log(`BuyWhere API v1 listening on :${config_1.PORT}`);
     console.log(`  Health:   http://localhost:${config_1.PORT}/health`);
