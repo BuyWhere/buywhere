@@ -6,7 +6,7 @@ import authRouter from './routes/auth';
 import productsRouter from './routes/products';
 import categoriesRouter from './routes/categories';
 import redirectRouter from './routes/redirect';
-import wellknownRouter from './routes/wellknown';
+import wellknownRouter, { sendOpenApiSpec } from './routes/wellknown';
 import docsRouter from './routes/docs';
 import pagesRouter from './routes/pages';
 import publicCategoriesRouter from './routes/publicCategories';
@@ -149,7 +149,14 @@ export function createApp() {
 
   // MCP / OpenAI plugin discovery
   app.use('/.well-known', wellknownRouter);
-  app.get('/openapi.json', (req, res) => wellknownRouter(req, res, () => {}));
+  const serveOpenApi = (_req: express.Request, res: express.Response) => {
+    sendOpenApiSpec(res);
+  };
+  // BUY-47885: external monitors still probe /openapi without the .json
+  // suffix. Serve the same public spec instead of falling through to a
+  // legacy/auth-gated handler on older runtimes.
+  app.get('/openapi', serveOpenApi);
+  app.get('/openapi.json', serveOpenApi);
 
   // ChatGPT Actions-compatible OpenAPI spec (OpenAPI 3.1, action-friendly)
   app.get('/chatgpt-openapi.json', (_req, res) => {

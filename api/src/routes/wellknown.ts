@@ -183,8 +183,7 @@ router.get('/agent.json', (_req: Request, res: Response) => {
   res.json(A2A_AGENT_CARD);
 });
 
-// GET /openapi.json — OpenAPI 3.0 spec
-router.get('/openapi.json', (_req: Request, res: Response) => {
+export function sendOpenApiSpec(res: Response) {
   res.json({
     openapi: '3.0.0',
     info: {
@@ -363,6 +362,11 @@ router.get('/openapi.json', (_req: Request, res: Response) => {
       },
     },
   });
+}
+
+// GET /openapi.json — OpenAPI 3.0 spec
+router.get('/openapi.json', (_req: Request, res: Response) => {
+  sendOpenApiSpec(res);
 });
 
 // GET /.well-known/mcp/server-card.json — Smithery skip-scan card
