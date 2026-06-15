@@ -28,8 +28,8 @@ jobs:
       - name: Run disk space watchdog
         env:
           DISK_STATE_FILE: /tmp/disk-watchdog-state.json
-          DISK_EXECUTION_ISSUE: BUY-51340
-          DISK_ALERT_SINK: BUY-51340
+          DISK_EXECUTION_ISSUE: BUY-51354
+          DISK_ALERT_SINK: BUY-51354
           DISK_WARN_THRESHOLD_GB: 20
           DISK_CRITICAL_THRESHOLD_GB: 5
           DISK_ALERT_COOLDOWN_HOURS: 1
