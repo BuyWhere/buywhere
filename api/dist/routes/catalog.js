@@ -14,6 +14,8 @@ const CACHE_KEY = 'catalog:stats:exact';
 const CACHE_TTL = 900; // 15 min — reduces pressure on exact counts
 const REFRESH_LOCK_KEY = 'catalog:stats:refresh-lock';
 const REFRESH_LOCK_TTL = 120; // 2 min lock to prevent thundering herd
+const CATALOG_STATS_SOURCE_EXACT = 'catalog_stats';
+const CATALOG_STATS_SOURCE_FALLBACK = 'pg_class_fallback';
 // ─── Fast estimate using pg_class + TABLESAMPLE ────────────────────────────
 // BUY-31222: Full COUNT(*) on 32M rows times out at 60s on Railway Postgres.
 // Use pg_class.reltuples for totals, TABLESAMPLE for active ratio,
@@ -54,7 +56,7 @@ async function collectStats() {
         active_products: activeProducts,
         total_merchants: merchantsExact,
         approximate: true,
-        source: 'pg_class_estimate',
+        source: CATALOG_STATS_SOURCE_FALLBACK,
         collected_at: now,
     };
 }
@@ -80,7 +82,7 @@ async function tryExactCount(timeoutMs = 45000) {
             active_products: Number(row.active_products),
             total_merchants: Number(row.total_merchants),
             approximate: false,
-            source: 'public.products',
+            source: CATALOG_STATS_SOURCE_EXACT,
             collected_at: row.collected_at.toISOString(),
         };
     }
@@ -190,7 +192,7 @@ router.post('/stats/refresh', async (_req, res) => {
                     total_merchants: exact.total_merchants,
                     active_products: exact.active_products,
                 },
-                meta: { approximate: false, source: 'public.products', ts: exact.collected_at },
+                meta: { approximate: false, source: CATALOG_STATS_SOURCE_EXACT, ts: exact.collected_at },
             });
             return;
         }
