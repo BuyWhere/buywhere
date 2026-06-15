@@ -1,11 +1,12 @@
 import { Pool } from 'pg';
 import { createHash } from 'crypto';
 
-const JINA_API_URL = 'https://api.jina.ai/v1/embeddings';
-const JINA_MODEL   = 'jina-embeddings-v3';
-const EMBED_DIM    = 512;
-const BATCH_SIZE   = 100;
-const MAX_TEXT_CHARS = 2000; // ~500 tokens, well under Jina 8192-token limit
+// Cohere API configuration per BUY-41133 spec
+const COHERE_API_URL = 'https://api.cohere.ai/v1/embed';
+const COHERE_MODEL   = 'embed-multilingual-v3.0';
+const EMBED_DIM    = 1024;  // Cohere embed-multilingual-v3.0 outputs 1024-dim vectors
+const BATCH_SIZE   = 64;   // BUY-41133 requirement: batch size 64 per API call
+const MAX_TEXT_CHARS = 4000; // ~1000 tokens, safe for Cohere 2048-token input limit
 
 export interface EmbedSummary {
   processed: number;
@@ -23,26 +24,27 @@ function truncate(text: string): string {
   return text.length > MAX_TEXT_CHARS ? text.slice(0, MAX_TEXT_CHARS) : text;
 }
 
-async function fetchEmbeddings(texts: string[], jinaKey: string): Promise<number[][]> {
-  const res = await fetch(JINA_API_URL, {
+async function fetchEmbeddings(texts: string[], cohereKey: string): Promise<number[][]> {
+  const res = await fetch(COHERE_API_URL, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${jinaKey}`,
+      'Authorization': `Bearer ${cohereKey}`,
       'Content-Type': 'application/json',
+      'X-Client-Name': 'buywhere',
     },
     body: JSON.stringify({
-      model: JINA_MODEL,
-      task: 'retrieval.passage',
-      dimensions: EMBED_DIM,
+      model: COHERE_MODEL,
+      input_type: 'search_document', // BUY-41133 spec: use search_document for indexing
+      embedding_types: ['float'],
       input: texts,
     }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Jina API ${res.status}: ${body}`);
+    throw new Error(`Cohere API ${res.status}: ${body}`);
   }
-  const data = await res.json() as { data: Array<{ embedding: number[] }> };
-  return data.data.map(d => d.embedding);
+  const data = await res.json() as { embeddings: number[][] };
+  return data.embeddings;
 }
 
 /**
@@ -54,18 +56,22 @@ async function fetchEmbeddings(texts: string[], jinaKey: string): Promise<number
  *
  * Priority: highest-value (price DESC) products are embedded first, so the most
  * commercially relevant embeddings are always fresh.
+ *
+ * Per BUY-41133: Uses Cohere embed-multilingual-v3.0 with 1024-dim vectors,
+ * batch size 64, and should read from replica only.
  */
 export async function runEmbedBatch(
   sourceDb: Pool,
   vectorDb: Pool,
-  jinaKey:  string,
-  batchLimit = 5000,
+  cohereKey: string,
+  batchLimit = 64, // BUY-41133 default: 64 products per run
 ): Promise<EmbedSummary> {
   const t0 = Date.now();
   let processed = 0, skipped = 0, errors = 0;
 
   // Pull products that need embedding: new or text-changed.
-  // md5() in the WHERE clause matches the JS textHash() below.
+  // Note: sourceDb should be a replica connection (set up in embedRunner.ts)
+  // to ensure replica-only reads per BUY-41133.
   const { rows: products } = await sourceDb.query<{
     id: string;
     title: string;
@@ -98,9 +104,9 @@ export async function runEmbedBatch(
 
     let embeddings: number[][];
     try {
-      embeddings = await fetchEmbeddings(texts, jinaKey);
+      embeddings = await fetchEmbeddings(texts, cohereKey);
     } catch (err) {
-      console.error(`[embed] Jina API error on batch ${Math.floor(i / BATCH_SIZE) + 1}:`, err);
+      console.error(`[embed] Cohere API error on batch ${Math.floor(i / BATCH_SIZE) + 1}:`, err);
       errors += batch.length;
       continue;
     }
@@ -119,7 +125,7 @@ export async function runEmbedBatch(
                  model_ver   = EXCLUDED.model_ver,
                  embedded_at = now()
            WHERE product_embeddings.text_hash != EXCLUDED.text_hash`,
-          [batch[j].id, vectorStr, hashes[j], JINA_MODEL]
+          [batch[j].id, vectorStr, hashes[j], COHERE_MODEL]
         );
       }
       await client.query('COMMIT');
@@ -145,27 +151,28 @@ export async function runEmbedBatch(
 }
 
 /**
- * Embed a single query text for search-time use (retrieval.query task).
+ * Embed a single query text for search-time use.
  * Returns a vector string suitable for pgvector (<=> operator).
  */
-export async function embedQuery(query: string, jinaKey: string): Promise<string> {
-  const res = await fetch(JINA_API_URL, {
+export async function embedQuery(query: string, cohereKey: string): Promise<string> {
+  const res = await fetch(COHERE_API_URL, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${jinaKey}`,
+      'Authorization': `Bearer ${cohereKey}`,
       'Content-Type': 'application/json',
+      'X-Client-Name': 'buywhere',
     },
     body: JSON.stringify({
-      model: JINA_MODEL,
-      task: 'retrieval.query',
-      dimensions: EMBED_DIM,
+      model: COHERE_MODEL,
+      input_type: 'search_query', // Use search_query for query-time embedding
+      embedding_types: ['float'],
       input: [truncate(query)],
     }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Jina API ${res.status}: ${body}`);
+    throw new Error(`Cohere API ${res.status}: ${body}`);
   }
-  const data = await res.json() as { data: Array<{ embedding: number[] }> };
-  return `[${data.data[0].embedding.join(',')}]`;
+  const data = await res.json() as { embeddings: number[][] };
+  return `[${data.embeddings[0].join(',')}]`;
 }
