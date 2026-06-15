@@ -8,7 +8,7 @@
  * Per BUY-41133 spec:
  *   - Uses Cohere embed-multilingual-v3.0 with 1024-dim vectors
  *   - Batch size 64 per API call
- *   - Reads from maglev replica only (DATABASE_REPLICA_URL) to avoid primary load
+ *   - Reads from maglev replica only (REPLICA_DATABASE_URL) to avoid primary load
  *
  * State table naming note:
  *   The vector DB uses `product_embeddings` table for storing embeddings.
@@ -20,7 +20,7 @@
  * Env vars:
  *   COHERE_API_KEY      — required; Cohere API key for embeddings
  *   VECTOR_DB_URL       — required; PostgreSQL connection for product_embeddings table
- *   DATABASE_REPLICA_URL — optional; Replica connection for reading products (falls back to primary)
+ *   REPLICA_DATABASE_URL — required; Replica connection for reading products
  *   EMBED_BATCH_LIMIT   — products per run (default: 64 per BUY-41133)
  *   EMBED_INTERVAL_MS   — run interval in ms (default: 6h = 21600000)
  */
@@ -41,6 +41,13 @@ if (!vectorDb) {
   console.error('[embed-runner] VECTOR_DB_URL is not set — embedding is disabled');
   process.exit(0);
 }
+if (!replicaDb) {
+  console.error('[embed-runner] REPLICA_DATABASE_URL is not set — replica-only embedding is disabled');
+  process.exit(0);
+}
+
+const liveVectorDb = vectorDb;
+const liveReplicaDb = replicaDb;
 
 let running = false;
 
@@ -52,9 +59,9 @@ async function tick(): Promise<void> {
   }
   running = true;
   console.log(`[embed-runner] Starting embedding run (limit=${BATCH_LIMIT})`);
-  console.log(`[embed-runner] Reading from: ${process.env.DATABASE_REPLICA_URL ? 'replica (DATABASE_REPLICA_URL)' : 'primary (DATABASE_URL)'}`);
+  console.log('[embed-runner] Reading from replica only (REPLICA_DATABASE_URL)');
   try {
-    const summary = await runEmbedBatch(replicaDb, vectorDb, COHERE_API_KEY, BATCH_LIMIT);
+    const summary = await runEmbedBatch(liveReplicaDb, liveVectorDb, COHERE_API_KEY, BATCH_LIMIT);
     console.log(
       `[embed-runner] Run complete — ` +
       `processed=${summary.processed} errors=${summary.errors} ` +
@@ -84,7 +91,7 @@ async function main(): Promise<void> {
   const shutdown = async (sig: string) => {
     console.log(`[embed-runner] Received ${sig}, shutting down`);
     await db.end().catch(() => {});
-    await vectorDb.end().catch(() => {});
+    await liveVectorDb.end().catch(() => {});
     process.exit(0);
   };
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
