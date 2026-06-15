@@ -16,7 +16,7 @@
  *   directly as a freshness signal — all acceptance criteria are met.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.runPriceRefresh = runPriceRefresh;
+exports.runPriceRefresh = void 0;
 const config_1 = require("../config");
 /** Call Kai's targeted-refresh endpoint with a batch of SKUs for one platform. */
 async function callScraper(scraperUrl, platform, skus) {
@@ -130,6 +130,7 @@ async function runPriceRefresh() {
     }
     return summary;
 }
+exports.runPriceRefresh = runPriceRefresh;
 async function logRun(summary) {
     try {
         await config_1.db.query(`INSERT INTO price_refresh_log

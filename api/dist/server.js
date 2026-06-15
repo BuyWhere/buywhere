@@ -1,9 +1,32 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createApp = createApp;
+exports.createApp = void 0;
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const compression_1 = __importDefault(require("compression"));
@@ -12,7 +35,7 @@ const auth_1 = __importDefault(require("./routes/auth"));
 const products_1 = __importDefault(require("./routes/products"));
 const categories_1 = __importDefault(require("./routes/categories"));
 const redirect_1 = __importDefault(require("./routes/redirect"));
-const wellknown_1 = __importDefault(require("./routes/wellknown"));
+const wellknown_1 = __importStar(require("./routes/wellknown"));
 const docs_1 = __importDefault(require("./routes/docs"));
 const pages_1 = __importDefault(require("./routes/pages"));
 const publicCategories_1 = __importDefault(require("./routes/publicCategories"));
@@ -33,6 +56,9 @@ const usage_1 = __importDefault(require("./routes/usage"));
 const webhooks_1 = __importDefault(require("./routes/webhooks"));
 const routes_1 = __importDefault(require("./monitoring/routes"));
 const middleware_1 = require("./monitoring/middleware");
+const latency_1 = require("./middleware/latency");
+const uptime_1 = __importDefault(require("./routes/admin/uptime"));
+const metrics_1 = __importDefault(require("./routes/admin/metrics"));
 const config_1 = require("./config");
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=86400, s-maxage=86400';
 const AGENTS_TXT_CONTENT = `# BuyWhere AI Agents Discovery
@@ -62,6 +88,10 @@ function createApp() {
     app.use(sentry_1.sentryRequestHandler);
     // Latency monitoring middleware for P95 calculation
     app.use(middleware_1.latencyMiddleware);
+    // BUY-22737 / BUY-35381: per-request histogram ring buffer. Mounted after
+    // the existing market-based latency middleware so it doesn't interfere.
+    // Skips /v1/admin/* so internal polling does not pollute customer metrics.
+    app.use(latency_1.histogramLatencyMiddleware);
     // Health check - fast in-process check as required by BUY-3280
     app.get('/health', (_req, res) => {
         res.json({
@@ -99,6 +129,15 @@ function createApp() {
             fix: 'BUY-18176-v5',
         });
     });
+    // BUY-47470: watchdogs still probing /api/monitoring/health on api.buywhere.ai
+    // need a public process-liveness surface, not the auth-gated reporting routes.
+    app.get('/api/monitoring/health', (_req, res) => {
+        res.json({
+            status: 'ok',
+            ts: new Date().toISOString(),
+            fix: 'BUY-47470-v1',
+        });
+    });
     // /healthz — backwards-compatible alias for /health (BUY-18347)
     // Old dedicated MCP container (Cloud Run) used /healthz as its Knative liveness probe path.
     // Railway buywhere-api now owns mcp.buywhere.ai; alias keeps legacy probes and monitors working.
@@ -128,7 +167,14 @@ function createApp() {
     });
     // MCP / OpenAI plugin discovery
     app.use('/.well-known', wellknown_1.default);
-    app.get('/openapi.json', (req, res) => (0, wellknown_1.default)(req, res, () => { }));
+    const serveOpenApi = (_req, res) => {
+        (0, wellknown_1.sendOpenApiSpec)(res);
+    };
+    // BUY-47885: external monitors still probe /openapi without the .json
+    // suffix. Serve the same public spec instead of falling through to a
+    // legacy/auth-gated handler on older runtimes.
+    app.get('/openapi', serveOpenApi);
+    app.get('/openapi.json', serveOpenApi);
     // ChatGPT Actions-compatible OpenAPI spec (OpenAPI 3.1, action-friendly)
     app.get('/chatgpt-openapi.json', (_req, res) => {
         res.json(require('./routes/chatgpt-openapi.json'));
@@ -272,6 +318,10 @@ function createApp() {
     app.use('/webhooks', webhooks_1.default);
     // P95 monitoring endpoints (BUY-31208)
     app.use(routes_1.default);
+    // BUY-22737 / BUY-35381: admin endpoints (uptime + metrics).
+    // Auth is handled inside each router via Authorization: Bearer <admin key>.
+    app.use(uptime_1.default);
+    app.use(metrics_1.default);
     // 404 fallback
     app.use((_req, res) => {
         res.status(404).json({ error: 'Not found' });
@@ -284,3 +334,4 @@ function createApp() {
     });
     return app;
 }
+exports.createApp = createApp;

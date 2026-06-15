@@ -239,9 +239,7 @@ Pass your API key as a Bearer token. Get a free key at \`POST ${baseUrl}/v1/auth
 - [api@buywhere.ai](mailto:api@buywhere.ai)
 `;
 }
-// GET /docs/guides/mcp
-// Serves the MCP integration guide as HTML or markdown.
-router.get('/guides/mcp', (req, res) => {
+function serveMcpGuide(req, res) {
     const forwardedProto = req.headers['x-forwarded-proto'];
     const proto = forwardedProto ? forwardedProto.split(',')[0].trim() : req.protocol;
     const host = req.headers['x-forwarded-host'] || req.get('host') || '';
@@ -507,9 +505,11 @@ result.data.slice(0, 3).forEach(p =>
     res.setHeader('X-Robots-Tag', 'ai-index');
     res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400');
     res.send(html);
-});
-// Redirect /docs to the MCP guide (most common entry point)
-router.get('/', (_req, res) => {
-    res.redirect(301, '/docs/guides/mcp');
-});
+}
+// GET /docs/guides/mcp
+// Serves the MCP integration guide as HTML or markdown.
+router.get('/guides/mcp', serveMcpGuide);
+// GET /docs
+// Serve the guide directly so monitors and clients probing the canonical docs URL receive 200.
+router.get('/', serveMcpGuide);
 exports.default = router;

@@ -1,14 +1,44 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.warmSearchCache = warmSearchCache;
+exports.warmSearchCache = void 0;
 const express_1 = require("express");
 const config_1 = require("../config");
+const readReplica_1 = require("../lib/readReplica");
 const apiKey_1 = require("../middleware/apiKey");
 const agentDetect_1 = require("../middleware/agentDetect");
 const posthog_1 = require("../analytics/posthog");
 const queryLog_1 = require("../middleware/queryLog");
 const response_1 = require("../lib/response");
 const compare_query_1 = require("../lib/compare-query");
+const queryPreprocessor_1 = require("../lib/queryPreprocessor");
+// BUY-45741: removed imports of '../lib/semanticSearch' (hybridSearchWithAlpha)
+// and '../lib/embeddingCache' (cacheStats) — those modules were never committed
+// in the BUY-45553 merge (aaea1e415), making `main` crash-loop at startup. The
+// POST /v1/products/search/hybrid route that used them is removed below until the
+// modules land (BUY-41134). See BUY-45741.
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
 const SEARCH_CACHE_TTL_SECONDS = 3600;
@@ -161,7 +191,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         }
     });
     const requestStart = Date.now();
-    const q = req.query.q || '';
+    const rawQuery = req.query.q || '';
     const domain = req.query.domain;
     const region = req.query.region;
     const category = req.query.category;
@@ -193,6 +223,11 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // vector pool (BUY-41138 wired the MCP tool, public REST is the next step).
     const rawMode = req.query.mode?.toLowerCase();
     const searchMode = rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE;
+    // BUY-42589: canonicalize SG retailer brand names (harvey norman, courts, gaincity, etc.)
+    // to source= filters. The retailer name is in the source field, not in product titles,
+    // so FTS alone returns near-zero matches even when 10k+ products exist.
+    const { cleanedQuery, canonicalSources } = (0, queryPreprocessor_1.preprocessSearchQuery)(rawQuery, minPrice, maxPrice);
+    const q = cleanedQuery || rawQuery;
     // Check Redis cache for this exact query (60s TTL)
     const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}`;
     try {
@@ -226,6 +261,16 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         conditions.push(`search_vector @@ plainto_tsquery('english', $${idx})`);
         params.push(q);
         idx++;
+    }
+    // BUY-42589: SG retailer brand queries (harvey norman, courts, gaincity, etc.)
+    // map to source= filters since the retailer name is in the source field, not
+    // in individual product titles/brands. When only the retailer name was typed
+    // (cleanedQuery is empty), fall back to source-only search.
+    if (canonicalSources && canonicalSources.length > 0) {
+        const sourcePlaceholders = canonicalSources.map((_, i) => `$${idx + i}`).join(',');
+        conditions.push(`source IN (${sourcePlaceholders})`);
+        params.push(...canonicalSources);
+        idx += canonicalSources.length;
     }
     if (domain) {
         conditions.push(`source = $${idx}`);
@@ -374,14 +419,25 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const client = await config_1.db.connect();
     try {
         await client.query('BEGIN');
-        // BUY-34291: cap per-query work_mem + force index scan (no bitmap) under load.
-        // The partial GIN index `idx_products_partitioned_active_fts WHERE is_active = true`
-        // makes Bitmap Heap Scan attractive for the planner, but the bitmap needs 2MB+ of
-        // dynamic shared memory even with work_mem=4MB. Under concurrent load, the DB
-        // throws `could not resize shared memory segment ... No space left on device`.
-        // Disabling bitmap scan forces a Nested Loop index scan that doesn't need that pool.
+        // BUY-45671: cap per-query work_mem and disable *parallel* query under load.
+        //
+        // History: BUY-34291 set `enable_bitmapscan = off` to avoid the
+        // `could not resize shared memory segment ... No space left on device`
+        // (SQLSTATE 53200) error. But disabling bitmap scans entirely makes the
+        // GIN `search_vector` partial index unusable (GIN is only reachable via a
+        // bitmap scan), so the planner fell back to a `products_*_currency_idx`
+        // btree scan + filter — a near-full scan of products_us (~860k rows).
+        // Measured on prod 2026-06-13: `enable_bitmapscan=off` → 35,400ms (504s on
+        // every search); `enable_bitmapscan=on` → 161-267ms via the GIN index.
+        //
+        // The 53200 error came from *parallel* bitmap heap scans: each parallel
+        // worker allocates its bitmap in dynamic shared memory (/dev/shm). A
+        // single-process bitmap heap scan uses work_mem only and never touches
+        // that pool. So we keep bitmap scans on (index usable) but force the
+        // search query to run non-parallel. The 53200 catch below stays as a
+        // belt-and-suspenders 503 fallback.
         await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
-        await client.query(`SET LOCAL enable_bitmapscan = 'off'`);
+        await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
         await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
         dataResult = await client.query(dataQuery, dataParams);
         await client.query('COMMIT');
@@ -542,7 +598,10 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     // user-facing read endpoint and was the source of the BUY-33985 30s+ hang.
     // A 5s cap is well above the index-backed happy path (≈15ms) and well
     // below the previous 30s client-visible ceiling. release() always runs.
-    const dealsClient = await config_1.db.connect();
+    // BUY-45692: deals is a heavy aggregate rollup — route to the read replica
+    // when available (readDb() falls back to primary if unconfigured or lagging),
+    // isolating it from interactive /v1/products/search on the primary.
+    const dealsClient = await (0, readReplica_1.readDb)().connect();
     let deals = [];
     let total = 0;
     try {
@@ -683,70 +742,124 @@ router.get('/:id/prices', agentDetect_1.agentDetectMiddleware, apiKey_1.requireA
         meta: { days, response_time_ms: Date.now() - start },
     });
 }));
-// GET /v1/products/:id/similar — return up to 8 similar products for 'related products' widget
-// Strategy: same brand+category first (fast index lookup), then FTS title fallback to pad to 8.
-// Target: <50ms p99 — both paths use GIN/B-tree indexes only.
+// GET /v1/products/:id/similar — BUY-41134 Find-Similar endpoint
+// Primary: KNN on pre-computed embedding from embedding-store.product_embeddings.
+// Fallback: same brand + category (B-tree index) if embedding not yet populated.
+// Latency target: p95 ≤ 200 ms under load.
 router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.similar'), asyncHandler(async (req, res) => {
     const start = Date.now();
     const { id } = req.params;
-    const limit = Math.min(parseInt(req.query.limit || '8'), 20);
-    // Fetch the source product
-    const srcResult = await config_1.db.query(`SELECT id, title, brand, category_path, currency, country_code, search_vector
+    const limit = Math.min(parseInt(req.query.limit || '10'), 20);
+    // Verify product exists in main DB
+    const srcResult = await config_1.db.query(`SELECT id, title, brand, category_path, currency, country_code
        FROM products WHERE id = $1`, [id]);
     if (srcResult.rows.length === 0) {
         res.status(404).json({ error: 'Product not found' });
         return;
     }
     const src = srcResult.rows[0];
-    const currency = src.currency || 'SGD';
-    const sourceCountry = src.country_code || null;
-    // Phase 1: same brand + same first category element (indexed columns)
-    const brand = src.brand || null;
-    const topCategory = src.category_path?.[0] || null;
+    // Phase 1: Try embedding-based KNN (vector store)
+    const VECTOR_STORE_DATABASE_URL = process.env.VECTOR_STORE_DATABASE_URL || '';
     let similar = [];
-    if (brand && topCategory) {
-        const brandCatParams = [id, brand, topCategory, currency];
-        let brandCatWhere = `id != $1 AND brand = $2 AND category_path[1] = $3 AND currency = $4`;
-        if (sourceCountry) {
-            brandCatWhere += ` AND country_code = $5`;
-            brandCatParams.push(sourceCountry);
+    let similarityFallback = false;
+    if (VECTOR_STORE_DATABASE_URL) {
+        try {
+            const { Pool } = await Promise.resolve().then(() => __importStar(require('pg')));
+            const vecPool = new Pool({ connectionString: VECTOR_STORE_DATABASE_URL, max: 5 });
+            try {
+                // Fetch pre-computed embedding for this product
+                const embResult = await vecPool.query(`SELECT embedding FROM embedding_store.product_embeddings
+             WHERE product_id = $1`, [id]);
+                if (embResult.rows.length > 0) {
+                    const embeddingStr = embResult.rows[0].embedding;
+                    // KNN: rows with smallest cosine distance first
+                    const knnResult = await vecPool.query(`SELECT product_id,
+                      1 - (embedding <=> $1::vector) AS score
+               FROM embedding_store.product_embeddings
+               WHERE product_id != $2
+               ORDER BY embedding <=> $1::vector
+               LIMIT $3`, [embeddingStr, id, limit]);
+                    const knnIds = knnResult.rows.map((r) => r.product_id);
+                    const knnScores = new Map(knnResult.rows.map((r) => [r.product_id, parseFloat(r.score)]));
+                    if (knnIds.length > 0) {
+                        // Fetch full product details from main DB
+                        const placeholders = knnIds.map((_, i) => `$${i + 1}`).join(',');
+                        const detailResult = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
+                        image_url, brand, category_path, region, country_code
+                 FROM products
+                 WHERE id IN (${placeholders})`, knnIds);
+                        similar = detailResult.rows.map((row) => ({
+                            ...row,
+                            _similarity: knnScores.get(row.id) ?? null,
+                        }));
+                    }
+                }
+                else {
+                    // No embedding yet — fall through to fallback
+                    similarityFallback = true;
+                }
+            }
+            finally {
+                await vecPool.end();
+            }
         }
-        brandCatParams.push(limit);
-        const brandCatResult = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                image_url, brand, category_path, region, country_code
-         FROM products
-         WHERE ${brandCatWhere}
-         ORDER BY updated_at DESC
-         LIMIT $${brandCatParams.length}`, brandCatParams);
-        similar = brandCatResult.rows;
+        catch (err) {
+            console.warn('[similar] vector KNN failed, using fallback:', err.message);
+            similarityFallback = true;
+        }
     }
-    // Phase 2: FTS on title to pad remaining slots (if < limit results so far)
-    if (similar.length < limit && src.title) {
-        const needed = limit - similar.length;
-        const existingIds = [id, ...similar.map((r) => r.id)];
-        const placeholders = existingIds.map((_, i) => `$${i + 1}`).join(',');
-        let ftsIdx = existingIds.length + 1;
-        let ftsWhere = `id NOT IN (${placeholders}) AND currency = $${ftsIdx}`;
-        const ftsParams = [...existingIds, currency];
-        ftsIdx++;
-        ftsWhere += ` AND search_vector @@ plainto_tsquery('english', $${ftsIdx})`;
-        ftsParams.push(src.title);
-        ftsIdx++;
-        if (sourceCountry) {
-            ftsWhere += ` AND country_code = $${ftsIdx}`;
-            ftsParams.push(sourceCountry);
+    else {
+        similarityFallback = true;
+    }
+    // Phase 2 (fallback): same brand + category, or FTS on title
+    if (similarityFallback || similar.length === 0) {
+        const currency = src.currency || 'SGD';
+        const sourceCountry = src.country_code || null;
+        const brand = src.brand || null;
+        const topCategory = src.category_path?.[0] || null;
+        if (brand && topCategory) {
+            const params = [id, brand, topCategory, currency];
+            let where = `id != $1 AND brand = $2 AND category_path[1] = $3 AND currency = $4`;
+            if (sourceCountry) {
+                where += ` AND country_code = $5`;
+                params.push(sourceCountry);
+            }
+            params.push(limit);
+            const bcResult = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
+                  image_url, brand, category_path, region, country_code
+           FROM products
+           WHERE ${where}
+           ORDER BY updated_at DESC
+           LIMIT $${params.length}`, params);
+            similar = bcResult.rows.map((row) => ({ ...row, _similarity: null }));
+        }
+        if (similar.length < limit && src.title) {
+            const needed = limit - similar.length;
+            const existingIds = [id, ...similar.map((r) => r.id)];
+            const placeholders = existingIds.map((_, i) => `$${i + 1}`).join(',');
+            let ftsIdx = existingIds.length + 1;
+            let ftsWhere = `id NOT IN (${placeholders}) AND currency = $${ftsIdx}`;
+            const ftsParams = [...existingIds, currency];
             ftsIdx++;
+            ftsWhere += ` AND search_vector @@ plainto_tsquery('english', $${ftsIdx})`;
+            ftsParams.push(src.title);
+            ftsIdx++;
+            if (sourceCountry) {
+                ftsWhere += ` AND country_code = $${ftsIdx}`;
+                ftsParams.push(sourceCountry);
+                ftsIdx++;
+            }
+            ftsParams.push(needed);
+            const ftsResult = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
+                  image_url, brand, category_path, region, country_code
+           FROM products
+           WHERE ${ftsWhere}
+           ORDER BY updated_at DESC
+           LIMIT $${ftsParams.length}`, ftsParams);
+            similar = [...similar, ...ftsResult.rows.map((row) => ({ ...row, _similarity: null }))];
         }
-        ftsParams.push(needed);
-        const ftsResult = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                image_url, brand, category_path, region, country_code
-         FROM products
-         WHERE ${ftsWhere}
-         ORDER BY updated_at DESC
-         LIMIT $${ftsParams.length}`, ftsParams);
-        similar = [...similar, ...ftsResult.rows];
     }
-    const data = similar.map((row) => ({
+    const data = similar.slice(0, limit).map((row) => ({
         id: row.id,
         source: row.source_id,
         domain: row.domain,
@@ -759,8 +872,17 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
         category_path: row.category_path || null,
         region: row.region || null,
         country_code: row.country_code || null,
+        similarity: row._similarity ?? null,
     }));
-    res.json({ data, meta: { source_id: id, count: data.length, response_time_ms: Date.now() - start } });
+    res.json({
+        data,
+        meta: {
+            source_id: id,
+            count: data.length,
+            method: VECTOR_STORE_DATABASE_URL && !similar.length ? 'fallback' : VECTOR_STORE_DATABASE_URL ? 'knn' : 'fallback',
+            response_time_ms: Date.now() - start,
+        },
+    });
 }));
 // GET /v1/products/:id
 router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.get'), asyncHandler(async (req, res) => {
@@ -933,7 +1055,7 @@ router.post('/ingest', apiKey_1.requireApiKey, asyncHandler(async (req, res) => 
                    COALESCE($11,'') || ' ' ||
                    COALESCE(array_to_string($10::text[],' '),'')
                  ))
-         ON CONFLICT (sku, source)
+         ON CONFLICT (sku, source, country_code)
          DO UPDATE SET
            title = EXCLUDED.title,
            price = EXCLUDED.price,
@@ -1114,4 +1236,5 @@ async function warmSearchCache() {
     const elapsed = Date.now() - startMs;
     console.log(`[cache-warm] done: ${warmed} warmed, ${skipped} already cached, ${elapsed}ms`);
 }
+exports.warmSearchCache = warmSearchCache;
 exports.default = router;

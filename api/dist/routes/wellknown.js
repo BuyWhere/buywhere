@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.sendOpenApiSpec = void 0;
 const express_1 = require("express");
 const config_1 = require("../config");
 const router = (0, express_1.Router)();
@@ -174,8 +175,7 @@ router.get('/agent.json', (_req, res) => {
     res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
     res.json(A2A_AGENT_CARD);
 });
-// GET /openapi.json — OpenAPI 3.0 spec
-router.get('/openapi.json', (_req, res) => {
+function sendOpenApiSpec(res) {
     res.json({
         openapi: '3.0.0',
         info: {
@@ -246,9 +246,10 @@ router.get('/openapi.json', (_req, res) => {
                         { name: 'compact', in: 'query', schema: { type: 'boolean', default: false }, description: 'Return minimal payload for AI agents (id, title, price, currency, url, specs)' },
                         { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, maximum: 100 } },
                         { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
+                        { name: 'mode', in: 'query', schema: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], default: 'keyword' }, description: 'Search mode. `keyword` (default) is full-text search on the indexed search_vector. `hybrid` and `semantic` are accepted for forward-compatibility with the MCP `search_products` tool (BUY-41138) and currently route through the FTS path; once the public REST API is wired to the Jina v3 vector pool, `hybrid` will RRF-merge FTS and cosine ranks and `semantic` will be vector-only.' },
                     ],
                     responses: {
-                        '200': { description: 'Product list with meta (total, response_time_ms, cached)' },
+                        '200': { description: 'Product list with meta (total, response_time_ms, cached, mode)' },
                         '401': { description: 'Missing or invalid API key' },
                         '429': { description: 'Rate limit exceeded' },
                     },
@@ -353,6 +354,11 @@ router.get('/openapi.json', (_req, res) => {
             },
         },
     });
+}
+exports.sendOpenApiSpec = sendOpenApiSpec;
+// GET /openapi.json — OpenAPI 3.0 spec
+router.get('/openapi.json', (_req, res) => {
+    sendOpenApiSpec(res);
 });
 // GET /.well-known/mcp/server-card.json — Smithery skip-scan card
 // Allows Smithery.ai to catalogue the server without a live endpoint scan.
@@ -378,7 +384,7 @@ router.get('/mcp/server-card.json', (_req, res) => {
             { name: 'get_product', description: 'Get a specific product by ID including full details, current price, brand, category, ratings, merchant info, and specifications.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, currency: { type: 'string' } }, required: ['id'] } },
             { name: 'compare_products', description: 'Compare multiple products side-by-side across merchants: price, brand, rating, category path, and merchant for each product. For AI agent price comparison shopping.', inputSchema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } }, required: ['ids'] } },
             { name: 'get_deals', description: 'Get discounted products sorted by discount percentage across all merchants. Returns original price, current price, and discount percentage.', inputSchema: { type: 'object', properties: { min_discount: { type: 'number', default: 10 }, country_code: { type: 'string' }, country: { type: 'string' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 } } } },
-            { name: 'list_categories', description: 'List top-level product categories available in the BuyWhere catalog with slugs, names, and product counts.', inputSchema: { type: 'object', properties: { currency: { type: 'string' } } } },
+            { name: 'list_categories', description: 'List top-level product categories available in the BuyWhere catalog with slugs, names, and product counts.', inputSchema: { type: 'object', properties: { country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, country: { type: 'string' } } } },
             { name: 'find_best_price', description: 'Find the single cheapest listing for a product across all merchants. Use when a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X". Returns the best deal across Shopee, Lazada, Amazon, and all other BuyWhere merchants.', inputSchema: { type: 'object', properties: { product_name: { type: 'string', description: 'Product name to find best price for (e.g. "iphone 15 pro 256gb", "samsung galaxy s24")' }, category: { type: 'string', description: 'Category to filter by (e.g. "electronics", "fashion")' }, country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG)' }, region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter — use "us" for United States or "sea" for Southeast Asia' } } } },
             { name: 'resolve_product_query', description: 'Resolve a natural language product query into structured catalog results. Classifies query intent, extracts price constraints, and routes to deals, categories, best-price lookup, or comparison-ready search results. Best for AI agents that need to understand user shopping intent.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, region: { type: 'string' }, domain: { type: 'string' }, min_price: { type: 'number' }, max_price: { type: 'number' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 }, compact: { type: 'boolean', default: false } } } },
         ],

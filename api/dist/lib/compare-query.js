@@ -1,7 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UUID_RE = void 0;
-exports.buildCompareProductsQuery = buildCompareProductsQuery;
+exports.buildCompareProductsQuery = exports.UUID_RE = void 0;
 exports.UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function buildCompareProductsQuery(ids) {
     return {
@@ -15,3 +14,4 @@ function buildCompareProductsQuery(ids) {
         values: [ids],
     };
 }
+exports.buildCompareProductsQuery = buildCompareProductsQuery;

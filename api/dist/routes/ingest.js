@@ -137,8 +137,89 @@ function buildCategoryPathLiteral(paths) {
         return '{}';
     return `{${paths.map(c => `"${c.replace(/"/g, '\\"')}"`).join(',')}}`;
 }
-router.get('/health', apiKey_1.requireApiKey, (_req, res) => {
-    res.json({ status: 'ok' });
+// GET /v1/ingest/health — ingestion pipeline health check.
+//
+// Auth: requires a valid API key via Authorization: Bearer or X-API-Key header.
+// Bypass: requests with X-Internal-Monitoring: true skip the bot-UA filter and
+// get full market-level freshness data. This header is intended for internal
+// monitoring tools (scripts/check_ingestion_health.mjs, BUY-31745).
+router.get('/health', async (req, res) => {
+    const isInternal = req.headers['x-internal-monitoring'] === 'true';
+    // For internal monitoring, skip the bot-UA check but still require auth.
+    // For external callers the standard requireApiKey gate applies.
+    return (0, apiKey_1.requireApiKey)(req, res, async () => {
+        try {
+            const now = new Date();
+            // Basic liveness: Redis ping
+            let redisOk = false;
+            try {
+                redisOk = (await config_1.redis.ping()) === 'PONG';
+            }
+            catch { /* redis down — report degraded but continue */ }
+            // Last ingestion run per source (recent 24 h) — quick scan
+            const runsResult = await config_1.db.query(`SELECT source, status, MAX(started_at) AS last_run, COUNT(*) AS run_count
+           FROM ingestion_runs
+          WHERE started_at > NOW() - INTERVAL '24 hours'
+          GROUP BY source, status
+          ORDER BY source, last_run DESC`);
+            // Aggregate per source: last_success, last_failure, success_count, failure_count
+            const sourceMap = {};
+            for (const row of runsResult.rows) {
+                if (!sourceMap[row.source]) {
+                    sourceMap[row.source] = { last_success: null, last_failure: null, success_count: 0, failure_count: 0 };
+                }
+                const entry = sourceMap[row.source];
+                const ts = row.last_run.toISOString();
+                if (row.status === 'completed' || row.status === 'completed_with_errors') {
+                    if (!entry.last_success || ts > entry.last_success)
+                        entry.last_success = ts;
+                    entry.success_count += parseInt(row.run_count, 10);
+                }
+                else if (row.status === 'failed') {
+                    if (!entry.last_failure || ts > entry.last_failure)
+                        entry.last_failure = ts;
+                    entry.failure_count += parseInt(row.run_count, 10);
+                }
+            }
+            // Product freshness: products updated in last 24 h (approximate via reltuples for speed)
+            let recentProducts24h = null;
+            try {
+                const freshnessResult = await config_1.db.query(`SELECT COUNT(*) AS cnt FROM products WHERE updated_at > NOW() - INTERVAL '24 hours'`);
+                recentProducts24h = parseInt(freshnessResult.rows[0]?.cnt ?? '0', 10);
+            }
+            catch { /* skip on timeout */ }
+            // Zombie runs: stuck in 'running' > 1 hour
+            const zombieResult = await config_1.db.query(`SELECT COUNT(*) AS cnt FROM ingestion_runs
+          WHERE status = 'running' AND started_at < NOW() - INTERVAL '1 hour'`);
+            const zombieCount = parseInt(zombieResult.rows[0]?.cnt ?? '0', 10);
+            const sources = Object.entries(sourceMap).map(([source, s]) => ({
+                source,
+                last_success: s.last_success,
+                last_failure: s.last_failure,
+                success_count_24h: s.success_count,
+                failure_count_24h: s.failure_count,
+            }));
+            const overallStatus = zombieCount > 0 ? 'degraded'
+                : sources.length === 0 ? 'idle'
+                    : 'ok';
+            res.json({
+                status: overallStatus,
+                redis: redisOk ? 'ok' : 'degraded',
+                sources,
+                recent_products_24h: recentProducts24h,
+                zombie_runs: zombieCount,
+                ts: now.toISOString(),
+                internal: isInternal,
+            });
+        }
+        catch (err) {
+            res.status(500).json({
+                status: 'error',
+                error: err.message || String(err),
+                ts: new Date().toISOString(),
+            });
+        }
+    });
 });
 // Shared ingestion handler — registered on /products, / (root), and /bulk
 // so that POST /v1/ingest, POST /v1/ingest/products, POST /v1/ingest/bulk,
@@ -198,22 +279,25 @@ async function handleIngest(req, res) {
         });
         return;
     }
-    // Deduplicate by (sku, source) — PostgreSQL rejects ON CONFLICT DO UPDATE
-    // when the same row would be affected twice in a single command.
+    // Deduplicate by (sku, source, country_code) — PostgreSQL rejects ON CONFLICT DO UPDATE
+    // when the same row would be affected twice in a single command. The unique constraint
+    // on products is (sku, source, country_code) (see products_partitioned_sku_source_unique),
+    // so the in-batch dedup key must match.
     {
         const seen = new Set();
         const unique = [];
         for (const p of validProducts) {
-            if (seen.has(p.sku))
+            const key = `${p.sku} ${source} ${p.country_code || ''}`;
+            if (seen.has(key))
                 continue;
-            seen.add(p.sku);
+            seen.add(key);
             unique.push(p);
         }
         if (unique.length < validProducts.length) {
             const dupes = validProducts.length - unique.length;
             validProducts.length = 0;
             validProducts.push(...unique);
-            console.warn(`[ingest] Deduped ${dupes} duplicate sku(s) from ${source} batch`);
+            console.warn(`[ingest] Deduped ${dupes} duplicate (sku,source,country_code) tuple(s) from ${source} batch`);
         }
     }
     let runId = null;
@@ -224,9 +308,22 @@ async function handleIngest(req, res) {
     catch (e) {
         console.warn('[ingest] Failed to create ingestion run record:', e.message);
     }
-    const skus = validProducts.map(p => p.sku);
-    const existingResult = await withDbRetry(() => config_1.db.query(`SELECT sku FROM products WHERE sku = ANY($1::text[]) AND source = $2`, [skus, source]), 'select existing SKUs');
-    const existingSkus = new Set(existingResult.rows.map((r) => r.sku));
+    // The unique constraint is (sku, source, country_code), so the pre-existing check
+    // must match — a (sku, source) hit in another country is a different row.
+    const existingSkus = new Set();
+    const skuToId = new Map();
+    if (validProducts.length > 0) {
+        const tuples = validProducts
+            .map((p) => `('${p.sku.replace(/'/g, "''")}','${source.replace(/'/g, "''")}','${(p.country_code || '').replace(/'/g, "''")}')`)
+            .join(',');
+        const existingResult = await withDbRetry(() => config_1.db.query(`SELECT id, sku, source, country_code FROM products
+             WHERE (sku, source, country_code) IN (${tuples})`), 'select existing SKUs (sku, source, country_code)');
+        for (const r of existingResult.rows) {
+            const key = `${r.sku} ${r.source} ${r.country_code}`;
+            existingSkus.add(key);
+            skuToId.set(key, r.id);
+        }
+    }
     let rowsInserted = 0;
     let rowsUpdated = 0;
     let rowsFailed = errors.length;
@@ -256,7 +353,7 @@ async function handleIngest(req, res) {
            (sku, source, merchant_id, title, description, price, currency, url,
             image_url, category_path, brand, metadata, is_active, region, country_code)
          VALUES ${placeholders.join(', ')}
-         ON CONFLICT (sku, source)
+         ON CONFLICT (sku, source, country_code)
          DO UPDATE SET
            title = EXCLUDED.title,
            description = EXCLUDED.description,
@@ -273,7 +370,8 @@ async function handleIngest(req, res) {
            country_code = COALESCE(EXCLUDED.country_code, products.country_code),
            updated_at = NOW()`, values), 'upsert products batch');
         for (const p of validProducts) {
-            if (existingSkus.has(p.sku)) {
+            const key = `${p.sku} ${source} ${p.country_code || ''}`;
+            if (existingSkus.has(key)) {
                 rowsUpdated++;
             }
             else {
@@ -301,10 +399,16 @@ async function handleIngest(req, res) {
     }
     const priceHistoryValues = [];
     const phPlaceholders = [];
-    const finalResult = await withDbRetry(() => config_1.db.query(`SELECT id, sku FROM products WHERE sku = ANY($1::text[]) AND source = $2`, [skus, source]), 'select final product ids');
-    const skuToId = new Map(finalResult.rows.map((r) => [r.sku, r.id]));
+    const finalResult = await withDbRetry(() => config_1.db.query(`SELECT id, sku, source, country_code FROM products
+         WHERE (sku, source, country_code) IN (${validProducts
+        .map((p) => `('${p.sku.replace(/'/g, "''")}','${source.replace(/'/g, "''")}','${(p.country_code || '').replace(/'/g, "''")}')`)
+        .join(',')})`), 'select final product ids');
+    // skuToId was populated by the pre-existing check above; refresh with final IDs
+    for (const r of finalResult.rows) {
+        skuToId.set(`${r.sku} ${r.source} ${r.country_code}`, r.id);
+    }
     for (const p of validProducts) {
-        const productId = skuToId.get(p.sku);
+        const productId = skuToId.get(`${p.sku} ${source} ${p.country_code || ''}`);
         if (productId) {
             const base = priceHistoryValues.length + 1;
             priceHistoryValues.push(productId, p.price, p.currency || 'SGD', source);

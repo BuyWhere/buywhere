@@ -1,21 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.INTERNAL_P95_PROBE_HEADER = exports.P95_THRESHOLD_MS = exports.VALID_MARKETS = void 0;
-exports.isValidMarket = isValidMarket;
-exports.calculateP95 = calculateP95;
-exports.recordMonitoredEndpointProbeSamples = recordMonitoredEndpointProbeSamples;
-exports.getP95Latency = getP95Latency;
-exports.getLatestP95ForMarket = getLatestP95ForMarket;
-exports.getAllLatestP95 = getAllLatestP95;
-exports.insertP95Latency = insertP95Latency;
-exports.insertAlert = insertAlert;
-exports.getAlertHistory = getAlertHistory;
-exports.cleanupOldData = cleanupOldData;
-exports.refreshRecentP95Windows = refreshRecentP95Windows;
-exports.recordLatencySample = recordLatencySample;
-exports.getLatencySamples = getLatencySamples;
-exports.clearLatencySamples = clearLatencySamples;
-exports.computeAndStoreP95 = computeAndStoreP95;
+exports.computeAndStoreP95 = exports.clearLatencySamples = exports.getLatencySamples = exports.recordLatencySample = exports.refreshRecentP95Windows = exports.cleanupOldData = exports.getAlertHistory = exports.insertAlert = exports.insertP95Latency = exports.getAllLatestP95 = exports.getLatestP95ForMarket = exports.getP95Latency = exports.recordMonitoredEndpointProbeSamples = exports.calculateP95 = exports.isValidMarket = exports.INTERNAL_P95_PROBE_HEADER = exports.P95_THRESHOLD_MS = exports.VALID_MARKETS = void 0;
 const config_1 = require("../config");
 exports.VALID_MARKETS = ['sg', 'us', 'my', 'vn', 'th'];
 exports.P95_THRESHOLD_MS = parseInt(process.env.P95_THRESHOLD_MS || '300', 10);
@@ -29,9 +14,34 @@ const API_BASE_URL = process.env.BUYWHERE_API_BASE_URL
     || (process.env.RAILWAY_SERVICE_BUYWHERE_API_URL ? `https://${process.env.RAILWAY_SERVICE_BUYWHERE_API_URL}` : 'https://api.buywhere.ai');
 const SYSTEM_API_KEY = process.env.BUYWHERE_SYSTEM_API_KEY || '';
 let freshnessRecoveryPromise = null;
+// BUY-46193: the read/reporting endpoints (/api/monitoring/p95, /p95/all, /p95/history)
+// must never run the heavy freshness work (window aggregation + nested HTTP probe
+// recovery) on the request path. That work routinely took >5s and, under stale data or
+// load, blew past the 10s hard route timeout — the socket was destroyed and Railway
+// returned 502 "Application failed to respond", which in turn self-blocked the P95
+// monitoring routine. Reads now serve last-known data from the DB (and the 30s cache)
+// immediately, while freshness is refreshed in the background for the next request.
+let backgroundFreshnessPromise = null;
+function triggerBackgroundFreshness(market) {
+    if (backgroundFreshnessPromise) {
+        return;
+    }
+    backgroundFreshnessPromise = (async () => {
+        try {
+            await ensureFreshP95Data(market);
+        }
+        catch (error) {
+            console.error('[P95] Background freshness refresh failed:', error);
+        }
+        finally {
+            backgroundFreshnessPromise = null;
+        }
+    })();
+}
 function isValidMarket(market) {
     return exports.VALID_MARKETS.includes(market);
 }
+exports.isValidMarket = isValidMarket;
 function calculateP95(values) {
     if (values.length === 0)
         return 0;
@@ -39,6 +49,7 @@ function calculateP95(values) {
     const p95Index = Math.ceil(sorted.length * 0.95) - 1;
     return Math.round(sorted[p95Index]);
 }
+exports.calculateP95 = calculateP95;
 function parseTimestampMillis(value) {
     if (!value)
         return null;
@@ -66,9 +77,19 @@ async function queryLatestWindowEnd(market) {
     return result.rows[0]?.window_end || null;
 }
 async function recordRawMeasurement(market, endpoint, responseTimeMs, statusCode) {
-    await config_1.db.query(`INSERT INTO monitoring.p95_raw_measurements
-       (market, endpoint, response_time_ms, status_code, measured_at)
-     VALUES ($1, $2, $3, $4, NOW())`, [market, endpoint, responseTimeMs, statusCode]);
+    // BUY-51454: a single transient DB blip (ECONNREFUSED, pool timeout, statement_timeout)
+    // must not become an unhandledRejection that takes down the whole process. Swallow and log;
+    // the probe scheduler's own wrapper (p95ProbeScheduler.recordRawMeasurement) will still
+    // surface the per-market failure for ops visibility.
+    try {
+        await config_1.db.query(`INSERT INTO monitoring.p95_raw_measurements
+         (market, endpoint, response_time_ms, status_code, measured_at)
+       VALUES ($1, $2, $3, $4, NOW())`, [market, endpoint, responseTimeMs, statusCode]);
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[p95-probe] recordRawMeasurement failed for ${market}:${endpoint}: ${message}`);
+    }
 }
 async function timedFetch(url, init = {}) {
     const startedAt = Date.now();
@@ -134,6 +155,7 @@ async function recordMonitoredEndpointProbeSamples(markets = exports.VALID_MARKE
         await recordRawMeasurement(market, MONITORED_ENDPOINT, latencyMs, statusCode);
     }
 }
+exports.recordMonitoredEndpointProbeSamples = recordMonitoredEndpointProbeSamples;
 async function runFreshnessRecovery() {
     await Promise.allSettled([
         probeHealth(),
@@ -163,7 +185,7 @@ async function ensureFreshP95Data(market) {
 }
 async function getP95Latency(market, limit = 100, options = {}) {
     if (!options.skipFreshness) {
-        await ensureFreshP95Data(market);
+        triggerBackgroundFreshness(market);
     }
     const result = await config_1.db.query(`SELECT * FROM monitoring.p95_latency
      WHERE market = $1
@@ -172,9 +194,10 @@ async function getP95Latency(market, limit = 100, options = {}) {
      LIMIT $3`, [market, MONITORED_ENDPOINT, limit]);
     return result.rows;
 }
+exports.getP95Latency = getP95Latency;
 async function getLatestP95ForMarket(market, options = {}) {
     if (!options.skipFreshness) {
-        await ensureFreshP95Data(market);
+        triggerBackgroundFreshness(market);
     }
     const result = await config_1.db.query(`SELECT * FROM monitoring.p95_latency
      WHERE market = $1
@@ -183,9 +206,18 @@ async function getLatestP95ForMarket(market, options = {}) {
      LIMIT 1`, [market, MONITORED_ENDPOINT]);
     return result.rows[0] || null;
 }
+exports.getLatestP95ForMarket = getLatestP95ForMarket;
+// In-memory cache for getAllLatestP95 to prevent repeated expensive aggregation/probe runs.
+// Cache is shared across all callers; keyed on options (freshness check is the only variant that matters).
+const P95_ALL_CACHE_TTL_MS = 30000; // 30-second cache window
+let p95AllCache = null;
 async function getAllLatestP95(options = {}) {
+    // Only cache when freshness checks are enabled (skipFreshness=false, the default).
+    if (!options.skipFreshness && p95AllCache && Date.now() < p95AllCache.expiresAt) {
+        return p95AllCache.data;
+    }
     if (!options.skipFreshness) {
-        await ensureFreshP95Data();
+        triggerBackgroundFreshness();
     }
     const result = await config_1.db.query(`SELECT DISTINCT ON (market) market, endpoint, p95_ms, sample_size, window_start, window_end
      FROM monitoring.p95_latency
@@ -218,8 +250,13 @@ async function getAllLatestP95(options = {}) {
             };
         }
     }
+    // Populate cache when freshness checks are enabled (skipFreshness=false).
+    if (!options.skipFreshness) {
+        p95AllCache = { data: markets, expiresAt: Date.now() + P95_ALL_CACHE_TTL_MS };
+    }
     return markets;
 }
+exports.getAllLatestP95 = getAllLatestP95;
 async function insertP95Latency(market, endpoint, p95Ms, sampleSize, windowStart, windowEnd) {
     await config_1.db.query(`INSERT INTO monitoring.p95_latency (market, endpoint, p95_ms, sample_size, window_start, window_end)
      VALUES ($1, $2, $3, $4, $5, $6)`, [market, endpoint, p95Ms, sampleSize, windowStart, windowEnd]);
@@ -227,10 +264,12 @@ async function insertP95Latency(market, endpoint, p95Ms, sampleSize, windowStart
         await insertAlert(market, p95Ms, exports.P95_THRESHOLD_MS);
     }
 }
+exports.insertP95Latency = insertP95Latency;
 async function insertAlert(market, p95Ms, thresholdMs) {
     await config_1.db.query(`INSERT INTO monitoring.alert_history (market, p95_ms, threshold_ms, kind)
      VALUES ($1, $2, $3, 'p95')`, [market, p95Ms, thresholdMs]);
 }
+exports.insertAlert = insertAlert;
 async function getAlertHistory(options = {}) {
     const { market = null, kind = null, limit = 50, } = options;
     const values = [];
@@ -252,10 +291,12 @@ async function getAlertHistory(options = {}) {
      LIMIT $${values.length}`, values);
     return result.rows;
 }
+exports.getAlertHistory = getAlertHistory;
 async function cleanupOldData(retentionDays = 7) {
     const result = await config_1.db.query(`SELECT monitoring.cleanup_old_p95_data($1) as deleted_count`, [retentionDays]);
     return result.rows[0].deleted_count;
 }
+exports.cleanupOldData = cleanupOldData;
 async function refreshRecentP95Windows(lookbackWindows = AGGREGATION_LOOKBACK_WINDOWS) {
     const safeLookbackWindows = Math.max(1, Number(lookbackWindows) || AGGREGATION_LOOKBACK_WINDOWS);
     const lookbackMinutes = safeLookbackWindows * AGGREGATION_WINDOW_MINUTES;
@@ -284,6 +325,7 @@ async function refreshRecentP95Windows(lookbackWindows = AGGREGATION_LOOKBACK_WI
      SELECT market, endpoint, p95_ms, sample_size, window_start, window_end
      FROM aggregated`, [lookbackMinutes]);
 }
+exports.refreshRecentP95Windows = refreshRecentP95Windows;
 const latencySamples = new Map();
 function recordLatencySample(market, endpoint, latencyMs) {
     const key = `${market}:${endpoint}`;
@@ -296,14 +338,17 @@ function recordLatencySample(market, endpoint, latencyMs) {
         samples.shift();
     }
 }
+exports.recordLatencySample = recordLatencySample;
 function getLatencySamples(market, endpoint) {
     const key = `${market}:${endpoint}`;
     return latencySamples.get(key) || [];
 }
+exports.getLatencySamples = getLatencySamples;
 function clearLatencySamples(market, endpoint) {
     const key = `${market}:${endpoint}`;
     latencySamples.delete(key);
 }
+exports.clearLatencySamples = clearLatencySamples;
 async function computeAndStoreP95(market, endpoint) {
     const samples = getLatencySamples(market, endpoint);
     if (samples.length < 10) {
@@ -315,3 +360,4 @@ async function computeAndStoreP95(market, endpoint) {
     await insertP95Latency(market, endpoint, p95Ms, samples.length, windowStart, windowEnd);
     clearLatencySamples(market, endpoint);
 }
+exports.computeAndStoreP95 = computeAndStoreP95;

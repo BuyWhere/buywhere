@@ -1,7 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.startP95ProbeScheduler = startP95ProbeScheduler;
-exports.stopP95ProbeScheduler = stopP95ProbeScheduler;
+exports.stopP95ProbeScheduler = exports.startP95ProbeScheduler = void 0;
 const config_1 = require("../config");
 const p95_1 = require("../monitoring/p95");
 const MARKETS = ['sg', 'us', 'my', 'vn', 'th'];
@@ -98,17 +97,23 @@ function startP95ProbeScheduler() {
     if (initialTimer.unref) {
         initialTimer.unref();
     }
+    // BUY-51454: every setInterval callback here awaits async work that touches the DB
+    // pool. Even though the local `recordRawMeasurement` (above) wraps `db.query` in
+    // try/catch, `recordMonitoredEndpointProbeSamples` is the imported p95.ts version which
+    // can still throw (e.g. timedFetch rejection, or a future regression in the p95.ts
+    // wrapper). Wrap each callback's promise in `.catch` so a single bad tick never becomes
+    // an unhandledRejection. The top-level `process.on('unhandledRejection', ...)` guard in
+    // index.ts is the last line of defense; the goal is to never reach it from this module.
+    const swallow = (label) => (error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[p95-probe] ${label} failed: ${message}`);
+    };
     schedulerTimers = [
-        setInterval(() => { void probeHealth(); }, HEALTH_INTERVAL_MS),
-        setInterval(() => { void probeCatalogStats(); }, CATALOG_STATS_INTERVAL_MS),
-        setInterval(() => { void probeMcpListCategories(); }, MCP_LIST_CATEGORIES_INTERVAL_MS),
-        setInterval(() => { void (0, p95_1.recordMonitoredEndpointProbeSamples)(); }, 60000),
-        setInterval(() => {
-            void (0, p95_1.refreshRecentP95Windows)().catch((error) => {
-                const message = error instanceof Error ? error.message : String(error);
-                console.error(`[p95-probe] refresh failed: ${message}`);
-            });
-        }, 60000),
+        setInterval(() => { void probeHealth().catch(swallow('probeHealth')); }, HEALTH_INTERVAL_MS),
+        setInterval(() => { void probeCatalogStats().catch(swallow('probeCatalogStats')); }, CATALOG_STATS_INTERVAL_MS),
+        setInterval(() => { void probeMcpListCategories().catch(swallow('probeMcpListCategories')); }, MCP_LIST_CATEGORIES_INTERVAL_MS),
+        setInterval(() => { void (0, p95_1.recordMonitoredEndpointProbeSamples)().catch(swallow('recordMonitoredEndpointProbeSamples')); }, 60000),
+        setInterval(() => { void (0, p95_1.refreshRecentP95Windows)().catch(swallow('refreshRecentP95Windows')); }, 60000),
     ];
     for (const timer of schedulerTimers) {
         if (timer.unref) {
@@ -116,6 +121,7 @@ function startP95ProbeScheduler() {
         }
     }
 }
+exports.startP95ProbeScheduler = startP95ProbeScheduler;
 function stopP95ProbeScheduler() {
     for (const timer of schedulerTimers) {
         clearInterval(timer);
@@ -123,3 +129,4 @@ function stopP95ProbeScheduler() {
     schedulerTimers = [];
     schedulerStarted = false;
 }
+exports.stopP95ProbeScheduler = stopP95ProbeScheduler;
