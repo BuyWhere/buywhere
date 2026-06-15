@@ -1,42 +1,46 @@
 /**
  * embedRunner.ts — Recurring embedding pipeline scheduler
  *
- * Runs the Jina v3 embedding backfill on a configurable interval (default: every 6h).
+ * Runs the Cohere embedding backfill on a configurable interval (default: every 6h).
  * Embeds products whose title+description has changed since last embedding (hash-gated),
  * priority-ordered by price DESC.
  *
+ * Per BUY-41133 spec:
+ *   - Uses Cohere embed-multilingual-v3.0 with 1024-dim vectors
+ *   - Batch size 64 per API call
+ *   - Reads from maglev replica only (DATABASE_REPLICA_URL) to avoid primary load
+ *
+ * State table naming note:
+ *   The vector DB uses `product_embeddings` table for storing embeddings.
+ *   BUY-41133 spec references a `pipeline_state` table for coordination,
+ *   but the current live implementation uses direct table checks (LEFT JOIN)
+ *   rather than a separate state table. This hash-gate approach is simpler
+ *   and sufficient for the single-producer embedding workload.
+ *
  * Env vars:
- *   JINA_API_KEY       — required; Jina AI API key for embeddings
- *   VECTOR_DB_URL      — required; PostgreSQL connection for product_embeddings table
- *   DATABASE_URL       — used for reading products (standard pool)
- *   EMBED_BATCH_LIMIT  — products per run (default: 5000)
- *   EMBED_INTERVAL_MS  — run interval in ms (default: 6h = 21600000)
+ *   COHERE_API_KEY      — required; Cohere API key for embeddings
+ *   VECTOR_DB_URL       — required; PostgreSQL connection for product_embeddings table
+ *   DATABASE_REPLICA_URL — optional; Replica connection for reading products (falls back to primary)
+ *   EMBED_BATCH_LIMIT   — products per run (default: 64 per BUY-41133)
+ *   EMBED_INTERVAL_MS   — run interval in ms (default: 6h = 21600000)
  */
 
 import { Pool } from 'pg';
-import { db } from '../config';
+import { db, replicaDb, vectorDb } from '../config';
 import { runEmbedBatch } from './embedProducts';
 
-const JINA_API_KEY    = process.env.JINA_API_KEY ?? '';
-const VECTOR_DB_URL   = process.env.VECTOR_DB_URL ?? '';
-const BATCH_LIMIT     = parseInt(process.env.EMBED_BATCH_LIMIT  ?? '5000', 10);
-const INTERVAL_MS     = parseInt(process.env.EMBED_INTERVAL_MS  ?? String(6 * 60 * 60 * 1000), 10);
+const COHERE_API_KEY = process.env.COHERE_API_KEY ?? '';
+const BATCH_LIMIT    = parseInt(process.env.EMBED_BATCH_LIMIT  ?? '64', 10);
+const INTERVAL_MS    = parseInt(process.env.EMBED_INTERVAL_MS  ?? String(6 * 60 * 60 * 1000), 10);
 
-if (!JINA_API_KEY) {
-  console.error('[embed-runner] JINA_API_KEY is not set — embedding is disabled');
+if (!COHERE_API_KEY) {
+  console.error('[embed-runner] COHERE_API_KEY is not set — embedding is disabled');
   process.exit(0);
 }
-if (!VECTOR_DB_URL) {
+if (!vectorDb) {
   console.error('[embed-runner] VECTOR_DB_URL is not set — embedding is disabled');
   process.exit(0);
 }
-
-const vectorDb = new Pool({
-  connectionString: VECTOR_DB_URL,
-  max: 5,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-});
 
 let running = false;
 
@@ -48,8 +52,9 @@ async function tick(): Promise<void> {
   }
   running = true;
   console.log(`[embed-runner] Starting embedding run (limit=${BATCH_LIMIT})`);
+  console.log(`[embed-runner] Reading from: ${process.env.DATABASE_REPLICA_URL ? 'replica (DATABASE_REPLICA_URL)' : 'primary (DATABASE_URL)'}`);
   try {
-    const summary = await runEmbedBatch(db, vectorDb, JINA_API_KEY, BATCH_LIMIT);
+    const summary = await runEmbedBatch(replicaDb, vectorDb, COHERE_API_KEY, BATCH_LIMIT);
     console.log(
       `[embed-runner] Run complete — ` +
       `processed=${summary.processed} errors=${summary.errors} ` +
@@ -74,6 +79,7 @@ async function main(): Promise<void> {
   console.log(
     `[embed-runner] Starting — interval=${Math.round(INTERVAL_MS / 60000)}m batch=${BATCH_LIMIT}`
   );
+  console.log('[embed-runner] Using Cohere embed-multilingual-v3.0 (1024-dim)');
 
   const shutdown = async (sig: string) => {
     console.log(`[embed-runner] Received ${sig}, shutting down`);

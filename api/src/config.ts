@@ -21,6 +21,17 @@ export const db = new Pool({
   connectionTimeoutMillis: 5000,
 });
 
+// Replica DB pool for read-heavy operations (e.g., embedding pipeline).
+// Falls back to primary pool if DATABASE_REPLICA_URL is not set.
+export const replicaDb: Pool = process.env.DATABASE_REPLICA_URL
+  ? new Pool({
+      connectionString: process.env.DATABASE_REPLICA_URL,
+      max: parseInt(process.env.PG_POOL_MAX || '20'),
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
+    })
+  : db;
+
 const pgStatementTimeout = parseInt(process.env.PG_STATEMENT_TIMEOUT || '30000');
 const pgLockTimeout = parseInt(process.env.PG_LOCK_TIMEOUT || '2000');
 
