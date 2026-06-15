@@ -1241,7 +1241,13 @@ router.post(
           r.categoryPath.length ? `{${r.categoryPath.map(c => `"${c.replace(/"/g, '\\"')}"`).join(',')}}` : '{}',
           r.brand || null,
           JSON.stringify({ original_price: r.originalPrice, merchant_name: r.merchantName, availability: r.availability }),
-          r.region || null, r.countryCode || null,
+          // products is partitioned by country_code; the partition's `region`
+          // column is NOT NULL and the column default ('sg') only applies when
+          // the column is omitted from the INSERT. We're listing the column,
+          // so we must supply a value. Default to country_code lowercased,
+          // then 'sg' as the last-resort fallback.
+          r.region || (r.countryCode ? r.countryCode.toLowerCase() : null) || 'sg',
+          r.countryCode || null,
           r.gtin || null, r.mpn || null,
         ]
       ).catch(() => null);

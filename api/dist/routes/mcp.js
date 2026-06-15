@@ -767,7 +767,13 @@ async function handleIngestProducts(args) {
             const catPath = (p.category_path && p.category_path.length > 0)
                 ? `{${p.category_path.map(c => `"${c.replace(/"/g, '\\"')}"`).join(',')}}`
                 : '{}';
-            values.push(p.sku, normalizedSource, p.merchant_id, p.title, p.description || null, p.price, p.currency || 'SGD', p.url, p.image_url || null, catPath, p.brand || null, JSON.stringify(metadata), p.is_active !== false, p.region || null, p.country_code || null);
+            values.push(p.sku, normalizedSource, p.merchant_id, p.title, p.description || null, p.price, p.currency || 'SGD', p.url, p.image_url || null, catPath, p.brand || null, JSON.stringify(metadata), p.is_active !== false, 
+            // products is partitioned by country_code; the partition's `region`
+            // column is NOT NULL and the column default ('sg') only applies when
+            // the column is omitted from the INSERT. We're listing the column,
+            // so we must supply a value. Default to country_code lowercased,
+            // then 'sg' as the last-resort fallback.
+            p.region || (p.country_code ? p.country_code.toLowerCase() : null) || 'sg', p.country_code || null);
             placeholders.push(`($${base},$${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},$${base + 13},$${base + 14})`);
         }
         await config_1.db.query(`INSERT INTO products

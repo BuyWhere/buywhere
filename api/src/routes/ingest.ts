@@ -409,7 +409,12 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
           p.brand || null,
           JSON.stringify(metadata),
           p.is_active !== false,
-          p.region || null,
+          // products is partitioned by country_code; the partition's `region`
+          // column is NOT NULL and the column default ('sg') only applies when
+          // the column is omitted from the INSERT. We're listing the column,
+          // so we must supply a value. Default to country_code lowercased,
+          // then 'sg' as the last-resort fallback.
+          p.region || (p.country_code ? p.country_code.toLowerCase() : null) || 'sg',
           p.country_code || null,
         );
 
