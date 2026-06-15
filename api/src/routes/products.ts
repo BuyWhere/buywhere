@@ -1217,7 +1217,7 @@ router.post(
                    COALESCE($11,'') || ' ' ||
                    COALESCE(array_to_string($10::text[],' '),'')
                  ))
-         ON CONFLICT (sku, source)
+         ON CONFLICT (sku, source, country_code)
          DO UPDATE SET
            title = EXCLUDED.title,
            price = EXCLUDED.price,
