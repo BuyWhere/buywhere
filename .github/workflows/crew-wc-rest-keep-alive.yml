@@ -1,0 +1,63 @@
+name: Crew REST Sub-lane Keep-alive
+
+on:
+  schedule:
+    # Every 1 minute — mirrors the in-process daemon tick interval (TICK_SEC=60
+    # in buy31142-crew-wc-rest-keep-alive-daemon.sh). The daemon handles all
+    # respawn/escalation logic; this workflow is an independent audit mirror that
+    # also fires if the daemon process dies. Keeping it at 1 min so it can
+    # catch a dead-daemon gap before the 4-min cgroup kill window closes.
+    - cron: '* * * * *'
+  workflow_dispatch:
+    # Allow manual trigger for debugging / backfill
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Invoke daemon tick (--once)
+        # The daemon (buy31142-crew-wc-rest-keep-alive-daemon.sh) owns the real
+        # data dir at /home/paperclip/buywhere-api/data/. Invoking it with
+        # --once makes it run one keep-alive tick using that dir, so this
+        # workflow's run is an audit mirror of the real daemon rather than a
+        # split-brain check against the repo workspace copy.
+        env:
+          # Override SCRIPT_DIR so the daemon uses its own data dir.
+          # The daemon sets DATA_DIR="$SCRIPT_DIR/../data" internally;
+          # --once mode passes WC_LANE_STATE_DIR to the keep-alive script.
+          BUY31142_DAEMON_DATA_DIR: /home/paperclip/buywhere-api/data
+          PAPERCLIP_API_KEY: ${{ secrets.PAPERCLIP_API_KEY }}
+          PAPERCLIP_COMPANY_ID: ${{ secrets.PAPERCLIP_COMPANY_ID }}
+          PAPERCLIP_RUN_ID: ${{ github.run_id }}
+        run: |
+          # The daemon script routes --once to a single keep-alive tick using
+          # its own DATA_DIR; pass WC_LANE_STATE_DIR so the keep-alive script
+          # reads/writes the same files the daemon uses.
+          WC_LANE_STATE_DIR="$BUY31142_DAEMON_DATA_DIR" \
+            bash /home/paperclip/buywhere-api/scripts/buy31142-crew-wc-rest-keep-alive-daemon.sh --once
+
+      - name: Upload daemon tick log
+        uses: actions/upload-artifact@v4
+        with:
+          name: crew-wc-rest-keep-alive-daemon-log
+          path: /home/paperclip/buywhere-api/data/buy31142-crew-wc-rest-keep-alive-daemon.log
+          retention-days: 3
+        if: always()
+
+      - name: Upload escalation state
+        uses: actions/upload-artifact@v4
+        with:
+          name: crew-wc-rest-escalation-state
+          path: /home/paperclip/buywhere-api/data/buy31142-keep-alive-escalation.json
+          retention-days: 3
+        if: always()
