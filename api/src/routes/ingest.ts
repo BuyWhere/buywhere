@@ -513,11 +513,23 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
 
     if (rowsInserted > 0 || rowsUpdated > 0) {
       try {
-        const keys = await redis.keys('products:*');
-        if (keys.length > 0) await redis.del(...keys);
-        const searchKeys = await redis.keys('search:*');
-        if (searchKeys.length > 0) await redis.del(...searchKeys);
-
+        // Non-blocking cache invalidation using SCAN instead of blocking KEYS command.
+        // redis.keys() is O(N) and blocks the Redis server — use iterative SCAN instead.
+        const deleteByPattern = async (pattern: string): Promise<void> => {
+          let cursor = '0';
+          do {
+            const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 1000);
+            cursor = nextCursor;
+            if (keys.length > 0) {
+              // Use unlink (async) instead of del (blocking)
+              await redis.unlink(...keys);
+            }
+          } while (cursor !== '0');
+        };
+        await Promise.all([
+          deleteByPattern('products:*'),
+          deleteByPattern('search:*'),
+        ]);
         await redis.set(`bw:ingestion:last_success:${source}`, String(Date.now() / 1000));
         await redis.set(`bw:ingestion:products_last_run:${source}`, String(rowsInserted + rowsUpdated));
       } catch (e) {
