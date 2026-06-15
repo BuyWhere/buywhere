@@ -128,7 +128,10 @@ async def get_db():
                 continue  # Retry
             else:
                 # Either not a connection error or last attempt - rollback and raise
-                await session.rollback()
+                try:
+                    await session.rollback()
+                except Exception:
+                    pass  # Ignore rollback errors on dead connections (connection already closed by server)
                 raise
         finally:
             await session.close()
@@ -189,4 +192,3 @@ async def with_db_retry(func, *args, max_retries=3, **kwargs):
                 continue
             else:
                 raise
-
