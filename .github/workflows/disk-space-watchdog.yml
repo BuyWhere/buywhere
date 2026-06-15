@@ -25,21 +25,53 @@ jobs:
         id: timestamp
         run: echo "timestamp=$(date -u +%Y-%m-%dT%H%MZ)" >> $GITHUB_OUTPUT
 
-      - name: Run disk space watchdog
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PRODUCTION_DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.PRODUCTION_DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Run disk space watchdog on production server
+        # Runs the disk watchdog on the actual server at /home/paperclip/buywhere-api
+        # where /dev/vda1 is mounted, not on GitHub runners.
         env:
-          DISK_STATE_FILE: /tmp/disk-watchdog-state.json
+          SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
           DISK_EXECUTION_ISSUE: BUY-48198
           DISK_ALERT_SINK: BUY-48198
           DISK_WARN_THRESHOLD_GB: 20
           DISK_CRITICAL_THRESHOLD_GB: 5
           DISK_ALERT_COOLDOWN_HOURS: 1
-          DISK_SNAPSHOT_DIR: ./disk-snapshots/disk-check-${{ steps.timestamp.outputs.timestamp }}
+          DISK_SNAPSHOT_DIR: /home/paperclip/buywhere-api/data/BUY-48198-disk-check-${{ steps.timestamp.outputs.timestamp }}
           PAPERCLIP_API_KEY: ${{ secrets.PAPERCLIP_API_KEY }}
           PAPERCLIP_COMPANY_ID: ${{ secrets.PAPERCLIP_COMPANY_ID }}
           PAPERCLIP_RUN_ID: ${{ github.run_id }}
         run: |
+          ssh -i ~/.ssh/id_ed25519 "${SSH_USER}@${SSH_HOST}" \
+            "cd /home/paperclip/buywhere-api && \
+             DISK_STATE_FILE=/home/paperclip/buywhere-api/data/buy-48198-disk-state.json \
+             DISK_EXECUTION_ISSUE=${DISK_EXECUTION_ISSUE} \
+             DISK_ALERT_SINK=${DISK_ALERT_SINK} \
+             DISK_WARN_THRESHOLD_GB=${DISK_WARN_THRESHOLD_GB} \
+             DISK_CRITICAL_THRESHOLD_GB=${DISK_CRITICAL_THRESHOLD_GB} \
+             DISK_ALERT_COOLDOWN_HOURS=${DISK_ALERT_COOLDOWN_HOURS} \
+             DISK_SNAPSHOT_DIR=${DISK_SNAPSHOT_DIR} \
+             PAPERCLIP_API_KEY=${PAPERCLIP_API_KEY} \
+             PAPERCLIP_COMPANY_ID=${PAPERCLIP_COMPANY_ID} \
+             PAPERCLIP_RUN_ID=${PAPERCLIP_RUN_ID} \
+             node scripts/buy-38913-disk-space-watchdog.js"
+
+      - name: Fetch disk snapshot from server
+        if: always()
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+        run: |
           mkdir -p disk-snapshots
-          node scripts/buy-38913-disk-space-watchdog.js
+          scp -i ~/.ssh/id_ed25519 -r \
+            "${SSH_USER}@${SSH_HOST}:/home/paperclip/buywhere-api/data/BUY-48198-disk-check-${{ steps.timestamp.outputs.timestamp }}" \
+            disk-snapshots/
 
       - name: Upload disk snapshot
         uses: actions/upload-artifact@v4
@@ -52,7 +84,8 @@ jobs:
       - name: Report status
         if: always()
         run: |
-          if [ -f disk-snapshots/disk-check-${{ steps.timestamp.outputs.timestamp }}/result.json ]; then
+          SNAPSHOT_DIR="disk-snapshots/BUY-48198-disk-check-${{ steps.timestamp.outputs.timestamp }}"
+          if [ -f "$SNAPSHOT_DIR/result.json" ]; then
             echo "=== Disk Space Check Result ==="
-            cat disk-snapshots/disk-check-${{ steps.timestamp.outputs.timestamp }}/result.json
+            cat "$SNAPSHOT_DIR/result.json"
           fi
