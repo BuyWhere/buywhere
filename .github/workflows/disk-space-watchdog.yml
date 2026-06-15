@@ -38,6 +38,7 @@ jobs:
         env:
           SSH_HOST: ${{ secrets.PRODUCTION_DEPLOY_HOST }}
           SSH_USER: ${{ secrets.PRODUCTION_DEPLOY_USER }}
+          PAPERCLIP_API_URL: ${{ vars.PAPERCLIP_API_URL || 'https://paperclip.richteo.com' }}
           DISK_EXECUTION_ISSUE: BUY-48198
           DISK_ALERT_SINK: BUY-48198
           DISK_WARN_THRESHOLD_GB: 20
@@ -57,6 +58,7 @@ jobs:
              DISK_CRITICAL_THRESHOLD_GB=${DISK_CRITICAL_THRESHOLD_GB} \
              DISK_ALERT_COOLDOWN_HOURS=${DISK_ALERT_COOLDOWN_HOURS} \
              DISK_SNAPSHOT_DIR=${DISK_SNAPSHOT_DIR} \
+             PAPERCLIP_API_URL=${PAPERCLIP_API_URL} \
              PAPERCLIP_API_KEY=${PAPERCLIP_API_KEY} \
              PAPERCLIP_COMPANY_ID=${PAPERCLIP_COMPANY_ID} \
              PAPERCLIP_RUN_ID=${PAPERCLIP_RUN_ID} \
@@ -77,7 +79,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: disk-snapshot-${{ steps.timestamp.outputs.timestamp }}
-          path: disk-snapshots/disk-check-${{ steps.timestamp.outputs.timestamp }}/
+          path: disk-snapshots/BUY-48198-disk-check-${{ steps.timestamp.outputs.timestamp }}/
           retention-days: 7
         if: always()
 
