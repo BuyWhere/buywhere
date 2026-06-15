@@ -848,7 +848,7 @@ app.get('/v1/ingest/health', (req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 
 // SPA fallback - serve index.html for all non-API GET requests
-app.get('*', (req, res, next) => {
+app.get(/.*/, (req, res, next) => {
   if (req.path.startsWith('/api/')) {
     return next();
   }
