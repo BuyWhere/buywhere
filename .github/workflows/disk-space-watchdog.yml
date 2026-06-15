@@ -1,0 +1,58 @@
+name: Disk Space Watchdog
+
+on:
+  schedule:
+    # Every 5 minutes
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    # Allow manual trigger for testing
+
+jobs:
+  disk-space-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Create timestamp
+        id: timestamp
+        run: echo "timestamp=$(date -u +%Y-%m-%dT%H%MZ)" >> $GITHUB_OUTPUT
+
+      - name: Run disk space watchdog
+        env:
+          DISK_STATE_FILE: /tmp/disk-watchdog-state.json
+          DISK_EXECUTION_ISSUE: BUY-51340
+          DISK_ALERT_SINK: BUY-51340
+          DISK_WARN_THRESHOLD_GB: 20
+          DISK_CRITICAL_THRESHOLD_GB: 5
+          DISK_ALERT_COOLDOWN_HOURS: 1
+          DISK_SNAPSHOT_DIR: ./disk-snapshots/disk-check-${{ steps.timestamp.outputs.timestamp }}
+          PAPERCLIP_API_KEY: ${{ secrets.PAPERCLIP_API_KEY }}
+          PAPERCLIP_COMPANY_ID: ${{ secrets.PAPERCLIP_COMPANY_ID }}
+          PAPERCLIP_RUN_ID: ${{ github.run_id }}
+        run: |
+          mkdir -p disk-snapshots
+          node scripts/buy-38913-disk-space-watchdog.js
+
+      - name: Upload disk snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: disk-snapshot-${{ steps.timestamp.outputs.timestamp }}
+          path: disk-snapshots/disk-check-${{ steps.timestamp.outputs.timestamp }}/
+          retention-days: 7
+        if: always()
+
+      - name: Report status
+        if: always()
+        run: |
+          if [ -f disk-snapshots/disk-check-${{ steps.timestamp.outputs.timestamp }}/result.json ]; then
+            echo "=== Disk Space Check Result ==="
+            cat disk-snapshots/disk-check-${{ steps.timestamp.outputs.timestamp }}/result.json
+          fi
