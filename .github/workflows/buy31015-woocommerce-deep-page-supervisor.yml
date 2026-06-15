@@ -1,0 +1,191 @@
+name: WooCommerce Deep-page Lane Supervisor (BUY-31015)
+
+# Every 8 minutes: check if buy31142-crew-wc-rest.mjs is alive,
+# restart it if dead, and report cycle count + new-merchant discovery progress.
+#
+# BUYWHERE LANE: woocommerce_deep
+# State file: data/buy31015-woocommerce-state.json
+# Worker:      scripts/buy31142-crew-wc-rest.mjs
+# Supervisor:  BUY-51535
+
+on:
+  schedule:
+    # Every 8 minutes — matches the BUY-51535 supervisor cadence.
+    # The worker runs 240 s then exits; this tick respawns it if cgroup-orphaned.
+    # 8 min > 4 min tick window of the primary keep-alive, so this is a secondary
+    # audit + progress reporter that doesn't need sub-minute granularity.
+    - cron: '*/8 * * * *'
+  workflow_dispatch:
+    # Manual trigger for debugging / backfill
+
+jobs:
+  supervisor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run WooCommerce deep-page supervisor tick
+        id: supervisor
+        env:
+          PAPERCLIP_API_KEY: ${{ secrets.PAPERCLIP_API_KEY }}
+          PAPERCLIP_COMPANY_ID: ${{ secrets.PAPERCLIP_COMPANY_ID }}
+          PAPERCLIP_RUN_ID: ${{ github.run_id }}
+          BUY31142_DAEMON_DATA_DIR: /home/paperclip/buywhere-api/data
+        run: |
+          set -euo pipefail
+
+          SCRIPT_DIR="/home/paperclip/buywhere-api/scripts"
+          DATA_DIR="$BUY31142_DAEMON_DATA_DIR"
+          LANE_STATE="$DATA_DIR/buy31015-woocommerce-state.json"
+          HEARTBEAT="$DATA_DIR/buy31142-crew-wc-rest.heartbeat"
+          PIDFILE="$DATA_DIR/buy31142-crew-wc-rest.pid"
+          WORKER="$SCRIPT_DIR/buy31142-crew-wc-rest.mjs"
+          WORKER_LOG="$DATA_DIR/buy31142-crew-wc-rest-worker.log"
+          ENV_FILE="$DATA_DIR/.env.buy31015-lane"
+          TICKLOG="$DATA_DIR/buy31015-supervisor-tick.log"
+
+          TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          say() { echo "[$TS] $*" | tee -a "$TICKLOG"; }
+
+          mkdir -p "$DATA_DIR"
+
+          # ------------------------------------------------------------------
+          # 1. Read lane state for cycle count + discovery progress
+          # ------------------------------------------------------------------
+          if [ -f "$LANE_STATE" ]; then
+            CYCLE=$(node -e "const d=require('$LANE_STATE'); console.log(d.cycle ?? '?')")
+            LIVE_COUNT=$(node -e "const d=require('$LANE_STATE'); console.log(Array.isArray(d.live)?d.live.length:'?')")
+            DEAD_COUNT=$(node -e "const d=require('$LANE_STATE'); console.log(Array.isArray(d.dead)?d.dead.length:'?')")
+            CURSOR=$(node -e "const d=require('$LANE_STATE'); console.log(d.cursor ?? '?')")
+            DISCOVERED_IDX=$(node -e "const d=require('$LANE_STATE'); console.log(d.discoveredIdx ?? '?')")
+            NEW_MERCHANTS=$((DISCOVERED_IDX))
+          else
+            CYCLE="?"; LIVE_COUNT="?"; DEAD_COUNT="?"; CURSOR="?"; DISCOVERED_IDX="?"; NEW_MERCHANTS="?"
+          fi
+
+          say "state: cycle=$CYCLE live=$LIVE_COUNT dead=$DEAD_COUNT cursor=$CURSOR discoveredIdx=$DISCOVERED_IDX"
+
+          # ------------------------------------------------------------------
+          # 2. Liveness check (same logic as buy31142 keep-alive tick)
+          # ------------------------------------------------------------------
+          ALIVE_PID=0
+          PROC_ALIVE=0
+          HB_AGE_SEC=-1
+          STALL_SEC=120
+
+          if [ -f "$HEARTBEAT" ] && [ -f "$PIDFILE" ]; then
+            PID=$(cat "$PIDFILE" | tr -d ' ')
+            if [ -n "$PID" ] && [ "$PID" != "0" ]; then
+              if kill -0 "$PID" 2>/dev/null; then
+                CMDLINE=$(cat "/proc/$PID/cmdline" 2>/dev/null | tr '\0' ' ' || echo "")
+                if echo "$CMDLINE" | grep -q "buy31142-crew-wc-rest.mjs"; then
+                  PROC_ALIVE=1
+                  ALIVE_PID=$PID
+                  HB_AGE_SEC=$(($(date -u +%s) - $(date -u -r "$HEARTBEAT" +%s 2>/dev/null || echo 0)))
+                fi
+              fi
+            fi
+          fi
+
+          # If pidfile PID is dead, scan for replacement worker
+          if [ "$PROC_ALIVE" = "0" ]; then
+            for tid in /proc/[0-9]*; do
+              PID_NUM=$(basename "$tid")
+              CMDLINE=$(cat "$tid/cmdline" 2>/dev/null | tr '\0' ' ' || continue)
+              if echo "$CMDLINE" | grep -q "node.*buy31142-crew-wc-rest.mjs"; then
+                if kill -0 "$PID_NUM" 2>/dev/null; then
+                  PROC_ALIVE=1
+                  ALIVE_PID=$PID_NUM
+                  HB_AGE_SEC=$(($(date -u +%s) - $(date -u -r "$HEARTBEAT" +%s 2>/dev/null || echo 0)))
+                  break
+                fi
+              fi
+            done
+          fi
+
+          FRESH=$([ "$HB_AGE_SEC" -ge 0 ] && [ "$HB_AGE_SEC" -le "$STALL_SEC" ] && echo "yes" || echo "no")
+
+          if [ "$PROC_ALIVE" = "1" ] && [ "$FRESH" = "yes" ]; then
+            say "alive: pid=$ALIVE_PID hb_age=${HB_AGE_SEC}s cycle=$CYCLE new_merchants=$NEW_MERCHANTS"
+          else
+            say "dead: pidfile=$PID PROC_ALIVE=$PROC_ALIVE HB_AGE=${HB_AGE_SEC}s — restarting worker"
+
+            # Kill stale pidfile holder if different from scanned replacement
+            if [ "$PROC_ALIVE" = "1" ] && [ -f "$PIDFILE" ]; then
+              OLD_PID=$(cat "$PIDFILE" | tr -d ' ')
+              if [ "$OLD_PID" != "$ALIVE_PID" ] && [ -n "$OLD_PID" ]; then
+                kill "$OLD_PID" 2>/dev/null || true
+                sleep 1
+                kill -9 "$OLD_PID" 2>/dev/null || true
+              fi
+            fi
+            rm -f "$PIDFILE"
+
+            # Respawn worker
+            setsid bash -c '
+              set -a
+              [ -f "$1" ] && . "$1"
+              set +a
+              exec node "$2" --duration-sec=240
+            ' _ "$ENV_FILE" "$WORKER" >> "$WORKER_LOG" 2>&1 < /dev/null &
+            NEW_PID=$!
+            disown 2>/dev/null || true
+            say "respawned: newpid=$NEW_PID cycle=$CYCLE new_merchants=$NEW_MERCHANTS"
+
+            # Set output for GitHub Actions
+            echo "status=respawned" >> "$GITHUB_OUTPUT"
+            echo "pid=$NEW_PID" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$PROC_ALIVE" = "1" ] && [ "$FRESH" = "yes" ]; then
+            echo "status=alive" >> "$GITHUB_OUTPUT"
+            echo "pid=$ALIVE_PID" >> "$GITHUB_OUTPUT"
+          elif [ "$PROC_ALIVE" = "1" ] && [ "$FRESH" = "no" ]; then
+            echo "status=stalled" >> "$GITHUB_OUTPUT"
+            echo "pid=$ALIVE_PID" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=dead" >> "$GITHUB_OUTPUT"
+            echo "pid=0" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "cycle=$CYCLE" >> "$GITHUB_OUTPUT"
+          echo "live_count=$LIVE_COUNT" >> "$GITHUB_OUTPUT"
+          echo "dead_count=$DEAD_COUNT" >> "$GITHUB_OUTPUT"
+          echo "new_merchants=$NEW_MERCHANTS" >> "$GITHUB_OUTPUT"
+          echo "heartbeat_age_sec=$HB_AGE_SEC" >> "$GITHUB_OUTPUT"
+
+      - name: Upload supervisor tick log
+        uses: actions/upload-artifact@v4
+        with:
+          name: buy31015-supervisor-tick-log
+          path: /home/paperclip/buywhere-api/data/buy31015-supervisor-tick.log
+          retention-days: 3
+        if: always()
+
+      - name: Upload lane state snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: buy31015-woocommerce-state-snapshot
+          path: /home/paperclip/buywhere-api/data/buy31015-woocommerce-state.json
+          retention-days: 1
+        if: always()
+
+      - name: Report to Paperclip — lane health
+        if: success()
+        run: |
+          echo "BUY-31015 WooCommerce Deep-page Lane Supervisor tick complete."
+          echo "status=${{ steps.supervisor.outputs.status }}"
+          echo "cycle=${{ steps.supervisor.outputs.cycle }}"
+          echo "new_merchants=${{ steps.supervisor.outputs.new_merchants }}"
+          echo "pid=${{ steps.supervisor.outputs.pid }}"
+          echo "live=${{ steps.supervisor.outputs.live_count }}"
+          echo "dead=${{ steps.supervisor.outputs.dead_count }}"
+          echo "hb_age_sec=${{ steps.supervisor.outputs.heartbeat_age_sec }}"
