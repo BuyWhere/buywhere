@@ -44,14 +44,14 @@ jobs:
           DISK_WARN_THRESHOLD_GB: 20
           DISK_CRITICAL_THRESHOLD_GB: 5
           DISK_ALERT_COOLDOWN_HOURS: 1
-          DISK_SNAPSHOT_DIR: /home/paperclip/buywhere-api/data/BUY-48198-disk-check-${{ steps.timestamp.outputs.timestamp }}
+          DISK_SNAPSHOT_DIR: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/BUY-48198-disk-check-${{ steps.timestamp.outputs.timestamp }}
           PAPERCLIP_API_KEY: ${{ secrets.PAPERCLIP_API_KEY }}
           PAPERCLIP_COMPANY_ID: ${{ secrets.PAPERCLIP_COMPANY_ID }}
           PAPERCLIP_RUN_ID: ${{ github.run_id }}
         run: |
           ssh -i ~/.ssh/id_ed25519 "${SSH_USER}@${SSH_HOST}" \
-            "cd /home/paperclip/buywhere-api && \
-             DISK_STATE_FILE=/home/paperclip/buywhere-api/data/buy-48198-disk-state.json \
+            "cd /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api && \
+             DISK_STATE_FILE=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/buy-48198-disk-state.json \
              DISK_EXECUTION_ISSUE=${DISK_EXECUTION_ISSUE} \
              DISK_ALERT_SINK=${DISK_ALERT_SINK} \
              DISK_WARN_THRESHOLD_GB=${DISK_WARN_THRESHOLD_GB} \
@@ -72,7 +72,7 @@ jobs:
         run: |
           mkdir -p disk-snapshots
           scp -i ~/.ssh/id_ed25519 -r \
-            "${SSH_USER}@${SSH_HOST}:/home/paperclip/buywhere-api/data/BUY-48198-disk-check-${{ steps.timestamp.outputs.timestamp }}" \
+            "${SSH_USER}@${SSH_HOST}:/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/BUY-48198-disk-check-${{ steps.timestamp.outputs.timestamp }}" \
             disk-snapshots/
 
       - name: Upload disk snapshot
