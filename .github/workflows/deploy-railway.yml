@@ -27,13 +27,19 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Deploy buywhere-api to Railway
+      - name: Deploy buywhere-api to Railway via GraphQL
         run: |
-          railway up \
-            --service 945e8a6d-6f89-41f1-8256-b8cc6a872a33 \
-            --environment ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae \
-            --message "gha deploy-railway ${GITHUB_SHA}" \
-            --detach
+          DEPLOY_RESP=$(curl -s -X POST https://backboard.railway.com/graphql/v2 \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\":\"mutation { serviceInstanceDeploy(environmentId: \\\"ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae\\\", serviceId: \\\"945e8a6d-6f89-41f1-8256-b8cc6a872a33\\\") }\"}")
+          echo "Deploy response: $DEPLOY_RESP"
+          if ! echo "$DEPLOY_RESP" | jq -e '.data.serviceInstanceDeploy' > /dev/null 2>&1; then
+            echo "ERROR: Deploy mutation failed"
+            echo "$DEPLOY_RESP" | jq .
+            exit 1
+          fi
+          echo "Deploy triggered successfully"
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
