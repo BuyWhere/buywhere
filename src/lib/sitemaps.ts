@@ -215,6 +215,25 @@ export function renderSitemapIndex(urls: Array<{ url: string; lastModified: Date
   return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</sitemapindex>`;
 }
 
+// Published docs (served by /docs/[...slug] from the docs/ dir, public:true)
+const DOC_SLUGS = [
+  "getting-started",
+  "authentication",
+  "errors",
+  "api-reference/bulk",
+  "api-reference/categories",
+  "api-reference/compare",
+  "api-reference/deals",
+  "api-reference/get-product",
+  "api-reference/price-history",
+  "api-reference/search",
+  "api-reference/similar",
+  "api-reference/webhooks",
+  "guides/mastra-integration",
+  "guides/mcp-integration",
+  "guides/price-comparison",
+];
+
 export function getStaticSitemapEntries(): SitemapUrlEntry[] {
   const now = new Date();
   const blogPosts = safeGetBlogPosts();
@@ -225,6 +244,12 @@ export function getStaticSitemapEntries(): SitemapUrlEntry[] {
       lastModified: now,
       changeFrequency,
       priority,
+    })),
+    ...DOC_SLUGS.map((slug) => ({
+      url: toSiteUrl(`/docs/${slug}`),
+      lastModified: now,
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
     })),
     ...blogPosts.map((post) => ({
       url: toSiteUrl(`/blog/${post.slug}`),

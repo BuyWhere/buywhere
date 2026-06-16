@@ -87,16 +87,21 @@ const DISCOVERY_LINK =
 
 const ACTIVE_DOC_PATHS = new Set([
   "/docs",
-  "/docs/API_DOCUMENTATION",
-  "/docs/quickstart-mcp",
-  "/docs/developer-quickstart-sea-shopping-agent",
-  "/docs/agent-onboarding-flow",
-  "/docs/rate-limits",
-  "/docs/BUY-7268-status",
-  "/docs/BUY-14348-status",
-  "/docs/launch-runbook",
-  "/docs/smithery-publish-guide",
-  "/docs/uptime-monitoring-setup",
+  "/docs/getting-started",
+  "/docs/authentication",
+  "/docs/errors",
+  "/docs/api-reference/bulk",
+  "/docs/api-reference/categories",
+  "/docs/api-reference/compare",
+  "/docs/api-reference/deals",
+  "/docs/api-reference/get-product",
+  "/docs/api-reference/price-history",
+  "/docs/api-reference/search",
+  "/docs/api-reference/similar",
+  "/docs/api-reference/webhooks",
+  "/docs/guides/mastra-integration",
+  "/docs/guides/mcp-integration",
+  "/docs/guides/price-comparison",
 ]);
 
 const ACTIVE_BLOG_SLUGS = new Set([
@@ -193,6 +198,12 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
     return ACTIVE_BLOG_SLUGS.has(slug) ? (isDocsHost ? normalizedPath : null) : (DEAD_BLOG_SLUGS.has(slug) ? null : "__DEAD_BLOG_SLUG__");
   }
 
+  // Real published docs (in ACTIVE_DOC_PATHS) serve directly — checked FIRST so they are not caught by the
+  // broad /docs redirects below. Everything else under /docs is internal/old and returns 410 Gone.
+  if (normalizedPath.startsWith("/docs") && ACTIVE_DOC_PATHS.has(normalizedPath)) {
+    return isDocsHost ? normalizedPath : null;
+  }
+
   if (normalizedPath === "/docs/launch-day-runbook" || normalizedPath === "/docs/launch/launch-day-runbook") {
     return "/docs/launch-runbook";
   }
@@ -219,7 +230,7 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
     normalizedPath === "/docs/api/reference" ||
     normalizedPath.startsWith("/docs/api-reference")
   ) {
-    return "/docs/API_DOCUMENTATION";
+    return "__GONE__";
   }
 
   if (normalizedPath.startsWith("/docs/comparisons")) {
@@ -233,7 +244,7 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
     normalizedPath.startsWith("/docs/guides") ||
     normalizedPath.startsWith("/docs/tutorials")
   ) {
-    return "/quickstart";
+    return "__GONE__";
   }
 
   if (
@@ -247,7 +258,7 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
     normalizedPath.startsWith("/docs/samples") ||
     normalizedPath.startsWith("/docs/social")
   ) {
-    return "/docs";
+    return "__GONE__";
   }
 
   if (normalizedPath.startsWith("/docs")) {
@@ -255,7 +266,7 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
       return isDocsHost ? normalizedPath : null;
     }
 
-    return "/docs";
+    return "__GONE__";
   }
 
   if (isDocsHost) {
