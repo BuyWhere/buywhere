@@ -15,6 +15,13 @@ app/node_modules/
 !content/
 !content/blog/
 !content/blog/*.md
+# Same fix for the published docs: the *.md filter above also dropped
+# docs/**/*.md from the Railway build context, so getAllDocs() and
+# generateStaticParams() returned empty and /docs/[...slug] 404'd at
+# request time (GSC 'Page with redirect' / noindex). Re-include them.
+!docs/
+!docs/**/*.md
+!docs/*.md
 *.sh
 data/
 output/
