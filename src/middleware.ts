@@ -356,7 +356,9 @@ export function middleware(request: NextRequest) {
     }
     const url = request.nextUrl.clone();
     url.pathname = nonSlashPath;
-    return NextResponse.rewrite(url);
+    const tsResponse = NextResponse.rewrite(url);
+    if (nonSlashPath.startsWith("/docs")) tsResponse.headers.set("Link", `<https://buywhere.ai${nonSlashPath}>; rel="canonical"`);
+    return tsResponse;
   }
 
   const redirectPath = legacyRedirectPath(host, pathname);
@@ -389,15 +391,24 @@ export function middleware(request: NextRequest) {
   }
 
   // Add discovery Link headers and Vary: Accept for HTML responses on / and /docs/
+  // Self-referential canonical via HTTP Link header for /docs/* (BUY-52289): the docs route page
+  // metadata is not reliably applied (default <head>, no canonical), so emit canonical via header
+  // (Google honours Link rel=canonical). Resolves GSC "Duplicate without user-selected canonical".
+  const canonicalPath = pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+  const docsCanonicalLink = pathname.startsWith("/docs") ? `<https://buywhere.ai${canonicalPath}>; rel="canonical"` : null;
+
   const isDiscoveryRoute =
     pathname === "/" ||
     pathname === "" ||
     pathname === "/docs";
 
-  if (isDiscoveryRoute) {
+  if (isDiscoveryRoute || docsCanonicalLink) {
     const response = NextResponse.next();
-    response.headers.set("Link", DISCOVERY_LINK);
-    response.headers.set("Vary", "Accept");
+    const linkParts: string[] = [];
+    if (isDiscoveryRoute) linkParts.push(DISCOVERY_LINK);
+    if (docsCanonicalLink) linkParts.push(docsCanonicalLink);
+    response.headers.set("Link", linkParts.join(", "));
+    if (isDiscoveryRoute) response.headers.set("Vary", "Accept");
     return response;
   }
 

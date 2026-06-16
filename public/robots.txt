@@ -7,6 +7,7 @@ Disallow: /v1/
 Disallow: /v2/
 Disallow: /api/
 Disallow: /api-reference/
+Disallow: /search
 # Allow docs that are in the public sitemap
 Allow: /docs$
 Allow: /docs/mcp
