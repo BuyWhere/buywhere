@@ -15,6 +15,7 @@ export default function robots(): MetadataRoute.Robots {
           "/v2/",
           "/api/",
           "/api-reference/",
+          "/search",
           "/docs/social/",
           "/docs/emails/",
           "/docs/content/",
