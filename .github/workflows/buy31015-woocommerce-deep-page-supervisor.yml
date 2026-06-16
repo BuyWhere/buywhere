@@ -4,9 +4,10 @@ name: WooCommerce Deep-page Lane Supervisor (BUY-31015)
 # restart it if dead, and report cycle count + new-merchant discovery progress.
 #
 # BUYWHERE LANE: woocommerce_deep
-# Actual data lives in workspace 3ec8f6dd (buy31015's execution workspace).
-# This workflow runs in the repo workspace (476c) but reads/writes to the
-# execution workspace via WC_LANE_STATE_DIR.
+# Supervisor/worker scripts live in the canonical execution workspace (3ec8f6dd).
+# The crontab keepalive runs every 8 min from the repo workspace (476c) and
+# writes state there. This workflow reads that current state from 476c but
+# executes the supervisor binary from 3ec8f6dd.
 #
 # Worker:       scripts/buy31015-woocommerce-deep-page.mjs
 # Supervisor:    buy31015-deep-page-supervisor.mjs
@@ -42,14 +43,18 @@ jobs:
           PAPERCLIP_API_KEY: ${{ secrets.PAPERCLIP_API_KEY }}
           PAPERCLIP_COMPANY_ID: ${{ secrets.PAPERCLIP_COMPANY_ID }}
           PAPERCLIP_RUN_ID: ${{ github.run_id }}
-          # The execution workspace for the buy31015 lane
-          WC_LANE_STATE_DIR: /paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c
+          # The crontab keepalive fires every 8 min and writes to the repo workspace
+          # (476c). The canonical execution workspace (3ec8f6dd) holds the supervisor
+          # and worker scripts. We read state from 476c (where keepalive writes) but
+          # run the supervisor from 3ec8f6dd.
+          WC_LANE_STATE_DIR: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1
+          WC_LANE_EXEC_DIR: /paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c
         run: |
           set -euo pipefail
 
-          ROOT="$WC_LANE_STATE_DIR"
+          ROOT="$WC_LANE_EXEC_DIR"
           SCRIPT_DIR="$ROOT/scripts"
-          DATA_DIR="$ROOT/data"
+          DATA_DIR="$WC_LANE_STATE_DIR/data"
           LANE_STATE="$DATA_DIR/buy31015-woocommerce-state.json"
           TICK_STATE="$DATA_DIR/buy31015-deep-page-keep-alive-state.json"
           PIDFILE="$DATA_DIR/.buy31015-deep-page.pid"
@@ -154,7 +159,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: buy31015-supervisor-tick-log
-          path: /paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/data/buy31015-supervisor-tick.log
+          path: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/data/buy31015-supervisor-tick.log
           retention-days: 3
         if: always()
 
@@ -162,7 +167,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: buy31015-woocommerce-state-snapshot
-          path: /paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/data/buy31015-woocommerce-state.json
+          path: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/data/buy31015-woocommerce-state.json
           retention-days: 1
         if: always()
 
