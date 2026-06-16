@@ -313,7 +313,7 @@ async function listProjectServiceInstances(options = {}) {
   // by serviceId client-side so each service contributes its latest deployment.
   const lookback = options.deploymentsLookback || 50;
   const deploymentsData = await railwayGraphql(
-    `query ProjectDeployments($input: DeploymentListInput!) {
+    `query ProjectDeployments($first: Int!, $input: DeploymentListInput!) {
       deployments(first: $first, input: $input) {
         edges {
           node {
