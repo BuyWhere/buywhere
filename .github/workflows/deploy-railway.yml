@@ -27,19 +27,9 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Deploy buywhere-api to Railway via GraphQL
+      - name: Deploy buywhere-api to Railway via railway up (source upload)
         run: |
-          DEPLOY_RESP=$(curl -s -X POST https://backboard.railway.com/graphql/v2 \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{\"query\":\"mutation { serviceInstanceDeploy(environmentId: \\\"ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae\\\", serviceId: \\\"945e8a6d-6f89-41f1-8256-b8cc6a872a33\\\") }\"}")
-          echo "Deploy response: $DEPLOY_RESP"
-          if ! echo "$DEPLOY_RESP" | jq -e '.data.serviceInstanceDeploy' > /dev/null 2>&1; then
-            echo "ERROR: Deploy mutation failed"
-            echo "$DEPLOY_RESP" | jq .
-            exit 1
-          fi
-          echo "Deploy triggered successfully"
+          railway up --service 945e8a6d-6f89-41f1-8256-b8cc6a872a33 --environment ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
@@ -100,3 +90,35 @@ jobs:
           fi
 
           echo "Smoke tests passed"
+
+      - name: Smoke test — keyword vs semantic search must return different result IDs
+        run: |
+          echo "=== Verifying search mode differentiation ==="
+          EMAIL="gha-railway-smoke-${GITHUB_RUN_ID}@buywhere.ai"
+          REGISTER_JSON=$(curl -fsS -X POST "https://api.buywhere.ai/v1/auth/register" \
+            -H "Content-Type: application/json" \
+            -d "{\"email\":\"${EMAIL}\",\"agent_name\":\"GitHub Actions Railway Smoke\",\"agent_type\":\"github_actions\"}")
+          API_KEY=$(echo "$REGISTER_JSON" | jq -r '.api_key // empty')
+
+          KW_JSON=$(curl -fsS "https://api.buywhere.ai/v1/products/search?q=cheap+rain+running+shoes&country_code=US&mode=keyword" \
+            -H "Authorization: Bearer ${API_KEY}")
+          SEM_JSON=$(curl -fsS "https://api.buywhere.ai/v1/products/search?q=cheap+rain+running+shoes&country_code=US&mode=semantic" \
+            -H "Authorization: Bearer ${API_KEY}")
+
+          KW_IDS=$(echo "$KW_JSON" | jq -r '[.results[].id] | @json')
+          SEM_IDS=$(echo "$SEM_JSON" | jq -r '[.results[].id] | @json')
+
+          echo "keyword result IDs: $KW_IDS"
+          echo "semantic result IDs: $SEM_IDS"
+
+          if [[ "$KW_IDS" == "$SEM_IDS" ]]; then
+            echo "ERROR: keyword and semantic search return identical result IDs — mode differentiation broken"
+            exit 1
+          fi
+
+          SEM_HEADER=$(curl -fsS -o /dev/null -w "%{header_effective_url}" \
+            "https://api.buywhere.ai/v1/products/search?q=test&country_code=US&mode=semantic" \
+            -H "Authorization: Bearer ${API_KEY}" -H "X-Semantic-Search: embeddings")
+          echo "Semantic search routed, header: $SEM_HEADER"
+
+          echo "Mode differentiation verified — keyword and semantic return distinct result sets"
