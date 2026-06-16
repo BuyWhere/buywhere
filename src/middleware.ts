@@ -223,7 +223,10 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
   }
 
   if (normalizedPath.startsWith("/docs/comparisons")) {
-    return "/compare";
+    // BUY-37745: legacy product-comparison pages are GONE (no markdown equivalent). Redirecting them
+    // to the generic /compare made Google report "Page with redirect" (422) and kept them in index limbo.
+    // 410 Gone cleanly de-indexes them (see __GONE__ handling below).
+    return "__GONE__";
   }
 
   if (
@@ -340,7 +343,7 @@ export function middleware(request: NextRequest) {
   if (pathname !== "/" && pathname.endsWith("/")) {
     const nonSlashPath = pathname.slice(0, -1);
     const trailingSlashRedirect = legacyRedirectPath(host, nonSlashPath);
-    if (trailingSlashRedirect === "__DEAD_BLOG_SLUG__") {
+    if (trailingSlashRedirect === "__DEAD_BLOG_SLUG__" || trailingSlashRedirect === "__GONE__") {
       return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
     }
     if (trailingSlashRedirect) {
@@ -357,7 +360,7 @@ export function middleware(request: NextRequest) {
   }
 
   const redirectPath = legacyRedirectPath(host, pathname);
-  if (redirectPath === "__DEAD_BLOG_SLUG__") {
+  if (redirectPath === "__DEAD_BLOG_SLUG__" || redirectPath === "__GONE__") {
     return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
   }
   if (redirectPath) {
