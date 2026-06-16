@@ -17,6 +17,7 @@ COPY --from=builder /app/.next-deploy/standalone ./
 COPY --from=builder --chown=node:node /app/.next-deploy/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/content ./content
+COPY --from=builder /app/docs ./docs
 RUN mkdir -p .next-deploy && ln -s ../.next/static .next-deploy/static
 
 EXPOSE 3000
