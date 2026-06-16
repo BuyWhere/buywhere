@@ -100,11 +100,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const regionLabel = COUNTRY_NAMES[region] ?? region.toUpperCase();
   const merchant = await getMerchantBySlug(merchantSlug, region);
 
-  if (merchant === undefined) {
-    // API confirmed this merchant doesn't exist
-    return { title: "Merchant Not Found" };
-  }
-
+  // When API is unavailable (null) or merchant absent (undefined), still render the page
+  // with a meaningful title so Googlebot doesn't get a noindex signal.
   const displayName = merchant?.name ?? slugToDisplayName(merchantSlug);
   // Canonical (no trailing slash) — matches the on-disk route and the
   // URL emitted by the merchant/product sitemaps. Trailing-slash URLs
@@ -136,12 +133,11 @@ export default async function MerchantProductsPage({ params }: PageProps) {
 
   const merchant = await getMerchantBySlug(merchantSlug, region);
 
-  if (merchant === undefined) {
-    // API confirmed this merchant doesn't exist
-    notFound();
-  }
-
-  // merchant is null (API unavailable) or a MerchantInfo object
+  // merchant is null (API unavailable), undefined (not found), or a MerchantInfo object.
+  // When API is unavailable (null), render with slug-derived name so the page is
+  // indexable — this avoids soft-404 for the sitemap merchant listing URLs
+  // (BUY-37819). When genuinely absent (undefined), still render, not notFound(),
+  // so Googlebot can discover the URL without a soft-404 signal.
   const regionLabel = COUNTRY_NAMES[region] ?? region.toUpperCase();
   const displayName = merchant?.name ?? slugToDisplayName(merchantSlug);
   // See canonicalUrl comment in generateMetadata above.
