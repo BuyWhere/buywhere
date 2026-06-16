@@ -307,30 +307,61 @@ async function listProjectServiceInstances(options = {}) {
     .map((edge) => edge.node)
     .filter((node) => !serviceIds.length || serviceIds.includes(node.id));
 
-  return Promise.all(services.map(async (service) => {
-    const serviceData = await railwayGraphql(
-      `query ServiceInstance($environmentId: String!, $serviceId: String!) {
-        serviceInstance(environmentId: $environmentId, serviceId: $serviceId) {
-          serviceId
-          serviceName
-          latestDeployment {
+  // BUY-37864: project.deployments is the only queryable path with the
+  // project-scoped token. The earlier serviceInstance(environmentId, serviceId)
+  // query returns "Not Authorized". Fetch a wide recent window once and group
+  // by serviceId client-side so each service contributes its latest deployment.
+  const lookback = options.deploymentsLookback || 50;
+  const deploymentsData = await railwayGraphql(
+    `query ProjectDeployments($input: DeploymentListInput!) {
+      deployments(first: $first, input: $input) {
+        edges {
+          node {
             id
             status
             createdAt
             updatedAt
             deploymentStopped
             staticUrl
+            serviceId
+            service { name }
           }
         }
-      }`,
-      { environmentId, serviceId: service.id },
-      options
-    );
+      }
+    }`,
+    { first: lookback, input: { projectId, environmentId } },
+    options
+  );
 
-    return serviceData.serviceInstance
-      ? { ...serviceData.serviceInstance, serviceId: service.id, serviceName: service.name }
-      : null;
-  })).then((rows) => rows.filter(Boolean));
+  const deployments = (deploymentsData.deployments?.edges || []).map((edge) => edge.node);
+
+  const latestByService = new Map();
+  for (const deployment of deployments) {
+    if (!deployment.serviceId) continue;
+    const existing = latestByService.get(deployment.serviceId);
+    if (!existing || new Date(deployment.createdAt) > new Date(existing.createdAt)) {
+      latestByService.set(deployment.serviceId, deployment);
+    }
+  }
+
+  return services
+    .map((service) => {
+      const latest = latestByService.get(service.id);
+      if (!latest) return null;
+      return {
+        serviceId: service.id,
+        serviceName: latest.service?.name || service.name,
+        latestDeployment: {
+          id: latest.id,
+          status: latest.status,
+          createdAt: latest.createdAt,
+          updatedAt: latest.updatedAt,
+          deploymentStopped: latest.deploymentStopped,
+          staticUrl: latest.staticUrl,
+        },
+      };
+    })
+    .filter(Boolean);
 }
 
 function buildDeployFailFingerprint(serviceInstance) {
