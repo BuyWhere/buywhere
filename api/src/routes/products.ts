@@ -514,7 +514,7 @@ router.get(
             const vectorFilterQuery = `
               SELECT id
               FROM products
-              WHERE id = ANY($1::uuid[]) AND ${baseConditions.map((condition) => shiftSqlPlaceholders(condition, 1)).join(' AND ')}
+              WHERE id = ANY($1::bigint[]) AND ${baseConditions.map((condition) => shiftSqlPlaceholders(condition, 1)).join(' AND ')}
             `;
             const vectorFilterResult = await client.query<{ id: string }>(
               vectorFilterQuery,
@@ -552,7 +552,7 @@ router.get(
               `SELECT ${joinedColumns}
                FROM products
                LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-               WHERE products.id = ANY($1::uuid[])`,
+               WHERE products.id = ANY($1::bigint[])`,
               [pageIds]
             );
             const byId = new Map(detailResult.rows.map((row) => [(row as Record<string, unknown>).id as string, row]));
@@ -564,7 +564,7 @@ router.get(
               `SELECT ${joinedColumns}
                FROM products
                LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-               WHERE products.id = ANY($1::uuid[])
+               WHERE products.id = ANY($1::bigint[])
                ORDER BY ${buildSortOrder()}
                LIMIT $2 OFFSET $3`,
               [rankedCandidateIds, requestedRows, offset]
