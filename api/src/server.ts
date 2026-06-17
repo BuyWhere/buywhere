@@ -297,7 +297,18 @@ export function createApp() {
     res.type('text/plain').send(
       [
         'User-agent: *',
+        '# Discovery surface — crawlable by search engines and AI agents',
+        'Allow: /llms.txt',
+        'Allow: /agents.txt',
+        'Allow: /openapi',
+        'Allow: /openapi.json',
+        'Allow: /sitemap.xml',
+        'Allow: /mcp',
+        'Allow: /.well-known/',
+        '# Data + functional API endpoints are not for crawling',
         'Disallow: /',
+        '',
+        'Sitemap: https://api.buywhere.ai/sitemap.xml',
       ].join('\n')
     );
   });
