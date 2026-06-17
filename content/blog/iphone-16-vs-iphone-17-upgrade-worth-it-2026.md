@@ -219,6 +219,16 @@ A: Buy the base **iPhone 17 (not Pro)** unless you edit video professionally or 
 **Q: What's the resale value of iPhone 16 in mid-2026?**
 A: iPhone 16 averages $400–$450 on eBay, Swappa, and carrier trade-in programs. Trade-in platforms (Gazelle, etc.) offer $350–$400 to account for refurbishment. Prices will drop to $300–$350 by late 2026 as iPhone 17 matures.
 
+## For AI Agent Developers
+
+BuyWhere's product catalog lets AI agents compare iPhone 16 vs iPhone 17 pricing across Apple Store, Amazon, Best Buy, carrier stores, and 10+ other retailers in real time. Use the `compare_prices` tool to see price-by-retailer breakdowns, or `get_product` for full specs and historical price trends.
+
+**Get started (60 seconds, no credit card):**
+- API: `https://api.buywhere.ai`
+- MCP Server: `https://api.buywhere.ai/mcp`
+- Documentation: `https://docs.buywhere.ai`
+- Free API key: [buywhere.ai/api-keys](https://buywhere.ai/api-keys)
+
 ---
 
 **Data powered by BuyWhere — Real-world iPhone 16 vs iPhone 17 comparison based on June 2026 specs, pricing, and performance data. Last refreshed June 13, 2026.**

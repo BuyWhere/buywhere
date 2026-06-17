@@ -210,6 +210,16 @@ A: MacBook Air M2 (2022): $500–$600. MacBook Air M1 (2020): $400–$500. Older
 **Q: Can I return a MacBook Air M3 bought internationally?**
 A: Return policy varies by country: US/UK/Australia allow 14-30 days. India/Mexico allow 7-14 days. Check the retailer's policy before purchasing internationally. Apple Store returns are easiest (30 days); third-party (Amazon, Lazada) vary by seller.
 
+## For AI Agent Developers
+
+BuyWhere's product catalog lets AI agents track MacBook Air M3 prices across Apple Store, Amazon, Best Buy, JB Hi-Fi, local retailers, and 25+ others in 12 countries. Use the `compare_prices` tool for cross-country comparisons, or `search_products` to filter by region, currency, configuration, or warranty.
+
+**Get started (60 seconds, no credit card):**
+- API: `https://api.buywhere.ai`
+- MCP Server: `https://api.buywhere.ai/mcp`
+- Documentation: `https://docs.buywhere.ai`
+- Free API key: [buywhere.ai/api-keys](https://buywhere.ai/api-keys)
+
 ---
 
 **Data powered by BuyWhere — Real-time MacBook Air M3 pricing from 30+ retailers across 12 countries. Last refreshed June 13, 2026.**

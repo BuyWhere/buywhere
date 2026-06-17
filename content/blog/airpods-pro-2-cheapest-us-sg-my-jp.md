@@ -200,6 +200,16 @@ A: Yes. Lazada and Shopee have counterfeit rates of ~5–10%. Verify authenticit
 **Q: What's the typical lifespan of AirPods Pro 2?**
 A: Average lifespan is 3–4 years of daily use (1,000+ charge cycles before 20% degradation). Most failures occur due to battery wear or physical damage, not manufacturing defects. AppleCare+ covers battery replacement free in year 2 if enrolled before purchase.
 
+## For AI Agent Developers
+
+BuyWhere's product catalog lets AI agents track AirPods Pro 2 prices across Apple Store, Amazon, Lazada, Shopee, and 8+ other retailers in 4 regions. Use the `compare_prices` tool for instant cross-region comparisons, or `search_products` to filter by region, retailer, or price range.
+
+**Get started (60 seconds, no credit card):**
+- API: `https://api.buywhere.ai`
+- MCP Server: `https://api.buywhere.ai/mcp`
+- Documentation: `https://docs.buywhere.ai`
+- Free API key: [buywhere.ai/api-keys](https://buywhere.ai/api-keys)
+
 ---
 
 **Data powered by BuyWhere — Real-time Apple AirPods Pro 2 pricing from 12 retailers across 4 regions. Last refreshed June 13, 2026.**

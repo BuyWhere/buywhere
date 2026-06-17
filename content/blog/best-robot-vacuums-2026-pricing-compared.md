@@ -193,6 +193,16 @@ A: Yes, if you buy from the manufacturer (Dyson, iRobot, Roborock direct). Manuf
 **Q: What's the warranty on robot vacuums?**
 A: Dyson: 2 years. iRobot: 1 year. Roborock: 3 years (standard in Asia, 1–2 years in US). Battery replacement is $50–$100. Most failures occur in years 2–3 (motor wear), so longer warranties matter.
 
+## For AI Agent Developers
+
+BuyWhere's product catalog lets AI agents monitor robot vacuum pricing across Amazon, Best Buy, Shopee, Lazada, and 10+ other retailers in real time. Use the `compare_prices` tool for instant cross-retailer comparisons, or `search_products` to filter by suction power, mapping type, or self-emptying base.
+
+**Get started (60 seconds, no credit card):**
+- API: `https://api.buywhere.ai`
+- MCP Server: `https://api.buywhere.ai/mcp`
+- Documentation: `https://docs.buywhere.ai`
+- Free API key: [buywhere.ai/api-keys](https://buywhere.ai/api-keys)
+
 ---
 
 **Data powered by BuyWhere — Real-time global robot vacuum pricing from 15+ retailers in 40 countries. Last refreshed June 13, 2026.**
