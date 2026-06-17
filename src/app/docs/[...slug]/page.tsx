@@ -109,6 +109,9 @@ function getDocBySlug(slugParts: string[]) {
   return docs.find((doc) => doc.slug === slug);
 }
 
+// Only the published docs are valid slugs; anything else 404s at the routing layer
+export const dynamicParams = false;
+
 export async function generateStaticParams() {
   const docs = getAllDocs();
   return docs.map((doc) => ({ slug: doc.slug.split("/") }));

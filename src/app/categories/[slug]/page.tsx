@@ -57,6 +57,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return buildMetadata(slug);
 }
 
+// Only categories in PRODUCT_TAXONOMY are valid; unknown slugs return a real 404
+// (not a 200 'Category Not Found' soft-404 stub).
+export const dynamicParams = false;
+
 export function generateStaticParams() {
   return PRODUCT_TAXONOMY.map((cat) => ({ slug: cat.slug }));
 }
