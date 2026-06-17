@@ -1,5 +1,9 @@
 # @buywhere/sdk
 
+<p align="left">
+  <a href="https://buywhere.ai/api-keys"><img src="https://img.shields.io/badge/🔑_Get_your_free_API_key-60_seconds-4f46e5?style=for-the-badge" alt="Get your free API key"></a>
+</p>
+
 Official TypeScript/JavaScript SDK for BuyWhere product search, compare, price history, key rotation, and webhooks.
 
 ## Installation
@@ -129,6 +133,10 @@ import { createClient } from '@buywhere/sdk';
 ```js
 const { createClient } = require('@buywhere/sdk');
 ```
+
+## Get your API key
+
+Sign up free at <https://buywhere.ai/api-keys> — 60 seconds, no credit card.
 
 ## Development
 
