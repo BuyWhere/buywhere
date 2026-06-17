@@ -1,15 +1,16 @@
 """
 Shopee Vietnam product scraper.
 
-Scrapes products from Shopee VN using direct HTTP access.
-Adapts from shopee_sg.py template for Vietnam marketplace.
+Scrapes products from Shopee VN (shopee.vn) using BrightData residential
+proxy to bypass WAF/anti-bot protection. The WAF block (policy_20090) that
+previously blocked BrightData IPs has cleared as of BUY-40882 (2026-06-16).
 
 Usage:
     python -m scrapers.shopee_vn --api-key <key> [--batch-size 100] [--delay 1.0]
     python -m scrapers.shopee_vn --scrape-only  # save to data/shopee_vn/ without ingesting
 
-Note: Shopee VN WAF blocks BrightData proxy IPs. Direct HTTP access is used
-as a workaround, but may return SSR skeleton HTML without product data.
+Categories covered: Electronics, Home Appliances, Food & Beverages, Health, Pet
+Target: 10,000+ products
 """
 import argparse
 import asyncio
@@ -21,8 +22,12 @@ from typing import Any
 
 import httpx
 
+from scrapers.scraper_logging import get_logger
+from scrapers.proxy_config import proxy_url, Zone
+
 MERCHANT_ID = "shopee_vn"
 SOURCE = "shopee_vn"
+log = get_logger(MERCHANT_ID)
 BASE_URL = "https://www.shopee.vn"
 OUTPUT_DIR = "/home/paperclip/buywhere-api/data/shopee_vn"
 
@@ -56,6 +61,38 @@ CATEGORIES = [
 ]
 
 
+def _build_proxy_url() -> str | None:
+    """Build BrightData proxy URL for Shopee VN.
+
+    Zone is determined by (in priority order):
+    1. SHOPEE_VN_BRIGHTDATA_ZONE env var (zone name, e.g. 'shopee_vn_ul')
+    2. BRIGHTDATA_ZONE env var (general fallback)
+
+    If the zone name is not a known BrightData zone (or is "direct"/"none"),
+    returns None to use a direct connection (httpx handles None as no-proxy).
+
+    The zone's password is read from SHOPEE_VN_BRIGHTDATA_PASSWORD (if
+    SHOPEE_VN_BRIGHTDATA_ZONE is set) or BRIGHTDATA_ZONE_PASSWORD (for
+    the BRIGHTDATA_ZONE fallback).
+    """
+    # Priority 1: zone-specific env var
+    zone_name = os.environ.get("SHOPEE_VN_BRIGHTDATA_ZONE")
+    if not zone_name:
+        # Priority 2: general zone env var
+        zone_name = os.environ.get("BRIGHTDATA_ZONE", "")
+
+    # Treat bare "direct"/"none"/"" as "no proxy"
+    if zone_name.lower() in ("", "none", "direct"):
+        return None
+
+    try:
+        zone = Zone(zone_name)
+    except ValueError:
+        # Unknown zone — fall back to direct connection
+        return None
+    return proxy_url(zone)
+
+
 class ShopeeVNScraper:
     def __init__(
         self,
@@ -64,24 +101,37 @@ class ShopeeVNScraper:
         batch_size: int = 100,
         delay: float = 1.0,
         scrape_only: bool = False,
+        data_dir: str = "/home/paperclip/buywhere-api/data/shopee_vn",
+        max_pages_per_category: int = 500,
+        target_products: int = 10000,
     ):
         self.api_key = api_key
         self.api_base = api_base.rstrip("/")
         self.batch_size = batch_size
         self.delay = delay
         self.scrape_only = scrape_only
-        self.client = httpx.AsyncClient(timeout=30.0, headers=HEADERS)
+        self.data_dir = os.path.join(data_dir, "")
+        os.makedirs(self.data_dir, exist_ok=True)
+        self.max_pages_per_category = max_pages_per_category
+        self.target_products = target_products
+
+        # Build proxy config for BrightData
+        proxy = _build_proxy_url()
+        self.client = httpx.AsyncClient(
+            timeout=30.0,
+            headers=HEADERS,
+            proxy=proxy,
+        )
         self.total_scraped = 0
         self.total_ingested = 0
         self.total_updated = 0
         self.total_failed = 0
-        self.products_outfile = None
         self._ensure_output_dir()
 
     def _ensure_output_dir(self):
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
+        os.makedirs(self.data_dir, exist_ok=True)
         ts = time.strftime("%Y%m%d_%H%M%S")
-        self.products_outfile = os.path.join(OUTPUT_DIR, f"products_{ts}.jsonl")
+        self.products_outfile = os.path.join(self.data_dir, f"products_{ts}.jsonl")
 
     async def close(self):
         await self.client.aclose()
@@ -215,7 +265,11 @@ class ShopeeVNScraper:
             return 0, 0, 0
 
         if self.scrape_only:
-            self._write_products_to_file(products)
+            for p in products:
+                cat_id = p.get("metadata", {}).get("shopid", "unknown")
+                cat_file = os.path.join(self.data_dir, f"{cat_id}.jsonl")
+                with open(cat_file, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(p, ensure_ascii=False) + "\n")
             return len(products), 0, 0
 
         url = f"{self.api_base}/v1/ingest/products"
@@ -232,7 +286,7 @@ class ShopeeVNScraper:
                 result.get("rows_failed", 0),
             )
         except Exception as e:
-            print(f"  Ingestion error: {e}")
+            log.ingestion_error(None, str(e))
             return 0, 0, len(products)
 
     async def scrape_category(self, category: dict) -> dict[str, int]:
@@ -241,13 +295,16 @@ class ShopeeVNScraper:
         sub_name = category["sub"]
 
         print(f"\n[{cat_name} / {sub_name}] Starting scrape...")
-        counts = {"scraped": 0, "ingested": 0, "updated": 0, "failed": 0}
+        counts = {"scraped": 0, "ingested": 0, "updated": 0, "failed": 0, "pages": 0}
         page = 1
         batch = []
         consecutive_empty = 0
-        max_pages = 5000
 
-        while consecutive_empty < 5 and page <= max_pages:
+        while page <= self.max_pages_per_category:
+            if self.total_scraped >= self.target_products:
+                print(f"  Target of {self.target_products} products reached!")
+                break
+
             print(f"  Page {page}...", end=" ", flush=True)
             products = await self.fetch_products_page(category, page)
 
@@ -261,12 +318,14 @@ class ShopeeVNScraper:
                 continue
 
             consecutive_empty = 0
+            counts["pages"] += 1
 
             for raw in products:
                 transformed = self.transform_product(raw, category)
                 if transformed:
                     batch.append(transformed)
                     counts["scraped"] += 1
+                    self.total_scraped += 1
 
                     if len(batch) >= self.batch_size:
                         i, u, f = await self.ingest_batch(batch)
@@ -279,7 +338,7 @@ class ShopeeVNScraper:
                         batch = []
                         await asyncio.sleep(self.delay)
 
-            print(f"scraped={counts['scraped']}")
+            print(f"scraped={counts['scraped']}, total={self.total_scraped}")
 
             if len(products) < 60:
                 break
@@ -298,41 +357,51 @@ class ShopeeVNScraper:
             batch = []
 
         self.total_scraped += counts["scraped"]
-        print(f"  [{cat_name} / {sub_name}] Done: {counts}")
+        print(f"  [{cat_name} / {sub_name}] Done: pages={counts['pages']}, scraped={counts['scraped']}, ingested={counts['ingested']}")
         return counts
 
     async def run(self) -> dict[str, Any]:
+        proxy_info = "BrightData proxy" if _build_proxy_url() else "direct"
         mode = "scrape only" if self.scrape_only else f"API: {self.api_base}"
-        print(f"Shopee VN Scraper starting...")
+        print(f"Shopee VN Scraper starting — target: {self.target_products} products")
+        print(f"Proxy: {proxy_info}")
         print(f"Mode: {mode}")
         print(f"Batch size: {self.batch_size}, Delay: {self.delay}s")
         print(f"Output: {self.products_outfile}")
         print(f"Categories: {len(CATEGORIES)} verticals")
 
         start = time.time()
+        overall = {"scraped": 0, "ingested": 0, "updated": 0, "failed": 0, "pages": 0}
 
         for cat in CATEGORIES:
-            await self.scrape_category(cat)
+            if self.total_scraped >= self.target_products:
+                break
+            try:
+                counts = await self.scrape_category(cat)
+                for k in overall:
+                    if k in counts:
+                        overall[k] += counts[k]
+            except Exception as e:
+                log.parse_error(None, f"Category scrape failed: {e}")
             await asyncio.sleep(2)
 
         elapsed = time.time() - start
 
-        summary = {
-            "elapsed_seconds": round(elapsed, 1),
-            "total_scraped": self.total_scraped,
-            "total_ingested": self.total_ingested,
-            "total_updated": self.total_updated,
-            "total_failed": self.total_failed,
-            "output_file": self.products_outfile,
-        }
+        print(f"\n=== Overall ===")
+        print(f"Pages: {overall['pages']}")
+        print(f"Scraped: {overall['scraped']}")
+        print(f"Ingested: {overall['ingested']}")
+        print(f"Updated: {overall['updated']}")
+        print(f"Failed: {overall['failed']}")
+        print(f"Total scraped: {self.total_scraped}")
+        print(f"Elapsed: {elapsed:.1f}s")
 
-        print(f"\nScraper complete: {summary}")
-        return summary
+        await self.close()
 
 
-async def main():
+def main():
     parser = argparse.ArgumentParser(description="Shopee VN Scraper")
-    parser.add_argument("--api-key", required=True, help="BuyWhere API key")
+    parser.add_argument("--api-key", default=None, help="BuyWhere API key")
     parser.add_argument(
         "--api-base",
         default="http://localhost:8000",
@@ -341,7 +410,13 @@ async def main():
     parser.add_argument("--batch-size", type=int, default=100)
     parser.add_argument("--delay", type=float, default=1.0, help="Delay between batches (seconds)")
     parser.add_argument("--scrape-only", action="store_true", help="Save to JSONL without ingesting")
+    parser.add_argument("--data-dir", default="/home/paperclip/buywhere-api/data/shopee_vn", help="Output data directory")
+    parser.add_argument("--max-pages", type=int, default=500, help="Max pages per category")
+    parser.add_argument("--target", type=int, default=10000, help="Target number of products")
     args = parser.parse_args()
+
+    if not args.scrape_only and not args.api_key:
+        parser.error("--api-key is required unless --scrape-only is used")
 
     scraper = ShopeeVNScraper(
         api_key=args.api_key,
@@ -349,13 +424,12 @@ async def main():
         batch_size=args.batch_size,
         delay=args.delay,
         scrape_only=args.scrape_only,
+        data_dir=args.data_dir,
+        max_pages_per_category=args.max_pages,
+        target_products=args.target,
     )
-
-    try:
-        await scraper.run()
-    finally:
-        await scraper.close()
+    asyncio.run(scraper.run())
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

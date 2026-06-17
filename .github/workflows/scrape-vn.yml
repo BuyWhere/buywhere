@@ -1,0 +1,99 @@
+name: Scrape Vietnam (Shopee VN / Lazada VN)
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to scrape'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - shopee_vn
+          - lazada_vn
+      target:
+        description: 'Target number of products per platform'
+        required: false
+        default: '10000'
+        type: string
+      scrape_only:
+        description: 'Scrape to JSONL only (no API ingest)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  scrape-vn:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install httpx asyncio-jsonic
+
+      - name: Scrape Shopee VN
+        if: inputs.platform == 'both' || inputs.platform == 'shopee_vn'
+        env:
+          BUYWHERE_API_KEY: ${{ secrets.BUYWHERE_API_KEY }}
+          SHOPEE_VN_BRIGHTDATA_ZONE: ${{ vars.SHOPEE_VN_BRIGHTDATA_ZONE || 'shopee_vn_ul' }}
+          BRIGHTDATA_ZONE_PASSWORD: ${{ secrets.BRIGHTDATA_ZONE_PASSWORD }}
+          BRIGHTDATA_RESIDENTIAL_HOST: ${{ vars.BRIGHTDATA_RESIDENTIAL_HOST || 'brd.superproxy.io' }}
+          BRIGHTDATA_RESIDENTIAL_PORT: ${{ vars.BRIGHTDATA_RESIDENTIAL_PORT || '22225' }}
+        run: |
+          TARGET=${{ inputs.target || '10000' }}
+          SCRAPE_ONLY_FLAG=""
+          if [ "${{ inputs.scrape_only }}" == "true" ]; then
+            SCRAPE_ONLY_FLAG="--scrape-only"
+          fi
+          python -m scrapers.shopee_vn \
+            --api-key "$BUYWHERE_API_KEY" \
+            --target "$TARGET" \
+            --batch-size 100 \
+            --delay 1.0 \
+            $SCRAPE_ONLY_FLAG
+
+      - name: Scrape Lazada VN
+        if: inputs.platform == 'both' || inputs.platform == 'lazada_vn'
+        env:
+          BUYWHERE_API_KEY: ${{ secrets.BUYWHERE_API_KEY }}
+          LAZADA_VN_BRIGHTDATA_ZONE: ${{ vars.LAZADA_VN_BRIGHTDATA_ZONE || 'web_unlocker_vn' }}
+          BRIGHTDATA_ZONE_PASSWORD: ${{ secrets.BRIGHTDATA_ZONE_PASSWORD }}
+          BRIGHTDATA_RESIDENTIAL_HOST: ${{ vars.BRIGHTDATA_RESIDENTIAL_HOST || 'brd.superproxy.io' }}
+          BRIGHTDATA_RESIDENTIAL_PORT: ${{ vars.BRIGHTDATA_RESIDENTIAL_PORT || '22225' }}
+        run: |
+          TARGET=${{ inputs.target || '10000' }}
+          SCRAPE_ONLY_FLAG=""
+          if [ "${{ inputs.scrape_only }}" == "true" ]; then
+            SCRAPE_ONLY_FLAG="--scrape-only"
+          fi
+          python -m scrapers.lazada_vn \
+            --api-key "$BUYWHERE_API_KEY" \
+            --target "$TARGET" \
+            --batch-size 100 \
+            --delay 1.0 \
+            $SCRAPE_ONLY_FLAG
+
+      - name: Upload scraped data artifact
+        if: inputs.scrape_only == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vn-scrape-data
+          path: |
+            data/shopee_vn/products_*.jsonl
+            data/lazada-vn/products_*.jsonl
+          retention-days: 7
