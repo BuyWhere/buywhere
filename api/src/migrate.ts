@@ -255,6 +255,13 @@ CREATE INDEX IF NOT EXISTS idx_query_log_endpoint ON query_log(endpoint);
 -- Composite index for daily aggregation queries
 CREATE INDEX IF NOT EXISTS idx_query_log_daily ON query_log(created_at, is_agent);
 
+-- BUY-52473 [Wave 1/4.1] Extend query_log with returned_product_ids + country_code
+-- Both columns are nullable with no default → metadata-only ALTER, safe under
+-- the 60s DDL kill watcher on maglev. GIN index on returned_product_ids is
+-- deferred until query patterns on the new column are clear.
+ALTER TABLE query_log ADD COLUMN IF NOT EXISTS returned_product_ids bigint[];
+ALTER TABLE query_log ADD COLUMN IF NOT EXISTS country_code        varchar(2);
+
 -- Outbound click tracking (BUY-4869): user-facing /api/click redirect logs
 -- Distinct from affiliate_clicks (affiliate programme tracking via /r/:slug/:productId)
 CREATE TABLE IF NOT EXISTS clicks (

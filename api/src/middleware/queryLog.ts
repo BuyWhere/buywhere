@@ -76,6 +76,57 @@ function extractResultCount(body: unknown, statusCode: number): number | null {
 }
 
 /**
+ * Extract the ordered list of product IDs from a response body.
+ * BUY-52473 [Wave 1/4.1]: same id-space and order as the response `results`
+ * (or `data`) array; index 0 = top result. Returns the raw id values — pg
+ * coerces strings/numbers into bigint[] on the server, which matches the
+ * default int8 type parser behaviour (bigint → string).
+ *
+ * Returns null when the response is an error, the body is malformed, or
+ * the envelope doesn't carry a product array (single product lookups,
+ * /merchants, /categories, price-history, etc.).
+ */
+function extractProductIds(body: unknown, statusCode: number): unknown[] | null {
+  if (statusCode >= 400) return null;
+  if (!body || typeof body !== 'object') return null;
+  const b = body as Record<string, unknown>;
+
+  const arrayKey = Array.isArray(b.results) ? 'results' : Array.isArray(b.data) ? 'data' : null;
+  if (!arrayKey) return null;
+
+  const arr = b[arrayKey] as unknown[];
+  if (!Array.isArray(arr) || arr.length === 0) return [];
+
+  const ids: unknown[] = [];
+  for (const item of arr) {
+    if (item && typeof item === 'object' && 'id' in (item as Record<string, unknown>)) {
+      const id = (item as Record<string, unknown>).id;
+      if (id != null) ids.push(id);
+    }
+  }
+  return ids;
+}
+
+/**
+ * Resolve the country code for a request. Prefer an explicit
+ * `req.countryCode` (set by geo / locale middleware if present), then the
+ * canonical `country_code` query param, then the legacy `country` alias.
+ * Returns the 2-letter code uppercased, or null if absent.
+ */
+function resolveCountryCode(req: Request): string | null {
+  const fromMiddleware = (req as { countryCode?: string }).countryCode;
+  if (typeof fromMiddleware === 'string' && fromMiddleware.length > 0) {
+    return fromMiddleware.toUpperCase();
+  }
+  const fromQuery =
+    (req.query.country_code as string | undefined) || (req.query.country as string | undefined);
+  if (typeof fromQuery === 'string' && fromQuery.length > 0) {
+    return fromQuery.toUpperCase();
+  }
+  return null;
+}
+
+/**
  * Express middleware that logs authenticated API requests to the query_log table.
  * Fire-and-forget — never blocks the response.
  *
@@ -86,11 +137,15 @@ export function queryLogMiddleware(endpoint: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const start = Date.now();
 
-    // Intercept res.json to capture result count from the response body
-    // before it's sent to the client (the finish handler reads res.locals).
+    // Intercept res.json to capture result count + ordered product IDs from
+    // the response body before it's sent to the client (the finish handler
+    // reads res.locals).
     const originalJson = res.json.bind(res);
     res.json = function (body: unknown) {
       res.locals.resultCount = extractResultCount(body, res.statusCode);
+      // BUY-52473: ordered product IDs, same id-space and order as the
+      // response `results` (or `data`) array. Index 0 = top result.
+      res.locals.returnedProductIds = extractProductIds(body, res.statusCode);
       return originalJson(body);
     };
 
@@ -106,12 +161,17 @@ export function queryLogMiddleware(endpoint: string) {
       // Extract query text from common params
       const queryText = (req.query.q as string) || (req.query.ids as string) || null;
 
+      // BUY-52473: country code is 2-letter ISO from req.countryCode
+      // (geo middleware) or the country_code/country query param.
+      const countryCode = resolveCountryCode(req);
+
       db.query(
         `INSERT INTO query_log
           (api_key_id, agent_name, agent_framework, sdk_language, is_agent,
            endpoint, query_text, result_count, response_time_ms,
-           status_code, ip_address, user_agent)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+           status_code, ip_address, user_agent,
+           returned_product_ids, country_code)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
         [
           apiKeyRecord?.id ?? null,
           apiKeyRecord?.agentName ?? null,
@@ -125,6 +185,8 @@ export function queryLogMiddleware(endpoint: string) {
           res.statusCode,
           req.ip || null,
           (req.headers['user-agent'] || '').slice(0, 500),
+          (res.locals.returnedProductIds as unknown[] | null) ?? null,
+          countryCode,
         ]
       ).catch(() => {
         // Fire-and-forget — don't crash on log failure
