@@ -293,7 +293,7 @@ export function createApp() {
 
   // Block all crawlers from api.buywhere.ai — this is an API server, not a content site
   app.get('/robots.txt', (_req, res) => {
-    res.set('Content-Signal', 'ai-train=no, search=no, ai-input=no');
+    res.set('Content-Signal', 'ai-train=no, search=yes, ai-input=yes');
     res.type('text/plain').send(
       [
         'User-agent: *',
