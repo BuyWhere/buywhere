@@ -8,6 +8,8 @@ import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
+import { embedQuery } from '../jobs/embedProducts';
+import { vectorDb } from '../config';
 // BUY-45741: removed imports of '../lib/semanticSearch' (hybridSearchWithAlpha)
 // and '../lib/embeddingCache' (cacheStats) — those modules were never committed
 // in the BUY-45553 merge (aaea1e415), making `main` crash-loop at startup. The
@@ -390,105 +392,208 @@ router.get(
       }
     }
 
-    // BUY-31302: fix broken search from BUY-28677 (countParams/dataParams/buildDataQuery were
-    // never defined, causing ReferenceError → 100% 500 rate).
-    // Use LIMIT-pushdown CTE: rank top CANDIDATE_CAP IDs via GIN index, join full rows for
-    // only those. Eliminates the separate COUNT query that doubled DB load. Over-fetch by 1
-    // to derive has_more without a second scan.
+    // BUY-52089 fix: branch on searchMode — keyword=FTS only, semantic=vector only,
+    // hybrid=RRF blend of FTS+vector. Falls back to keyword FTS if vector infra
+    // is unavailable (vectorDb pool not configured or embedding call fails).
     let dataResult: { rows: Array<Record<string, unknown>> };
     let total: number;
     let hasMore: boolean;
 
-    const dataParams = [...params, limit + 1, offset];
+    const jinaKey = process.env.JINA_API_KEY ?? '';
+    const vectorAvailable = vectorDb != null && jinaKey !== '' && q && searchMode !== 'keyword';
 
-    let dataQuery: string;
-    if (useFtsRanking) {
-      // BUY-32228: kept ts_rank ORDER BY in the CTE. BUY-31540 replaced this with
-      // `ORDER BY id DESC` + outer `ORDER BY products.updated_at DESC`, but on the
-      // partitioned `products` table (products_sg / products_us / products_default,
-      // 4.1M rows total) that combination forces the planner into a Merge Append
-      // across ALL partitions sorted by updated_at before the top_ids filter runs.
-      // Measured 2026-06-06 against prod DB: `laptop&country=US` 1447ms with
-      // id DESC vs 41ms with ts_rank (1.4M row products_us, planner chooses
-      // Bitmap Heap Scan → 200 pkey lookups via Nested Loop). Outer ORDER BY
-      // top_ids.rank DESC is also used here (matches warmSearchCache CTE), so
-      // relevance ranking survives. The 8s statement_timeout guard from
-      // BUY-31228 stays in place as the safety net.
-      dataQuery = `
-        WITH top_ids AS (
-          SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
-          FROM products
-          ${whereClause}
-          ORDER BY rank DESC
-          LIMIT ${CANDIDATE_CAP}
-        )
-        SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
-        FROM top_ids
-        JOIN products ON products.id = top_ids.id
-        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-        ORDER BY top_ids.rank DESC
-        LIMIT $${idx} OFFSET $${idx + 1}
-      `;
-    } else {
-      dataQuery = `
-        SELECT ${joinedColumns}
-        FROM products
-        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-        ${whereClause}
-        ORDER BY ${buildSortOrder()}
-        LIMIT $${idx} OFFSET $${idx + 1}
-      `;
-    }
-
-    const client = await db.connect();
-    try {
-      await client.query('BEGIN');
-      // BUY-45671: cap per-query work_mem and disable *parallel* query under load.
-      //
-      // History: BUY-34291 set `enable_bitmapscan = off` to avoid the
-      // `could not resize shared memory segment ... No space left on device`
-      // (SQLSTATE 53200) error. But disabling bitmap scans entirely makes the
-      // GIN `search_vector` partial index unusable (GIN is only reachable via a
-      // bitmap scan), so the planner fell back to a `products_*_currency_idx`
-      // btree scan + filter — a near-full scan of products_us (~860k rows).
-      // Measured on prod 2026-06-13: `enable_bitmapscan=off` → 35,400ms (504s on
-      // every search); `enable_bitmapscan=on` → 161-267ms via the GIN index.
-      //
-      // The 53200 error came from *parallel* bitmap heap scans: each parallel
-      // worker allocates its bitmap in dynamic shared memory (/dev/shm). A
-      // single-process bitmap heap scan uses work_mem only and never touches
-      // that pool. So we keep bitmap scans on (index usable) but force the
-      // search query to run non-parallel. The 53200 catch below stays as a
-      // belt-and-suspenders 503 fallback.
-      await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
-      await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
-      await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
-      dataResult = await client.query(dataQuery, dataParams);
-      await client.query('COMMIT');
-    } catch (err: unknown) {
-      await client.query('ROLLBACK').catch(() => {});
-      const pgErr = err as { code?: string };
-      if (pgErr.code === '57014') {
-        client.release();
-        res.status(503).json({ error: 'Search query timed out', timeout_ms: SEARCH_STATEMENT_TIMEOUT_MS });
-        return;
+    if (vectorAvailable && (searchMode === 'semantic' || searchMode === 'hybrid')) {
+      // ── Vector path ─────────────────────────────────────────────────────────
+      let queryVec: string | null = null;
+      try {
+        const embedKey = `qembed:${Buffer.from(q).toString('base64').slice(0, 48)}`;
+        queryVec = await redis.get(embedKey).catch(() => null);
+        if (!queryVec) {
+          queryVec = await embedQuery(q, jinaKey);
+          await redis.set(embedKey, queryVec, 'EX', 60).catch(() => {});
+        }
+      } catch (embedErr) {
+        console.warn('[search] embed query failed, falling back to FTS:', (embedErr as Error).message);
       }
-      // BUY-34291: shared_buffers exhaustion (SQLSTATE 53200) under load — return
-      // 503 with retry hint instead of crashing. The query was correct; the DB
-      // is just under memory pressure. Client should retry.
-      if (pgErr.code === '53200' || (typeof (err as Error)?.message === 'string' && (err as Error).message.includes('No space left on device'))) {
+
+      if (queryVec && vectorDb) {
+        let candidateIds: string[];
+
+        if (searchMode === 'semantic') {
+          // Vector-only: top-200 nearest neighbours from vector DB
+          const vecRows = await vectorDb.query<{ product_id: string }>(
+            `SELECT product_id FROM product_embeddings
+             ORDER BY embedding <=> $1::vector LIMIT 200`,
+            [queryVec]
+          );
+          candidateIds = vecRows.rows.map(r => r.product_id).slice(offset, offset + limit);
+          total = vecRows.rows.length;
+        } else {
+          // Hybrid: RRF merge of FTS ranks + vector ranks
+          const [ftsResult, vecResult] = await Promise.all([
+            db.query<{ id: string }>(
+              `SELECT id FROM products ${whereClause} LIMIT 200`,
+              params
+            ),
+            vectorDb.query<{ product_id: string }>(
+              `SELECT product_id FROM product_embeddings
+               ORDER BY embedding <=> $1::vector LIMIT 200`,
+              [queryVec]
+            ),
+          ]);
+          const ftsRank = new Map(ftsResult.rows.map((r, i) => [r.id, i + 1]));
+          const vecRank = new Map(vecResult.rows.map((r, i) => [r.product_id, i + 1]));
+          const allIds = new Set([...ftsRank.keys(), ...vecRank.keys()]);
+          candidateIds = [...allIds]
+            .map(id => ({
+              id,
+              score: (ftsRank.has(id) ? 1 / (60 + ftsRank.get(id)!) : 0) +
+                     (vecRank.has(id) ? 1 / (60 + vecRank.get(id)!) : 0),
+            }))
+            .sort((a, b) => b.score - a.score)
+            .slice(offset, offset + limit)
+            .map(s => s.id);
+          total = allIds.size;
+        }
+
+        // Fetch full product details for the candidate IDs
+        if (candidateIds.length > 0) {
+          const placeholders = candidateIds.map((_, i) => `$${i + 1}`).join(',');
+          const detailResult = await db.query(
+            `SELECT ${joinedColumns}
+             FROM products
+             LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+             WHERE products.id IN (${placeholders})`,
+            candidateIds
+          );
+          // Preserve RRF ordering
+          const rankOrder = new Map(candidateIds.map((id, i) => [id, i]));
+          detailResult.rows.sort((a, b) => (rankOrder.get(a.id as string) ?? 999) - (rankOrder.get(b.id as string) ?? 999));
+          dataResult = { rows: detailResult.rows };
+          hasMore = total > offset + limit;
+        } else {
+          dataResult = { rows: [] };
+          hasMore = false;
+        }
+      } else {
+        // Vector unavailable — fall through to FTS
+        const dataParams = [...params, limit + 1, offset];
+        let dataQuery: string;
+        if (useFtsRanking) {
+          dataQuery = `
+            WITH top_ids AS (
+              SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+              FROM products
+              ${whereClause}
+              ORDER BY rank DESC
+              LIMIT ${CANDIDATE_CAP}
+            )
+            SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
+            FROM top_ids
+            JOIN products ON products.id = top_ids.id
+            LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+            ORDER BY top_ids.rank DESC
+            LIMIT $${idx} OFFSET $${idx + 1}
+          `;
+        } else {
+          dataQuery = `
+            SELECT ${joinedColumns}
+            FROM products
+            LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+            ${whereClause}
+            ORDER BY ${buildSortOrder()}
+            LIMIT $${idx} OFFSET $${idx + 1}
+          `;
+        }
+        const client = await db.connect();
+        try {
+          await client.query('BEGIN');
+          await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
+          await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
+          await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
+          dataResult = await client.query(dataQuery, dataParams);
+          await client.query('COMMIT');
+        } catch (err: unknown) {
+          await client.query('ROLLBACK').catch(() => {});
+          const pgErr = err as { code?: string };
+          if (pgErr.code === '57014') {
+            client.release();
+            res.status(503).json({ error: 'Search query timed out', timeout_ms: SEARCH_STATEMENT_TIMEOUT_MS });
+            return;
+          }
+          if (pgErr.code === '53200' || (typeof (err as Error)?.message === 'string' && (err as Error).message.includes('No space left on device'))) {
+            client.release();
+            res.status(503).json({ error: 'Search temporarily unavailable', reason: 'db_memory_pressure', retry_after_ms: 1000 });
+            return;
+          }
+          client.release();
+          throw err;
+        }
         client.release();
-        res.status(503).json({ error: 'Search temporarily unavailable', reason: 'db_memory_pressure', retry_after_ms: 1000 });
-        return;
+        hasMore = dataResult.rows.length > limit;
+        if (hasMore) dataResult.rows.pop();
+        total = offset + dataResult.rows.length + (hasMore ? 1 : 0);
+      }
+    } else {
+      // ── Keyword / FTS path ───────────────────────────────────────────────────
+      const dataParams = [...params, limit + 1, offset];
+      let dataQuery: string;
+      if (useFtsRanking) {
+        dataQuery = `
+          WITH top_ids AS (
+            SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+            FROM products
+            ${whereClause}
+            ORDER BY rank DESC
+            LIMIT ${CANDIDATE_CAP}
+          )
+          SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
+          FROM top_ids
+          JOIN products ON products.id = top_ids.id
+          LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+          ORDER BY top_ids.rank DESC
+          LIMIT $${idx} OFFSET $${idx + 1}
+        `;
+      } else {
+        dataQuery = `
+          SELECT ${joinedColumns}
+          FROM products
+          LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+          ${whereClause}
+          ORDER BY ${buildSortOrder()}
+          LIMIT $${idx} OFFSET $${idx + 1}
+        `;
+      }
+
+      const client = await db.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
+        await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
+        await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
+        dataResult = await client.query(dataQuery, dataParams);
+        await client.query('COMMIT');
+      } catch (err: unknown) {
+        await client.query('ROLLBACK').catch(() => {});
+        const pgErr = err as { code?: string };
+        if (pgErr.code === '57014') {
+          client.release();
+          res.status(503).json({ error: 'Search query timed out', timeout_ms: SEARCH_STATEMENT_TIMEOUT_MS });
+          return;
+        }
+        if (pgErr.code === '53200' || (typeof (err as Error)?.message === 'string' && (err as Error).message.includes('No space left on device'))) {
+          client.release();
+          res.status(503).json({ error: 'Search temporarily unavailable', reason: 'db_memory_pressure', retry_after_ms: 1000 });
+          return;
+        }
+        client.release();
+        throw err;
       }
       client.release();
-      throw err;
+      hasMore = dataResult.rows.length > limit;
+      if (hasMore) dataResult.rows.pop();
+      total = offset + dataResult.rows.length + (hasMore ? 1 : 0);
     }
-    client.release();
-
-    hasMore = dataResult.rows.length > limit;
-    if (hasMore) dataResult.rows.pop();
-    total = offset + dataResult.rows.length + (hasMore ? 1 : 0);
 
     const responseTimeMs = Date.now() - requestStart;
 
