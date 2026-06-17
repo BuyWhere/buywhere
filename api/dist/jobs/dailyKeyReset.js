@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.runDailyKeyReset = runDailyKeyReset;
+exports.runDailyKeyReset = void 0;
 const config_1 = require("../config");
 async function runDailyKeyReset() {
     const ranAt = new Date();
@@ -13,3 +13,4 @@ async function runDailyKeyReset() {
     console.log(`[daily-key-reset] Reset ${keysReset} API key(s) at ${ranAt.toISOString()}`);
     return { ran_at: ranAt, keys_reset: keysReset };
 }
+exports.runDailyKeyReset = runDailyKeyReset;

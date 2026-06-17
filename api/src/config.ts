@@ -1,12 +1,37 @@
 import { Pool } from 'pg';
 import Redis from 'ioredis';
 
+// BUY-51454: a missing DATABASE_URL used to silently fall back to localhost:5432, which
+// made every deploy crash with `pg-pool ECONNREFUSED 127.0.0.1:5432` from the p95-probe
+// scheduler. Log loudly so the actual root cause (missing Railway Postgres reference) is
+// visible in startup logs instead of masquerading as a code bug. The pool itself is still
+// created — runtime callers (with try/catch) keep working — but the warning is unmissable.
+if (!process.env.DATABASE_URL) {
+  console.error(
+    '[config] FATAL: DATABASE_URL is not set. Falling back to postgresql://localhost:5432/buywhere, ' +
+    'which will fail ECONNREFUSED inside this container. Check the Railway service ' +
+    'reference to Postgres / `maglev`.'
+  );
+}
+
 export const db = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/buywhere',
   max: parseInt(process.env.PG_POOL_MAX || '50'),
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });
+
+// Replica DB pool for read-heavy operations (e.g., embedding pipeline).
+// Explicitly gated by REPLICA_DATABASE_URL so callers can enforce replica-only
+// reads instead of silently falling back to the primary.
+export const replicaDb: Pool | null = process.env.REPLICA_DATABASE_URL
+  ? new Pool({
+      connectionString: process.env.REPLICA_DATABASE_URL,
+      max: parseInt(process.env.PG_POOL_MAX || '20'),
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
+    })
+  : null;
 
 const pgStatementTimeout = parseInt(process.env.PG_STATEMENT_TIMEOUT || '30000');
 const pgLockTimeout = parseInt(process.env.PG_LOCK_TIMEOUT || '2000');

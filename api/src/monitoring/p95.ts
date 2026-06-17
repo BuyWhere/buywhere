@@ -141,12 +141,21 @@ async function recordRawMeasurement(
   responseTimeMs: number,
   statusCode: number
 ): Promise<void> {
-  await db.query(
-    `INSERT INTO monitoring.p95_raw_measurements
-       (market, endpoint, response_time_ms, status_code, measured_at)
-     VALUES ($1, $2, $3, $4, NOW())`,
-    [market, endpoint, responseTimeMs, statusCode]
-  );
+  // BUY-51454: a single transient DB blip (ECONNREFUSED, pool timeout, statement_timeout)
+  // must not become an unhandledRejection that takes down the whole process. Swallow and log;
+  // the probe scheduler's own wrapper (p95ProbeScheduler.recordRawMeasurement) will still
+  // surface the per-market failure for ops visibility.
+  try {
+    await db.query(
+      `INSERT INTO monitoring.p95_raw_measurements
+         (market, endpoint, response_time_ms, status_code, measured_at)
+       VALUES ($1, $2, $3, $4, NOW())`,
+      [market, endpoint, responseTimeMs, statusCode]
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[p95-probe] recordRawMeasurement failed for ${market}:${endpoint}: ${message}`);
+  }
 }
 
 async function timedFetch(url: string, init: RequestInit = {}): Promise<{ statusCode: number; latencyMs: number }> {

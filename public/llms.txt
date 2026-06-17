@@ -3,8 +3,8 @@
 BuyWhere is an agent-native product catalog and price comparison API for AI agents and LLM applications. We provide real-time pricing, availability, and product data from major e-commerce platforms across Southeast Asia and the United States.
 
 ## Catalog Coverage
-- 120,966+ active products
-- 7 major merchants (Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, Carousell)
+- **9.08M+ active products** (verified live at GET /v1/catalog/stats)
+- **14,501+ merchants** across Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, Carousell, and more
 - 2 countries: Singapore (SG) and United States (US)
 - Currencies: SGD, USD
 
@@ -27,7 +27,7 @@ BuyWhere is an agent-native product catalog and price comparison API for AI agen
 - GET /v1/catalog/stats — Aggregate statistics (total products, merchants, countries, recent additions) — unauthenticated
 
 ## MCP Server
-MCP endpoint: https://mcp.buywhere.ai/mcp
+MCP endpoint: https://api.buywhere.ai/mcp
 Authentication: Bearer token (get free key at https://api.buywhere.ai/v1/auth/register)
 
 ### MCP Tools

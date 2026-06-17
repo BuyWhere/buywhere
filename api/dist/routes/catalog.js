@@ -2,31 +2,40 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const config_1 = require("../config");
+const readReplica_1 = require("../lib/readReplica");
+// BUY-45692: heavy catalog aggregates read from the replica when one is
+// configured (REPLICA_DATABASE_URL) and caught up; otherwise readDb() returns
+// the primary `db`. Interactive /v1/products/search stays on the primary.
+// `db` is still used for the cheap pg_class estimates so they're available even
+// before a replica is provisioned, but the expensive scans route through readDb.
 const router = (0, express_1.Router)();
 // ─── Cache constants ───────────────────────────────────────────────────────
 const CACHE_KEY = 'catalog:stats:exact';
 const CACHE_TTL = 900; // 15 min — reduces pressure on exact counts
 const REFRESH_LOCK_KEY = 'catalog:stats:refresh-lock';
 const REFRESH_LOCK_TTL = 120; // 2 min lock to prevent thundering herd
+const CATALOG_STATS_SOURCE_EXACT = 'catalog_stats';
+const CATALOG_STATS_SOURCE_FALLBACK = 'pg_class_fallback';
 // ─── Fast estimate using pg_class + TABLESAMPLE ────────────────────────────
 // BUY-31222: Full COUNT(*) on 32M rows times out at 60s on Railway Postgres.
 // Use pg_class.reltuples for totals, TABLESAMPLE for active ratio,
 // and exact count on the much-smaller merchants table.
 async function collectStats() {
     const now = new Date().toISOString();
+    const reader = (0, readReplica_1.readDb)();
     const [productsEst, merchantsExact, activeRatio,] = await Promise.all([
         // Total products: pg_class.reltuples (instant, no table scan)
-        config_1.db.query(`SELECT reltuples::bigint AS est FROM pg_class WHERE oid = 'public.products'::regclass`)
+        reader.query(`SELECT reltuples::bigint AS est FROM pg_class WHERE oid = 'public.products'::regclass`)
             .then(r => Math.max(Number(r.rows?.[0]?.est || 0), 0))
             .catch(() => 0),
         // Total merchants: exact count (smaller table, completes fast)
-        config_1.db.query(`SELECT count(*) AS cnt FROM merchants`)
+        reader.query(`SELECT count(*) AS cnt FROM merchants`)
             .then(r => Number(r.rows?.[0]?.cnt || 0))
-            .catch(() => config_1.db.query(`SELECT reltuples::bigint AS est FROM pg_class WHERE oid = 'public.merchants'::regclass`)
+            .catch(() => reader.query(`SELECT reltuples::bigint AS est FROM pg_class WHERE oid = 'public.merchants'::regclass`)
             .then(r => Math.max(Number(r.rows?.[0]?.est || 0), 0))
             .catch(() => 0)),
         // Active ratio: TABLESAMPLE BERNOULLI(0.1) — scans ~0.1% of rows
-        config_1.db.query(`
+        reader.query(`
       SELECT
         count(*) AS sample_total,
         count(*) FILTER (WHERE is_active) AS sample_active
@@ -47,13 +56,14 @@ async function collectStats() {
         active_products: activeProducts,
         total_merchants: merchantsExact,
         approximate: true,
-        source: 'pg_class_estimate',
+        source: CATALOG_STATS_SOURCE_FALLBACK,
         collected_at: now,
     };
 }
 // ─── Try exact count (background use, may time out on large tables) ─────
 async function tryExactCount(timeoutMs = 45000) {
-    const client = await config_1.db.connect();
+    // Heavy full-table count — route to the replica when available (BUY-45692).
+    const client = await (0, readReplica_1.readDb)().connect();
     try {
         await client.query('BEGIN');
         await client.query(`SET LOCAL statement_timeout = ${timeoutMs}`);
@@ -72,7 +82,7 @@ async function tryExactCount(timeoutMs = 45000) {
             active_products: Number(row.active_products),
             total_merchants: Number(row.total_merchants),
             approximate: false,
-            source: 'public.products',
+            source: CATALOG_STATS_SOURCE_EXACT,
             collected_at: row.collected_at.toISOString(),
         };
     }
@@ -182,7 +192,7 @@ router.post('/stats/refresh', async (_req, res) => {
                     total_merchants: exact.total_merchants,
                     active_products: exact.active_products,
                 },
-                meta: { approximate: false, source: 'public.products', ts: exact.collected_at },
+                meta: { approximate: false, source: CATALOG_STATS_SOURCE_EXACT, ts: exact.collected_at },
             });
             return;
         }
@@ -231,6 +241,8 @@ router.get('/stats/health', async (_req, res) => {
             active_ratio: stats.total_products > 0
                 ? (stats.active_products / stats.total_products * 100).toFixed(2) + '%'
                 : 'N/A',
+            // BUY-45692: read-replica routing + lag visibility for ops.
+            replica: (0, readReplica_1.replicaStatus)(),
         });
     }
     catch (err) {
@@ -241,7 +253,7 @@ router.get('/stats/health', async (_req, res) => {
 router.get('/categories', async (_req, res) => {
     const start = Date.now();
     try {
-        const result = await config_1.db.query(`SELECT slug, name, product_count FROM mcp_category_summary ORDER BY product_count DESC LIMIT 50`);
+        const result = await (0, readReplica_1.readDb)().query(`SELECT slug, name, product_count FROM mcp_category_summary ORDER BY product_count DESC LIMIT 50`);
         const categories = result.rows.map((row) => ({
             slug: row.slug,
             name: row.name,

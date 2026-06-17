@@ -28,7 +28,7 @@ RUN rm -rf dist && (npx tsc > /tmp/tsc.log 2>&1 || true); cat /tmp/tsc.log; \
 
 RUN npm prune --omit=dev
 
-RUN printf '#!/bin/bash\nexec node --max-old-space-size=450 /app/dist/index.js\n' > /usr/local/bin/paperclipai && chmod +x /usr/local/bin/paperclipai
+RUN printf '#!/bin/bash\nexec node --unhandled-rejections=warn --max-old-space-size=450 /app/dist/index.js\n' > /usr/local/bin/paperclipai && chmod +x /usr/local/bin/paperclipai
 
 RUN mkdir -p /paperclip/instances/default/scripts && \
     printf '#!/bin/bash\necho "[bootstrap] skipped"\n' > /paperclip/instances/default/scripts/bootstrap-secrets.sh && \
@@ -38,4 +38,4 @@ RUN mkdir -p /paperclip/instances/default/scripts && \
 ENV NODE_ENV=production
 EXPOSE 3000
 
-CMD ["node", "--max-old-space-size=450", "dist/index.js"]
+CMD ["node", "--unhandled-rejections=warn", "--max-old-space-size=450", "dist/index.js"]

@@ -3,9 +3,19 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TIER_LIMITS = exports.FREE_TIER = exports.API_BASE_URL = exports.PORT = exports.redis = exports.db = void 0;
+exports.vectorDb = exports.TIER_LIMITS = exports.FREE_TIER = exports.API_BASE_URL = exports.PORT = exports.redis = exports.db = void 0;
 const pg_1 = require("pg");
 const ioredis_1 = __importDefault(require("ioredis"));
+// BUY-51454: a missing DATABASE_URL used to silently fall back to localhost:5432, which
+// made every deploy crash with `pg-pool ECONNREFUSED 127.0.0.1:5432` from the p95-probe
+// scheduler. Log loudly so the actual root cause (missing Railway Postgres reference) is
+// visible in startup logs instead of masquerading as a code bug. The pool itself is still
+// created — runtime callers (with try/catch) keep working — but the warning is unmissable.
+if (!process.env.DATABASE_URL) {
+    console.error('[config] FATAL: DATABASE_URL is not set. Falling back to postgresql://localhost:5432/buywhere, ' +
+        'which will fail ECONNREFUSED inside this container. Check the Railway service ' +
+        'reference to Postgres / `maglev`.');
+}
 exports.db = new pg_1.Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/buywhere',
     max: parseInt(process.env.PG_POOL_MAX || '50'),
@@ -45,7 +55,19 @@ exports.TIER_LIMITS = {
     free: exports.FREE_TIER,
     starter: { rpm: 100, daily: 10000 },
     pro: { rpm: 500, daily: 100000 },
-    unverified: { rpm: 10, daily: 10000 },
+    unverified: { rpm: 20, daily: 1000 },
+    verified_agent: { rpm: 200, daily: 10000 },
     enterprise: { rpm: 1000, daily: 100000 },
+    platform_starter: { rpm: 500, daily: 500000, monthlyCap: 500000, overageRate: 0.002 },
     internal: { rpm: 10000, daily: 999999 },
 };
+// Vector DB pool — separate Railway Postgres with pgvector 0.8 (BUY-41135).
+// Null when VECTOR_DB_URL is unset; consumers must check before using.
+exports.vectorDb = process.env.VECTOR_DB_URL
+    ? new pg_1.Pool({
+        connectionString: process.env.VECTOR_DB_URL,
+        max: 5,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+    })
+    : null;

@@ -3,6 +3,7 @@ import { PRODUCT_TAXONOMY, US_CATEGORY_META } from "@/lib/taxonomy";
 import { getUSProducts, type USProductForSitemap } from "@/lib/us-products";
 import { getSGProducts, type SGProductForSitemap } from "@/lib/sg-products";
 import { toSiteUrl } from "@/lib/site-url";
+import { seoLandingPages } from "@/lib/seo-landing-pages";
 import fs from "node:fs";
 
 function safeGetBlogPosts() {
@@ -255,6 +256,13 @@ export function getStaticSitemapEntries(): SitemapUrlEntry[] {
       url: toSiteUrl(`/blog/${post.slug}`),
       lastModified: new Date(post.publishedAt),
       changeFrequency: "monthly" as const,
+      priority: 0.8,
+    })),
+    // BUY-14269: add all SEO landing pages to sitemap
+    ...Object.keys(seoLandingPages).map((slug) => ({
+      url: toSiteUrl(`/${slug}/`),
+      lastModified: now,
+      changeFrequency: "weekly" as const,
       priority: 0.8,
     })),
   ];

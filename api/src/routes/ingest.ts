@@ -322,21 +322,24 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // Deduplicate by (sku, source) — PostgreSQL rejects ON CONFLICT DO UPDATE
-    // when the same row would be affected twice in a single command.
+    // Deduplicate by (sku, source, country_code) — PostgreSQL rejects ON CONFLICT DO UPDATE
+    // when the same row would be affected twice in a single command. The unique constraint
+    // on products is (sku, source, country_code) (see products_partitioned_sku_source_unique),
+    // so the in-batch dedup key must match.
     {
       const seen = new Set<string>();
       const unique: IngestProductItem[] = [];
       for (const p of validProducts) {
-        if (seen.has(p.sku)) continue;
-        seen.add(p.sku);
+        const key = `${p.sku} ${source} ${p.country_code || ''}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
         unique.push(p);
       }
       if (unique.length < validProducts.length) {
         const dupes = validProducts.length - unique.length;
         validProducts.length = 0;
         validProducts.push(...unique);
-        console.warn(`[ingest] Deduped ${dupes} duplicate sku(s) from ${source} batch`);
+        console.warn(`[ingest] Deduped ${dupes} duplicate (sku,source,country_code) tuple(s) from ${source} batch`);
       }
     }
 
@@ -354,15 +357,27 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
       console.warn('[ingest] Failed to create ingestion run record:', (e as Error).message);
     }
 
-    const skus = validProducts.map(p => p.sku);
-    const existingResult = await withDbRetry(
-      () => db.query(
-      `SELECT sku FROM products WHERE sku = ANY($1::text[]) AND source = $2`,
-        [skus, source]
-      ),
-      'select existing SKUs'
-    );
-    const existingSkus = new Set(existingResult.rows.map((r: { sku: string }) => r.sku));
+    // The unique constraint is (sku, source, country_code), so the pre-existing check
+    // must match — a (sku, source) hit in another country is a different row.
+    const existingSkus = new Set<string>();
+    const skuToId = new Map<string, number>();
+    if (validProducts.length > 0) {
+      const tuples = validProducts
+        .map((p) => `('${p.sku.replace(/'/g, "''")}','${source.replace(/'/g, "''")}','${(p.country_code || '').replace(/'/g, "''")}')`)
+        .join(',');
+      const existingResult = await withDbRetry(
+        () => db.query(
+          `SELECT id, sku, source, country_code FROM products
+             WHERE (sku, source, country_code) IN (${tuples})`,
+        ),
+        'select existing SKUs (sku, source, country_code)'
+      );
+      for (const r of existingResult.rows as { id: number; sku: string; source: string; country_code: string }[]) {
+        const key = `${r.sku} ${r.source} ${r.country_code}`;
+        existingSkus.add(key);
+        skuToId.set(key, r.id);
+      }
+    }
 
     let rowsInserted = 0;
     let rowsUpdated = 0;
@@ -394,7 +409,12 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
           p.brand || null,
           JSON.stringify(metadata),
           p.is_active !== false,
-          p.region || null,
+          // products is partitioned by country_code; the partition's `region`
+          // column is NOT NULL and the column default ('sg') only applies when
+          // the column is omitted from the INSERT. We're listing the column,
+          // so we must supply a value. Default to country_code lowercased,
+          // then 'sg' as the last-resort fallback.
+          p.region || (p.country_code ? p.country_code.toLowerCase() : null) || 'sg',
           p.country_code || null,
         );
 
@@ -409,7 +429,7 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
            (sku, source, merchant_id, title, description, price, currency, url,
             image_url, category_path, brand, metadata, is_active, region, country_code)
          VALUES ${placeholders.join(', ')}
-         ON CONFLICT (sku, source)
+         ON CONFLICT (sku, source, country_code)
          DO UPDATE SET
            title = EXCLUDED.title,
            description = EXCLUDED.description,
@@ -431,7 +451,8 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
       );
 
       for (const p of validProducts) {
-        if (existingSkus.has(p.sku)) {
+        const key = `${p.sku} ${source} ${p.country_code || ''}`;
+        if (existingSkus.has(key)) {
           rowsUpdated++;
         } else {
           rowsInserted++;
@@ -469,15 +490,20 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
 
     const finalResult = await withDbRetry(
       () => db.query(
-      `SELECT id, sku FROM products WHERE sku = ANY($1::text[]) AND source = $2`,
-        [skus, source]
+      `SELECT id, sku, source, country_code FROM products
+         WHERE (sku, source, country_code) IN (${validProducts
+           .map((p) => `('${p.sku.replace(/'/g, "''")}','${source.replace(/'/g, "''")}','${(p.country_code || '').replace(/'/g, "''")}')`)
+           .join(',')})`,
       ),
       'select final product ids'
     );
-    const skuToId = new Map(finalResult.rows.map((r: { id: number; sku: string }) => [r.sku, r.id]));
+    // skuToId was populated by the pre-existing check above; refresh with final IDs
+    for (const r of finalResult.rows as { id: number; sku: string; source: string; country_code: string }[]) {
+      skuToId.set(`${r.sku} ${r.source} ${r.country_code}`, r.id);
+    }
 
     for (const p of validProducts) {
-      const productId = skuToId.get(p.sku);
+      const productId = skuToId.get(`${p.sku} ${source} ${p.country_code || ''}`);
       if (productId) {
         const base = priceHistoryValues.length + 1;
         priceHistoryValues.push(productId, p.price, p.currency || 'SGD', source);

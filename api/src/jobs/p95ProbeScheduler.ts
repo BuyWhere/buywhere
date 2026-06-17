@@ -114,15 +114,24 @@ export function startP95ProbeScheduler(): void {
     initialTimer.unref();
   }
 
+  // BUY-51454: every setInterval callback here awaits async work that touches the DB
+  // pool. Even though the local `recordRawMeasurement` (above) wraps `db.query` in
+  // try/catch, `recordMonitoredEndpointProbeSamples` is the imported p95.ts version which
+  // can still throw (e.g. timedFetch rejection, or a future regression in the p95.ts
+  // wrapper). Wrap each callback's promise in `.catch` so a single bad tick never becomes
+  // an unhandledRejection. The top-level `process.on('unhandledRejection', ...)` guard in
+  // index.ts is the last line of defense; the goal is to never reach it from this module.
+  const swallow = (label: string) => (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[p95-probe] ${label} failed: ${message}`);
+  };
+
   schedulerTimers = [
-    setInterval(() => { void probeHealth(); }, HEALTH_INTERVAL_MS),
-    setInterval(() => { void probeCatalogStats(); }, CATALOG_STATS_INTERVAL_MS),
-    setInterval(() => { void probeMcpListCategories(); }, MCP_LIST_CATEGORIES_INTERVAL_MS),
-    setInterval(() => { void recordMonitoredEndpointProbeSamples(); }, 60_000),
-    setInterval(() => { void refreshRecentP95Windows().catch((error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(`[p95-probe] refresh failed: ${message}`);
-    }); }, 60_000),
+    setInterval(() => { void probeHealth().catch(swallow('probeHealth')); }, HEALTH_INTERVAL_MS),
+    setInterval(() => { void probeCatalogStats().catch(swallow('probeCatalogStats')); }, CATALOG_STATS_INTERVAL_MS),
+    setInterval(() => { void probeMcpListCategories().catch(swallow('probeMcpListCategories')); }, MCP_LIST_CATEGORIES_INTERVAL_MS),
+    setInterval(() => { void recordMonitoredEndpointProbeSamples().catch(swallow('recordMonitoredEndpointProbeSamples')); }, 60_000),
+    setInterval(() => { void refreshRecentP95Windows().catch(swallow('refreshRecentP95Windows')); }, 60_000),
   ];
 
   for (const timer of schedulerTimers) {

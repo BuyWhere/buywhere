@@ -1,8 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.COUNTRY_CURRENCY = exports.CURRENCY_RATES = void 0;
-exports.buildProduct = buildProduct;
-exports.buildSearchResponse = buildSearchResponse;
+exports.buildSearchResponse = exports.buildProduct = exports.COUNTRY_CURRENCY = exports.CURRENCY_RATES = void 0;
 const affiliateWrapper_1 = require("./affiliateWrapper");
 exports.CURRENCY_RATES = {
     USD: 1, SGD: 0.74, VND: 0.000039, THB: 0.028, MYR: 0.22, GBP: 0.79,
@@ -63,6 +61,7 @@ function buildProduct(row, defaultCurrency, compact) {
     }
     return base;
 }
+exports.buildProduct = buildProduct;
 function buildSearchResponse(products, total, limit, offset, responseTimeMs, cached) {
     return {
         results: products,
@@ -72,3 +71,4 @@ function buildSearchResponse(products, total, limit, offset, responseTimeMs, cac
         cached,
     };
 }
+exports.buildSearchResponse = buildSearchResponse;

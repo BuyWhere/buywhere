@@ -1,13 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.StructuredError = exports.ErrorCode = exports.DOC_BASE = void 0;
-exports.buildErrorEnvelope = buildErrorEnvelope;
-exports.buildRateLimitEnvelope = buildRateLimitEnvelope;
-exports.sendError = sendError;
-exports.sendRateLimitError = sendRateLimitError;
-exports.sendSpecError = sendSpecError;
-exports.sendDailyLimitError = sendDailyLimitError;
-exports.sendPerMinuteLimitError = sendPerMinuteLimitError;
+exports.StructuredError = exports.sendPerMinuteLimitError = exports.sendDailyLimitError = exports.sendSpecError = exports.sendRateLimitError = exports.sendError = exports.buildRateLimitEnvelope = exports.buildErrorEnvelope = exports.ErrorCode = exports.DOC_BASE = void 0;
 exports.DOC_BASE = 'https://buywhere.ai/docs/errors';
 exports.ErrorCode = {
     // 400
@@ -102,6 +95,7 @@ function buildErrorEnvelope(code, message, detail) {
         },
     };
 }
+exports.buildErrorEnvelope = buildErrorEnvelope;
 function buildRateLimitEnvelope(retryAfter, limit, remaining, resetAt, message) {
     return {
         ...buildErrorEnvelope(exports.ErrorCode.RATE_LIMIT_EXCEEDED, message),
@@ -113,21 +107,25 @@ function buildRateLimitEnvelope(retryAfter, limit, remaining, resetAt, message) 
         },
     };
 }
+exports.buildRateLimitEnvelope = buildRateLimitEnvelope;
 function sendError(res, code, message, detail, statusCode) {
     const status = statusCode || HTTP_STATUS_MAP[code] || 500;
     res.status(status).json(buildErrorEnvelope(code, message, detail));
 }
+exports.sendError = sendError;
 function sendRateLimitError(res, retryAfter, limit, remaining, message) {
     const resetAt = new Date(Date.now() + retryAfter * 1000).toISOString();
     res.set('Retry-After', String(retryAfter));
     res.status(429).json(buildRateLimitEnvelope(retryAfter, limit, remaining, resetAt, message));
 }
+exports.sendRateLimitError = sendRateLimitError;
 function sendSpecError(res, error, message, statusCode) {
     const body = { error };
     if (message)
         body.message = message;
     res.status(statusCode).json(body);
 }
+exports.sendSpecError = sendSpecError;
 const TIER_UPGRADE = {
     free: { next: 'Starter', price: 29 },
     starter: { next: 'Pro', price: 99 },
@@ -152,6 +150,7 @@ function sendDailyLimitError(res, tier, limit, resetAt) {
         upgrade_url: 'https://buywhere.ai/pricing',
     });
 }
+exports.sendDailyLimitError = sendDailyLimitError;
 function sendPerMinuteLimitError(res, tier, limit) {
     const retryAfter = Math.ceil(60 - (Date.now() % 60000) / 1000);
     res.set('Retry-After', String(retryAfter));
@@ -164,6 +163,7 @@ function sendPerMinuteLimitError(res, tier, limit) {
         upgrade_url: 'https://buywhere.ai/pricing',
     });
 }
+exports.sendPerMinuteLimitError = sendPerMinuteLimitError;
 function capitalize(s) {
     return s.charAt(0).toUpperCase() + s.slice(1);
 }

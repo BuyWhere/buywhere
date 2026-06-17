@@ -10,6 +10,7 @@ const mcpWarmup_1 = require("./lib/mcpWarmup");
 const products_1 = require("./routes/products");
 const p95Runner_1 = require("./jobs/p95Runner");
 const p95ProbeScheduler_1 = require("./jobs/p95ProbeScheduler");
+const diskSpaceRunner_1 = require("./jobs/diskSpaceRunner");
 // Initialize Sentry before anything else so all errors are captured
 (0, sentry_1.initSentry)();
 const app = (0, server_1.createApp)();
@@ -30,6 +31,13 @@ async function start() {
     // BUY-32082: start P95 latency computation job (every 5 min)
     (0, p95Runner_1.startP95Runner)();
     (0, p95ProbeScheduler_1.startP95ProbeScheduler)();
+    // BUY-48801: start disk space monitoring (every 5 min)
+    (0, diskSpaceRunner_1.startDiskSpaceRunner)();
+    // Refresh category materialized views + Redis caches every 5 min so counts stay
+    // current as products are ingested, and the Redis TTL (600s) never expires cold.
+    setInterval(() => {
+        (0, mcpWarmup_1.refreshCategorySummaries)().catch((err) => console.warn('[category-refresh] failed:', err?.message));
+    }, 5 * 60 * 1000);
     return new Promise((resolve) => {
         const server = app.listen(config_1.PORT, () => {
             console.log(`BuyWhere API v1 listening on :${config_1.PORT}`);

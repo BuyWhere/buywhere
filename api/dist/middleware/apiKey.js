@@ -1,8 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.hashKey = hashKey;
-exports.requireApiKey = requireApiKey;
-exports.checkRateLimit = checkRateLimit;
+exports.checkRateLimit = exports.requireApiKey = exports.hashKey = void 0;
 const crypto_1 = require("crypto");
 const http_1 = require("http");
 const https_1 = require("https");
@@ -18,6 +16,7 @@ const JWT_CACHE_TTL_SECONDS = 300;
 function hashKey(rawKey) {
     return (0, crypto_1.createHash)('sha256').update(rawKey).digest('hex');
 }
+exports.hashKey = hashKey;
 function base64UrlDecode(s) {
     const base64 = s.replace(/-/g, '+').replace(/_/g, '/');
     return Buffer.from(base64, 'base64').toString('utf8');
@@ -277,6 +276,7 @@ async function requireApiKey(req, res, next) {
     config_1.db.query('UPDATE api_keys SET daily_request_count = daily_request_count + 1, last_used_at = NOW() WHERE id = $1', [row.id]).catch(() => { });
     next();
 }
+exports.requireApiKey = requireApiKey;
 async function checkRateLimit(req, res, next) {
     if (!req.apiKeyRecord) {
         next();
@@ -303,3 +303,4 @@ async function checkRateLimit(req, res, next) {
     }
     next();
 }
+exports.checkRateLimit = checkRateLimit;

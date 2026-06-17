@@ -820,13 +820,25 @@ async function handleIngestProducts(args: Record<string, unknown>) {
     console.warn('[mcp:ingest] Failed to create ingestion run record:', (e as Error).message);
   }
 
-  // Check existing SKUs
-  const skus = validProducts.map(p => p.sku);
-  const existingResult = await db.query(
-    `SELECT sku FROM products WHERE sku = ANY($1::text[]) AND source = $2`,
-    [skus, normalizedSource]
-  );
-  const existingSkus = new Set(existingResult.rows.map((r: { sku: string }) => r.sku));
+  // Check existing SKUs. The unique constraint is (sku, source, country_code), so
+  // the pre-existing check must match — a (sku, source) hit in another country is a
+  // different row. Use a values join for the composite match.
+  const existingSkus = new Set<string>();
+  const skuToId = new Map<string, number>();
+  if (validProducts.length > 0) {
+    const tuples = validProducts
+      .map((p) => `('${p.sku.replace(/'/g, "''")}','${normalizedSource.replace(/'/g, "''")}','${(p.country_code || '').replace(/'/g, "''")}')`)
+      .join(',');
+    const existingResult = await db.query(
+      `SELECT id, sku, source, country_code FROM products
+         WHERE (sku, source, country_code) IN (${tuples})`
+    );
+    for (const r of existingResult.rows as { id: number; sku: string; source: string; country_code: string }[]) {
+      const key = `${r.sku} ${r.source} ${r.country_code}`;
+      existingSkus.add(key);
+      skuToId.set(key, r.id);
+    }
+  }
 
   let rowsInserted = 0;
   let rowsUpdated = 0;
@@ -859,7 +871,12 @@ async function handleIngestProducts(args: Record<string, unknown>) {
         p.brand || null,
         JSON.stringify(metadata),
         p.is_active !== false,
-        p.region || null,
+        // products is partitioned by country_code; the partition's `region`
+        // column is NOT NULL and the column default ('sg') only applies when
+        // the column is omitted from the INSERT. We're listing the column,
+        // so we must supply a value. Default to country_code lowercased,
+        // then 'sg' as the last-resort fallback.
+        p.region || (p.country_code ? p.country_code.toLowerCase() : null) || 'sg',
         p.country_code || null,
       );
 
@@ -873,7 +890,7 @@ async function handleIngestProducts(args: Record<string, unknown>) {
          (sku, source, merchant_id, title, description, price, currency, url,
           image_url, category_path, brand, metadata, is_active, region, country_code)
        VALUES ${placeholders.join(', ')}
-       ON CONFLICT (sku, source)
+       ON CONFLICT (sku, source, country_code)
        DO UPDATE SET
          title = EXCLUDED.title,
          description = EXCLUDED.description,
@@ -893,7 +910,8 @@ async function handleIngestProducts(args: Record<string, unknown>) {
     );
 
     for (const p of validProducts) {
-      if (existingSkus.has(p.sku)) {
+      const key = `${p.sku} ${normalizedSource} ${p.country_code || ''}`;
+      if (existingSkus.has(key)) {
         rowsUpdated++;
       } else {
         rowsInserted++;
@@ -920,15 +938,19 @@ async function handleIngestProducts(args: Record<string, unknown>) {
 
   // Insert price history
   const finalResult = await db.query(
-    `SELECT id, sku FROM products WHERE sku = ANY($1::text[]) AND source = $2`,
-    [skus, normalizedSource]
+    `SELECT id, sku, source, country_code FROM products
+       WHERE (sku, source, country_code) IN (${validProducts
+         .map((p) => `('${p.sku.replace(/'/g, "''")}','${normalizedSource.replace(/'/g, "''")}','${(p.country_code || '').replace(/'/g, "''")}')`)
+         .join(',')})`
   );
-  const skuToId = new Map(finalResult.rows.map((r: { id: number; sku: string }) => [r.sku, r.id]));
+  for (const r of finalResult.rows as { id: number; sku: string; source: string; country_code: string }[]) {
+    skuToId.set(`${r.sku} ${r.source} ${r.country_code}`, r.id);
+  }
 
   const phValues: unknown[] = [];
   const phPlaceholders: string[] = [];
   for (const p of validProducts) {
-    const productId = skuToId.get(p.sku);
+    const productId = skuToId.get(`${p.sku} ${normalizedSource} ${p.country_code || ''}`);
     if (productId) {
       const base = phValues.length + 1;
       phValues.push(productId, p.price, p.currency || 'SGD', normalizedSource);

@@ -24,7 +24,7 @@ PAPERCLIP_API_URL = os.environ.get("PAPERCLIP_API_URL", "https://paperclip.ai")
 
 async def _verify_paperclip_token_with_api(token: str) -> Optional[dict]:
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=5.0)) as client:
             resp = await client.get(
                 f"{PAPERCLIP_API_URL}/api/agents/me",
                 headers={"Authorization": f"Bearer {token}"},
