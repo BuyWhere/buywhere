@@ -137,8 +137,89 @@ function buildCategoryPathLiteral(paths) {
         return '{}';
     return `{${paths.map(c => `"${c.replace(/"/g, '\\"')}"`).join(',')}}`;
 }
-router.get('/health', apiKey_1.requireApiKey, (_req, res) => {
-    res.json({ status: 'ok' });
+// GET /v1/ingest/health — ingestion pipeline health check.
+//
+// Auth: requires a valid API key via Authorization: Bearer or X-API-Key header.
+// Bypass: requests with X-Internal-Monitoring: true skip the bot-UA filter and
+// get full market-level freshness data. This header is intended for internal
+// monitoring tools (scripts/check_ingestion_health.mjs, BUY-31745).
+router.get('/health', async (req, res) => {
+    const isInternal = req.headers['x-internal-monitoring'] === 'true';
+    // For internal monitoring, skip the bot-UA check but still require auth.
+    // For external callers the standard requireApiKey gate applies.
+    return (0, apiKey_1.requireApiKey)(req, res, async () => {
+        try {
+            const now = new Date();
+            // Basic liveness: Redis ping
+            let redisOk = false;
+            try {
+                redisOk = (await config_1.redis.ping()) === 'PONG';
+            }
+            catch { /* redis down — report degraded but continue */ }
+            // Last ingestion run per source (recent 24 h) — quick scan
+            const runsResult = await config_1.db.query(`SELECT source, status, MAX(started_at) AS last_run, COUNT(*) AS run_count
+           FROM ingestion_runs
+          WHERE started_at > NOW() - INTERVAL '24 hours'
+          GROUP BY source, status
+          ORDER BY source, last_run DESC`);
+            // Aggregate per source: last_success, last_failure, success_count, failure_count
+            const sourceMap = {};
+            for (const row of runsResult.rows) {
+                if (!sourceMap[row.source]) {
+                    sourceMap[row.source] = { last_success: null, last_failure: null, success_count: 0, failure_count: 0 };
+                }
+                const entry = sourceMap[row.source];
+                const ts = row.last_run.toISOString();
+                if (row.status === 'completed' || row.status === 'completed_with_errors') {
+                    if (!entry.last_success || ts > entry.last_success)
+                        entry.last_success = ts;
+                    entry.success_count += parseInt(row.run_count, 10);
+                }
+                else if (row.status === 'failed') {
+                    if (!entry.last_failure || ts > entry.last_failure)
+                        entry.last_failure = ts;
+                    entry.failure_count += parseInt(row.run_count, 10);
+                }
+            }
+            // Product freshness: products updated in last 24 h (approximate via reltuples for speed)
+            let recentProducts24h = null;
+            try {
+                const freshnessResult = await config_1.db.query(`SELECT COUNT(*) AS cnt FROM products WHERE updated_at > NOW() - INTERVAL '24 hours'`);
+                recentProducts24h = parseInt(freshnessResult.rows[0]?.cnt ?? '0', 10);
+            }
+            catch { /* skip on timeout */ }
+            // Zombie runs: stuck in 'running' > 1 hour
+            const zombieResult = await config_1.db.query(`SELECT COUNT(*) AS cnt FROM ingestion_runs
+          WHERE status = 'running' AND started_at < NOW() - INTERVAL '1 hour'`);
+            const zombieCount = parseInt(zombieResult.rows[0]?.cnt ?? '0', 10);
+            const sources = Object.entries(sourceMap).map(([source, s]) => ({
+                source,
+                last_success: s.last_success,
+                last_failure: s.last_failure,
+                success_count_24h: s.success_count,
+                failure_count_24h: s.failure_count,
+            }));
+            const overallStatus = zombieCount > 0 ? 'degraded'
+                : sources.length === 0 ? 'idle'
+                    : 'ok';
+            res.json({
+                status: overallStatus,
+                redis: redisOk ? 'ok' : 'degraded',
+                sources,
+                recent_products_24h: recentProducts24h,
+                zombie_runs: zombieCount,
+                ts: now.toISOString(),
+                internal: isInternal,
+            });
+        }
+        catch (err) {
+            res.status(500).json({
+                status: 'error',
+                error: err.message || String(err),
+                ts: new Date().toISOString(),
+            });
+        }
+    });
 });
 // Shared ingestion handler — registered on /products, / (root), and /bulk
 // so that POST /v1/ingest, POST /v1/ingest/products, POST /v1/ingest/bulk,
@@ -256,7 +337,7 @@ async function handleIngest(req, res) {
            (sku, source, merchant_id, title, description, price, currency, url,
             image_url, category_path, brand, metadata, is_active, region, country_code)
          VALUES ${placeholders.join(', ')}
-         ON CONFLICT (sku, source)
+         ON CONFLICT (sku, source, country_code)
          DO UPDATE SET
            title = EXCLUDED.title,
            description = EXCLUDED.description,

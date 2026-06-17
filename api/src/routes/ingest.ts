@@ -409,7 +409,7 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
            (sku, source, merchant_id, title, description, price, currency, url,
             image_url, category_path, brand, metadata, is_active, region, country_code)
          VALUES ${placeholders.join(', ')}
-         ON CONFLICT (sku, source)
+         ON CONFLICT (sku, source, country_code)
          DO UPDATE SET
            title = EXCLUDED.title,
            description = EXCLUDED.description,
