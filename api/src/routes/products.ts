@@ -6,6 +6,7 @@ import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
+import { getSnapshot as getFxSnapshot, recordConversion as recordFxConversion } from '../lib/fxRates';
 import { buildCompareProductsQuery, UUID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { embedQuery } from '../jobs/embedProducts';
@@ -597,9 +598,30 @@ router.get(
 
     const responseTimeMs = Date.now() - requestStart;
 
+    // BUY-52476: prefer live fx_rates over the static Q1-2026 rates for
+    // normalized_price_usd. Snapshot is cached in-process for ~5min so
+    // we don't query fx_rates on every request. When the snapshot is null
+    // (e.g. fx-refresh hasn't run yet on a fresh deploy), buildProduct
+    // falls back to the static CURRENCY_RATES — zero behaviour change.
+    const fxSnapshot = await getFxSnapshot();
+
     const products = dataResult.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, currency, compact)
+      buildProduct(row as Record<string, unknown>, currency, compact, fxSnapshot)
     );
+
+    // BUY-52476: lazy fx_as_of stamp on the row. Fire-and-forget so we
+    // never block the response. Only writes when the cached fx_as_of is
+    // newer than what's already on the row — first hit per refresh window
+    // writes, every subsequent hit is a no-op until the next 6h refresh.
+    if (fxSnapshot && compact) {
+      const asOf = fxSnapshot.asOf;
+      for (const p of products) {
+        const productCurrency = (p as { price?: { currency?: string } }).price?.currency;
+        if (productCurrency && productCurrency !== 'USD' && typeof p.id === 'string') {
+          void recordFxConversion(p.id, asOf);
+        }
+      }
+    }
 
     // Apply field selection if `fields` param is specified
     let filteredProducts = products;

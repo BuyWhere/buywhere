@@ -368,6 +368,79 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
     let rowsUpdated = 0;
     let rowsFailed = errors.length;
 
+    // BUY-52476 [Wave 1/4.4]: look up merchant.country for every distinct
+    // merchant_id in the batch so we can flag rows where the effective
+    // currency falls back to the products.currency DEFAULT 'SGD' on a
+    // non-SG merchant. Set currency_assumed=TRUE (default policy) or
+    // reject the row (rejected by INGEST_CURRENCY_ASSUMED_POLICY=reject).
+    // The lookup is one query per batch, not per row, so it adds no
+    // measurable latency on hot ingest paths.
+    const merchantIds = Array.from(new Set(validProducts.map(p => p.merchant_id)));
+    const merchantCountryMap = new Map<string, string>();
+    if (merchantIds.length > 0) {
+      try {
+        const merchantResult = await withDbRetry(
+          () => db.query(
+            `SELECT id, country FROM merchants WHERE id = ANY($1::text[])`,
+            [merchantIds]
+          ),
+          'select merchant countries'
+        );
+        for (const r of merchantResult.rows as Array<{ id: string; country: string | null }>) {
+          if (r.country) merchantCountryMap.set(r.id, r.country);
+        }
+      } catch (e) {
+        console.warn(`[ingest] merchant country lookup failed (non-fatal, defaulting to no-assumption): ${(e as Error).message}`);
+      }
+    }
+
+    const ASSUMED_POLICY = (process.env.INGEST_CURRENCY_ASSUMED_POLICY || 'flip').toLowerCase();
+    // 'flip'   — set currency_assumed=TRUE (default, backward-compatible)
+    // 'reject' — fail the row with an error code (strict mode)
+    const productsAfterAssumedCheck: IngestProductItem[] = [];
+    for (let i = 0; i < validProducts.length; i++) {
+      const p = validProducts[i];
+      const merchantCountry = merchantCountryMap.get(p.merchant_id);
+      const currency = p.currency || 'SGD';
+      // The DEFAULT 'SGD' on products.currency kicks in when an ingest job
+      // omits currency entirely. We can't distinguish "intentional SGD" vs
+      // "missing" at the DB layer, but at the ingest boundary we can:
+      //   1) p.currency undefined → falling back to DEFAULT → assumed
+      //   2) p.currency === 'SGD' but merchant country != 'SG' → assumed
+      const isAssumed =
+        (p.currency === undefined && merchantCountry && merchantCountry !== 'SG') ||
+        (currency === 'SGD' && merchantCountry && merchantCountry !== 'SG');
+      if (isAssumed) {
+        if (ASSUMED_POLICY === 'reject') {
+          errors.push({
+            index: i,
+            sku: p.sku,
+            error: `currency 'SGD' assumed for non-SG merchant (country=${merchantCountry})`,
+            code: 'validation_currency_assumed_rejected',
+          });
+          rowsFailed++;
+          continue;
+        }
+        // 'flip' policy: pass through, the INSERT below sets currency_assumed=TRUE.
+      }
+      productsAfterAssumedCheck.push(p);
+    }
+    // Trim validProducts in-place so downstream loops use the filtered list.
+    validProducts.length = 0;
+    validProducts.push(...productsAfterAssumedCheck);
+
+    if (validProducts.length === 0) {
+      res.status(207).json({
+        run_id: null, status: 'failed', rows_inserted: 0, rows_updated: 0,
+        rows_failed: rowsFailed, errors,
+      });
+      return;
+    }
+    // Update `skus` in-place to reflect the post-filter list so the
+    // downstream price-history INSERT and final-id SELECT see the same set.
+    skus.length = 0;
+    for (const p of validProducts) skus.push(p.sku);
+
     try {
       const values: unknown[] = [];
       const placeholders: string[] = [];
@@ -385,10 +458,18 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
         if (p.is_available !== undefined) metadata.is_available = p.is_available;
         if (p.last_checked !== undefined) metadata.last_checked = p.last_checked;
 
+        // BUY-52476: compute currency_assumed per row before binding.
+        // isAssumed was already evaluated in the pre-INSERT check above.
+        const merchantCountry = merchantCountryMap.get(p.merchant_id);
+        const currency = p.currency || 'SGD';
+        const isAssumed =
+          (p.currency === undefined && merchantCountry && merchantCountry !== 'SG') ||
+          (currency === 'SGD' && merchantCountry && merchantCountry !== 'SG');
+
         values.push(
           p.sku, source, p.merchant_id, p.title,
           p.description || null,
-          p.price, p.currency || 'SGD',
+          p.price, currency,
           p.url, p.image_url || null,
           buildCategoryPathLiteral(p.category_path),
           p.brand || null,
@@ -396,10 +477,11 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
           p.is_active !== false,
           p.region || null,
           p.country_code || null,
+          isAssumed,
         );
 
         placeholders.push(
-          `($${base},$${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},$${base + 13},$${base + 14})`
+          `($${base},$${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},$${base + 13},$${base + 14},$${base + 15})`
         );
       }
 
@@ -407,7 +489,8 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
         () => db.query(
         `INSERT INTO products
            (sku, source, merchant_id, title, description, price, currency, url,
-            image_url, category_path, brand, metadata, is_active, region, country_code)
+            image_url, category_path, brand, metadata, is_active, region, country_code,
+            currency_assumed)
          VALUES ${placeholders.join(', ')}
          ON CONFLICT (sku, source, country_code)
          DO UPDATE SET
@@ -424,6 +507,9 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
            is_active = true,
            region = COALESCE(EXCLUDED.region, products.region),
            country_code = COALESCE(EXCLUDED.country_code, products.country_code),
+           -- BUY-52476: re-evaluate currency_assumed on every upsert so the
+           -- flag stays accurate when a merchant's country is corrected.
+           currency_assumed = EXCLUDED.currency_assumed,
            updated_at = NOW()`,
           values
         ),

@@ -9,10 +9,24 @@ export const COUNTRY_CURRENCY: Record<string, string> = {
   SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
 };
 
+/**
+ * Optional FX snapshot passed in from the /v1/products read-path
+ * (BUY-52476). When provided AND has a rate for the product's currency,
+ * buildProduct uses it for normalized_price_usd and stamps fx_as_of onto
+ * the row (lazy audit trail). Otherwise we fall back to the static
+ * CURRENCY_RATES table above — zero behaviour change for callers that
+ * don't opt in.
+ */
+export interface FxSnapshotForResponse {
+  ratesUsd: Record<string, number>; // currency -> 1 c = X USD
+  asOf: Date;
+}
+
 export function buildProduct(
   row: Record<string, unknown>,
   defaultCurrency: string,
   compact: boolean,
+  fxSnapshot?: FxSnapshotForResponse | null,
 ): CanonicalProduct {
   const currency = (row.currency as string) || defaultCurrency;
   const amount = row.price != null ? parseFloat(row.price as string) : null;
@@ -51,11 +65,25 @@ export function buildProduct(
     if (structured_specs.color != null)
       comparison_attributes.push({ key: 'color', label: 'Color', value: structured_specs.color });
 
-    const rate = CURRENCY_RATES[currency] ?? null;
+    // BUY-52476: prefer the live fx_rates snapshot when present; fall back
+    // to the static CURRENCY_RATES (Q1-2026 approximate) for backward compat.
+    const fxRate = fxSnapshot?.ratesUsd[currency];
+    const staticRate = CURRENCY_RATES[currency];
+    const rate = (typeof fxRate === 'number' && Number.isFinite(fxRate) && fxRate > 0)
+      ? fxRate
+      : (staticRate ?? null);
+    const fxAsOf = (typeof fxRate === 'number' && Number.isFinite(fxRate) && fxRate > 0 && fxSnapshot)
+      ? fxSnapshot.asOf.toISOString()
+      : null;
     const normalized_price_usd = amount != null && rate != null ? +(amount * rate).toFixed(4) : null;
 
     base.canonical_id = row.id as string;
     base.normalized_price_usd = normalized_price_usd;
+    // BUY-52476: surface fx provenance in the response so consumers can audit
+    // which fx_rates snapshot was used for the normalized price.
+    if (fxAsOf != null) {
+      (base as unknown as Record<string, unknown>).fx_as_of = fxAsOf;
+    }
     base.structured_specs = structured_specs;
     base.comparison_attributes = comparison_attributes;
   } else {

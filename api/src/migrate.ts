@@ -711,6 +711,43 @@ export async function runMigrations() {
     console.warn(`[migration] P95 monitoring schema failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
+  // BUY-52476 [Wave 1/4.4] FX provenance + explicit currency on api.products
+  // ADDS ONLY. Three additive changes, all idempotent, all metadata-only
+  // on PostgreSQL 11+ so they finish well under the 60s DDL kill watcher
+  // (roundhouse tolerates longer than maglev but we keep migrations brief):
+  //   1) fx_rates table (currency PK, rate_sgd, as_of) — source of truth
+  //      for any currency-conversion audit. Refreshed by routine 'fx-refresh'.
+  //   2) products.fx_as_of TIMESTAMPTZ NULL — populated by the
+  //      /v1/products price-conversion read-path with fx_rates.as_of.
+  //   3) products.currency_assumed BOOLEAN NOT NULL DEFAULT FALSE —
+  //      audit flag for rows whose currency fell back to the column DEFAULT
+  //      'SGD'. The existing DEFAULT 'SGD' on products.currency is left
+  //      intact (per task 4 recommendation: less risk to existing ingest).
+  // A config flag INGEST_CURRENCY_ASSUMED_POLICY controls ingest behaviour
+  // for non-SG merchants inserting currency='SGD': 'flip' (default, set
+  // currency_assumed=TRUE) or 'reject' (fail the row).
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS fx_rates (
+        currency   TEXT          PRIMARY KEY,
+        rate_sgd   NUMERIC(20,8) NOT NULL CHECK (rate_sgd > 0),
+        as_of      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_fx_rates_as_of ON fx_rates (as_of DESC);
+
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS fx_as_of TIMESTAMPTZ;
+      CREATE INDEX IF NOT EXISTS idx_products_fx_as_of_nonnull
+        ON products (fx_as_of DESC) WHERE fx_as_of IS NOT NULL;
+
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS currency_assumed BOOLEAN NOT NULL DEFAULT FALSE;
+      CREATE INDEX IF NOT EXISTS idx_products_currency_assumed_true
+        ON products (currency) WHERE currency_assumed = TRUE;
+    `);
+    console.log('[migration] FX provenance + currency_assumed ensured (BUY-52476).');
+  } catch (err: any) {
+    console.warn(`[migration] FX provenance migration failed (non-fatal): ${err.message?.slice(0, 200)}`);
+  }
+
   console.log('Migrations complete.');
 }
 

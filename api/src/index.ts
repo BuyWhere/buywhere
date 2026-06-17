@@ -8,6 +8,7 @@ import { warmupMcpCaches, refreshCategorySummaries } from './lib/mcpWarmup';
 import { warmSearchCache } from './routes/products';
 import { startP95Runner } from './jobs/p95Runner';
 import { startP95ProbeScheduler, stopP95ProbeScheduler } from './jobs/p95ProbeScheduler';
+import { startFxRefreshScheduler, stopFxRefreshScheduler } from './jobs/fxRefreshScheduler';
 
 // Initialize Sentry before anything else so all errors are captured
 initSentry();
@@ -32,6 +33,11 @@ async function start() {
   // BUY-32082: start P95 latency computation job (every 5 min)
   startP95Runner();
   startP95ProbeScheduler();
+
+  // BUY-52476 [Wave 1/4.4]: refresh fx_rates every 6h (frankfurter.app,
+  // free + keyless). In-process scheduler; Paperclip routine 'fx-refresh'
+  // is registered separately as a backup/observability trigger.
+  startFxRefreshScheduler();
 
   // Refresh category materialized views + Redis caches every 5 min so counts stay
   // current as products are ingested, and the Redis TTL (600s) never expires cold.
@@ -64,6 +70,7 @@ const shutdown = async () => {
   console.log('Shutting down...');
   await shutdownPostHog();
   stopP95ProbeScheduler();
+  stopFxRefreshScheduler();
   if (server) server.close(() => process.exit(0));
   else process.exit(0);
 };
