@@ -165,6 +165,9 @@ export function queryLogMiddleware(endpoint: string) {
       // (geo middleware) or the country_code/country query param.
       const countryCode = resolveCountryCode(req);
 
+      // BUY-52473 debug: confirm middleware fires
+      console.log(`[queryLog:${endpoint}] finish fired, resultCount=${res.locals.resultCount} returnedIds=${(res.locals.returnedProductIds as unknown[] | null)?.length ?? 'null'} country=${countryCode} status=${res.statusCode}`);
+
       db.query(
         `INSERT INTO query_log
           (api_key_id, agent_name, agent_framework, sdk_language, is_agent,
@@ -188,8 +191,11 @@ export function queryLogMiddleware(endpoint: string) {
           (res.locals.returnedProductIds as unknown[] | null) ?? null,
           countryCode,
         ]
-      ).catch(() => {
-        // Fire-and-forget — don't crash on log failure
+      ).then(() => {
+        console.log(`[queryLog:${endpoint}] INSERT ok`);
+      }).catch((err: unknown) => {
+        // BUY-52473 debug: surface the error
+        console.error(`[queryLog:${endpoint}] INSERT failed:`, (err as Error)?.message?.slice(0, 200));
       });
 
       // BUY-22733: source-of-truth usage telemetry to PostHog.
