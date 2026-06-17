@@ -30,6 +30,8 @@ function homepageMarkdown(base: string, locale: 'en_SG' | 'en_US'): string {
 
 **Region:** ${regionLabel} | **Currency:** ${isSG ? 'SGD' : 'USD'}
 
+**Get your free API key in 60 seconds → https://buywhere.ai/api-keys**
+
 ## What is BuyWhere?
 
 BuyWhere is a structured product catalog and price comparison API for AI agents. Real-time pricing and availability from ${regionMerchants}.
