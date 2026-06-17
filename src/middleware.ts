@@ -205,10 +205,10 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
   }
 
   if (normalizedPath === "/docs/launch-day-runbook" || normalizedPath === "/docs/launch/launch-day-runbook") {
-    return "/docs/launch-runbook";
+    return "__GONE__";
   }
 
-  if (normalizedPath === "/docs/quickstart" || normalizedPath === "/docs/getting-started") {
+  if (normalizedPath === "/docs/quickstart") {
     return "/quickstart";
   }
 
@@ -217,7 +217,7 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
   }
 
   if (normalizedPath === "/docs/guides/rate-limits") {
-    return "/docs/rate-limits";
+    return "__GONE__";
   }
 
   if (normalizedPath.startsWith("/docs/blog/posts/")) {
