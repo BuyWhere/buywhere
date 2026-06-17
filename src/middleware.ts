@@ -189,6 +189,14 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
     return "/blog";
   }
 
+  if (normalizedPath === "/guides" || normalizedPath.startsWith("/guides/")) {
+    return "/docs";
+  }
+
+  if (normalizedPath === "/api-reference" || normalizedPath.startsWith("/api-reference/")) {
+    return "/docs";
+  }
+
   if (normalizedPath.startsWith("/blog/")) {
     const slug = normalizedPath.slice("/blog/".length);
     if (!slug) {
@@ -288,7 +296,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/api/") ||
     pathname.startsWith("/assets/") ||
-    pathname.includes(".") ||
+    (pathname.includes(".") && !pathname.startsWith("/docs")) ||
     pathname === "/.well-known/"
   ) {
     return NextResponse.next();
