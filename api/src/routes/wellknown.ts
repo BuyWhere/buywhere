@@ -127,6 +127,13 @@ router.get('/api-catalog', (_req: Request, res: Response) => {
       health: `${API_BASE_URL}/health`,
       docs: `${API_BASE_URL}/docs/guides/mcp`,
     },
+    auth: {
+      type: 'api_key',
+      header: 'Authorization: Bearer',
+      obtain_at: 'https://buywhere.ai/api-keys',
+      free: true,
+    },
+    signup_cta: 'Get your free API key in 60 seconds → https://buywhere.ai/api-keys',
     updated_at: new Date().toISOString(),
   });
 });
