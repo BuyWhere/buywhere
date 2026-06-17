@@ -57,12 +57,13 @@ function shiftSqlPlaceholders(sql: string, offset: number): string {
   return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
 }
 
-async function getCachedQueryEmbedding(query: string, jinaKey: string): Promise<string | null> {
+async function getCachedQueryEmbedding(query: string, geminiKey: string): Promise<string | null> {
   try {
     const embedKey = `qembed:${Buffer.from(query).toString('base64').slice(0, 48)}`;
     const cached = await redis.get(embedKey).catch(() => null);
     if (cached) return cached;
-    const vector = await embedQuery(query, jinaKey);
+    // BUY-52466: switched from Jina to Google gemini-embedding-001 (512-dim).
+    const vector = await embedQuery(query, geminiKey);
     await redis.set(embedKey, vector, 'EX', 60).catch(() => {});
     return vector;
   } catch (err) {
@@ -492,13 +493,13 @@ router.get(
       await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
       await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
       await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
-      const jinaKey = process.env.JINA_API_KEY ?? '';
-      const activeVectorDb = q !== '' && searchMode !== 'keyword' && vectorDb != null && jinaKey !== ''
+      const geminiKey = process.env.GEMINI_API_KEY ?? '';
+      const activeVectorDb = q !== '' && searchMode !== 'keyword' && vectorDb != null && geminiKey !== ''
         ? vectorDb
         : null;
 
       if (activeVectorDb) {
-        const queryVector = await getCachedQueryEmbedding(q, jinaKey);
+        const queryVector = await getCachedQueryEmbedding(q, geminiKey);
         if (queryVector) {
           const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
           const semanticCandidates = await activeVectorDb.query<{ product_id: string }>(

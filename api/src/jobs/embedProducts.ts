@@ -1,12 +1,23 @@
 import { Pool } from 'pg';
 import { createHash } from 'crypto';
 
-// Cohere API configuration per BUY-41133 spec
-const COHERE_API_URL = 'https://api.cohere.ai/v1/embed';
-const COHERE_MODEL   = 'embed-multilingual-v3.0';
-const EMBED_DIM    = 1024;  // Cohere embed-multilingual-v3.0 outputs 1024-dim vectors
-const BATCH_SIZE   = 64;   // BUY-41133 requirement: batch size 64 per API call
-const MAX_TEXT_CHARS = 4000; // ~1000 tokens, safe for Cohere 2048-token input limit
+// BUY-52466: switch query + embed-worker paths from Cohere/Jina to Google
+// Gemini `gemini-embedding-001` with `outputDimensionality=512`. Direction
+// per Rich (comment f5773f92 on BUY-52089): the Jina key is INVALID and the
+// previous Cohere spec (BUY-51459) is obsolete. This module is the single
+// call site for both:
+//   - query side:  `embedQuery(q, geminiKey)`  → taskType=RETRIEVAL_QUERY
+//   - index side:  `runEmbedBatch(...)`        → taskType=RETRIEVAL_DOCUMENT
+//
+// The function signatures still take a single `apiKey: string` so callers
+// (routes/products.ts, routes/mcp.ts, jobs/embedRunner.ts) only need to
+// change which env var they read.
+
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001';
+const MODEL_VER      = 'gemini-embedding-001@512';
+const EMBED_DIM      = 512;   // outputDimensionality
+const BATCH_SIZE     = 64;    // BUY-41133 requirement: batch size 64 per API call
+const MAX_TEXT_CHARS = 8000;  // gemini-embedding-001 input limit is 2k tokens; ~8k chars safe
 
 export interface EmbedSummary {
   processed: number;
@@ -24,27 +35,61 @@ function truncate(text: string): string {
   return text.length > MAX_TEXT_CHARS ? text.slice(0, MAX_TEXT_CHARS) : text;
 }
 
-async function fetchEmbeddings(texts: string[], cohereKey: string): Promise<number[][]> {
-  const res = await fetch(COHERE_API_URL, {
+/**
+ * Embed a batch of index-side texts (taskType=RETRIEVAL_DOCUMENT).
+ * Uses `batchEmbedContents` so we send a single POST for up to BATCH_SIZE
+ * products — fewer round-trips than per-text `embedContents` calls.
+ *
+ * Gemini auth: the API key is passed as the `key` query parameter
+ * (Google's documented pattern for the Generative Language API).
+ */
+async function fetchDocumentEmbeddings(texts: string[], apiKey: string): Promise<number[][]> {
+  const url = `${GEMINI_API_URL}:batchEmbedContents?key=${encodeURIComponent(apiKey)}`;
+  const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${cohereKey}`,
-      'Content-Type': 'application/json',
-      'X-Client-Name': 'buywhere',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: COHERE_MODEL,
-      input_type: 'search_document', // BUY-41133 spec: use search_document for indexing
-      embedding_types: ['float'],
-      input: texts,
+      requests: texts.map((text) => ({
+        model: 'models/gemini-embedding-001',
+        content: { parts: [{ text: truncate(text) }] },
+        taskType: 'RETRIEVAL_DOCUMENT',
+        outputDimensionality: EMBED_DIM,
+      })),
     }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Cohere API ${res.status}: ${body}`);
+    throw new Error(`Gemini API ${res.status}: ${body}`);
   }
-  const data = await res.json() as { embeddings: number[][] };
-  return data.embeddings;
+  const data = await res.json() as { embeddings: Array<{ values: number[] }> };
+  return data.embeddings.map((e) => e.values);
+}
+
+/**
+ * Embed a single query text (taskType=RETRIEVAL_QUERY). Returns a vector
+ * string suitable for pgvector's `<=>` cosine-distance operator.
+ *
+ * Single-text path — Gemini `embedContents` is the documented shape for
+ * one input. We still set outputDimensionality=512 to match the index.
+ */
+async function fetchQueryEmbedding(text: string, apiKey: string): Promise<number[]> {
+  const url = `${GEMINI_API_URL}:embedContent?key=${encodeURIComponent(apiKey)}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'models/gemini-embedding-001',
+      content: { parts: [{ text: truncate(text) }] },
+      taskType: 'RETRIEVAL_QUERY',
+      outputDimensionality: EMBED_DIM,
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Gemini API ${res.status}: ${body}`);
+  }
+  const data = await res.json() as { embedding: { values: number[] } };
+  return data.embedding.values;
 }
 
 /**
@@ -57,21 +102,18 @@ async function fetchEmbeddings(texts: string[], cohereKey: string): Promise<numb
  * Priority: highest-value (price DESC) products are embedded first, so the most
  * commercially relevant embeddings are always fresh.
  *
- * Per BUY-41133: Uses Cohere embed-multilingual-v3.0 with 1024-dim vectors,
- * batch size 64, and should read from replica only.
+ * Per BUY-52466: Uses Google gemini-embedding-001 with 512-dim vectors,
+ * taskType=RETRIEVAL_DOCUMENT, batch size 64.
  */
 export async function runEmbedBatch(
   sourceDb: Pool,
   vectorDb: Pool,
-  cohereKey: string,
-  batchLimit = 64, // BUY-41133 default: 64 products per run
+  apiKey:  string,
+  batchLimit = 64,
 ): Promise<EmbedSummary> {
   const t0 = Date.now();
   let processed = 0, skipped = 0, errors = 0;
 
-  // Pull products that need embedding: new or text-changed.
-  // Note: sourceDb should be a replica connection (set up in embedRunner.ts)
-  // to ensure replica-only reads per BUY-41133.
   const { rows: products } = await sourceDb.query<{
     id: string;
     title: string;
@@ -104,9 +146,17 @@ export async function runEmbedBatch(
 
     let embeddings: number[][];
     try {
-      embeddings = await fetchEmbeddings(texts, cohereKey);
+      embeddings = await fetchDocumentEmbeddings(texts, apiKey);
     } catch (err) {
-      console.error(`[embed] Cohere API error on batch ${Math.floor(i / BATCH_SIZE) + 1}:`, err);
+      console.error(`[embed] Gemini API error on batch ${Math.floor(i / BATCH_SIZE) + 1}:`, err);
+      errors += batch.length;
+      continue;
+    }
+
+    if (embeddings.length !== batch.length) {
+      console.error(
+        `[embed] Gemini returned ${embeddings.length} vectors for batch of ${batch.length} — skipping`
+      );
       errors += batch.length;
       continue;
     }
@@ -125,7 +175,7 @@ export async function runEmbedBatch(
                  model_ver   = EXCLUDED.model_ver,
                  embedded_at = now()
            WHERE product_embeddings.text_hash != EXCLUDED.text_hash`,
-          [batch[j].id, vectorStr, hashes[j], COHERE_MODEL]
+          [batch[j].id, vectorStr, hashes[j], MODEL_VER]
         );
       }
       await client.query('COMMIT');
@@ -151,28 +201,12 @@ export async function runEmbedBatch(
 }
 
 /**
- * Embed a single query text for search-time use.
+ * Embed a single query text for search-time use (taskType=RETRIEVAL_QUERY).
  * Returns a vector string suitable for pgvector (<=> operator).
+ *
+ * BUY-52466: switched from Cohere/Jina to Google gemini-embedding-001.
  */
-export async function embedQuery(query: string, cohereKey: string): Promise<string> {
-  const res = await fetch(COHERE_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${cohereKey}`,
-      'Content-Type': 'application/json',
-      'X-Client-Name': 'buywhere',
-    },
-    body: JSON.stringify({
-      model: COHERE_MODEL,
-      input_type: 'search_query', // Use search_query for query-time embedding
-      embedding_types: ['float'],
-      input: [truncate(query)],
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Cohere API ${res.status}: ${body}`);
-  }
-  const data = await res.json() as { embeddings: number[][] };
-  return `[${data.embeddings[0].join(',')}]`;
+export async function embedQuery(query: string, apiKey: string): Promise<string> {
+  const values = await fetchQueryEmbedding(query, apiKey);
+  return `[${values.join(',')}]`;
 }
