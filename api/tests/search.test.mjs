@@ -6,6 +6,8 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
 const queryMock = mock.fn();
+const vectorQueryMock = mock.fn();
+const embedQueryMock = mock.fn(() => Promise.resolve('[0.1,0.2,0.3]'));
 const redisGetMock = mock.fn(() => Promise.resolve(null));
 const redisSetMock = mock.fn(() => Promise.resolve('OK'));
 const redisIncrMock = mock.fn(() => Promise.resolve(1));
@@ -14,6 +16,7 @@ const redisOnMock = mock.fn();
 
 // Direct config mocking — mock.module() unavailable in CI's Node version
 const config = require('../dist/config');
+const embedProducts = require('../dist/jobs/embedProducts');
 const mockClient = { query: queryMock, release: () => {} };
 config.db.query = queryMock;
 config.db.connect = () => Promise.resolve(mockClient);
@@ -24,6 +27,8 @@ config.redis.incr = redisIncrMock;
 config.redis.expire = redisExpireMock;
 config.redis.on = redisOnMock;
 config.redis.disconnect = () => {};
+config.vectorDb = null;
+embedProducts.embedQuery = embedQueryMock;
 
 function makeProduct(id, overrides = {}) {
   return {
@@ -56,9 +61,15 @@ function defaultQueryHandler(sql, params) {
 
 function setupDefaultMocks() {
   queryMock.mock.resetCalls();
+  vectorQueryMock.mock.resetCalls();
+  embedQueryMock.mock.resetCalls();
   redisGetMock.mock.resetCalls();
   redisSetMock.mock.resetCalls();
   queryMock.mock.mockImplementation(defaultQueryHandler);
+  vectorQueryMock.mock.mockImplementation(() => Promise.resolve({ rows: [] }));
+  embedQueryMock.mock.mockImplementation(() => Promise.resolve('[0.1,0.2,0.3]'));
+  config.vectorDb = null;
+  delete process.env.JINA_API_KEY;
 }
 
 describe('NL search queries — response correctness', () => {
@@ -136,11 +147,13 @@ describe('NL search queries — response correctness', () => {
     });
     assert.equal(res.status, 200);
 
-    const countQueryCall = queryMock.mock.calls.find(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('COUNT') && c.arguments[0].includes('country_code')
+    const filteredQueryCall = queryMock.mock.calls.find(
+      c => typeof c.arguments[0] === 'string' &&
+        c.arguments[0].includes('country_code = $') &&
+        Array.isArray(c.arguments[1]) &&
+        c.arguments[1].includes('SG')
     );
-    assert.ok(countQueryCall, 'Expected country_code filter in count query');
-    assert.ok(countQueryCall.arguments[0].includes(`country_code = $`));
+    assert.ok(filteredQueryCall, 'Expected SG country filter in search query');
   });
 
   it('accepts country_code=US to override default SG', async () => {
@@ -172,12 +185,12 @@ describe('NL search queries — response correctness', () => {
     });
     assert.equal(res.status, 200);
 
-    const countCall = queryMock.mock.calls.find(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('COUNT')
+    const filteredCall = queryMock.mock.calls.find(
+      c => typeof c.arguments[0] === 'string' &&
+        c.arguments[0].includes('price >=') &&
+        c.arguments[0].includes('price <=')
     );
-    assert.ok(countCall);
-    assert.ok(countCall.arguments[0].includes('price >='));
-    assert.ok(countCall.arguments[0].includes('price <='));
+    assert.ok(filteredCall);
   });
 
   it('handles empty query (filter-only search)', async () => {
@@ -309,11 +322,13 @@ describe('NL search queries — response correctness', () => {
     });
     assert.equal(res.status, 200);
 
-    const countCall = queryMock.mock.calls.find(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('COUNT')
+    const filteredCall = queryMock.mock.calls.find(
+      c => typeof c.arguments[0] === 'string' &&
+        c.arguments[0].includes('source =') &&
+        Array.isArray(c.arguments[1]) &&
+        c.arguments[1].includes('amazon_us')
     );
-    assert.ok(countCall);
-    assert.ok(countCall.arguments[0].includes('source ='));
+    assert.ok(filteredCall);
   });
 
   it('preserves backward-compat `country` param alias', async () => {
@@ -336,7 +351,15 @@ describe('NL search queries — response correctness', () => {
     });
     const body = await res.json();
     assert.equal(res.status, 200);
-    assert.equal(body.total, 2);
+    assert.equal(body.results[0].country_code, 'MY');
+
+    const filteredCall = queryMock.mock.calls.find(
+      c => typeof c.arguments[0] === 'string' &&
+        c.arguments[0].includes('country_code = $') &&
+        Array.isArray(c.arguments[1]) &&
+        c.arguments[1].includes('MY')
+    );
+    assert.ok(filteredCall);
   });
 
   it('region filter overrides default SG country', async () => {
@@ -345,11 +368,14 @@ describe('NL search queries — response correctness', () => {
     });
     assert.equal(res.status, 200);
 
-    const countCall = queryMock.mock.calls.find(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('COUNT')
+    const filteredCall = queryMock.mock.calls.find(
+      c => typeof c.arguments[0] === 'string' &&
+        c.arguments[0].includes('region =') &&
+        !c.arguments[0].includes('country_code = $') &&
+        Array.isArray(c.arguments[1]) &&
+        c.arguments[1].includes('US')
     );
-    assert.ok(countCall);
-    assert.ok(countCall.arguments[0].includes('region ='));
+    assert.ok(filteredCall);
   });
 
   it('uses small-result-set ordering (ts_rank) when approxCount <= 1000', async () => {
@@ -380,7 +406,7 @@ describe('NL search queries — response correctness', () => {
     assert.ok(!dataCall.arguments[0].includes('_candidates'));
   });
 
-  it('uses candidate-limit path when approxCount > 1000', async () => {
+  it('keeps ts_rank relevance ordering even when the result set is large', async () => {
     queryMock.mock.mockImplementation((sql) => {
       if (typeof sql === 'string' && sql.includes('api_keys')) {
         return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
@@ -402,9 +428,99 @@ describe('NL search queries — response correctness', () => {
     assert.equal(res.status, 200);
 
     const dataCall = queryMock.mock.calls.find(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('_candidates')
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('ORDER BY top_ids.rank DESC')
     );
-    assert.ok(dataCall, 'Expected candidate-limit subquery (large result set path)');
+    assert.ok(dataCall, 'Expected live route to keep ts_rank ordering');
+  });
+
+  it('uses vector search for semantic mode when vector infra is available', async () => {
+    process.env.JINA_API_KEY = 'test-jina-key';
+    config.vectorDb = { query: vectorQueryMock };
+    vectorQueryMock.mock.mockImplementation(() => Promise.resolve({
+      rows: [{ product_id: '2' }, { product_id: '1' }],
+    }));
+    queryMock.mock.mockImplementation((sql) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (typeof sql === 'string' && sql.includes('WHERE id = ANY($1::uuid[]) AND')) {
+        return Promise.resolve({ rows: [{ id: '2' }, { id: '1' }] });
+      }
+      if (typeof sql === 'string' && sql.includes('WHERE products.id = ANY($1::uuid[])')) {
+        return Promise.resolve({
+          rows: [
+            makeProduct('1', { title: 'Gaming Laptop', price: 1299 }),
+            makeProduct('2', { title: 'Office Laptop', price: 899 }),
+          ],
+        });
+      }
+      return defaultQueryHandler(sql);
+    });
+
+    const res = await fetch(`http://localhost:${port}/v1/products/search?q=laptop&mode=semantic`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+    const body = await res.json();
+
+    assert.equal(res.status, 200);
+    assert.equal(embedQueryMock.mock.calls.length, 1);
+    assert.equal(vectorQueryMock.mock.calls.length, 1);
+    assert.deepEqual(body.results.map((product) => product.id), ['2', '1']);
+
+    const ftsRankingCall = queryMock.mock.calls.find(
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('ORDER BY ts_rank')
+    );
+    assert.equal(ftsRankingCall, undefined);
+  });
+
+  it('uses RRF merge for hybrid mode when vector infra is available', async () => {
+    process.env.JINA_API_KEY = 'test-jina-key';
+    config.vectorDb = { query: vectorQueryMock };
+    vectorQueryMock.mock.mockImplementation(() => Promise.resolve({
+      rows: [{ product_id: '2' }, { product_id: '3' }],
+    }));
+    queryMock.mock.mockImplementation((sql) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (typeof sql === 'string' && sql.includes('WHERE id = ANY($1::uuid[]) AND')) {
+        return Promise.resolve({ rows: [{ id: '2' }, { id: '3' }] });
+      }
+      if (typeof sql === 'string' && sql.includes('ORDER BY ts_rank(search_vector')) {
+        return Promise.resolve({ rows: [{ id: '1' }, { id: '2' }] });
+      }
+      if (typeof sql === 'string' && sql.includes('WHERE products.id = ANY($1::uuid[])')) {
+        return Promise.resolve({
+          rows: [
+            makeProduct('1', { title: 'Gaming Laptop', price: 1299 }),
+            makeProduct('2', { title: 'Office Laptop', price: 899 }),
+            makeProduct('3', { title: 'Ultrabook', price: 1499 }),
+          ],
+        });
+      }
+      return defaultQueryHandler(sql);
+    });
+
+    const res = await fetch(`http://localhost:${port}/v1/products/search?q=laptop&mode=hybrid`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+    const body = await res.json();
+
+    assert.equal(res.status, 200);
+    assert.equal(embedQueryMock.mock.calls.length, 1);
+    assert.equal(vectorQueryMock.mock.calls.length, 1);
+    assert.deepEqual(body.results.map((product) => product.id).slice(0, 3), ['2', '1', '3']);
+
+    const ftsRankingCall = queryMock.mock.calls.find(
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('ORDER BY ts_rank(search_vector')
+    );
+    assert.ok(ftsRankingCall, 'Expected hybrid mode to query FTS candidates for RRF');
   });
 });
 
@@ -523,7 +639,7 @@ describe('NL search — Redis caching behavior', () => {
     );
     assert.ok(cacheSetCalls.length >= 1, 'Expected Redis cache set for query');
     assert.equal(cacheSetCalls[0].arguments[2], 'EX');
-    assert.equal(cacheSetCalls[0].arguments[3], 60);
+    assert.equal(cacheSetCalls[0].arguments[3], 3600);
   });
 
   it('uses correct cache key format', async () => {

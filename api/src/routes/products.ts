@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { db, redis } from '../config';
+import { db, redis, vectorDb } from '../config';
 import { readDb } from '../lib/readReplica';
 import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
@@ -8,11 +8,7 @@ import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
-// BUY-45741: removed imports of '../lib/semanticSearch' (hybridSearchWithAlpha)
-// and '../lib/embeddingCache' (cacheStats) — those modules were never committed
-// in the BUY-45553 merge (aaea1e415), making `main` crash-loop at startup. The
-// POST /v1/products/search/hybrid route that used them is removed below until the
-// modules land (BUY-41134). See BUY-45741.
+import { embedQuery } from '../jobs/embedProducts';
 
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
@@ -26,15 +22,13 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 const SEARCH_STATEMENT_TIMEOUT_MS = 15000;
 const SEARCH_HANDLER_TIMEOUT_MS = 15000;
 
-// BUY-41572: public /v1/products/search mode routing. The MCP tool (BUY-41138)
-// ships keyword|semantic|hybrid against the Jina v3 vector pool + RRF. The
-// public REST API has not yet been wired to the vector pool, so for now all
-// three modes route through the FTS path. `mode` is accepted (and surfaced in
-// the public OpenAPI) so external clients can opt in once the public path is
-// built; until then the response includes `_mode: 'keyword' | 'hybrid' | 'semantic'`
-// to make the fallback explicit. The vector-path is tracked as a follow-up.
+// BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
+// using the same Jina + pgvector stack as the MCP tool. If vector infra is
+// unavailable, semantic/hybrid requests fall back to the keyword path.
 const VALID_SEARCH_MODES = new Set(['keyword', 'semantic', 'hybrid']);
 const DEFAULT_SEARCH_MODE = 'keyword';
+const VECTOR_CANDIDATE_CAP = 1000;
+const HYBRID_RRF_K = 60;
 
 // BUY-34291: cap per-query work_mem to 4MB (down from 64MB default) so concurrent
 // search requests don't compete for shared_buffers. Without this, the planner's
@@ -57,6 +51,40 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<unknown>) {
       }
     });
   };
+}
+
+function shiftSqlPlaceholders(sql: string, offset: number): string {
+  return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
+}
+
+async function getCachedQueryEmbedding(query: string, jinaKey: string): Promise<string | null> {
+  try {
+    const embedKey = `qembed:${Buffer.from(query).toString('base64').slice(0, 48)}`;
+    const cached = await redis.get(embedKey).catch(() => null);
+    if (cached) return cached;
+    const vector = await embedQuery(query, jinaKey);
+    await redis.set(embedKey, vector, 'EX', 60).catch(() => {});
+    return vector;
+  } catch (err) {
+    console.warn('[products.search] embed query failed, falling back to keyword:', (err as Error).message);
+    return null;
+  }
+}
+
+function mergeRrfCandidateIds(ftsIds: string[], semanticIds: string[], limit: number): string[] {
+  const ftsRank = new Map(ftsIds.map((id, idx) => [id, idx + 1]));
+  const semanticRank = new Map(semanticIds.map((id, idx) => [id, idx + 1]));
+  const allIds = new Set([...ftsIds, ...semanticIds]);
+
+  return [...allIds]
+    .map((id) => ({
+      id,
+      score: 1 / (HYBRID_RRF_K + (ftsRank.get(id) ?? VECTOR_CANDIDATE_CAP + 1)) +
+        1 / (HYBRID_RRF_K + (semanticRank.get(id) ?? VECTOR_CANDIDATE_CAP + 1)),
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((entry) => entry.id);
 }
 
 const router = Router();
@@ -231,9 +259,6 @@ router.get(
     const offset = rawPage > 0 ? (rawPage - 1) * limit : rawOffset;
     const sourcePage = req.query.source_page as string | undefined;
     const compact = req.query.compact === 'true';
-    // BUY-41572: accept `mode` from external clients; route everything through
-    // the FTS path until the public /v1/products/search is wired to the Jina
-    // vector pool (BUY-41138 wired the MCP tool, public REST is the next step).
     const rawMode = (req.query.mode as string | undefined)?.toLowerCase();
     const searchMode = rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE;
 
@@ -265,100 +290,101 @@ router.get(
     // planner skip dead rows and the inactive non-leaf rows that previously
     // bloated the bitmap. EXPLAIN ANALYZE on roundhouse (post-fix) shows the
     // planner switches to the partial index and execution drops to ~15-30ms.
-    const conditions: string[] = ['currency = $1', 'is_active = true'];
-    const params: unknown[] = [currency];
-    let idx = 2;
-    let ftsParamIdx = 0;
-
-    if (q) {
-      // Use full-text search via GIN-indexed search_vector only.
-      // The ILIKE fallback was removed: it defeats the GIN index and causes full table scans (3s vs 130ms).
-      ftsParamIdx = idx;
-      conditions.push(`search_vector @@ plainto_tsquery('english', $${idx})`);
-      params.push(q);
-      idx++;
-    }
+    const baseConditions: string[] = ['currency = $1', 'is_active = true'];
+    const baseParams: unknown[] = [currency];
+    let baseIdx = 2;
 
     // BUY-42589: SG retailer brand queries (harvey norman, courts, gaincity, etc.)
     // map to source= filters since the retailer name is in the source field, not
     // in individual product titles/brands. When only the retailer name was typed
     // (cleanedQuery is empty), fall back to source-only search.
     if (canonicalSources && canonicalSources.length > 0) {
-      const sourcePlaceholders = canonicalSources.map((_, i) => `$${idx + i}`).join(',');
-      conditions.push(`source IN (${sourcePlaceholders})`);
-      params.push(...canonicalSources);
-      idx += canonicalSources.length;
+      const sourcePlaceholders = canonicalSources.map((_, i) => `$${baseIdx + i}`).join(',');
+      baseConditions.push(`source IN (${sourcePlaceholders})`);
+      baseParams.push(...canonicalSources);
+      baseIdx += canonicalSources.length;
     }
 
     if (domain) {
-      conditions.push(`source = $${idx}`);
-      params.push(domain);
-      idx++;
+      baseConditions.push(`source = $${baseIdx}`);
+      baseParams.push(domain);
+      baseIdx++;
     }
     if (region) {
-      conditions.push(`region = $${idx}`);
-      params.push(region);
-      idx++;
+      baseConditions.push(`region = $${baseIdx}`);
+      baseParams.push(region);
+      baseIdx++;
     }
     if (countryCode) {
-      conditions.push(`country_code = $${idx}`);
-      params.push(countryCode);
-      idx++;
+      baseConditions.push(`country_code = $${baseIdx}`);
+      baseParams.push(countryCode);
+      baseIdx++;
     }
     if (category) {
-      conditions.push(`category ILIKE $${idx}`);
-      params.push(`%${category}%`);
-      idx++;
+      baseConditions.push(`category ILIKE $${baseIdx}`);
+      baseParams.push(`%${category}%`);
+      baseIdx++;
     }
     if (brand) {
-      conditions.push(`brand ILIKE $${idx}`);
-      params.push(`%${brand}%`);
-      idx++;
+      baseConditions.push(`brand ILIKE $${baseIdx}`);
+      baseParams.push(`%${brand}%`);
+      baseIdx++;
     }
     if (availability) {
       const avail = availability.toLowerCase();
       if (avail === 'in_stock') {
-        conditions.push(`(metadata->>'availability' = $${idx} OR (metadata->>'availability' IS NULL AND is_active = true))`);
-        params.push(avail);
-        idx++;
+        baseConditions.push(`(metadata->>'availability' = $${baseIdx} OR (metadata->>'availability' IS NULL AND is_active = true))`);
+        baseParams.push(avail);
+        baseIdx++;
       } else if (avail === 'out_of_stock') {
-        conditions.push(`(metadata->>'availability' = $${idx} OR (metadata->>'availability' IS NULL AND is_active = false))`);
-        params.push(avail);
-        idx++;
+        baseConditions.push(`(metadata->>'availability' = $${baseIdx} OR (metadata->>'availability' IS NULL AND is_active = false))`);
+        baseParams.push(avail);
+        baseIdx++;
       } else if (avail === 'preorder' || avail === 'discontinued') {
-        conditions.push(`metadata->>'availability' = $${idx}`);
-        params.push(avail);
-        idx++;
+        baseConditions.push(`metadata->>'availability' = $${baseIdx}`);
+        baseParams.push(avail);
+        baseIdx++;
       }
     }
     if (categoryId) {
-      conditions.push(`category_id = $${idx}`);
-      params.push(categoryId);
-      idx++;
+      baseConditions.push(`category_id = $${baseIdx}`);
+      baseParams.push(categoryId);
+      baseIdx++;
     }
     if (categoryPath && categoryPath.length > 0) {
-      const pathPlaceholders = categoryPath.map((_, i) => `$${idx + i}`).join(',');
-      conditions.push(`category_path @> ARRAY[${pathPlaceholders}]::text[]`);
-      params.push(...categoryPath);
-      idx += categoryPath.length;
+      const pathPlaceholders = categoryPath.map((_, i) => `$${baseIdx + i}`).join(',');
+      baseConditions.push(`category_path @> ARRAY[${pathPlaceholders}]::text[]`);
+      baseParams.push(...categoryPath);
+      baseIdx += categoryPath.length;
     }
     if (merchantId) {
-      conditions.push(`merchant_id = $${idx}`);
-      params.push(merchantId);
-      idx++;
+      baseConditions.push(`merchant_id = $${baseIdx}`);
+      baseParams.push(merchantId);
+      baseIdx++;
     }
     if (minPrice !== undefined) {
-      conditions.push(`price >= $${idx}`);
-      params.push(minPrice);
-      idx++;
+      baseConditions.push(`price >= $${baseIdx}`);
+      baseParams.push(minPrice);
+      baseIdx++;
     }
     if (maxPrice !== undefined) {
-      conditions.push(`price <= $${idx}`);
-      params.push(maxPrice);
-      idx++;
+      baseConditions.push(`price <= $${baseIdx}`);
+      baseParams.push(maxPrice);
+      baseIdx++;
     }
 
-    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const searchConditions = [...baseConditions];
+    const searchParams = [...baseParams];
+    let ftsParamIdx = 0;
+    if (q) {
+      // Use full-text search via GIN-indexed search_vector only.
+      // The ILIKE fallback was removed: it defeats the GIN index and causes full table scans (3s vs 130ms).
+      ftsParamIdx = searchParams.length + 1;
+      searchConditions.push(`search_vector @@ plainto_tsquery('english', $${ftsParamIdx})`);
+      searchParams.push(q);
+    }
+
+    const whereClause = searchConditions.length ? `WHERE ${searchConditions.join(' AND ')}` : '';
 
     // BUY-33987: SEARCH_STATEMENT_TIMEOUT_MS and SEARCH_HANDLER_TIMEOUT_MS are
     // declared at the top of the file so res.setTimeout() (above) can reference
@@ -396,10 +422,13 @@ router.get(
     // only those. Eliminates the separate COUNT query that doubled DB load. Over-fetch by 1
     // to derive has_more without a second scan.
     let dataResult: { rows: Array<Record<string, unknown>> };
-    let total: number;
-    let hasMore: boolean;
+    let total = 0;
+    let hasMore: boolean | undefined;
 
-    const dataParams = [...params, limit + 1, offset];
+    const requestedRows = limit + 1;
+    const limitParamIdx = searchParams.length + 1;
+    const offsetParamIdx = searchParams.length + 2;
+    const dataParams = [...searchParams, requestedRows, offset];
 
     let dataQuery: string;
     if (useFtsRanking) {
@@ -427,7 +456,7 @@ router.get(
         JOIN products ON products.id = top_ids.id
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY top_ids.rank DESC
-        LIMIT $${idx} OFFSET $${idx + 1}
+        LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
       `;
     } else {
       dataQuery = `
@@ -436,7 +465,7 @@ router.get(
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ${whereClause}
         ORDER BY ${buildSortOrder()}
-        LIMIT $${idx} OFFSET $${idx + 1}
+        LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
       `;
     }
 
@@ -463,7 +492,90 @@ router.get(
       await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
       await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
       await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
-      dataResult = await client.query(dataQuery, dataParams);
+      const jinaKey = process.env.JINA_API_KEY ?? '';
+      const activeVectorDb = q !== '' && searchMode !== 'keyword' && vectorDb != null && jinaKey !== ''
+        ? vectorDb
+        : null;
+
+      if (activeVectorDb) {
+        const queryVector = await getCachedQueryEmbedding(q, jinaKey);
+        if (queryVector) {
+          const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
+          const semanticCandidates = await activeVectorDb.query<{ product_id: string }>(
+            `SELECT product_id FROM product_embeddings
+             ORDER BY embedding <=> $1::vector
+             LIMIT $2`,
+            [queryVector, candidateCap]
+          );
+
+          const rawSemanticIds = semanticCandidates.rows.map((row) => row.product_id);
+          let filteredSemanticIds: string[] = [];
+          if (rawSemanticIds.length > 0) {
+            const vectorFilterQuery = `
+              SELECT id
+              FROM products
+              WHERE id = ANY($1::uuid[]) AND ${baseConditions.map((condition) => shiftSqlPlaceholders(condition, 1)).join(' AND ')}
+            `;
+            const vectorFilterResult = await client.query<{ id: string }>(
+              vectorFilterQuery,
+              [rawSemanticIds, ...baseParams]
+            );
+            const allowedIds = new Set(vectorFilterResult.rows.map((row) => row.id));
+            filteredSemanticIds = rawSemanticIds.filter((id) => allowedIds.has(id));
+          }
+
+          let rankedCandidateIds = filteredSemanticIds;
+          if (searchMode === 'hybrid') {
+            const ftsCandidates = await client.query<{ id: string }>(
+              `SELECT id
+               FROM products
+               ${whereClause}
+               ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
+               LIMIT 200`,
+              searchParams
+            );
+            rankedCandidateIds = mergeRrfCandidateIds(
+              ftsCandidates.rows.map((row) => row.id),
+              filteredSemanticIds,
+              candidateCap
+            );
+          }
+
+          total = rankedCandidateIds.length;
+          hasMore = total > offset + limit;
+
+          if (total === 0) {
+            dataResult = { rows: [] };
+          } else if (!effectiveSort || effectiveSort === 'relevance') {
+            const pageIds = rankedCandidateIds.slice(offset, offset + requestedRows);
+            const detailResult = await client.query(
+              `SELECT ${joinedColumns}
+               FROM products
+               LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+               WHERE products.id = ANY($1::uuid[])`,
+              [pageIds]
+            );
+            const byId = new Map(detailResult.rows.map((row) => [(row as Record<string, unknown>).id as string, row]));
+            dataResult = {
+              rows: pageIds.map((id) => byId.get(id)).filter(Boolean) as Array<Record<string, unknown>>,
+            };
+          } else {
+            dataResult = await client.query(
+              `SELECT ${joinedColumns}
+               FROM products
+               LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+               WHERE products.id = ANY($1::uuid[])
+               ORDER BY ${buildSortOrder()}
+               LIMIT $2 OFFSET $3`,
+              [rankedCandidateIds, requestedRows, offset]
+            );
+          }
+        } else {
+          dataResult = await client.query(dataQuery, dataParams);
+        }
+      } else {
+        dataResult = await client.query(dataQuery, dataParams);
+      }
       await client.query('COMMIT');
     } catch (err: unknown) {
       await client.query('ROLLBACK').catch(() => {});
@@ -486,9 +598,13 @@ router.get(
     }
     client.release();
 
-    hasMore = dataResult.rows.length > limit;
-    if (hasMore) dataResult.rows.pop();
-    total = offset + dataResult.rows.length + (hasMore ? 1 : 0);
+    if (typeof hasMore === 'undefined') {
+      hasMore = dataResult.rows.length > limit;
+      if (hasMore) dataResult.rows.pop();
+      total = offset + dataResult.rows.length + (hasMore ? 1 : 0);
+    } else if (dataResult.rows.length > limit) {
+      dataResult.rows = dataResult.rows.slice(0, limit);
+    }
 
     const responseTimeMs = Date.now() - requestStart;
 
@@ -522,7 +638,7 @@ router.get(
     }
 
     const responseBody = buildSearchResponse(
-      filteredProducts, total, limit, offset, responseTimeMs, hasMore
+      filteredProducts, total, limit, offset, responseTimeMs, hasMore ?? false
     );
 
     // Cache result in Redis (fire-and-forget)
