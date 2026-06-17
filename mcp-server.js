@@ -844,24 +844,12 @@ app.get('/v1/ingest/health', (req, res) => {
   });
 });
 
-// Serve static files (frontend SPA)
-app.use(express.static(path.join(__dirname, 'public')));
-
-// SPA fallback - serve index.html for all non-API GET requests
-app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api/')) {
-    return next();
-  }
-  const indexPath = path.join(__dirname, 'public', 'index.html');
-  res.sendFile(indexPath, (err) => {
-    if (err) {
-      console.error('Failed to serve index.html:', err.message);
-      if (!res.headersSent) {
-        res.status(503).send(`<html><body><h1>Service Temporarily Unavailable</h1><p>The frontend application is temporarily unavailable. Please try again shortly.</p></body></html>`);
-      }
-    }
-  });
-});
+// Discovery endpoints — JSON-only responses (this server is API-only, not a frontend).
+// Note: prior versions of this file had a SPA fallback that served public/index.html,
+// but the Dockerfile never copied a public/ directory, so all non-/api/* GETs
+// returned 503 "Service Temporarily Unavailable" (outage 2026-06-15T22:00Z →
+// 2026-06-16T21:08Z). The fix is to drop the SPA fallback entirely and answer
+// with JSON 404 for any non-/api path.
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -871,19 +859,10 @@ app.use((err, req, res, next) => {
   }
 });
 
-// 404 handler for API routes
+// 404 handler for all unmatched paths (API and non-API)
 app.use((req, res) => {
   if (!res.headersSent) {
-    if (req.path.startsWith('/api/')) {
-      res.status(404).json({ error: 'Endpoint not found' });
-    } else {
-      const indexPath = path.join(__dirname, 'public', 'index.html');
-      res.sendFile(indexPath, (err) => {
-        if (err && !res.headersSent) {
-          res.status(404).send(`<html><body><h1>404 Not Found</h1><p>The page you are looking for does not exist.</p></body></html>`);
-        }
-      });
-    }
+    res.status(404).json({ error: 'Endpoint not found', path: req.path });
   }
 });
 
