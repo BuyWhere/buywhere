@@ -242,6 +242,17 @@ export default function ApiKeysPage() {
                   <p className="font-medium text-gray-700 mb-1">Already have a key?</p>
                   <p>Head to the <a href="/quickstart" className="text-indigo-600 hover:underline">canonical quickstart</a> to get started.</p>
                 </div>
+
+                {/* Internal link module — internal cross-links to indexed URLs (BUY-52846) */}
+                <div className="bg-white border border-gray-200 rounded-xl p-5">
+                  <p className="font-medium text-gray-700 mb-2 text-sm">Popular guides powered by BuyWhere data</p>
+                  <ul className="space-y-1.5 text-sm">
+                    <li><a href="/blog/best-laptop-deals-singapore" className="text-indigo-600 hover:underline">Best laptop deals in Singapore 2026</a></li>
+                    <li><a href="/blog/cheapest-iphone-singapore-2026" className="text-indigo-600 hover:underline">Cheapest iPhone in Singapore 2026</a></li>
+                    <li><a href="/best-gaming-laptops-us" className="text-indigo-600 hover:underline">Best gaming laptops in the US (June 2026)</a></li>
+                    <li><a href="/compare" className="text-indigo-600 hover:underline">Compare hub — all categories</a></li>
+                  </ul>
+                </div>
               </div>
             </div>
           ) : (
@@ -320,6 +331,17 @@ export default function ApiKeysPage() {
                     <span className="text-xs text-indigo-600 font-medium">{card.cta}</span>
                   </a>
                 ))}
+              </div>
+
+              {/* Internal link module — indexed-URL cross-links (BUY-52846) */}
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <p className="font-medium text-gray-700 mb-2 text-sm">Popular guides powered by BuyWhere data</p>
+                <ul className="space-y-1.5 text-sm">
+                  <li><a href="/blog/best-laptop-deals-singapore" className="text-indigo-600 hover:underline">Best laptop deals in Singapore 2026</a></li>
+                  <li><a href="/blog/cheapest-iphone-singapore-2026" className="text-indigo-600 hover:underline">Cheapest iPhone in Singapore 2026</a></li>
+                  <li><a href="/best-gaming-laptops-us" className="text-indigo-600 hover:underline">Best gaming laptops in the US (June 2026)</a></li>
+                  <li><a href="/compare" className="text-indigo-600 hover:underline">Compare hub — all categories</a></li>
+                </ul>
               </div>
             </div>
           )}

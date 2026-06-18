@@ -258,6 +258,39 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
             </div>
           </div>
         </section>
+
+        {config.relatedPosts && config.relatedPosts.length > 0 && (
+          <section className="bg-slate-50 py-16">
+            <div className="mx-auto max-w-6xl px-4 sm:px-6">
+              <div className="max-w-3xl">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">Related guides</p>
+                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
+                  Other BuyWhere guides shoppers read next
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-slate-600">
+                  Internal-link module — these pages cover adjacent categories and pricing surfaces.
+                </p>
+              </div>
+              <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {config.relatedPosts.map((post) => (
+                  <Link
+                    key={post.href}
+                    href={post.href}
+                    className="group block h-full rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-200 hover:shadow-md"
+                  >
+                    <h3 className="text-base font-semibold leading-snug text-slate-900 transition-colors group-hover:text-amber-700">
+                      {post.title}
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">{post.description}</p>
+                    <span className="mt-4 inline-flex items-center text-sm font-medium text-amber-700">
+                      Read guide →
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
       </main>
 
       {config.showRelatedCategory && <RelatedCategoryBlock slug={config.slug} />}

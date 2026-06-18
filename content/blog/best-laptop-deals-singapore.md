@@ -180,6 +180,10 @@ npx @buywhere/mcp-server
 
 Query prices across all Singapore retailers programmatically — perfect for AI agents building shopping experiences. Get started with a free API key at [buywhere.ai/api-keys](https://buywhere.ai/api-keys).
 
+## Related Price Guides (Internal Link Module)
+
+For shoppers comparing laptop prices against adjacent categories, see the [best laptop deals under S$2,000 in Singapore](/blog/best-laptop-deals-under-sgd-2000-singapore) breakdown, the [home appliance deals in Singapore 2026](/blog/home-appliance-deals-singapore-2026) refresh, and the [US gaming laptop pricing guide](/blog/best-gaming-laptops-us-2026) for cross-region context. Get your free API key at [buywhere.ai/api-keys](https://buywhere.ai/api-keys) to query live multi-merchant pricing programmatically.
+
 ## FAQ
 
 **What is the best laptop for most buyers in Singapore?**

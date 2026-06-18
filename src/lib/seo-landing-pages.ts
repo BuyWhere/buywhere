@@ -87,6 +87,17 @@ export type SeoLandingPageConfig = {
   fallbackProducts: LandingProduct[];
   /** Render RelatedCategoryBlock on this page */
   showRelatedCategory?: boolean;
+  /**
+   * Internal-link module: related BuyWhere posts to surface on this page so
+   * the page is not orphaned from the indexed-URL internal-link graph. Each
+   * entry is rendered as a server-rendered, crawlable link block. Used by
+   * BUY-52846 to satisfy the no-orphan rule on /best-gaming-laptops-us.
+   */
+  relatedPosts?: Array<{
+    title: string;
+    href: string;
+    description: string;
+  }>;
 };
 
 function formatMerchantName(value?: string | null) {
@@ -538,6 +549,28 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       { id: "g6", name: "ASUS TUF Gaming A15", price: 1199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=ASUS+TUF+Gaming+A15&country=us", brand: "ASUS", category: "Gaming Laptops" },
     ],
     showRelatedCategory: true,
+    relatedPosts: [
+      {
+        title: "Best laptop deals in Singapore 2026",
+        href: "/blog/best-laptop-deals-singapore",
+        description: "Singapore laptop pricing across Apple Store, Shopee, Lazada, Challenger, Courts, Harvey Norman, and Best Denki — refreshed June 2026.",
+      },
+      {
+        title: "Cheapest iPhone in Singapore 2026",
+        href: "/blog/cheapest-iphone-singapore-2026",
+        description: "iPhone 15 Pro and iPhone 16 prices compared across all major SG merchants — refreshed June 2026.",
+      },
+      {
+        title: "Compare hub — all categories",
+        href: "/compare",
+        description: "Browse BuyWhere's category comparison hubs for electronics, fashion, home, and more across SG and US.",
+      },
+      {
+        title: "Cross-merchant price comparison guide",
+        href: "/blog/compare-product-prices-singapore-2026",
+        description: "How BuyWhere indexes prices across 50+ merchants and how shoppers can use it to find the lowest landed cost.",
+      },
+    ],
   },
   "iphone-16-price-singapore": {
     slug: "iphone-16-price-singapore",

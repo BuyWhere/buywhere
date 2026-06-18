@@ -125,6 +125,10 @@ BuyWhere's product catalog API lets AI agents monitor iPhone 15 Pro prices acros
 - Documentation: `https://docs.buywhere.ai`
 - Free API key: [buywhere.ai/api-keys](https://buywhere.ai/api-keys)
 
+## Related Price Guides (Internal Link Module)
+
+For shoppers comparing iPhone pricing against adjacent categories, see the [cheapest MacBook Air M3 across 12 countries](/blog/cheapest-macbook-air-m3-12-countries-compared) walkthrough, the [iPhone 16 vs iPhone 17 upgrade guide](/blog/iphone-16-vs-iphone-17-upgrade-worth-it-2026), and the [home appliance deals in Singapore 2026](/blog/home-appliance-deals-singapore-2026) refresh — all live on the [BuyWhere compare hub](https://buywhere.ai/compare).
+
 ## Frequently Asked Questions
 
 ### Where is the cheapest place to buy iPhone 15 Pro in Singapore?
