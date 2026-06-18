@@ -7,6 +7,21 @@ import { queryLogMiddleware } from '../middleware/queryLog';
 const router = Router();
 const CACHE_TTL = 300; // 5 min — categories change slowly
 
+function slugifyCategory(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+}
+
+function asyncHandler(fn: (req: Request, res: Response) => Promise<unknown>) {
+  return (req: Request, res: Response) => {
+    fn(req, res).catch((err) => {
+      console.error(`[categories] unhandled error on ${req.method} ${req.path}:`, err?.message || err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+  };
+}
+
 // GET /v1/categories
 // Returns top-level categories derived from products.category_path[1]
 router.get(
@@ -37,7 +52,7 @@ router.get(
           const categories = summaryResult.rows.map((row) => {
             const initcapName = (row.name as string).replace(/(^|\s|-|_)(\w)/g, (_m: string, sep: string, c: string) => sep + c.toUpperCase());
             return {
-              slug: row.slug || (row.name as string).toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+              slug: slugifyCategory((row.slug as string) || (row.name as string)),
               name: initcapName,
               product_count: parseInt(row.product_count, 10),
             };
@@ -65,7 +80,7 @@ router.get(
     );
 
     const categories = result.rows.map((row) => ({
-      slug: row.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      slug: slugifyCategory(row.name),
       name: row.name,
       product_count: parseInt(row.product_count, 10),
     }));
@@ -84,9 +99,10 @@ router.get(
   requireApiKey,
   checkRateLimit,
   queryLogMiddleware('categories.get'),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
     const { slug } = req.params;
+    const normalizedSlug = slugifyCategory(slug);
     const currency = (req.query.currency as string) || 'SGD';
     const limit = Math.min(parseInt((req.query.limit as string) || '20'), 100);
     const offset = parseInt((req.query.offset as string) || '0');
@@ -97,7 +113,7 @@ router.get(
        WHERE currency = $1 AND category_path IS NOT NULL
          AND LOWER(REGEXP_REPLACE(category_path[1], '[^a-zA-Z0-9]+', '-', 'g')) = $2
        LIMIT 1`,
-      [currency, slug]
+      [currency, normalizedSlug]
     );
 
     if (slugResult.rows.length === 0) {
@@ -113,8 +129,8 @@ router.get(
         [currency, categoryName]
       ),
       db.query(
-        `SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
-                name AS title, price, currency, image_url, updated_at
+        `SELECT id, sku AS source_id, platform::text AS domain, url,
+                title, price, currency, image_url, updated_at
          FROM products
          WHERE currency = $1 AND category_path[1] = $2
          ORDER BY updated_at DESC
@@ -148,14 +164,14 @@ router.get(
     const subcategories = subCatsResult.rows
       .filter((r) => r.sub_name)
       .map((row) => ({
-        slug: row.sub_name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        slug: slugifyCategory(row.sub_name),
         name: row.sub_name,
         product_count: parseInt(row.product_count, 10),
       }));
 
     res.json({
       data: {
-        slug,
+        slug: normalizedSlug,
         name: categoryName,
         product_count: parseInt(countResult.rows[0].count, 10),
         subcategories,
@@ -163,7 +179,7 @@ router.get(
       },
       meta: { limit, offset, response_time_ms: Date.now() - start },
     });
-  }
+  })
 );
 
 export default router;
