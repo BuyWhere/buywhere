@@ -145,6 +145,14 @@ The best gaming laptop in the US for June 2026 is the **ASUS ROG Zephyrus G16 (2
 
 BuyWhere's product catalog lets AI agents monitor gaming laptop prices across all major US retailers in real time. Developers can use the `compare_prices` tool to get instant cross-retailer comparisons, or `search_products` to filter by GPU, RAM, or price range.
 
+**Get a key in 3 seconds — no signup, no email:**
+
+```bash
+curl -X POST https://api.buywhere.ai/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"agent_name":"your-agent"}'
+```
+
 **For AI agent developers:**
 - API: `https://api.buywhere.ai`
 - MCP Server: `https://api.buywhere.ai/mcp`
