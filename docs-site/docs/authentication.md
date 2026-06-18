@@ -7,6 +7,29 @@ title: Authentication
 
 All BuyWhere API endpoints require authentication via an API key.
 
+## Get a Key — instant, no signup
+
+Get a key in 3 seconds — one call, no email, no human in the loop:
+
+```bash
+curl -X POST https://api.buywhere.ai/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"agent_name": "my-shopping-agent"}'
+```
+
+```json
+{
+  "api_key": "bw_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "tier": "unverified",
+  "email_verified": false,
+  "rate_limit": { "rpm": 20, "daily": 1000 }
+}
+```
+
+The `api_key` is shown **only once** — save it immediately. Unverified keys start with full product-search access at **20 req/min, 1,000 req/day**.
+
+If you want a higher tier, add an `email` (and optional `use_case`) to the registration body and verify it — see the [fallback path](#legacy-signup-with-email) below.
+
 ## Using Your API Key
 
 Include your API key in the `Authorization` header with the `Bearer` prefix:
@@ -37,7 +60,7 @@ Rate limits depend on your pricing tier:
 
 | Tier | Requests/min | Requests/day | Access |
 |------|-------------|-------------|--------|
-| Unverified | 5 | 50 | Register (instant) |
+| Unverified | 20 | 1,000 | `POST /v1/auth/register` (instant, no signup) |
 | Free | 60 | 1,000 | Verify email |
 | Pro | 300 | 10,000 | [Contact sales](https://buywhere.ai/contact) |
 | Enterprise | 1,000 | 100,000 | [Contact sales](https://buywhere.ai/contact) |
@@ -92,6 +115,22 @@ def search_with_retry(query, max_retries=3):
         return resp.json()
     raise Exception("Rate limit exceeded after retries")
 ```
+
+## Legacy Signup with Email
+
+The original email-verified flow is still supported as a fallback. Use it if you want a verified account from the start, or if your integration needs an email anchor for invoicing/audit.
+
+```bash
+curl -X POST https://api.buywhere.ai/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_name": "my-shopping-agent",
+    "email": "you@example.com",
+    "use_case": "price comparison agent"
+  }'
+```
+
+You can also register through the [web form](https://buywhere.ai/api-keys). Both paths return the same key shape; only the `tier` and `rate_limit` differ once you verify.
 
 ## Upgrading Your Tier
 

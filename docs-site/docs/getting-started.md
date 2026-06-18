@@ -8,9 +8,30 @@ title: Getting Started
 
 BuyWhere is a product catalog API built for AI agents and developers. Search 5M+ products from 40+ retailers across Southeast Asia and the US, compare prices, track deals, and integrate product data into any application or AI workflow.
 
-## Get Your API Key
+## Get Your API Key — instant, no signup
 
-Register for a free API key:
+Get a key in 3 seconds — no signup, no email, no human in the loop:
+
+```bash
+curl -X POST https://api.buywhere.ai/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"agent_name": "my-shopping-agent"}'
+```
+
+```json
+{
+  "api_key": "bw_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "tier": "unverified",
+  "email_verified": false,
+  "rate_limit": { "rpm": 20, "daily": 1000 }
+}
+```
+
+Save your key — it is shown only once. Unverified keys get **20 req/min, 1,000 req/day** with full product search access.
+
+### Verify email to upgrade (optional)
+
+If you want the higher Free tier (**60 req/min, 1,000 req/day** with priority support), verify the email attached to your key:
 
 ```bash
 curl -X POST https://api.buywhere.ai/v1/auth/register \
@@ -22,17 +43,7 @@ curl -X POST https://api.buywhere.ai/v1/auth/register \
   }'
 ```
 
-```json
-{
-  "api_key": "bw_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "tier": "unverified",
-  "message": "Check your email to verify and unlock 60 req/min."
-}
-```
-
-Save your key — it is shown only once. Verify your email to upgrade from 5 req/min to 60 req/min (free tier).
-
-Or sign up at [buywhere.ai/api-keys](https://buywhere.ai/api-keys).
+You can also register through the [web form](https://buywhere.ai/api-keys) — both paths return the same key shape.
 
 ## Your First API Call
 
@@ -108,7 +119,7 @@ data.results.forEach((p) =>
 
 | Tier | Requests/min | Requests/day | How to Get |
 |------|-------------|-------------|------------|
-| Unverified | 5 | 50 | [Register](https://buywhere.ai/api-keys) (instant) |
+| Unverified | 20 | 1,000 | `POST /v1/auth/register` (instant, no signup) |
 | Free | 60 | 1,000 | Verify email |
 | Pro | 300 | 10,000 | [Contact sales](https://buywhere.ai/contact) |
 | Enterprise | 1,000 | 100,000 | [Contact sales](https://buywhere.ai/contact) |
