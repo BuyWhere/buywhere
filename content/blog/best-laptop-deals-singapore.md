@@ -4,7 +4,7 @@ title: "Best Laptop Deals Singapore 2026 — Compare Prices Across All Retailers
 description: "Compare current laptop prices from Apple Store, Shopee, Lazada, Challenger, Courts, Harvey Norman, and Amazon SG. Find the best laptop deals in Singapore for 2026."
 author: "BuyWhere Team"
 publishedAt: "2026-06-19"
-lastUpdatedAt: "2026-06-13"
+lastUpdatedAt: "2026-06-18"
 tags: ["laptops", "singapore", "pricing", "comparison", "electronics"]
 jsonLd: >
   {
@@ -112,7 +112,7 @@ Here are the latest prices for popular laptops across Singapore retailers:
 | Dell XPS 14 | Dell Store | 2,199 | In stock | Free | Premium build |
 | Dell XPS 14 | Harvey Norman | 2,299 | In stock | Standard | Price-match negotiable |
 
-*Prices last verified: 2026-05-01. Prices fluctuate daily. Check live prices via [BuyWhere API](https://buywhere.ai/quickstart).*
+*Prices last verified: 2026-06-18. Prices fluctuate daily. Check live prices via [BuyWhere API](https://buywhere.ai/quickstart).*
 
 ## Laptop Models Compared
 
@@ -193,4 +193,4 @@ Marketplace flagship stores often win on vouchers, while local retailers are use
 
 ---
 
-*Prices last verified: 2026-06-13. This page is refreshed monthly; for live multi-merchant data, query the [BuyWhere compare hub](https://buywhere.ai/compare) or the [laptop Singapore category page](https://buywhere.ai/compare/laptop-singapore). See also the [Singapore iPhone price comparison](/blog/cheapest-iphone-singapore-2026) and the [cross-merchant price comparison guide](/blog/compare-product-prices-singapore-2026) for adjacent category refreshes. Built for developers and shoppers. [MCP server](https://github.com/buywhere/buywhere-mcp) available for agent integration.*
+*Prices last verified: 2026-06-18. This page is refreshed monthly; for live multi-merchant data, query the [BuyWhere compare hub](https://buywhere.ai/compare) or the [laptop Singapore category page](https://buywhere.ai/compare/laptop-singapore). See also the [Singapore iPhone price comparison](/blog/cheapest-iphone-singapore-2026), the [US gaming laptop pricing guide](/blog/best-gaming-laptops-us-2026), and the [cross-merchant price comparison guide](/blog/compare-product-prices-singapore-2026) for adjacent category refreshes. Built for developers and shoppers. [MCP server](https://github.com/buywhere/buywhere-mcp) available for agent integration.*

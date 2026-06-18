@@ -427,6 +427,9 @@ export default function HomePage() {
             <p className="text-gray-500 leading-relaxed">
               Compare prices across merchants for the most searched products in Singapore, the US, and Southeast Asia.
             </p>
+            <p className="mt-3 text-xs uppercase tracking-[0.22em] text-indigo-600">
+              Top-deal module refreshed June 18, 2026
+            </p>
           </div>
           <div className="flex flex-wrap gap-3 mb-6">
             {[
@@ -445,6 +448,26 @@ export default function HomePage() {
                 {label}
               </Link>
             ))}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3 mb-6">
+            <Link
+              href="/blog/best-laptop-deals-singapore"
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+            >
+              Best laptop deals in Singapore →
+            </Link>
+            <Link
+              href="/blog/cheapest-iphone-singapore-2026"
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+            >
+              Cheapest iPhone in Singapore 2026 →
+            </Link>
+            <Link
+              href="/blog/best-gaming-laptops-us-2026"
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+            >
+              Best gaming laptops in the US →
+            </Link>
           </div>
           <Link
             href="/compare"
