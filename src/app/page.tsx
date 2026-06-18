@@ -231,10 +231,10 @@ export default function HomePage() {
               Now in developer beta · SG + Southeast Asia
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
-              The normalized, cross-merchant product layer AI agents should call first.
+              Get a free API key in 3 seconds — no signup required
             </h1>
             <p className="text-xl text-indigo-200 mb-10 leading-relaxed">
-              Give your agents real products, live merchant data, and structured catalog search for Singapore and Southeast Asia commerce workflows with one API.
+              The normalized, cross-merchant product layer AI agents should call first. Real products, live merchant data, and structured catalog search for Singapore and Southeast Asia commerce workflows with one API.
             </p>
             <p className="text-base text-indigo-100/90 mb-8 leading-relaxed max-w-2xl">
               BuyWhere helps AI assistants and agentic apps discover products, compare options, and power commerce experiences without scraping storefronts, relying on Amazon-only APIs, or stitching together generic shopping results.
@@ -244,13 +244,13 @@ export default function HomePage() {
                 href="/api-keys"
                 className="inline-flex items-center justify-center px-6 py-3 bg-white text-indigo-700 font-semibold rounded-xl hover:bg-indigo-50 transition-colors"
               >
-                Get API key →
+                Get Instant Key →
               </Link>
               <Link
-                href="/developers"
+                href="/search"
                 className="inline-flex items-center justify-center px-6 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-colors border border-white/20"
               >
-                View docs
+                Browse products
               </Link>
             </div>
             <p className="text-sm text-indigo-100/80">
