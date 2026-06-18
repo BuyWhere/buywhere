@@ -31,6 +31,85 @@ const mcpConfig = `{
 const curlExample = `curl -sS "https://api.buywhere.ai/v1/products/search?q=wireless+headphones&limit=5" \\
   -H "Authorization: Bearer bw_live_your_key_here"`;
 
+const organizationSchema = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "@id": "https://buywhere.ai/#organization",
+  name: "BuyWhere",
+  alternateName: "BuyWhere Pte. Ltd.",
+  url: "https://buywhere.ai",
+  logo: {
+    "@type": "ImageObject",
+    url: "https://buywhere.ai/logo.png",
+    width: 512,
+    height: 512,
+  },
+  description:
+    "BuyWhere is the MCP server and product catalog API that gives AI agents real-time product search, price comparison, and merchant handoff across Southeast Asia and the US.",
+  sameAs: [
+    "https://github.com/BuyWhere",
+    "https://github.com/BuyWhere/buywhere",
+    "https://github.com/BuyWhere/buywhere-mcp",
+    "https://www.npmjs.com/package/@buywhere/mcp-server",
+    "https://smithery.ai/servers/buywhere",
+    "https://glama.ai/mcp/servers/BuyWhere/buywhere-mcp",
+    "https://t.me/buywhere_bot",
+    "https://x.com/buywhere",
+  ],
+  contactPoint: [
+    {
+      "@type": "ContactPoint",
+      contactType: "developer relations",
+      url: "https://buywhere.ai/developers",
+      availableLanguage: ["English"],
+    },
+  ],
+};
+
+const apiReferenceSchema = {
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "@id": "https://buywhere.ai/developers#article",
+  headline: "BuyWhere Developer Portal — MCP Server and Product Catalog API for AI Agents",
+  description:
+    "Documentation for the BuyWhere MCP server, REST API, and SDKs. Search, compare, and discover products across Singapore, Southeast Asia, and US markets with one normalized schema.",
+  inLanguage: "en",
+  author: { "@id": "https://buywhere.ai/#organization" },
+  publisher: { "@id": "https://buywhere.ai/#organization" },
+  mainEntityOfPage: {
+    "@type": "WebPage",
+    "@id": "https://buywhere.ai/developers",
+  },
+  articleSection: "Developer Documentation",
+  keywords:
+    "MCP, Model Context Protocol, AI agent, product catalog API, REST API, developer documentation, BuyWhere SDK, Claude Desktop, Cursor",
+  about: [
+    { "@type": "Thing", name: "Model Context Protocol" },
+    { "@type": "Thing", name: "Product Catalog API" },
+    { "@type": "Thing", name: "AI Agent Development" },
+  ],
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "@id": "https://buywhere.ai/developers#breadcrumb",
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      name: "Home",
+      item: "https://buywhere.ai",
+    },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: "Developer Portal",
+      item: "https://buywhere.ai/developers",
+    },
+  ],
+};
+
 export default function DevelopersPage() {
   const faqSchema = {
     "@context": "https://schema.org",
@@ -106,6 +185,15 @@ export default function DevelopersPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
+      <Script id="organization-schema" type="application/ld+json" strategy="afterInteractive">
+        {JSON.stringify(organizationSchema)}
+      </Script>
+      <Script id="api-reference-schema" type="application/ld+json" strategy="afterInteractive">
+        {JSON.stringify(apiReferenceSchema)}
+      </Script>
+      <Script id="breadcrumb-schema" type="application/ld+json" strategy="afterInteractive">
+        {JSON.stringify(breadcrumbSchema)}
+      </Script>
       <Script id="faq-schema" type="application/ld+json" strategy="afterInteractive">
         {JSON.stringify(faqSchema)}
       </Script>
