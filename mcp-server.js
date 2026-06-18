@@ -848,10 +848,13 @@ app.get('/v1/ingest/health', (req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 
 // SPA fallback - serve index.html for all non-API GET requests
-app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api/')) {
-    return next();
-  }
+// Express 5 changed path-to-regexp: '*' is no longer valid. Use a middleware
+// with manual prefix check instead.
+app.use((req, res, next) => {
+  if (req.method !== 'GET') return next();
+  if (req.path.startsWith('/api/')) return next();
+  if (req.path === '/mcp' || req.path === '/mcp/' ||
+      req.path === '/healthz' || req.path === '/health') return next();
   const indexPath = path.join(__dirname, 'public', 'index.html');
   res.sendFile(indexPath, (err) => {
     if (err) {
