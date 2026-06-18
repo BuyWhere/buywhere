@@ -32,7 +32,7 @@ import adminUptimeRouter from './routes/admin/uptime';
 import adminMetricsRouter from './routes/admin/metrics';
 import { db, redis } from './config';
 
-const DISCOVERY_CACHE_CONTROL = 'public, max-age=86400, s-maxage=86400';
+const DISCOVERY_CACHE_CONTROL = 'public, max-age=3600, s-maxage=3600';
 const AGENTS_TXT_CONTENT = `# BuyWhere AI Agents Discovery
 User-agent: *
 MCP: https://api.buywhere.ai/mcp/sse
@@ -40,7 +40,8 @@ A2A: https://api.buywhere.ai/.well-known/agent.json
 API: https://api.buywhere.ai/v1
 API-Docs: https://api.buywhere.ai/docs
 Auth: X-API-Key
-Auth-Url: https://api.buywhere.ai/v1/keys
+Auth-Url: https://api.buywhere.ai/v1/auth/register
+Register: POST https://api.buywhere.ai/v1/auth/register {"agent_name":"<your-agent>"} -> instant free API key, no email or human signup required
 `;
 
 export function createApp() {
