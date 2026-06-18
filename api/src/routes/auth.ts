@@ -32,8 +32,11 @@ async function registerAgent(req: Request, res: Response): Promise<void> {
   }
 
   const emailAddr = (email || contact || '') as string;
-  if (!emailAddr || !EMAIL_RE.test(emailAddr)) {
-    sendError(res, ErrorCode.INVALID_PARAMETER, 'A valid email address is required.');
+  const hasEmail = emailAddr.length > 0;
+  // Email is OPTIONAL for agent self-service (MCP/API are agent-only; no human signup required).
+  // If provided it must be valid (enables tier upgrade via verification); if omitted, an unverified key is issued directly.
+  if (hasEmail && !EMAIL_RE.test(emailAddr)) {
+    sendError(res, ErrorCode.INVALID_PARAMETER, 'If an email is provided, it must be valid.');
     return;
   }
 
@@ -46,8 +49,8 @@ async function registerAgent(req: Request, res: Response): Promise<void> {
   const utmMedium = (req.query.utm_medium || req.body.utm_medium) as string | undefined;
   const signupChannel = resolveSignupChannel(req.headers['referer'], utmSource, utmMedium);
 
-  const verificationToken = generateVerificationToken();
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  const verificationToken: string | null = hasEmail ? generateVerificationToken() : null;
+  const expiresAt: string | null = hasEmail ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null;
   const id = uuidv4();
 
   await db.query(
@@ -60,8 +63,8 @@ async function registerAgent(req: Request, res: Response): Promise<void> {
       id,
       keyHash,
       agent_name.trim().slice(0, 200),
-      emailAddr.slice(0, 500),
-      emailAddr.slice(0, 500), // also set contact for backward compat
+      hasEmail ? emailAddr.slice(0, 500) : null,
+      hasEmail ? emailAddr.slice(0, 500) : null, // also set contact for backward compat
       use_case ? String(use_case).slice(0, 1000) : null,
       signupChannel,
       utmSource || null,
@@ -73,17 +76,19 @@ async function registerAgent(req: Request, res: Response): Promise<void> {
   // Fire PostHog registration event (async, non-blocking)
   trackRegistration(hashKey(rawKey), agent_name, signupChannel, utmSource || null);
 
-  // Send verification email (async, non-blocking)
-  sendVerificationEmail(emailAddr, verificationToken)
-    .then((sent) => {
-      if (sent) {
-        db.query(
-          `UPDATE api_keys SET email_verification_sent_at = NOW() WHERE key_hash = $1`,
-          [keyHash]
-        ).catch(() => {});
-      }
-    })
-    .catch(() => {});
+  // Send verification email only when an email was supplied (optional for agents)
+  if (hasEmail && verificationToken) {
+    sendVerificationEmail(emailAddr, verificationToken)
+      .then((sent) => {
+        if (sent) {
+          db.query(
+            `UPDATE api_keys SET email_verification_sent_at = NOW() WHERE key_hash = $1`,
+            [keyHash]
+          ).catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }
 
   res.status(201).json({
     api_key: rawKey,
