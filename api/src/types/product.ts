@@ -31,6 +31,12 @@ export interface CanonicalProduct {
   discount_pct?: number | null;
   // Affiliate-tracked URL (BUY-18436); present when platform has active affiliate config
   affiliate_url?: string | null;
+  // BUY-52474: tracking URLs the FE should use for outbound clicks so that
+  // `clicks` (via /api/click) and `affiliate_clicks` (via /r/) tables grow
+  // from real /v1 traffic. Optional because they're only present when the
+  // product has a destination URL to track.
+  click_url?: string | null;
+  affiliate_redirect_url?: string | null;
 }
 
 export interface SearchResponse {

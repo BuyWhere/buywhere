@@ -1,5 +1,6 @@
 import { CanonicalProduct, ComparisonAttribute, SearchResponse } from '../types/product';
 import { resolvePrecomputedAffiliateUrl } from './affiliateWrapper';
+import { buildAffiliateRedirectUrl, buildClickUrl } from './instrumentation';
 
 export const CURRENCY_RATES: Record<string, number> = {
   USD: 1, SGD: 0.74, VND: 0.000039, THB: 0.028, MYR: 0.22, GBP: 0.79,
@@ -18,17 +19,34 @@ export function buildProduct(
   const amount = row.price != null ? parseFloat(row.price as string) : null;
 
   const affiliateUrl = resolvePrecomputedAffiliateUrl(row.affiliate_url);
+  const productId = String(row.id);
+  const merchant = (row.domain as string) || '';
+  const destinationUrl = affiliateUrl ?? (row.url as string);
+
+  // BUY-52474: every /v1 product response now carries tracking URLs so the FE
+  // naturally routes user clicks through /r/ (logs affiliate_clicks) and /api/click
+  // (logs clicks). The raw merchant URL is still in `url` for agents/SEO use;
+  // `affiliate_url` keeps its precomputed wrapper when present.
+  const clickUrl = destinationUrl
+    ? buildClickUrl({ productId, destinationUrl, merchantId: merchant || null })
+    : null;
+  const affiliateRedirectUrl = destinationUrl
+    ? buildAffiliateRedirectUrl({ productId, source: 'product_card' })
+    : null;
+
   const base: CanonicalProduct = {
-    id: row.id as string,
+    id: productId,
     title: row.title as string,
     price: { amount, currency },
-    merchant: row.domain as string,
-    url: affiliateUrl ?? (row.url as string),
+    merchant,
+    url: destinationUrl,
     image_url: (row.image_url as string) || null,
     region: (row.region as string) || null,
     country_code: (row.country_code as string) || null,
     updated_at: (row.updated_at as string) || null,
     ...(affiliateUrl != null && { affiliate_url: affiliateUrl }),
+    ...(clickUrl != null && { click_url: clickUrl }),
+    ...(affiliateRedirectUrl != null && { affiliate_redirect_url: affiliateRedirectUrl }),
   };
 
   if (compact) {

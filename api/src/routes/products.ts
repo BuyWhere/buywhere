@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { createHash } from 'crypto';
 import { db, redis, vectorDb } from '../config';
 import { readDb } from '../lib/readReplica';
 import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
@@ -8,6 +9,7 @@ import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
+import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
 import { embedQuery } from '../jobs/embedProducts';
 
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
@@ -194,6 +196,15 @@ router.get(
     const data = dataResult.rows.map((row) =>
       buildProduct(row as Record<string, unknown>, currency, false)
     );
+
+    // BUY-52474: log a product_view per rendered result card so `product_views`
+    // grows from real /v1 list traffic. Fire-and-forget; idempotency is
+    // enforced in the helper.
+    recordProductViewsBulk({
+      productIds: data.map((p) => p.id),
+      source: 'products.list',
+      req,
+    });
 
     const body = {
       data,
@@ -664,6 +675,17 @@ router.get(
       });
     }
 
+    // BUY-52474: log a product_view per search-result card so the
+    // `product_views` table grows from real /v1 search traffic. We use a
+    // queryHash so dedup-keyed views from the same search query collapse
+    // into a single row per (product, query, second). Fire-and-forget.
+    recordProductViewsBulk({
+      productIds: products.map((p) => p.id),
+      source: 'products.search',
+      queryHash: q ? createHash('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
+      req,
+    });
+
     res.json(responseBody);
   })
 );
@@ -804,6 +826,15 @@ router.get(
 
     const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false);
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+
+    // BUY-52474: log a product_view per deals card so /v1/products/deals drives
+    // product_views growth alongside /search and /:id.
+    recordProductViewsBulk({
+      productIds: deals.map((p) => p.id),
+      source: 'products.deals',
+      req,
+    });
+
     res.json(responseBody);
   })
 );
@@ -840,6 +871,15 @@ router.get(
     const currenciesMixed = uniqueCurrencies.length > 1;
 
     const responseBody = buildSearchResponse(products, products.length, ids.length, 0, Date.now() - start, false);
+
+    // BUY-52474: log a product_view per side-by-side product card so the
+    // /v1/products/compare surface also drives product_views growth.
+    recordProductViewsBulk({
+      productIds: products.map((p) => p.id),
+      source: 'products.compare',
+      req,
+    });
+
     res.json({
       ...responseBody,
       currencies_mixed: currenciesMixed,
@@ -1190,6 +1230,15 @@ router.get(
         latencyMs: elapsedMs,
       });
     }
+
+    // BUY-52474: log a product_view for /v1/products/:id detail renders so the
+    // `product_views` table grows from real /v1 detail traffic. Fire-and-forget
+    // so the response is never blocked on the insert.
+    recordProductView({
+      productId: row.id,
+      source: 'products.get',
+      req,
+    });
 
     const responseBody = buildSearchResponse([product], 1, 1, 0, Date.now() - start, false);
     res.json(responseBody);
