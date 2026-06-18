@@ -2,7 +2,9 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import type { Metadata } from "next";
+import Script from "next/script";
 import { toSiteUrl } from "@/lib/site-url";
+import { ORG_ID } from "@/lib/site-schema";
 
 export const metadata: Metadata = {
   title: "About BuyWhere — AI-Powered Product Catalog",
@@ -32,8 +34,37 @@ const values = [
 ];
 
 export default function AboutPage() {
+  const aboutSchema = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "AboutPage",
+        "@id": "https://buywhere.ai/about#page",
+        url: "https://buywhere.ai/about",
+        name: "About BuyWhere",
+        description:
+          "BuyWhere is the neutral product catalog layer for AI agents in Southeast Asia and the US.",
+        inLanguage: "en",
+        isPartOf: { "@id": "https://buywhere.ai/#website" },
+        about: { "@id": ORG_ID },
+        publisher: { "@id": ORG_ID },
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": "https://buywhere.ai/about#breadcrumb",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: "https://buywhere.ai" },
+          { "@type": "ListItem", position: 2, name: "About", item: "https://buywhere.ai/about" },
+        ],
+      },
+    ],
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
+      <Script id="about-schema" type="application/ld+json" strategy="afterInteractive">
+        {JSON.stringify(aboutSchema)}
+      </Script>
       <Nav />
 
       <main id="main-content">

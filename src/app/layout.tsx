@@ -16,6 +16,7 @@ import { DeveloperAuthProvider } from "@/lib/developer-auth";
 import { ThemeProvider } from "@/lib/use-theme";
 import { RecentlyViewedProvider } from "@/lib/recently-viewed-context";
 import { WishlistProvider } from "@/lib/wishlist-context";
+import { siteSchemaGraph } from "@/lib/site-schema";
 
 const CompareFloatingBar = dynamic(
   () => import("@/components/ui/CompareFloatingBar").then((mod) => mod.CompareFloatingBar),
@@ -78,6 +79,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <head>
+        <Script
+          id="site-schema"
+          type="application/ld+json"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteSchemaGraph) }}
+        />
         <link rel="dns-prefetch" href="https://plausible.io" />
         <link rel="preconnect" href="https://plausible.io" />
         <link rel="preconnect" href="https://images.unsplash.com" />

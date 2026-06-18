@@ -2,6 +2,7 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import type { Metadata } from "next";
+import Script from "next/script";
 import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
@@ -103,8 +104,21 @@ function FeatureCell({ value }: { value: boolean | string }) {
 }
 
 export default function PricingPage() {
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "@id": "https://buywhere.ai/pricing#breadcrumb",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://buywhere.ai" },
+      { "@type": "ListItem", position: 2, name: "Pricing", item: "https://buywhere.ai/pricing" },
+    ],
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-white">
+      <Script id="pricing-breadcrumb-schema" type="application/ld+json" strategy="afterInteractive">
+        {JSON.stringify(breadcrumbSchema)}
+      </Script>
       <Nav />
 
       <main id="main-content">

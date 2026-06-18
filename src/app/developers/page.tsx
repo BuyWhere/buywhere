@@ -104,8 +104,59 @@ export default function DevelopersPage() {
     ]
   };
 
+  const techArticleSchema = {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "@id": "https://buywhere.ai/developers#tech-article",
+    headline: "BuyWhere MCP Server & Product Catalog API — Developer Documentation",
+    description:
+      "Documentation for the BuyWhere MCP server and product catalog API. Connect an AI agent to live product search, price comparison, and merchant handoff across Singapore, Southeast Asia, and the US.",
+    inLanguage: "en",
+    keywords:
+      "MCP, Model Context Protocol, AI agent, product catalog API, developer documentation, Smithery, Glama",
+    author: { "@id": "https://buywhere.ai/#organization" },
+    publisher: { "@id": "https://buywhere.ai/#organization" },
+    isPartOf: { "@id": "https://buywhere.ai/#website" },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": "https://buywhere.ai/developers",
+    },
+    about: { "@id": "https://buywhere.ai/#software" },
+    audience: {
+      "@type": "Audience",
+      audienceType: "Developers and AI agent engineers",
+    },
+    proficiencyLevel: "Intermediate",
+  };
+
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "@id": "https://buywhere.ai/developers#breadcrumb",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: "https://buywhere.ai",
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Developers",
+        item: "https://buywhere.ai/developers",
+      },
+    ],
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-white">
+      <Script id="tech-article-schema" type="application/ld+json" strategy="afterInteractive">
+        {JSON.stringify(techArticleSchema)}
+      </Script>
+      <Script id="developers-breadcrumb-schema" type="application/ld+json" strategy="afterInteractive">
+        {JSON.stringify(breadcrumbSchema)}
+      </Script>
       <Script id="faq-schema" type="application/ld+json" strategy="afterInteractive">
         {JSON.stringify(faqSchema)}
       </Script>

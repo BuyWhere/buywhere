@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { getAllBlogPosts } from "@/lib/blog";
@@ -28,8 +29,36 @@ export default function BlogIndexPage() {
   const featuredPost = posts[0];
   const remainingPosts = posts.slice(1);
 
+  const blogSchema = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Blog",
+        "@id": "https://buywhere.ai/blog#blog",
+        url: "https://buywhere.ai/blog",
+        name: "BuyWhere Blog",
+        description:
+          "Developer tutorials, launch updates, and SEO content about product APIs, shopping agents, and commerce infrastructure.",
+        inLanguage: "en",
+        publisher: { "@id": "https://buywhere.ai/#organization" },
+        isPartOf: { "@id": "https://buywhere.ai/#website" },
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": "https://buywhere.ai/blog#breadcrumb",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: "https://buywhere.ai" },
+          { "@type": "ListItem", position: 2, name: "Blog", item: "https://buywhere.ai/blog" },
+        ],
+      },
+    ],
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
+      <Script id="blog-schema" type="application/ld+json" strategy="afterInteractive">
+        {JSON.stringify(blogSchema)}
+      </Script>
       <Nav />
 
       <main id="main-content" className="flex-1">
