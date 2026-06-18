@@ -446,10 +446,10 @@ describe('NL search queries — response correctness', () => {
       if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
         return Promise.resolve({ rows: [] });
       }
-      if (typeof sql === 'string' && sql.includes('WHERE id = ANY($1::uuid[]) AND')) {
+      if (typeof sql === 'string' && sql.includes('WHERE id = ANY($1::bigint[]) AND')) {
         return Promise.resolve({ rows: [{ id: '2' }, { id: '1' }] });
       }
-      if (typeof sql === 'string' && sql.includes('WHERE products.id = ANY($1::uuid[])')) {
+      if (typeof sql === 'string' && sql.includes('WHERE products.id = ANY($1::bigint[])')) {
         return Promise.resolve({
           rows: [
             makeProduct('1', { title: 'Gaming Laptop', price: 1299 }),
@@ -489,13 +489,13 @@ describe('NL search queries — response correctness', () => {
       if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
         return Promise.resolve({ rows: [] });
       }
-      if (typeof sql === 'string' && sql.includes('WHERE id = ANY($1::uuid[]) AND')) {
+      if (typeof sql === 'string' && sql.includes('WHERE id = ANY($1::bigint[]) AND')) {
         return Promise.resolve({ rows: [{ id: '2' }, { id: '3' }] });
       }
       if (typeof sql === 'string' && sql.includes('ORDER BY ts_rank(search_vector')) {
         return Promise.resolve({ rows: [{ id: '1' }, { id: '2' }] });
       }
-      if (typeof sql === 'string' && sql.includes('WHERE products.id = ANY($1::uuid[])')) {
+      if (typeof sql === 'string' && sql.includes('WHERE products.id = ANY($1::bigint[])')) {
         return Promise.resolve({
           rows: [
             makeProduct('1', { title: 'Gaming Laptop', price: 1299 }),
