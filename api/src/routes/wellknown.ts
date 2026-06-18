@@ -16,7 +16,7 @@ const AI_AGENT_DESCRIPTOR = {
   auth: {
     type: 'api_key',
     header: 'X-API-Key',
-    obtain: 'https://api.buywhere.ai/v1/keys',
+    obtain: 'https://api.buywhere.ai/v1/auth/register',
   },
   capabilities: ['search_products', 'get_deals', 'compare_prices'],
   llms_txt: 'https://buywhere.ai/llms.txt',
