@@ -69,7 +69,7 @@ function setupDefaultMocks() {
   vectorQueryMock.mock.mockImplementation(() => Promise.resolve({ rows: [] }));
   embedQueryMock.mock.mockImplementation(() => Promise.resolve('[0.1,0.2,0.3]'));
   config.vectorDb = null;
-  delete process.env.JINA_API_KEY;
+  delete process.env.GEMINI_API_KEY;
 }
 
 describe('NL search queries — response correctness', () => {
@@ -434,7 +434,7 @@ describe('NL search queries — response correctness', () => {
   });
 
   it('uses vector search for semantic mode when vector infra is available', async () => {
-    process.env.JINA_API_KEY = 'test-jina-key';
+    process.env.GEMINI_API_KEY = 'test-jina-key';
     config.vectorDb = { query: vectorQueryMock };
     vectorQueryMock.mock.mockImplementation(() => Promise.resolve({
       rows: [{ product_id: '2' }, { product_id: '1' }],
@@ -477,7 +477,7 @@ describe('NL search queries — response correctness', () => {
   });
 
   it('uses RRF merge for hybrid mode when vector infra is available', async () => {
-    process.env.JINA_API_KEY = 'test-jina-key';
+    process.env.GEMINI_API_KEY = 'test-jina-key';
     config.vectorDb = { query: vectorQueryMock };
     vectorQueryMock.mock.mockImplementation(() => Promise.resolve({
       rows: [{ product_id: '2' }, { product_id: '3' }],
