@@ -71,10 +71,10 @@ function authenticateApiKey(req, res, next) {
 
 /**
  * Health Check Endpoint
- * GET /api/mcp/health
+ * GET /api/mcp/health  OR  GET /mcp/health
  * Public endpoint - no authentication required
  */
-app.get('/api/mcp/health', (req, res) => {
+app.get(['/api/mcp/health', '/mcp/health'], (req, res) => {
   const health = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -380,10 +380,10 @@ app.post('/api/mcp/auth/token', (req, res) => {
 
 /**
  * MCP Tools Endpoint (JSON-RPC 2.0)
- * POST /api/mcp
+ * POST /api/mcp  OR  POST /mcp  (documented transport URL in server card)
  * Requires authentication for all tool calls
  */
-app.post('/api/mcp', authenticateApiKey, (req, res) => {
+app.post(['/api/mcp', '/mcp'], authenticateApiKey, (req, res) => {
   if (!req.body || typeof req.body !== 'object') {
     return res.status(400).json({
       jsonrpc: '2.0',
