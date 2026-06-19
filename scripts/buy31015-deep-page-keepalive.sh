@@ -51,6 +51,26 @@ except Exception:
 PY
 }
 
+# -- BUY-53114 / BUY-53602: periodically purge stale cycle ndjson artifacts --
+# Every 10th keepalive tick (every ~20 min), clean cycle ndjson files older
+# than 2 hours. This keeps the data/buy31015_wc_deep directory from growing
+# unboundedly across cycles.
+CLEANUP_COUNTER_FILE="$REPO_ROOT/data/.buy31015-deep-page-cleanup-tick"
+CLEANUP_TICK=0
+if [ -f "$CLEANUP_COUNTER_FILE" ]; then
+  CLEANUP_TICK=$(cat "$CLEANUP_COUNTER_FILE" 2>/dev/null || echo "0")
+fi
+CLEANUP_TICK=$((CLEANUP_TICK + 1))
+echo "$CLEANUP_TICK" > "$CLEANUP_COUNTER_FILE"
+if [ "$CLEANUP_TICK" -ge 10 ]; then
+  echo 0 > "$CLEANUP_COUNTER_FILE"
+  CLEANUP_SCRIPT="$SCRIPT_DIR/wc-cycle-cleanup.sh"
+  if [ -f "$CLEANUP_SCRIPT" ]; then
+    bash "$CLEANUP_SCRIPT" --apply --keep=2 --workspace-dir="$REPO_ROOT" --log-path="$REPO_ROOT/logs/wc_cycle_cleanup.jsonl" --report-path="$REPO_ROOT/data/wc_cycle_cleanup_report.json" 2>/dev/null || true
+  fi
+fi
+
+
 # 1) Gather latest worker status metrics (if available)
 CYCLE="$(read_int "$WORKER_STATUS_FILE" "cycle" "0")"
 ROWS_INSERTED="$(read_int "$WORKER_STATUS_FILE" "rowsInserted" "0")"

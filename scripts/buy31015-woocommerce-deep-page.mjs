@@ -51,6 +51,7 @@ let cycleNum = 0;
 const runStats = {
   sweeps: 0,
   merchantsVisited: 0,
+  totalMerchants: 0,
   pagesFetched: 0,
   productsSeen: 0,
   rowsInserted: 0,
@@ -323,7 +324,7 @@ async function writeStatus() {
     rowsUpdated: runStats.rowsUpdated,
     rowsPerHour,
     discoveredMerchants: runStats.merchantsVisited,
-    totalMerchants: runStats.merchantsVisited,
+    totalMerchants: runStats.totalMerchants || runStats.merchantsVisited,
     phase: 'tick',
     reason: 'worker_heartbeat',
     processId: process.pid,
@@ -375,6 +376,7 @@ async function run() {
   const args = parseArgs(process.argv);
   cycleNum = args.cycle > 0 ? args.cycle : (readBaseline().cycle + 1);
   const merchants = await loadMerchants();
+  runStats.totalMerchants = merchants.length;
 
   if (args.list) {
     console.log(JSON.stringify({ count: merchants.length, merchants }, null, 2));
