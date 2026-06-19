@@ -1,15 +1,17 @@
 {
-  "ts": "2026-06-19T18:46:03.826Z",
+  "ts": "2026-06-19T19:20:06.946Z",
   "lane": "buy31015_woocommerce_deep",
   "cycle": 51,
-  "merchantsVisited": 1,
-  "discoveryProgress": 6,
+  "merchantsVisited": 122,
+  "discoveryProgress": 763,
   "rowsInserted": 0,
-  "rowsUpdated": 0,
-  "rowsPerHour": 0,
-  "discoveredMerchants": 1,
+  "rowsUpdated": 864,
+  "rowsPerHour": 12704,
+  "discoveredMerchants": 122,
   "totalMerchants": 16,
+  "v3AuthMissing": 98,
+  "ingestUnavailable": 0,
   "phase": "tick",
   "reason": "worker_heartbeat",
-  "processId": 2477219
+  "processId": 2686427
 }
