@@ -52,7 +52,7 @@
  * ║ them.                                                                   ║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  */
-import { existsSync, readFileSync, writeFileSync, mkdirSync, openSync, readdirSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, openSync } from 'fs';
 import { spawn, execSync } from 'child_process';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
@@ -143,14 +143,25 @@ function killWorker(pid) {
   clearPid();
 }
 
+function readLastCycle() {
+  try {
+    const raw = readFileSync(STATUS_FILE, "utf8");
+    const data = JSON.parse(raw);
+    return Number(data.cycle) || 0;
+  } catch { return 0; }
+}
+
 function spawnWorker() {
   mkdirSync(dirname(LOG_FILE), { recursive: true });
-  const fd = openSync(LOG_FILE, 'a');
-  const child = spawn(process.execPath, [WORKER, `--duration-sec=${DURATION_SEC}`], {
+  const fd = openSync(LOG_FILE, "a");
+  const lastCycle = readLastCycle();
+  const workerArgs = [WORKER, `--duration-sec=${DURATION_SEC}`];
+  if (lastCycle > 0) workerArgs.push(`--cycle=${lastCycle}`);
+  const child = spawn(process.execPath, workerArgs, {
     detached: true,
-    stdio: ['ignore', fd, fd],
+    stdio: ["ignore", fd, fd],
     cwd: ROOT,
-    env: { ...process.env, NODE_NO_WARNINGS: '1' },
+    env: { ...process.env, NODE_NO_WARNINGS: "1" },
   });
   child.unref();
   const startedAt = new Date().toISOString();
@@ -211,20 +222,19 @@ if (MODE === 'check') {
     console.log(`alive: ${describe(p)}`);
     process.exit(0);
   }
-  // Stale PID file (orphaned worker with recycled PID) — fall back to /proc scan.
-  const entries = readdirSync('/proc').filter(e => /^\d+$/.test(e));
-  for (const e of entries) {
-    try {
-      const cmdline = readFileSync(`/proc/${e}/cmdline`, 'utf8');
-      if (cmdline.includes(WORKER_SIG)) {
-        const pid = parseInt(e, 10);
-        if (isAlive(pid)) {
-          console.log(`alive (proc scan): pid=${pid} cmdline match=${WORKER_SIG}`);
-          process.exit(0);
-        }
+  // BUY-53595 — Prefer pgrep over reading every /proc/<pid>/cmdline entry.
+  // pgrep is orders of magnitude faster on a busy system and avoids races
+  // on transient /proc entries.
+  try {
+    const pgrepOut = execSync(`pgrep -f ${WORKER_SIG}`, { encoding: 'utf8', timeout: 5000 }).trim();
+    if (pgrepOut) {
+      const pid = parseInt(pgrepOut.split('\n')[0], 10);
+      if (pid && isAlive(pid)) {
+        console.log(`alive (pgrep): pid=${pid} cmdline match=${WORKER_SIG}`);
+        process.exit(0);
       }
-    } catch { }
-  }
+    }
+  } catch { /* pgrep exit 1 = no match — fall through */ }
   console.log(`not running: ${describe(p)}`);
   process.exit(1);
 }
