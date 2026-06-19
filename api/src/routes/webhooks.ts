@@ -16,6 +16,29 @@ const REX_AGENT_ID = '8ca957f8-0911-4e81-a963-e2cf54c97d44';
 const PARENT_ISSUE_ID = '79d50257-93fa-43d2-9042-bc14bcafd4b4'; // BUY-13701
 const GOAL_ID = '2c19e8cc-3e32-4144-8fcb-c4f206cb9fa4';
 
+/** Known BuyWhere production host suffixes that should create incidents. */
+const SUPPORTED_MONITOR_HOSTS = [
+  'buywhere.ai',
+  'api.buywhere.ai',
+  'mcp.buywhere.ai',
+  'www.buywhere.ai',
+  'buywhere-monitoring-api.up.railway.app',
+];
+
+/**
+ * Returns true if the monitor URL points to a supported BuyWhere production host.
+ * Unsupported hosts (e.g. dedup.ai) are silently ignored.
+ */
+const isSupportedMonitorHost = (monitorURL: string): boolean => {
+  try {
+    const hostname = new URL(monitorURL).hostname.toLowerCase();
+    return SUPPORTED_MONITOR_HOSTS.some((host) => hostname === host || hostname.endsWith('.' + host));
+  } catch {
+    // If URL is malformed, let it through — false negatives are worse than false positives
+    return true;
+  }
+};
+
 interface UptimeRobotAlert {
   monitorID?: string;
   monitorURL?: string;
@@ -40,6 +63,7 @@ const createPaperclipIssue = async (alert: UptimeRobotAlert, isDown: boolean): P
   const friendlyName = alert.monitorFriendlyName || alert.monitorName || alert.monitor_name || 'unknown';
   const monitorURL = alert.monitorURL || 'unknown';
   const alertDetails = alert.alertDetails || alert.alert_details || '';
+
   const status = isDown ? 'DOWN' : 'UP';
   const timestamp = new Date().toISOString();
 
@@ -96,6 +120,12 @@ router.post('/uptime-robot', (req: Request, res: Response) => {
   const friendlyName = payload?.monitorFriendlyName || payload?.monitorName || payload?.monitor_name || 'unknown';
   const monitorURL = payload?.monitorURL || 'unknown';
   const alertDetails = payload?.alertDetails ?? payload?.alert_details ?? '';
+
+  if (!isSupportedMonitorHost(monitorURL)) {
+    console.warn(`[webhooks/uptime-robot] Ignoring alert for unsupported host: ${monitorURL} (friendlyName=${friendlyName})`);
+    res.status(202).json({ ignored: true, reason: 'unsupported_monitor_host' });
+    return;
+  }
 
   const isDown = alertType === 1 || alertType === '1' || alertType === 'down' || alertType === 'DOWN' || alertType === 'Down';
   const isUp = alertType === 2 || alertType === '2' || alertType === 'up' || alertType === 'UP' || alertType === 'Up';

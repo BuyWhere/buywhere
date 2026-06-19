@@ -20,6 +20,9 @@ Exit codes:
 
 Usage:
   python3 scripts/ingestion_pipeline_healthcheck.py [--fix] [--json]
+  python3 scripts/ingestion_pipeline_healthcheck.py --cron          # write JSON report to data/reports/
+  python3 scripts/ingestion_pipeline_healthcheck.py --exit-code     # exit with health code
+  python3 scripts/ingestion_pipeline_healthcheck.py --json          # stdout JSON only
 """
 
 import argparse
@@ -345,9 +348,26 @@ def main():
     parser.add_argument("--fix", action="store_true", help="Auto-fix zombie runs")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     parser.add_argument(
+        "--cron", action="store_true",
+        help="Cron mode: write JSON report to data/reports/ and print one-line summary"
+    )
+    parser.add_argument(
+        "--report-dir", default=None,
+        help="Directory for cron report files (default: data/reports/ under repo root)"
+    )
+    parser.add_argument(
         "--exit-code", action="store_true", help="Exit with health status code"
     )
     args = parser.parse_args()
+
+    # Resolve report-dir for --cron mode
+    if args.cron:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        repo_root = os.path.abspath(os.path.join(script_dir, ".."))
+        args.report_dir = args.report_dir or os.path.join(repo_root, "data", "reports")
+        args.json = True  # force JSON for report file
+        args.exit_code = True  # propagate exit code for crontab
+        args.fix = True  # auto-fix zombie runs on each cron tick
 
     hc = HealthCheck(fix_mode=args.fix)
     report = hc.run()
@@ -378,6 +398,29 @@ def main():
                         elif k != "runs_last_24h":
                             print(f"      {k}: {v}")
         print(f"{'='*60}\n")
+    if args.cron:
+        os.makedirs(args.report_dir, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        report_file = os.path.join(args.report_dir, f"ingestion-healthcheck-{ts}.json")
+
+        with open(report_file, "w") as f:
+            json.dump(report, f, indent=2)
+
+        summary_line = (
+            f"[BUY-53336] ingestion-healthcheck overall={report['overall']} "
+            f"ok={report['ok']} warn={report['warnings']} crit={report['critical']} "
+            f"exit={report['exit_code']} report={report_file}"
+        )
+        print(summary_line)
+
+        # Clean up old reports (>7 days)
+        cutoff = time.time() - 7 * 86400
+        for fname in os.listdir(args.report_dir):
+            fpath = os.path.join(args.report_dir, fname)
+            if fname.startswith("ingestion-healthcheck-") and os.path.isfile(fpath):
+                if os.path.getmtime(fpath) < cutoff:
+                    os.remove(fpath)
+
 
     if args.exit_code:
         sys.exit(report["exit_code"])
