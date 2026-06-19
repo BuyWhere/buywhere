@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+export REDIS_URL="redis://localhost:6380"
+export REDIS_URL="redis://localhost:6380"
 # run-buy-53336-ingestion-healthcheck-cron.sh — BUY-53674
 # Recurring ingestion pipeline health check.
 # Runs the Python health check script in --cron mode, writes a timestamped JSON

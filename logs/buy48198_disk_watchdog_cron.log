@@ -4657,3 +4657,433 @@
   ]
 }
 [2026-06-19T17:35:17Z] BUY-48198 watchdog complete rc=0
+[2026-06-19T17:40:01Z] BUY-48198 watchdog start
+[2026-06-19T17:40:02Z] BUY-48198 wc cleanup completed rc=0
+[2026-06-19T17:40:02Z] starting apply=1 root=/paperclip/instances/default/workspaces log_retention_days=2 run_retention_days=3 heartbeat_retention_min=360 disk_artifact_retention_days=2 trash_archive_minutes=360 trash_archive_min_kb=262144 trash_archive_dirname=_trash_archives alert_pct=90
+[2026-06-19T17:40:02Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__
+[2026-06-19T17:40:02Z] skip-undeletable kind=pycache-file kb=24 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingested_marker.cpython-312.pyc
+[2026-06-19T17:40:02Z] skip-undeletable kind=pycache-file kb=37 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T17:40:06Z] deleted kind=stale-pid kb=1 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/.buy31015-deep-page.pid
+[2026-06-19T17:40:10Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__
+[2026-06-19T17:40:10Z] skip-undeletable kind=pycache-file kb=26 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T17:40:11Z] deleted kind=disk-monitor-dir kb=4 path=/paperclip/instances/default/workspaces/8ca957f8-0911-4e81-a963-e2cf54c97d44/data/buy-48198-disk-monitor-2026-06-16T174001Z
+[2026-06-19T17:40:19Z] summary apply=1 scanned=14 removed=2 skipped_undeletable=5 failed=0 reclaimed_kb=5 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+[2026-06-19T17:40:19Z] BUY-48198 worker artifact cleanup completed rc=0
+{
+  "generated_at": "2026-06-19T17:40:19.147Z",
+  "status": "PASS",
+  "filesystem": "/dev/vda1",
+  "mount_path": "/",
+  "free_gb": 23.4,
+  "size_bytes": 206900281344,
+  "available_bytes": 25165565952,
+  "warn_gb": 20,
+  "critical_gb": 5,
+  "incident_created": false,
+  "notes": [
+    "Filesystem /dev/vda1 mounted at /",
+    "23.4 GB free (88% used)",
+    "Disk space healthy"
+  ]
+}
+[2026-06-19T17:40:19Z] BUY-48198 watchdog complete rc=0
+[2026-06-19T17:45:01Z] BUY-48198 watchdog start
+[2026-06-19T17:45:02Z] BUY-48198 wc cleanup completed rc=0
+[2026-06-19T17:45:02Z] starting apply=1 root=/paperclip/instances/default/workspaces log_retention_days=2 run_retention_days=3 heartbeat_retention_min=360 disk_artifact_retention_days=2 trash_archive_minutes=360 trash_archive_min_kb=262144 trash_archive_dirname=_trash_archives alert_pct=90
+[2026-06-19T17:45:02Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__
+[2026-06-19T17:45:02Z] skip-undeletable kind=pycache-file kb=24 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingested_marker.cpython-312.pyc
+[2026-06-19T17:45:02Z] skip-undeletable kind=pycache-file kb=37 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T17:45:04Z] deleted kind=stale-pid kb=1 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/scraper.pid
+[2026-06-19T17:45:08Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__
+[2026-06-19T17:45:08Z] skip-undeletable kind=pycache-file kb=26 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T17:45:08Z] deleted kind=cycle-log kb=1 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/logs/buy31015-deep-supervisor-20260616T174002Z.log
+[2026-06-19T17:45:08Z] deleted kind=disk-monitor-dir kb=4 path=/paperclip/instances/default/workspaces/8ca957f8-0911-4e81-a963-e2cf54c97d44/data/buy-48198-disk-monitor-2026-06-16T174501Z
+[2026-06-19T17:45:16Z] summary apply=1 scanned=14 removed=3 skipped_undeletable=5 failed=0 reclaimed_kb=6 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+[2026-06-19T17:45:16Z] BUY-48198 worker artifact cleanup completed rc=0
+{
+  "generated_at": "2026-06-19T17:45:16.531Z",
+  "status": "PASS",
+  "filesystem": "/dev/vda1",
+  "mount_path": "/",
+  "free_gb": 23.4,
+  "size_bytes": 206900281344,
+  "available_bytes": 25126842368,
+  "warn_gb": 20,
+  "critical_gb": 5,
+  "incident_created": false,
+  "notes": [
+    "Filesystem /dev/vda1 mounted at /",
+    "23.4 GB free (88% used)",
+    "Disk space healthy"
+  ]
+}
+[2026-06-19T17:45:16Z] BUY-48198 watchdog complete rc=0
+[2026-06-19T17:50:01Z] BUY-48198 watchdog start
+[2026-06-19T17:50:02Z] BUY-48198 wc cleanup completed rc=0
+[2026-06-19T17:50:02Z] starting apply=1 root=/paperclip/instances/default/workspaces log_retention_days=2 run_retention_days=3 heartbeat_retention_min=360 disk_artifact_retention_days=2 trash_archive_minutes=360 trash_archive_min_kb=262144 trash_archive_dirname=_trash_archives alert_pct=90
+[2026-06-19T17:50:02Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__
+[2026-06-19T17:50:02Z] skip-undeletable kind=pycache-file kb=24 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingested_marker.cpython-312.pyc
+[2026-06-19T17:50:02Z] skip-undeletable kind=pycache-file kb=37 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T17:50:06Z] deleted kind=stale-pid kb=1 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/.buy31015-deep-page.pid
+[2026-06-19T17:50:09Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__
+[2026-06-19T17:50:09Z] skip-undeletable kind=pycache-file kb=26 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T17:50:09Z] deleted kind=cycle-log kb=1 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/logs/buy31015-deep-supervisor-20260616T174802Z.log
+[2026-06-19T17:50:10Z] deleted kind=disk-monitor-dir kb=4 path=/paperclip/instances/default/workspaces/8ca957f8-0911-4e81-a963-e2cf54c97d44/data/buy-48198-disk-monitor-2026-06-16T175001Z
+[2026-06-19T17:50:15Z] deleted kind=runs-dir kb=4 path=/paperclip/instances/default/workspaces/19dcd635-1d2b-4e41-9950-5865876e12b2/buywhere/data/runs/BILL_14344_20260515_170201
+[2026-06-19T17:50:17Z] summary apply=1 scanned=15 removed=4 skipped_undeletable=5 failed=0 reclaimed_kb=10 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+[2026-06-19T17:50:17Z] BUY-48198 worker artifact cleanup completed rc=0
+{
+  "generated_at": "2026-06-19T17:50:17.600Z",
+  "status": "WARN",
+  "filesystem": "/dev/vda1",
+  "mount_path": "/",
+  "free_gb": 23.4,
+  "size_bytes": 206900281344,
+  "available_bytes": 25103437824,
+  "warn_gb": 25,
+  "critical_gb": 5,
+  "incident_created": false,
+  "notes": [
+    "Filesystem /dev/vda1 mounted at /",
+    "23.4 GB free (88% used)",
+    "Below warning threshold of 25 GB",
+    "Did not create warning incident"
+  ]
+}
+[2026-06-19T17:55:01Z] BUY-48198 watchdog start
+[2026-06-19T17:55:02Z] BUY-48198 wc cleanup completed rc=0
+[2026-06-19T17:55:02Z] starting apply=1 root=/paperclip/instances/default/workspaces log_retention_days=2 run_retention_days=3 heartbeat_retention_min=360 disk_artifact_retention_days=2 trash_archive_minutes=360 trash_archive_min_kb=262144 trash_archive_dirname=_trash_archives alert_pct=90
+[2026-06-19T17:55:02Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__
+[2026-06-19T17:55:02Z] skip-undeletable kind=pycache-file kb=24 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingested_marker.cpython-312.pyc
+[2026-06-19T17:55:02Z] skip-undeletable kind=pycache-file kb=37 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T17:55:05Z] deleted kind=stale-pid kb=1 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/.buy31015-deep-page.pid
+[2026-06-19T17:55:08Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__
+[2026-06-19T17:55:08Z] skip-undeletable kind=pycache-file kb=26 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T17:55:09Z] deleted kind=disk-monitor-dir kb=4 path=/paperclip/instances/default/workspaces/8ca957f8-0911-4e81-a963-e2cf54c97d44/data/buy-48198-disk-monitor-2026-06-16T175501Z
+[2026-06-19T17:56:38Z] archived-trash dir_kb=3792612 archive_kb=814882 reclaimed_kb=2977730 path=/paperclip/instances/default/workspaces/5bc984ee-e2d2-4312-9e6c-b2864524a21f/data/_trash/2026-06-19 archive=/paperclip/instances/default/workspaces/5bc984ee-e2d2-4312-9e6c-b2864524a21f/data/_trash_archives/2026-06-19.tar.gz
+[2026-06-19T17:56:41Z] summary apply=1 scanned=13 removed=3 skipped_undeletable=5 failed=0 reclaimed_kb=2977735 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+[2026-06-19T17:56:41Z] BUY-48198 worker artifact cleanup completed rc=0
+{
+  "generated_at": "2026-06-19T17:56:41.346Z",
+  "status": "PASS",
+  "filesystem": "/dev/vda1",
+  "mount_path": "/",
+  "free_gb": 25.7,
+  "size_bytes": 206900281344,
+  "available_bytes": 27608080384,
+  "warn_gb": 25,
+  "critical_gb": 5,
+  "incident_created": false,
+  "notes": [
+    "Filesystem /dev/vda1 mounted at /",
+    "25.7 GB free (87% used)",
+    "Disk space healthy"
+  ]
+}
+[2026-06-19T17:56:41Z] BUY-48198 watchdog complete rc=0
+[2026-06-19T18:00:01Z] BUY-48198 watchdog start
+[2026-06-19T18:00:02Z] BUY-48198 wc cleanup completed rc=0
+[2026-06-19T18:00:02Z] starting apply=1 root=/paperclip/instances/default/workspaces log_retention_days=2 run_retention_days=3 heartbeat_retention_min=360 disk_artifact_retention_days=2 trash_archive_minutes=360 trash_archive_min_kb=262144 trash_archive_dirname=_trash_archives alert_pct=90
+[2026-06-19T18:00:02Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__
+[2026-06-19T18:00:02Z] skip-undeletable kind=pycache-file kb=24 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingested_marker.cpython-312.pyc
+[2026-06-19T18:00:02Z] skip-undeletable kind=pycache-file kb=37 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:00:08Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__
+[2026-06-19T18:00:08Z] skip-undeletable kind=pycache-file kb=26 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:00:08Z] deleted kind=cycle-log kb=1 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/logs/buy31015-deep-supervisor-20260616T175602Z.log
+[2026-06-19T18:00:09Z] deleted kind=disk-monitor-dir kb=4 path=/paperclip/instances/default/workspaces/8ca957f8-0911-4e81-a963-e2cf54c97d44/data/buy-48198-disk-monitor-2026-06-16T180001Z
+[2026-06-19T18:00:16Z] summary apply=1 scanned=12 removed=2 skipped_undeletable=5 failed=0 reclaimed_kb=5 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+[2026-06-19T18:00:16Z] BUY-48198 worker artifact cleanup completed rc=0
+{
+  "generated_at": "2026-06-19T18:00:16.795Z",
+  "status": "PASS",
+  "filesystem": "/dev/vda1",
+  "mount_path": "/",
+  "free_gb": 26.2,
+  "size_bytes": 206900281344,
+  "available_bytes": 28111208448,
+  "warn_gb": 25,
+  "critical_gb": 5,
+  "incident_created": false,
+  "notes": [
+    "Filesystem /dev/vda1 mounted at /",
+    "26.2 GB free (87% used)",
+    "Disk space healthy"
+  ]
+}
+[2026-06-19T18:00:16Z] BUY-48198 watchdog complete rc=0
+[2026-06-19T18:05:01Z] BUY-48198 watchdog start
+[2026-06-19T18:05:02Z] BUY-48198 wc cleanup completed rc=0
+[2026-06-19T18:05:02Z] starting apply=1 root=/paperclip/instances/default/workspaces log_retention_days=2 run_retention_days=3 heartbeat_retention_min=360 disk_artifact_retention_days=2 trash_archive_minutes=360 trash_archive_min_kb=262144 trash_archive_dirname=_trash_archives alert_pct=90
+[2026-06-19T18:05:02Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__
+[2026-06-19T18:05:02Z] skip-undeletable kind=pycache-file kb=24 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingested_marker.cpython-312.pyc
+[2026-06-19T18:05:02Z] skip-undeletable kind=pycache-file kb=37 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:05:05Z] deleted kind=stale-pid kb=1 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/.buy31015-deep-page.pid
+[2026-06-19T18:05:05Z] deleted kind=stale-pid kb=1 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/scraper.pid
+[2026-06-19T18:05:08Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__
+[2026-06-19T18:05:08Z] skip-undeletable kind=pycache-file kb=26 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:05:10Z] deleted kind=disk-monitor-dir kb=4 path=/paperclip/instances/default/workspaces/8ca957f8-0911-4e81-a963-e2cf54c97d44/data/buy-48198-disk-monitor-2026-06-16T180501Z
+[2026-06-19T18:05:19Z] summary apply=1 scanned=13 removed=3 skipped_undeletable=5 failed=0 reclaimed_kb=6 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+[2026-06-19T18:05:19Z] BUY-48198 worker artifact cleanup completed rc=0
+{
+  "generated_at": "2026-06-19T18:05:20.002Z",
+  "status": "PASS",
+  "filesystem": "/dev/vda1",
+  "mount_path": "/",
+  "free_gb": 26.9,
+  "size_bytes": 206900281344,
+  "available_bytes": 28830097408,
+  "warn_gb": 25,
+  "critical_gb": 5,
+  "incident_created": false,
+  "notes": [
+    "Filesystem /dev/vda1 mounted at /",
+    "26.9 GB free (87% used)",
+    "Disk space healthy"
+  ]
+}
+[2026-06-19T18:05:20Z] BUY-48198 watchdog complete rc=0
+[2026-06-19T18:10:01Z] BUY-48198 watchdog start
+[2026-06-19T18:10:02Z] BUY-48198 wc cleanup completed rc=0
+[2026-06-19T18:10:02Z] starting apply=1 root=/paperclip/instances/default/workspaces log_retention_days=2 run_retention_days=3 heartbeat_retention_min=360 disk_artifact_retention_days=2 trash_archive_minutes=360 trash_archive_min_kb=262144 trash_archive_dirname=_trash_archives alert_pct=90
+[2026-06-19T18:10:02Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__
+[2026-06-19T18:10:02Z] skip-undeletable kind=pycache-file kb=24 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingested_marker.cpython-312.pyc
+[2026-06-19T18:10:02Z] skip-undeletable kind=pycache-file kb=37 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:10:05Z] deleted kind=stale-pid kb=1 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/.buy31015-deep-page.pid
+[2026-06-19T18:10:08Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__
+[2026-06-19T18:10:08Z] skip-undeletable kind=pycache-file kb=26 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:10:09Z] deleted kind=cycle-log kb=1 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/logs/buy31015-deep-supervisor-20260616T180802Z.log
+[2026-06-19T18:10:09Z] deleted kind=disk-monitor-dir kb=4 path=/paperclip/instances/default/workspaces/8ca957f8-0911-4e81-a963-e2cf54c97d44/data/buy-48198-disk-monitor-2026-06-16T181001Z
+[2026-06-19T18:10:17Z] summary apply=1 scanned=13 removed=3 skipped_undeletable=5 failed=0 reclaimed_kb=6 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+[2026-06-19T18:10:17Z] BUY-48198 worker artifact cleanup completed rc=0
+{
+  "generated_at": "2026-06-19T18:10:17.403Z",
+  "status": "PASS",
+  "filesystem": "/dev/vda1",
+  "mount_path": "/",
+  "free_gb": 26.8,
+  "size_bytes": 206900281344,
+  "available_bytes": 28800811008,
+  "warn_gb": 25,
+  "critical_gb": 5,
+  "incident_created": false,
+  "notes": [
+    "Filesystem /dev/vda1 mounted at /",
+    "26.8 GB free (87% used)",
+    "Disk space healthy"
+  ]
+}
+[2026-06-19T18:10:17Z] BUY-48198 watchdog complete rc=0
+[2026-06-19T18:15:01Z] BUY-48198 watchdog start
+[2026-06-19T18:15:02Z] BUY-48198 wc cleanup completed rc=0
+[2026-06-19T18:15:02Z] starting apply=1 root=/paperclip/instances/default/workspaces log_retention_days=2 run_retention_days=3 heartbeat_retention_min=360 disk_artifact_retention_days=2 trash_archive_minutes=360 trash_archive_min_kb=262144 trash_archive_dirname=_trash_archives alert_pct=90
+[2026-06-19T18:15:02Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__
+[2026-06-19T18:15:02Z] skip-undeletable kind=pycache-file kb=24 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingested_marker.cpython-312.pyc
+[2026-06-19T18:15:02Z] skip-undeletable kind=pycache-file kb=37 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:15:06Z] deleted kind=stale-pid kb=1 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/.buy31015-deep-page.pid
+[2026-06-19T18:15:10Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__
+[2026-06-19T18:15:10Z] skip-undeletable kind=pycache-file kb=26 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:15:12Z] deleted kind=disk-monitor-dir kb=4 path=/paperclip/instances/default/workspaces/8ca957f8-0911-4e81-a963-e2cf54c97d44/data/buy-48198-disk-monitor-2026-06-16T181501Z
+[2026-06-19T18:15:19Z] summary apply=1 scanned=12 removed=2 skipped_undeletable=5 failed=0 reclaimed_kb=5 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+[2026-06-19T18:15:19Z] BUY-48198 worker artifact cleanup completed rc=0
+{
+  "generated_at": "2026-06-19T18:15:20.002Z",
+  "status": "PASS",
+  "filesystem": "/dev/vda1",
+  "mount_path": "/",
+  "free_gb": 26.8,
+  "size_bytes": 206900281344,
+  "available_bytes": 28746645504,
+  "warn_gb": 25,
+  "critical_gb": 5,
+  "incident_created": false,
+  "notes": [
+    "Filesystem /dev/vda1 mounted at /",
+    "26.8 GB free (87% used)",
+    "Disk space healthy"
+  ]
+}
+[2026-06-19T18:15:20Z] BUY-48198 watchdog complete rc=0
+[2026-06-19T18:20:01Z] BUY-48198 watchdog start
+[2026-06-19T18:20:01Z] BUY-48198 wc cleanup completed rc=0
+[2026-06-19T18:20:01Z] starting apply=1 root=/paperclip/instances/default/workspaces log_retention_days=2 run_retention_days=3 heartbeat_retention_min=360 disk_artifact_retention_days=2 trash_archive_minutes=360 trash_archive_min_kb=262144 trash_archive_dirname=_trash_archives alert_pct=90
+[2026-06-19T18:20:01Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__
+[2026-06-19T18:20:01Z] skip-undeletable kind=pycache-file kb=24 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingested_marker.cpython-312.pyc
+[2026-06-19T18:20:01Z] skip-undeletable kind=pycache-file kb=37 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:20:04Z] deleted kind=stale-pid kb=1 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/.buy31015-deep-page.pid
+[2026-06-19T18:20:08Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__
+[2026-06-19T18:20:08Z] skip-undeletable kind=pycache-file kb=26 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:20:08Z] deleted kind=cycle-log kb=1 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/logs/buy31015-deep-supervisor-20260616T181602Z.log
+[2026-06-19T18:20:09Z] deleted kind=disk-monitor-dir kb=4 path=/paperclip/instances/default/workspaces/8ca957f8-0911-4e81-a963-e2cf54c97d44/data/buy-48198-disk-monitor-2026-06-16T182001Z
+[2026-06-19T18:20:17Z] summary apply=1 scanned=14 removed=3 skipped_undeletable=5 failed=0 reclaimed_kb=6 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+[2026-06-19T18:20:17Z] BUY-48198 worker artifact cleanup completed rc=0
+{
+  "generated_at": "2026-06-19T18:20:17.482Z",
+  "status": "PASS",
+  "filesystem": "/dev/vda1",
+  "mount_path": "/",
+  "free_gb": 26.8,
+  "size_bytes": 206900281344,
+  "available_bytes": 28764065792,
+  "warn_gb": 20,
+  "critical_gb": 5,
+  "incident_created": false,
+  "notes": [
+    "Filesystem /dev/vda1 mounted at /",
+    "26.8 GB free (87% used)",
+    "Disk space healthy"
+  ]
+}
+[2026-06-19T18:20:17Z] BUY-48198 watchdog complete rc=0
+[2026-06-19T18:25:01Z] BUY-48198 watchdog start
+[2026-06-19T18:25:01Z] BUY-48198 wc cleanup completed rc=0
+[2026-06-19T18:25:01Z] starting apply=1 root=/paperclip/instances/default/workspaces log_retention_days=2 run_retention_days=3 heartbeat_retention_min=360 disk_artifact_retention_days=2 trash_archive_minutes=360 trash_archive_min_kb=262144 trash_archive_dirname=_trash_archives alert_pct=90
+[2026-06-19T18:25:02Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__
+[2026-06-19T18:25:02Z] skip-undeletable kind=pycache-file kb=24 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingested_marker.cpython-312.pyc
+[2026-06-19T18:25:02Z] skip-undeletable kind=pycache-file kb=37 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:25:04Z] deleted kind=stale-pid kb=1 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/.buy31015-deep-page.pid
+[2026-06-19T18:25:08Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__
+[2026-06-19T18:25:08Z] skip-undeletable kind=pycache-file kb=26 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:25:08Z] deleted kind=cycle-log kb=1 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/logs/buy31015-deep-supervisor-20260616T182401Z.log
+[2026-06-19T18:25:09Z] deleted kind=disk-monitor-dir kb=4 path=/paperclip/instances/default/workspaces/8ca957f8-0911-4e81-a963-e2cf54c97d44/data/buy-48198-disk-monitor-2026-06-16T182501Z
+[2026-06-19T18:25:11Z] deleted kind=stale-pid kb=1 path=/paperclip/instances/default/workspaces/708a8ce4-96dd-409d-94e7-a91d5032e4e0/data/homedepot_sitemap_cutover.pid
+[2026-06-19T18:25:16Z] summary apply=1 scanned=14 removed=4 skipped_undeletable=5 failed=0 reclaimed_kb=7 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+[2026-06-19T18:25:16Z] BUY-48198 worker artifact cleanup completed rc=0
+{
+  "generated_at": "2026-06-19T18:25:16.236Z",
+  "status": "PASS",
+  "filesystem": "/dev/vda1",
+  "mount_path": "/",
+  "free_gb": 26.8,
+  "size_bytes": 206900281344,
+  "available_bytes": 28728770560,
+  "warn_gb": 20,
+  "critical_gb": 5,
+  "incident_created": false,
+  "notes": [
+    "Filesystem /dev/vda1 mounted at /",
+    "26.8 GB free (87% used)",
+    "Disk space healthy"
+  ]
+}
+[2026-06-19T18:25:16Z] BUY-48198 watchdog complete rc=0
+[2026-06-19T18:30:01Z] BUY-48198 watchdog start
+[2026-06-19T18:30:01Z] BUY-48198 wc cleanup completed rc=0
+[2026-06-19T18:30:01Z] starting apply=1 root=/paperclip/instances/default/workspaces log_retention_days=2 run_retention_days=3 heartbeat_retention_min=360 disk_artifact_retention_days=2 trash_archive_minutes=360 trash_archive_min_kb=262144 trash_archive_dirname=_trash_archives alert_pct=90
+[2026-06-19T18:30:02Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__
+[2026-06-19T18:30:02Z] skip-undeletable kind=pycache-file kb=24 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingested_marker.cpython-312.pyc
+[2026-06-19T18:30:02Z] skip-undeletable kind=pycache-file kb=37 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:30:04Z] deleted kind=stale-pid kb=1 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/.buy31015-deep-page.pid
+[2026-06-19T18:30:08Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__
+[2026-06-19T18:30:08Z] skip-undeletable kind=pycache-file kb=26 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:30:09Z] deleted kind=disk-monitor-dir kb=4 path=/paperclip/instances/default/workspaces/8ca957f8-0911-4e81-a963-e2cf54c97d44/data/buy-48198-disk-monitor-2026-06-16T183001Z
+[2026-06-19T18:30:16Z] summary apply=1 scanned=12 removed=2 skipped_undeletable=5 failed=0 reclaimed_kb=5 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+[2026-06-19T18:30:16Z] BUY-48198 worker artifact cleanup completed rc=0
+{
+  "generated_at": "2026-06-19T18:30:16.952Z",
+  "status": "PASS",
+  "filesystem": "/dev/vda1",
+  "mount_path": "/",
+  "free_gb": 26.7,
+  "size_bytes": 206900281344,
+  "available_bytes": 28714524672,
+  "warn_gb": 20,
+  "critical_gb": 5,
+  "incident_created": false,
+  "notes": [
+    "Filesystem /dev/vda1 mounted at /",
+    "26.7 GB free (87% used)",
+    "Disk space healthy"
+  ]
+}
+[2026-06-19T18:30:16Z] BUY-48198 watchdog complete rc=0
+[2026-06-19T18:35:00Z] BUY-48198 watchdog start
+[2026-06-19T18:35:01Z] BUY-48198 wc cleanup completed rc=0
+[2026-06-19T18:35:01Z] starting apply=1 root=/paperclip/instances/default/workspaces log_retention_days=2 run_retention_days=3 heartbeat_retention_min=360 disk_artifact_retention_days=2 trash_archive_minutes=360 trash_archive_min_kb=262144 trash_archive_dirname=_trash_archives alert_pct=90
+[2026-06-19T18:35:01Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__
+[2026-06-19T18:35:01Z] skip-undeletable kind=pycache-file kb=24 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingested_marker.cpython-312.pyc
+[2026-06-19T18:35:01Z] skip-undeletable kind=pycache-file kb=37 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:35:07Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__
+[2026-06-19T18:35:08Z] skip-undeletable kind=pycache-file kb=26 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:35:08Z] deleted kind=cycle-log kb=1 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/logs/buy31015-deep-supervisor-20260616T183202Z.log
+[2026-06-19T18:35:08Z] deleted kind=disk-monitor-dir kb=4 path=/paperclip/instances/default/workspaces/8ca957f8-0911-4e81-a963-e2cf54c97d44/data/buy-48198-disk-monitor-2026-06-16T183501Z
+[2026-06-19T18:35:16Z] summary apply=1 scanned=12 removed=2 skipped_undeletable=5 failed=0 reclaimed_kb=5 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+[2026-06-19T18:35:16Z] BUY-48198 worker artifact cleanup completed rc=0
+{
+  "generated_at": "2026-06-19T18:35:16.527Z",
+  "status": "PASS",
+  "filesystem": "/dev/vda1",
+  "mount_path": "/",
+  "free_gb": 26.8,
+  "size_bytes": 206900281344,
+  "available_bytes": 28724592640,
+  "warn_gb": 20,
+  "critical_gb": 5,
+  "incident_created": false,
+  "notes": [
+    "Filesystem /dev/vda1 mounted at /",
+    "26.8 GB free (87% used)",
+    "Disk space healthy"
+  ]
+}
+[2026-06-19T18:35:16Z] BUY-48198 watchdog complete rc=0
+[2026-06-19T18:40:01Z] BUY-48198 watchdog start
+[2026-06-19T18:40:02Z] BUY-48198 wc cleanup completed rc=0
+[2026-06-19T18:40:02Z] starting apply=1 root=/paperclip/instances/default/workspaces log_retention_days=2 run_retention_days=3 heartbeat_retention_min=360 disk_artifact_retention_days=2 trash_archive_minutes=360 trash_archive_min_kb=262144 trash_archive_dirname=_trash_archives alert_pct=90
+[2026-06-19T18:40:02Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__
+[2026-06-19T18:40:02Z] skip-undeletable kind=pycache-file kb=24 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingested_marker.cpython-312.pyc
+[2026-06-19T18:40:02Z] skip-undeletable kind=pycache-file kb=37 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:40:06Z] deleted kind=stale-pid kb=1 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/.buy31015-deep-page.pid
+[2026-06-19T18:40:10Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__
+[2026-06-19T18:40:10Z] skip-undeletable kind=pycache-file kb=26 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:40:11Z] deleted kind=disk-monitor-dir kb=4 path=/paperclip/instances/default/workspaces/8ca957f8-0911-4e81-a963-e2cf54c97d44/data/buy-48198-disk-monitor-2026-06-16T184001Z
+[2026-06-19T18:40:20Z] summary apply=1 scanned=12 removed=2 skipped_undeletable=5 failed=0 reclaimed_kb=5 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+[2026-06-19T18:40:20Z] BUY-48198 worker artifact cleanup completed rc=0
+{
+  "generated_at": "2026-06-19T18:40:20.671Z",
+  "status": "PASS",
+  "filesystem": "/dev/vda1",
+  "mount_path": "/",
+  "free_gb": 26.7,
+  "size_bytes": 206900281344,
+  "available_bytes": 28684267520,
+  "warn_gb": 20,
+  "critical_gb": 5,
+  "incident_created": false,
+  "notes": [
+    "Filesystem /dev/vda1 mounted at /",
+    "26.7 GB free (87% used)",
+    "Disk space healthy"
+  ]
+}
+[2026-06-19T18:40:20Z] BUY-48198 watchdog complete rc=0
+[2026-06-19T18:45:01Z] BUY-48198 watchdog start
+[2026-06-19T18:45:03Z] BUY-48198 wc cleanup completed rc=0
+[2026-06-19T18:45:03Z] starting apply=1 root=/paperclip/instances/default/workspaces log_retention_days=2 run_retention_days=3 heartbeat_retention_min=360 disk_artifact_retention_days=2 trash_archive_minutes=360 trash_archive_min_kb=262144 trash_archive_dirname=_trash_archives alert_pct=90
+[2026-06-19T18:45:03Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__
+[2026-06-19T18:45:04Z] skip-undeletable kind=pycache-file kb=24 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingested_marker.cpython-312.pyc
+[2026-06-19T18:45:04Z] skip-undeletable kind=pycache-file kb=37 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:45:07Z] deleted kind=stale-pid kb=1 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/.buy31015-deep-page.pid
+[2026-06-19T18:45:11Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__
+[2026-06-19T18:45:11Z] skip-undeletable kind=pycache-file kb=26 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:45:12Z] deleted kind=cycle-log kb=1 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/logs/buy31015-deep-supervisor-20260616T184002Z.log
+[2026-06-19T18:45:12Z] deleted kind=disk-monitor-dir kb=4 path=/paperclip/instances/default/workspaces/8ca957f8-0911-4e81-a963-e2cf54c97d44/data/buy-48198-disk-monitor-2026-06-16T184501Z
+[2026-06-19T18:45:20Z] summary apply=1 scanned=13 removed=3 skipped_undeletable=5 failed=0 reclaimed_kb=6 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+[2026-06-19T18:45:20Z] BUY-48198 worker artifact cleanup completed rc=0
+{
+  "generated_at": "2026-06-19T18:45:20.603Z",
+  "status": "PASS",
+  "filesystem": "/dev/vda1",
+  "mount_path": "/",
+  "free_gb": 25.3,
+  "size_bytes": 206900281344,
+  "available_bytes": 27114307584,
+  "warn_gb": 20,
+  "critical_gb": 5,
+  "incident_created": false,
+  "notes": [
+    "Filesystem /dev/vda1 mounted at /",
+    "25.3 GB free (87% used)",
+    "Disk space healthy"
+  ]
+}
+[2026-06-19T18:45:20Z] BUY-48198 watchdog complete rc=0

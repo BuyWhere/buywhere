@@ -215,6 +215,32 @@ CREATE TABLE IF NOT EXISTS price_refresh_log (
 
 CREATE INDEX IF NOT EXISTS idx_price_refresh_log_ran_at ON price_refresh_log(ran_at);
 
+-- FX rate refresh job: latest currency-to-USD snapshot for product normalization.
+CREATE TABLE IF NOT EXISTS fx_rates (
+  base_currency VARCHAR(3) NOT NULL,
+  quote_currency VARCHAR(3) NOT NULL,
+  rate NUMERIC(18, 12) NOT NULL CHECK (rate > 0),
+  source TEXT NOT NULL DEFAULT 'unknown',
+  fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (base_currency, quote_currency)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fx_rates_quote_currency ON fx_rates (quote_currency);
+
+CREATE TABLE IF NOT EXISTS fx_rate_refresh_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ran_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  requested_currencies TEXT[] NOT NULL DEFAULT '{}',
+  frankfurter_rates TEXT[] NOT NULL DEFAULT '{}',
+  fallback_rates TEXT[] NOT NULL DEFAULT '{}',
+  missing_currencies TEXT[] NOT NULL DEFAULT '{}',
+  upserted INTEGER NOT NULL DEFAULT 0,
+  errors JSONB
+);
+
+CREATE INDEX IF NOT EXISTS idx_fx_rate_refresh_log_ran_at ON fx_rate_refresh_log (ran_at);
+
 -- Price history — snapshot per product per scrape run (BUY-2345)
 CREATE TABLE IF NOT EXISTS price_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

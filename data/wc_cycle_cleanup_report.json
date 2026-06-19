@@ -1,5 +1,5 @@
 {
-  "ts": "2026-06-19T17:22:01Z",
+  "ts": "2026-06-19T18:40:01Z",
   "workspace_dir": "/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api",
   "workspaces_root": "/paperclip/instances/default/workspaces",
   "workspace_count": 0,
@@ -11,9 +11,9 @@
   "purged_count": 0,
   "skipped_open_count": 0,
   "reclaimed_kb": 0,
-  "disk_after_pct": 88,
-  "disk_used_kb": 177100944,
-  "disk_free_kb": 24933728,
+  "disk_after_pct": 87,
+  "disk_used_kb": 174013796,
+  "disk_free_kb": 28020876,
   "alert_threshold_pct": 90,
   "alert_required": 0
 }

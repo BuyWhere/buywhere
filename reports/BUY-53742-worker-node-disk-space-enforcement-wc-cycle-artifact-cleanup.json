@@ -1,0 +1,15 @@
+{
+  "ts": "2026-06-19T18:10:53Z",
+  "apply": 1,
+  "workspaces_root": "/paperclip/instances/default/workspaces",
+  "scanned_count": 10,
+  "removed_count": 0,
+  "skipped_undeletable_count": 5,
+  "failed_count": 0,
+  "reclaimed_kb": 0,
+  "disk_after_pct": 87,
+  "disk_after_kb": 173910836,
+  "disk_free_kb": 28123836,
+  "alert_threshold_pct": 90,
+  "alert_required": 0
+}

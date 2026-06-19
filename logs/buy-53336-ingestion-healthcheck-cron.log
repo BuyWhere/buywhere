@@ -72,3 +72,48 @@ Surf Chromium environment fixed:
   PLAYWRIGHT_BROWSERS_PATH: /home/paperclip/.cache/ms-playwright
   CHROME_BIN: /home/paperclip/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome
 [2026-06-19T17:30:01Z] [BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T173004Z.json
+Surf Chromium environment fixed:
+  LD_LIBRARY_PATH: /home/paperclip/playwright-deps/lib:/home/paperclip/local/usr/lib/x86_64-linux-gnu:/home/paperclip/local-libs/usr/lib/x86_64-linux-gnu
+  PLAYWRIGHT_BROWSERS_PATH: /home/paperclip/.cache/ms-playwright
+  CHROME_BIN: /home/paperclip/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome
+[2026-06-19T17:45:01Z] [BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T174504Z.json
+Surf Chromium environment fixed:
+  LD_LIBRARY_PATH: /home/paperclip/playwright-deps/lib:/home/paperclip/local/usr/lib/x86_64-linux-gnu:/home/paperclip/local-libs/usr/lib/x86_64-linux-gnu
+  PLAYWRIGHT_BROWSERS_PATH: /home/paperclip/.cache/ms-playwright
+  CHROME_BIN: /home/paperclip/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome
+Surf Chromium environment fixed:
+  LD_LIBRARY_PATH: /home/paperclip/playwright-deps/lib:/home/paperclip/local/usr/lib/x86_64-linux-gnu:/home/paperclip/local-libs/usr/lib/x86_64-linux-gnu
+  PLAYWRIGHT_BROWSERS_PATH: /home/paperclip/.cache/ms-playwright
+  CHROME_BIN: /home/paperclip/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome
+[2026-06-19T18:00:01Z] [BUY-53336] ingestion-healthcheck overall=degraded ok=2 warn=2 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T180004Z.json
+[2026-06-19T18:00:01Z] [BUY-53336] ingestion-healthcheck overall=degraded ok=2 warn=2 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T180004Z.json
+Surf Chromium environment fixed:
+  LD_LIBRARY_PATH: /home/paperclip/playwright-deps/lib:/home/paperclip/local/usr/lib/x86_64-linux-gnu:/home/paperclip/local-libs/usr/lib/x86_64-linux-gnu
+  PLAYWRIGHT_BROWSERS_PATH: /home/paperclip/.cache/ms-playwright
+  CHROME_BIN: /home/paperclip/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome
+Surf Chromium environment fixed:
+  LD_LIBRARY_PATH: /home/paperclip/playwright-deps/lib:/home/paperclip/local/usr/lib/x86_64-linux-gnu:/home/paperclip/local-libs/usr/lib/x86_64-linux-gnu
+  PLAYWRIGHT_BROWSERS_PATH: /home/paperclip/.cache/ms-playwright
+  CHROME_BIN: /home/paperclip/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome
+[2026-06-19T18:15:01Z] [BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T181504Z.json
+[2026-06-19T18:15:01Z] [BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T181504Z.json
+Surf Chromium environment fixed:
+  LD_LIBRARY_PATH: /home/paperclip/playwright-deps/lib:/home/paperclip/local/usr/lib/x86_64-linux-gnu:/home/paperclip/local-libs/usr/lib/x86_64-linux-gnu
+  PLAYWRIGHT_BROWSERS_PATH: /home/paperclip/.cache/ms-playwright
+  CHROME_BIN: /home/paperclip/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome
+Surf Chromium environment fixed:
+  LD_LIBRARY_PATH: /home/paperclip/playwright-deps/lib:/home/paperclip/local/usr/lib/x86_64-linux-gnu:/home/paperclip/local-libs/usr/lib/x86_64-linux-gnu
+  PLAYWRIGHT_BROWSERS_PATH: /home/paperclip/.cache/ms-playwright
+  CHROME_BIN: /home/paperclip/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome
+[2026-06-19T18:30:01Z] [BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T183004Z.json
+[2026-06-19T18:30:01Z] [BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T183004Z.json
+Surf Chromium environment fixed:
+  LD_LIBRARY_PATH: /home/paperclip/playwright-deps/lib:/home/paperclip/local/usr/lib/x86_64-linux-gnu:/home/paperclip/local-libs/usr/lib/x86_64-linux-gnu
+  PLAYWRIGHT_BROWSERS_PATH: /home/paperclip/.cache/ms-playwright
+  CHROME_BIN: /home/paperclip/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome
+Surf Chromium environment fixed:
+  LD_LIBRARY_PATH: /home/paperclip/playwright-deps/lib:/home/paperclip/local/usr/lib/x86_64-linux-gnu:/home/paperclip/local-libs/usr/lib/x86_64-linux-gnu
+  PLAYWRIGHT_BROWSERS_PATH: /home/paperclip/.cache/ms-playwright
+  CHROME_BIN: /home/paperclip/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome
+[2026-06-19T18:45:01Z] [BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T184505Z.json
+[2026-06-19T18:45:01Z] [BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T184505Z.json

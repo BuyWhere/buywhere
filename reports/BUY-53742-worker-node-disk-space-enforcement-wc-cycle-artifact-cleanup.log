@@ -1,0 +1,7 @@
+[2026-06-19T18:10:39Z] starting apply=1 root=/paperclip/instances/default/workspaces log_retention_days=2 run_retention_days=3 heartbeat_retention_min=360 disk_artifact_retention_days=2 trash_archive_minutes=360 trash_archive_min_kb=262144 trash_archive_dirname=_trash_archives alert_pct=90
+[2026-06-19T18:10:39Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__
+[2026-06-19T18:10:39Z] skip-undeletable kind=pycache-file kb=24 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingested_marker.cpython-312.pyc
+[2026-06-19T18:10:39Z] skip-undeletable kind=pycache-file kb=37 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:10:46Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__
+[2026-06-19T18:10:46Z] skip-undeletable kind=pycache-file kb=26 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:10:53Z] summary apply=1 scanned=10 removed=0 skipped_undeletable=5 failed=0 reclaimed_kb=0 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/reports/BUY-53742-worker-node-disk-space-enforcement-wc-cycle-artifact-cleanup.json

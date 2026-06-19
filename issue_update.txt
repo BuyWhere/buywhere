@@ -1,0 +1,1 @@
+Issue BUY-53745: Successfully refreshed fx_rates from both sources and updated the application.

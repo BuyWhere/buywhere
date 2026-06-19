@@ -8,10 +8,14 @@ exports.resolveWatchdogEntrypointPathForTests = resolveWatchdogEntrypointPathFor
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 const DEFAULT_STATE_FILE = '/tmp/buy-48198-disk-state.json';
+const DEFAULT_WARN_BYTES = String(20 * 1024 * 1024 * 1024);
 function buildWatchdogEnv(baseEnv = process.env) {
     const env = { ...baseEnv };
     if (!env.DISK_STATE_FILE) {
         env.DISK_STATE_FILE = DEFAULT_STATE_FILE;
+    }
+    if (!env.DISK_WARN_BYTES) {
+        env.DISK_WARN_BYTES = DEFAULT_WARN_BYTES;
     }
     if (!baseEnv.DISK_MOUNT_PATH) {
         delete env.DISK_MOUNT_PATH;

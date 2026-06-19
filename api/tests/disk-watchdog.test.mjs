@@ -59,6 +59,19 @@ describe('diskSpaceWatchdog buildWatchdogEnv', () => {
     }
   });
 
+  it('defaults the warning threshold to 20GB', () => {
+    const previous = process.env.DISK_WARN_BYTES;
+    delete process.env.DISK_WARN_BYTES;
+
+    try {
+      const env = buildWatchdogEnv();
+      assert.equal(env.DISK_WARN_BYTES, String(20 * 1024 * 1024 * 1024));
+    } finally {
+      if (previous === undefined) delete process.env.DISK_WARN_BYTES;
+      else process.env.DISK_WARN_BYTES = previous;
+    }
+  });
+
   it('prefers the canonical BUY-48198 cron wrapper over legacy aliases when resolving fallbacks', () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'disk-watchdog-entrypoint-'));
     const scriptsDir = path.join(tmpRoot, 'scripts');
@@ -197,5 +210,83 @@ exit 0
     assert.match(log, /wc cleanup completed rc=0/);
     assert.match(log, /worker artifact cleanup completed rc=10 \(disk threshold still exceeded after cleanup; continuing\)/);
     assert.match(log, /watchdog complete rc=0/);
+  });
+});
+
+describe('setup-buy-48198-disk-watchdog installer', () => {
+  it('installs a canonical 5-minute cron entry, removes legacy aliases, and runs an immediate smoke pass', () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'disk-watchdog-setup-'));
+    const scriptsDir = path.join(tmpRoot, 'scripts');
+    const fakeBinDir = path.join(tmpRoot, 'fake-bin');
+    const logsDir = path.join(tmpRoot, 'logs');
+    const cronStateFile = path.join(tmpRoot, 'crontab.txt');
+    const smokeFile = path.join(tmpRoot, 'smoke.log');
+
+    fs.mkdirSync(scriptsDir, { recursive: true });
+    fs.mkdirSync(fakeBinDir, { recursive: true });
+    fs.writeFileSync(
+      cronStateFile,
+      [
+        '# existing unrelated cron',
+        '* * * * * echo keep-me',
+        '# BUY-48198: Disk watchdog + cleanup pipeline - old alias',
+        '*/5 * * * * cd /old/repo && bash /old/repo/scripts/run-buy-52997-disk-watchdog-cron.sh',
+        '',
+      ].join('\n')
+    );
+
+    fs.copyFileSync(
+      path.join(repoRoot, 'scripts/setup-buy-48198-disk-watchdog.sh'),
+      path.join(scriptsDir, 'setup-buy-48198-disk-watchdog.sh')
+    );
+    fs.writeFileSync(
+      path.join(scriptsDir, 'run-buy-48198-disk-watchdog-cron.sh'),
+      `#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p ${JSON.stringify(logsDir)}
+printf 'smoke:%s:%s\\n' "\${WORKSPACES_ROOT:-}" "\${LOG_FILE:-}" >> ${JSON.stringify(smokeFile)}
+`
+    );
+    fs.chmodSync(path.join(scriptsDir, 'run-buy-48198-disk-watchdog-cron.sh'), 0o755);
+
+    fs.writeFileSync(
+      path.join(fakeBinDir, 'crontab'),
+      `#!/usr/bin/env bash
+set -euo pipefail
+state_file=${JSON.stringify(cronStateFile)}
+if [[ "\${1:-}" == "-l" ]]; then
+  if [[ -f "$state_file" ]]; then
+    cat "$state_file"
+    exit 0
+  fi
+  exit 1
+fi
+cat > "$state_file"
+`
+    );
+    fs.chmodSync(path.join(fakeBinDir, 'crontab'), 0o755);
+
+    const result = spawnSync('bash', [path.join(scriptsDir, 'setup-buy-48198-disk-watchdog.sh')], {
+      cwd: tmpRoot,
+      env: {
+        ...process.env,
+        PATH: `${fakeBinDir}:${process.env.PATH}`,
+      },
+      encoding: 'utf8',
+    });
+
+    assert.equal(result.status, 0, `setup script failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+
+    const installedCrontab = fs.readFileSync(cronStateFile, 'utf8');
+    assert.match(installedCrontab, /^\*\/5 \* \* \* \* cd .*scripts\/run-buy-48198-disk-watchdog-cron\.sh$/m);
+    assert.doesNotMatch(installedCrontab, /run-buy-52997-disk-watchdog-cron\.sh/);
+    assert.match(installedCrontab, /^\* \* \* \* \* echo keep-me$/m);
+
+    const smoke = fs.readFileSync(smokeFile, 'utf8');
+    assert.match(smoke, /^smoke:/m);
+    assert.equal(fs.existsSync(logsDir), true, 'expected setup script to create the logs directory');
+    assert.match(result.stdout, /BUY-48198 cron installed:/);
+    assert.match(result.stdout, /Running immediate watchdog smoke pass/);
+    assert.match(result.stdout, /Setup complete\./);
   });
 });

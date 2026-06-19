@@ -1,0 +1,14 @@
+would-trash [catalog-skipped+D:skipped] 0.00GB data/canonical/remaining-5965-domains.ndjson
+would-trash [catalog-skipped+D:skipped] 0.00GB data/canonical/remaining-5965-products.ndjson
+would-trash [catalog-skipped+D:skipped] 0.00GB data/canonical/batch2-1000-domains.ndjson
+would-trash [catalog-skipped+D:skipped] 0.00GB data/canonical/search-directory-7465-domains.ndjson
+would-trash [ingested-dir+D:skipped] 0.00GB data/ingested/us-home-garden/products.ndjson
+would-trash [catalog-skipped+D:skipped] 0.02GB data/tjfarms_us/products.ndjson
+would-trash [catalog-skipped+D:skipped] 0.00GB data/abenson/prepared.ndjson
+would-trash [catalog-skipped+D:skipped] 0.00GB data/shopify_validated_products.jsonl
+would-trash [catalog-skipped+D:skipped] 0.00GB data/affiliate_ndjson/www_williams-sonoma_com_shopify.ndjson
+would-trash [catalog-skipped+D:skipped] 0.00GB data/affiliate_ndjson/www_potterybarn_com_shopify.ndjson
+would-trash [catalog-skipped+D:skipped] 0.00GB data/affiliate_ndjson/www_westelm_com_shopify.ndjson
+would-trash [catalog-skipped+D:skipped] 0.00GB data/affiliate_ndjson/www_crateandbarrel_com_shopify.ndjson
+would-trash [catalog-skipped+D:skipped] 0.00GB data/affiliate_ndjson/www_ashleyfurniture_com_shopify.ndjson
+--- files=13 freed=0.02GB catalogChecked=0 lowMatchKept=0 r2Missed=27 apply=0

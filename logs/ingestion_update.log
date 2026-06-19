@@ -1,0 +1,1 @@
+Ingestion restart attempt: The buy31015-woocommerce-deep-page.mjs script was found running and was restarted successfully. However, several merchants yielded no products due to various HTTP errors, as detailed in the logs. Will examine and log findings regarding non-functioning merchants and product counts.

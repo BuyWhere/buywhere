@@ -1,3 +1,5 @@
+# Update various logs throughout the ingestion process\n\n# At the start of the main function or pipeline\nlogging.info('Starting WooCommerce and Google Shopping feed ingestion')\n\n# After fetching products from WooCommerce\nif response.status_code == 200:\n    logging.info(f'Successfully fetched {len(products)} products from {store_url}')\nelse:\n    logging.error(f'Failed to fetch products from {store_url}: {response.status_code}')\n\n# During the ingestion process\nlogging.info(f'Ingesting product {product_id} - Title: {product.get('title', 'N/A')}')\n\n# At the end with summary logs\nlogging.info(f'Ingestion completed: Scraped: {total_scraped}, Ingested: {total_ingested}, Failed: {total_failed}')
+# Adding logging imports\nimport logging\n\n# Configure logging settings\nlogging.basicConfig(level=logging.INFO, format='%(levelname)s:%(message)s')\n
 #!/usr/bin/env python3
 """
 Unified WooCommerce + Google Shopping Feed ingestion pipeline for BUY-7268.

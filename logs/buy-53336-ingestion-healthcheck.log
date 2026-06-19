@@ -3598,3 +3598,1864 @@
   ]
 }
 [BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T173004Z.json
+[2026-06-19T17:45:01Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T17:45:04.449677+00:00",
+  "checks": 4,
+  "ok": 3,
+  "warnings": 1,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 65.4ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T17:45:01.715Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T17:45:01.682223+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (35.2ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 35.2,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 3,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4647,
+          "failed": 137,
+          "total": 4792
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4491,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T17:45:04.410554+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T17:45:04.410578+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.0% (7d, 17396 runs)",
+      "detail": {
+        "total": 17396,
+        "success": 13916,
+        "failed": 3429,
+        "success_rate_pct": 80.0
+      },
+      "timestamp": "2026-06-19T17:45:04.449658+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T174504Z.json
+[2026-06-19T17:54:00Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T17:54:03.367601+00:00",
+  "checks": 4,
+  "ok": 3,
+  "warnings": 1,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 44.4ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T17:54:00.778Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T17:54:00.743727+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (30.0ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 30.0,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 3,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4605,
+          "failed": 137,
+          "total": 4750
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4490,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T17:54:03.311701+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T17:54:03.311719+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.0% (7d, 17411 runs)",
+      "detail": {
+        "total": 17411,
+        "success": 13931,
+        "failed": 3429,
+        "success_rate_pct": 80.0
+      },
+      "timestamp": "2026-06-19T17:54:03.367556+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T175403Z.json
+201
+[2026-06-19T17:54:37Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T17:54:40.479228+00:00",
+  "checks": 4,
+  "ok": 3,
+  "warnings": 1,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 37.6ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T17:54:37.325Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T17:54:37.290924+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (34.9ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 34.9,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 3,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4603,
+          "failed": 137,
+          "total": 4748
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4490,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T17:54:40.388313+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T17:54:40.388332+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.0% (7d, 17412 runs)",
+      "detail": {
+        "total": 17412,
+        "success": 13932,
+        "failed": 3429,
+        "success_rate_pct": 80.0
+      },
+      "timestamp": "2026-06-19T17:54:40.479193+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T175440Z.json
+201
+[2026-06-19T17:55:04Z] BUY-53674 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T17:55:08.227380+00:00",
+  "checks": 4,
+  "ok": 2,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 42.4ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T17:55:05.085Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T17:55:05.049423+00:00"
+    },
+    {
+      "check": "database",
+      "status": "warning",
+      "message": "DB OK (30.0ms). Fixed 1 zombie runs.",
+      "detail": {
+        "latency_ms": 30.0,
+        "total_products": 17532576,
+        "zombie_runs": 1,
+        "running_runs": 3,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4603,
+          "failed": 137,
+          "total": 4748
+        },
+        "zombie_sources": [
+          {
+            "source": "cc_shopify_discover_v2",
+            "count": 1,
+            "last_started": "2026-06-19 16:54:49.778208+00:00"
+          }
+        ],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4490,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T17:55:08.163606+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "critical",
+      "message": "Redis connection failed: Error 111 connecting to localhost:6379. Connection refused.",
+      "detail": null,
+      "timestamp": "2026-06-19T17:55:08.164589+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.0% (7d, 17414 runs)",
+      "detail": {
+        "total": 17414,
+        "success": 13934,
+        "failed": 3430,
+        "success_rate_pct": 80.0
+      },
+      "timestamp": "2026-06-19T17:55:08.227328+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=2 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T175508Z.json
+201
+[2026-06-19T17:55:32Z] BUY-53674 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T17:55:35.700276+00:00",
+  "checks": 4,
+  "ok": 3,
+  "warnings": 0,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 38.4ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T17:55:32.410Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T17:55:32.374359+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (37.3ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 37.3,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 2,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4535,
+          "failed": 138,
+          "total": 4680
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4490,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T17:55:35.640928+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "critical",
+      "message": "Redis connection failed: Error 111 connecting to localhost:6379. Connection refused.",
+      "detail": null,
+      "timestamp": "2026-06-19T17:55:35.641924+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.0% (7d, 17414 runs)",
+      "detail": {
+        "total": 17414,
+        "success": 13934,
+        "failed": 3430,
+        "success_rate_pct": 80.0
+      },
+      "timestamp": "2026-06-19T17:55:35.700250+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=3 warn=0 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T175535Z.json
+201
+[2026-06-19T17:55:53Z] BUY-53674 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T17:55:56.741643+00:00",
+  "checks": 4,
+  "ok": 2,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 58.9ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T17:55:53.513Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T17:55:53.477812+00:00"
+    },
+    {
+      "check": "database",
+      "status": "warning",
+      "message": "DB OK (34.3ms). Fixed 1 zombie runs.",
+      "detail": {
+        "latency_ms": 34.3,
+        "total_products": 17532576,
+        "zombie_runs": 1,
+        "running_runs": 2,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4512,
+          "failed": 138,
+          "total": 4657
+        },
+        "zombie_sources": [
+          {
+            "source": "cc_shopify_discover_v2",
+            "count": 1,
+            "last_started": "2026-06-19 16:55:53.411792+00:00"
+          }
+        ],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4490,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T17:55:56.689917+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "critical",
+      "message": "Redis connection failed: Error 111 connecting to localhost:6379. Connection refused.",
+      "detail": null,
+      "timestamp": "2026-06-19T17:55:56.691065+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.0% (7d, 17414 runs)",
+      "detail": {
+        "total": 17414,
+        "success": 13934,
+        "failed": 3431,
+        "success_rate_pct": 80.0
+      },
+      "timestamp": "2026-06-19T17:55:56.741614+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=2 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T175556Z.json
+201
+[2026-06-19T17:56:15Z] BUY-53674 healthcheck exit=0
+{
+  "overall": "healthy",
+  "exit_code": 0,
+  "timestamp": "2026-06-19T17:56:18.565281+00:00",
+  "checks": 4,
+  "ok": 4,
+  "warnings": 0,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 57.3ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T17:56:15.610Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T17:56:15.574255+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (35.8ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 35.8,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 1,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4513,
+          "failed": 139,
+          "total": 4658
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4490,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T17:56:18.516132+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "ok",
+      "message": "Redis healthy (7.2ms)",
+      "detail": {
+        "latency_ms": 7.2,
+        "ingestion_keys": 10,
+        "used_memory_human": "967.23K"
+      },
+      "timestamp": "2026-06-19T17:56:18.526453+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.0% (7d, 17415 runs)",
+      "detail": {
+        "total": 17415,
+        "success": 13935,
+        "failed": 3431,
+        "success_rate_pct": 80.0
+      },
+      "timestamp": "2026-06-19T17:56:18.565250+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=healthy ok=4 warn=0 crit=0 exit=0 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T175618Z.json
+[2026-06-19T18:00:01Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T18:00:04.609042+00:00",
+  "checks": 4,
+  "ok": 2,
+  "warnings": 2,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 120.9ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T18:00:01.662Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T18:00:01.626356+00:00"
+    },
+    {
+      "check": "database",
+      "status": "warning",
+      "message": "DB OK (46.2ms). Fixed 1 zombie runs.",
+      "detail": {
+        "latency_ms": 46.2,
+        "total_products": 17532576,
+        "zombie_runs": 1,
+        "running_runs": 1,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4515,
+          "failed": 139,
+          "total": 4660
+        },
+        "zombie_sources": [
+          {
+            "source": "cc_shopify_discover_v2",
+            "count": 1,
+            "last_started": "2026-06-19 16:56:31.434448+00:00"
+          }
+        ],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4490,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T18:00:04.555441+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T18:00:04.555474+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.0% (7d, 17424 runs)",
+      "detail": {
+        "total": 17424,
+        "success": 13944,
+        "failed": 3432,
+        "success_rate_pct": 80.0
+      },
+      "timestamp": "2026-06-19T18:00:04.609019+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=2 warn=2 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T180004Z.json
+[2026-06-19T18:00:01Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T18:00:04.616497+00:00",
+  "checks": 4,
+  "ok": 2,
+  "warnings": 2,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 91.3ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T18:00:01.683Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T18:00:01.647843+00:00"
+    },
+    {
+      "check": "database",
+      "status": "warning",
+      "message": "DB OK (46.7ms). Fixed 1 zombie runs.",
+      "detail": {
+        "latency_ms": 46.7,
+        "total_products": 17532576,
+        "zombie_runs": 1,
+        "running_runs": 1,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4515,
+          "failed": 139,
+          "total": 4660
+        },
+        "zombie_sources": [
+          {
+            "source": "cc_shopify_discover_v2",
+            "count": 1,
+            "last_started": "2026-06-19 16:56:31.434448+00:00"
+          }
+        ],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4490,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T18:00:04.560092+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T18:00:04.560116+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.0% (7d, 17424 runs)",
+      "detail": {
+        "total": 17424,
+        "success": 13944,
+        "failed": 3432,
+        "success_rate_pct": 80.0
+      },
+      "timestamp": "2026-06-19T18:00:04.616470+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=2 warn=2 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T180004Z.json
+[2026-06-19T18:03:02Z] BUY-53674 healthcheck exit=0
+{
+  "overall": "healthy",
+  "exit_code": 0,
+  "timestamp": "2026-06-19T18:03:05.399315+00:00",
+  "checks": 4,
+  "ok": 4,
+  "warnings": 0,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 38.5ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T18:03:02.482Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T18:03:02.447464+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (34.5ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 34.5,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 0,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4516,
+          "failed": 140,
+          "total": 4661
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4490,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T18:03:05.350755+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "ok",
+      "message": "Redis healthy (1.9ms)",
+      "detail": {
+        "latency_ms": 1.9,
+        "ingestion_keys": 10,
+        "used_memory_human": "967.23K"
+      },
+      "timestamp": "2026-06-19T18:03:05.353086+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.0% (7d, 17426 runs)",
+      "detail": {
+        "total": 17426,
+        "success": 13946,
+        "failed": 3432,
+        "success_rate_pct": 80.0
+      },
+      "timestamp": "2026-06-19T18:03:05.399288+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=healthy ok=4 warn=0 crit=0 exit=0 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T180305Z.json
+[2026-06-19T18:15:01Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T18:15:04.688855+00:00",
+  "checks": 4,
+  "ok": 3,
+  "warnings": 1,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 183.2ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T18:15:02.048Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T18:15:02.019680+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (75.6ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 75.6,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 0,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4518,
+          "failed": 140,
+          "total": 4663
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4490,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T18:15:04.643777+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T18:15:04.643801+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.1% (7d, 17450 runs)",
+      "detail": {
+        "total": 17450,
+        "success": 13970,
+        "failed": 3432,
+        "success_rate_pct": 80.1
+      },
+      "timestamp": "2026-06-19T18:15:04.688829+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T181504Z.json
+[2026-06-19T18:15:01Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T18:15:04.694812+00:00",
+  "checks": 4,
+  "ok": 3,
+  "warnings": 1,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 80.4ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T18:15:01.902Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T18:15:01.871584+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (89.8ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 89.8,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 0,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4518,
+          "failed": 140,
+          "total": 4663
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4490,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T18:15:04.643795+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T18:15:04.643822+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.1% (7d, 17450 runs)",
+      "detail": {
+        "total": 17450,
+        "success": 13970,
+        "failed": 3432,
+        "success_rate_pct": 80.1
+      },
+      "timestamp": "2026-06-19T18:15:04.694780+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T181504Z.json
+[2026-06-19T18:30:01Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T18:30:04.585211+00:00",
+  "checks": 4,
+  "ok": 3,
+  "warnings": 1,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 55.7ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T18:30:01.633Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T18:30:01.604659+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (34.4ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 34.4,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 0,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4443,
+          "failed": 134,
+          "total": 4582
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4490,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 1013,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T18:30:04.544310+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T18:30:04.544337+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.1% (7d, 17480 runs)",
+      "detail": {
+        "total": 17480,
+        "success": 14000,
+        "failed": 3432,
+        "success_rate_pct": 80.1
+      },
+      "timestamp": "2026-06-19T18:30:04.585191+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T183004Z.json
+[2026-06-19T18:30:01Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T18:30:04.587260+00:00",
+  "checks": 4,
+  "ok": 3,
+  "warnings": 1,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 62.5ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T18:30:01.560Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T18:30:01.532558+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (32.4ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 32.4,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 0,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4443,
+          "failed": 134,
+          "total": 4582
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4490,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 1013,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T18:30:04.544214+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T18:30:04.544232+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.1% (7d, 17480 runs)",
+      "detail": {
+        "total": 17480,
+        "success": 14000,
+        "failed": 3432,
+        "success_rate_pct": 80.1
+      },
+      "timestamp": "2026-06-19T18:30:04.587241+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T183004Z.json
+[2026-06-19T18:45:01Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T18:45:05.102683+00:00",
+  "checks": 4,
+  "ok": 3,
+  "warnings": 1,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 227.1ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T18:45:02.727Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T18:45:02.693671+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (56.1ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 56.1,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 0,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4347,
+          "failed": 134,
+          "total": 4486
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4490,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          },
+          {
+            "source": "step2.com",
+            "count": 999,
+            "last_updated": "2026-06-19 00:16:14.139394+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T18:45:05.057626+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T18:45:05.057644+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.1% (7d, 17511 runs)",
+      "detail": {
+        "total": 17511,
+        "success": 14032,
+        "failed": 3432,
+        "success_rate_pct": 80.1
+      },
+      "timestamp": "2026-06-19T18:45:05.102653+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T184505Z.json
+[2026-06-19T18:45:01Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T18:45:05.121660+00:00",
+  "checks": 4,
+  "ok": 3,
+  "warnings": 1,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 126.0ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T18:45:02.448Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T18:45:02.416321+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (62.2ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 62.2,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 0,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4347,
+          "failed": 134,
+          "total": 4486
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4490,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          },
+          {
+            "source": "step2.com",
+            "count": 999,
+            "last_updated": "2026-06-19 00:16:14.139394+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T18:45:05.057580+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T18:45:05.057611+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.1% (7d, 17511 runs)",
+      "detail": {
+        "total": 17511,
+        "success": 14032,
+        "failed": 3432,
+        "success_rate_pct": 80.1
+      },
+      "timestamp": "2026-06-19T18:45:05.121630+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T184505Z.json

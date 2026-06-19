@@ -1,0 +1,4 @@
+would-trash [catalog-skipped+D:skipped] 0.00GB data/petico_products.jsonl
+would-trash [catalog-skipped+D:skipped] 0.03GB data/target_us/products.jsonl
+would-trash [catalog-skipped+D:skipped] 0.00GB data/intellijel/products_raw.jsonl
+--- files=3 freed=0.03GB catalogChecked=0 lowMatchKept=0 r2Missed=0 apply=0

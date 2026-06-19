@@ -1,0 +1,118 @@
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T17:55:56.741643+00:00",
+  "checks": 4,
+  "ok": 2,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 58.9ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T17:55:53.513Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T17:55:53.477812+00:00"
+    },
+    {
+      "check": "database",
+      "status": "warning",
+      "message": "DB OK (34.3ms). Fixed 1 zombie runs.",
+      "detail": {
+        "latency_ms": 34.3,
+        "total_products": 17532576,
+        "zombie_runs": 1,
+        "running_runs": 2,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4512,
+          "failed": 138,
+          "total": 4657
+        },
+        "zombie_sources": [
+          {
+            "source": "cc_shopify_discover_v2",
+            "count": 1,
+            "last_started": "2026-06-19 16:55:53.411792+00:00"
+          }
+        ],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4490,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T17:55:56.689917+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "critical",
+      "message": "Redis connection failed: Error 111 connecting to localhost:6379. Connection refused.",
+      "detail": null,
+      "timestamp": "2026-06-19T17:55:56.691065+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.0% (7d, 17414 runs)",
+      "detail": {
+        "total": 17414,
+        "success": 13934,
+        "failed": 3431,
+        "success_rate_pct": 80.0
+      },
+      "timestamp": "2026-06-19T17:55:56.741614+00:00"
+    }
+  ]
+}

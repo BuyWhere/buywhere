@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-06-19T18:40:20.671Z",
+  "status": "PASS",
+  "filesystem": "/dev/vda1",
+  "mount_path": "/",
+  "free_gb": 26.7,
+  "size_bytes": 206900281344,
+  "available_bytes": 28684267520,
+  "warn_gb": 20,
+  "critical_gb": 5,
+  "incident_created": false,
+  "notes": [
+    "Filesystem /dev/vda1 mounted at /",
+    "26.7 GB free (87% used)",
+    "Disk space healthy"
+  ]
+}

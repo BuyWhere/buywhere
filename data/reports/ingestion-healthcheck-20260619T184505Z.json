@@ -1,0 +1,112 @@
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T18:45:05.121660+00:00",
+  "checks": 4,
+  "ok": 3,
+  "warnings": 1,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 126.0ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T18:45:02.448Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T18:45:02.416321+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (62.2ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 62.2,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 0,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4347,
+          "failed": 134,
+          "total": 4486
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4490,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          },
+          {
+            "source": "step2.com",
+            "count": 999,
+            "last_updated": "2026-06-19 00:16:14.139394+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T18:45:05.057580+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T18:45:05.057611+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.1% (7d, 17511 runs)",
+      "detail": {
+        "total": 17511,
+        "success": 14032,
+        "failed": 3432,
+        "success_rate_pct": 80.1
+      },
+      "timestamp": "2026-06-19T18:45:05.121630+00:00"
+    }
+  ]
+}

@@ -2,12 +2,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const DEFAULT_STATE_FILE = '/tmp/buy-48198-disk-state.json';
+const DEFAULT_WARN_BYTES = String(20 * 1024 * 1024 * 1024);
 
 export function buildWatchdogEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...baseEnv };
 
   if (!env.DISK_STATE_FILE) {
     env.DISK_STATE_FILE = DEFAULT_STATE_FILE;
+  }
+
+  if (!env.DISK_WARN_BYTES) {
+    env.DISK_WARN_BYTES = DEFAULT_WARN_BYTES;
   }
 
   if (!baseEnv.DISK_MOUNT_PATH) {

@@ -1,15 +1,15 @@
 {
-  "ts": "2026-06-19T17:36:25.037Z",
+  "ts": "2026-06-19T18:46:03.826Z",
   "lane": "buy31015_woocommerce_deep",
   "cycle": 51,
-  "merchantsVisited": 12,
-  "discoveryProgress": 75,
+  "merchantsVisited": 1,
+  "discoveryProgress": 6,
   "rowsInserted": 0,
-  "rowsUpdated": 108,
-  "rowsPerHour": 16843,
-  "discoveredMerchants": 12,
+  "rowsUpdated": 0,
+  "rowsPerHour": 0,
+  "discoveredMerchants": 1,
   "totalMerchants": 16,
   "phase": "tick",
   "reason": "worker_heartbeat",
-  "processId": 1994915
+  "processId": 2477219
 }

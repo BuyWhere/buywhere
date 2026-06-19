@@ -11,6 +11,7 @@ const products_1 = require("./routes/products");
 const p95Runner_1 = require("./jobs/p95Runner");
 const p95ProbeScheduler_1 = require("./jobs/p95ProbeScheduler");
 const diskSpaceRunner_1 = require("./jobs/diskSpaceRunner");
+const fxRefreshScheduler_1 = require("./jobs/fxRefreshScheduler");
 // Initialize Sentry before anything else so all errors are captured
 (0, sentry_1.initSentry)();
 const app = (0, server_1.createApp)();
@@ -33,6 +34,8 @@ async function start() {
     (0, p95ProbeScheduler_1.startP95ProbeScheduler)();
     // BUY-48801: start disk space monitoring (every 5 min)
     (0, diskSpaceRunner_1.startDiskSpaceRunner)();
+    // BUY-53745: refresh fx_rates every 6h from frankfurter + open.er-api fallback.
+    (0, fxRefreshScheduler_1.startFxRefreshScheduler)();
     // Refresh category materialized views + Redis caches every 5 min so counts stay
     // current as products are ingested, and the Redis TTL (600s) never expires cold.
     setInterval(() => {
@@ -60,6 +63,7 @@ const shutdown = async () => {
     console.log('Shutting down...');
     await (0, posthog_1.shutdownPostHog)();
     (0, p95ProbeScheduler_1.stopP95ProbeScheduler)();
+    (0, fxRefreshScheduler_1.stopFxRefreshScheduler)();
     if (server)
         server.close(() => process.exit(0));
     else

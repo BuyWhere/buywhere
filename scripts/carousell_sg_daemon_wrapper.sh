@@ -53,3 +53,4 @@ log "Scraper exited with code $EXIT_CODE"
 rm -f "$WRAPPER_PID_FILE"
 rm -f "$PID_FILE"
 exit "$EXIT_CODE"
+log "Checking scraper launch success..."; sleep 2; if ! ps -p "$SCRAPER_PID" > /dev/null; then log "Scraper failed to start; exiting wrapper."; exit 1; fi

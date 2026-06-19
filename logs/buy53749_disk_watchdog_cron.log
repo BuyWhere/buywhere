@@ -1,0 +1,28 @@
+[2026-06-19T18:32:02Z] BUY-48198 watchdog start
+[2026-06-19T18:32:02Z] BUY-48198 wc cleanup completed rc=0
+[2026-06-19T18:32:02Z] starting apply=1 root=/paperclip/instances/default/workspaces log_retention_days=2 run_retention_days=3 heartbeat_retention_min=360 disk_artifact_retention_days=2 trash_archive_minutes=360 trash_archive_min_kb=262144 trash_archive_dirname=_trash_archives alert_pct=90
+[2026-06-19T18:32:03Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__
+[2026-06-19T18:32:03Z] skip-undeletable kind=pycache-file kb=24 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingested_marker.cpython-312.pyc
+[2026-06-19T18:32:03Z] skip-undeletable kind=pycache-file kb=37 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:32:10Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__
+[2026-06-19T18:32:10Z] skip-undeletable kind=pycache-file kb=26 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T18:32:20Z] summary apply=1 scanned=10 removed=0 skipped_undeletable=5 failed=0 reclaimed_kb=0 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+[2026-06-19T18:32:20Z] BUY-48198 worker artifact cleanup completed rc=0
+{
+  "generated_at": "2026-06-19T18:32:20.901Z",
+  "status": "PASS",
+  "filesystem": "/dev/vda1",
+  "mount_path": "/",
+  "free_gb": 26.7,
+  "size_bytes": 206900281344,
+  "available_bytes": 28705521664,
+  "warn_gb": 20,
+  "critical_gb": 5,
+  "incident_created": false,
+  "notes": [
+    "Filesystem /dev/vda1 mounted at /",
+    "26.7 GB free (87% used)",
+    "Disk space healthy"
+  ]
+}
+[2026-06-19T18:32:20Z] BUY-48198 watchdog complete rc=0

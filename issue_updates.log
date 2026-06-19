@@ -1,0 +1,9 @@
+BUY-53727 : WooCommerce deep-page lane supervisor work is in progress, investigations are required for the HTTP errors encountered
+2026-06-19T18:25:13Z: Investigated BUY-53727 merchant no-product cases for buy31015-woocommerce-deep-page.mjs.
+Findings: direct probe of 16 merchant WC candidates shows most failures are endpoint-layer, not ingest: only sabian.com, odysseybattery.com, biostrap.com currently return API JSON on /wp-json/wc/store/products. Others return text/html (WP frontend/anti-bot/redirect) or 401 on store/v3. diamondsports.com store/v3 timeouts.
+Code action: patched scripts/buy31015-woocommerce-deep-page.mjs so "merchant yielded no products" logs now include via/lastError from fetchStoreProducts/fetchV3Products (aligned to BUY-31142 pattern), which preserves HTTP cause for next cycle diagnostics.
+2026-06-19T18:25:50Z: Applied and validated runtime logging fix in scripts/buy31015-woocommerce-deep-page.mjs (commit-local):
+- fetchWithTimeout now returns ok=false for non-200 JSON responses (401/403 etc) instead of treating them as success.
+- fetchStoreProducts/fetchV3Products return structured { products, via, lastError }.
+- visitMerchant now logs no-product reasons as {domain, via, lastError}.
+Validation from live log tail after restart (pid=2300197): no-product entries now include e.g. sabian.com via=store lastError="http 401: You are not currently logged in." and summitracing.com via=store lastError="non-json content-type (text/html)".

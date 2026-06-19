@@ -179,8 +179,16 @@ async function fetchWithTimeout(url, options = {}) {
   try {
     const res = await fetch(url, { ...options, signal: controller.signal });
     clearTimeout(timer);
-    const body = await res.json().catch(() => null);
     const ctype = (res.headers.get('content-type') || '').toLowerCase();
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      if (body && typeof body === 'object') {
+        const message = body.message || body.error || JSON.stringify(body);
+        return { ok: false, status: res.status, error: `http ${res.status}: ${message}` };
+      }
+      const text = body == null ? await res.text().catch(() => '') : JSON.stringify(body);
+      return { ok: false, status: res.status, error: `http ${res.status}`, body: text ? text.slice(0, 200) : undefined };
+    }
     if (body && typeof body === 'object') {
       return { ok: true, status: res.status, body };
     }
@@ -208,19 +216,19 @@ async function fetchStoreProducts(merchant) {
     const res = await fetchWithTimeout(url);
     if (!res.ok) {
       if (page > 1) info('store pagination ended', { domain: merchant.domain, page, error: res.error, status: res.status });
-      break;
+      return { products: out, via: 'store', endedAtPage: page, lastError: res.error };
     }
     const items = Array.isArray(res.body) ? res.body : (res.body.products || []);
-    if (!items.length) break;
+    if (!items.length) return { products: out, via: 'store', endedAtPage: page };
     for (const p of items) {
       const n = normalizeStoreProduct(p, merchant);
       if (n) out.push(n);
     }
     runStats.pagesFetched += 1;
-    if (items.length < PER_PAGE) break;
+    if (items.length < PER_PAGE) return { products: out, via: 'store', endedAtPage: page };
     await sleep(POLITENESS_MS);
   }
-  return out;
+  return { products: out, via: 'store', endedAtPage: MAX_PAGES };
 }
 async function fetchV3Products(merchant) {
   const base = `https://${merchant.domain}/wp-json/wc/v3/products`;
@@ -234,19 +242,19 @@ async function fetchV3Products(merchant) {
     const res = await fetchWithTimeout(url, { headers: { ...auth, Accept: 'application/json' } });
     if (!res.ok) {
       if (page > 1) info('v3 pagination ended', { domain: merchant.domain, page, error: res.error, status: res.status });
-      break;
+      return { products: out, via: 'v3', endedAtPage: page, lastError: res.error };
     }
     const items = Array.isArray(res.body) ? res.body : (res.body.products || []);
-    if (!items.length) break;
+    if (!items.length) return { products: out, via: 'v3', endedAtPage: page };
     for (const p of items) {
       const n = normalizeV3Product(p, merchant);
       if (n) out.push(n);
     }
     runStats.pagesFetched += 1;
-    if (items.length < PER_PAGE) break;
+    if (items.length < PER_PAGE) return { products: out, via: 'v3', endedAtPage: page };
     await sleep(POLITENESS_MS);
   }
-  return out;
+  return { products: out, via: 'v3', endedAtPage: MAX_PAGES };
 }
 
 async function ingestBatch(products, opts = {}) {
@@ -344,17 +352,20 @@ async function writeStatus() {
 async function visitMerchant(merchant, dryRun) {
   runStats.merchantsVisited += 1;
   let result = await fetchStoreProducts(merchant);
-  let products = result;
-  let via = 'store';
+  let products = result.products;
   if ((!products.length) && (!shuttingDown)) {
     const v3 = await fetchV3Products(merchant);
-    if (v3.length) { products = v3; via = 'v3'; }
+    if (v3.products.length) { result = v3; products = v3.products; }
   }
   if (products.length) {
-    info('merchant harvested', { domain: merchant.domain, count: products.length, via });
+    info('merchant harvested', { domain: merchant.domain, count: products.length, via: result.via });
     runStats.productsSeen += products.length;
   } else {
-    info('merchant yielded no products', { domain: merchant.domain });
+    info('merchant yielded no products', {
+      domain: merchant.domain,
+      via: result.via,
+      lastError: result.lastError,
+    });
   }
   for (let i = 0; i < products.length; i += INGEST_BATCH) {
     if (shuttingDown) break;

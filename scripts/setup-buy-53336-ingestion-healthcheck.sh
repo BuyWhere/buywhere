@@ -7,7 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CRON_LABEL="# BUY-53674: Ingestion pipeline recurring health check — every 15 min"
-CRON_CMD="*/15 * * * * cd $REPO_ROOT && bash -l $SCRIPT_DIR/run-buy-53336-ingestion-healthcheck-cron.sh >> $REPO_ROOT/logs/buy-53336-ingestion-healthcheck-cron.log 2>&1"
+CRON_CMD="*/15 * * * * cd $REPO_ROOT && export REDIS_URL="redis://localhost:6379"; bash -l $SCRIPT_DIR/run-buy-53336-ingestion-healthcheck-cron.sh >> $REPO_ROOT/logs/buy-53336-ingestion-healthcheck-cron.log 2>&1"
 
 # Check if cron entry already exists
 if crontab -l 2>/dev/null | grep -q "BUY-53674"; then
