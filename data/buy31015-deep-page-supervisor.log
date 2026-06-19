@@ -1,0 +1,173 @@
+worker already alive: pid=2100057 started=null alive=yes — supervisor monitoring
+worker already alive: pid=2100057 started=null alive=yes — supervisor monitoring
+worker already alive: pid=2100057 started=null alive=yes — supervisor monitoring
+worker already alive: pid=2100057 started=null alive=yes — supervisor monitoring
+worker already alive: pid=2100057 started=null alive=yes — supervisor monitoring
+worker already alive: pid=2100057 started=null alive=yes — supervisor monitoring
+worker already alive: pid=2100057 started=null alive=yes — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s
+worker alive: pid=2100057 started=null alive=yes +65s
+worker alive: pid=2100057 started=null alive=yes +125s
+worker alive: pid=2100057 started=null alive=yes +185s
+worker already alive: pid=2100057 started=null alive=yes — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s
+worker alive: pid=2100057 started=null alive=yes +65s
+worker alive: pid=2100057 started=null alive=yes +125s
+worker alive: pid=2100057 started=null alive=yes +185s
+worker alive: pid=2100057 started=null alive=yes +245s
+worker already alive: pid=2100057 started=null alive=yes — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s
+worker alive: pid=2100057 started=null alive=yes +65s
+worker alive: pid=2100057 started=null alive=yes +125s
+worker already alive: pid=2100057 started=null alive=yes — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s
+worker alive: pid=2100057 started=null alive=yes +65s
+worker alive: pid=2100057 started=null alive=yes +125s
+worker alive: pid=2100057 started=null alive=yes +185s
+worker alive: pid=2100057 started=null alive=yes +245s
+worker already alive: pid=2100057 started=null alive=yes — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s
+worker alive: pid=2100057 started=null alive=yes +65s
+worker alive: pid=2100057 started=null alive=yes +125s
+worker alive: pid=2100057 started=null alive=yes +185s
+worker alive: pid=2100057 started=null alive=yes +245s
+worker already alive: pid=2100057 started=null alive=yes (cycle=76 rows=8056 rows/hr=7115 merchants=1216) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=76 rows=8056 rows/hr=7115 merchants=1216
+worker alive: pid=2100057 started=null alive=yes +65s cycle=77 rows=8162 rows/hr=7120 merchants=1232
+worker alive: pid=2100057 started=null alive=yes +125s cycle=78 rows=8268 rows/hr=7124 merchants=1248
+worker alive: pid=2100057 started=null alive=yes +185s cycle=79 rows=8374 rows/hr=7117 merchants=1264
+worker already alive: pid=2100057 started=null alive=yes (cycle=94 rows=9964 rows/hr=7117 merchants=1504) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=94 rows=9964 rows/hr=7117 merchants=1504
+worker alive: pid=2100057 started=null alive=yes +65s cycle=95 rows=10070 rows/hr=7117 merchants=1520
+worker alive: pid=2100057 started=null alive=yes +125s cycle=96 rows=10176 rows/hr=7122 merchants=1536
+worker already alive: pid=2100057 started=null alive=yes (cycle=107 rows=11342 rows/hr=7112 merchants=1712) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=107 rows=11342 rows/hr=7112 merchants=1712
+worker alive: pid=2100057 started=null alive=yes +65s cycle=108 rows=11448 rows/hr=7113 merchants=1728
+worker alive: pid=2100057 started=null alive=yes +125s cycle=110 rows=11660 rows/hr=7118 merchants=1760
+worker alive: pid=2100057 started=null alive=yes +185s cycle=111 rows=11766 rows/hr=7121 merchants=1776
+worker alive: pid=2100057 started=null alive=yes +245s cycle=112 rows=11872 rows/hr=7118 merchants=1792
+worker already alive: pid=2100057 started=null alive=yes (cycle=120 rows=12190 rows/hr=6540 merchants=1920) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=120 rows=12190 rows/hr=6540 merchants=1920
+worker alive: pid=2100057 started=null alive=yes +65s cycle=121 rows=12296 rows/hr=6544 merchants=1936
+worker alive: pid=2100057 started=null alive=yes +125s cycle=122 rows=12402 rows/hr=6550 merchants=1952
+worker alive: pid=2100057 started=null alive=yes +185s cycle=123 rows=12508 rows/hr=6533 merchants=1968
+worker alive: pid=2100057 started=null alive=yes +245s cycle=124 rows=12614 rows/hr=6533 merchants=1984
+worker already alive: pid=2100057 started=null alive=yes (cycle=136 rows=13883 rows/hr=6540 merchants=2176) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=136 rows=13883 rows/hr=6540 merchants=2176
+worker alive: pid=2100057 started=null alive=yes +65s cycle=137 rows=13989 rows/hr=6542 merchants=2192
+worker alive: pid=2100057 started=null alive=yes +125s cycle=138 rows=14095 rows/hr=6541 merchants=2208
+worker alive: pid=2100057 started=null alive=yes +185s cycle=140 rows=14307 rows/hr=6540 merchants=2240
+worker already alive: pid=2100057 started=null alive=yes (cycle=153 rows=15685 rows/hr=6547 merchants=2448) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=153 rows=15685 rows/hr=6547 merchants=2448
+worker alive: pid=2100057 started=null alive=yes +65s cycle=154 rows=15791 rows/hr=6550 merchants=2464
+worker alive: pid=2100057 started=null alive=yes +125s cycle=155 rows=15897 rows/hr=6540 merchants=2480
+worker already alive: pid=2100057 started=null alive=yes (cycle=165 rows=16957 rows/hr=6554 merchants=2640) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=165 rows=16957 rows/hr=6554 merchants=2640
+worker alive: pid=2100057 started=null alive=yes +65s cycle=166 rows=17063 rows/hr=6545 merchants=2656
+worker alive: pid=2100057 started=null alive=yes +125s cycle=168 rows=17275 rows/hr=6552 merchants=2688
+worker alive: pid=2100057 started=null alive=yes +185s cycle=169 rows=17381 rows/hr=6556 merchants=2704
+worker alive: pid=2100057 started=null alive=yes +245s cycle=170 rows=17487 rows/hr=6562 merchants=2720
+worker already alive: pid=2100057 started=null alive=yes (cycle=182 rows=18759 rows/hr=6539 merchants=2912) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=182 rows=18759 rows/hr=6539 merchants=2912
+worker alive: pid=2100057 started=null alive=yes +65s cycle=183 rows=18865 rows/hr=6536 merchants=2928
+worker alive: pid=2100057 started=null alive=yes +125s cycle=184 rows=18971 rows/hr=6539 merchants=2944
+worker alive: pid=2100057 started=null alive=yes +185s cycle=185 rows=19077 rows/hr=6543 merchants=2960
+worker alive: pid=2100057 started=null alive=yes +245s cycle=186 rows=19183 rows/hr=6548 merchants=2976
+worker already alive: pid=2100057 started=null alive=yes (cycle=200 rows=20667 rows/hr=6601 merchants=3200) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=200 rows=20667 rows/hr=6601 merchants=3200
+worker alive: pid=2100057 started=null alive=yes +65s cycle=201 rows=20773 rows/hr=6606 merchants=3216
+worker alive: pid=2100057 started=null alive=yes +125s cycle=202 rows=20879 rows/hr=6609 merchants=3232
+worker alive: pid=2100057 started=null alive=yes +185s cycle=204 rows=21091 rows/hr=6619 merchants=3264
+worker already alive: pid=2100057 started=null alive=yes (cycle=219 rows=22681 rows/hr=6669 merchants=3504) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=219 rows=22681 rows/hr=6669 merchants=3504
+worker alive: pid=2100057 started=null alive=yes +65s cycle=220 rows=22787 rows/hr=6669 merchants=3520
+worker alive: pid=2100057 started=null alive=yes +125s cycle=221 rows=22893 rows/hr=6673 merchants=3536
+worker already alive: pid=2100057 started=null alive=yes (cycle=232 rows=24059 rows/hr=6701 merchants=3712) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=232 rows=24059 rows/hr=6701 merchants=3712
+worker alive: pid=2100057 started=null alive=yes +65s cycle=234 rows=24271 rows/hr=6706 merchants=3744
+worker alive: pid=2100057 started=null alive=yes +125s cycle=235 rows=24377 rows/hr=6709 merchants=3760
+worker alive: pid=2100057 started=null alive=yes +185s cycle=236 rows=24483 rows/hr=6710 merchants=3776
+worker alive: pid=2100057 started=null alive=yes +245s cycle=237 rows=24589 rows/hr=6713 merchants=3792
+worker already alive: pid=2100057 started=null alive=yes (cycle=251 rows=26073 rows/hr=6749 merchants=4016) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=251 rows=26073 rows/hr=6749 merchants=4016
+worker alive: pid=2100057 started=null alive=yes +65s cycle=252 rows=26179 rows/hr=6752 merchants=4032
+worker alive: pid=2100057 started=null alive=yes +125s cycle=253 rows=26285 rows/hr=6755 merchants=4048
+worker alive: pid=2100057 started=null alive=yes +185s cycle=255 rows=26497 rows/hr=6760 merchants=4080
+worker alive: pid=2100057 started=null alive=yes +245s cycle=256 rows=26603 rows/hr=6762 merchants=4096
+worker already alive: pid=2100057 started=null alive=yes (cycle=270 rows=28087 rows/hr=6795 merchants=4320) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=270 rows=28087 rows/hr=6795 merchants=4320
+worker alive: pid=2100057 started=null alive=yes +65s cycle=271 rows=28193 rows/hr=6797 merchants=4336
+worker alive: pid=2100057 started=null alive=yes +125s cycle=272 rows=28299 rows/hr=6799 merchants=4352
+worker alive: pid=2100057 started=null alive=yes +185s cycle=273 rows=28405 rows/hr=6801 merchants=4368
+worker already alive: pid=2100057 started=null alive=yes (cycle=288 rows=29995 rows/hr=6827 merchants=4608) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=288 rows=29995 rows/hr=6827 merchants=4608
+worker alive: pid=2100057 started=null alive=yes +65s cycle=290 rows=30207 rows/hr=6835 merchants=4640
+worker alive: pid=2100057 started=null alive=yes +125s cycle=291 rows=30313 rows/hr=6837 merchants=4656
+worker already alive: pid=2100057 started=null alive=yes (cycle=302 rows=31479 rows/hr=6851 merchants=4832) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=302 rows=31479 rows/hr=6851 merchants=4832
+worker alive: pid=2100057 started=null alive=yes +65s cycle=303 rows=31585 rows/hr=6852 merchants=4848
+worker alive: pid=2100057 started=null alive=yes +125s cycle=305 rows=31797 rows/hr=6856 merchants=4880
+worker alive: pid=2100057 started=null alive=yes +185s cycle=306 rows=31903 rows/hr=6856 merchants=4896
+worker alive: pid=2100057 started=null alive=yes +245s cycle=307 rows=32009 rows/hr=6858 merchants=4912
+worker already alive: pid=2100057 started=null alive=yes (cycle=321 rows=33493 rows/hr=6880 merchants=5136) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=321 rows=33493 rows/hr=6880 merchants=5136
+worker alive: pid=2100057 started=null alive=yes +65s cycle=322 rows=33599 rows/hr=6882 merchants=5152
+worker alive: pid=2100057 started=null alive=yes +125s cycle=323 rows=33705 rows/hr=6883 merchants=5168
+worker alive: pid=2100057 started=null alive=yes +185s cycle=324 rows=33811 rows/hr=6884 merchants=5184
+worker alive: pid=2100057 started=null alive=yes +245s cycle=325 rows=33917 rows/hr=6887 merchants=5200
+worker already alive: pid=2100057 started=null alive=yes (cycle=339 rows=35401 rows/hr=6909 merchants=5424) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=339 rows=35401 rows/hr=6909 merchants=5424
+worker alive: pid=2100057 started=null alive=yes +65s cycle=341 rows=35613 rows/hr=6911 merchants=5456
+worker alive: pid=2100057 started=null alive=yes +125s cycle=342 rows=35719 rows/hr=6913 merchants=5472
+worker alive: pid=2100057 started=null alive=yes +185s cycle=343 rows=35825 rows/hr=6914 merchants=5488
+worker already alive: pid=2100057 started=null alive=yes (cycle=358 rows=37415 rows/hr=6939 merchants=5728) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=358 rows=37415 rows/hr=6939 merchants=5728
+worker alive: pid=2100057 started=null alive=yes +65s cycle=360 rows=37627 rows/hr=6943 merchants=5760
+worker alive: pid=2100057 started=null alive=yes +125s cycle=361 rows=37733 rows/hr=6944 merchants=5776
+worker already alive: pid=2100057 started=null alive=yes (cycle=372 rows=38899 rows/hr=6957 merchants=5952) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=372 rows=38899 rows/hr=6957 merchants=5952
+worker alive: pid=2100057 started=null alive=yes +65s cycle=374 rows=39111 rows/hr=6959 merchants=5984
+worker alive: pid=2100057 started=null alive=yes +125s cycle=375 rows=39217 rows/hr=6960 merchants=6000
+worker alive: pid=2100057 started=null alive=yes +185s cycle=376 rows=39323 rows/hr=6961 merchants=6016
+worker alive: pid=2100057 started=null alive=yes +245s cycle=377 rows=39429 rows/hr=6962 merchants=6032
+worker already alive: pid=2100057 started=null alive=yes (cycle=391 rows=40913 rows/hr=6978 merchants=6256) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=391 rows=40913 rows/hr=6978 merchants=6256
+worker alive: pid=2100057 started=null alive=yes +65s cycle=392 rows=41019 rows/hr=6979 merchants=6272
+worker alive: pid=2100057 started=null alive=yes +125s cycle=393 rows=41125 rows/hr=6979 merchants=6288
+worker alive: pid=2100057 started=null alive=yes +185s cycle=395 rows=41337 rows/hr=6981 merchants=6320
+worker alive: pid=2100057 started=null alive=yes +245s cycle=396 rows=41443 rows/hr=6985 merchants=6336
+worker already alive: pid=2100057 started=null alive=yes (cycle=410 rows=42927 rows/hr=7002 merchants=6560) — supervisor monitoring
+worker alive: pid=2100057 started=null alive=yes +5s cycle=410 rows=42927 rows/hr=7002 merchants=6560
+worker alive: pid=2100057 started=null alive=yes +65s cycle=411 rows=43033 rows/hr=7002 merchants=6576
+worker alive: pid=2100057 started=null alive=yes +125s cycle=412 rows=43139 rows/hr=7004 merchants=6592
+worker alive: pid=2100057 started=null alive=yes +185s cycle=414 rows=43351 rows/hr=7006 merchants=6624
+worker already alive: pid=1190964 started=null alive=yes (cycle=421 rows=44093 rows/hr=7012 merchants=6736) — supervisor monitoring
+worker alive: pid=1190964 started=null alive=yes +5s cycle=421 rows=44093 rows/hr=7012 merchants=6736
+worker alive: pid=1190964 started=null alive=yes +65s cycle=1 rows=106 rows/hr=6468 merchants=16
+worker alive: pid=1190964 started=null alive=yes +125s cycle=9 rows=954 rows/hr=28861 merchants=144
+worker died at +135s — respawning
+respawned: pid=1209085 started=2026-06-19T06:50:16.634Z alive=yes
+worker already alive: pid=1247339 started=null alive=yes (cycle=35 rows=3710 rows/hr=55650 merchants=560) — supervisor monitoring
+worker alive: pid=1247339 started=null alive=yes +5s cycle=35 rows=3710 rows/hr=55650 merchants=560
+worker died at +10s — respawning
+respawned: pid=1279402 started=2026-06-19T07:00:12.427Z alive=yes
+worker alive: pid=1279402 started=null alive=yes +65s cycle=7 rows=742 rows/hr=51369 merchants=112
+worker alive: pid=1279402 started=null alive=yes +125s cycle=16 rows=1696 rows/hr=55005 merchants=256
+worker alive: pid=1279402 started=null alive=yes +185s cycle=24 rows=2544 rows/hr=53873 merchants=384
+worker alive: pid=1279402 started=null alive=yes +245s cycle=32 rows=3392 rows/hr=53558 merchants=512
+worker already alive: pid=4172869 started=2026-06-19T12:52:02.233Z alive=yes (cycle=43 rows=216 rows/hr=8070 merchants=30) — supervisor monitoring
+worker alive: pid=4172869 started=2026-06-19T12:52:02.233Z alive=yes +5s cycle=43 rows=216 rows/hr=8070 merchants=30
+worker alive: pid=4172869 started=2026-06-19T12:52:02.233Z alive=yes +65s cycle=43 rows=324 rows/hr=7904 merchants=46
+worker died at +100s — respawning
+respawned: pid=4192139 started=2026-06-19T12:55:23.564Z alive=yes
+worker alive: pid=4192139 started=2026-06-19T12:55:23.564Z alive=yes +125s cycle=44 rows=108 rows/hr=16697 merchants=12
+worker alive: pid=4192139 started=2026-06-19T12:55:23.564Z alive=yes +185s cycle=44 rows=211 rows/hr=11119 merchants=25
+worker alive: pid=4192139 started=2026-06-19T12:55:23.564Z alive=yes +245s cycle=44 rows=319 rows/hr=9662 merchants=41
+worker alive: pid=4192139 started=2026-06-19T12:55:23.564Z alive=yes +305s cycle=44 rows=432 rows/hr=7920 merchants=62
+worker alive: pid=4192139 started=2026-06-19T12:55:23.564Z alive=yes +365s cycle=44 rows=540 rows/hr=7863 merchants=78
+worker alive: pid=4192139 started=2026-06-19T12:55:23.564Z alive=yes +425s cycle=44 rows=751 rows/hr=8353 merchants=105
+worker alive: pid=4192139 started=2026-06-19T12:55:23.564Z alive=yes +485s cycle=44 rows=859 rows/hr=8291 merchants=119
+worker alive: pid=4192139 started=2026-06-19T12:55:23.564Z alive=yes +545s cycle=44 rows=967 rows/hr=8187 merchants=135
+worker alive: pid=4192139 started=2026-06-19T12:55:23.564Z alive=yes +605s cycle=44 rows=1075 rows/hr=8118 merchants=151
+worker alive: pid=4192139 started=2026-06-19T12:55:23.564Z alive=yes +665s cycle=44 rows=1188 rows/hr=7657 merchants=174
+supervisor budget exhausted final=cycle=44 rows=1296 rows/hr=7656 merchants=190; worker detached and live until next heartbeat

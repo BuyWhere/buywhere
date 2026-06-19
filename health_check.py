@@ -1,5 +1,20 @@
 #!/usr/bin/env python3
 """
+DEPRECATED — Superseded by scripts/ingestion_pipeline_healthcheck.py (BUY-53336/BUY-53674).
+
+This file is kept for reference only. All active recurring ingestion pipeline
+health checks use scripts/ingestion_pipeline_healthcheck.py via
+scripts/run-buy-53336-ingestion-healthcheck-cron.sh.
+"""
+import warnings
+warnings.warn(
+    "health_check.py is deprecated. Use scripts/ingestion_pipeline_healthcheck.py instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+#!/usr/bin/env python3
+"""
 Ingestion Pipeline Health Check Script
 Based on BUY-18144 requirements and previous health check report
 """

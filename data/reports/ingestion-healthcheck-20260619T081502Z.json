@@ -1,0 +1,43 @@
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T08:15:02.208047+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 71.7ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T08:15:02.235Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T08:15:02.207991+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T08:15:02.208028+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T08:15:02.208036+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T08:15:02.208042+00:00"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.checkAgentTaskCompatibility = void 0;
+exports.checkAgentTaskCompatibility = checkAgentTaskCompatibility;
 const roleMap_1 = require("./roleMap");
 function checkAgentTaskCompatibility(agent, task) {
     const category = resolveTaskCategory(task);
@@ -55,7 +55,6 @@ function checkAgentTaskCompatibility(agent, task) {
         matchedRole: agent.role,
     };
 }
-exports.checkAgentTaskCompatibility = checkAgentTaskCompatibility;
 function resolveTaskCategory(task) {
     if (task.category && task.category !== 'unknown') {
         return task.category;

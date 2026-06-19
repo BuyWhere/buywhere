@@ -8,7 +8,7 @@
 // Compare with constant-time equality to avoid leaking key length / prefix
 // to a timing attacker.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.adminAuth = void 0;
+exports.adminAuth = adminAuth;
 function timingSafeEqualStr(a, b) {
     if (a.length !== b.length)
         return false;
@@ -47,4 +47,3 @@ function adminAuth(req, res, next) {
     }
     res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid admin key' });
 }
-exports.adminAuth = adminAuth;

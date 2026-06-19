@@ -1,0 +1,15 @@
+{
+  "ts": "2026-06-19T01:49:18Z",
+  "apply": 1,
+  "workspaces_root": "/tmp/tmp.uX29XMmJUk/workspaces",
+  "scanned_count": 0,
+  "removed_count": 0,
+  "skipped_undeletable_count": 0,
+  "failed_count": 0,
+  "reclaimed_kb": 0,
+  "disk_after_pct": 89,
+  "disk_after_kb": 178569244,
+  "disk_free_kb": 23465428,
+  "alert_threshold_pct": 0,
+  "alert_required": 1
+}

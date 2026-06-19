@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.runMigrations = void 0;
+exports.runMigrations = runMigrations;
 const config_1 = require("./config");
 const MIGRATION = `
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -550,6 +550,32 @@ async function runMigrations() {
     catch (err) {
         console.error(`[migration] Merchants table creation failed: ${err.message?.slice(0, 200)}`);
     }
+    // BUY-52288: Ensure the merchants table has all 10 columns that the route
+    // handlers (POST /upsert, GET /, GET /:id) SELECT/INSERT. The original
+    // CREATE TABLE IF NOT EXISTS in MERCHANTS_MIGRATION only applies to a brand-
+    // new table — the live DB was created earlier with just (id, name, source,
+    // country, created_at, onboarding_stage), which made every /v1/merchants
+    // call 500 and emptied sitemap-products.xml. All idempotent. Also backfills
+    // updated_at on pre-existing rows that were created with no updated_at.
+    try {
+        await config_1.db.query(`
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS domain            TEXT;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS contact_email     TEXT;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS contact_phone     TEXT;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS scraping_priority TEXT     DEFAULT 'medium';
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS is_active         BOOLEAN  NOT NULL DEFAULT true;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS first_indexed_at  TIMESTAMPTZ;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS products_count    INTEGER;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS last_scraped_at   TIMESTAMPTZ;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS scrape_error      TEXT;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW();
+      UPDATE merchants SET updated_at = created_at WHERE updated_at IS NULL;
+    `);
+        console.log('[migration] merchants column set ensured (BUY-52288).');
+    }
+    catch (err) {
+        console.warn(`[migration] merchants column ensure failed (non-fatal): ${err.message?.slice(0, 200)}`);
+    }
     // BUY-24284: Restore the search_vector trigger that was dropped in a prior migration.
     // Without it, every new product insert leaves search_vector NULL and FTS returns 0 results.
     try {
@@ -675,7 +701,6 @@ async function runMigrations() {
     }
     console.log('Migrations complete.');
 }
-exports.runMigrations = runMigrations;
 async function migrate() {
     await runMigrations();
     await config_1.db.end();

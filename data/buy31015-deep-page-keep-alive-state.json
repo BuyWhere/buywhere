@@ -1,0 +1,14 @@
+{
+  "ts": "2026-06-19T17:36:01Z",
+  "alive_status": "RUNNING",
+  "last_action": "restarted",
+  "consecutive_dead": 1,
+  "cycle": 51,
+  "rows_ingested": 432,
+  "rows_per_hour": 8154,
+  "merchants_visited": 62,
+  "discovery_progress": 388,
+  "total_merchants": 16,
+  "pid": "1994915",
+  "first_dead_at": null
+}

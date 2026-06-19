@@ -1,0 +1,6 @@
+would-trash [catalog-skipped+D:skipped] 0.00GB data/us_shopify_woo_phase3.jsonl
+would-trash [catalog-skipped+D:skipped] 0.09GB data/_trash_archives/2026-06-17.tar.gz
+would-trash [catalog-skipped+D:skipped] 0.10GB data/_trash_archives/2026-06-18.tar.gz
+would-trash [catalog-skipped+D:skipped] 0.00GB data/etsy_us_products.ndjson
+would-trash [catalog-skipped+D:skipped] 0.00GB data/shopee_vn/prepared.ndjson
+--- files=5 freed=0.19GB catalogChecked=0 lowMatchKept=0 r2Missed=39 apply=0

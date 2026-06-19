@@ -1,0 +1,5 @@
+[2026-06-19T07:04:00Z] starting apply=1 data_dir=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data keep_carousell=1 keep_monitor_dirs=2
+[2026-06-19T07:04:00Z] carousell-snapshots total=1 keep=1
+[2026-06-19T07:04:00Z] disk-monitor-dirs total=3 keep=2
+[2026-06-19T07:04:00Z] deleted kind=disk-monitor-dir kb=20 path=data/buy-48198-disk-monitor-2026-06-19T065036Z
+[2026-06-19T07:04:00Z] summary removed=1 reclaimed_kb=20 report=reports/BUY-53419-safe-data-cleanup-report.txt

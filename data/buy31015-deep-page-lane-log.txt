@@ -1,0 +1,6 @@
+=== BUY-53618 heartbeat 2026-06-19T14:30Z ===
+Status: HEALTHY — worker PID 666925 running, cycle 51, 16 merchants
+Cron: active every 2 min
+Rows ingested: 324 | Rows/hr: ~7638
+Consecutive dead: 0
+Keepalive: RUNNING, noop, consistent PIDs

@@ -1,0 +1,118 @@
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T04:06:43.774229+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 3,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 67.4ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T04:06:41.197Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T04:06:41.154705+00:00"
+    },
+    {
+      "check": "database",
+      "status": "warning",
+      "message": "DB OK (45.1ms). Fixed 18 zombie runs.",
+      "detail": {
+        "latency_ms": 45.1,
+        "total_products": 17472931,
+        "zombie_runs": 18,
+        "running_runs": 18,
+        "stale_active_products": 956248,
+        "runs_last_24h": {
+          "success": 3692,
+          "failed": 18,
+          "total": 3729
+        },
+        "zombie_sources": [
+          {
+            "source": "woocommerce_deep",
+            "count": 18,
+            "last_started": "2026-06-19 02:12:26.597165+00:00"
+          }
+        ],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "ebay_us",
+            "count": 25798,
+            "last_updated": "2026-06-18 10:12:33.567791+00:00"
+          },
+          {
+            "source": "decathlon_sg",
+            "count": 15878,
+            "last_updated": "2026-06-18 13:02:04.331221+00:00"
+          },
+          {
+            "source": "crateandbarrel_us",
+            "count": 13455,
+            "last_updated": "2026-06-18 12:17:29.692570+00:00"
+          },
+          {
+            "source": "buy9900",
+            "count": 12367,
+            "last_updated": "2026-06-18 13:03:53.774715+00:00"
+          },
+          {
+            "source": "ashley_furniture_us",
+            "count": 10117,
+            "last_updated": "2026-06-18 13:09:27.771798+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 8130,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "amazon_us",
+            "count": 5099,
+            "last_updated": "2026-06-18 13:09:58.872282+00:00"
+          },
+          {
+            "source": "italist",
+            "count": 4496,
+            "last_updated": "2026-06-18 12:20:05.248869+00:00"
+          },
+          {
+            "source": "italist_us",
+            "count": 4496,
+            "last_updated": "2026-06-18 13:08:35.315586+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T04:06:43.706654+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T04:06:43.706693+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "warning",
+      "message": "Degraded success rate: 77.4% (7d)",
+      "detail": {
+        "total": 14895,
+        "success": 11525,
+        "failed": 3324,
+        "success_rate_pct": 77.4
+      },
+      "timestamp": "2026-06-19T04:06:43.772172+00:00"
+    }
+  ]
+}

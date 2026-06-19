@@ -1,0 +1,788 @@
+bash: scripts/run-buy-51993-deep-page-keepalive.sh: No such file or directory
+bash: scripts/run-buy-51993-deep-page-keepalive.sh: No such file or directory
+bash: scripts/run-buy-51993-deep-page-keepalive.sh: No such file or directory
+bash: scripts/run-buy-51993-deep-page-keepalive.sh: No such file or directory
+bash: scripts/run-buy-51993-deep-page-keepalive.sh: No such file or directory
+bash: scripts/run-buy-51993-deep-page-keepalive.sh: No such file or directory
+bash: scripts/run-buy-51993-deep-page-keepalive.sh: No such file or directory
+bash: scripts/run-buy-51993-deep-page-keepalive.sh: No such file or directory
+bash: scripts/run-buy-51993-deep-page-keepalive.sh: No such file or directory
+bash: scripts/run-buy-51993-deep-page-keepalive.sh: No such file or directory
+bash: scripts/run-buy-51993-deep-page-keepalive.sh: No such file or directory
+bash: scripts/run-buy-51993-deep-page-keepalive.sh: No such file or directory
+bash: scripts/run-buy-51993-deep-page-keepalive.sh: No such file or directory
+bash: scripts/run-buy-51993-deep-page-keepalive.sh: No such file or directory
+bash: scripts/run-buy-51993-deep-page-keepalive.sh: No such file or directory
+[2026-06-19T09:10:59Z] cron-wrapper: starting keepalive tick
+Traceback (most recent call last):
+  File "<stdin>", line 5, in <module>
+ValueError: not enough values to unpack (expected 11, got 10)
+[2026-06-19T09:11:01Z] cron-wrapper: keepalive already running; skipping tick
+[2026-06-19T09:11:15Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:11:16Z] keepalive: status=RUNNING action=noop pid=2494486 cycle=1 rows=90 row/hr=25885 merchants=6/120 dead_streak=0
+[2026-06-19T09:11:16Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:11:30Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:11:30Z] keepalive: status=RUNNING action=noop pid=2494486 cycle=1 rows=180 row/hr=23534 merchants=12/120 dead_streak=0
+[2026-06-19T09:11:30Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:12:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:12:02Z] keepalive: status=RUNNING action=noop pid=2494486 cycle=1 rows=360 row/hr=22514 merchants=24/120 dead_streak=0
+[2026-06-19T09:12:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:12:08Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:12:08Z] keepalive: status=RUNNING action=noop pid=2494486 cycle=1 rows=405 row/hr=22405 merchants=27/120 dead_streak=0
+[2026-06-19T09:12:08Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:14:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:14:01Z] keepalive: status=RUNNING action=noop pid=2494486 cycle=1 rows=1080 row/hr=21880 merchants=72/120 dead_streak=0
+[2026-06-19T09:14:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:16:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:16:01Z] keepalive: status=RUNNING action=restarted pid=2526282 cycle=1 rows=1440 row/hr=21576 merchants=96/120 dead_streak=1
+[2026-06-19T09:16:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:18:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:18:01Z] keepalive: status=RUNNING action=noop pid=2526282 cycle=2 rows=2160 row/hr=66098 merchants=144/120 dead_streak=0
+[2026-06-19T09:18:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:20:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:20:02Z] keepalive: status=RUNNING action=noop pid=2526282 cycle=2 rows=2880 row/hr=43606 merchants=192/120 dead_streak=0
+[2026-06-19T09:20:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:22:02Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:22:02Z] keepalive: status=RUNNING action=restarted pid=2573308 cycle=2 rows=2880 row/hr=43151 merchants=192/120 dead_streak=1
+[2026-06-19T09:22:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:24:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:24:01Z] keepalive: status=RUNNING action=noop pid=2573308 cycle=3 rows=3600 row/hr=110168 merchants=240/120 dead_streak=0
+[2026-06-19T09:24:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:26:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:26:01Z] keepalive: status=RUNNING action=restarted pid=2603858 cycle=3 rows=4050 row/hr=74680 merchants=270/120 dead_streak=1
+[2026-06-19T09:26:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:28:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:28:01Z] keepalive: status=RUNNING action=noop pid=2603858 cycle=4 rows=4770 row/hr=145984 merchants=318/120 dead_streak=0
+[2026-06-19T09:28:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:30:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:30:02Z] keepalive: status=RUNNING action=restarted pid=2639140 cycle=4 rows=5490 row/hr=82255 merchants=366/120 dead_streak=1
+[2026-06-19T09:30:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:32:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:32:01Z] keepalive: status=RUNNING action=noop pid=2639140 cycle=5 rows=6210 row/hr=190058 merchants=414/120 dead_streak=0
+[2026-06-19T09:32:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:34:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:34:02Z] keepalive: status=RUNNING action=noop pid=2639140 cycle=5 rows=6930 row/hr=104934 merchants=462/120 dead_streak=0
+[2026-06-19T09:34:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:36:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:36:02Z] keepalive: status=RUNNING action=restarted pid=2696901 cycle=5 rows=6930 row/hr=103841 merchants=462/120 dead_streak=1
+[2026-06-19T09:36:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:38:02Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:38:02Z] keepalive: status=RUNNING action=noop pid=2696901 cycle=6 rows=7650 row/hr=234132 merchants=510/120 dead_streak=0
+[2026-06-19T09:38:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:40:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:40:01Z] keepalive: status=RUNNING action=noop pid=2696901 cycle=6 rows=8370 row/hr=126734 merchants=558/120 dead_streak=0
+[2026-06-19T09:40:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:42:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:42:01Z] keepalive: status=RUNNING action=restarted pid=2791611 cycle=6 rows=8370 row/hr=125414 merchants=558/120 dead_streak=1
+[2026-06-19T09:42:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:44:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:44:01Z] keepalive: status=RUNNING action=noop pid=2791611 cycle=7 rows=9090 row/hr=278178 merchants=606/120 dead_streak=0
+[2026-06-19T09:44:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:46:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:46:02Z] keepalive: status=RUNNING action=restarted pid=2824654 cycle=7 rows=9540 row/hr=175923 merchants=636/120 dead_streak=1
+[2026-06-19T09:46:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:48:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:48:02Z] keepalive: status=RUNNING action=noop pid=2824654 cycle=8 rows=10260 row/hr=313988 merchants=684/120 dead_streak=0
+[2026-06-19T09:48:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:50:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:50:02Z] keepalive: status=RUNNING action=noop pid=2824654 cycle=8 rows=10980 row/hr=166250 merchants=732/120 dead_streak=0
+[2026-06-19T09:50:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:52:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:52:02Z] keepalive: status=RUNNING action=restarted pid=2876783 cycle=8 rows=10980 row/hr=164516 merchants=732/120 dead_streak=1
+[2026-06-19T09:52:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:54:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:54:01Z] keepalive: status=RUNNING action=noop pid=2876783 cycle=9 rows=11700 row/hr=358057 merchants=780/120 dead_streak=0
+[2026-06-19T09:54:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:56:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:56:01Z] keepalive: status=RUNNING action=restarted pid=2905111 cycle=9 rows=12150 row/hr=224060 merchants=810/120 dead_streak=1
+[2026-06-19T09:56:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T09:58:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T09:58:02Z] keepalive: status=RUNNING action=noop pid=2905111 cycle=10 rows=12870 row/hr=393852 merchants=858/120 dead_streak=0
+[2026-06-19T09:58:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:00:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:00:01Z] keepalive: status=RUNNING action=noop pid=2905111 cycle=10 rows=13590 row/hr=205769 merchants=906/120 dead_streak=0
+[2026-06-19T10:00:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:02:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:02:01Z] keepalive: status=RUNNING action=restarted pid=2946557 cycle=10 rows=13590 row/hr=203625 merchants=906/120 dead_streak=1
+[2026-06-19T10:02:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:04:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:04:01Z] keepalive: status=RUNNING action=noop pid=2946557 cycle=11 rows=14310 row/hr=437923 merchants=954/120 dead_streak=0
+[2026-06-19T10:04:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:06:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:06:01Z] keepalive: status=RUNNING action=noop pid=2967797 cycle=12 rows=0 row/hr=0 merchants=14/14 dead_streak=0
+[2026-06-19T10:06:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:08:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:08:01Z] keepalive: status=RUNNING action=noop pid=2967797 cycle=12 rows=0 row/hr=0 merchants=57/57 dead_streak=0
+[2026-06-19T10:08:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:10:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:10:01Z] keepalive: status=RUNNING action=noop pid=2967797 cycle=12 rows=0 row/hr=0 merchants=89/89 dead_streak=0
+[2026-06-19T10:10:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:12:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:12:02Z] keepalive: status=RUNNING action=noop pid=2967797 cycle=12 rows=0 row/hr=0 merchants=126/126 dead_streak=0
+[2026-06-19T10:12:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:14:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:14:01Z] keepalive: status=RUNNING action=noop pid=2967797 cycle=12 rows=0 row/hr=0 merchants=169/169 dead_streak=0
+[2026-06-19T10:14:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:16:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:16:01Z] keepalive: status=RUNNING action=noop pid=2967797 cycle=12 rows=0 row/hr=0 merchants=206/206 dead_streak=0
+[2026-06-19T10:16:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:18:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:18:02Z] keepalive: status=RUNNING action=restarted pid=3057694 cycle=12 rows=0 row/hr=0 merchants=229/229 dead_streak=1
+[2026-06-19T10:18:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:20:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:20:01Z] keepalive: status=RUNNING action=noop pid=3057694 cycle=13 rows=0 row/hr=0 merchants=40/40 dead_streak=0
+[2026-06-19T10:20:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:22:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:22:02Z] keepalive: status=RUNNING action=restarted pid=3087398 cycle=13 rows=0 row/hr=0 merchants=40/40 dead_streak=1
+[2026-06-19T10:22:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:24:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:24:02Z] keepalive: status=RUNNING action=noop pid=3087398 cycle=14 rows=0 row/hr=0 merchants=30/30 dead_streak=0
+[2026-06-19T10:24:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:26:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:26:02Z] keepalive: status=RUNNING action=restarted pid=3112292 cycle=14 rows=0 row/hr=0 merchants=57/57 dead_streak=1
+[2026-06-19T10:26:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:28:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:28:02Z] keepalive: status=RUNNING action=noop pid=3112292 cycle=15 rows=0 row/hr=0 merchants=41/41 dead_streak=0
+[2026-06-19T10:28:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:30:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:30:02Z] keepalive: status=RUNNING action=noop pid=3112292 cycle=15 rows=0 row/hr=0 merchants=73/73 dead_streak=0
+[2026-06-19T10:30:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:32:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:32:01Z] keepalive: status=RUNNING action=restarted pid=3149037 cycle=15 rows=0 row/hr=0 merchants=79/79 dead_streak=1
+[2026-06-19T10:32:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:34:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:34:01Z] keepalive: status=RUNNING action=noop pid=3149037 cycle=16 rows=0 row/hr=0 merchants=39/39 dead_streak=0
+[2026-06-19T10:34:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:36:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:36:01Z] keepalive: status=RUNNING action=restarted pid=3213688 cycle=16 rows=0 row/hr=0 merchants=62/62 dead_streak=1
+[2026-06-19T10:36:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:38:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:38:01Z] keepalive: status=RUNNING action=noop pid=3213688 cycle=17 rows=0 row/hr=0 merchants=41/41 dead_streak=0
+[2026-06-19T10:38:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:40:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:40:02Z] keepalive: status=RUNNING action=noop pid=3213688 cycle=17 rows=0 row/hr=0 merchants=73/73 dead_streak=0
+[2026-06-19T10:40:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:42:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:42:02Z] keepalive: status=RUNNING action=restarted pid=3257530 cycle=17 rows=0 row/hr=0 merchants=78/78 dead_streak=1
+[2026-06-19T10:42:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:44:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:44:01Z] keepalive: status=RUNNING action=noop pid=3257530 cycle=18 rows=0 row/hr=0 merchants=30/30 dead_streak=0
+[2026-06-19T10:44:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:46:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:46:01Z] keepalive: status=RUNNING action=restarted pid=3284968 cycle=18 rows=0 row/hr=0 merchants=62/62 dead_streak=1
+[2026-06-19T10:46:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:48:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:48:01Z] keepalive: status=RUNNING action=noop pid=3284968 cycle=19 rows=0 row/hr=0 merchants=41/41 dead_streak=0
+[2026-06-19T10:48:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:50:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:50:01Z] keepalive: status=RUNNING action=noop pid=3284968 cycle=19 rows=0 row/hr=0 merchants=71/71 dead_streak=0
+[2026-06-19T10:50:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:52:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:52:02Z] keepalive: status=RUNNING action=restarted pid=3330744 cycle=19 rows=0 row/hr=0 merchants=78/78 dead_streak=1
+[2026-06-19T10:52:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:54:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:54:02Z] keepalive: status=RUNNING action=noop pid=3330744 cycle=20 rows=0 row/hr=0 merchants=41/41 dead_streak=0
+[2026-06-19T10:54:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:56:02Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:56:02Z] keepalive: status=RUNNING action=restarted pid=3353460 cycle=20 rows=0 row/hr=0 merchants=62/62 dead_streak=1
+[2026-06-19T10:56:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T10:58:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T10:58:01Z] keepalive: status=RUNNING action=noop pid=3353460 cycle=21 rows=0 row/hr=0 merchants=40/40 dead_streak=0
+[2026-06-19T10:58:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:00:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:00:01Z] keepalive: status=RUNNING action=noop pid=3353460 cycle=21 rows=0 row/hr=0 merchants=73/73 dead_streak=0
+[2026-06-19T11:00:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:02:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:02:02Z] keepalive: status=RUNNING action=restarted pid=3387141 cycle=21 rows=0 row/hr=0 merchants=79/79 dead_streak=1
+[2026-06-19T11:02:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:04:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:04:02Z] keepalive: status=RUNNING action=noop pid=3387141 cycle=22 rows=0 row/hr=0 merchants=30/30 dead_streak=0
+[2026-06-19T11:04:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:06:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:06:02Z] keepalive: status=RUNNING action=restarted pid=3409541 cycle=22 rows=0 row/hr=0 merchants=62/62 dead_streak=1
+[2026-06-19T11:06:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:08:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:08:01Z] keepalive: status=RUNNING action=noop pid=3409541 cycle=23 rows=0 row/hr=0 merchants=30/30 dead_streak=0
+[2026-06-19T11:08:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:10:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:10:01Z] keepalive: status=RUNNING action=noop pid=3409541 cycle=23 rows=0 row/hr=0 merchants=73/73 dead_streak=0
+[2026-06-19T11:10:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:12:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:12:02Z] keepalive: status=RUNNING action=restarted pid=3439062 cycle=23 rows=0 row/hr=0 merchants=73/73 dead_streak=1
+[2026-06-19T11:12:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:14:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:14:02Z] keepalive: status=RUNNING action=noop pid=3439062 cycle=24 rows=0 row/hr=0 merchants=41/41 dead_streak=0
+[2026-06-19T11:14:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:16:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:16:01Z] keepalive: status=RUNNING action=restarted pid=3463284 cycle=24 rows=0 row/hr=0 merchants=62/62 dead_streak=1
+[2026-06-19T11:16:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:18:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:18:02Z] keepalive: status=RUNNING action=noop pid=3463284 cycle=25 rows=0 row/hr=0 merchants=41/41 dead_streak=0
+[2026-06-19T11:18:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:20:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:20:01Z] keepalive: status=RUNNING action=noop pid=3463284 cycle=25 rows=0 row/hr=0 merchants=65/65 dead_streak=0
+[2026-06-19T11:20:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:22:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:22:02Z] keepalive: status=RUNNING action=restarted pid=3494897 cycle=25 rows=0 row/hr=0 merchants=77/77 dead_streak=1
+[2026-06-19T11:22:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:24:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:24:02Z] keepalive: status=RUNNING action=noop pid=3494897 cycle=26 rows=0 row/hr=0 merchants=39/39 dead_streak=0
+[2026-06-19T11:24:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:26:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:26:01Z] keepalive: status=RUNNING action=restarted pid=3516075 cycle=26 rows=0 row/hr=0 merchants=57/57 dead_streak=1
+[2026-06-19T11:26:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:28:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:28:02Z] keepalive: status=RUNNING action=noop pid=3516075 cycle=27 rows=0 row/hr=0 merchants=41/41 dead_streak=0
+[2026-06-19T11:28:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:30:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:30:01Z] keepalive: status=RUNNING action=noop pid=3516075 cycle=27 rows=0 row/hr=0 merchants=71/71 dead_streak=0
+[2026-06-19T11:30:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:32:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:32:01Z] keepalive: status=RUNNING action=restarted pid=3548918 cycle=27 rows=0 row/hr=0 merchants=78/78 dead_streak=1
+[2026-06-19T11:32:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:34:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:34:01Z] keepalive: status=RUNNING action=noop pid=3548918 cycle=28 rows=0 row/hr=0 merchants=41/41 dead_streak=0
+[2026-06-19T11:34:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:36:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:36:01Z] keepalive: status=RUNNING action=restarted pid=3607021 cycle=28 rows=0 row/hr=0 merchants=62/62 dead_streak=1
+[2026-06-19T11:36:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:38:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:38:01Z] keepalive: status=RUNNING action=noop pid=3607021 cycle=29 rows=0 row/hr=0 merchants=41/41 dead_streak=0
+[2026-06-19T11:38:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:40:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:40:01Z] keepalive: status=RUNNING action=noop pid=3607021 cycle=29 rows=0 row/hr=0 merchants=73/73 dead_streak=0
+[2026-06-19T11:40:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:42:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:42:01Z] keepalive: status=RUNNING action=restarted pid=3633841 cycle=29 rows=0 row/hr=0 merchants=80/80 dead_streak=1
+[2026-06-19T11:42:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:44:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:44:01Z] keepalive: status=RUNNING action=noop pid=3633841 cycle=30 rows=0 row/hr=0 merchants=41/41 dead_streak=0
+[2026-06-19T11:44:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:46:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:46:01Z] keepalive: status=RUNNING action=restarted pid=3657633 cycle=30 rows=0 row/hr=0 merchants=62/62 dead_streak=1
+[2026-06-19T11:46:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:48:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:48:01Z] keepalive: status=RUNNING action=noop pid=3657633 cycle=31 rows=0 row/hr=0 merchants=41/41 dead_streak=0
+[2026-06-19T11:48:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:50:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:50:02Z] keepalive: status=RUNNING action=noop pid=3657633 cycle=31 rows=0 row/hr=0 merchants=73/73 dead_streak=0
+[2026-06-19T11:50:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:52:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:52:01Z] keepalive: status=RUNNING action=restarted pid=3693210 cycle=31 rows=0 row/hr=0 merchants=80/80 dead_streak=1
+[2026-06-19T11:52:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:54:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:54:01Z] keepalive: status=RUNNING action=noop pid=3693210 cycle=32 rows=0 row/hr=0 merchants=41/41 dead_streak=0
+[2026-06-19T11:54:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:56:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:56:01Z] keepalive: status=RUNNING action=restarted pid=3728296 cycle=32 rows=0 row/hr=0 merchants=62/62 dead_streak=1
+[2026-06-19T11:56:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T11:58:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T11:58:02Z] keepalive: status=RUNNING action=noop pid=3728296 cycle=33 rows=0 row/hr=0 merchants=41/41 dead_streak=0
+[2026-06-19T11:58:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:00:02Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:00:02Z] keepalive: status=RUNNING action=noop pid=3728296 cycle=33 rows=0 row/hr=0 merchants=71/71 dead_streak=0
+[2026-06-19T12:00:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:02:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:02:01Z] keepalive: status=RUNNING action=restarted pid=3762284 cycle=33 rows=0 row/hr=0 merchants=78/78 dead_streak=1
+[2026-06-19T12:02:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:04:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:04:01Z] keepalive: status=RUNNING action=noop pid=3762284 cycle=34 rows=0 row/hr=0 merchants=41/41 dead_streak=0
+[2026-06-19T12:04:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:06:02Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:06:02Z] keepalive: status=RUNNING action=restarted pid=3785860 cycle=34 rows=0 row/hr=0 merchants=62/62 dead_streak=1
+[2026-06-19T12:06:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:08:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:08:01Z] keepalive: status=RUNNING action=noop pid=3785860 cycle=35 rows=0 row/hr=0 merchants=41/41 dead_streak=0
+[2026-06-19T12:08:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:10:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:10:02Z] keepalive: status=RUNNING action=noop pid=3785860 cycle=35 rows=0 row/hr=0 merchants=72/72 dead_streak=0
+[2026-06-19T12:10:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:12:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:12:01Z] keepalive: status=RUNNING action=noop pid=3826782 cycle=36 rows=108 row/hr=8521 merchants=14/14 dead_streak=0
+[2026-06-19T12:12:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:14:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:14:01Z] keepalive: status=RUNNING action=noop pid=3841048 cycle=37 rows=108 row/hr=16534 merchants=12/12 dead_streak=0
+[2026-06-19T12:14:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:16:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:16:01Z] keepalive: status=RUNNING action=noop pid=3841048 cycle=37 rows=319 row/hr=9719 merchants=38/38 dead_streak=0
+[2026-06-19T12:16:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:18:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:18:01Z] keepalive: status=RUNNING action=noop pid=3841048 cycle=37 rows=540 row/hr=7642 merchants=78/78 dead_streak=0
+[2026-06-19T12:18:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:20:02Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:20:02Z] keepalive: status=RUNNING action=noop pid=3841048 cycle=37 rows=859 row/hr=8133 merchants=121/121 dead_streak=0
+[2026-06-19T12:20:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:22:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:22:01Z] keepalive: status=RUNNING action=noop pid=3841048 cycle=37 rows=1080 row/hr=7638 merchants=158/158 dead_streak=0
+[2026-06-19T12:22:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:24:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:24:02Z] keepalive: status=RUNNING action=noop pid=3841048 cycle=37 rows=1399 row/hr=7969 merchants=201/201 dead_streak=0
+[2026-06-19T12:24:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:26:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:26:02Z] keepalive: status=RUNNING action=restarted pid=3932981 cycle=37 rows=1512 row/hr=7558 merchants=225/225 dead_streak=1
+[2026-06-19T12:26:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:28:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:28:02Z] keepalive: status=RUNNING action=noop pid=3932981 cycle=38 rows=319 row/hr=9655 merchants=41/41 dead_streak=0
+[2026-06-19T12:28:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:30:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:30:02Z] keepalive: status=RUNNING action=noop pid=3932981 cycle=38 rows=535 row/hr=8767 merchants=73/73 dead_streak=0
+[2026-06-19T12:30:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:32:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:32:02Z] keepalive: status=RUNNING action=restarted pid=4007806 cycle=38 rows=540 row/hr=7769 merchants=79/79 dead_streak=1
+[2026-06-19T12:32:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:34:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:34:01Z] keepalive: status=RUNNING action=noop pid=4007806 cycle=39 rows=319 row/hr=9740 merchants=41/41 dead_streak=0
+[2026-06-19T12:34:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:36:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:36:01Z] keepalive: status=RUNNING action=restarted pid=4055259 cycle=39 rows=432 row/hr=7898 merchants=62/62 dead_streak=1
+[2026-06-19T12:36:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:40:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:40:01Z] keepalive: status=RUNNING action=noop pid=4055259 cycle=40 rows=535 row/hr=8619 merchants=71/71 dead_streak=0
+[2026-06-19T12:40:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:42:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:42:02Z] keepalive: status=RUNNING action=restarted pid=4101221 cycle=40 rows=535 row/hr=8619 merchants=71/71 dead_streak=1
+[2026-06-19T12:42:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:44:02Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:44:02Z] keepalive: status=RUNNING action=noop pid=4101221 cycle=41 rows=216 row/hr=7942 merchants=30/30 dead_streak=0
+[2026-06-19T12:44:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:46:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:46:02Z] keepalive: status=RUNNING action=restarted pid=4126237 cycle=41 rows=432 row/hr=7819 merchants=62/62 dead_streak=1
+[2026-06-19T12:46:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:48:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:48:01Z] keepalive: status=RUNNING action=noop pid=4126237 cycle=42 rows=216 row/hr=7939 merchants=30/30 dead_streak=0
+[2026-06-19T12:48:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:50:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:50:01Z] keepalive: status=RUNNING action=noop pid=4126237 cycle=42 rows=535 row/hr=8726 merchants=72/72 dead_streak=0
+[2026-06-19T12:50:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:52:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:52:02Z] keepalive: status=RUNNING action=restarted pid=4172869 cycle=42 rows=540 row/hr=7740 merchants=78/78 dead_streak=1
+[2026-06-19T12:52:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:54:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:54:01Z] keepalive: status=RUNNING action=noop pid=4172869 cycle=43 rows=319 row/hr=9702 merchants=41/41 dead_streak=0
+[2026-06-19T12:54:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:56:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:56:01Z] keepalive: status=RUNNING action=noop pid=4192139 cycle=44 rows=108 row/hr=16697 merchants=12/12 dead_streak=0
+[2026-06-19T12:56:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T12:58:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T12:58:02Z] keepalive: status=RUNNING action=noop pid=4192139 cycle=44 rows=324 row/hr=7914 merchants=46/46 dead_streak=0
+[2026-06-19T12:58:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:00:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:00:02Z] keepalive: status=RUNNING action=noop pid=4192139 cycle=44 rows=643 row/hr=8648 merchants=86/86 dead_streak=0
+[2026-06-19T13:00:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:02:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:02:01Z] keepalive: status=RUNNING action=noop pid=4192139 cycle=44 rows=859 row/hr=8291 merchants=119/119 dead_streak=0
+[2026-06-19T13:02:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:04:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:04:01Z] keepalive: status=RUNNING action=noop pid=4192139 cycle=44 rows=1080 row/hr=7654 merchants=158/158 dead_streak=0
+[2026-06-19T13:04:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:06:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:06:01Z] keepalive: status=RUNNING action=noop pid=4192139 cycle=44 rows=1399 row/hr=7968 merchants=201/201 dead_streak=0
+[2026-06-19T13:06:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:08:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:08:01Z] keepalive: status=RUNNING action=restarted pid=94907 cycle=44 rows=1512 row/hr=7551 merchants=225/225 dead_streak=1
+[2026-06-19T13:08:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:10:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:10:01Z] keepalive: status=RUNNING action=noop pid=94907 cycle=45 rows=319 row/hr=9641 merchants=40/40 dead_streak=0
+[2026-06-19T13:10:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:12:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:12:01Z] keepalive: status=RUNNING action=restarted pid=125003 cycle=45 rows=324 row/hr=8991 merchants=45/45 dead_streak=1
+[2026-06-19T13:12:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:14:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:14:02Z] keepalive: status=RUNNING action=noop pid=125003 cycle=46 rows=216 row/hr=8039 merchants=30/30 dead_streak=0
+[2026-06-19T13:14:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:16:02Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:16:02Z] keepalive: status=RUNNING action=restarted pid=151901 cycle=46 rows=432 row/hr=7885 merchants=62/62 dead_streak=1
+[2026-06-19T13:16:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:18:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:18:01Z] keepalive: status=RUNNING action=noop pid=151901 cycle=47 rows=216 row/hr=7848 merchants=30/30 dead_streak=0
+[2026-06-19T13:18:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:20:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:20:02Z] keepalive: status=RUNNING action=noop pid=151901 cycle=47 rows=535 row/hr=8558 merchants=72/72 dead_streak=0
+[2026-06-19T13:20:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:22:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:22:02Z] keepalive: status=RUNNING action=restarted pid=198571 cycle=47 rows=540 row/hr=7636 merchants=78/78 dead_streak=1
+[2026-06-19T13:22:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:24:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:24:01Z] keepalive: status=RUNNING action=noop pid=198571 cycle=48 rows=216 row/hr=7720 merchants=30/30 dead_streak=0
+[2026-06-19T13:24:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:26:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:26:02Z] keepalive: status=RUNNING action=restarted pid=224230 cycle=48 rows=432 row/hr=8128 merchants=62/62 dead_streak=1
+[2026-06-19T13:26:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:28:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:28:01Z] keepalive: status=RUNNING action=noop pid=224230 cycle=49 rows=216 row/hr=7767 merchants=30/30 dead_streak=0
+[2026-06-19T13:28:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:30:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:30:01Z] keepalive: status=RUNNING action=noop pid=224230 cycle=49 rows=432 row/hr=6959 merchants=67/67 dead_streak=0
+[2026-06-19T13:30:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:32:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:32:01Z] keepalive: status=RUNNING action=restarted pid=276390 cycle=49 rows=540 row/hr=7939 merchants=77/77 dead_streak=1
+[2026-06-19T13:32:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:34:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:34:01Z] keepalive: status=RUNNING action=noop pid=276390 cycle=50 rows=216 row/hr=7027 merchants=30/30 dead_streak=0
+[2026-06-19T13:34:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:36:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:36:01Z] keepalive: status=RUNNING action=restarted pid=341316 cycle=50 rows=427 row/hr=8092 merchants=57/57 dead_streak=1
+[2026-06-19T13:36:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:38:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:38:01Z] keepalive: status=RUNNING action=noop pid=341316 cycle=51 rows=319 row/hr=9687 merchants=41/41 dead_streak=0
+[2026-06-19T13:38:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:40:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:40:02Z] keepalive: status=RUNNING action=noop pid=341316 cycle=51 rows=535 row/hr=8822 merchants=73/73 dead_streak=0
+[2026-06-19T13:40:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:42:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:42:02Z] keepalive: status=RUNNING action=restarted pid=399527 cycle=51 rows=540 row/hr=7747 merchants=79/79 dead_streak=1
+[2026-06-19T13:42:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:44:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:44:01Z] keepalive: status=RUNNING action=noop pid=399527 cycle=51 rows=216 row/hr=7067 merchants=30/30 dead_streak=0
+[2026-06-19T13:44:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:46:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:46:01Z] keepalive: status=RUNNING action=noop pid=429774 cycle=51 rows=432 row/hr=8177 merchants=60/60 dead_streak=0
+[2026-06-19T13:46:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:48:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:48:01Z] keepalive: status=RUNNING action=noop pid=429774 cycle=51 rows=216 row/hr=7178 merchants=30/30 dead_streak=0
+[2026-06-19T13:48:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:50:02Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:50:02Z] keepalive: status=RUNNING action=noop pid=429774 cycle=51 rows=535 row/hr=8061 merchants=70/70 dead_streak=0
+[2026-06-19T13:50:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:52:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:52:02Z] keepalive: status=RUNNING action=noop pid=429774 cycle=51 rows=751 row/hr=7757 merchants=103/103 dead_streak=0
+[2026-06-19T13:52:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:54:02Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:54:02Z] keepalive: status=RUNNING action=noop pid=429774 cycle=51 rows=967 row/hr=7649 merchants=137/137 dead_streak=0
+[2026-06-19T13:54:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:56:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:56:01Z] keepalive: status=RUNNING action=noop pid=429774 cycle=51 rows=1188 row/hr=7271 merchants=174/174 dead_streak=0
+[2026-06-19T13:56:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T13:58:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T13:58:02Z] keepalive: status=RUNNING action=restarted pid=522699 cycle=51 rows=1512 row/hr=7555 merchants=220/220 dead_streak=1
+[2026-06-19T13:58:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:00:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:00:02Z] keepalive: status=RUNNING action=noop pid=522699 cycle=51 rows=319 row/hr=9777 merchants=39/16 dead_streak=0
+[2026-06-19T14:00:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:02:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:02:01Z] keepalive: status=RUNNING action=restarted pid=543090 cycle=51 rows=319 row/hr=9777 merchants=39/16 dead_streak=1
+[2026-06-19T14:02:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:04:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:04:01Z] keepalive: status=RUNNING action=noop pid=543090 cycle=51 rows=216 row/hr=7512 merchants=30/16 dead_streak=0
+[2026-06-19T14:04:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:05:19Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:05:20Z] keepalive: status=RUNNING action=restarted pid=560947 cycle=51 rows=432 row/hr=8187 merchants=61/16 dead_streak=1
+[2026-06-19T14:05:20Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:06:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:06:01Z] keepalive: status=RUNNING action=noop pid=560947 cycle=51 rows=108 row/hr=16170 merchants=12/16 dead_streak=0
+[2026-06-19T14:06:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:08:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:08:01Z] keepalive: status=RUNNING action=noop pid=560947 cycle=51 rows=324 row/hr=7660 merchants=46/16 dead_streak=0
+[2026-06-19T14:08:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:10:02Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:10:02Z] keepalive: status=RUNNING action=noop pid=560947 cycle=51 rows=535 row/hr=7224 merchants=78/16 dead_streak=0
+[2026-06-19T14:10:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:12:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:12:02Z] keepalive: status=RUNNING action=noop pid=560947 cycle=51 rows=854 row/hr=7792 merchants=121/16 dead_streak=0
+[2026-06-19T14:12:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:14:02Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:14:02Z] keepalive: status=RUNNING action=noop pid=560947 cycle=51 rows=1070 row/hr=7750 merchants=150/16 dead_streak=0
+[2026-06-19T14:14:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:16:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:16:01Z] keepalive: status=RUNNING action=noop pid=560947 cycle=51 rows=1291 row/hr=7333 merchants=190/16 dead_streak=0
+[2026-06-19T14:16:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:18:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:18:01Z] keepalive: status=RUNNING action=restarted pid=646724 cycle=51 rows=1507 row/hr=7345 merchants=222/16 dead_streak=1
+[2026-06-19T14:18:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:20:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:20:01Z] keepalive: status=RUNNING action=noop pid=646724 cycle=51 rows=216 row/hr=7553 merchants=30/16 dead_streak=0
+[2026-06-19T14:20:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:22:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:22:01Z] keepalive: status=RUNNING action=restarted pid=666925 cycle=51 rows=319 row/hr=8626 merchants=38/16 dead_streak=1
+[2026-06-19T14:22:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:24:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:24:01Z] keepalive: status=RUNNING action=noop pid=666925 cycle=51 rows=319 row/hr=9699 merchants=38/16 dead_streak=0
+[2026-06-19T14:24:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:26:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:26:01Z] keepalive: status=RUNNING action=restarted pid=690917 cycle=51 rows=427 row/hr=8868 merchants=54/16 dead_streak=1
+[2026-06-19T14:26:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:28:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:28:01Z] keepalive: status=RUNNING action=noop pid=690917 cycle=51 rows=216 row/hr=7721 merchants=30/16 dead_streak=0
+[2026-06-19T14:28:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:30:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:30:02Z] keepalive: status=RUNNING action=noop pid=690917 cycle=51 rows=535 row/hr=8526 merchants=72/16 dead_streak=0
+[2026-06-19T14:30:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:32:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:32:02Z] keepalive: status=RUNNING action=noop pid=715492 cycle=51 rows=211 row/hr=11559 merchants=22/16 dead_streak=0
+[2026-06-19T14:32:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:34:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:34:01Z] keepalive: status=RUNNING action=noop pid=715492 cycle=51 rows=427 row/hr=8738 merchants=54/16 dead_streak=0
+[2026-06-19T14:34:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:36:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:36:01Z] keepalive: status=RUNNING action=noop pid=715492 cycle=51 rows=643 row/hr=7749 merchants=87/16 dead_streak=0
+[2026-06-19T14:36:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:38:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:38:02Z] keepalive: status=RUNNING action=noop pid=715492 cycle=51 rows=859 row/hr=7412 merchants=117/16 dead_streak=0
+[2026-06-19T14:38:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:40:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:40:02Z] keepalive: status=RUNNING action=noop pid=715492 cycle=51 rows=1080 row/hr=6979 merchants=158/16 dead_streak=0
+[2026-06-19T14:40:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:42:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:42:01Z] keepalive: status=RUNNING action=noop pid=715492 cycle=51 rows=1399 row/hr=7310 merchants=201/16 dead_streak=0
+[2026-06-19T14:42:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:44:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:44:02Z] keepalive: status=RUNNING action=restarted pid=818805 cycle=51 rows=1404 row/hr=6997 merchants=207/16 dead_streak=1
+[2026-06-19T14:44:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:46:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:46:02Z] keepalive: status=RUNNING action=restarted pid=832832 cycle=51 rows=211 row/hr=10898 merchants=25/16 dead_streak=2
+[2026-06-19T14:46:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:48:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:48:01Z] keepalive: status=RUNNING action=noop pid=832832 cycle=51 rows=216 row/hr=7838 merchants=30/16 dead_streak=0
+[2026-06-19T14:48:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:50:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:50:02Z] keepalive: status=RUNNING action=noop pid=832832 cycle=51 rows=535 row/hr=8475 merchants=70/16 dead_streak=0
+[2026-06-19T14:50:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:52:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:52:02Z] keepalive: status=RUNNING action=restarted pid=865824 cycle=51 rows=540 row/hr=7792 merchants=78/16 dead_streak=1
+[2026-06-19T14:52:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:54:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:54:02Z] keepalive: status=RUNNING action=noop pid=865824 cycle=51 rows=216 row/hr=7596 merchants=30/16 dead_streak=0
+[2026-06-19T14:54:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:56:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:56:01Z] keepalive: status=RUNNING action=restarted pid=886365 cycle=51 rows=427 row/hr=8796 merchants=54/16 dead_streak=1
+[2026-06-19T14:56:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T14:58:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T14:58:01Z] keepalive: status=RUNNING action=noop pid=886365 cycle=51 rows=216 row/hr=7738 merchants=30/16 dead_streak=0
+[2026-06-19T14:58:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:00:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:00:01Z] keepalive: status=RUNNING action=noop pid=886365 cycle=51 rows=535 row/hr=8246 merchants=73/16 dead_streak=0
+[2026-06-19T15:00:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:02:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:02:01Z] keepalive: status=RUNNING action=restarted pid=913910 cycle=51 rows=540 row/hr=7712 merchants=78/16 dead_streak=1
+[2026-06-19T15:02:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:04:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:04:01Z] keepalive: status=RUNNING action=noop pid=913910 cycle=51 rows=319 row/hr=9735 merchants=41/16 dead_streak=0
+[2026-06-19T15:04:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:06:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:06:01Z] keepalive: status=RUNNING action=restarted pid=938395 cycle=51 rows=427 row/hr=9226 merchants=55/16 dead_streak=1
+[2026-06-19T15:06:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:08:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:08:02Z] keepalive: status=RUNNING action=noop pid=938395 cycle=51 rows=216 row/hr=7449 merchants=30/16 dead_streak=0
+[2026-06-19T15:08:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:10:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:10:02Z] keepalive: status=RUNNING action=noop pid=938395 cycle=51 rows=535 row/hr=8330 merchants=70/16 dead_streak=0
+[2026-06-19T15:10:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:12:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:12:01Z] keepalive: status=RUNNING action=restarted pid=970557 cycle=51 rows=535 row/hr=8330 merchants=70/16 dead_streak=1
+[2026-06-19T15:12:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:14:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:14:01Z] keepalive: status=RUNNING action=noop pid=970557 cycle=51 rows=216 row/hr=7215 merchants=30/16 dead_streak=0
+[2026-06-19T15:14:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:16:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:16:02Z] keepalive: status=RUNNING action=noop pid=997781 cycle=51 rows=0 row/hr=0 merchants=1/16 dead_streak=0
+[2026-06-19T15:16:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:18:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:18:01Z] keepalive: status=RUNNING action=noop pid=997781 cycle=51 rows=319 row/hr=9156 merchants=38/16 dead_streak=0
+[2026-06-19T15:18:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:20:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:20:02Z] keepalive: status=RUNNING action=noop pid=997781 cycle=51 rows=535 row/hr=8167 merchants=73/16 dead_streak=0
+[2026-06-19T15:20:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:22:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:22:01Z] keepalive: status=RUNNING action=noop pid=997781 cycle=51 rows=751 row/hr=7868 merchants=105/16 dead_streak=0
+[2026-06-19T15:22:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:24:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:24:01Z] keepalive: status=RUNNING action=noop pid=997781 cycle=51 rows=972 row/hr=7314 merchants=142/16 dead_streak=0
+[2026-06-19T15:24:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:26:00Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:26:01Z] keepalive: status=RUNNING action=noop pid=997781 cycle=51 rows=1291 row/hr=7672 merchants=185/16 dead_streak=0
+[2026-06-19T15:26:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:28:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:28:02Z] keepalive: status=RUNNING action=restarted pid=1064504 cycle=51 rows=1512 row/hr=7543 merchants=220/16 dead_streak=1
+[2026-06-19T15:28:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:30:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:30:01Z] keepalive: status=RUNNING action=noop pid=1064504 cycle=51 rows=319 row/hr=9813 merchants=38/16 dead_streak=0
+[2026-06-19T15:30:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:32:02Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:32:02Z] keepalive: status=RUNNING action=restarted pid=1086081 cycle=51 rows=324 row/hr=9022 merchants=45/16 dead_streak=1
+[2026-06-19T15:32:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:34:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:34:01Z] keepalive: status=RUNNING action=noop pid=1086081 cycle=51 rows=216 row/hr=7996 merchants=30/16 dead_streak=0
+[2026-06-19T15:34:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:36:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:36:02Z] keepalive: status=RUNNING action=restarted pid=1104186 cycle=51 rows=432 row/hr=8137 merchants=62/16 dead_streak=1
+[2026-06-19T15:36:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:38:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:38:01Z] keepalive: status=RUNNING action=noop pid=1104186 cycle=51 rows=319 row/hr=9690 merchants=41/16 dead_streak=0
+[2026-06-19T15:38:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:40:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:40:02Z] keepalive: status=RUNNING action=noop pid=1104186 cycle=51 rows=535 row/hr=8279 merchants=71/16 dead_streak=0
+[2026-06-19T15:40:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:42:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:42:02Z] keepalive: status=RUNNING action=restarted pid=1181068 cycle=51 rows=535 row/hr=8279 merchants=71/16 dead_streak=1
+[2026-06-19T15:42:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:44:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:44:01Z] keepalive: status=RUNNING action=noop pid=1181068 cycle=51 rows=216 row/hr=7415 merchants=30/16 dead_streak=0
+[2026-06-19T15:44:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:46:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:46:02Z] keepalive: status=RUNNING action=restarted pid=1202261 cycle=51 rows=427 row/hr=8659 merchants=55/16 dead_streak=1
+[2026-06-19T15:46:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:48:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:48:02Z] keepalive: status=RUNNING action=noop pid=1202261 cycle=51 rows=216 row/hr=7980 merchants=30/16 dead_streak=0
+[2026-06-19T15:48:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:50:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:50:02Z] keepalive: status=RUNNING action=noop pid=1202261 cycle=51 rows=535 row/hr=8393 merchants=70/16 dead_streak=0
+[2026-06-19T15:50:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:52:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:52:01Z] keepalive: status=RUNNING action=restarted pid=1231620 cycle=51 rows=540 row/hr=7749 merchants=78/16 dead_streak=1
+[2026-06-19T15:52:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:54:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:54:02Z] keepalive: status=RUNNING action=noop pid=1231620 cycle=51 rows=216 row/hr=7550 merchants=30/16 dead_streak=0
+[2026-06-19T15:54:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:56:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:56:02Z] keepalive: status=RUNNING action=restarted pid=1250609 cycle=51 rows=432 row/hr=8195 merchants=60/16 dead_streak=1
+[2026-06-19T15:56:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T15:58:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T15:58:02Z] keepalive: status=RUNNING action=noop pid=1250609 cycle=51 rows=216 row/hr=7680 merchants=30/16 dead_streak=0
+[2026-06-19T15:58:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:00:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:00:02Z] keepalive: status=RUNNING action=noop pid=1250609 cycle=51 rows=535 row/hr=8312 merchants=70/16 dead_streak=0
+[2026-06-19T16:00:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:02:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:02:01Z] keepalive: status=RUNNING action=restarted pid=1282537 cycle=51 rows=535 row/hr=8312 merchants=70/16 dead_streak=1
+[2026-06-19T16:02:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:04:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:04:01Z] keepalive: status=RUNNING action=noop pid=1282537 cycle=51 rows=319 row/hr=9729 merchants=39/16 dead_streak=0
+[2026-06-19T16:04:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:06:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:06:02Z] keepalive: status=RUNNING action=restarted pid=1306240 cycle=51 rows=432 row/hr=8076 merchants=62/16 dead_streak=1
+[2026-06-19T16:06:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:08:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:08:02Z] keepalive: status=RUNNING action=noop pid=1306240 cycle=51 rows=216 row/hr=7149 merchants=30/16 dead_streak=0
+[2026-06-19T16:08:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:10:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:10:01Z] keepalive: status=RUNNING action=noop pid=1306240 cycle=51 rows=535 row/hr=8129 merchants=70/16 dead_streak=0
+[2026-06-19T16:10:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:12:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:12:02Z] keepalive: status=RUNNING action=noop pid=1349683 cycle=51 rows=211 row/hr=9493 merchants=22/16 dead_streak=0
+[2026-06-19T16:12:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:14:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:14:01Z] keepalive: status=RUNNING action=noop pid=1349683 cycle=51 rows=427 row/hr=8273 merchants=55/16 dead_streak=0
+[2026-06-19T16:14:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:16:02Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:16:02Z] keepalive: status=RUNNING action=noop pid=1349683 cycle=51 rows=648 row/hr=7054 merchants=94/16 discovery=0% dead_streak=0
+[2026-06-19T16:16:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:18:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:18:01Z] keepalive: status=RUNNING action=noop pid=1349683 cycle=51 rows=864 row/hr=6988 merchants=126/16 discovery=0% dead_streak=0
+[2026-06-19T16:18:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:20:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:20:01Z] keepalive: status=RUNNING action=noop pid=1349683 cycle=51 rows=1080 row/hr=7102 merchants=158/16 discovery=0% dead_streak=0
+[2026-06-19T16:20:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:22:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:22:01Z] keepalive: status=RUNNING action=noop pid=1349683 cycle=51 rows=1399 row/hr=7346 merchants=198/16 discovery=0% dead_streak=0
+[2026-06-19T16:22:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:24:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:24:01Z] keepalive: status=RUNNING action=restarted pid=1441268 cycle=51 rows=1404 row/hr=6989 merchants=207/16 discovery=0% dead_streak=1
+[2026-06-19T16:24:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:26:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:26:02Z] keepalive: status=RUNNING action=restarted pid=1456564 cycle=51 rows=211 row/hr=10822 merchants=22/16 discovery=138% dead_streak=2
+[2026-06-19T16:26:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:28:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:28:02Z] keepalive: status=RUNNING action=noop pid=1456564 cycle=51 rows=216 row/hr=7732 merchants=30/16 discovery=188% dead_streak=0
+[2026-06-19T16:28:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:30:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:30:01Z] keepalive: status=RUNNING action=noop pid=1456564 cycle=51 rows=535 row/hr=8192 merchants=72/16 discovery=450% dead_streak=0
+[2026-06-19T16:30:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:32:02Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:32:02Z] keepalive: status=RUNNING action=restarted pid=1495108 cycle=51 rows=540 row/hr=7789 merchants=76/16 discovery=475% dead_streak=1
+[2026-06-19T16:32:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:34:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:34:01Z] keepalive: status=RUNNING action=noop pid=1495108 cycle=51 rows=216 row/hr=7747 merchants=30/16 discovery=188% dead_streak=0
+[2026-06-19T16:34:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:36:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:36:02Z] keepalive: status=RUNNING action=restarted pid=1558406 cycle=51 rows=432 row/hr=8194 merchants=60/16 discovery=375% dead_streak=1
+[2026-06-19T16:36:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:38:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:38:01Z] keepalive: status=RUNNING action=noop pid=1558406 cycle=51 rows=319 row/hr=9941 merchants=39/16 discovery=244% dead_streak=0
+[2026-06-19T16:38:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:40:02Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:40:02Z] keepalive: status=RUNNING action=noop pid=1558406 cycle=51 rows=535 row/hr=8772 merchants=71/16 discovery=444% dead_streak=0
+[2026-06-19T16:40:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:42:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:42:02Z] keepalive: status=RUNNING action=restarted pid=1592646 cycle=51 rows=540 row/hr=7737 merchants=78/16 discovery=488% dead_streak=1
+[2026-06-19T16:42:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:44:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:44:02Z] keepalive: status=RUNNING action=noop pid=1592646 cycle=51 rows=216 row/hr=7175 merchants=30/16 discovery=188% dead_streak=0
+[2026-06-19T16:44:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:46:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:46:02Z] keepalive: status=RUNNING action=restarted pid=1614936 cycle=51 rows=432 row/hr=8176 merchants=61/16 discovery=381% dead_streak=1
+[2026-06-19T16:46:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:48:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:48:01Z] keepalive: status=RUNNING action=noop pid=1614936 cycle=51 rows=216 row/hr=7802 merchants=30/16 discovery=188% dead_streak=0
+[2026-06-19T16:48:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:50:02Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:50:02Z] keepalive: status=RUNNING action=noop pid=1614936 cycle=51 rows=535 row/hr=8313 merchants=73/16 discovery=456% dead_streak=0
+[2026-06-19T16:50:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:52:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:52:01Z] keepalive: status=RUNNING action=restarted pid=1654959 cycle=51 rows=535 row/hr=8313 merchants=73/16 discovery=456% dead_streak=1
+[2026-06-19T16:52:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:54:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:54:01Z] keepalive: status=RUNNING action=noop pid=1654959 cycle=51 rows=319 row/hr=9706 merchants=41/16 discovery=256% dead_streak=0
+[2026-06-19T16:54:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:56:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:56:01Z] keepalive: status=RUNNING action=restarted pid=1688051 cycle=51 rows=427 row/hr=9028 merchants=57/16 discovery=356% dead_streak=1
+[2026-06-19T16:56:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T16:58:02Z] cron-wrapper: starting keepalive tick
+[2026-06-19T16:58:02Z] keepalive: status=RUNNING action=noop pid=1688051 cycle=51 rows=319 row/hr=9702 merchants=40/16 discovery=250% dead_streak=0
+[2026-06-19T16:58:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:00:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:00:01Z] keepalive: status=RUNNING action=noop pid=1688051 cycle=51 rows=535 row/hr=8469 merchants=72/16 discovery=450% dead_streak=0
+[2026-06-19T17:00:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:02:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:02:01Z] keepalive: status=RUNNING action=restarted pid=1730876 cycle=51 rows=535 row/hr=8469 merchants=72/16 discovery=450% dead_streak=1
+[2026-06-19T17:02:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:04:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:04:01Z] keepalive: status=RUNNING action=noop pid=1730876 cycle=51 rows=216 row/hr=7311 merchants=30/16 discovery=188% dead_streak=0
+[2026-06-19T17:04:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:06:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:06:02Z] keepalive: status=RUNNING action=restarted pid=1754502 cycle=51 rows=432 row/hr=8193 merchants=59/16 discovery=369% dead_streak=1
+[2026-06-19T17:06:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:08:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:08:01Z] keepalive: status=RUNNING action=noop pid=1754502 cycle=51 rows=216 row/hr=7679 merchants=30/16 discovery=188% dead_streak=0
+[2026-06-19T17:08:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:10:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:10:02Z] keepalive: status=RUNNING action=noop pid=1754502 cycle=51 rows=535 row/hr=8403 merchants=70/16 discovery=438% dead_streak=0
+[2026-06-19T17:10:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:12:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:12:02Z] keepalive: status=RUNNING action=restarted pid=1792437 cycle=51 rows=540 row/hr=7661 merchants=78/16 discovery=488% dead_streak=1
+[2026-06-19T17:12:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:14:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:14:02Z] keepalive: status=RUNNING action=noop pid=1792437 cycle=51 rows=216 row/hr=7453 merchants=30/16 discovery=188% dead_streak=0
+[2026-06-19T17:14:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:16:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:16:02Z] keepalive: status=RUNNING action=restarted pid=1833660 cycle=51 rows=427 row/hr=8721 merchants=57/16 discovery=356% dead_streak=1
+[2026-06-19T17:16:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:18:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:18:02Z] keepalive: status=RUNNING action=noop pid=1833660 cycle=51 rows=319 row/hr=9798 merchants=39/16 discovery=244% dead_streak=0
+[2026-06-19T17:18:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:20:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:20:01Z] keepalive: status=RUNNING action=noop pid=1833660 cycle=51 rows=535 row/hr=8609 merchants=73/16 discovery=456% dead_streak=0
+[2026-06-19T17:20:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:22:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:22:02Z] keepalive: status=RUNNING action=restarted pid=1876938 cycle=51 rows=540 row/hr=7661 merchants=78/16 discovery=488% dead_streak=1
+[2026-06-19T17:22:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:24:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:24:01Z] keepalive: status=RUNNING action=noop pid=1876938 cycle=51 rows=216 row/hr=7516 merchants=30/16 discovery=188% dead_streak=0
+[2026-06-19T17:24:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:26:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:26:01Z] keepalive: status=RUNNING action=restarted pid=1901729 cycle=51 rows=432 row/hr=8205 merchants=60/16 discovery=375% dead_streak=1
+[2026-06-19T17:26:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:28:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:28:02Z] keepalive: status=RUNNING action=noop pid=1901729 cycle=51 rows=216 row/hr=7739 merchants=30/16 discovery=188% dead_streak=0
+[2026-06-19T17:28:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:30:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:30:02Z] keepalive: status=RUNNING action=noop pid=1901729 cycle=51 rows=535 row/hr=8749 merchants=73/16 discovery=456% dead_streak=0
+[2026-06-19T17:30:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:32:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:32:01Z] keepalive: status=RUNNING action=restarted pid=1934173 cycle=51 rows=540 row/hr=7728 merchants=79/16 discovery=494% dead_streak=1
+[2026-06-19T17:32:01Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:34:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:34:02Z] keepalive: status=RUNNING action=noop pid=1934173 cycle=51 rows=319 row/hr=9643 merchants=38/16 discovery=238% dead_streak=0
+[2026-06-19T17:34:02Z] cron-wrapper: keepalive tick complete
+[2026-06-19T17:36:01Z] cron-wrapper: starting keepalive tick
+[2026-06-19T17:36:02Z] keepalive: status=RUNNING action=restarted pid=1994915 cycle=51 rows=432 row/hr=8154 merchants=62/16 discovery=388% dead_streak=1
+[2026-06-19T17:36:02Z] cron-wrapper: keepalive tick complete

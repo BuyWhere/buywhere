@@ -1,0 +1,44 @@
+[2026-06-19T06:30:56Z] BUY-48198 watchdog start before_pct=81 free_gb=37.6
+[2026-06-19T06:30:56Z] starting workspace=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api apply=1 keep_hours=48 alert_pct=90
+[2026-06-19T06:30:57Z] starting workspace=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c apply=1 keep_hours=48 alert_pct=90
+[2026-06-19T06:30:57Z] BUY-48198 wc cleanup complete rc=0 workspace=all after_pct=81 free_gb=37.6 report=/paperclip/instances/default/workspaces/logs/buy53095_wc_cycle_cleanup_report.json
+[2026-06-19T06:30:57Z] starting apply=1 root=/paperclip/instances/default/workspaces log_retention_days=2 run_retention_days=3 heartbeat_retention_min=360 trash_archive_minutes=360 trash_archive_min_kb=262144 alert_pct=90
+[2026-06-19T06:30:57Z] skip-undeletable kind=pycache-file kb=24 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingested_marker.cpython-312.pyc
+[2026-06-19T06:31:05Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__
+[2026-06-19T06:31:05Z] skip-undeletable kind=pycache-file kb=26 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T06:31:17Z] summary apply=1 scanned=13 removed=0 skipped_undeletable=3 failed=0 reclaimed_kb=0 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+[2026-06-19T06:31:17Z] BUY-53114 worker cleanup complete rc=0 after_pct=81 free_gb=36.8 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+FATAL Error: ENOENT: no such file or directory, open '/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/buy-532xx-disk-monitor-smoke/state.json'
+    at Object.writeFileSync (node:fs:2430:20)
+    at writeState (/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/scripts/buy-38913-disk-space-watchdog.cjs:129:6)
+    at main (/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/scripts/buy-38913-disk-space-watchdog.cjs:410:3)
+    at Object.<anonymous> (/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/scripts/buy-38913-disk-space-watchdog.cjs:421:1)
+    at Module._compile (node:internal/modules/cjs/loader:1705:14)
+    at Object..js (node:internal/modules/cjs/loader:1838:10)
+    at Module.load (node:internal/modules/cjs/loader:1441:32)
+    at Function._load (node:internal/modules/cjs/loader:1263:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+[2026-06-19T06:31:17Z] BUY-48198 watchdog complete rc=3
+[2026-06-19T06:31:36Z] BUY-48198 watchdog start before_pct=81 free_gb=37.9
+[2026-06-19T06:31:36Z] starting workspace=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api apply=1 keep_hours=48 alert_pct=90
+[2026-06-19T06:31:36Z] starting workspace=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c apply=1 keep_hours=48 alert_pct=90
+[2026-06-19T06:31:37Z] BUY-48198 wc cleanup complete rc=0 workspace=all after_pct=81 free_gb=37.8 report=/paperclip/instances/default/workspaces/logs/buy53095_wc_cycle_cleanup_report.json
+[2026-06-19T06:31:37Z] starting apply=1 root=/paperclip/instances/default/workspaces log_retention_days=2 run_retention_days=3 heartbeat_retention_min=360 trash_archive_minutes=360 trash_archive_min_kb=262144 alert_pct=90
+[2026-06-19T06:31:37Z] skip-undeletable kind=pycache-file kb=24 path=/paperclip/instances/default/workspaces/7fb55262-e658-45e2-88c0-b0e8ccc5ad6c/scripts/__pycache__/ingested_marker.cpython-312.pyc
+[2026-06-19T06:31:45Z] skip-undeletable kind=pycache-dir kb=4 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__
+[2026-06-19T06:31:45Z] skip-undeletable kind=pycache-file kb=26 path=/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/scripts/__pycache__/ingest_buy30620_lanes.cpython-312.pyc
+[2026-06-19T06:31:56Z] summary apply=1 scanned=13 removed=0 skipped_undeletable=3 failed=0 reclaimed_kb=0 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+[2026-06-19T06:31:56Z] BUY-53114 worker cleanup complete rc=0 after_pct=81 free_gb=37.0 report=/paperclip/instances/default/workspaces/logs/buy53114_worker_wc_cycle_cleanup_report.json
+FATAL Error: ENOENT: no such file or directory, open '/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/buy-532xx-disk-monitor-smoke/state.json'
+    at Object.writeFileSync (node:fs:2430:20)
+    at writeState (/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/scripts/buy-38913-disk-space-watchdog.cjs:129:6)
+    at main (/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/scripts/buy-38913-disk-space-watchdog.cjs:410:3)
+    at Object.<anonymous> (/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/scripts/buy-38913-disk-space-watchdog.cjs:421:1)
+    at Module._compile (node:internal/modules/cjs/loader:1705:14)
+    at Object..js (node:internal/modules/cjs/loader:1838:10)
+    at Module.load (node:internal/modules/cjs/loader:1441:32)
+    at Function._load (node:internal/modules/cjs/loader:1263:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+[2026-06-19T06:31:56Z] BUY-48198 watchdog complete rc=3

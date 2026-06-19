@@ -10,7 +10,7 @@
  * Override interval via env: P95_COMPUTE_INTERVAL_MS (default: 300000 = 5 min)
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.startP95Runner = void 0;
+exports.startP95Runner = startP95Runner;
 const config_1 = require("../config");
 const middleware_1 = require("../monitoring/middleware");
 const p95_1 = require("../monitoring/p95");
@@ -88,7 +88,6 @@ function startP95Runner() {
         }
     }, 30000);
 }
-exports.startP95Runner = startP95Runner;
 // Standalone mode: run once and exit (for manual execution via `npm run p95`)
 async function main() {
     console.log('[p95-runner] Running P95 computation once...');

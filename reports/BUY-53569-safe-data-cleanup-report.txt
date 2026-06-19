@@ -1,0 +1,41 @@
+[2026-06-19T12:50:47Z] starting apply=1 data_dir=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data keep_carousell=1 keep_monitor_dirs=2
+[2026-06-19T12:50:47Z] carousell-snapshots total=37 keep=1
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=13700 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260503_140346.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75200 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260503_140454.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=37612 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260514_160854.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75208 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260514_161121.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=1008 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260514_163021.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75208 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260514_200329.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75200 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_000442.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=37104 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_040403.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=2692 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_040614.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=4752 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_040640.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=3364 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_040711.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75196 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_040746.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75196 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_081150.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75212 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_121554.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75200 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_161958.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=36932 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_200503.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=1012 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_200708.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75212 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_200717.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75208 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_202727.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75188 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_204729.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75184 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_210731.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75196 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_212733.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75200 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_214735.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75204 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_220738.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75204 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_222740.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75188 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_224742.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75212 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_230744.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75196 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_232746.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75204 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260515_234748.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75204 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260516_000750.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75204 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260516_002752.jsonl
+[2026-06-19T12:50:47Z] deleted kind=carousell-snapshot kb=75200 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260516_004754.jsonl
+[2026-06-19T12:50:48Z] deleted kind=carousell-snapshot kb=75204 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260516_010756.jsonl
+[2026-06-19T12:50:48Z] deleted kind=carousell-snapshot kb=75200 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260516_012758.jsonl
+[2026-06-19T12:50:48Z] deleted kind=carousell-snapshot kb=75196 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260516_014801.jsonl
+[2026-06-19T12:50:48Z] deleted kind=carousell-snapshot kb=75200 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_20260516_020803.jsonl
+[2026-06-19T12:50:48Z] disk-monitor-dirs total=3 keep=2
+[2026-06-19T12:50:48Z] deleted kind=disk-monitor-dir kb=20 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/buy-48198-disk-monitor-2026-06-19T123019Z
+[2026-06-19T12:50:48Z] summary removed=37 reclaimed_kb=2168620 report=reports/BUY-53569-safe-data-cleanup-report.txt

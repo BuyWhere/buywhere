@@ -1,0 +1,10 @@
+[2026-06-19T11:02:55Z] starting apply=1 data_dir=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data keep_carousell=1 keep_monitor_dirs=2
+[2026-06-19T11:02:55Z] carousell-snapshots total=1 keep=1
+[2026-06-19T11:02:55Z] disk-monitor-dirs total=8 keep=2
+[2026-06-19T11:02:55Z] deleted kind=disk-monitor-dir kb=20 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/buy-48198-disk-monitor-2026-06-19T102516Z
+[2026-06-19T11:02:55Z] deleted kind=disk-monitor-dir kb=20 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/buy-48198-disk-monitor-2026-06-19T103016Z
+[2026-06-19T11:02:55Z] deleted kind=disk-monitor-dir kb=20 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/buy-48198-disk-monitor-2026-06-19T103515Z
+[2026-06-19T11:02:55Z] deleted kind=disk-monitor-dir kb=20 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/buy-48198-disk-monitor-2026-06-19T104017Z
+[2026-06-19T11:02:55Z] deleted kind=disk-monitor-dir kb=20 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/buy-48198-disk-monitor-2026-06-19T104516Z
+[2026-06-19T11:02:55Z] deleted kind=disk-monitor-dir kb=20 path=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/buy-48198-disk-monitor-2026-06-19T105015Z
+[2026-06-19T11:02:55Z] summary removed=6 reclaimed_kb=120 report=reports/BUY-53528-safe-data-cleanup-report.txt

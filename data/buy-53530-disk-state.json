@@ -1,0 +1,12 @@
+{
+  "filesystem": "/dev/vda1",
+  "consecutiveCritical": 0,
+  "lastIncidentId": null,
+  "lastIncidentIdentifier": null,
+  "lastIncidentAt": null,
+  "lastIncidentStatus": null,
+  "lastFreeBytes": 37857542144,
+  "lastVerdict": "PASS",
+  "lastCheckedAt": "2026-06-19T11:14:14.511Z",
+  "updatedAt": "2026-06-19T11:14:14.512Z"
+}

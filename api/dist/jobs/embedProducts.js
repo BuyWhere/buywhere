@@ -1,12 +1,24 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.embedQuery = exports.runEmbedBatch = void 0;
+exports.runEmbedBatch = runEmbedBatch;
+exports.embedQuery = embedQuery;
 const crypto_1 = require("crypto");
-const JINA_API_URL = 'https://api.jina.ai/v1/embeddings';
-const JINA_MODEL = 'jina-embeddings-v3';
-const EMBED_DIM = 512;
-const BATCH_SIZE = 100;
-const MAX_TEXT_CHARS = 2000; // ~500 tokens, well under Jina 8192-token limit
+// BUY-52466: switch query + embed-worker paths from Cohere/Jina to Google
+// Gemini `gemini-embedding-001` with `outputDimensionality=512`. Direction
+// per Rich (comment f5773f92 on BUY-52089): the Jina key is INVALID and the
+// previous Cohere spec (BUY-51459) is obsolete. This module is the single
+// call site for both:
+//   - query side:  `embedQuery(q, geminiKey)`  → taskType=RETRIEVAL_QUERY
+//   - index side:  `runEmbedBatch(...)`        → taskType=RETRIEVAL_DOCUMENT
+//
+// The function signatures still take a single `apiKey: string` so callers
+// (routes/products.ts, routes/mcp.ts, jobs/embedRunner.ts) only need to
+// change which env var they read.
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001';
+const MODEL_VER = 'gemini-embedding-001@512';
+const EMBED_DIM = 512; // outputDimensionality
+const BATCH_SIZE = 64; // BUY-41133 requirement: batch size 64 per API call
+const MAX_TEXT_CHARS = 8000; // gemini-embedding-001 input limit is 2k tokens; ~8k chars safe
 function textHash(title, description) {
     const text = `${title} ${description ?? ''}`;
     return (0, crypto_1.createHash)('md5').update(text).digest('hex');
@@ -14,26 +26,60 @@ function textHash(title, description) {
 function truncate(text) {
     return text.length > MAX_TEXT_CHARS ? text.slice(0, MAX_TEXT_CHARS) : text;
 }
-async function fetchEmbeddings(texts, jinaKey) {
-    const res = await fetch(JINA_API_URL, {
+/**
+ * Embed a batch of index-side texts (taskType=RETRIEVAL_DOCUMENT).
+ * Uses `batchEmbedContents` so we send a single POST for up to BATCH_SIZE
+ * products — fewer round-trips than per-text `embedContents` calls.
+ *
+ * Gemini auth: the API key is passed as the `key` query parameter
+ * (Google's documented pattern for the Generative Language API).
+ */
+async function fetchDocumentEmbeddings(texts, apiKey) {
+    const url = `${GEMINI_API_URL}:batchEmbedContents?key=${encodeURIComponent(apiKey)}`;
+    const res = await fetch(url, {
         method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${jinaKey}`,
-            'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            model: JINA_MODEL,
-            task: 'retrieval.passage',
-            dimensions: EMBED_DIM,
-            input: texts,
+            requests: texts.map((text) => ({
+                model: 'models/gemini-embedding-001',
+                content: { parts: [{ text: truncate(text) }] },
+                taskType: 'RETRIEVAL_DOCUMENT',
+                outputDimensionality: EMBED_DIM,
+            })),
         }),
     });
     if (!res.ok) {
         const body = await res.text().catch(() => '');
-        throw new Error(`Jina API ${res.status}: ${body}`);
+        throw new Error(`Gemini API ${res.status}: ${body}`);
     }
     const data = await res.json();
-    return data.data.map(d => d.embedding);
+    return data.embeddings.map((e) => e.values);
+}
+/**
+ * Embed a single query text (taskType=RETRIEVAL_QUERY). Returns a vector
+ * string suitable for pgvector's `<=>` cosine-distance operator.
+ *
+ * Single-text path — Gemini `embedContents` is the documented shape for
+ * one input. We still set outputDimensionality=512 to match the index.
+ */
+async function fetchQueryEmbedding(text, apiKey) {
+    const url = `${GEMINI_API_URL}:embedContent?key=${encodeURIComponent(apiKey)}`;
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: 'models/gemini-embedding-001',
+            content: { parts: [{ text: truncate(text) }] },
+            taskType: 'RETRIEVAL_QUERY',
+            outputDimensionality: EMBED_DIM,
+        }),
+    });
+    if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw new Error(`Gemini API ${res.status}: ${body}`);
+    }
+    const data = await res.json();
+    return data.embedding.values;
 }
 /**
  * Embeds up to batchLimit products from the source DB that are missing or stale,
@@ -44,12 +90,13 @@ async function fetchEmbeddings(texts, jinaKey) {
  *
  * Priority: highest-value (price DESC) products are embedded first, so the most
  * commercially relevant embeddings are always fresh.
+ *
+ * Per BUY-52466: Uses Google gemini-embedding-001 with 512-dim vectors,
+ * taskType=RETRIEVAL_DOCUMENT, batch size 64.
  */
-async function runEmbedBatch(sourceDb, vectorDb, jinaKey, batchLimit = 5000) {
+async function runEmbedBatch(sourceDb, vectorDb, apiKey, batchLimit = 64) {
     const t0 = Date.now();
     let processed = 0, skipped = 0, errors = 0;
-    // Pull products that need embedding: new or text-changed.
-    // md5() in the WHERE clause matches the JS textHash() below.
     const { rows: products } = await sourceDb.query(`SELECT p.id, p.title, p.description
      FROM products p
      LEFT JOIN product_embeddings pe ON pe.product_id = p.id
@@ -71,10 +118,15 @@ async function runEmbedBatch(sourceDb, vectorDb, jinaKey, batchLimit = 5000) {
         const hashes = batch.map(p => textHash(p.title, p.description));
         let embeddings;
         try {
-            embeddings = await fetchEmbeddings(texts, jinaKey);
+            embeddings = await fetchDocumentEmbeddings(texts, apiKey);
         }
         catch (err) {
-            console.error(`[embed] Jina API error on batch ${Math.floor(i / BATCH_SIZE) + 1}:`, err);
+            console.error(`[embed] Gemini API error on batch ${Math.floor(i / BATCH_SIZE) + 1}:`, err);
+            errors += batch.length;
+            continue;
+        }
+        if (embeddings.length !== batch.length) {
+            console.error(`[embed] Gemini returned ${embeddings.length} vectors for batch of ${batch.length} — skipping`);
             errors += batch.length;
             continue;
         }
@@ -90,7 +142,7 @@ async function runEmbedBatch(sourceDb, vectorDb, jinaKey, batchLimit = 5000) {
                  text_hash   = EXCLUDED.text_hash,
                  model_ver   = EXCLUDED.model_ver,
                  embedded_at = now()
-           WHERE product_embeddings.text_hash != EXCLUDED.text_hash`, [batch[j].id, vectorStr, hashes[j], JINA_MODEL]);
+           WHERE product_embeddings.text_hash != EXCLUDED.text_hash`, [batch[j].id, vectorStr, hashes[j], MODEL_VER]);
             }
             await client.query('COMMIT');
             processed += batch.length;
@@ -111,30 +163,13 @@ async function runEmbedBatch(sourceDb, vectorDb, jinaKey, batchLimit = 5000) {
     console.log(`[embed] Done — processed=${processed} skipped=${skipped} errors=${errors} in ${(duration / 1000).toFixed(1)}s`);
     return { processed, skipped, errors, duration_ms: duration };
 }
-exports.runEmbedBatch = runEmbedBatch;
 /**
- * Embed a single query text for search-time use (retrieval.query task).
+ * Embed a single query text for search-time use (taskType=RETRIEVAL_QUERY).
  * Returns a vector string suitable for pgvector (<=> operator).
+ *
+ * BUY-52466: switched from Cohere/Jina to Google gemini-embedding-001.
  */
-async function embedQuery(query, jinaKey) {
-    const res = await fetch(JINA_API_URL, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${jinaKey}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            model: JINA_MODEL,
-            task: 'retrieval.query',
-            dimensions: EMBED_DIM,
-            input: [truncate(query)],
-        }),
-    });
-    if (!res.ok) {
-        const body = await res.text().catch(() => '');
-        throw new Error(`Jina API ${res.status}: ${body}`);
-    }
-    const data = await res.json();
-    return `[${data.data[0].embedding.join(',')}]`;
+async function embedQuery(query, apiKey) {
+    const values = await fetchQueryEmbedding(query, apiKey);
+    return `[${values.join(',')}]`;
 }
-exports.embedQuery = embedQuery;

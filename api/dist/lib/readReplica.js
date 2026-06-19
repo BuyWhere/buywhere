@@ -1,6 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.replicaStatus = exports.readDbConnect = exports.readDb = exports.replicaPool = void 0;
+exports.replicaPool = void 0;
+exports.readDb = readDb;
+exports.readDbConnect = readDbConnect;
+exports.replicaStatus = replicaStatus;
 const pg_1 = require("pg");
 const config_1 = require("../config");
 /**
@@ -100,12 +103,10 @@ if (exports.replicaPool) {
 function readDb() {
     return replicaHealthy && exports.replicaPool ? exports.replicaPool : config_1.db;
 }
-exports.readDb = readDb;
 /** Convenience: a pooled client from the current read pool. Caller must release(). */
 function readDbConnect() {
     return readDb().connect();
 }
-exports.readDbConnect = readDbConnect;
 /** Observability for /v1/catalog/stats/health and ops dashboards. */
 function replicaStatus() {
     return {
@@ -118,4 +119,3 @@ function replicaStatus() {
         last_error: lastError,
     };
 }
-exports.replicaStatus = replicaStatus;

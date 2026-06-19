@@ -204,9 +204,27 @@ cleanup_cycle_logs() {
       SCANNED_COUNT=$((SCANNED_COUNT + 1))
       delete_path "cycle-log" "$path"
     done < <(find "$logs_dir" -maxdepth 1 -type f -mtime +"$LOG_RETENTION_DAYS" \
-      \( -name '*supervisor*.log' -o -name '*keepalive*.log' -o -name '*worker*.log' -o -name '*cron*.log' -o -name '*wc*deep*.log' -o -name '*wc_cycle_cleanup*.log' -o -name '*deep*.fatal.log' \) \
+      \( -name '*supervisor*.log' -o -name '*keepalive*.log' -o -name '*worker*.log' -o -name '*cron*.log' -o -name '*wc*deep*.log' -o -name '*wc_cycle_cleanup*.log' -o -name '*wc_cycle_cleanup*.jsonl' -o -name '*deep*.fatal.log' \) \
       -print0 2>/dev/null)
   done < <(find "$ws" -type d \( -name logs -o -path '*/data/logs' \) -print0 2>/dev/null)
+}
+
+cleanup_wc_cycle_artifacts() {
+  local ws="$1"
+  local data_dir="$ws/data"
+  local path
+
+  [ -d "$data_dir" ] || return 0
+
+  while IFS= read -r -d '' path; do
+    SCANNED_COUNT=$((SCANNED_COUNT + 1))
+    delete_path "wc-cycle-artifact" "$path"
+  done < <(
+    find "$data_dir" -maxdepth 1 -type f \
+      \( -name '_wc_cleanup_report.json' -o -name '_wc_cleanup_log.jsonl' \) \
+      -mtime +"$LOG_RETENTION_DAYS" \
+      -print0 2>/dev/null
+  )
 }
 
 cleanup_disk_monitor_artifacts() {
@@ -250,7 +268,10 @@ cleanup_disk_monitor_artifacts() {
         \( \
           -name 'BUY-*-worker-node-disk-space-enforcement-wc-cycle-artifact-cleanup.*' -o \
           -name 'BUY-*-worker-node-disk-space-enforcement-wc-cycle-artifact-cleanup-*.json' -o \
-          -name 'BUY-*-disk-space-watchdog-5min-*.md' \
+          -name 'BUY-*-disk-space-watchdog-5min-*.md' -o \
+          -name 'BUY-*-dryrun.log' -o \
+          -name 'BUY-*-dryrun-summary.tsv' -o \
+          -name 'BUY-*-safe-data-cleanup-sweep.md' \
         \) \
         -mtime +"$DISK_ARTIFACT_RETENTION_DAYS" \
         -print0 2>/dev/null
@@ -336,6 +357,7 @@ main() {
     cleanup_pycaches "$ws"
     cleanup_runs_dirs "$ws"
     cleanup_cycle_logs "$ws"
+    cleanup_wc_cycle_artifacts "$ws"
     cleanup_disk_monitor_artifacts "$ws"
     cleanup_trash_dirs "$ws"
   done < <(find "$WORKSPACES_ROOT" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null)

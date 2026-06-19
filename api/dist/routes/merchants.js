@@ -3,7 +3,20 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const config_1 = require("../config");
 const apiKey_1 = require("../middleware/apiKey");
-const VALID_ONBOARDING_STAGES = ['interested', 'data_received', 'first_indexed_product', 'active'];
+// BUY-52288: DB has 5 actual stages (active, backfilled_orphan, discovered,
+// ingested, interested); the old 4-element list rejected 'ingested' — the value
+// the sitemap uses to populate /sitemap-products.xml. 'data_received' and
+// 'first_indexed_product' are the legacy /onboard-flow stages; both are still
+// valid, so we keep them for backward compatibility with the upsert handler.
+const VALID_ONBOARDING_STAGES = [
+    'interested',
+    'data_received',
+    'first_indexed_product',
+    'active',
+    'ingested',
+    'discovered',
+    'backfilled_orphan',
+];
 const DB_LOCK_RETRYABLE_MESSAGES = [
     'database is locked',
     'database is busy',

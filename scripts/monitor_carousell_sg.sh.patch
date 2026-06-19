@@ -1,0 +1,24 @@
+--- a/scripts/monitor_carousell_sg.sh
++++ b/scripts/monitor_carousell_sg.sh
+@@ -13,6 +13,7 @@ SCRAPER_CMD=(python3 -m scrapers.carousell_sg --scrape-only --continuous --refres
+ SCRAPER_PROC_PATTERN="python3 -m scrapers\.carousell_sg .*--continuous"
++WRAPPER_PATTERN="carousell_sg_daemon_wrapper\.sh"
+ 
+ declare -i RESTART=0
+ declare -i JSONL_NEW=0
+@@ -62,9 +63,14 @@ if [[ $RESTART -eq 1 ]]; then
+         fi
+     done < <(pgrep -af "python3 -m scrapers.carousell_sg")
++    # Also kill any stale wrapper scripts
++    while IFS= read -r line; do
++        local wp_pid
++        wp_pid=$(echo "$line" | awk '{print $1}')
++        kill "$wp_pid" 2>/dev/null || true
++    done < <(pgrep -af "$WRAPPER_PATTERN")
+     sleep 2
+     cd "$WORKDIR"
+-    nohup "${SCRAPER_CMD[@]}" >> "$LOG_FILE" 2>&1 &
++    nohup bash "$SCRIPT_DIR/carousell_sg_daemon_wrapper.sh" >> "$LOG_FILE" 2>&1 &
+     NEW_PID=$!
+     echo "$NEW_PID" > "$PID_FILE"
+     log "Started with PID $NEW_PID (api-key present: $([[ -n "$PRODUCT_API_KEY" ]] && echo yes || echo no))"

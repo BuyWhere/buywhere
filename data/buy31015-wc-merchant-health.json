@@ -1,0 +1,98 @@
+{
+  "sabian.com": {
+    "healthy": true,
+    "checkedAt": 1781851681444,
+    "ts": "2026-06-19T06:48:02.554Z",
+    "reason": "auth_required"
+  },
+  "summitracing.com": {
+    "healthy": false,
+    "checkedAt": 1781851685617,
+    "ts": "2026-06-19T06:48:06.454Z",
+    "reason": "http_200_text/html"
+  },
+  "malonetuning.com": {
+    "healthy": false,
+    "checkedAt": 1781851686456,
+    "ts": "2026-06-19T06:48:08.755Z",
+    "reason": "http_200_text/html"
+  },
+  "tirerack.com": {
+    "healthy": false,
+    "checkedAt": 1781851688756,
+    "ts": "2026-06-19T06:48:09.905Z",
+    "reason": "http_200_text/html"
+  },
+  "odysseybattery.com": {
+    "healthy": true,
+    "checkedAt": 1781851689907,
+    "ts": "2026-06-19T06:48:12.113Z",
+    "reason": "ok"
+  },
+  "hondata.com": {
+    "healthy": false,
+    "checkedAt": 1781851696439,
+    "ts": "2026-06-19T06:48:17.723Z",
+    "reason": "http_200_text/html"
+  },
+  "ginger.io": {
+    "healthy": false,
+    "checkedAt": 1781851697731,
+    "ts": "2026-06-19T06:48:20.442Z",
+    "reason": "http_200_text/html"
+  },
+  "levels.us": {
+    "healthy": false,
+    "checkedAt": 1781851700447,
+    "ts": "2026-06-19T06:48:20.845Z",
+    "reason": "http_200_text/html"
+  },
+  "invisalign.com": {
+    "healthy": false,
+    "checkedAt": 1781851700847,
+    "ts": "2026-06-19T06:48:23.646Z",
+    "reason": "http_200_text/html"
+  },
+  "biostrap.com": {
+    "healthy": true,
+    "checkedAt": 1781851703647,
+    "ts": "2026-06-19T06:48:24.701Z",
+    "reason": "ok"
+  },
+  "personanutrition.com": {
+    "healthy": false,
+    "checkedAt": 1781851705658,
+    "ts": "2026-06-19T06:48:28.668Z",
+    "reason": "http_200_text/html"
+  },
+  "labcorpondemand.com": {
+    "healthy": false,
+    "checkedAt": 1781851708672,
+    "ts": "2026-06-19T06:48:31.181Z",
+    "reason": "http_200_text/html"
+  },
+  "dickssportinggoods.com": {
+    "healthy": false,
+    "checkedAt": 1781851711199,
+    "ts": "2026-06-19T06:48:33.602Z",
+    "reason": "http_200_text/html"
+  },
+  "diamondsports.com": {
+    "healthy": false,
+    "checkedAt": 1781851713603,
+    "ts": "2026-06-19T06:48:53.604Z",
+    "reason": "timeout"
+  },
+  "insidetracker.com": {
+    "healthy": false,
+    "checkedAt": 1781851733605,
+    "ts": "2026-06-19T06:48:57.358Z",
+    "reason": "http_200_text/html"
+  },
+  "srixon.com": {
+    "healthy": false,
+    "checkedAt": 1781851737359,
+    "ts": "2026-06-19T06:49:00.077Z",
+    "reason": "http_404_text/html"
+  }
+}

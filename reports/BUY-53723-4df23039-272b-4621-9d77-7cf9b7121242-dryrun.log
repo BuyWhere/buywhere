@@ -1,0 +1,3 @@
+would-trash [catalog-skipped+D:skipped] 0.00GB data/target/target_errors.ndjson
+would-trash [catalog-skipped+D:skipped] 0.00GB data/target/target_products.ndjson
+--- files=2 freed=0.00GB catalogChecked=0 lowMatchKept=0 r2Missed=0 apply=0

@@ -8,7 +8,7 @@
  * Override interval via env: DISK_SPACE_CHECK_INTERVAL_MS (default: 300000 = 5 min)
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.startDiskSpaceRunner = void 0;
+exports.startDiskSpaceRunner = startDiskSpaceRunner;
 const config_1 = require("../config");
 const diskSpace_1 = require("../monitoring/diskSpace");
 const INTERVAL_MS = parseInt(process.env.DISK_SPACE_CHECK_INTERVAL_MS || '300000', 10);
@@ -66,7 +66,6 @@ function startDiskSpaceRunner() {
         }
     }, 10000);
 }
-exports.startDiskSpaceRunner = startDiskSpaceRunner;
 // Standalone mode: run once and exit (for manual execution)
 async function main() {
     console.log('[disk-space-runner] Running disk space check once...');

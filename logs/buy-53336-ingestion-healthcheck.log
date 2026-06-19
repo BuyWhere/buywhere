@@ -1,0 +1,3600 @@
+[2026-06-19T04:05:01Z] BUY-53336 healthcheck exit=0
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T04:05:04.460980+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 3,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 52.2ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T04:05:01.610Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T04:05:01.566442+00:00"
+    },
+    {
+      "check": "database",
+      "status": "warning",
+      "message": "DB OK (35.4ms). 18 zombie runs detected.",
+      "detail": {
+        "latency_ms": 35.4,
+        "total_products": 17472931,
+        "zombie_runs": 18,
+        "running_runs": 18,
+        "stale_active_products": 956248,
+        "runs_last_24h": {
+          "success": 3689,
+          "failed": 18,
+          "total": 3726
+        },
+        "zombie_sources": [
+          {
+            "source": "woocommerce_deep",
+            "count": 18,
+            "last_started": "2026-06-19 02:12:26.597165+00:00"
+          }
+        ],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "ebay_us",
+            "count": 25798,
+            "last_updated": "2026-06-18 10:12:33.567791+00:00"
+          },
+          {
+            "source": "decathlon_sg",
+            "count": 15878,
+            "last_updated": "2026-06-18 13:02:04.331221+00:00"
+          },
+          {
+            "source": "crateandbarrel_us",
+            "count": 13455,
+            "last_updated": "2026-06-18 12:17:29.692570+00:00"
+          },
+          {
+            "source": "buy9900",
+            "count": 12367,
+            "last_updated": "2026-06-18 13:03:53.774715+00:00"
+          },
+          {
+            "source": "ashley_furniture_us",
+            "count": 10117,
+            "last_updated": "2026-06-18 13:09:27.771798+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 8130,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "amazon_us",
+            "count": 5099,
+            "last_updated": "2026-06-18 13:09:58.872282+00:00"
+          },
+          {
+            "source": "italist",
+            "count": 4496,
+            "last_updated": "2026-06-18 12:20:05.248869+00:00"
+          },
+          {
+            "source": "italist_us",
+            "count": 4496,
+            "last_updated": "2026-06-18 13:08:35.315586+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T04:05:04.379921+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T04:05:04.379954+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "warning",
+      "message": "Degraded success rate: 77.4% (7d)",
+      "detail": {
+        "total": 14889,
+        "success": 11519,
+        "failed": 3306,
+        "success_rate_pct": 77.4
+      },
+      "timestamp": "2026-06-19T04:05:04.460944+00:00"
+    }
+  ]
+}
+[2026-06-19T04:05:54Z] BUY-53336 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T04:05:57.406594+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 3,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 47.8ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T04:05:54.853Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T04:05:54.809615+00:00"
+    },
+    {
+      "check": "database",
+      "status": "warning",
+      "message": "DB OK (43.3ms). 18 zombie runs detected.",
+      "detail": {
+        "latency_ms": 43.3,
+        "total_products": 17472931,
+        "zombie_runs": 18,
+        "running_runs": 18,
+        "stale_active_products": 956248,
+        "runs_last_24h": {
+          "success": 3690,
+          "failed": 18,
+          "total": 3727
+        },
+        "zombie_sources": [
+          {
+            "source": "woocommerce_deep",
+            "count": 18,
+            "last_started": "2026-06-19 02:12:26.597165+00:00"
+          }
+        ],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "ebay_us",
+            "count": 25798,
+            "last_updated": "2026-06-18 10:12:33.567791+00:00"
+          },
+          {
+            "source": "decathlon_sg",
+            "count": 15878,
+            "last_updated": "2026-06-18 13:02:04.331221+00:00"
+          },
+          {
+            "source": "crateandbarrel_us",
+            "count": 13455,
+            "last_updated": "2026-06-18 12:17:29.692570+00:00"
+          },
+          {
+            "source": "buy9900",
+            "count": 12367,
+            "last_updated": "2026-06-18 13:03:53.774715+00:00"
+          },
+          {
+            "source": "ashley_furniture_us",
+            "count": 10117,
+            "last_updated": "2026-06-18 13:09:27.771798+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 8130,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "amazon_us",
+            "count": 5099,
+            "last_updated": "2026-06-18 13:09:58.872282+00:00"
+          },
+          {
+            "source": "italist",
+            "count": 4496,
+            "last_updated": "2026-06-18 12:20:05.248869+00:00"
+          },
+          {
+            "source": "italist_us",
+            "count": 4496,
+            "last_updated": "2026-06-18 13:08:35.315586+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T04:05:57.322128+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T04:05:57.322159+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "warning",
+      "message": "Degraded success rate: 77.4% (7d)",
+      "detail": {
+        "total": 14893,
+        "success": 11523,
+        "failed": 3306,
+        "success_rate_pct": 77.4
+      },
+      "timestamp": "2026-06-19T04:05:57.406563+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=1 warn=3 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T040557Z.json
+[2026-06-19T04:06:05Z] BUY-53336 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T04:06:08.294760+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 3,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 74.4ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T04:06:05.687Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T04:06:05.642670+00:00"
+    },
+    {
+      "check": "database",
+      "status": "warning",
+      "message": "DB OK (35.5ms). 18 zombie runs detected.",
+      "detail": {
+        "latency_ms": 35.5,
+        "total_products": 17472931,
+        "zombie_runs": 18,
+        "running_runs": 18,
+        "stale_active_products": 956248,
+        "runs_last_24h": {
+          "success": 3690,
+          "failed": 18,
+          "total": 3727
+        },
+        "zombie_sources": [
+          {
+            "source": "woocommerce_deep",
+            "count": 18,
+            "last_started": "2026-06-19 02:12:26.597165+00:00"
+          }
+        ],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "ebay_us",
+            "count": 25798,
+            "last_updated": "2026-06-18 10:12:33.567791+00:00"
+          },
+          {
+            "source": "decathlon_sg",
+            "count": 15878,
+            "last_updated": "2026-06-18 13:02:04.331221+00:00"
+          },
+          {
+            "source": "crateandbarrel_us",
+            "count": 13455,
+            "last_updated": "2026-06-18 12:17:29.692570+00:00"
+          },
+          {
+            "source": "buy9900",
+            "count": 12367,
+            "last_updated": "2026-06-18 13:03:53.774715+00:00"
+          },
+          {
+            "source": "ashley_furniture_us",
+            "count": 10117,
+            "last_updated": "2026-06-18 13:09:27.771798+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 8130,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "amazon_us",
+            "count": 5099,
+            "last_updated": "2026-06-18 13:09:58.872282+00:00"
+          },
+          {
+            "source": "italist",
+            "count": 4496,
+            "last_updated": "2026-06-18 12:20:05.248869+00:00"
+          },
+          {
+            "source": "italist_us",
+            "count": 4496,
+            "last_updated": "2026-06-18 13:08:35.315586+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T04:06:08.226804+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T04:06:08.226831+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "warning",
+      "message": "Degraded success rate: 77.4% (7d)",
+      "detail": {
+        "total": 14893,
+        "success": 11523,
+        "failed": 3306,
+        "success_rate_pct": 77.4
+      },
+      "timestamp": "2026-06-19T04:06:08.294726+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=1 warn=3 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T040608Z.json
+[2026-06-19T04:15:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T04:15:01.849488+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 91.3ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T04:15:01.893Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T04:15:01.849402+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T04:15:01.849467+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T04:15:01.849476+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T04:15:01.849482+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T041501Z.json
+[2026-06-19T04:30:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T04:30:02.617335+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 94.7ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T04:30:02.668Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T04:30:02.617281+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T04:30:02.617316+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T04:30:02.617324+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T04:30:02.617330+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T043002Z.json
+[2026-06-19T04:45:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T04:45:02.501083+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 68.0ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T04:45:02.557Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T04:45:02.501024+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T04:45:02.501064+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T04:45:02.501072+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T04:45:02.501078+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T044502Z.json
+[2026-06-19T05:00:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T05:00:02.341160+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 126.9ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T05:00:02.398Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T05:00:02.341101+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T05:00:02.341138+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T05:00:02.341146+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T05:00:02.341154+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T050002Z.json
+[2026-06-19T05:15:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T05:15:02.036233+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 134.7ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T05:15:02.099Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T05:15:02.036177+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T05:15:02.036215+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T05:15:02.036223+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T05:15:02.036229+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T051502Z.json
+[2026-06-19T05:30:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T05:30:01.921838+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 99.1ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T05:30:01.983Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T05:30:01.921774+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T05:30:01.921817+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T05:30:01.921826+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T05:30:01.921833+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T053001Z.json
+[2026-06-19T05:45:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T05:45:02.285145+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 62.7ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T05:45:02.316Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T05:45:02.285089+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T05:45:02.285125+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T05:45:02.285134+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T05:45:02.285140+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T054502Z.json
+[2026-06-19T06:00:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T06:00:02.299425+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 169.8ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T06:00:02.317Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T06:00:02.298200+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T06:00:02.298229+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T06:00:02.299413+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T06:00:02.299421+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T060002Z.json
+[2026-06-19T06:15:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T06:15:02.279132+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 59.2ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T06:15:02.314Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T06:15:02.279077+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T06:15:02.279114+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T06:15:02.279121+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T06:15:02.279127+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T061502Z.json
+[2026-06-19T06:30:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T06:30:01.908766+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 94.4ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T06:30:01.944Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T06:30:01.908687+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T06:30:01.908747+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T06:30:01.908756+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T06:30:01.908761+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T063001Z.json
+[2026-06-19T06:45:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T06:45:01.508194+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 67.8ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T06:45:01.541Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T06:45:01.508129+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T06:45:01.508173+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T06:45:01.508182+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T06:45:01.508189+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T064501Z.json
+[2026-06-19T07:00:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T07:00:02.173319+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 85.8ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T07:00:02.206Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T07:00:02.173258+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T07:00:02.173297+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T07:00:02.173306+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T07:00:02.173313+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T070002Z.json
+[2026-06-19T07:15:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T07:15:01.736577+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 42.1ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T07:15:01.769Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T07:15:01.736539+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T07:15:01.736564+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T07:15:01.736570+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T07:15:01.736574+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T071501Z.json
+[2026-06-19T07:30:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T07:30:02.201537+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 101.9ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T07:30:02.231Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T07:30:02.201493+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T07:30:02.201524+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T07:30:02.201530+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T07:30:02.201534+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T073002Z.json
+[2026-06-19T07:45:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T07:45:02.003081+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 62.1ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T07:45:02.031Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T07:45:02.003017+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T07:45:02.003061+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T07:45:02.003070+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T07:45:02.003076+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T074502Z.json
+[2026-06-19T08:00:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T08:00:02.273092+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 81.5ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T08:00:02.302Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T08:00:02.273031+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T08:00:02.273071+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T08:00:02.273079+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T08:00:02.273086+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T080002Z.json
+[2026-06-19T08:15:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T08:15:02.208047+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 71.7ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T08:15:02.235Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T08:15:02.207991+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T08:15:02.208028+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T08:15:02.208036+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T08:15:02.208042+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T081502Z.json
+[2026-06-19T08:30:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T08:30:01.461742+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 63.2ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T08:30:01.491Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T08:30:01.461693+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T08:30:01.461728+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T08:30:01.461734+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T08:30:01.461738+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T083001Z.json
+[2026-06-19T08:45:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T08:45:02.301445+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 68.4ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T08:45:02.331Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T08:45:02.301392+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T08:45:02.301426+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T08:45:02.301433+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T08:45:02.301439+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T084502Z.json
+[2026-06-19T09:00:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T09:00:01.512058+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 102.2ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T09:00:01.547Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T09:00:01.512001+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T09:00:01.512038+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T09:00:01.512047+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T09:00:01.512053+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T090001Z.json
+[2026-06-19T09:15:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T09:15:02.222454+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 79.9ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T09:15:02.265Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T09:15:02.222325+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T09:15:02.222404+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T09:15:02.222443+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T09:15:02.222449+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T091502Z.json
+[2026-06-19T09:30:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T09:30:02.061376+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 68.4ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T09:30:02.104Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T09:30:02.061303+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T09:30:02.061354+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T09:30:02.061365+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T09:30:02.061371+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T093002Z.json
+[2026-06-19T09:45:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T09:45:01.437783+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 65.0ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T09:45:01.469Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T09:45:01.437724+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T09:45:01.437763+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T09:45:01.437771+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T09:45:01.437778+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T094501Z.json
+[2026-06-19T10:00:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T10:00:01.600742+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 73.9ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T10:00:01.628Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T10:00:01.600685+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T10:00:01.600724+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T10:00:01.600732+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T10:00:01.600737+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T100001Z.json
+[2026-06-19T10:15:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T10:15:01.931278+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 60.7ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T10:15:01.961Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T10:15:01.931224+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T10:15:01.931260+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T10:15:01.931268+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T10:15:01.931274+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T101501Z.json
+[2026-06-19T10:30:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T10:30:01.723142+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 150.2ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T10:30:01.736Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T10:30:01.723083+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T10:30:01.723121+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T10:30:01.723130+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T10:30:01.723136+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T103001Z.json
+[2026-06-19T10:45:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T10:45:01.410967+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 53.1ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T10:45:01.441Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T10:45:01.410912+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T10:45:01.410948+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T10:45:01.410956+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T10:45:01.410962+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T104501Z.json
+[2026-06-19T11:00:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T11:00:01.778860+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 65.5ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T11:00:01.808Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T11:00:01.778805+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T11:00:01.778840+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T11:00:01.778849+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T11:00:01.778855+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T110001Z.json
+[2026-06-19T11:15:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T11:15:01.731574+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 46.0ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T11:15:01.766Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T11:15:01.731531+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T11:15:01.731561+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T11:15:01.731567+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T11:15:01.731571+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T111501Z.json
+[2026-06-19T11:30:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T11:30:01.589521+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 72.3ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T11:30:01.631Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T11:30:01.589464+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T11:30:01.589501+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T11:30:01.589510+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T11:30:01.589516+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T113001Z.json
+[2026-06-19T11:45:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T11:45:01.305011+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 53.2ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T11:45:01.349Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T11:45:01.304971+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T11:45:01.304998+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T11:45:01.305003+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T11:45:01.305008+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T114501Z.json
+[2026-06-19T12:00:02Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T12:00:02.415283+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 79.8ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T12:00:02.456Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T12:00:02.415226+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T12:00:02.415263+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T12:00:02.415271+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T12:00:02.415278+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T120002Z.json
+[2026-06-19T12:15:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T12:15:01.584976+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 75.0ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T12:15:01.625Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T12:15:01.584914+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T12:15:01.584955+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T12:15:01.584963+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T12:15:01.584970+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T121501Z.json
+[2026-06-19T12:30:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T12:30:02.292726+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 154.6ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T12:30:02.324Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T12:30:02.292670+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T12:30:02.292707+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T12:30:02.292715+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T12:30:02.292721+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T123002Z.json
+[2026-06-19T12:45:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T12:45:01.868621+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 61.0ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T12:45:01.895Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T12:45:01.868581+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T12:45:01.868607+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T12:45:01.868613+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T12:45:01.868617+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T124501Z.json
+[2026-06-19T13:00:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T13:00:02.338648+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 125.4ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T13:00:02.360Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T13:00:02.338588+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T13:00:02.338628+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T13:00:02.338637+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T13:00:02.338643+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T130002Z.json
+[2026-06-19T13:15:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T13:15:02.184542+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 65.2ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T13:15:02.212Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T13:15:02.184484+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T13:15:02.184523+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T13:15:02.184531+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T13:15:02.184537+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T131502Z.json
+[2026-06-19T13:30:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T13:30:01.589666+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 68.2ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T13:30:01.618Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T13:30:01.589624+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T13:30:01.589652+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T13:30:01.589658+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T13:30:01.589662+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T133001Z.json
+[2026-06-19T13:45:02Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T13:45:02.452267+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 76.4ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T13:45:02.481Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T13:45:02.452210+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T13:45:02.452247+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T13:45:02.452255+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T13:45:02.452262+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T134502Z.json
+[2026-06-19T14:00:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T14:00:01.833930+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 67.5ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T14:00:01.862Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T14:00:01.833827+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T14:00:01.833908+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T14:00:01.833919+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T14:00:01.833925+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T140001Z.json
+[2026-06-19T14:15:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T14:15:02.246576+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 74.4ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T14:15:02.282Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T14:15:02.246513+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T14:15:02.246555+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T14:15:02.246564+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T14:15:02.246570+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T141502Z.json
+[2026-06-19T14:30:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T14:30:02.272871+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 163.1ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T14:30:02.316Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T14:30:02.272811+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T14:30:02.272851+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T14:30:02.272860+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T14:30:02.272866+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T143002Z.json
+[2026-06-19T14:45:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T14:45:01.982837+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 63.2ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T14:45:02.026Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T14:45:01.982784+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T14:45:01.982820+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T14:45:01.982827+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T14:45:01.982833+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T144501Z.json
+[2026-06-19T15:00:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T15:00:01.644022+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 68.5ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T15:00:01.686Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T15:00:01.643963+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T15:00:01.644001+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T15:00:01.644010+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T15:00:01.644017+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T150001Z.json
+[2026-06-19T15:15:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T15:15:02.265219+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 64.8ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T15:15:02.306Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T15:15:02.265179+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T15:15:02.265206+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T15:15:02.265212+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T15:15:02.265215+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T151502Z.json
+[2026-06-19T15:30:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T15:30:01.591507+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 68.6ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T15:30:01.632Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T15:30:01.591451+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T15:30:01.591487+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T15:30:01.591495+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T15:30:01.591502+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T153001Z.json
+[2026-06-19T15:45:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T15:45:01.870630+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 70.8ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T15:45:01.909Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T15:45:01.870575+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T15:45:01.870611+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T15:45:01.870619+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T15:45:01.870625+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T154501Z.json
+[2026-06-19T16:00:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T16:00:01.947451+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 62.7ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T16:00:01.980Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T16:00:01.947398+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T16:00:01.947431+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T16:00:01.947439+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T16:00:01.947446+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T160001Z.json
+[2026-06-19T16:15:01Z] BUY-53336 healthcheck exit=2
+{
+  "overall": "unhealthy",
+  "exit_code": 2,
+  "timestamp": "2026-06-19T16:15:01.939886+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 1,
+  "critical": 1,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 96.2ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T16:15:01.970Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T16:15:01.939830+00:00"
+    },
+    {
+      "check": "database",
+      "status": "critical",
+      "message": "DATABASE_URL not set",
+      "detail": null,
+      "timestamp": "2026-06-19T16:15:01.939868+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T16:15:01.939876+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "skipped",
+      "message": "No database connection",
+      "detail": null,
+      "timestamp": "2026-06-19T16:15:01.939881+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=unhealthy ok=1 warn=1 crit=1 exit=2 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T161501Z.json
+[2026-06-19T16:24:02Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T16:24:05.872788+00:00",
+  "checks": 4,
+  "ok": 1,
+  "warnings": 3,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 46.0ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T16:24:03.113Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T16:24:03.084426+00:00"
+    },
+    {
+      "check": "database",
+      "status": "warning",
+      "message": "DB OK (29.1ms). Fixed 1 zombie runs.",
+      "detail": {
+        "latency_ms": 29.1,
+        "total_products": 17532576,
+        "zombie_runs": 1,
+        "running_runs": 1,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4633,
+          "failed": 136,
+          "total": 4775
+        },
+        "zombie_sources": [
+          {
+            "source": "cc_shopify_discover_v2",
+            "count": 1,
+            "last_started": "2026-06-19 09:37:10.588928+00:00"
+          }
+        ],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4491,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T16:24:05.821566+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T16:24:05.821595+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "warning",
+      "message": "Degraded success rate: 79.8% (7d)",
+      "detail": {
+        "total": 17247,
+        "success": 13769,
+        "failed": 3429,
+        "success_rate_pct": 79.8
+      },
+      "timestamp": "2026-06-19T16:24:05.872756+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=1 warn=3 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T162405Z.json
+400
+[2026-06-19T16:25:06Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T16:25:09.701655+00:00",
+  "checks": 4,
+  "ok": 2,
+  "warnings": 2,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 67.0ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T16:25:06.775Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T16:25:06.746327+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (32.0ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 32.0,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 0,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4631,
+          "failed": 137,
+          "total": 4773
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4491,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T16:25:09.661727+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T16:25:09.661746+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "warning",
+      "message": "Degraded success rate: 79.8% (7d)",
+      "detail": {
+        "total": 17250,
+        "success": 13771,
+        "failed": 3429,
+        "success_rate_pct": 79.8
+      },
+      "timestamp": "2026-06-19T16:25:09.701626+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=2 warn=2 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T162509Z.json
+422
+[2026-06-19T16:26:13Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T16:26:15.871705+00:00",
+  "checks": 4,
+  "ok": 2,
+  "warnings": 2,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 58.8ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T16:26:13.305Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T16:26:13.275449+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (34.3ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 34.3,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 0,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4632,
+          "failed": 137,
+          "total": 4774
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4491,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T16:26:15.817277+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T16:26:15.817307+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "warning",
+      "message": "Degraded success rate: 79.8% (7d)",
+      "detail": {
+        "total": 17251,
+        "success": 13773,
+        "failed": 3429,
+        "success_rate_pct": 79.8
+      },
+      "timestamp": "2026-06-19T16:26:15.871674+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=2 warn=2 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T162615Z.json
+201
+[2026-06-19T16:27:08Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T16:27:11.759427+00:00",
+  "checks": 4,
+  "ok": 2,
+  "warnings": 2,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 40.4ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T16:27:08.853Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T16:27:08.825185+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (26.3ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 26.3,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 0,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4634,
+          "failed": 137,
+          "total": 4776
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4491,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T16:27:11.722811+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T16:27:11.722854+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "warning",
+      "message": "Degraded success rate: 79.8% (7d)",
+      "detail": {
+        "total": 17253,
+        "success": 13775,
+        "failed": 3429,
+        "success_rate_pct": 79.8
+      },
+      "timestamp": "2026-06-19T16:27:11.759403+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=2 warn=2 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T162711Z.json
+201
+[2026-06-19T16:30:01Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T16:30:04.643919+00:00",
+  "checks": 4,
+  "ok": 2,
+  "warnings": 2,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 65.6ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T16:30:01.462Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T16:30:01.435525+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (52.1ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 52.1,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 0,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4635,
+          "failed": 137,
+          "total": 4777
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4491,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T16:30:04.602355+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T16:30:04.602375+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "warning",
+      "message": "Degraded success rate: 79.8% (7d)",
+      "detail": {
+        "total": 17260,
+        "success": 13782,
+        "failed": 3429,
+        "success_rate_pct": 79.8
+      },
+      "timestamp": "2026-06-19T16:30:04.643897+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=2 warn=2 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T163004Z.json
+[2026-06-19T16:45:01Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T16:45:04.313846+00:00",
+  "checks": 4,
+  "ok": 2,
+  "warnings": 2,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 64.5ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T16:45:01.430Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T16:45:01.404649+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (30.0ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 30.0,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 0,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4636,
+          "failed": 137,
+          "total": 4778
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4491,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T16:45:04.278294+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T16:45:04.278312+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "warning",
+      "message": "Degraded success rate: 79.9% (7d)",
+      "detail": {
+        "total": 17285,
+        "success": 13807,
+        "failed": 3429,
+        "success_rate_pct": 79.9
+      },
+      "timestamp": "2026-06-19T16:45:04.313804+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=2 warn=2 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T164504Z.json
+[2026-06-19T17:00:01Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T17:00:04.679771+00:00",
+  "checks": 4,
+  "ok": 2,
+  "warnings": 2,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 70.3ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T17:00:01.632Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T17:00:01.601819+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (34.5ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 34.5,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 3,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4640,
+          "failed": 137,
+          "total": 4785
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4491,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T17:00:04.631426+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T17:00:04.631446+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "warning",
+      "message": "Degraded success rate: 79.9% (7d)",
+      "detail": {
+        "total": 17316,
+        "success": 13836,
+        "failed": 3429,
+        "success_rate_pct": 79.9
+      },
+      "timestamp": "2026-06-19T17:00:04.679740+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=2 warn=2 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T170004Z.json
+[2026-06-19T17:15:01Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T17:15:04.914155+00:00",
+  "checks": 4,
+  "ok": 2,
+  "warnings": 2,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 65.2ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T17:15:01.828Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T17:15:01.797761+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (35.6ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 35.6,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 3,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4641,
+          "failed": 137,
+          "total": 4786
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4491,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T17:15:04.871856+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T17:15:04.871881+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "warning",
+      "message": "Degraded success rate: 79.9% (7d)",
+      "detail": {
+        "total": 17342,
+        "success": 13862,
+        "failed": 3429,
+        "success_rate_pct": 79.9
+      },
+      "timestamp": "2026-06-19T17:15:04.914125+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=2 warn=2 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T171504Z.json
+[2026-06-19T17:30:01Z] BUY-53674 healthcheck exit=1
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-19T17:30:04.731330+00:00",
+  "checks": 4,
+  "ok": 3,
+  "warnings": 1,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 90.3ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-19T17:30:01.801Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-19T17:30:01.767125+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (44.9ms, 17532576 products)",
+      "detail": {
+        "latency_ms": 44.9,
+        "total_products": 17532576,
+        "zombie_runs": 0,
+        "running_runs": 3,
+        "stale_active_products": 965524,
+        "runs_last_24h": {
+          "success": 4646,
+          "failed": 137,
+          "total": 4791
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "buy-53191-shopify",
+            "count": 257579,
+            "last_updated": "2026-06-19 03:13:11.915809+00:00"
+          },
+          {
+            "source": "buy-53192-shopify",
+            "count": 31818,
+            "last_updated": "2026-06-19 15:42:43.146674+00:00"
+          },
+          {
+            "source": "challenger_sg",
+            "count": 13159,
+            "last_updated": "2026-06-19 13:52:08.035195+00:00"
+          },
+          {
+            "source": "rei_products.jsonl",
+            "count": 4928,
+            "last_updated": "2026-06-19 12:56:36.309928+00:00"
+          },
+          {
+            "source": "etsy_us",
+            "count": 4491,
+            "last_updated": "2026-06-18 19:05:46.654409+00:00"
+          },
+          {
+            "source": "amazon_sg",
+            "count": 3450,
+            "last_updated": "2026-06-18 18:33:11.829756+00:00"
+          },
+          {
+            "source": "bestdenki_sg",
+            "count": 3271,
+            "last_updated": "2026-06-19 13:47:02.645247+00:00"
+          },
+          {
+            "source": "petloverscentre_sg",
+            "count": 2473,
+            "last_updated": "2026-06-19 13:49:30.739227+00:00"
+          },
+          {
+            "source": "ravensburger.us",
+            "count": 1901,
+            "last_updated": "2026-06-19 13:49:05.199686+00:00"
+          },
+          {
+            "source": "lordandtaylor.com",
+            "count": 1000,
+            "last_updated": "2026-06-19 00:15:03.161700+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-19T17:30:04.690166+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-19T17:30:04.690187+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 80.0% (7d, 17370 runs)",
+      "detail": {
+        "total": 17370,
+        "success": 13890,
+        "failed": 3429,
+        "success_rate_pct": 80.0
+      },
+      "timestamp": "2026-06-19T17:30:04.731260+00:00"
+    }
+  ]
+}
+[BUY-53336] ingestion-healthcheck overall=degraded ok=3 warn=1 crit=0 exit=1 report=/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/reports/ingestion-healthcheck-20260619T173004Z.json

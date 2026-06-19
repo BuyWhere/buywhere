@@ -15,16 +15,27 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.warmSearchCache = void 0;
+exports.warmSearchCache = warmSearchCache;
 const express_1 = require("express");
+const crypto_1 = require("crypto");
 const config_1 = require("../config");
 const readReplica_1 = require("../lib/readReplica");
 const apiKey_1 = require("../middleware/apiKey");
@@ -34,11 +45,8 @@ const queryLog_1 = require("../middleware/queryLog");
 const response_1 = require("../lib/response");
 const compare_query_1 = require("../lib/compare-query");
 const queryPreprocessor_1 = require("../lib/queryPreprocessor");
-// BUY-45741: removed imports of '../lib/semanticSearch' (hybridSearchWithAlpha)
-// and '../lib/embeddingCache' (cacheStats) — those modules were never committed
-// in the BUY-45553 merge (aaea1e415), making `main` crash-loop at startup. The
-// POST /v1/products/search/hybrid route that used them is removed below until the
-// modules land (BUY-41134). See BUY-45741.
+const instrumentation_1 = require("../lib/instrumentation");
+const embedProducts_1 = require("../jobs/embedProducts");
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
 const SEARCH_CACHE_TTL_SECONDS = 3600;
@@ -49,15 +57,13 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 // BUY-33985 deals endpoint fix at 15s.
 const SEARCH_STATEMENT_TIMEOUT_MS = 15000;
 const SEARCH_HANDLER_TIMEOUT_MS = 15000;
-// BUY-41572: public /v1/products/search mode routing. The MCP tool (BUY-41138)
-// ships keyword|semantic|hybrid against the Jina v3 vector pool + RRF. The
-// public REST API has not yet been wired to the vector pool, so for now all
-// three modes route through the FTS path. `mode` is accepted (and surfaced in
-// the public OpenAPI) so external clients can opt in once the public path is
-// built; until then the response includes `_mode: 'keyword' | 'hybrid' | 'semantic'`
-// to make the fallback explicit. The vector-path is tracked as a follow-up.
+// BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
+// using the same Jina + pgvector stack as the MCP tool. If vector infra is
+// unavailable, semantic/hybrid requests fall back to the keyword path.
 const VALID_SEARCH_MODES = new Set(['keyword', 'semantic', 'hybrid']);
 const DEFAULT_SEARCH_MODE = 'keyword';
+const VECTOR_CANDIDATE_CAP = 1000;
+const HYBRID_RRF_K = 60;
 // BUY-34291: cap per-query work_mem to 4MB (down from 64MB default) so concurrent
 // search requests don't compete for shared_buffers. Without this, the planner's
 // Bitmap Heap Scan on the partial GIN index uses up to 64MB per query, and
@@ -78,6 +84,39 @@ function asyncHandler(fn) {
             }
         });
     };
+}
+function shiftSqlPlaceholders(sql, offset) {
+    return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
+}
+async function getCachedQueryEmbedding(query, geminiKey) {
+    try {
+        const embedKey = `qembed:${Buffer.from(query).toString('base64').slice(0, 48)}`;
+        const cached = await config_1.redis.get(embedKey).catch(() => null);
+        if (cached)
+            return cached;
+        // BUY-52466: switched from Jina to Google gemini-embedding-001 (512-dim).
+        const vector = await (0, embedProducts_1.embedQuery)(query, geminiKey);
+        await config_1.redis.set(embedKey, vector, 'EX', 60).catch(() => { });
+        return vector;
+    }
+    catch (err) {
+        console.warn('[products.search] embed query failed, falling back to keyword:', err.message);
+        return null;
+    }
+}
+function mergeRrfCandidateIds(ftsIds, semanticIds, limit) {
+    const ftsRank = new Map(ftsIds.map((id, idx) => [id, idx + 1]));
+    const semanticRank = new Map(semanticIds.map((id, idx) => [id, idx + 1]));
+    const allIds = new Set([...ftsIds, ...semanticIds]);
+    return [...allIds]
+        .map((id) => ({
+        id,
+        score: 1 / (HYBRID_RRF_K + (ftsRank.get(id) ?? VECTOR_CANDIDATE_CAP + 1)) +
+            1 / (HYBRID_RRF_K + (semanticRank.get(id) ?? VECTOR_CANDIDATE_CAP + 1)),
+    }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit)
+        .map((entry) => entry.id);
 }
 const router = (0, express_1.Router)();
 // GET /v1/products
@@ -163,6 +202,14 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
     const total = parseInt(countResult.rows[0].count, 10);
     const total_pages = total === 0 ? 0 : Math.ceil(total / limit);
     const data = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, false));
+    // BUY-52474: log a product_view per rendered result card so `product_views`
+    // grows from real /v1 list traffic. Fire-and-forget; idempotency is
+    // enforced in the helper.
+    (0, instrumentation_1.recordProductViewsBulk)({
+        productIds: data.map((p) => p.id),
+        source: 'products.list',
+        req,
+    });
     const body = {
         data,
         pagination: {
@@ -218,9 +265,6 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const offset = rawPage > 0 ? (rawPage - 1) * limit : rawOffset;
     const sourcePage = req.query.source_page;
     const compact = req.query.compact === 'true';
-    // BUY-41572: accept `mode` from external clients; route everything through
-    // the FTS path until the public /v1/products/search is wired to the Jina
-    // vector pool (BUY-41138 wired the MCP tool, public REST is the next step).
     const rawMode = req.query.mode?.toLowerCase();
     const searchMode = rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE;
     // BUY-42589: canonicalize SG retailer brand names (harvey norman, courts, gaincity, etc.)
@@ -250,98 +294,99 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // planner skip dead rows and the inactive non-leaf rows that previously
     // bloated the bitmap. EXPLAIN ANALYZE on roundhouse (post-fix) shows the
     // planner switches to the partial index and execution drops to ~15-30ms.
-    const conditions = ['currency = $1', 'is_active = true'];
-    const params = [currency];
-    let idx = 2;
-    let ftsParamIdx = 0;
-    if (q) {
-        // Use full-text search via GIN-indexed search_vector only.
-        // The ILIKE fallback was removed: it defeats the GIN index and causes full table scans (3s vs 130ms).
-        ftsParamIdx = idx;
-        conditions.push(`search_vector @@ plainto_tsquery('english', $${idx})`);
-        params.push(q);
-        idx++;
-    }
+    const baseConditions = ['currency = $1', 'is_active = true'];
+    const baseParams = [currency];
+    let baseIdx = 2;
     // BUY-42589: SG retailer brand queries (harvey norman, courts, gaincity, etc.)
     // map to source= filters since the retailer name is in the source field, not
     // in individual product titles/brands. When only the retailer name was typed
     // (cleanedQuery is empty), fall back to source-only search.
     if (canonicalSources && canonicalSources.length > 0) {
-        const sourcePlaceholders = canonicalSources.map((_, i) => `$${idx + i}`).join(',');
-        conditions.push(`source IN (${sourcePlaceholders})`);
-        params.push(...canonicalSources);
-        idx += canonicalSources.length;
+        const sourcePlaceholders = canonicalSources.map((_, i) => `$${baseIdx + i}`).join(',');
+        baseConditions.push(`source IN (${sourcePlaceholders})`);
+        baseParams.push(...canonicalSources);
+        baseIdx += canonicalSources.length;
     }
     if (domain) {
-        conditions.push(`source = $${idx}`);
-        params.push(domain);
-        idx++;
+        baseConditions.push(`source = $${baseIdx}`);
+        baseParams.push(domain);
+        baseIdx++;
     }
     if (region) {
-        conditions.push(`region = $${idx}`);
-        params.push(region);
-        idx++;
+        baseConditions.push(`region = $${baseIdx}`);
+        baseParams.push(region);
+        baseIdx++;
     }
     if (countryCode) {
-        conditions.push(`country_code = $${idx}`);
-        params.push(countryCode);
-        idx++;
+        baseConditions.push(`country_code = $${baseIdx}`);
+        baseParams.push(countryCode);
+        baseIdx++;
     }
     if (category) {
-        conditions.push(`category ILIKE $${idx}`);
-        params.push(`%${category}%`);
-        idx++;
+        baseConditions.push(`category ILIKE $${baseIdx}`);
+        baseParams.push(`%${category}%`);
+        baseIdx++;
     }
     if (brand) {
-        conditions.push(`brand ILIKE $${idx}`);
-        params.push(`%${brand}%`);
-        idx++;
+        baseConditions.push(`brand ILIKE $${baseIdx}`);
+        baseParams.push(`%${brand}%`);
+        baseIdx++;
     }
     if (availability) {
         const avail = availability.toLowerCase();
         if (avail === 'in_stock') {
-            conditions.push(`(metadata->>'availability' = $${idx} OR (metadata->>'availability' IS NULL AND is_active = true))`);
-            params.push(avail);
-            idx++;
+            baseConditions.push(`(metadata->>'availability' = $${baseIdx} OR (metadata->>'availability' IS NULL AND is_active = true))`);
+            baseParams.push(avail);
+            baseIdx++;
         }
         else if (avail === 'out_of_stock') {
-            conditions.push(`(metadata->>'availability' = $${idx} OR (metadata->>'availability' IS NULL AND is_active = false))`);
-            params.push(avail);
-            idx++;
+            baseConditions.push(`(metadata->>'availability' = $${baseIdx} OR (metadata->>'availability' IS NULL AND is_active = false))`);
+            baseParams.push(avail);
+            baseIdx++;
         }
         else if (avail === 'preorder' || avail === 'discontinued') {
-            conditions.push(`metadata->>'availability' = $${idx}`);
-            params.push(avail);
-            idx++;
+            baseConditions.push(`metadata->>'availability' = $${baseIdx}`);
+            baseParams.push(avail);
+            baseIdx++;
         }
     }
     if (categoryId) {
-        conditions.push(`category_id = $${idx}`);
-        params.push(categoryId);
-        idx++;
+        baseConditions.push(`category_id = $${baseIdx}`);
+        baseParams.push(categoryId);
+        baseIdx++;
     }
     if (categoryPath && categoryPath.length > 0) {
-        const pathPlaceholders = categoryPath.map((_, i) => `$${idx + i}`).join(',');
-        conditions.push(`category_path @> ARRAY[${pathPlaceholders}]::text[]`);
-        params.push(...categoryPath);
-        idx += categoryPath.length;
+        const pathPlaceholders = categoryPath.map((_, i) => `$${baseIdx + i}`).join(',');
+        baseConditions.push(`category_path @> ARRAY[${pathPlaceholders}]::text[]`);
+        baseParams.push(...categoryPath);
+        baseIdx += categoryPath.length;
     }
     if (merchantId) {
-        conditions.push(`merchant_id = $${idx}`);
-        params.push(merchantId);
-        idx++;
+        baseConditions.push(`merchant_id = $${baseIdx}`);
+        baseParams.push(merchantId);
+        baseIdx++;
     }
     if (minPrice !== undefined) {
-        conditions.push(`price >= $${idx}`);
-        params.push(minPrice);
-        idx++;
+        baseConditions.push(`price >= $${baseIdx}`);
+        baseParams.push(minPrice);
+        baseIdx++;
     }
     if (maxPrice !== undefined) {
-        conditions.push(`price <= $${idx}`);
-        params.push(maxPrice);
-        idx++;
+        baseConditions.push(`price <= $${baseIdx}`);
+        baseParams.push(maxPrice);
+        baseIdx++;
     }
-    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const searchConditions = [...baseConditions];
+    const searchParams = [...baseParams];
+    let ftsParamIdx = 0;
+    if (q) {
+        // Use full-text search via GIN-indexed search_vector only.
+        // The ILIKE fallback was removed: it defeats the GIN index and causes full table scans (3s vs 130ms).
+        ftsParamIdx = searchParams.length + 1;
+        searchConditions.push(`search_vector @@ plainto_tsquery('english', $${ftsParamIdx})`);
+        searchParams.push(q);
+    }
+    const whereClause = searchConditions.length ? `WHERE ${searchConditions.join(' AND ')}` : '';
     // BUY-33987: SEARCH_STATEMENT_TIMEOUT_MS and SEARCH_HANDLER_TIMEOUT_MS are
     // declared at the top of the file so res.setTimeout() (above) can reference
     // them by lexical scope.
@@ -374,9 +419,12 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // only those. Eliminates the separate COUNT query that doubled DB load. Over-fetch by 1
     // to derive has_more without a second scan.
     let dataResult;
-    let total;
+    let total = 0;
     let hasMore;
-    const dataParams = [...params, limit + 1, offset];
+    const requestedRows = limit + 1;
+    const limitParamIdx = searchParams.length + 1;
+    const offsetParamIdx = searchParams.length + 2;
+    const dataParams = [...searchParams, requestedRows, offset];
     let dataQuery;
     if (useFtsRanking) {
         // BUY-32228: kept ts_rank ORDER BY in the CTE. BUY-31540 replaced this with
@@ -403,7 +451,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         JOIN products ON products.id = top_ids.id
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY top_ids.rank DESC
-        LIMIT $${idx} OFFSET $${idx + 1}
+        LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
       `;
     }
     else {
@@ -413,7 +461,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ${whereClause}
         ORDER BY ${buildSortOrder()}
-        LIMIT $${idx} OFFSET $${idx + 1}
+        LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
       `;
     }
     const client = await config_1.db.connect();
@@ -439,7 +487,70 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
         await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
         await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
-        dataResult = await client.query(dataQuery, dataParams);
+        const geminiKey = process.env.GEMINI_API_KEY ?? '';
+        const activeVectorDb = q !== '' && searchMode !== 'keyword' && config_1.vectorDb != null && geminiKey !== ''
+            ? config_1.vectorDb
+            : null;
+        if (activeVectorDb) {
+            const queryVector = await getCachedQueryEmbedding(q, geminiKey);
+            if (queryVector) {
+                const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
+                const semanticCandidates = await activeVectorDb.query(`SELECT product_id FROM product_embeddings
+             ORDER BY embedding <=> $1::vector
+             LIMIT $2`, [queryVector, candidateCap]);
+                const rawSemanticIds = semanticCandidates.rows.map((row) => row.product_id);
+                let filteredSemanticIds = [];
+                if (rawSemanticIds.length > 0) {
+                    const vectorFilterQuery = `
+              SELECT id
+              FROM products
+              WHERE id = ANY($1::bigint[]) AND ${baseConditions.map((condition) => shiftSqlPlaceholders(condition, 1)).join(' AND ')}
+            `;
+                    const vectorFilterResult = await client.query(vectorFilterQuery, [rawSemanticIds, ...baseParams]);
+                    const allowedIds = new Set(vectorFilterResult.rows.map((row) => row.id));
+                    filteredSemanticIds = rawSemanticIds.filter((id) => allowedIds.has(id));
+                }
+                let rankedCandidateIds = filteredSemanticIds;
+                if (searchMode === 'hybrid') {
+                    const ftsCandidates = await client.query(`SELECT id
+               FROM products
+               ${whereClause}
+               ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
+               LIMIT 200`, searchParams);
+                    rankedCandidateIds = mergeRrfCandidateIds(ftsCandidates.rows.map((row) => row.id), filteredSemanticIds, candidateCap);
+                }
+                total = rankedCandidateIds.length;
+                hasMore = total > offset + limit;
+                if (total === 0) {
+                    dataResult = { rows: [] };
+                }
+                else if (!effectiveSort || effectiveSort === 'relevance') {
+                    const pageIds = rankedCandidateIds.slice(offset, offset + requestedRows);
+                    const detailResult = await client.query(`SELECT ${joinedColumns}
+               FROM products
+               LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+               WHERE products.id = ANY($1::bigint[])`, [pageIds]);
+                    const byId = new Map(detailResult.rows.map((row) => [row.id, row]));
+                    dataResult = {
+                        rows: pageIds.map((id) => byId.get(id)).filter(Boolean),
+                    };
+                }
+                else {
+                    dataResult = await client.query(`SELECT ${joinedColumns}
+               FROM products
+               LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+               WHERE products.id = ANY($1::bigint[])
+               ORDER BY ${buildSortOrder()}
+               LIMIT $2 OFFSET $3`, [rankedCandidateIds, requestedRows, offset]);
+                }
+            }
+            else {
+                dataResult = await client.query(dataQuery, dataParams);
+            }
+        }
+        else {
+            dataResult = await client.query(dataQuery, dataParams);
+        }
         await client.query('COMMIT');
     }
     catch (err) {
@@ -462,10 +573,15 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         throw err;
     }
     client.release();
-    hasMore = dataResult.rows.length > limit;
-    if (hasMore)
-        dataResult.rows.pop();
-    total = offset + dataResult.rows.length + (hasMore ? 1 : 0);
+    if (typeof hasMore === 'undefined') {
+        hasMore = dataResult.rows.length > limit;
+        if (hasMore)
+            dataResult.rows.pop();
+        total = offset + dataResult.rows.length + (hasMore ? 1 : 0);
+    }
+    else if (dataResult.rows.length > limit) {
+        dataResult.rows = dataResult.rows.slice(0, limit);
+    }
     const responseTimeMs = Date.now() - requestStart;
     const products = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
     // Apply field selection if `fields` param is specified
@@ -492,7 +608,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             });
         }
     }
-    const responseBody = (0, response_1.buildSearchResponse)(filteredProducts, total, limit, offset, responseTimeMs, hasMore);
+    const responseBody = (0, response_1.buildSearchResponse)(filteredProducts, total, limit, offset, responseTimeMs, hasMore ?? false);
     // Cache result in Redis (fire-and-forget)
     config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
     // Extract categories from results for analytics
@@ -513,6 +629,16 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             responseTimeMs,
         });
     }
+    // BUY-52474: log a product_view per search-result card so the
+    // `product_views` table grows from real /v1 search traffic. We use a
+    // queryHash so dedup-keyed views from the same search query collapse
+    // into a single row per (product, query, second). Fire-and-forget.
+    (0, instrumentation_1.recordProductViewsBulk)({
+        productIds: products.map((p) => p.id),
+        source: 'products.search',
+        queryHash: q ? (0, crypto_1.createHash)('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
+        req,
+    });
     res.json(responseBody);
 }));
 // GET /v1/products/deals
@@ -627,6 +753,13 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     }
     const responseBody = (0, response_1.buildSearchResponse)(deals, total, limit, offset, Date.now() - start, false);
     config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
+    // BUY-52474: log a product_view per deals card so /v1/products/deals drives
+    // product_views growth alongside /search and /:id.
+    (0, instrumentation_1.recordProductViewsBulk)({
+        productIds: deals.map((p) => p.id),
+        source: 'products.deals',
+        req,
+    });
     res.json(responseBody);
 }));
 // GET /v1/products/compare?ids=id1,id2,id3
@@ -637,7 +770,13 @@ router.get('/compare', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiK
         res.status(400).json({ error: 'Provide at least 2 product IDs via ?ids=id1,id2' });
         return;
     }
-    const invalidIds = ids.filter((id) => !compare_query_1.UUID_RE.test(id.trim()));
+    // BUY-53179: accept both UUID and numeric product IDs. The API's own
+    // /v1/products/search returns numeric IDs like 1126150856089603981, so
+    // UUID-only validation breaks the contract between search and compare.
+    const invalidIds = ids.filter((id) => {
+        const trimmed = id.trim();
+        return !compare_query_1.UUID_RE.test(trimmed) && !compare_query_1.PRODUCT_ID_RE.test(trimmed);
+    });
     if (invalidIds.length > 0) {
         res.status(400).json({ error: `Invalid product ID(s): ${invalidIds.join(', ')}` });
         return;
@@ -648,6 +787,13 @@ router.get('/compare', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiK
     const uniqueCurrencies = [...new Set(products.map((p) => p.price.currency).filter(Boolean))];
     const currenciesMixed = uniqueCurrencies.length > 1;
     const responseBody = (0, response_1.buildSearchResponse)(products, products.length, ids.length, 0, Date.now() - start, false);
+    // BUY-52474: log a product_view per side-by-side product card so the
+    // /v1/products/compare surface also drives product_views growth.
+    (0, instrumentation_1.recordProductViewsBulk)({
+        productIds: products.map((p) => p.id),
+        source: 'products.compare',
+        req,
+    });
     res.json({
         ...responseBody,
         currencies_mixed: currenciesMixed,
@@ -923,6 +1069,14 @@ router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, 
             latencyMs: elapsedMs,
         });
     }
+    // BUY-52474: log a product_view for /v1/products/:id detail renders so the
+    // `product_views` table grows from real /v1 detail traffic. Fire-and-forget
+    // so the response is never blocked on the insert.
+    (0, instrumentation_1.recordProductView)({
+        productId: row.id,
+        source: 'products.get',
+        req,
+    });
     const responseBody = (0, response_1.buildSearchResponse)([product], 1, 1, 0, Date.now() - start, false);
     res.json(responseBody);
 }));
@@ -1242,5 +1396,4 @@ async function warmSearchCache() {
     const elapsed = Date.now() - startMs;
     console.log(`[cache-warm] done: ${warmed} warmed, ${skipped} already cached, ${elapsed}ms`);
 }
-exports.warmSearchCache = warmSearchCache;
 exports.default = router;

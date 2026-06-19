@@ -1,0 +1,26 @@
+Dry-run summary before apply: removed=15 reclaimed_kb=60
+Apply summary: removed=15 reclaimed_kb=60
+
+Deleted disk-monitor directories:
+data/buy-48198-disk-monitor-2026-06-19T074018Z
+data/buy-48198-disk-monitor-2026-06-19T074519Z
+data/buy-48198-disk-monitor-2026-06-19T075017Z
+data/buy-48198-disk-monitor-2026-06-19T075210Z
+data/buy-48198-disk-monitor-2026-06-19T075226Z
+data/buy-48198-disk-monitor-2026-06-19T075520Z
+data/buy-48198-disk-monitor-2026-06-19T075809Z
+data/buy-48198-disk-monitor-2026-06-19T075825Z
+data/buy-48198-disk-monitor-2026-06-19T075927Z
+data/buy-48198-disk-monitor-2026-06-19T080018Z
+data/buy-48198-disk-monitor-2026-06-19T080516Z
+data/buy-48198-disk-monitor-2026-06-19T081018Z
+data/buy-48198-disk-monitor-2026-06-19T081241Z
+data/buy-48198-disk-monitor-2026-06-19T081517Z
+data/buy-48198-disk-monitor-2026-06-19T082017Z
+
+Retained Carousell snapshot:
+data/carousell-sg/products_20260516_022805.jsonl
+
+Retained disk-monitor directories:
+data/buy-48198-disk-monitor-2026-06-19T082516Z
+data/buy-48198-disk-monitor-2026-06-19T083016Z

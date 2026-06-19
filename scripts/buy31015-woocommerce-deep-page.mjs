@@ -315,11 +315,15 @@ async function writeHeartbeat(phase, extra = {}) {
 async function writeStatus() {
   const elapsedMs = Math.max(1, Date.now() - startedAtMs);
   const rowsPerHour = Math.round(((runStats.rowsInserted + runStats.rowsUpdated) / elapsedMs) * 3600000);
+  const discoveryProgress = runStats.totalMerchants > 0
+    ? Math.round((runStats.merchantsVisited / runStats.totalMerchants) * 100)
+    : 0;
   const status = {
     ts: nowIso(),
     lane: 'buy31015_woocommerce_deep',
     cycle: cycleNum,
     merchantsVisited: runStats.merchantsVisited,
+    discoveryProgress,
     rowsInserted: runStats.rowsInserted,
     rowsUpdated: runStats.rowsUpdated,
     rowsPerHour,
