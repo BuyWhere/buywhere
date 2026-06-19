@@ -78,6 +78,7 @@ ROWS_UPDATED="$(read_int "$WORKER_STATUS_FILE" "rowsUpdated" "0")"
 ROWS_PER_HOUR="$(read_int "$WORKER_STATUS_FILE" "rowsPerHour" "0")"
 MERCHANTS_VISITED="$(read_int "$WORKER_STATUS_FILE" "merchantsVisited" "0")"
 TOTAL_MERCHANTS="$(read_int "$WORKER_STATUS_FILE" "totalMerchants" "0")"
+DISCOVERY_PROGRESS="$(read_int "$WORKER_STATUS_FILE" "discoveryProgress" "0")"
 ROWS_INGESTED="$((ROWS_INSERTED + ROWS_UPDATED))"
 
 CONSECUTIVE_DEAD=0
@@ -125,12 +126,12 @@ if [ "$FINAL_STATUS" = "DEAD" ]; then
 fi
 
 python3 - "$KEEP_STATE_FILE" "$TS_NOW" "$FINAL_STATUS" "$ACTION" "$CONSECUTIVE_DEAD" \
-  "$CYCLE" "$ROWS_INGESTED" "$ROWS_PER_HOUR" "$MERCHANTS_VISITED" "$TOTAL_MERCHANTS" "$ALIVE_PID" <<'PY'
+  "$CYCLE" "$ROWS_INGESTED" "$ROWS_PER_HOUR" "$MERCHANTS_VISITED" "$TOTAL_MERCHANTS" "$DISCOVERY_PROGRESS" "$ALIVE_PID" <<'PY'
 import json
 import os
 import sys
 
-path, ts, status, action, consecutive, cycle, rows_ingested, rows_per_hour, merchants, total, pid = sys.argv[1:12]
+path, ts, status, action, consecutive, cycle, rows_ingested, rows_per_hour, merchants, total, discovery_progress, pid = sys.argv[1:13]
 first_dead_at = ts
 if status != "RUNNING" and os.path.exists(path):
     try:
@@ -150,6 +151,7 @@ row = {
     "rows_ingested": int(rows_ingested),
     "rows_per_hour": int(rows_per_hour),
     "merchants_visited": int(merchants),
+    "discovery_progress": int(discovery_progress),
     "total_merchants": int(total) if str(total).isdigit() and int(total) >= 0 else 0,
     "pid": pid if pid else None,
 }
@@ -164,4 +166,4 @@ with open(tmp, "w") as f:
 os.replace(tmp, path)
 PY
 
-say "status=$FINAL_STATUS action=$ACTION pid=${ALIVE_PID:-0} cycle=$CYCLE rows=$ROWS_INGESTED row/hr=$ROWS_PER_HOUR merchants=$MERCHANTS_VISITED/$TOTAL_MERCHANTS dead_streak=$CONSECUTIVE_DEAD"
+say "status=$FINAL_STATUS action=$ACTION pid=${ALIVE_PID:-0} cycle=$CYCLE rows=$ROWS_INGESTED row/hr=$ROWS_PER_HOUR merchants=$MERCHANTS_VISITED/$TOTAL_MERCHANTS discovery=${DISCOVERY_PROGRESS}% dead_streak=$CONSECUTIVE_DEAD"

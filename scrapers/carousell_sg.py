@@ -290,7 +290,7 @@ class CarousellSGScraper:
                 result.get("rows_failed", 0),
             )
         except Exception as e:
-            print(f"  Ingestion error: {e}")
+            print(f"  Ingestion error: {e}", flush=True)
             return 0, 0, len(products)
 
     async def scrape_category(self, category: dict) -> dict[str, Any]:
@@ -298,7 +298,7 @@ class CarousellSGScraper:
         cat_name = category["name"]
         sub_name = category["sub"]
 
-        print(f"\n[{cat_name} / {sub_name}] Generating {self.products_per_category} products...")
+        print(f"\n[{cat_name} / {sub_name}] Generating {self.products_per_category} products...", flush=True)
         counts = {"scraped": 0, "ingested": 0, "updated": 0, "failed": 0}
         batch = []
 
@@ -333,15 +333,15 @@ class CarousellSGScraper:
             batch = []
 
         self.total_scraped += counts["scraped"]
-        print(f"  [{cat_name} / {sub_name}] Done: {counts}")
+        print(f"  [{cat_name} / {sub_name}] Done: {counts}", flush=True)
         return counts
 
     async def run(self) -> dict[str, Any]:
         mode = "scrape only" if self.scrape_only else f"API: {self.api_base}"
-        print(f"Carousell SG Scraper starting...")
-        print(f"Mode: {mode}")
-        print(f"Batch size: {self.batch_size}, Delay: {self.delay}s")
-        print(f"Output: {self.products_outfile}")
+        print(f"Carousell SG Scraper starting...", flush=True)
+        print(f"Mode: {mode}", flush=True)
+        print(f"Batch size: {self.batch_size}, Delay: {self.delay}s", flush=True)
+        print(f"Output: {self.products_outfile}", flush=True)
         print(f"Categories: {len(CATEGORIES)} verticals")
         print(f"Target: {self.products_per_category * len(CATEGORIES):,} products")
 
@@ -362,7 +362,7 @@ class CarousellSGScraper:
             "output_file": str(self.products_outfile),
         }
 
-        print(f"\nScraper complete: {summary}")
+        print(f"\nScraper complete: {summary}", flush=True)
         return summary
 
 
@@ -395,8 +395,8 @@ async def main():
             try:
                 await scraper.run()
             except Exception as e:
-                print(f"Scraper error: {e}")
-            print(f"Sleeping {args.refresh_interval}s before next refresh...")
+                print(f"Scraper error: {e}", flush=True)
+            print(f"Sleeping {args.refresh_interval}s before next refresh...", flush=True)
             await asyncio.sleep(args.refresh_interval)
     else:
         scraper = CarousellSGScraper(
@@ -414,4 +414,11 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Unbuffer stdout/stderr for daemon mode (cron redirection)
+    import sys
+    sys.stdout.reconfigure(line_buffering=True)
+    sys.stderr.reconfigure(line_buffering=True)
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nScraper interrupted by user", flush=True)

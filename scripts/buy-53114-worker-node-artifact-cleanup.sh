@@ -204,7 +204,7 @@ cleanup_cycle_logs() {
       SCANNED_COUNT=$((SCANNED_COUNT + 1))
       delete_path "cycle-log" "$path"
     done < <(find "$logs_dir" -maxdepth 1 -type f -mtime +"$LOG_RETENTION_DAYS" \
-      \( -name '*supervisor*.log' -o -name '*keepalive*.log' -o -name '*worker*.log' -o -name '*cron*.log' -o -name '*wc*deep*.log' -o -name '*deep*.fatal.log' \) \
+      \( -name '*supervisor*.log' -o -name '*keepalive*.log' -o -name '*worker*.log' -o -name '*cron*.log' -o -name '*wc*deep*.log' -o -name '*wc_cycle_cleanup*.log' -o -name '*deep*.fatal.log' \) \
       -print0 2>/dev/null)
   done < <(find "$ws" -type d \( -name logs -o -path '*/data/logs' \) -print0 2>/dev/null)
 }
@@ -221,7 +221,12 @@ cleanup_disk_monitor_artifacts() {
       delete_path "disk-monitor-dir" "$path"
     done < <(
       find "$data_dir" -maxdepth 1 -mindepth 1 -type d \
-        \( -name 'buy-*-disk-monitor-*' -o -name 'buy-*-disk-monitor-smoke' \) \
+        \( \
+          -name 'buy-*-disk-monitor-*' -o \
+          -name 'buy-*-disk-monitor-smoke' -o \
+          -name 'buy-*-disk-watchdog-*' -o \
+          -name 'buy-*-disk-watchdog-smoke' \
+        \) \
         -mtime +"$DISK_ARTIFACT_RETENTION_DAYS" \
         -print0 2>/dev/null
     )
@@ -244,6 +249,7 @@ cleanup_disk_monitor_artifacts() {
       find "$reports_dir" -maxdepth 1 -type f \
         \( \
           -name 'BUY-*-worker-node-disk-space-enforcement-wc-cycle-artifact-cleanup.*' -o \
+          -name 'BUY-*-worker-node-disk-space-enforcement-wc-cycle-artifact-cleanup-*.json' -o \
           -name 'BUY-*-disk-space-watchdog-5min-*.md' \
         \) \
         -mtime +"$DISK_ARTIFACT_RETENTION_DAYS" \

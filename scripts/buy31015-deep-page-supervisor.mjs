@@ -206,7 +206,8 @@ function formatStatus(status) {
   const rowsIngested = rowsInserted + rowsUpdated;
   const rowsPerHour = status.rowsPerHour ?? 0;
   const merchantsVisited = status.merchantsVisited ?? 0;
-  return `cycle=${cycle} rows=${rowsIngested} rows/hr=${rowsPerHour} merchants=${merchantsVisited}`;
+  const discoveryProgress = status.discoveryProgress ?? 0;
+  return `cycle=${cycle} rows=${rowsIngested} rows/hr=${rowsPerHour} merchants=${merchantsVisited} discovery=${discoveryProgress}`;
 }
 
 if (MODE === 'check') {

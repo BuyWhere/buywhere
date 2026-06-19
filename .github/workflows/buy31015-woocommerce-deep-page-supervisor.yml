@@ -45,6 +45,7 @@ jobs:
           # ---- 1. Read keep-alive tick state ----
           KEEPALIVE_STATUS="unknown"; CYCLE="?"; ROWS_INGESTED="?"
           ROWS_PER_HOUR="?"; MERCHANTS_VISITED="?"; TOTAL_MERCHANTS="?"
+          DISCOVERY_PROGRESS="?"
           TICK_PID="?"; HB_AGE_SEC=-1
 
           if [ -f "$TICK_STATE" ]; then
@@ -57,6 +58,7 @@ print(f"CYCLE={d.get('cycle','?')}")
 print(f"ROWS_INGESTED={d.get('rows_ingested','?')}")
 print(f"ROWS_PER_HOUR={d.get('rows_per_hour','?')}")
 print(f"MERCHANTS_VISITED={d.get('merchants_visited','?')}")
+print(f"DISCOVERY_PROGRESS={d.get('discovery_progress','?')}")
 print(f"TOTAL_MERCHANTS={d.get('total_merchants','?')}")
 print(f"TICK_PID={d.get('pid','?')}")
 ts=d.get('ts','')
@@ -70,7 +72,7 @@ PY
 )" || true
           fi
 
-          say "state: keepalive=$KEEPALIVE_STATUS cycle=$CYCLE rows=$ROWS_INGESTED rows/hr=$ROWS_PER_HOUR merchants=$MERCHANTS_VISITED/$TOTAL_MERCHANTS pid=$TICK_PID hb_age=${HB_AGE_SEC}s"
+          say "state: keepalive=$KEEPALIVE_STATUS cycle=$CYCLE rows=$ROWS_INGESTED rows/hr=$ROWS_PER_HOUR merchants=$MERCHANTS_VISITED/$TOTAL_MERCHANTS discovery=$DISCOVERY_PROGRESS% pid=$TICK_PID hb_age=${HB_AGE_SEC}s"
 
           # ---- 2. Liveness check via supervisor --check ----
           ALIVE_PID=0; CHECK_OUTPUT=""
@@ -86,7 +88,7 @@ PY
             FRESH="yes"
           fi
           # ---- 3. Read worker status for progress reporting ----
-          STATUS_CYCLE=""; STATUS_ROWS=""; STATUS_RPH=""; STATUS_MERCHANTS=""
+          STATUS_CYCLE=""; STATUS_ROWS=""; STATUS_RPH=""; STATUS_MERCHANTS=""; STATUS_DISCOVERY=""
           if [ -f "$STATUS_FILE" ]; then
             eval "$(python3 - "$STATUS_FILE" 2>/dev/null <<'PYSTAT'
 import json,sys
@@ -95,6 +97,7 @@ print(f"STATUS_CYCLE={d.get('cycle','?')}")
 print(f"STATUS_ROWS={d.get('rowsInserted',0)+d.get('rowsUpdated',0)}")
 print(f"STATUS_RPH={d.get('rowsPerHour',0)}")
 print(f"STATUS_MERCHANTS={d.get('merchantsVisited',0)}")
+print(f"STATUS_DISCOVERY={d.get('discoveryProgress',0)}")
 PYSTAT
 )" || true
           fi
@@ -129,6 +132,7 @@ PYSTAT
           echo "rows_ingested=$STATUS_ROWS" >> "$GITHUB_OUTPUT"
           echo "rows_per_hour=$STATUS_RPH" >> "$GITHUB_OUTPUT"
           echo "merchants_visited=$STATUS_MERCHANTS" >> "$GITHUB_OUTPUT"
+          echo "discovery_progress=$STATUS_DISCOVERY" >> "$GITHUB_OUTPUT"
           echo "heartbeat_age_sec=$HB_AGE_SEC" >> "$GITHUB_OUTPUT"
           echo "keepalive_status=$KEEPALIVE_STATUS" >> "$GITHUB_OUTPUT"
       - name: Upload supervisor tick log
@@ -156,6 +160,7 @@ PYSTAT
           echo "rows_ingested=${{ steps.supervisor.outputs.rows_ingested }}"
           echo "rows_per_hour=${{ steps.supervisor.outputs.rows_per_hour }}"
           echo "merchants_visited=${{ steps.supervisor.outputs.merchants_visited }}"
+          echo "discovery_progress=${{ steps.supervisor.outputs.discovery_progress }}"
           echo "pid=${{ steps.supervisor.outputs.pid }}"
           echo "hb_age_sec=${{ steps.supervisor.outputs.heartbeat_age_sec }}"
           echo "keepalive_status=${{ steps.supervisor.outputs.keepalive_status }}"

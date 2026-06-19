@@ -9,6 +9,7 @@ else
 fi
 OUTPUT_DIR="${WORKDIR}/data/carousell-sg"
 PID_FILE="${OUTPUT_DIR}/scraper.pid"
+WRAPPER_PID_FILE="/home/paperclip/buywhere-api/data/carousell-sg/wrapper.pid"
 LOG_FILE="${OUTPUT_DIR}/scraper.log"
 MONITOR_LOG="/tmp/carousell-sg-monitor.log"
 
@@ -31,6 +32,14 @@ check_alive() {
             if [[ "$cmd" =~ $SCRAPER_PROC_PATTERN ]]; then
                 return 0
             fi
+        fi
+    fi
+    # Check wrapper process (keeps scraper as child, PPID != 1 avoids orphan reaper)
+    if [[ -f "$WRAPPER_PID_FILE" ]]; then
+        local wpid
+        wpid=$(cat "$WRAPPER_PID_FILE")
+        if kill -0 "$wpid" 2>/dev/null; then
+            return 0
         fi
     fi
 
@@ -92,12 +101,18 @@ if [[ $RESTART -eq 1 ]] || [[ $JSONL_NEW -eq 1 ]]; then
             kill "$pid" 2>/dev/null || true
         fi
     done < <(pgrep -af "python3 -m scrapers.carousell_sg")
+    # Also kill wrapper daemon if running
+    if [[ -f "$WRAPPER_PID_FILE" ]]; then
+        wpid=$(cat "$WRAPPER_PID_FILE")
+        kill "$wpid" 2>/dev/null || true
+        rm -f "$WRAPPER_PID_FILE"
+    fi
     sleep 2
     cd "$WORKDIR"
-    nohup "${SCRAPER_CMD[@]}" >> "$LOG_FILE" 2>&1 &
+    nohup bash "${SCRIPT_DIR}/carousell_sg_daemon_wrapper.sh" >> "$LOG_FILE" 2>&1 &
     NEW_PID=$!
-    echo "$NEW_PID" > "$PID_FILE"
-    log "Started with PID $NEW_PID"
+    echo "$NEW_PID" > "$WRAPPER_PID_FILE"
+    log "Started wrapper with PID $NEW_PID"
 fi
 
 log "Monitor cycle complete"
