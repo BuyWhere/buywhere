@@ -7,7 +7,7 @@ import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
-import { buildCompareProductsQuery, UUID_RE } from '../lib/compare-query';
+import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
 import { embedQuery } from '../jobs/embedProducts';
@@ -855,7 +855,13 @@ router.get(
       return;
     }
 
-    const invalidIds = ids.filter((id) => !UUID_RE.test(id.trim()));
+    // BUY-53179: accept both UUID and numeric product IDs. The API's own
+    // /v1/products/search returns numeric IDs like 1126150856089603981, so
+    // UUID-only validation breaks the contract between search and compare.
+    const invalidIds = ids.filter((id) => {
+      const trimmed = id.trim();
+      return !UUID_RE.test(trimmed) && !PRODUCT_ID_RE.test(trimmed);
+    });
     if (invalidIds.length > 0) {
       res.status(400).json({ error: `Invalid product ID(s): ${invalidIds.join(', ')}` });
       return;

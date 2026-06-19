@@ -99,7 +99,7 @@ echo "8. Product compare"
 IDS=$(echo "$SEARCH" | grep -o '"id":"[^"]*"' | head -2 | cut -d'"' -f4 | tr '\n' ',' | sed 's/,$//')
 if [[ $(echo "$IDS" | tr ',' '\n' | wc -l) -ge 2 ]]; then
   COMPARE=$(curl -sf "$API_BASE/v1/products/compare?ids=$IDS" -H "$AUTH")
-  echo "$COMPARE" | grep -q '"count"' && pass "compare returned results" || fail "compare bad response"
+  echo "$COMPARE" | grep -q '"total"' && pass "compare returned results" || fail "compare bad response"
 else
   fail "not enough IDs for compare test"
 fi
