@@ -90,8 +90,8 @@ router.get('/click', async (req, res) => {
         : null;
     try {
         await config_1.db.query(`INSERT INTO clicks
-         (tracking_id, product_id, platform, destination_url, api_key_id, user_agent, referrer, source)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [(0, uuid_1.v4)(), productId, 'api', url, apiKey, req.headers['user-agent'] || null, referrer, 'click_endpoint']);
+         (tracking_id, product_id, platform, destination_url, api_key_id, user_agent, referrer, merchant_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [(0, uuid_1.v4)(), productId, 'api', url, apiKey, req.headers['user-agent'] || null, referrer, merchantId]);
     }
     catch (err) {
         // Log but don't block the redirect
