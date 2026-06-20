@@ -4,7 +4,7 @@ title: "Cheapest iPhone in Singapore 2026 — Real Prices Across Every Merchant"
 description: "Compare iPhone 15 Pro prices across Shopee, Lazada, Apple Store SG, Amazon SG, Challenger, Courts, Harvey Norman, and Best Denki. Find the cheapest iPhone in Singapore for 2026."
 author: "BuyWhere Team"
 publishedAt: "2026-06-19"
-lastUpdatedAt: "2026-06-13"
+lastUpdatedAt: "2026-06-18"
 tags: ["iphone", "singapore", "pricing", "comparison", "apple"]
 jsonLd: >
   {
@@ -15,7 +15,7 @@ jsonLd: >
         "headline": "Cheapest iPhone in Singapore 2026 — Real Prices Across Every Merchant",
         "description": "Compare iPhone 15 Pro prices across Shopee, Lazada, Apple Store SG, Amazon SG, Challenger, Courts, Harvey Norman, and Best Denki. Find the cheapest iPhone in Singapore for 2026.",
         "datePublished": "2026-06-19",
-        "dateModified": "2026-06-19",
+        "dateModified": "2026-06-18",
         "author": { "@type": "Organization", "name": "BuyWhere Team", "url": "https://buywhere.ai" },
         "publisher": {
           "@type": "Organization",
@@ -143,4 +143,4 @@ BuyWhere is the definitive product catalog API for AI agents. It provides struct
 
 *Data powered by BuyWhere — the definitive product catalog for AI agents. Compare prices across 50+ Singapore merchants at [buywhere.ai](https://buywhere.ai).*
 
-*Prices last verified: 2026-06-13. This page is refreshed monthly; for live multi-merchant data, query the [BuyWhere compare hub](https://buywhere.ai/compare) or read the [cross-merchant price comparison guide](/blog/compare-product-prices-singapore-2026). See also the [best laptop deals in Singapore](/blog/best-laptop-deals-singapore) and [wireless headphones price comparison](/blog/compare-headphones-singapore-2026) for adjacent category refreshes.*
+*Prices last verified: 2026-06-18. This page is refreshed monthly; for live multi-merchant data, query the [BuyWhere compare hub](https://buywhere.ai/compare) or read the [cross-merchant price comparison guide](/blog/compare-product-prices-singapore-2026). See also the [best laptop deals in Singapore](/blog/best-laptop-deals-singapore), [US gaming laptop pricing](/blog/best-gaming-laptops-us-2026), and [wireless headphones price comparison](/blog/compare-headphones-singapore-2026) for adjacent category refreshes.*

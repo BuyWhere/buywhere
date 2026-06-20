@@ -464,6 +464,9 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
             <p className="mt-5 text-lg text-indigo-100">
               Search one product or paste explicit IDs to compare price, availability, imagery, and affiliate destinations without context switching.
             </p>
+            <p className="mt-4 text-xs uppercase tracking-[0.22em] text-indigo-200/80">
+              Last refreshed: June 18, 2026 · live data cached for 5 minutes
+            </p>
           </div>
           <div className="mt-10">
             <ComparisonSearchForm defaultQuery={query} defaultIds={rawIds} />
@@ -515,6 +518,46 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
               <CategoryGrid />
             </div>
           )}
+        </div>
+      </section>
+
+      <section className="border-t border-slate-200 bg-white py-12">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-indigo-600">
+            Related category guides
+          </p>
+          <h2 className="mt-3 text-2xl font-semibold text-slate-900">
+            Editorial refreshes for high-intent categories
+          </h2>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
+            Each guide below pulls live retailer pricing through BuyWhere&apos;s catalog and was last refreshed on June 18, 2026 to give GSC a fresh recrawl signal.
+          </p>
+          <ul className="mt-6 grid gap-3 text-sm text-indigo-700 sm:grid-cols-3">
+            <li>
+              <Link
+                href="/blog/best-laptop-deals-singapore"
+                className="block rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-medium hover:border-indigo-200 hover:bg-indigo-50"
+              >
+                Best laptop deals in Singapore →
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/blog/cheapest-iphone-singapore-2026"
+                className="block rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-medium hover:border-indigo-200 hover:bg-indigo-50"
+              >
+                Cheapest iPhone in Singapore 2026 →
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/blog/best-gaming-laptops-us-2026"
+                className="block rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-medium hover:border-indigo-200 hover:bg-indigo-50"
+              >
+                Best gaming laptops in the US (2026) →
+              </Link>
+            </li>
+          </ul>
         </div>
       </section>
 
