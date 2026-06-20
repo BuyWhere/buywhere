@@ -27,7 +27,7 @@ jobs:
       - name: Supervisor tick
         id: supervisor
         env:
-          REPO_ROOT: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api
+          REPO_ROOT: ${{ github.workspace }}
         run: |
           set -euo pipefail
           ROOT="$REPO_ROOT"
@@ -45,7 +45,7 @@ jobs:
           # ---- 1. Read keep-alive tick state ----
           KEEPALIVE_STATUS="unknown"; CYCLE="?"; ROWS_INGESTED="?"
           ROWS_PER_HOUR="?"; MERCHANTS_VISITED="?"; TOTAL_MERCHANTS="?"
-          DISCOVERY_PROGRESS="?"
+          DISCOVERY_PROGRESS="?"; DISCOVERED_MERCHANTS="?"
           TICK_PID="?"; HB_AGE_SEC=-1
 
           if [ -f "$TICK_STATE" ]; then
@@ -59,6 +59,7 @@ print(f"ROWS_INGESTED={d.get('rows_ingested','?')}")
 print(f"ROWS_PER_HOUR={d.get('rows_per_hour','?')}")
 print(f"MERCHANTS_VISITED={d.get('merchants_visited','?')}")
 print(f"DISCOVERY_PROGRESS={d.get('discovery_progress','?')}")
+print(f"DISCOVERED_MERCHANTS={d.get('discovered_merchants','?')}")
 print(f"TOTAL_MERCHANTS={d.get('total_merchants','?')}")
 print(f"TICK_PID={d.get('pid','?')}")
 ts=d.get('ts','')
@@ -72,7 +73,7 @@ PY
 )" || true
           fi
 
-          say "state: keepalive=$KEEPALIVE_STATUS cycle=$CYCLE rows=$ROWS_INGESTED rows/hr=$ROWS_PER_HOUR merchants=$MERCHANTS_VISITED/$TOTAL_MERCHANTS discovery=$DISCOVERY_PROGRESS% pid=$TICK_PID hb_age=${HB_AGE_SEC}s"
+          say "state: keepalive=$KEEPALIVE_STATUS cycle=$CYCLE rows=$ROWS_INGESTED rows/hr=$ROWS_PER_HOUR merchants=$MERCHANTS_VISITED/$TOTAL_MERCHANTS discovered=$DISCOVERED_MERCHANTS/$TOTAL_MERCHANTS discovery=$DISCOVERY_PROGRESS% pid=$TICK_PID hb_age=${HB_AGE_SEC}s"
 
           # ---- 2. Liveness check via supervisor --check ----
           ALIVE_PID=0; CHECK_OUTPUT=""; CHECK_OK=0
@@ -142,6 +143,8 @@ PYSTAT
           echo "rows_ingested=$STATUS_ROWS" >> "$GITHUB_OUTPUT"
           echo "rows_per_hour=$STATUS_RPH" >> "$GITHUB_OUTPUT"
           echo "merchants_visited=$STATUS_MERCHANTS" >> "$GITHUB_OUTPUT"
+          echo "discovered_merchants=$STATUS_DISCOVERED" >> "$GITHUB_OUTPUT"
+          echo "total_merchants=$STATUS_TOTAL_MERCHANTS" >> "$GITHUB_OUTPUT"
           echo "discovery_progress=$STATUS_DISCOVERY" >> "$GITHUB_OUTPUT"
           echo "heartbeat_age_sec=$HB_AGE_SEC" >> "$GITHUB_OUTPUT"
           echo "keepalive_status=$KEEPALIVE_STATUS" >> "$GITHUB_OUTPUT"
@@ -149,7 +152,7 @@ PYSTAT
         uses: actions/upload-artifact@v4
         with:
           name: buy31015-supervisor-tick-log
-          path: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/buy31015-supervisor-tick.log
+          path: ${{ github.workspace }}/data/buy31015-supervisor-tick.log
           retention-days: 3
         if: always()
 
@@ -157,7 +160,7 @@ PYSTAT
         uses: actions/upload-artifact@v4
         with:
           name: buy31015-keep-alive-state
-          path: /paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/buy31015-deep-page-keep-alive-state.json
+          path: ${{ github.workspace }}/data/buy31015-deep-page-keep-alive-state.json
           retention-days: 1
         if: always()
 
@@ -170,6 +173,8 @@ PYSTAT
           echo "rows_ingested=${{ steps.supervisor.outputs.rows_ingested }}"
           echo "rows_per_hour=${{ steps.supervisor.outputs.rows_per_hour }}"
           echo "merchants_visited=${{ steps.supervisor.outputs.merchants_visited }}"
+          echo "discovered_merchants=${{ steps.supervisor.outputs.discovered_merchants }}"
+          echo "total_merchants=${{ steps.supervisor.outputs.total_merchants }}"
           echo "discovery_progress=${{ steps.supervisor.outputs.discovery_progress }}"
           echo "pid=${{ steps.supervisor.outputs.pid }}"
           echo "hb_age_sec=${{ steps.supervisor.outputs.heartbeat_age_sec }}"
