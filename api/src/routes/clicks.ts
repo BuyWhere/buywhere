@@ -9,6 +9,7 @@
  *   Admin-only analytics: CTR by merchant + top clicked products.
  */
 import { createHash } from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
 import { Router, Request, Response, NextFunction } from 'express';
 import { db } from '../config';
 
@@ -103,9 +104,9 @@ router.get('/click', async (req: Request, res: Response) => {
   try {
     await db.query(
       `INSERT INTO clicks
-         (product_id, merchant_id, api_key, referrer, destination_url, ip_hash, source)
-       VALUES ($1, $2, $3, $4, $5, $6, 'click_endpoint')`,
-      [productId, merchantId, apiKey, referrer, url, ipHash]
+         (tracking_id, product_id, platform, destination_url, api_key_id, user_agent, referrer, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [uuidv4(), productId, 'api', url, apiKey, req.headers['user-agent'] || null, referrer, 'click_endpoint']
     );
   } catch (err) {
     // Log but don't block the redirect

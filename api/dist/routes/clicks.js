@@ -11,6 +11,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
  *   Admin-only analytics: CTR by merchant + top clicked products.
  */
 const crypto_1 = require("crypto");
+const uuid_1 = require("uuid");
 const express_1 = require("express");
 const config_1 = require("../config");
 const router = (0, express_1.Router)();
@@ -89,8 +90,8 @@ router.get('/click', async (req, res) => {
         : null;
     try {
         await config_1.db.query(`INSERT INTO clicks
-         (product_id, merchant_id, api_key, referrer, destination_url, ip_hash, source)
-       VALUES ($1, $2, $3, $4, $5, $6, 'click_endpoint')`, [productId, merchantId, apiKey, referrer, url, ipHash]);
+         (tracking_id, product_id, platform, destination_url, api_key_id, user_agent, referrer, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [(0, uuid_1.v4)(), productId, 'api', url, apiKey, req.headers['user-agent'] || null, referrer, 'click_endpoint']);
     }
     catch (err) {
         // Log but don't block the redirect
