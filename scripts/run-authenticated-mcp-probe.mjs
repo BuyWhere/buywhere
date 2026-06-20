@@ -214,7 +214,9 @@ async function run() {
     }, { auth: true, id: 'list_categories' });
 
     const parsed = parseToolResult('list_categories', body);
-    if (!ensureArray(parsed.results).length) {
+    // list_categories returns data[] not results[] — check both for compatibility
+    const categories = ensureArray(parsed.results).length ? parsed.results : parsed.data;
+    if (!ensureArray(categories).length) {
       fail('list_categories returned no categories', { parsed });
     }
 
@@ -233,7 +235,12 @@ async function run() {
     }, { auth: true, id: 'find_best_price' });
 
     const parsed = parseToolResult('find_best_price', body);
-    const results = ensureArray(parsed.results);
+    // find_best_price returns best_price + alternatives — accept any of these shapes
+    const results = ensureArray(parsed.results).length
+      ? parsed.results
+      : parsed.best_price
+        ? [parsed.best_price, ...ensureArray(parsed.alternatives)]
+        : [];
     if (!results.length) {
       fail('find_best_price returned no results', { parsed });
     }
