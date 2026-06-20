@@ -43,23 +43,23 @@ function isAllowedDestination(url) {
 router.get('/:affiliateSlug/:productId', async (req, res) => {
     const { affiliateSlug, productId } = req.params;
     // Look up affiliate link
-    const linkResult = await config_1.db.query(`SELECT id, merchant_id, affiliate_link_id, destination_url
-     FROM affiliate_links WHERE slug = $1 AND product_id = $2`, [affiliateSlug, productId]);
+    const linkResult = await config_1.db.query(`SELECT id, merchant_id, platform, destination_url
+     FROM affiliate_links WHERE platform = $1 AND product_id = $2`, [affiliateSlug, productId]);
     let merchantId = 'unknown';
     let affiliateLinkId = '';
     let destinationUrl = null;
     if (linkResult.rows.length > 0) {
         const link = linkResult.rows[0];
-        merchantId = link.merchant_id;
-        affiliateLinkId = link.affiliate_link_id || '';
+        merchantId = link.merchant_id || affiliateSlug;
+        affiliateLinkId = String(link.id);
         destinationUrl = link.destination_url;
     }
     else {
         // Fallback: try direct product lookup
-        const productResult = await config_1.db.query(`SELECT url, domain FROM products WHERE id = $1`, [productId]);
+        const productResult = await config_1.db.query(`SELECT url, merchant_id FROM products WHERE id = $1`, [productId]);
         if (productResult.rows.length > 0) {
             destinationUrl = productResult.rows[0].url;
-            merchantId = productResult.rows[0].domain || 'unknown';
+            merchantId = productResult.rows[0].merchant_id || 'unknown';
         }
     }
     if (!destinationUrl) {
