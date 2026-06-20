@@ -43,6 +43,27 @@ db.on('connect', (client) => {
   ]).catch(() => {});
 });
 
+// BUY-53789: catalog reads (search, stats, product lookups) serve the canonical
+// maglev catalog (~127M) when CATALOG_DATABASE_URL is set; otherwise they fall back
+// to the primary `db` (zero behavior change). Auth and ALL writes stay on `db`.
+export const catalogDb: Pool = process.env.CATALOG_DATABASE_URL
+  ? new Pool({
+      connectionString: process.env.CATALOG_DATABASE_URL,
+      max: parseInt(process.env.CATALOG_POOL_MAX || '30'),
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
+    })
+  : db;
+
+if (process.env.CATALOG_DATABASE_URL) {
+  catalogDb.on('connect', (client) => {
+    Promise.all([
+      client.query(`SET statement_timeout = ${pgStatementTimeout}`),
+      client.query(`SET lock_timeout = ${pgLockTimeout}`),
+    ]).catch(() => {});
+  });
+}
+
 export const redis = new Redis({
   host: process.env.REDIS_HOST || '127.0.0.1',
   port: parseInt(process.env.REDIS_PORT || '6380'),

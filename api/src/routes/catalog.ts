@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { db, redis } from '../config';
+import { db, redis, catalogDb } from '../config';
 import { readDb, replicaStatus } from '../lib/readReplica';
 
 // BUY-45692: heavy catalog aggregates read from the replica when one is
@@ -35,7 +35,7 @@ interface CatalogStatsResult {
 async function collectStats(): Promise<CatalogStatsResult> {
   const now = new Date().toISOString();
 
-  const reader = readDb();
+  const reader = catalogDb;
   const [
     productsEst,
     merchantsExact,
@@ -85,7 +85,7 @@ async function collectStats(): Promise<CatalogStatsResult> {
 // ─── Try exact count (background use, may time out on large tables) ─────
 async function tryExactCount(timeoutMs = 45000): Promise<CatalogStatsResult | null> {
   // Heavy full-table count — route to the replica when available (BUY-45692).
-  const client = await readDb().connect();
+  const client = await catalogDb.connect();
   try {
     await client.query('BEGIN');
     await client.query(`SET LOCAL statement_timeout = ${timeoutMs}`);
@@ -279,7 +279,7 @@ router.get('/stats/health', async (_req: Request, res: Response) => {
 router.get('/categories', async (_req: Request, res: Response) => {
   const start = Date.now();
   try {
-    const result = await readDb().query(
+    const result = await catalogDb.query(
       `SELECT slug, name, product_count FROM mcp_category_summary ORDER BY product_count DESC LIMIT 50`
     );
     const categories = result.rows.map((row) => ({

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { createHash } from 'crypto';
-import { db, redis, vectorDb } from '../config';
+import { db, redis, vectorDb, catalogDb } from '../config';
 import { readDb } from '../lib/readReplica';
 import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
@@ -181,8 +181,8 @@ router.get(
       // Fast statistical estimate — avoids a full 65M-row COUNT seq scan. The returned value
       // is approximate (pg_class.reltuples is updated by VACUUM/ANALYZE) but accurate enough
       // for pagination totals. Exact counts would hit the 30s statement_timeout.
-      db.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`),
-      db.query(
+      catalogDb.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`),
+      catalogDb.query(
         `SELECT ${SELECT_COLUMNS}
          FROM products
          ${whereClause}
@@ -481,7 +481,7 @@ router.get(
       `;
     }
 
-    const client = await db.connect();
+    const client = await catalogDb.connect();
     try {
       await client.query('BEGIN');
       // BUY-45671: cap per-query work_mem and disable *parallel* query under load.
@@ -747,7 +747,7 @@ router.get(
     // and produces wrong results (get_deals returns total: 0).
     if (typeof (router as any)._hasDiscountPct === 'undefined') {
       try {
-        const probe = await db.query(
+        const probe = await catalogDb.query(
           `SELECT is_generated FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`
         );
         (router as any)._hasDiscountPct = probe.rows.length > 0 && probe.rows[0].is_generated === 'ALWAYS';
@@ -791,7 +791,7 @@ router.get(
     // BUY-45692: deals is a heavy aggregate rollup — route to the read replica
     // when available (readDb() falls back to primary if unconfigured or lagging),
     // isolating it from interactive /v1/products/search on the primary.
-    const dealsClient = await readDb().connect();
+    const dealsClient = await catalogDb.connect();
     let deals: ReturnType<typeof buildProduct>[] = [];
     let total = 0;
     try {
@@ -868,7 +868,7 @@ router.get(
     }
 
     const { text, values } = buildCompareProductsQuery(ids);
-    const result = await db.query(text, values);
+    const result = await catalogDb.query(text, values);
 
     const products = result.rows.map((row) =>
       buildProduct(row as Record<string, unknown>, 'SGD', false)
@@ -911,8 +911,8 @@ router.get(
     const days = Math.min(parseInt((req.query.days as string) || '30'), 180);
 
     const [productResult, historyResult] = await Promise.all([
-      db.query(`SELECT id, title, price, currency FROM products WHERE id = $1`, [id]),
-      db.query(
+      catalogDb.query(`SELECT id, title, price, currency FROM products WHERE id = $1`, [id]),
+      catalogDb.query(
         `SELECT
            DATE(recorded_at AT TIME ZONE 'UTC') AS day,
            currency,
@@ -975,11 +975,11 @@ router.get(
     const days = Math.min(parseInt((req.query.days as string) || '30'), 90);
 
     const [productResult, historyResult] = await Promise.all([
-      db.query(
+      catalogDb.query(
         `SELECT id, title, price, currency FROM products WHERE id = $1`,
         [id]
       ),
-      db.query(
+      catalogDb.query(
         `SELECT price, currency, recorded_at AS scraped_at
          FROM price_history
          WHERE product_id = $1 AND recorded_at >= NOW() - ($2 || ' days')::interval
@@ -1033,7 +1033,7 @@ router.get(
     const limit = Math.min(parseInt((req.query.limit as string) || '10'), 20);
 
     // Verify product exists in main DB
-    const srcResult = await db.query(
+    const srcResult = await catalogDb.query(
       `SELECT id, title, brand, category_path, currency, country_code
        FROM products WHERE id = $1`,
       [id]
@@ -1081,7 +1081,7 @@ router.get(
             if (knnIds.length > 0) {
               // Fetch full product details from main DB
               const placeholders = knnIds.map((_, i) => `$${i + 1}`).join(',');
-              const detailResult = await db.query(
+              const detailResult = await catalogDb.query(
                 `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
                         image_url, brand, category_path, region, country_code
                  FROM products
@@ -1120,7 +1120,7 @@ router.get(
         let where = `id != $1 AND brand = $2 AND category_path[1] = $3 AND currency = $4`;
         if (sourceCountry) { where += ` AND country_code = $5`; params.push(sourceCountry); }
         params.push(limit);
-        const bcResult = await db.query(
+        const bcResult = await catalogDb.query(
           `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
                   image_url, brand, category_path, region, country_code
            FROM products
@@ -1145,7 +1145,7 @@ router.get(
         ftsIdx++;
         if (sourceCountry) { ftsWhere += ` AND country_code = $${ftsIdx}`; ftsParams.push(sourceCountry); ftsIdx++; }
         ftsParams.push(needed);
-        const ftsResult = await db.query(
+        const ftsResult = await catalogDb.query(
           `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
                   image_url, brand, category_path, region, country_code
            FROM products
@@ -1199,7 +1199,7 @@ router.get(
 
     let result;
     try {
-      result = await db.query(
+      result = await catalogDb.query(
         `SELECT id, sku AS source_id, source AS domain, url,
                 title, price, currency, image_url, metadata, updated_at,
                 region, country_code, created_at, description, brand, mpn, gtin,
@@ -1570,7 +1570,7 @@ export async function warmSearchCache(): Promise<void> {
 
       params.push(limit + 1, offset);
 
-      const result = await db.query(dataQuery, params);
+      const result = await catalogDb.query(dataQuery, params);
       const hasMore = result.rows.length > limit;
       if (hasMore) result.rows.pop();
       const total = result.rows.length + (hasMore ? 1 : 0);
