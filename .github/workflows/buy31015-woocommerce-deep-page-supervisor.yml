@@ -44,7 +44,7 @@ jobs:
 
           # ---- 1. Read keep-alive tick state ----
           KEEPALIVE_STATUS="unknown"; CYCLE="?"; ROWS_INGESTED="?"
-          ROWS_PER_HOUR="?"; MERCHANTS_VISITED="?"; TOTAL_MERCHANTS="?"
+          ROWS_PER_HOUR="?"; MERCHANTS_DISCOVERED="?"; TOTAL_MERCHANTS="?"
           TICK_PID="?"; HB_AGE_SEC=-1
 
           if [ -f "$TICK_STATE" ]; then
@@ -56,7 +56,7 @@ print(f"KEEPALIVE_STATUS={d.get('alive_status','unknown')}")
 print(f"CYCLE={d.get('cycle','?')}")
 print(f"ROWS_INGESTED={d.get('rows_ingested','?')}")
 print(f"ROWS_PER_HOUR={d.get('rows_per_hour','?')}")
-print(f"MERCHANTS_VISITED={d.get('merchants_visited','?')}")
+print(f"MERCHANTS_DISCOVERED={d.get('merchants_discovered',d.get('merchants_visited','?'))}")
 print(f"TOTAL_MERCHANTS={d.get('total_merchants','?')}")
 print(f"TICK_PID={d.get('pid','?')}")
 ts=d.get('ts','')
@@ -70,7 +70,7 @@ PY
 )" || true
           fi
 
-          say "state: keepalive=$KEEPALIVE_STATUS cycle=$CYCLE rows=$ROWS_INGESTED rows/hr=$ROWS_PER_HOUR merchants=$MERCHANTS_VISITED/$TOTAL_MERCHANTS pid=$TICK_PID hb_age=${HB_AGE_SEC}s"
+say "state: keepalive=$KEEPALIVE_STATUS cycle=$CYCLE rows=$ROWS_INGESTED rows/hr=$ROWS_PER_HOUR merchants=$MERCHANTS_DISCOVERED/$TOTAL_MERCHANTS pid=$TICK_PID hb_age=${HB_AGE_SEC}s"
 
           # ---- 2. Liveness check via supervisor --check ----
           ALIVE_PID=0; CHECK_OUTPUT=""
@@ -86,7 +86,7 @@ PY
             FRESH="yes"
           fi
           # ---- 3. Read worker status for progress reporting ----
-          STATUS_CYCLE=""; STATUS_ROWS=""; STATUS_RPH=""; STATUS_MERCHANTS=""
+          STATUS_CYCLE=""; STATUS_ROWS=""; STATUS_RPH=""; STATUS_MERCHANTS_DISCOVERED=""; STATUS_TOTAL_MERCHANTS=""
           if [ -f "$STATUS_FILE" ]; then
             eval "$(python3 - "$STATUS_FILE" 2>/dev/null <<'PYSTAT'
 import json,sys
@@ -94,18 +94,19 @@ d=json.load(open(sys.argv[1]))
 print(f"STATUS_CYCLE={d.get('cycle','?')}")
 print(f"STATUS_ROWS={d.get('rowsInserted',0)+d.get('rowsUpdated',0)}")
 print(f"STATUS_RPH={d.get('rowsPerHour',0)}")
-print(f"STATUS_MERCHANTS={d.get('merchantsVisited',0)}")
+print(f"STATUS_MERCHANTS_DISCOVERED={d.get('discoveredMerchants',d.get('merchantsVisited',0))}")
+print(f"STATUS_TOTAL_MERCHANTS={d.get('totalMerchants', d.get('merchantsVisited',0))}")
 PYSTAT
 )" || true
           fi
           if [ -z "$STATUS_CYCLE" ]; then
             STATUS_CYCLE="$CYCLE"; STATUS_ROWS="$ROWS_INGESTED"
-            STATUS_RPH="$ROWS_PER_HOUR"; STATUS_MERCHANTS="$MERCHANTS_VISITED"
+            STATUS_RPH="$ROWS_PER_HOUR"; STATUS_MERCHANTS_DISCOVERED="$MERCHANTS_DISCOVERED"; STATUS_TOTAL_MERCHANTS="$TOTAL_MERCHANTS"
           fi
 
           # ---- 4. Branch on liveness ----
           if [ "$KEEPALIVE_STATUS" = "RUNNING" ] && [ "$FRESH" = "yes" ]; then
-            say "alive: pid=$ALIVE_PID cycle=$STATUS_CYCLE rows=$STATUS_ROWS rows/hr=$STATUS_RPH merchants=$STATUS_MERCHANTS hb_age=${HB_AGE_SEC}s"
+            say "alive: pid=$ALIVE_PID cycle=$STATUS_CYCLE rows=$STATUS_ROWS rows/hr=$STATUS_RPH merchants=$STATUS_MERCHANTS_DISCOVERED/$STATUS_TOTAL_MERCHANTS hb_age=${HB_AGE_SEC}s"
             echo "status=alive" >> "$GITHUB_OUTPUT"
             echo "pid=${ALIVE_PID:-$TICK_PID}" >> "$GITHUB_OUTPUT"
           else
@@ -128,7 +129,9 @@ PYSTAT
           echo "cycle=$STATUS_CYCLE" >> "$GITHUB_OUTPUT"
           echo "rows_ingested=$STATUS_ROWS" >> "$GITHUB_OUTPUT"
           echo "rows_per_hour=$STATUS_RPH" >> "$GITHUB_OUTPUT"
-          echo "merchants_visited=$STATUS_MERCHANTS" >> "$GITHUB_OUTPUT"
+          echo "merchants_discovered=$STATUS_MERCHANTS_DISCOVERED" >> "$GITHUB_OUTPUT"
+          echo "total_merchants=$STATUS_TOTAL_MERCHANTS" >> "$GITHUB_OUTPUT"
+          echo "merchants_visited=$STATUS_MERCHANTS_DISCOVERED" >> "$GITHUB_OUTPUT"
           echo "heartbeat_age_sec=$HB_AGE_SEC" >> "$GITHUB_OUTPUT"
           echo "keepalive_status=$KEEPALIVE_STATUS" >> "$GITHUB_OUTPUT"
       - name: Upload supervisor tick log
@@ -155,6 +158,8 @@ PYSTAT
           echo "cycle=${{ steps.supervisor.outputs.cycle }}"
           echo "rows_ingested=${{ steps.supervisor.outputs.rows_ingested }}"
           echo "rows_per_hour=${{ steps.supervisor.outputs.rows_per_hour }}"
+          echo "merchants_discovered=${{ steps.supervisor.outputs.merchants_discovered }}"
+          echo "total_merchants=${{ steps.supervisor.outputs.total_merchants }}"
           echo "merchants_visited=${{ steps.supervisor.outputs.merchants_visited }}"
           echo "pid=${{ steps.supervisor.outputs.pid }}"
           echo "hb_age_sec=${{ steps.supervisor.outputs.heartbeat_age_sec }}"
