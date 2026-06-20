@@ -75,8 +75,9 @@ PY
           say "state: keepalive=$KEEPALIVE_STATUS cycle=$CYCLE rows=$ROWS_INGESTED rows/hr=$ROWS_PER_HOUR merchants=$MERCHANTS_VISITED/$TOTAL_MERCHANTS discovery=$DISCOVERY_PROGRESS% pid=$TICK_PID hb_age=${HB_AGE_SEC}s"
 
           # ---- 2. Liveness check via supervisor --check ----
-          ALIVE_PID=0; CHECK_OUTPUT=""
+          ALIVE_PID=0; CHECK_OUTPUT=""; CHECK_OK=0
           if CHECK_OUTPUT="$(cd "$ROOT" && node "$SUPERVISOR" --check 2>&1)"; then
+            CHECK_OK=1
             ALIVE_PID="$(printf '%s\n' "$CHECK_OUTPUT" | grep -oP 'pid=\K[0-9]+' | head -1)"
             say "check: $(echo "$CHECK_OUTPUT" | head -1)"
           else
@@ -88,7 +89,7 @@ PY
             FRESH="yes"
           fi
           # ---- 3. Read worker status for progress reporting ----
-          STATUS_CYCLE=""; STATUS_ROWS=""; STATUS_RPH=""; STATUS_MERCHANTS=""; STATUS_DISCOVERY=""
+          STATUS_CYCLE=""; STATUS_ROWS=""; STATUS_RPH=""; STATUS_MERCHANTS=""; STATUS_DISCOVERY=""; STATUS_DISCOVERED=""; STATUS_TOTAL_MERCHANTS=""
           if [ -f "$STATUS_FILE" ]; then
             eval "$(python3 - "$STATUS_FILE" 2>/dev/null <<'PYSTAT'
 import json,sys
@@ -98,17 +99,26 @@ print(f"STATUS_ROWS={d.get('rowsInserted',0)+d.get('rowsUpdated',0)}")
 print(f"STATUS_RPH={d.get('rowsPerHour',0)}")
 print(f"STATUS_MERCHANTS={d.get('merchantsVisited',0)}")
 print(f"STATUS_DISCOVERY={d.get('discoveryProgress',0)}")
+print(f"STATUS_DISCOVERED={d.get('discoveredMerchants',d.get('merchantsVisited',0))}")
+print(f"STATUS_TOTAL_MERCHANTS={d.get('totalMerchants',d.get('merchantsVisited',0))}")
 PYSTAT
 )" || true
           fi
           if [ -z "$STATUS_CYCLE" ]; then
             STATUS_CYCLE="$CYCLE"; STATUS_ROWS="$ROWS_INGESTED"
             STATUS_RPH="$ROWS_PER_HOUR"; STATUS_MERCHANTS="$MERCHANTS_VISITED"
+            STATUS_DISCOVERY="$DISCOVERY_PROGRESS"
+            STATUS_DISCOVERED="$MERCHANTS_VISITED"
+            STATUS_TOTAL_MERCHANTS="$TOTAL_MERCHANTS"
           fi
 
           # ---- 4. Branch on liveness ----
-          if [ "$KEEPALIVE_STATUS" = "RUNNING" ] && [ "$FRESH" = "yes" ]; then
-            say "alive: pid=$ALIVE_PID cycle=$STATUS_CYCLE rows=$STATUS_ROWS rows/hr=$STATUS_RPH merchants=$STATUS_MERCHANTS hb_age=${HB_AGE_SEC}s"
+          if [ "$CHECK_OK" = "1" ]; then
+            if [ "$KEEPALIVE_STATUS" != "RUNNING" ] || [ "$FRESH" != "yes" ]; then
+              say "alive: pid=$ALIVE_PID cycle=$STATUS_CYCLE rows=$STATUS_ROWS rows/hr=$STATUS_RPH merchants=$STATUS_MERCHANTS discovery=${STATUS_DISCOVERY}% (${STATUS_DISCOVERED}/${STATUS_TOTAL_MERCHANTS}) hb_age=${HB_AGE_SEC}s (keepalive=$KEEPALIVE_STATUS stale=${HB_AGE_SEC}s)"
+            else
+              say "alive: pid=$ALIVE_PID cycle=$STATUS_CYCLE rows=$STATUS_ROWS rows/hr=$STATUS_RPH merchants=$STATUS_MERCHANTS discovery=${STATUS_DISCOVERY}% (${STATUS_DISCOVERED}/${STATUS_TOTAL_MERCHANTS}) hb_age=${HB_AGE_SEC}s"
+            fi
             echo "status=alive" >> "$GITHUB_OUTPUT"
             echo "pid=${ALIVE_PID:-$TICK_PID}" >> "$GITHUB_OUTPUT"
           else
@@ -123,7 +133,7 @@ PYSTAT
             fi
             RESTART_OUTPUT="$(cd "$ROOT" && node "$SUPERVISOR" --restart 2>&1)" || true
             NEW_PID="$(printf '%s\n' "$RESTART_OUTPUT" | grep -oP 'pid=\K[0-9]+' | head -1)"
-            say "restarted: newpid=${NEW_PID:-unknown} cycle=$STATUS_CYCLE rows=$STATUS_ROWS"
+            say "restarted: newpid=${NEW_PID:-unknown} cycle=$STATUS_CYCLE rows=$STATUS_ROWS discovery=${STATUS_DISCOVERY}% (${STATUS_DISCOVERED}/${STATUS_TOTAL_MERCHANTS})"
             echo "status=respawned" >> "$GITHUB_OUTPUT"
             echo "pid=${NEW_PID:-0}" >> "$GITHUB_OUTPUT"
           fi
