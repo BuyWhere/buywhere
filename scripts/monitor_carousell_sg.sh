@@ -61,7 +61,7 @@ check_jsonl_fresh() {
     local now
     now=$(date +%s)
     local age=$((now - newest_mtime))
-    if [[ $age -lt 900 ]]; then
+    if [[ $age -lt 14400 ]]; then
         return 0
     fi
     return 1
