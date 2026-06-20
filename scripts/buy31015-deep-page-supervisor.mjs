@@ -195,7 +195,12 @@ function formatStatus(status) {
   const rowsIngested = rowsInserted + rowsUpdated;
   const rowsPerHour = status.rowsPerHour ?? 0;
   const merchantsVisited = status.merchantsVisited ?? 0;
-  return `cycle=${cycle} rows=${rowsIngested} rows/hr=${rowsPerHour} merchants=${merchantsVisited}`;
+  const discoveredMerchants = status.discoveredMerchants ?? merchantsVisited;
+  const totalMerchants = status.totalMerchants ?? discoveredMerchants;
+  const merchantProgress = totalMerchants > 0
+    ? `${Math.min(discoveredMerchants, totalMerchants)}/${totalMerchants}`
+    : String(merchantsVisited);
+  return `cycle=${cycle} rows=${rowsIngested} rows/hr=${rowsPerHour} merchants=${merchantProgress}`;
 }
 
 if (MODE === 'check') {
