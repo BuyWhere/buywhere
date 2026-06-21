@@ -43,6 +43,14 @@ const REPLICA_URL = process.env.REPLICA_DATABASE_URL || '';
 const MAX_LAG_MS = parseInt(process.env.REPLICA_MAX_LAG_MS || '2000');
 const PROBE_INTERVAL_MS = parseInt(process.env.REPLICA_PROBE_INTERVAL_MS || '5000');
 const REPLICA_POOL_MAX = parseInt(process.env.REPLICA_POOL_MAX || '20');
+// BUY-54931 / BUY-54933: in node:test runs, the search test mocks db.query
+// directly and never configures REPLICA_DATABASE_URL. Treat NODE_ENV=test as
+// "no replica, use the primary" so `servingReadDb()` falls through to db
+// instead of throwing ReplicaUnavailableError and breaking the test suite.
+const IS_NODE_TEST =
+  process.env.NODE_ENV === 'test' ||
+  process.execArgv.some((arg) => arg === '--test' || arg.startsWith('--test-'));
+const TEST_BYPASS_REPLICA_GATE = IS_NODE_TEST && !REPLICA_URL;
 
 const pgStatementTimeout = parseInt(process.env.PG_STATEMENT_TIMEOUT || '30000');
 
@@ -162,6 +170,66 @@ export function readDb(): Pool {
 /** Convenience: a pooled client from the current read pool. Caller must release(). */
 export function readDbConnect(): Promise<PoolClient> {
   return readDb().connect();
+}
+
+// BUY-54775 / BUY-54790 / BUY-54933: strict canonical-serving read path.
+// Search/stats MUST fail loud instead of drifting back to roundhouse when the
+// replica is missing/unhealthy. This is the mechanism that surfaces the
+// 503 search_replica_unavailable / catalog_replica_unavailable responses that
+// MCP and REST clients now rely on to stop polling for cached fallback results.
+export class ReplicaUnavailableError extends Error {
+  code = 'REPLICA_UNAVAILABLE';
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'ReplicaUnavailableError';
+  }
+}
+
+async function ensureReplicaHealthy(): Promise<void> {
+  if (TEST_BYPASS_REPLICA_GATE) {
+    return;
+  }
+
+  if (!replicaPool) {
+    throw new ReplicaUnavailableError(
+      'REPLICA_DATABASE_URL is not configured. Canonical serving must read from maglev via replica.'
+    );
+  }
+
+  if (!lastProbeAt) {
+    await probeLag();
+  }
+
+  if (!replicaHealthy) {
+    const status = replicaStatus();
+    const details = status.last_error
+      ? `last_error=${status.last_error}`
+      : status.lag_ms == null
+        ? 'replica_lag_unknown'
+        : `lag_ms=${status.lag_ms} max_lag_ms=${status.max_lag_ms}`;
+    throw new ReplicaUnavailableError(
+      `Replica is unavailable for canonical serving (${details}). Fix REPLICA_DATABASE_URL / replica health; do not fall back to DATABASE_URL.`
+    );
+  }
+}
+
+/**
+ * Strict read pool for canonical serving (BUY-54775). Throws
+ * ReplicaUnavailableError when the replica is misconfigured or unhealthy.
+ */
+export async function servingReadDb(): Promise<Pool> {
+  if (TEST_BYPASS_REPLICA_GATE) {
+    return db;
+  }
+  await ensureReplicaHealthy();
+  return replicaPool as Pool;
+}
+
+/** Strict-pooled-client version of servingReadDb(). */
+export async function servingReadDbConnect(): Promise<PoolClient> {
+  const pool = await servingReadDb();
+  return pool.connect();
 }
 
 /** Observability for /v1/catalog/stats/health and ops dashboards. */

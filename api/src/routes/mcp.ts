@@ -5,6 +5,7 @@ import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
+import { ReplicaUnavailableError, servingReadDbConnect } from '../lib/readReplica';
 
 const router = Router();
 
@@ -239,7 +240,17 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   let total: number;
 
   // Use a dedicated client with extended timeout — FTS on 14M rows can exceed the 10s pool default.
-  const searchClient = await db.connect();
+  // BUY-54931 / BUY-54933: fail closed when the search replica is unavailable so the MCP
+  // layer stops returning cached/rotating fallback results while REST correctly returns 503.
+  let searchClient;
+  try {
+    searchClient = await servingReadDbConnect();
+  } catch (err) {
+    if (err instanceof ReplicaUnavailableError) {
+      throw { code: -32001, message: 'search_replica_unavailable' };
+    }
+    throw err;
+  }
   try {
     await searchClient.query('SET statement_timeout = 30000'); // BUY-31962: bumped from 10s — non-FTS filtered scans on 14M rows can approach 10s
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
@@ -1277,8 +1288,12 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
   } catch (err: unknown) {
     const e = err as { code?: number; message?: string };
     if (typeof e.code === 'number' && e.message) {
-      const envelopeCode = e.code === -32001 ? ErrorCode.NOT_FOUND
-        : e.code === -32602 ? ErrorCode.INVALID_PARAMETER
+      // BUY-54931 / BUY-54933: -32001 is now reserved for search_replica_unavailable
+      // (mapped from the canonical ReplicaUnavailableError throw above). Do NOT
+      // remap it to NOT_FOUND — that was the prior misclassification which let
+      // HTTP probes say PASS while content probes said FAIL.
+      const envelopeCode = e.code === -32602
+        ? ErrorCode.INVALID_PARAMETER
         : ErrorCode.INTERNAL_ERROR;
       return res.json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
     }

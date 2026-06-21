@@ -5,6 +5,12 @@ import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 
+// BUY-54931 / BUY-54933: tell readReplica.ts this is a node:test run so
+// servingReadDb() / servingReadDbConnect() short-circuit to `db` instead of
+// throwing ReplicaUnavailableError (the suite mocks db.query directly and
+// never configures REPLICA_DATABASE_URL).
+process.env.NODE_ENV = 'test';
+
 const queryMock = mock.fn();
 const vectorQueryMock = mock.fn();
 const embedQueryMock = mock.fn(() => Promise.resolve('[0.1,0.2,0.3]'));
