@@ -1044,32 +1044,32 @@ router.get(
     }
     const src = srcResult.rows[0];
 
-    // Phase 1: Try embedding-based KNN (vector store)
-    const VECTOR_STORE_DATABASE_URL = process.env.VECTOR_STORE_DATABASE_URL || '';
+    // Phase 1: Try embedding-based KNN (vector store).
+    // BUY-54718: use the shared `vectorDb` pool from config.ts (wired to VECTOR_DB_URL)
+    // instead of a separate VECTOR_STORE_DATABASE_URL — the latter was never set on
+    // buywhere-api, so this branch always fell through to keyword. The vector DB
+    // also lives in the `vectordb` database directly, not in an `embedding_store` schema.
     let similar: Array<Record<string, unknown>> = [];
     let similarityFallback = false;
 
-    if (VECTOR_STORE_DATABASE_URL) {
+    if (vectorDb) {
       try {
-        const { Pool } = await import('pg');
-        const vecPool = new Pool({ connectionString: VECTOR_STORE_DATABASE_URL, max: 5 });
-        try {
-          // Fetch pre-computed embedding for this product
-          const embResult = await vecPool.query<{ embedding: string }>(
-            `SELECT embedding FROM embedding_store.product_embeddings
+        // Fetch pre-computed embedding for this product
+          const embResult = await vectorDb.query<{ embedding: string }>(
+            `SELECT embedding FROM product_embeddings
              WHERE product_id = $1`,
             [id]
           );
           if (embResult.rows.length > 0) {
             const embeddingStr: string = embResult.rows[0].embedding;
             // KNN: rows with smallest cosine distance first
-            const knnResult = await vecPool.query<{
+            const knnResult = await vectorDb.query<{
               product_id: string;
               score: string;
             }>(
               `SELECT product_id,
                       1 - (embedding <=> $1::vector) AS score
-               FROM embedding_store.product_embeddings
+               FROM product_embeddings
                WHERE product_id != $2
                ORDER BY embedding <=> $1::vector
                LIMIT $3`,
@@ -1097,9 +1097,6 @@ router.get(
             // No embedding yet — fall through to fallback
             similarityFallback = true;
           }
-        } finally {
-          await vecPool.end();
-        }
       } catch (err) {
         console.warn('[similar] vector KNN failed, using fallback:', (err as Error).message);
         similarityFallback = true;
@@ -1179,7 +1176,7 @@ router.get(
       meta: {
         source_id: id,
         count: data.length,
-        method: VECTOR_STORE_DATABASE_URL && !similar.length ? 'fallback' : VECTOR_STORE_DATABASE_URL ? 'knn' : 'fallback',
+        method: vectorDb && !similar.length ? 'fallback' : vectorDb ? 'knn' : 'fallback',
         response_time_ms: Date.now() - start,
       },
     });
