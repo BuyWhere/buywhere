@@ -85,6 +85,7 @@ let replicaHealthy = false;
 let lastLagMs: number | null = null;
 let lastXactLagMs: number | null = null;
 let lastRecvAgeMs: number | null = null;
+let lastLsnGapBytes: number | null = null;
 let lastProbeAt: string | null = null;
 let lastError: string | null = null;
 
@@ -95,8 +96,7 @@ async function probeLag(): Promise<void> {
       in_recovery: boolean;
       wal_status: string | null;
       last_msg_age_ms: number | null;
-      replay_lsn: string | null;
-      receive_lsn: string | null;
+      lsn_gap_bytes: string | null;
       xact_replay_ts: Date | null;
       xact_lag_ms: number | null;
     }>(
@@ -105,8 +105,7 @@ async function probeLag(): Promise<void> {
          (SELECT status FROM pg_stat_wal_receiver) AS wal_status,
          (SELECT EXTRACT(EPOCH FROM (now() - last_msg_receipt_time)) * 1000
             FROM pg_stat_wal_receiver) AS last_msg_age_ms,
-         pg_last_wal_replay_lsn()::text AS replay_lsn,
-         pg_last_wal_receive_lsn()::text AS receive_lsn,
+         pg_wal_lsn_diff(pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn())::text AS lsn_gap_bytes,
          pg_last_xact_replay_timestamp() AS xact_replay_ts,
          EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp())) * 1000 AS xact_lag_ms`
     );
@@ -118,25 +117,32 @@ async function probeLag(): Promise<void> {
       lastLagMs = null;
       lastXactLagMs = null;
       lastRecvAgeMs = null;
+      lastLsnGapBytes = null;
       return;
     }
     lastRecvAgeMs = row.last_msg_age_ms == null ? null : Math.round(Number(row.last_msg_age_ms));
     lastXactLagMs = row.xact_lag_ms == null ? null : Math.max(0, Math.round(Number(row.xact_lag_ms)));
-    // Prefer WAL-receiver freshness; fall back to xact lag only when the
-    // receiver view is unavailable (e.g. very early in standby bring-up before
-    // the first WAL message arrives, when last_msg_age_ms is NULL).
-    const freshnessMs = lastRecvAgeMs != null ? lastRecvAgeMs : lastXactLagMs;
-    lastLagMs = freshnessMs == null ? null : Math.max(0, freshnessMs);
+    lastLsnGapBytes = row.lsn_gap_bytes == null ? null : Math.max(0, Math.round(Number(row.lsn_gap_bytes)));
+    // Health decision: zero-byte LSN backlog is the authoritative freshness
+    // signal. When replay_lsn == receive_lsn, every WAL byte the replica
+    // has received has been replayed — there is no risk of reading stale
+    // data, regardless of how long the receiver has been quiet or how large
+    // the xact-timestamp gap is. We deliberately do NOT use the xact
+    // timestamp or the recv-age for the health decision (BUY-54916).
+    const lsnMatched = lastLsnGapBytes === 0;
+    // lag_ms: report LSN gap in bytes (true replication backlog). When
+    // matched, this is 0. Never use the xact timestamp here.
+    lastLagMs = lsnMatched ? 0 : lastLsnGapBytes;
     replicaHealthy =
       row.in_recovery === true &&
       row.wal_status === 'streaming' &&
-      freshnessMs != null &&
-      freshnessMs <= MAX_LAG_MS;
+      lsnMatched;
   } catch (err) {
     replicaHealthy = false;
     lastLagMs = null;
     lastXactLagMs = null;
     lastRecvAgeMs = null;
+    lastLsnGapBytes = null;
     lastError = (err as Error).message;
     lastProbeAt = new Date().toISOString();
   }
@@ -172,6 +178,7 @@ export function replicaStatus() {
     routing_to: replicaHealthy && replicaPool ? 'replica' : 'primary',
     lag_ms: lastLagMs,
     lag_ms_xact: lastXactLagMs,
+    lsn_gap_bytes: lastLsnGapBytes,
     recv_age_ms: lastRecvAgeMs,
     max_lag_ms: MAX_LAG_MS,
     last_probe_at: lastProbeAt,
