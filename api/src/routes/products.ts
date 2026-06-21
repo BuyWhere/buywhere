@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { createHash } from 'crypto';
+import { PoolClient } from 'pg';
 import { db, redis, vectorDb } from '../config';
-import { readDb } from '../lib/readReplica';
+import { readDb, ReplicaUnavailableError, servingReadDbConnect } from '../lib/readReplica';
 import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
@@ -481,7 +482,19 @@ router.get(
       `;
     }
 
-    const client = await db.connect();
+    let client: PoolClient;
+    try {
+      client = await servingReadDbConnect();
+    } catch (err) {
+      if (err instanceof ReplicaUnavailableError) {
+        res.status(503).json({
+          error: 'search_replica_unavailable',
+          message: err.message,
+        });
+        return;
+      }
+      throw err;
+    }
     try {
       await client.query('BEGIN');
       // BUY-45671: cap per-query work_mem and disable *parallel* query under load.
@@ -1045,64 +1058,67 @@ router.get(
     const src = srcResult.rows[0];
 
     // Phase 1: Try embedding-based KNN (vector store).
-    // BUY-54718: use the shared `vectorDb` pool from config.ts (wired to VECTOR_DB_URL)
-    // instead of a separate VECTOR_STORE_DATABASE_URL — the latter was never set on
-    // buywhere-api, so this branch always fell through to keyword. The vector DB
-    // also lives in the `vectordb` database directly, not in an `embedding_store` schema.
+    // BUY-54718 / BUY-41137 / BUY-54796: use the shared vectorDb pool and the
+    // live public.product_embeddings schema so this route follows the Railway
+    // wiring instead of a separate VECTOR_STORE_DATABASE_URL.
     let similar: Array<Record<string, unknown>> = [];
     let similarityFallback = false;
 
     if (vectorDb) {
       try {
-        // Fetch pre-computed embedding for this product
-          const embResult = await vectorDb.query<{ embedding: string }>(
-            `SELECT embedding FROM product_embeddings
-             WHERE product_id = $1`,
-            [id]
+        // Fetch pre-computed embedding for this product.
+        const embResult = await vectorDb.query<{ embedding: string }>(
+          `SELECT embedding FROM public.product_embeddings
+           WHERE product_id = $1`,
+          [id]
+        );
+        if (embResult.rows.length > 0) {
+          const embeddingStr: string = embResult.rows[0].embedding;
+          // KNN: rows with smallest cosine distance first.
+          const knnResult = await vectorDb.query<{
+            product_id: string;
+            score: string;
+          }>(
+            `SELECT product_id,
+                    1 - (embedding <=> $1::vector) AS score
+             FROM public.product_embeddings
+             WHERE product_id != $2
+             ORDER BY embedding <=> $1::vector
+             LIMIT $3`,
+            [embeddingStr, id, limit]
           );
-          if (embResult.rows.length > 0) {
-            const embeddingStr: string = embResult.rows[0].embedding;
-            // KNN: rows with smallest cosine distance first
-            const knnResult = await vectorDb.query<{
-              product_id: string;
-              score: string;
-            }>(
-              `SELECT product_id,
-                      1 - (embedding <=> $1::vector) AS score
-               FROM product_embeddings
-               WHERE product_id != $2
-               ORDER BY embedding <=> $1::vector
-               LIMIT $3`,
-              [embeddingStr, id, limit]
-            );
-            const knnIds = knnResult.rows.map((r) => r.product_id);
-            const knnScores = new Map(knnResult.rows.map((r) => [r.product_id, parseFloat(r.score)]));
+          const knnIds = knnResult.rows.map((r) => String(r.product_id));
+          const knnScores = new Map(knnResult.rows.map((r) => [String(r.product_id), parseFloat(r.score)]));
 
-            if (knnIds.length > 0) {
-              // Fetch full product details from main DB
-              const placeholders = knnIds.map((_, i) => `$${i + 1}`).join(',');
-              const detailResult = await db.query(
-                `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                        image_url, brand, category_path, region, country_code
-                 FROM products
-                 WHERE id IN (${placeholders})`,
-                knnIds
-              );
-              similar = detailResult.rows.map((row) => ({
+          if (knnIds.length > 0) {
+            // Fetch full product details from main DB.
+            const placeholders = knnIds.map((_, i) => `$${i + 1}`).join(',');
+            const detailResult = await db.query(
+              `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
+                      image_url, brand, category_path, region, country_code
+               FROM products
+               WHERE id IN (${placeholders})`,
+              knnIds
+            );
+            const detailById = new Map(
+              detailResult.rows.map((row) => [String(row.id), row] as const)
+            );
+            similar = knnIds.flatMap((knnId) => {
+              const row = detailById.get(knnId);
+              return row ? [{
                 ...row,
-                _similarity: knnScores.get(row.id as string) ?? null,
-              }));
-            }
-          } else {
-            // No embedding yet — fall through to fallback
-            similarityFallback = true;
+                _similarity: knnScores.get(knnId) ?? null,
+              }] : [];
+            });
           }
+        } else {
+          // No embedding yet — fall through to fallback.
+          similarityFallback = true;
+        }
       } catch (err) {
         console.warn('[similar] vector KNN failed, using fallback:', (err as Error).message);
         similarityFallback = true;
       }
-    } else {
-      similarityFallback = true;
     }
 
     // Phase 2 (fallback): same brand + category, or FTS on title
