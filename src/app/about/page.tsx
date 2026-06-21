@@ -2,6 +2,8 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import type { Metadata } from "next";
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
 import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
@@ -32,9 +34,21 @@ const values = [
 ];
 
 export default function AboutPage() {
+  const schema = buildWebPageSchema({
+    path: "/about",
+    name: "About BuyWhere — AI-Powered Product Catalog",
+    description:
+      "Learn about BuyWhere's mission to build the neutral product catalog layer for AI agents in Southeast Asia.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "About", path: "/about" },
+    ],
+  });
   return (
-    <div className="flex flex-col min-h-screen">
-      <Nav />
+    <>
+      <Schema data={schema} />
+      <div className="flex flex-col min-h-screen">
+        <Nav />
 
       <main id="main-content">
       {/* Hero */}
@@ -197,5 +211,6 @@ export default function AboutPage() {
       </main>
       <Footer />
     </div>
+  </>
   );
 }

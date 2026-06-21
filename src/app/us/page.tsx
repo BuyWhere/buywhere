@@ -1,9 +1,23 @@
 import Footer from "@/components/Footer";
 import Link from "next/link";
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
 
 export default function USLandingPage() {
+  const schema = buildWebPageSchema({
+    path: "/us",
+    name: "BuyWhere — AI-Powered Product Discovery in the United States",
+    description:
+      "Search, compare, and discover products across thousands of US stores with BuyWhere's MCP server and product catalog API.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "United States", path: "/us" },
+    ],
+  });
   return (
-    <div className="flex flex-col min-h-screen">
+    <>
+      <Schema data={schema} />
+      <div className="flex flex-col min-h-screen">
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-2 font-bold text-lg text-indigo-600">
@@ -102,5 +116,6 @@ export default function USLandingPage() {
 
       <Footer />
     </div>
+  </>
   );
 }

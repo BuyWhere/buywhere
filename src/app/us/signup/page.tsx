@@ -3,6 +3,8 @@
 import * as React from 'react';
 import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import Schema from '@/components/Schema';
+import { buildWebPageSchema } from '@/lib/page-schema';
 import { Button } from '@/components/ui/Button';
 import { AmazonLogo } from '@/components/logos/AmazonLogo';
 import { WalmartLogo } from '@/components/logos/WalmartLogo';
@@ -213,8 +215,21 @@ export default function USSignupPage() {
     };
   }, []);
 
+  const schema = buildWebPageSchema({
+    path: "/us/signup",
+    name: "Sign up — BuyWhere United States",
+    description:
+      "Create your BuyWhere US account and get instant access to the product catalog API and MCP server for AI agents.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "United States", path: "/us" },
+      { name: "Sign up", path: "/us/signup" },
+    ],
+  });
   return (
-    <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white">
+    <>
+      <Schema data={schema} />
+      <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white">
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-2 font-bold text-lg text-indigo-600">
@@ -328,5 +343,6 @@ export default function USSignupPage() {
         </div>
       </footer>
     </div>
+  </>
   );
 }

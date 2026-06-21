@@ -1,3 +1,6 @@
+import Schema from "@/components/Schema";
+import { buildSoftwareApplicationSchema } from "@/lib/page-schema";
+
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
@@ -103,11 +106,25 @@ function FeatureCell({ value }: { value: boolean | string }) {
 }
 
 export default function PricingPage() {
+  const schema = buildSoftwareApplicationSchema({
+    path: '/pricing',
+    name: 'BuyWhere Pricing',
+    description:
+      'Simple, transparent pricing for the BuyWhere Product Catalog API. Free, Starter at $29/mo, and Pro at $99/mo.',
+    applicationCategory: 'DeveloperApplication',
+    offers: [
+      { price: '0', priceCurrency: 'USD' },
+      { price: '29', priceCurrency: 'USD' },
+      { price: '99', priceCurrency: 'USD' },
+    ],
+  });
   return (
-    <div className="flex flex-col min-h-screen bg-white">
-      <Nav />
+    <>
+      <Schema data={schema} />
+      <div className="flex flex-col min-h-screen bg-white">
+        <Nav />
 
-      <main id="main-content">
+        <main id="main-content">
       {/* Header */}
       <section className="py-16 border-b border-gray-100 text-center">
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
@@ -347,5 +364,6 @@ export default function PricingPage() {
       </main>
       <Footer />
     </div>
+  </>
   );
 }

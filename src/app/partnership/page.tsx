@@ -3,6 +3,8 @@ import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import PartnershipInquiryForm from "@/components/partnership/PartnershipInquiryForm";
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
 import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
@@ -55,8 +57,20 @@ const audienceMoments = [
 ];
 
 export default function PartnershipPage() {
+  const schema = buildWebPageSchema({
+    path: "/partnership",
+    name: "Merchant Partnerships | BuyWhere",
+    description:
+      "Feature your products on BuyWhere and reach price-conscious shoppers, AI agents, and comparison experiences across Singapore and Southeast Asia.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "Partnership", path: "/partnership" },
+    ],
+  });
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <>
+      <Schema data={schema} />
+      <div className="min-h-screen bg-slate-950 text-white">
       <Nav />
 
       <main>
@@ -191,5 +205,6 @@ export default function PartnershipPage() {
 
       <Footer />
     </div>
+  </>
   );
 }

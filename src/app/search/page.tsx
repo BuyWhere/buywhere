@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import SearchResultsClient from './SearchResultsClient';
+import Schema from '@/components/Schema';
+import { buildSearchPageSchema } from '@/lib/page-schema';
 import { toSiteUrl } from '@/lib/site-url';
 
 type SearchPageProps = {
@@ -32,5 +34,17 @@ export default function SearchPage({ searchParams }: SearchPageProps) {
   const initialQuery = getSearchParam(searchParams?.q);
   const initialCountry = getSearchParam(searchParams?.country);
 
-  return <SearchResultsClient initialQuery={initialQuery} initialCountry={initialCountry} />;
+  const schema = buildSearchPageSchema({
+    path: '/search',
+    name: 'Search Products — BuyWhere',
+    description:
+      'Search and compare products across thousands of stores. AI-powered product discovery with real-time pricing.',
+  });
+
+  return (
+    <>
+      <Schema data={schema} />
+      <SearchResultsClient initialQuery={initialQuery} initialCountry={initialCountry} />
+    </>
+  );
 }

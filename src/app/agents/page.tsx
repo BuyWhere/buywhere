@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
 import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
@@ -130,8 +132,20 @@ const regionBoostDescriptions = [
 ];
 
 export default function AgentsPage() {
+  const schema = buildWebPageSchema({
+    path: "/agents",
+    name: "BuyWhere for AI Agents",
+    description:
+      "Product behavior documentation for AI agents using BuyWhere: ranking, price comparison, availability, merchant selection, tool mapping, and machine-relevant metrics.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "AI Agents", path: "/agents" },
+    ],
+  });
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <>
+      <Schema data={schema} />
+      <div className="flex min-h-screen flex-col bg-slate-50">
       <Nav />
 
       <main id="main-content" className="flex-1">
@@ -469,5 +483,6 @@ export default function AgentsPage() {
 
       <Footer />
     </div>
+  </>
   );
 }

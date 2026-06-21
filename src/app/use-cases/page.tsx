@@ -2,6 +2,8 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import type { Metadata } from "next";
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
 import { toSiteUrl } from "@/lib/site-url";
 import { PopularComparisons } from "@/components/PopularComparisons";
 
@@ -151,8 +153,20 @@ def check_price_drops(queries: list[str]) -> list[dict]:
 ];
 
 export default function UseCasesPage() {
+  const schema = buildWebPageSchema({
+    path: "/use-cases",
+    name: "Use Cases — BuyWhere",
+    description:
+      "Explore use cases for BuyWhere's product catalog API: shopping assistants, price comparison agents, deal bots, and more.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "Use Cases", path: "/use-cases" },
+    ],
+  });
   return (
-    <div className="flex flex-col min-h-screen">
+    <>
+      <Schema data={schema} />
+      <div className="flex flex-col min-h-screen">
       <Nav />
 
       {/* Hero */}
@@ -225,5 +239,6 @@ export default function UseCasesPage() {
 
       <Footer />
     </div>
+  </>
   );
 }

@@ -4,6 +4,8 @@ import { useState } from "react";
 import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
 
 const USE_CASES = [
   "AI shopping assistant",
@@ -124,9 +126,21 @@ export default function ApiKeysPage() {
     ]
   };
 
+  const schema = buildWebPageSchema({
+    path: "/api-keys",
+    name: "API Keys — BuyWhere",
+    description:
+      "Create and manage your BuyWhere API keys. Free tier during beta, with 1,000 requests per month included.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "API Keys", path: "/api-keys" },
+    ],
+  });
   return (
-    <div className="flex flex-col min-h-screen">
-      <Script id="faq-schema" type="application/ld+json" strategy="afterInteractive">
+    <>
+      <Schema data={schema} />
+      <div className="flex flex-col min-h-screen">
+        <Script id="faq-schema" type="application/ld+json" strategy="afterInteractive">
         {JSON.stringify(faqSchema)}
       </Script>
       <Nav />
@@ -328,5 +342,6 @@ export default function ApiKeysPage() {
 
       <Footer />
     </div>
+  </>
   );
 }

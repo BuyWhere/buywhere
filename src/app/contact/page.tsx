@@ -2,6 +2,8 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import ContactForm from "@/components/ContactForm";
 import type { Metadata } from "next";
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
 import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
@@ -13,8 +15,20 @@ export const metadata: Metadata = {
 };
 
 export default function ContactPage() {
+  const schema = buildWebPageSchema({
+    path: "/contact",
+    name: "Contact BuyWhere",
+    description:
+      "Get in touch with the BuyWhere team. We respond to merchant and partner inquiries within one business day.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "Contact", path: "/contact" },
+    ],
+  });
   return (
-    <div className="flex flex-col min-h-screen">
+    <>
+      <Schema data={schema} />
+      <div className="flex flex-col min-h-screen">
       <Nav />
 
       <section className="bg-indigo-600 text-white py-16">
@@ -83,5 +97,6 @@ export default function ContactPage() {
 
       <Footer />
     </div>
+  </>
   );
 }

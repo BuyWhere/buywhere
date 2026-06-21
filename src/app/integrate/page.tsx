@@ -3,6 +3,8 @@ import Link from "next/link";
 import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
 import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
@@ -199,9 +201,21 @@ export default function IntegratePage() {
     ]
   };
 
+  const schema = buildWebPageSchema({
+    path: "/integrate",
+    name: "BuyWhere Integration Guide — MCP Server & API for AI Agents",
+    description:
+      "Step-by-step integration guide for adding BuyWhere to your AI agent, MCP-compatible client, or application. REST API and MCP tools covered.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "Integrate", path: "/integrate" },
+    ],
+  });
   return (
-    <div className="flex min-h-screen flex-col bg-white">
-      <Script id="faq-schema" type="application/ld+json" strategy="afterInteractive">
+    <>
+      <Schema data={schema} />
+      <div className="flex min-h-screen flex-col bg-white">
+        <Script id="faq-schema" type="application/ld+json" strategy="afterInteractive">
         {JSON.stringify(faqSchema)}
       </Script>
       <Nav />
@@ -410,5 +424,6 @@ export default function IntegratePage() {
 
       <Footer />
     </div>
+  </>
   );
 }

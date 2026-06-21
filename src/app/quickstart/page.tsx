@@ -3,6 +3,8 @@ import Link from "next/link";
 import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
 import { toSiteUrl } from "@/lib/site-url";
 import { PopularComparisons } from "@/components/PopularComparisons";
 
@@ -160,9 +162,21 @@ export default function QuickstartPage() {
     ]
   };
 
+  const schema = buildWebPageSchema({
+    path: "/quickstart",
+    name: "Quickstart — BuyWhere",
+    description:
+      "Create a BuyWhere API key, run your first product search, and add BuyWhere to an MCP-compatible agent in minutes.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "Quickstart", path: "/quickstart" },
+    ],
+  });
   return (
-    <div className="flex min-h-screen flex-col bg-white">
-      <Script id="faq-schema" type="application/ld+json" strategy="afterInteractive">
+    <>
+      <Schema data={schema} />
+      <div className="flex min-h-screen flex-col bg-white">
+        <Script id="faq-schema" type="application/ld+json" strategy="afterInteractive">
         {JSON.stringify(faqSchema)}
       </Script>
       <Nav />
@@ -393,5 +407,6 @@ export default function QuickstartPage() {
       <PopularComparisons variant="footer" />
       <Footer />
     </div>
+  </>
   );
 }

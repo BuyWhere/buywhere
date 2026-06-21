@@ -2,6 +2,8 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import type { Metadata } from "next";
+import Schema from "@/components/Schema";
+import { buildServiceSchema } from "@/lib/page-schema";
 import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
@@ -60,9 +62,19 @@ const steps = [
 ];
 
 export default function MerchantsPage() {
+  const schema = buildServiceSchema({
+    path: "/merchants",
+    name: "List your catalog on BuyWhere",
+    description:
+      "Become discoverable to AI agents and price-comparison shoppers in Singapore, Southeast Asia, and the US. Get qualified leads with pay-per-click pricing.",
+    serviceType: "Merchant listing and lead generation",
+    areaServed: ["Singapore", "United States", "Malaysia", "Thailand", "Philippines", "Indonesia", "Vietnam"],
+  });
   return (
-    <div className="flex flex-col min-h-screen">
-      <Nav />
+    <>
+      <Schema data={schema} />
+      <div className="flex flex-col min-h-screen">
+        <Nav />
 
       {/* Hero */}
       <section className="bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-900 text-white py-20">
@@ -183,5 +195,6 @@ export default function MerchantsPage() {
 
       <Footer />
     </div>
+  </>
   );
 }
