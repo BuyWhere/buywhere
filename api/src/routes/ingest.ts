@@ -100,7 +100,7 @@ async function ensureProductsConflictTarget(): Promise<IngestSchemaGuardResult> 
             WHERE con.conrelid = 'public.products'::regclass
               AND con.contype = 'u'
               AND ARRAY(
-                SELECT att.attname
+                SELECT att.attname::text
                   FROM unnest(con.conkey) WITH ORDINALITY AS cols(attnum, ord)
                   JOIN pg_attribute att
                     ON att.attrelid = con.conrelid
