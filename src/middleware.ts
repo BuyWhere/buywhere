@@ -393,6 +393,37 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
 
+  // Intent route rewrites: /best/{query}/{location} and /cheapest/{query}/{location}
+  // These expose SEO-friendly URLs that render via the /search page internally.
+  const INTENT_LOCATION_MAP: Record<string, string> = {
+    singapore: "sg",
+    sg: "sg",
+    "united-states": "us",
+    "united states": "us",
+    usa: "us",
+    us: "us",
+  };
+
+  const bestMatch = pathname.match(/^\/best\/([^/]+)\/([^/]+)$/);
+  if (bestMatch) {
+    const [, query, rawLocation] = bestMatch;
+    const location = INTENT_LOCATION_MAP[rawLocation.toLowerCase()] || rawLocation.toLowerCase();
+    const url = request.nextUrl.clone();
+    url.pathname = "/search";
+    url.search = `q=${encodeURIComponent(query.replace(/-/g, " "))}&country=${encodeURIComponent(location)}`;
+    return NextResponse.rewrite(url);
+  }
+
+  const cheapestMatch = pathname.match(/^\/cheapest\/([^/]+)\/([^/]+)$/);
+  if (cheapestMatch) {
+    const [, query, rawLocation] = cheapestMatch;
+    const location = INTENT_LOCATION_MAP[rawLocation.toLowerCase()] || rawLocation.toLowerCase();
+    const url = request.nextUrl.clone();
+    url.pathname = "/search";
+    url.search = `q=${encodeURIComponent(query.replace(/-/g, " "))}&country=${encodeURIComponent(location)}`;
+    return NextResponse.rewrite(url);
+  }
+
   // Content negotiation: rewrite to dedicated markdown route handlers.
   // Use nextUrl.clone() + pathname assignment (not new URL(path, request.url)) so
   // the rewrite target is always on the same origin, regardless of Host header value.
