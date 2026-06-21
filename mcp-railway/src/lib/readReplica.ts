@@ -16,7 +16,9 @@ import { db } from '../config';
  *     `readDb()` transparently returns the primary `db` pool, so this is a
  *     no-op in production until Bolt/Ops provisions the replica and sets the
  *     env var (BUY-45692.A). Zero behaviour change before then.
- *   - A background probe (pg_last_xact_replay_timestamp) tracks replication lag.
+ *   - A background probe checks replica replay state and only treats elapsed
+ *     replay age as lag while WAL is actually behind. Once the standby is
+ *     caught up, idle time alone does not flip it back to primary.
  *     `readDb()` routes to the replica only while lag <= REPLICA_MAX_LAG_MS;
  *     otherwise it falls back to the primary so callers never read stale data
  *     beyond the threshold (BUY-45692.C).
@@ -71,6 +73,28 @@ let lastLagMs: number | null = null;
 let lastProbeAt: string | null = null;
 let lastError: string | null = null;
 
+export function estimateReplicaLagMs(input: {
+  lagSeconds: number | null;
+  receiveLsn: string | null;
+  replayLsn: string | null;
+}): number | null {
+  const { lagSeconds, receiveLsn, replayLsn } = input;
+
+  // A standby that has fully replayed the WAL it has received is caught up.
+  // Wall-clock time since the last replayed transaction keeps growing when the
+  // database is idle, so do not let that idle time alone flip healthy replica
+  // checks back to primary.
+  if (receiveLsn && replayLsn && receiveLsn === replayLsn) {
+    return 0;
+  }
+
+  if (lagSeconds == null) {
+    return null;
+  }
+
+  return Math.max(0, Math.round(Number(lagSeconds) * 1000));
+}
+
 export class ReplicaUnavailableError extends Error {
   code = 'REPLICA_UNAVAILABLE';
 
@@ -83,13 +107,25 @@ export class ReplicaUnavailableError extends Error {
 async function probeLag(): Promise<void> {
   if (!replicaPool) return;
   try {
-    const r = await replicaPool.query<{ lag_seconds: number | null }>(
-      `SELECT EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp())) AS lag_seconds`
-    );
-    const lagSeconds = r.rows?.[0]?.lag_seconds;
+    const r = await replicaPool.query<{
+      lag_seconds: number | null;
+      receive_lsn: string | null;
+      replay_lsn: string | null;
+    }>(`
+      SELECT
+        EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp())) AS lag_seconds,
+        pg_last_wal_receive_lsn()::text AS receive_lsn,
+        pg_last_wal_replay_lsn()::text AS replay_lsn
+    `);
+    const row = r.rows?.[0];
     lastProbeAt = new Date().toISOString();
     lastError = null;
-    if (lagSeconds == null) {
+    const lagMs = estimateReplicaLagMs({
+      lagSeconds: row?.lag_seconds ?? null,
+      receiveLsn: row?.receive_lsn ?? null,
+      replayLsn: row?.replay_lsn ?? null,
+    });
+    if (lagMs == null) {
       // NULL = not a standby (or nothing replayed yet). Don't route reads here;
       // a primary masquerading as a replica adds no isolation, and an unprimed
       // standby can't be trusted. Fall back to primary.
@@ -97,7 +133,7 @@ async function probeLag(): Promise<void> {
       lastLagMs = null;
       return;
     }
-    lastLagMs = Math.max(0, Math.round(Number(lagSeconds) * 1000));
+    lastLagMs = lagMs;
     // BUY-54931: add hysteresis so canonical search doesn't flap when lag
     // hovers around the same single threshold.
     const healthCeilingMs = replicaHealthy ? FAIL_LAG_MS : RECOVER_LAG_MS;
