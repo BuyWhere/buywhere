@@ -86,7 +86,7 @@ say "state: keepalive=$KEEPALIVE_STATUS cycle=$CYCLE rows=$ROWS_INGESTED rows/hr
             FRESH="yes"
           fi
           # ---- 3. Read worker status for progress reporting ----
-          STATUS_CYCLE=""; STATUS_ROWS=""; STATUS_RPH=""; STATUS_MERCHANTS_DISCOVERED=""; STATUS_TOTAL_MERCHANTS=""
+          STATUS_CYCLE=""; STATUS_ROWS=""; STATUS_RPH=""; STATUS_MERCHANTS_DISCOVERED=""; STATUS_TOTAL_MERCHANTS=""; STATUS_MERCHANT_DISCOVERY_PROGRESS=""
           if [ -f "$STATUS_FILE" ]; then
             eval "$(python3 - "$STATUS_FILE" 2>/dev/null <<'PYSTAT'
 import json,sys
@@ -96,17 +96,22 @@ print(f"STATUS_ROWS={d.get('rowsInserted',0)+d.get('rowsUpdated',0)}")
 print(f"STATUS_RPH={d.get('rowsPerHour',0)}")
 print(f"STATUS_MERCHANTS_DISCOVERED={d.get('discoveredMerchants',d.get('merchantsVisited',0))}")
 print(f"STATUS_TOTAL_MERCHANTS={d.get('totalMerchants', d.get('merchantsVisited',0))}")
+discovered=int(d.get('discoveredMerchants',d.get('merchantsVisited',0)) or 0)
+total=int(d.get('totalMerchants',d.get('merchantsVisited',0)) or 0)
+prog=d.get('merchantDiscoveryProgress')
+if prog is None: prog=int((discovered*100/total)) if total>0 else 0
+print(f"STATUS_MERCHANT_DISCOVERY_PROGRESS={prog}")
 PYSTAT
 )" || true
           fi
           if [ -z "$STATUS_CYCLE" ]; then
             STATUS_CYCLE="$CYCLE"; STATUS_ROWS="$ROWS_INGESTED"
-            STATUS_RPH="$ROWS_PER_HOUR"; STATUS_MERCHANTS_DISCOVERED="$MERCHANTS_DISCOVERED"; STATUS_TOTAL_MERCHANTS="$TOTAL_MERCHANTS"
+            STATUS_RPH="$ROWS_PER_HOUR"; STATUS_MERCHANTS_DISCOVERED="$MERCHANTS_DISCOVERED"; STATUS_TOTAL_MERCHANTS="$TOTAL_MERCHANTS"; STATUS_MERCHANT_DISCOVERY_PROGRESS="$MERCHANT_DISCOVERY_PROGRESS"
           fi
 
           # ---- 4. Branch on liveness ----
           if [ "$KEEPALIVE_STATUS" = "RUNNING" ] && [ "$FRESH" = "yes" ]; then
-            say "alive: pid=$ALIVE_PID cycle=$STATUS_CYCLE rows=$STATUS_ROWS rows/hr=$STATUS_RPH merchants=$STATUS_MERCHANTS_DISCOVERED/$STATUS_TOTAL_MERCHANTS hb_age=${HB_AGE_SEC}s"
+            say "alive: pid=$ALIVE_PID cycle=$STATUS_CYCLE rows=$STATUS_ROWS rows/hr=$STATUS_RPH merchants=$STATUS_MERCHANTS_DISCOVERED/$STATUS_TOTAL_MERCHANTS progress=$STATUS_MERCHANT_DISCOVERY_PROGRESS% hb_age=${HB_AGE_SEC}s"
             echo "status=alive" >> "$GITHUB_OUTPUT"
             echo "pid=${ALIVE_PID:-$TICK_PID}" >> "$GITHUB_OUTPUT"
           else
@@ -131,6 +136,7 @@ PYSTAT
           echo "rows_per_hour=$STATUS_RPH" >> "$GITHUB_OUTPUT"
           echo "merchants_discovered=$STATUS_MERCHANTS_DISCOVERED" >> "$GITHUB_OUTPUT"
           echo "total_merchants=$STATUS_TOTAL_MERCHANTS" >> "$GITHUB_OUTPUT"
+          echo "merchant_discovery_progress=$STATUS_MERCHANT_DISCOVERY_PROGRESS" >> "$GITHUB_OUTPUT"
           echo "merchants_visited=$STATUS_MERCHANTS_DISCOVERED" >> "$GITHUB_OUTPUT"
           echo "heartbeat_age_sec=$HB_AGE_SEC" >> "$GITHUB_OUTPUT"
           echo "keepalive_status=$KEEPALIVE_STATUS" >> "$GITHUB_OUTPUT"
@@ -160,6 +166,7 @@ PYSTAT
           echo "rows_per_hour=${{ steps.supervisor.outputs.rows_per_hour }}"
           echo "merchants_discovered=${{ steps.supervisor.outputs.merchants_discovered }}"
           echo "total_merchants=${{ steps.supervisor.outputs.total_merchants }}"
+          echo "merchant_discovery_progress=${{ steps.supervisor.outputs.merchant_discovery_progress }}"
           echo "merchants_visited=${{ steps.supervisor.outputs.merchants_visited }}"
           echo "pid=${{ steps.supervisor.outputs.pid }}"
           echo "hb_age_sec=${{ steps.supervisor.outputs.heartbeat_age_sec }}"
