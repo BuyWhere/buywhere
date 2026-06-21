@@ -64,6 +64,8 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/blog/compare-headphones-singapore-2026", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/blog/home-appliance-deals-singapore-2026", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/blog/compare-product-prices-singapore-2026", priority: 0.8, changeFrequency: "monthly" as const },
+  { path: "/best", priority: 0.9, changeFrequency: "weekly" as const },
+  { path: "/cheapest", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/quickstart", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/integrate", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/api-keys", priority: 0.9, changeFrequency: "monthly" as const },
