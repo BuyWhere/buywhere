@@ -39,6 +39,12 @@ const DEPLOY_FAIL_STATUSES = new Set(
     .filter(Boolean)
 );
 
+// BUY-54722: endpoint discriminator for p95 rows. Matches the values
+// /api/monitoring/p95/history?endpoint= accepts and the rows that the
+// semantic prober will write when /search and /products/:id/similar are
+// instrumented. Mirrors monitoring/embedding.js for consistency.
+const VALID_ENDPOINTS = ['search', 'similar'];
+
 // Internal: scheduler state
 let schedulerTimers = [];
 let schedulerStarted = false;
@@ -134,30 +140,45 @@ async function getAllMarketsP95(pool) {
 }
 
 /**
- * Get historical P95 data
+ * Get historical P95 data, optionally filtered by endpoint.
+ * BUY-54722: when `endpoint` is 'search' or 'similar' the query is narrowed
+ * to those rows so the dashboard can split hybrid vs Find-Similar p95.
  */
-async function getHistory(pool, market, from, to, limit = 100) {
+async function getHistory(pool, market, from, to, limit = 100, endpoint = null) {
   if (!MARKETS.includes(market)) {
     throw new Error('INVALID_MARKET');
+  }
+  if (endpoint != null && !VALID_ENDPOINTS.includes(endpoint)) {
+    throw new Error('INVALID_ENDPOINT');
   }
 
   const fromDate = from ? new Date(from) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const toDate = to ? new Date(to) : new Date();
   const maxLimit = Math.min(limit, 1000);
 
+  const values = [market, fromDate, toDate];
+  let endpointClause = '';
+  if (endpoint) {
+    values.push(endpoint);
+    endpointClause = `AND endpoint = ${values.length}`;
+  }
+  values.push(maxLimit);
+
   const result = await pool.query(
-    `SELECT p95_ms, sample_size, window_start, window_end
+    `SELECT p95_ms, sample_size, window_start, window_end, endpoint, market
      FROM monitoring.p95_latency
      WHERE market = $1
        AND window_start >= $2
        AND window_end <= $3
+       ${endpointClause}
      ORDER BY window_end DESC
-     LIMIT $4`,
-    [market, fromDate, toDate, maxLimit]
+     LIMIT ${values.length}`,
+    values
   );
 
   return {
     market,
+    endpoint: endpoint || null,
     data: result.rows,
     count: result.rowCount
   };
@@ -618,6 +639,7 @@ async function runAllProbes(pool) {
 
 module.exports = {
   MARKETS,
+  VALID_ENDPOINTS,
   THRESHOLD_MS,
   API_BASE_URL,
   SYSTEM_API_KEY,

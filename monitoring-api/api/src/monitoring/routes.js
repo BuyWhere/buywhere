@@ -75,7 +75,7 @@ function registerRoutes(app, pool) {
    */
   app.get(`${apiBase}/p95/history`, async (req, res) => {
     try {
-      const { market, from, to, limit = '100' } = req.query;
+      const { market, from, to, limit = '100', endpoint } = req.query;
 
       if (!market) {
         return res.status(400).json({
@@ -85,13 +85,23 @@ function registerRoutes(app, pool) {
       }
 
       const limitNum = parseInt(limit, 10);
+      // BUY-54722: optional endpoint filter (search|similar) so the dashboard
+      // can split hybrid vs Find-Similar p95 on the same chart.
+      const endpointFilter = endpoint ? String(endpoint).trim() : null;
+      if (endpointFilter && !p95Service.VALID_ENDPOINTS.includes(endpointFilter)) {
+        return res.status(400).json({
+          error: 'INVALID_ENDPOINT',
+          message: 'endpoint must be one of: ' + p95Service.VALID_ENDPOINTS.join(', ')
+        });
+      }
 
       const data = await p95Service.getHistory(
         pool,
         market,
         from ? parseInt(from, 10) : null,
         to ? parseInt(to, 10) : null,
-        limitNum
+        limitNum,
+        endpointFilter
       );
 
       res.json(data);
