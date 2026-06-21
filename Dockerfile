@@ -1,13 +1,21 @@
 FROM node:20-alpine
+
 WORKDIR /app
 
-RUN printf '{"name":"buywhere-mcp","version":"1.0.0","type":"module"}' > package.json && npm install express cors --save
+COPY api/package.json ./
+RUN npm install --production=false
 
-COPY mcp-server.js ./
-COPY mcp-health-config.js ./
+COPY api/tsconfig.json ./
+COPY api/src/ ./src/
+
+RUN npm run build
+
+# Remove dev deps after build so the runtime image stays lean.
+RUN npm prune --production
 
 ENV NODE_ENV=production
-ENV MCP_PORT=3002
-EXPOSE 3002
+ENV MCP_PORT=8081
 
-CMD ["node", "mcp-server.js"]
+EXPOSE 8081
+
+CMD ["node", "dist/mcp-server.js"]

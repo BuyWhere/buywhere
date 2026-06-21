@@ -16,27 +16,57 @@ const ISSUES_ENDPOINT = `${PAPERCLIP_BASE_URL}/api/companies/${COMPANY_ID}/issue
 const REX_AGENT_ID = '8ca957f8-0911-4e81-a963-e2cf54c97d44';
 const PARENT_ISSUE_ID = '79d50257-93fa-43d2-9042-bc14bcafd4b4'; // BUY-13701
 const GOAL_ID = '2c19e8cc-3e32-4144-8fcb-c4f206cb9fa4';
-/** Known BuyWhere production host suffixes that should create incidents. */
-const SUPPORTED_MONITOR_HOSTS = [
-    'buywhere.ai',
-    'api.buywhere.ai',
-    'mcp.buywhere.ai',
-    'www.buywhere.ai',
-    'buywhere-monitoring-api.up.railway.app',
+/** Canonical BuyWhere uptime targets that are allowed to open incidents. */
+const SUPPORTED_MONITOR_TARGETS = [
+    { host: 'api.buywhere.ai', pathPrefixes: ['/health', '/health/db'] },
+    { host: 'mcp.buywhere.ai', pathPrefixes: ['/health'] },
+    { host: 'buywhere.ai', pathPrefixes: ['/api/health/site'] },
+    { host: 'www.buywhere.ai', pathPrefixes: ['/api/health/site'] },
+    { host: 'buywhere-monitoring-api.up.railway.app', pathPrefixes: ['/api/monitoring/health', '/api/monitoring/health/db'] },
 ];
 /**
- * Returns true if the monitor URL points to a supported BuyWhere production host.
- * Unsupported hosts (e.g. dedup.ai) are silently ignored.
+ * Returns true only for canonical BuyWhere uptime targets.
+ * Arbitrary monitors against BuyWhere hosts are ignored to prevent false incidents.
  */
 const isSupportedMonitorHost = (monitorURL) => {
     try {
-        const hostname = new URL(monitorURL).hostname.toLowerCase();
-        return SUPPORTED_MONITOR_HOSTS.some((host) => hostname === host || hostname.endsWith('.' + host));
+        const parsed = new URL(monitorURL);
+        const hostname = parsed.hostname.toLowerCase();
+        const pathname = parsed.pathname.replace(/\/+$/, '') || '/';
+        return SUPPORTED_MONITOR_TARGETS.some(({ host, pathPrefixes }) => {
+            if (!(hostname === host || hostname.endsWith('.' + host))) {
+                return false;
+            }
+            return pathPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(prefix + '/'));
+        });
     }
     catch {
-        // If URL is malformed, let it through — false negatives are worse than false positives
-        return true;
+        return false;
     }
+};
+const firstString = (value) => {
+    if (typeof value === 'string')
+        return value;
+    if (Array.isArray(value) && typeof value[0] === 'string')
+        return value[0];
+    return undefined;
+};
+const normalizeUptimeRobotAlert = (req) => {
+    const merged = { ...req.query, ...(req.body || {}) };
+    return {
+        monitorID: firstString(merged.monitorID),
+        monitorURL: firstString(merged.monitorURL),
+        monitorFriendlyName: firstString(merged.monitorFriendlyName),
+        monitorName: firstString(merged.monitorName),
+        monitor_name: firstString(merged.monitor_name),
+        alertType: firstString(merged.alertType) ?? firstString(merged.alert_type),
+        alert_type: firstString(merged.alert_type),
+        alertTypeFriendlyName: firstString(merged.alertTypeFriendlyName),
+        alertDetails: firstString(merged.alertDetails) ?? firstString(merged.alert_details),
+        alert_details: firstString(merged.alert_details),
+        alertDuration: firstString(merged.alertDuration),
+        monitorStatusCode: firstString(merged.monitorStatusCode),
+    };
 };
 const createPaperclipIssue = async (alert, isDown) => {
     if (!PAPERCLIP_BASE_URL || !PAPERCLIP_API_KEY) {
@@ -91,8 +121,8 @@ const createPaperclipIssue = async (alert, isDown) => {
         console.error('[webhooks/uptime-robot] Paperclip API request failed:', error);
     }
 };
-router.post('/uptime-robot', (req, res) => {
-    const payload = req.body;
+const handleUptimeRobotAlert = (req, res) => {
+    const payload = normalizeUptimeRobotAlert(req);
     console.log('[webhooks/uptime-robot] Received alert:', JSON.stringify(payload));
     const alertType = payload?.alertType ?? payload?.alert_type;
     const friendlyName = payload?.monitorFriendlyName || payload?.monitorName || payload?.monitor_name || 'unknown';
@@ -117,7 +147,9 @@ router.post('/uptime-robot', (req, res) => {
         console.log(`[webhooks/uptime-robot] Alert type ${alertType}: ${friendlyName} (${monitorURL}) — ${alertDetails}`);
     }
     res.status(200).json({ received: true });
-});
+};
+router.get('/uptime-robot', handleUptimeRobotAlert);
+router.post('/uptime-robot', handleUptimeRobotAlert);
 router.post('/stripe', async (req, res) => {
     if (!stripe) {
         return res.status(503).json({ error: 'Stripe not configured' });

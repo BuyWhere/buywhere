@@ -6,8 +6,12 @@ on:
     branches: [main]
     paths:
       - 'Dockerfile'
-      - 'mcp-server.js'
-      - 'mcp-health-config.js'
+      - 'api/package.json'
+      - 'api/package-lock.json'
+      - 'api/tsconfig.json'
+      - 'api/src/mcp-server.ts'
+      - 'api/src/routes/mcp.ts'
+      - 'api/src/lib/response.ts'
       - '.github/workflows/build-mcp-server.yml'
 
 env:

@@ -27,7 +27,7 @@ const TOOLS = [
                 offset: { type: 'integer', description: 'Pagination offset', default: 0 },
                 compact: { type: 'boolean', description: 'Return agent-optimized compact shape: structured_specs, comparison_attributes, normalized_price_usd. Reduces response size ~40%. Recommended for agent tool-use.', default: false },
                 category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Televisions"). Use to exclude accessories and get actual products.' },
-                mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or JINA_API_KEY unavailable.', default: 'hybrid' },
+                mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or GEMINI_API_KEY unavailable.', default: 'hybrid' },
             },
         },
     },
@@ -166,8 +166,8 @@ async function handleSearchProducts(args) {
     const t0 = Date.now();
     const q = args.q || '';
     const mode = args.mode || 'hybrid';
-    const jinaKey = process.env.JINA_API_KEY ?? '';
-    const useVector = config_1.vectorDb != null && jinaKey !== '' && q !== '' && mode !== 'keyword';
+    const geminiKey = process.env.GEMINI_API_KEY ?? '';
+    const useVector = config_1.vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
     const domain = args.domain || '';
     const region = args.region || '';
     // country_code is canonical; `country` kept as alias for backward compat
@@ -247,7 +247,7 @@ async function handleSearchProducts(args) {
                     const embedKey = `qembed:${Buffer.from(q).toString('base64').slice(0, 48)}`;
                     queryVec = await config_1.redis.get(embedKey).catch(() => null);
                     if (!queryVec) {
-                        queryVec = await (0, embedProducts_1.embedQuery)(q, jinaKey);
+                        queryVec = await (0, embedProducts_1.embedQuery)(q, geminiKey);
                         await config_1.redis.set(embedKey, queryVec, 'EX', 60).catch(() => { });
                     }
                 }

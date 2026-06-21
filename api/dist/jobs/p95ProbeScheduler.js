@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.stopP95ProbeScheduler = exports.startP95ProbeScheduler = void 0;
+exports.startP95ProbeScheduler = startP95ProbeScheduler;
+exports.stopP95ProbeScheduler = stopP95ProbeScheduler;
 const config_1 = require("../config");
 const p95_1 = require("../monitoring/p95");
 const MARKETS = ['sg', 'us', 'my', 'vn', 'th'];
@@ -121,7 +122,6 @@ function startP95ProbeScheduler() {
         }
     }
 }
-exports.startP95ProbeScheduler = startP95ProbeScheduler;
 function stopP95ProbeScheduler() {
     for (const timer of schedulerTimers) {
         clearInterval(timer);
@@ -129,4 +129,3 @@ function stopP95ProbeScheduler() {
     schedulerTimers = [];
     schedulerStarted = false;
 }
-exports.stopP95ProbeScheduler = stopP95ProbeScheduler;

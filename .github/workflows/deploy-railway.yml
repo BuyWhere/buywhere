@@ -24,6 +24,13 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Fail on merge markers in deployable files
+        run: |
+          if rg -n '^(<<<<<<< |=======|>>>>>>> )' api/src api/dist src .github; then
+            echo "ERROR: unresolved merge markers found in deployable files"
+            exit 1
+          fi
+
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 

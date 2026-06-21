@@ -667,4 +667,18 @@ describe('MCP JSON-RPC — protocol compliance', () => {
     const data = JSON.parse(body.result.content[0].text);
     assert.equal(data.page.limit, 100);
   });
+
+  it('search_products preserves caller limit when below cap', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 52, method: 'tools/call',
+        params: { name: 'search_products', arguments: { q: 'test', limit: 7 } },
+      }),
+    });
+    const body = await res.json();
+    const data = JSON.parse(body.result.content[0].text);
+    assert.equal(data.page.limit, 7);
+  });
 });

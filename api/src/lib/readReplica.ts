@@ -63,6 +63,15 @@ let lastLagMs: number | null = null;
 let lastProbeAt: string | null = null;
 let lastError: string | null = null;
 
+export class ReplicaUnavailableError extends Error {
+  code = 'REPLICA_UNAVAILABLE';
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'ReplicaUnavailableError';
+  }
+}
+
 async function probeLag(): Promise<void> {
   if (!replicaPool) return;
   try {
@@ -110,6 +119,44 @@ export function readDb(): Pool {
 /** Convenience: a pooled client from the current read pool. Caller must release(). */
 export function readDbConnect(): Promise<PoolClient> {
   return readDb().connect();
+}
+
+async function ensureReplicaHealthy(): Promise<void> {
+  if (!replicaPool) {
+    throw new ReplicaUnavailableError(
+      'REPLICA_DATABASE_URL is not configured. Canonical serving must read from maglev via replica.'
+    );
+  }
+
+  if (!lastProbeAt) {
+    await probeLag();
+  }
+
+  if (!replicaHealthy) {
+    const status = replicaStatus();
+    const details = status.last_error
+      ? `last_error=${status.last_error}`
+      : status.lag_ms == null
+        ? 'replica_lag_unknown'
+        : `lag_ms=${status.lag_ms} max_lag_ms=${status.max_lag_ms}`;
+    throw new ReplicaUnavailableError(
+      `Replica is unavailable for canonical serving (${details}). Fix REPLICA_DATABASE_URL / replica health; do not fall back to DATABASE_URL.`
+    );
+  }
+}
+
+/**
+ * Strict read path for canonical serving (BUY-54775).
+ * Search/stats must fail loudly instead of drifting back to roundhouse.
+ */
+export async function servingReadDb(): Promise<Pool> {
+  await ensureReplicaHealthy();
+  return replicaPool as Pool;
+}
+
+export async function servingReadDbConnect(): Promise<PoolClient> {
+  const pool = await servingReadDb();
+  return pool.connect();
 }
 
 /** Observability for /v1/catalog/stats/health and ops dashboards. */

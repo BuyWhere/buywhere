@@ -1,6 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resolvePrecomputedAffiliateUrl = exports.wrapAffiliateUrl = exports.buildAffiliateUrl = exports.detectPlatform = exports.loadAffiliateConfigs = void 0;
+exports.loadAffiliateConfigs = loadAffiliateConfigs;
+exports.detectPlatform = detectPlatform;
+exports.buildAffiliateUrl = buildAffiliateUrl;
+exports.wrapAffiliateUrl = wrapAffiliateUrl;
+exports.resolvePrecomputedAffiliateUrl = resolvePrecomputedAffiliateUrl;
 /**
  * Affiliate link wrapping — BUY-18436
  *
@@ -40,7 +44,6 @@ async function loadAffiliateConfigs() {
         // Non-fatal — table may not exist yet or DB unavailable; keep stale cache
     }
 }
-exports.loadAffiliateConfigs = loadAffiliateConfigs;
 async function getConfig(platform) {
     if (Date.now() - cacheLoadedAt > CACHE_TTL_MS) {
         await loadAffiliateConfigs();
@@ -56,7 +59,6 @@ function detectPlatform(url) {
         return null;
     }
 }
-exports.detectPlatform = detectPlatform;
 /**
  * Build a wrapped affiliate URL for the given network/trackingId.
  * Uses placeholder URL patterns; swap for real network deep-link format
@@ -84,7 +86,6 @@ function buildAffiliateUrl(rawUrl, config, clickId) {
             }
     }
 }
-exports.buildAffiliateUrl = buildAffiliateUrl;
 /**
  * Wraps a raw product URL with affiliate tracking parameters.
  * Returns the original URL if no active config exists for the detected platform.
@@ -105,7 +106,6 @@ async function wrapAffiliateUrl(rawUrl, productId, merchantId) {
      VALUES (null, $1, $2, $3, null, 'api_response', $4)`, [platform, productId, merchantId, wrappedUrl]).catch(() => { });
     return { url: wrappedUrl, clickId };
 }
-exports.wrapAffiliateUrl = wrapAffiliateUrl;
 /**
  * Synchronous wrapper using pre-fetched affiliate_url from the affiliate_links table.
  * Used in buildProduct when the DB query already joined the table.
@@ -117,4 +117,3 @@ function resolvePrecomputedAffiliateUrl(affiliateUrl) {
     }
     return null;
 }
-exports.resolvePrecomputedAffiliateUrl = resolvePrecomputedAffiliateUrl;

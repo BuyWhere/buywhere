@@ -1,6 +1,0 @@
-{"domain": "bigcommerce-store.mybigcommerce.com", "source": "bigcommerce", "signal": "domain_suffix:mybigcommerce", "endpoint": "", "product_count": 0, "status": "failed", "details": {"reason": "no_public_feed"}}
-{"domain": "apacdemostore.mybigcommerce.com", "source": "bigcommerce", "signal": "domain_suffix:mybigcommerce", "endpoint": "", "product_count": 0, "status": "failed", "details": {"reason": "no_public_feed"}}
-{"domain": "bigcommerce-mvp.mybigcommerce.com", "source": "bigcommerce", "signal": "domain_suffix:mybigcommerce", "endpoint": "", "product_count": 0, "status": "failed", "details": {"reason": "no_public_feed"}}
-{"domain": "luke1.mybigcommerce.com", "source": "bigcommerce", "signal": "domain_suffix:mybigcommerce", "endpoint": "", "product_count": 0, "status": "failed", "details": {"reason": "no_public_feed"}}
-{"domain": "indy-web-co.mybigcommerce.com", "source": "bigcommerce", "signal": "domain_suffix:mybigcommerce", "endpoint": "", "product_count": 0, "status": "failed", "details": {"reason": "no_public_feed"}}
-{"domain": "uksandboxstore.mybigcommerce.com", "source": "bigcommerce", "signal": "domain_suffix:mybigcommerce", "endpoint": "", "product_count": 0, "status": "failed", "details": {"reason": "no_public_feed"}}

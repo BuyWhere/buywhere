@@ -1,6 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.replicaStatus = exports.readDbConnect = exports.readDb = exports.replicaPool = void 0;
+exports.ReplicaUnavailableError = exports.replicaPool = void 0;
+exports.readDb = readDb;
+exports.readDbConnect = readDbConnect;
+exports.servingReadDb = servingReadDb;
+exports.servingReadDbConnect = servingReadDbConnect;
+exports.replicaStatus = replicaStatus;
 const pg_1 = require("pg");
 const config_1 = require("../config");
 /**
@@ -59,6 +64,14 @@ let replicaHealthy = false;
 let lastLagMs = null;
 let lastProbeAt = null;
 let lastError = null;
+class ReplicaUnavailableError extends Error {
+    constructor(message) {
+        super(message);
+        this.code = 'REPLICA_UNAVAILABLE';
+        this.name = 'ReplicaUnavailableError';
+    }
+}
+exports.ReplicaUnavailableError = ReplicaUnavailableError;
 async function probeLag() {
     if (!exports.replicaPool)
         return;
@@ -100,12 +113,39 @@ if (exports.replicaPool) {
 function readDb() {
     return replicaHealthy && exports.replicaPool ? exports.replicaPool : config_1.db;
 }
-exports.readDb = readDb;
 /** Convenience: a pooled client from the current read pool. Caller must release(). */
 function readDbConnect() {
     return readDb().connect();
 }
-exports.readDbConnect = readDbConnect;
+async function ensureReplicaHealthy() {
+    if (!exports.replicaPool) {
+        throw new ReplicaUnavailableError('REPLICA_DATABASE_URL is not configured. Canonical serving must read from maglev via replica.');
+    }
+    if (!lastProbeAt) {
+        await probeLag();
+    }
+    if (!replicaHealthy) {
+        const status = replicaStatus();
+        const details = status.last_error
+            ? `last_error=${status.last_error}`
+            : status.lag_ms == null
+                ? 'replica_lag_unknown'
+                : `lag_ms=${status.lag_ms} max_lag_ms=${status.max_lag_ms}`;
+        throw new ReplicaUnavailableError(`Replica is unavailable for canonical serving (${details}). Fix REPLICA_DATABASE_URL / replica health; do not fall back to DATABASE_URL.`);
+    }
+}
+/**
+ * Strict read path for canonical serving (BUY-54775).
+ * Search/stats must fail loudly instead of drifting back to roundhouse.
+ */
+async function servingReadDb() {
+    await ensureReplicaHealthy();
+    return exports.replicaPool;
+}
+async function servingReadDbConnect() {
+    const pool = await servingReadDb();
+    return pool.connect();
+}
 /** Observability for /v1/catalog/stats/health and ops dashboards. */
 function replicaStatus() {
     return {
@@ -118,4 +158,3 @@ function replicaStatus() {
         last_error: lastError,
     };
 }
-exports.replicaStatus = replicaStatus;

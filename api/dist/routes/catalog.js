@@ -22,7 +22,7 @@ const CATALOG_STATS_SOURCE_FALLBACK = 'pg_class_fallback';
 // and exact count on the much-smaller merchants table.
 async function collectStats() {
     const now = new Date().toISOString();
-    const reader = (0, readReplica_1.readDb)();
+    const reader = await (0, readReplica_1.servingReadDb)();
     const [productsEst, merchantsExact, activeRatio,] = await Promise.all([
         // Total products: pg_class.reltuples (instant, no table scan)
         reader.query(`SELECT reltuples::bigint AS est FROM pg_class WHERE oid = 'public.products'::regclass`)
@@ -63,7 +63,7 @@ async function collectStats() {
 // ─── Try exact count (background use, may time out on large tables) ─────
 async function tryExactCount(timeoutMs = 45000) {
     // Heavy full-table count — route to the replica when available (BUY-45692).
-    const client = await (0, readReplica_1.readDb)().connect();
+    const client = await (0, readReplica_1.servingReadDbConnect)();
     try {
         await client.query('BEGIN');
         await client.query(`SET LOCAL statement_timeout = ${timeoutMs}`);
@@ -174,6 +174,14 @@ router.get('/stats', async (_req, res) => {
         });
     }
     catch (err) {
+        if (err instanceof readReplica_1.ReplicaUnavailableError) {
+            res.status(503).json({
+                error: 'catalog_replica_unavailable',
+                message: err.message,
+                replica: (0, readReplica_1.replicaStatus)(),
+            });
+            return;
+        }
         console.error('[catalog/stats] error:', err);
         res.status(500).json({ error: 'Internal server error' });
     }
@@ -208,6 +216,14 @@ router.post('/stats/refresh', async (_req, res) => {
         });
     }
     catch (err) {
+        if (err instanceof readReplica_1.ReplicaUnavailableError) {
+            res.status(503).json({
+                error: 'catalog_replica_unavailable',
+                message: err.message,
+                replica: (0, readReplica_1.replicaStatus)(),
+            });
+            return;
+        }
         console.error('[catalog/stats/refresh] error:', err);
         res.status(500).json({ error: 'Internal server error' });
     }
