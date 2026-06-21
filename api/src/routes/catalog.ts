@@ -1,12 +1,20 @@
 import { Router, Request, Response } from 'express';
-import { db, redis, catalogDb } from '../config';
-import { readDb, replicaStatus } from '../lib/readReplica';
+import { db, redis } from '../config';
+import { readDb, replicaStatus, ReplicaUnavailableError, servingReadDb, servingReadDbConnect } from '../lib/readReplica';
 
 // BUY-45692: heavy catalog aggregates read from the replica when one is
 // configured (REPLICA_DATABASE_URL) and caught up; otherwise readDb() returns
 // the primary `db`. Interactive /v1/products/search stays on the primary.
 // `db` is still used for the cheap pg_class estimates so they're available even
 // before a replica is provisioned, but the expensive scans route through readDb.
+//
+// BUY-54775 (canonical): for serving `/v1/catalog/stats*` we MUST go through
+// `servingReadDb()`, which strictly requires a healthy `REPLICA_DATABASE_URL`
+// pointing at the maglev read replica (`maglev-search-replica`). If the
+// replica is missing or lagging, the route fails loud with 503
+// `catalog_replica_unavailable` instead of silently reading from the
+// primary/roundhouse. This blocks the previous behavior where stats would
+// drift to `DATABASE_URL` when the replica was unhealthy.
 
 const router = Router();
 
@@ -35,7 +43,7 @@ interface CatalogStatsResult {
 async function collectStats(): Promise<CatalogStatsResult> {
   const now = new Date().toISOString();
 
-  const reader = catalogDb;
+  const reader = await servingReadDb();
   const [
     productsEst,
     merchantsExact,
@@ -85,7 +93,8 @@ async function collectStats(): Promise<CatalogStatsResult> {
 // ─── Try exact count (background use, may time out on large tables) ─────
 async function tryExactCount(timeoutMs = 45000): Promise<CatalogStatsResult | null> {
   // Heavy full-table count — route to the replica when available (BUY-45692).
-  const client = await catalogDb.connect();
+  // BUY-54775: strict — must use the canonical serving replica, not the primary.
+  const client = await servingReadDbConnect();
   try {
     await client.query('BEGIN');
     await client.query(`SET LOCAL statement_timeout = ${timeoutMs}`);
@@ -196,6 +205,14 @@ router.get('/stats', async (_req: Request, res: Response) => {
       },
     });
   } catch (err) {
+    if (err instanceof ReplicaUnavailableError) {
+      res.status(503).json({
+        error: 'catalog_replica_unavailable',
+        message: err.message,
+        replica: replicaStatus(),
+      });
+      return;
+    }
     console.error('[catalog/stats] error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -232,6 +249,14 @@ router.post('/stats/refresh', async (_req: Request, res: Response) => {
       meta: { approximate: true, source: stats.source, ts: stats.collected_at },
     });
   } catch (err) {
+    if (err instanceof ReplicaUnavailableError) {
+      res.status(503).json({
+        error: 'catalog_replica_unavailable',
+        message: err.message,
+        replica: replicaStatus(),
+      });
+      return;
+    }
     console.error('[catalog/stats/refresh] error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -279,7 +304,7 @@ router.get('/stats/health', async (_req: Request, res: Response) => {
 router.get('/categories', async (_req: Request, res: Response) => {
   const start = Date.now();
   try {
-    const result = await catalogDb.query(
+    const result = await db.query(
       `SELECT slug, name, product_count FROM mcp_category_summary ORDER BY product_count DESC LIMIT 50`
     );
     const categories = result.rows.map((row) => ({

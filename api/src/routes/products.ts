@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { createHash } from 'crypto';
+import { PoolClient } from 'pg';
 import { db, redis, vectorDb } from '../config';
-import { readDb } from '../lib/readReplica';
+import { readDb, ReplicaUnavailableError, servingReadDbConnect } from '../lib/readReplica';
 import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
@@ -481,7 +482,19 @@ router.get(
       `;
     }
 
-    const client = await db.connect();
+    let client: PoolClient;
+    try {
+      client = await servingReadDbConnect();
+    } catch (err) {
+      if (err instanceof ReplicaUnavailableError) {
+        res.status(503).json({
+          error: 'search_replica_unavailable',
+          message: err.message,
+        });
+        return;
+      }
+      throw err;
+    }
     try {
       await client.query('BEGIN');
       // BUY-45671: cap per-query work_mem and disable *parallel* query under load.
