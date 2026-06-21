@@ -28,10 +28,11 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy to Railway
+        working-directory: mcp-railway
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
-          railway up ./mcp-railway \
+          railway up \
             --service "$RAILWAY_SERVICE_ID" \
             --environment "$RAILWAY_ENVIRONMENT_ID" \
             --ci
