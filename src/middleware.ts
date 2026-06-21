@@ -120,14 +120,18 @@ const ACTIVE_BLOG_SLUGS = new Set([
   "best-time-to-buy-smartwatches",
   "best-time-to-buy-tvs",
   "build-shopping-agent-buywhere-mcp",
+  "buywhere-cursor-plugin-launch",
   "cheapest-iphone-17-singapore-june-2026",
   "cheapest-iphone-singapore-2026",
   "cheapest-macbook-air-m3-12-countries-compared",
+  "amazon-prime-day-2026-preview",
   "airpods-pro-2-cheapest-us-sg-my-jp",
   "compare-headphones-singapore-2026",
   "compare-product-prices-singapore-2026",
+  "fathers-day-deals-2026",
   "home-appliance-deals-singapore-2026",
   "iphone-16-vs-iphone-17-upgrade-worth-it-2026",
+  "openai-agents-sdk-buywhere-mcp-tutorial",
 ]);
 
 function normalizePathname(pathname: string): string {
