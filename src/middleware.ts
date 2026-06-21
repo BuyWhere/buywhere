@@ -404,7 +404,7 @@ export function middleware(request: NextRequest) {
     us: "us",
   };
 
-  const bestMatch = pathname.match(/^\/best\/([^/]+)\/([^/]+)$/);
+  const bestMatch = pathname.match(/^\/best\/([^/]+)\/([^/]+)\/?$/);
   if (bestMatch) {
     const [, query, rawLocation] = bestMatch;
     const location = INTENT_LOCATION_MAP[rawLocation.toLowerCase()] || rawLocation.toLowerCase();
@@ -414,7 +414,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
-  const cheapestMatch = pathname.match(/^\/cheapest\/([^/]+)\/([^/]+)$/);
+  const cheapestMatch = pathname.match(/^\/cheapest\/([^/]+)\/([^/]+)\/?$/);
   if (cheapestMatch) {
     const [, query, rawLocation] = cheapestMatch;
     const location = INTENT_LOCATION_MAP[rawLocation.toLowerCase()] || rawLocation.toLowerCase();
