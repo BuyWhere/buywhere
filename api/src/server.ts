@@ -25,6 +25,7 @@ import catalogRouter from './routes/catalog';
 import keysRouter from './routes/keys';
 import usageRouter from './routes/usage';
 import webhooksRouter from './routes/webhooks';
+import aqsRouter from './routes/aqs';
 import monitoringRouter from './monitoring/routes';
 import { latencyMiddleware } from './monitoring/middleware';
 import { histogramLatencyMiddleware } from './middleware/latency';
@@ -227,6 +228,7 @@ export function createApp() {
   app.use('/v1/catalog', catalogRouter);
   app.use('/v1/keys', keysRouter);
   app.use('/v1/usage', usageRouter);
+  app.use('/v1/aqs', aqsRouter);
   app.use('/v1/compare', aiCrawlerHeaders, compareSlugRouter);
   app.use('/api/v1/compare', aiCrawlerHeaders, compareSlugRouter); // alias — FE integration uses /api prefix
 

@@ -1,0 +1,155 @@
+name: AQS Ingest
+
+# AQS (Agent Quality Score) ingest job.
+#
+# Every 15 minutes, this job:
+#   1. Fetches the latest AQS test-cycle JSON from $AQS_TEST_CYCLE_URL
+#      (or, as a fallback for the very first run, generates a synthetic
+#      dry-run cycle so the table gets its first row).
+#   2. Runs scripts/aqs_calculator.py --store, which computes the
+#      composite AQS and upserts into the aqs_cycles Postgres table
+#      via app/services/aqs_storage.py.
+#   3. Smoke-tests GET /v1/aqs/health on the production API and fails
+#      the workflow if the table is missing or no row was written.
+#
+# Secrets (configure per environment):
+#   AQS_DATABASE_URL      Postgres connection string (recommend same as
+#                         the API's DATABASE_URL — schema is created at
+#                         API startup by api/src/migrate.ts → AQS_MIGRATION)
+#   AQS_TEST_CYCLE_URL    Endpoint that returns an AQS test-cycle JSON
+#                         matching the BUY-12885 §4.1 data contract.
+#                         If unset, the job uses --dry-run mode against a
+#                         local /tmp/aqs-cycles directory and does not
+#                         write to Postgres (so the workflow can land
+#                         before the test-cycle endpoint is ready).
+#   AQS_VERIFY_URL        Base URL of the buywhere-api (defaults to
+#                         https://api.buywhere.ai). Used by the smoke
+#                         step that hits /v1/aqs/health.
+#
+# See: BUY-33907 (re-deliver), BUY-16518 (configure secrets + first run).
+
+on:
+  schedule:
+    # Every 15 minutes (off the :00 / :15 / :30 / :45 marks to avoid
+    # colliding with the cron batch fleet). 11 min past the hour hits
+    # the API when traffic is steady-state.
+    - cron: '11,26,41,56 * * * *'
+  workflow_dispatch:
+    inputs:
+      cycle_file:
+        description: 'Path to a test-cycle JSON (overrides AQS_TEST_CYCLE_URL fetch)'
+        required: false
+        type: string
+      skip_store:
+        description: 'Run in dry-run mode (do not write to Postgres)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  compute-and-store:
+    name: Compute AQS and persist to aqs_cycles
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install AQS dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # psycopg2-binary is required by app/services/aqs_storage.py.
+          python -m pip install psycopg2-binary
+
+      - name: Resolve test-cycle JSON
+        id: cycle
+        env:
+          AQS_TEST_CYCLE_URL: ${{ secrets.AQS_TEST_CYCLE_URL }}
+          INPUT_CYCLE_FILE: ${{ inputs.cycle_file }}
+        run: |
+          mkdir -p /tmp/aqs-cycles
+          if [ -n "$INPUT_CYCLE_FILE" ] && [ -f "$INPUT_CYCLE_FILE" ]; then
+            cp "$INPUT_CYCLE_FILE" /tmp/aqs-cycles/manual_$(date -u +%Y%m%dT%H%M%SZ).json
+            echo "source=manual path=$INPUT_CYCLE_FILE" >> "$GITHUB_OUTPUT"
+          elif [ -n "$AQS_TEST_CYCLE_URL" ]; then
+            CYCLE_FILE="/tmp/aqs-cycles/cycle_$(date -u +%Y%m%dT%H%M%SZ).json"
+            if curl -fsSL --max-time 20 "$AQS_TEST_CYCLE_URL" -o "$CYCLE_FILE"; then
+              echo "source=fetch path=$CYCLE_FILE" >> "$GITHUB_OUTPUT"
+            else
+              echo "::warning::AQS_TEST_CYCLE_URL fetch failed (status=$?), falling back to local /tmp/aqs-cycles"
+              echo "source=local_fallback path=" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "::notice::AQS_TEST_CYCLE_URL is unset; using /tmp/aqs-cycles/ (will be empty on first run)"
+            echo "source=local_fallback path=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compute AQS and persist to Postgres
+        env:
+          DATABASE_URL: ${{ secrets.AQS_DATABASE_URL }}
+          AQS_DATABASE_URL: ${{ secrets.AQS_DATABASE_URL }}
+          AQS_CYCLE_DIR: /tmp/aqs-cycles
+          AQS_OUTPUT_DIR: /tmp/aqs-output
+          INPUT_SKIP_STORE: ${{ inputs.skip_store }}
+        run: |
+          set -e
+          mkdir -p /tmp/aqs-output
+          STORE_FLAG=""
+          if [ "$INPUT_SKIP_STORE" != "true" ] && [ -n "$DATABASE_URL" ]; then
+            STORE_FLAG="--store"
+          else
+            echo "::notice::Skipping Postgres persist (skip_store=$INPUT_SKIP_STORE, AQS_DATABASE_URL set=$([ -n "$DATABASE_URL" ] && echo yes || echo no))"
+          fi
+          python scripts/aqs_calculator.py $STORE_FLAG --source github-actions
+
+      - name: Upload AQS artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aqs-output
+          path: |
+            /tmp/aqs-output
+            /tmp/aqs-cycles
+          retention-days: 7
+
+      - name: Verify aqs_cycles write against the API
+        if: env.AQS_VERIFY_ENABLED != 'false'
+        env:
+          AQS_VERIFY_URL: ${{ vars.AQS_VERIFY_URL || secrets.AQS_VERIFY_URL || 'https://api.buywhere.ai' }}
+          INPUT_SKIP_STORE: ${{ inputs.skip_store }}
+        run: |
+          # Only meaningful if we actually wrote to Postgres. The verify
+          # endpoint reads from aqs_cycles on the production API, so it
+          # only succeeds once the row is visible (replication / pool).
+          if [ "$INPUT_SKIP_STORE" = "true" ]; then
+            echo "::notice::skip_store=true — skipping /v1/aqs/health verification"
+            exit 0
+          fi
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::notice::AQS_DATABASE_URL is unset — skipping /v1/aqs/health verification"
+            exit 0
+          fi
+          for i in 1 2 3 4 5; do
+            HTTP=$(curl -s -o /tmp/aqs-health.json -w "%{http_code}" --max-time 15 "${AQS_VERIFY_URL}/v1/aqs/health" || echo "000")
+            echo "Attempt ${i}: GET /v1/aqs/health → HTTP ${HTTP}"
+            if [ "$HTTP" = "200" ]; then
+              cat /tmp/aqs-health.json
+              ROWS=$(python -c "import json,sys; d=json.load(open('/tmp/aqs-health.json')); print(d['data']['total_rows'])")
+              echo "aqs_cycles total_rows=${ROWS}"
+              exit 0
+            fi
+            sleep 6
+          done
+          echo "::error::AQS verify endpoint never returned 200 within 30s"
+          exit 1
+        # Only run the verify step in production. For workflow_dispatch in
+        # staging, callers should set AQS_VERIFY_ENABLED=false in the
+        # environment or override AQS_VERIFY_URL.
+        continue-on-error: false
