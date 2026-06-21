@@ -170,6 +170,24 @@ export function readDbConnect(): Promise<PoolClient> {
   return readDb().connect();
 }
 
+/**
+ * Backwards-compatible alias used by the products route.
+ *
+ * The route still expects a replica-specific name and error type from an older
+ * implementation. Keeping these exports avoids a broad route rewrite while the
+ * deploy context stays aligned with the current read-replica behavior.
+ */
+export class ReplicaUnavailableError extends Error {
+  constructor(message = 'Replica unavailable') {
+    super(message);
+    this.name = 'ReplicaUnavailableError';
+  }
+}
+
+export async function servingReadDbConnect(): Promise<PoolClient> {
+  return readDbConnect();
+}
+
 /** Observability for /v1/catalog/stats/health and ops dashboards. */
 export function replicaStatus() {
   return {
