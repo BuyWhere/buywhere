@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import Schema from "@/components/Schema";
+import DocsRedirect from "./DocsRedirect";
 import { buildWebPageSchema } from "@/lib/page-schema";
 import { toSiteUrl } from "@/lib/site-url";
 
 // Self-referential, non-trailing-slash canonical on /docs.
-// The /docs page body issues a client-side redirect to /quickstart via
-// redirect("/quickstart") below, but Next.js still emits the metadata
+// The /docs page body issues a client-side redirect to /quickstart via the
+// DocsRedirect client component, but Next.js still emits the metadata
 // generated here in the <head>, so the served HTML carries the canonical
 // link tag. This clears the GSC "Duplicate without user-selected canonical"
 // bucket for /docs vs /docs/.
@@ -36,14 +36,10 @@ export default function DocsPage() {
       { name: "Documentation", path: "/docs" },
     ],
   });
-  // Render the schema first so the JSON-LD is in the SSR HTML response,
-  // then issue the server-side redirect to /quickstart. redirect() throws
-  // NEXT_REDIRECT which Next.js catches at the framework boundary, so the
-  // JSX above is what the client sees on the way to the redirect.
   return (
     <>
       <Schema data={schema} />
-      {redirect("/quickstart")}
+      <DocsRedirect />
     </>
   );
 }
