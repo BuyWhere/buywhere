@@ -26,6 +26,19 @@ function isRetryableDbError(err: unknown): boolean {
 }
 
 const DB_RETRY_ATTEMPTS = parseInt(process.env.INGEST_DB_RETRY_ATTEMPTS || '8', 10);
+const INGEST_SCHEMA_GUARD_TTL_MS = parseInt(process.env.INGEST_SCHEMA_GUARD_TTL_MS || '60000', 10);
+
+type IngestSchemaGuardResult = {
+  ok: boolean;
+  checkedAt: number;
+  relkind: string | null;
+  serverAddr: string | null;
+  serverPort: number | null;
+  postmasterStartTime: string | null;
+  error?: string;
+};
+
+let ingestSchemaGuardCache: IngestSchemaGuardResult | null = null;
 
 function asyncHandler(fn: (req: Request, res: Response) => Promise<unknown>) {
   return (req: Request, res: Response) => {
@@ -62,6 +75,83 @@ async function withDbRetry<T>(operation: () => Promise<T>, label: string, maxRet
     }
   }
   throw lastError;
+}
+
+async function ensureProductsConflictTarget(): Promise<IngestSchemaGuardResult> {
+  if (ingestSchemaGuardCache && (Date.now() - ingestSchemaGuardCache.checkedAt) < INGEST_SCHEMA_GUARD_TTL_MS) {
+    return ingestSchemaGuardCache;
+  }
+
+  try {
+    const result = await db.query<{
+      relkind: string | null;
+      has_conflict_target: boolean;
+      server_addr: string | null;
+      server_port: number | null;
+      postmaster_start_time: string | null;
+    }>(
+      `SELECT
+         (SELECT c.relkind
+            FROM pg_class c
+           WHERE c.oid = 'public.products'::regclass) AS relkind,
+         EXISTS (
+           SELECT 1
+             FROM pg_constraint con
+            WHERE con.conrelid = 'public.products'::regclass
+              AND con.contype = 'u'
+              AND ARRAY(
+                SELECT att.attname
+                  FROM unnest(con.conkey) WITH ORDINALITY AS cols(attnum, ord)
+                  JOIN pg_attribute att
+                    ON att.attrelid = con.conrelid
+                   AND att.attnum = cols.attnum
+                 ORDER BY cols.ord
+              ) = ARRAY['sku', 'source', 'country_code']
+         ) AS has_conflict_target,
+         inet_server_addr()::text AS server_addr,
+         inet_server_port() AS server_port,
+         pg_postmaster_start_time()::text AS postmaster_start_time`
+    );
+
+    const row = result.rows[0];
+    const guardResult: IngestSchemaGuardResult = {
+      ok: Boolean(row?.has_conflict_target),
+      checkedAt: Date.now(),
+      relkind: row?.relkind ?? null,
+      serverAddr: row?.server_addr ?? null,
+      serverPort: row?.server_port ?? null,
+      postmasterStartTime: row?.postmaster_start_time ?? null,
+    };
+
+    if (!guardResult.ok) {
+      guardResult.error =
+        'products is missing the required UNIQUE (sku, source, country_code) conflict target; ' +
+        'check DATABASE_URL / stale schema wiring';
+      console.error(
+        `[ingest] schema guard failed: ${guardResult.error} ` +
+        `(relkind=${guardResult.relkind ?? 'unknown'} ` +
+        `server=${guardResult.serverAddr ?? 'unknown'}:${guardResult.serverPort ?? 0} ` +
+        `postmasterStart=${guardResult.postmasterStartTime ?? 'unknown'})`
+      );
+    }
+
+    ingestSchemaGuardCache = guardResult;
+    return guardResult;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const guardResult: IngestSchemaGuardResult = {
+      ok: false,
+      checkedAt: Date.now(),
+      relkind: null,
+      serverAddr: null,
+      serverPort: null,
+      postmasterStartTime: null,
+      error: `schema guard query failed: ${message}`,
+    };
+    console.error('[ingest] schema guard query failed:', message);
+    ingestSchemaGuardCache = guardResult;
+    return guardResult;
+  }
 }
 
 function normalizeSource(source: string): string {
@@ -318,6 +408,31 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
       res.status(207).json({
         run_id: null, status: 'failed', rows_inserted: 0, rows_updated: 0,
         rows_failed: errors.length, errors,
+      });
+      return;
+    }
+
+    const schemaGuard = await ensureProductsConflictTarget();
+    if (!schemaGuard.ok) {
+      res.status(503).json({
+        run_id: null,
+        status: 'failed',
+        rows_inserted: 0,
+        rows_updated: 0,
+        rows_failed: validProducts.length + errors.length,
+        errors: [
+          {
+            index: -1,
+            sku: 'batch',
+            error:
+              `Database schema mismatch: ${schemaGuard.error || 'missing products conflict target'} ` +
+              `(relkind=${schemaGuard.relkind ?? 'unknown'}, ` +
+              `server=${schemaGuard.serverAddr ?? 'unknown'}:${schemaGuard.serverPort ?? 0}, ` +
+              `postmaster_start=${schemaGuard.postmasterStartTime ?? 'unknown'})`,
+            code: 'database_schema_mismatch',
+          },
+          ...errors,
+        ],
       });
       return;
     }
