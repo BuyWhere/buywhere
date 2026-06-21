@@ -113,18 +113,43 @@ const createPaperclipIssue = async (alert: UptimeRobotAlert, isDown: boolean): P
 };
 
 router.post('/uptime-robot', (req: Request, res: Response) => {
+  // Monitors hitting these hosts are always ignored (no Paperclip incidents)
+  const UNSUPPORTED_MONITOR_HOSTS = ['dedup.ai'];
+
   const payload = req.body as UptimeRobotAlert;
+  const monitorURL = payload?.monitorURL || '';
+
+  if (UNSUPPORTED_MONITOR_HOSTS.some(host => monitorURL.includes(host))) {
+    console.log(`[webhooks/uptime-robot] Ignoring unsupported monitor host: ${monitorURL}`);
+    res.status(202).json({ ignored: true, reason: 'unsupported_monitor_host' });
+    return;
+  }
+
   console.log('[webhooks/uptime-robot] Received alert:', JSON.stringify(payload));
 
   const alertType = payload?.alertType ?? payload?.alert_type;
   const friendlyName = payload?.monitorFriendlyName || payload?.monitorName || payload?.monitor_name || 'unknown';
-  const monitorURL = payload?.monitorURL || 'unknown';
   const alertDetails = payload?.alertDetails ?? payload?.alert_details ?? '';
 
   if (!isSupportedMonitorHost(monitorURL)) {
     console.warn(`[webhooks/uptime-robot] Ignoring alert for unsupported host: ${monitorURL} (friendlyName=${friendlyName})`);
     res.status(202).json({ ignored: true, reason: 'unsupported_monitor_host' });
     return;
+  }
+
+  // For api.buywhere.ai, ignore root-path probes — the canonical monitor targets /v1/products/search
+  try {
+    const parsed = new URL(monitorURL);
+    if (
+      parsed.hostname === 'api.buywhere.ai' &&
+      (parsed.pathname === '/' || parsed.pathname === '')
+    ) {
+      console.warn(`[webhooks/uptime-robot] Ignoring root-path probe on api.buywhere.ai: ${monitorURL} (friendlyName=${friendlyName})`);
+      res.status(202).json({ ignored: true, reason: 'root_probe_ignored' });
+      return;
+    }
+  } catch {
+    // Malformed URL — let it through; isSupportedMonitorHost already handled valid hosts
   }
 
   const isDown = alertType === 1 || alertType === '1' || alertType === 'down' || alertType === 'DOWN' || alertType === 'Down';
