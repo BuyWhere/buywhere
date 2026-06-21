@@ -1,0 +1,82 @@
+name: Deploy MCP to Railway
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: buywhere-mcp-railway-production
+  cancel-in-progress: false
+
+env:
+  RAILWAY_SERVICE_ID: 9090706e-9515-4b3f-aa72-865dd55dac55
+  RAILWAY_ENVIRONMENT_ID: ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae
+  MCP_URL: https://mcp.buywhere.ai
+
+jobs:
+  deploy:
+    name: Deploy mcp-server to Railway
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          railway up \
+            --service "$RAILWAY_SERVICE_ID" \
+            --environment "$RAILWAY_ENVIRONMENT_ID" \
+            --ci
+
+      - name: Post-deploy smoke test
+        run: |
+          echo "=== Smoke testing ${MCP_URL} ==="
+
+          ok=0
+          for i in $(seq 1 20); do
+            HTTP=$(curl -s -o /tmp/mcp_healthz.out -w "%{http_code}" --max-time 30 "${MCP_URL}/healthz" || echo "000")
+            echo "GET /healthz -> HTTP ${HTTP} (attempt ${i})"
+            if [ "$HTTP" = "200" ]; then
+              ok=1
+              break
+            fi
+            sleep 10
+          done
+          if [ "$ok" != "1" ]; then
+            echo "ERROR: /healthz did not return 200 after deploy"
+            cat /tmp/mcp_healthz.out || true
+            exit 1
+          fi
+
+          plugin_ok=0
+          for i in $(seq 1 12); do
+            HTTP=$(curl -s -o /tmp/mcp_plugin.out -w "%{http_code}" --max-time 30 "${MCP_URL}/.well-known/ai-plugin.json" || echo "000")
+            echo "GET /.well-known/ai-plugin.json -> HTTP ${HTTP} (attempt ${i})"
+            if [ "$HTTP" = "200" ]; then
+              plugin_ok=1
+              break
+            fi
+            sleep 10
+          done
+          if [ "$plugin_ok" != "1" ]; then
+            echo "ERROR: /.well-known/ai-plugin.json did not return 200 after deploy"
+            cat /tmp/mcp_plugin.out || true
+            exit 1
+          fi
+
+          INIT=$(curl -sS -X POST "${MCP_URL}/mcp" \
+            -H "Content-Type: application/json" \
+            -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"gha-smoke","version":"1.0.0"}}}')
+          echo "$INIT" | jq '.'
+          if ! echo "$INIT" | jq -e '.result.protocolVersion == "2024-11-05" or .error == "missing_api_key"' >/dev/null; then
+            echo "ERROR: MCP initialize smoke test returned unexpected payload"
+            exit 1
+          fi
