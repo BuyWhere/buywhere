@@ -31,7 +31,7 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
-          railway up \
+          railway up ./mcp-railway \
             --service "$RAILWAY_SERVICE_ID" \
             --environment "$RAILWAY_ENVIRONMENT_ID" \
             --ci
