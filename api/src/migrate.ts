@@ -23,6 +23,25 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS review_count   INTEGER;
 -- Full-text search support on products table
 CREATE INDEX IF NOT EXISTS idx_products_search_vector ON products USING GIN(search_vector);
 
+-- BUY-31015 / BUY-55570: Unique constraint required for ON CONFLICT (sku, source, country_code) upserts
+-- in POST /v1/ingest. Idempotent: constraint created only if not exists.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'products'::regclass
+      AND conname = 'products_sku_source_country_unique'
+      AND contype = 'u'
+  ) THEN
+    ALTER TABLE products
+      ADD CONSTRAINT products_sku_source_country_unique
+      UNIQUE (sku, source, country_code);
+  END IF;
+END
+$$;
+
+
+
 -- Drop the old broken trigger that referenced non-existent columns (name, tags).
 DROP TRIGGER IF EXISTS products_search_vector_trig ON products;
 DROP FUNCTION IF EXISTS products_search_vector_update() CASCADE;
