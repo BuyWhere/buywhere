@@ -4,16 +4,13 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Schema from "@/components/Schema";
 import { buildWebPageSchema } from "@/lib/page-schema";
-import { toSiteUrl } from "@/lib/site-url";
-
-export const metadata: Metadata = {
+import { buildPageMetadata } from "@/lib/page-metadata";
+export const metadata = buildPageMetadata({
   title: "BuyWhere for AI Agents",
   description:
     "Product behavior documentation for AI agents using BuyWhere: ranking, price comparison, availability, merchant selection, tool mapping, and machine-relevant metrics.",
-  alternates: {
-    canonical: toSiteUrl("/agents"),
-  },
-};
+  path: "/agents",
+});
 
 const flowSteps = [
   {

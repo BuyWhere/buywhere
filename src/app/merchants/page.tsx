@@ -4,16 +4,13 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import Schema from "@/components/Schema";
 import { buildServiceSchema } from "@/lib/page-schema";
-import { toSiteUrl } from "@/lib/site-url";
-
-export const metadata: Metadata = {
+import { buildPageMetadata } from "@/lib/page-metadata";
+export const metadata = buildPageMetadata({
   title: "Merchants — Get Discovered by AI Agents | BuyWhere",
   description:
     "List your catalog on BuyWhere and become discoverable to the next wave of AI-powered shopping experiences in Singapore.",
-  alternates: {
-    canonical: toSiteUrl("/merchants/"),
-  },
-};
+  path: "/merchants/",
+});
 
 const benefits = [
   {

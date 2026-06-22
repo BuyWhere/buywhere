@@ -4,15 +4,13 @@ import ContactForm from "@/components/ContactForm";
 import type { Metadata } from "next";
 import Schema from "@/components/Schema";
 import { buildWebPageSchema } from "@/lib/page-schema";
-import { toSiteUrl } from "@/lib/site-url";
-
-export const metadata: Metadata = {
+import { buildPageMetadata } from "@/lib/page-metadata";
+export const metadata = buildPageMetadata({
   title: "Contact — BuyWhere",
-  description: "Get in touch with BuyWhere. Request API access, ask questions, or discuss your use case.",
-  alternates: {
-    canonical: toSiteUrl("/contact/"),
-  },
-};
+  description:
+    "Get in touch with BuyWhere. Request API access, ask questions, or discuss your use case.",
+  path: "/contact/",
+});
 
 export default function ContactPage() {
   const schema = buildWebPageSchema({

@@ -5,16 +5,13 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { toSiteUrl } from "@/lib/site-url";
-
-export const metadata: Metadata = {
+import { buildPageMetadata } from "@/lib/page-metadata";
+export const metadata = buildPageMetadata({
   title: "Pricing — BuyWhere Product Catalog API",
   description:
     "Simple, transparent pricing for the BuyWhere Product Catalog API. Free, Starter at $29/mo, and Pro at $99/mo.",
-  alternates: {
-    canonical: toSiteUrl("/pricing/"),
-  },
-};
+  path: "/pricing/",
+});
 
 const tiers = [
   {
