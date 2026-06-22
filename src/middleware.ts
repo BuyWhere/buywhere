@@ -360,11 +360,12 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // Trailing-slash rewrite: serve the non-slash path directly (200) instead of
-  // letting Next.js emit a 308 redirect.  Google was seeing 308 on every
-  // trailing-slash URL and reporting "Page with redirect", preventing indexing.
-  // Check legacyRedirectPath first so /docs/guides/foo/ and unknown /blog/foo/
-  // still get 410 or redirect rather than bypassing that logic via rewrite.
+  // Trailing-slash canonicalisation: 301 redirect to the non-slash URL.
+  // GSC flagged 9 URL pairs (BUY-55695) where slash and non-slash variants both
+  // returned HTTP 200 and were indexed as duplicates.  The previous rewrite
+  // branch served a 200 directly, so both variants stayed in the index.  The
+  // legacyRedirectPath check still runs first so /docs/guides/foo/ and
+  // unknown /blog/foo/ get 410 / remapped redirects instead of a plain 301.
   if (pathname !== "/" && pathname.endsWith("/")) {
     const nonSlashPath = pathname.slice(0, -1);
     const trailingSlashRedirect = legacyRedirectPath(host, nonSlashPath);
@@ -379,10 +380,13 @@ export function middleware(request: NextRequest) {
       url.pathname = trailingSlashRedirect;
       return NextResponse.redirect(url, 301);
     }
+    // No legacy remap: 301 to the canonical non-slash URL on the same origin.
+    // Emit rel=canonical via Link header so GSC picks up the canonical signal
+    // even if the destination page metadata is missing.
     const url = request.nextUrl.clone();
     url.pathname = nonSlashPath;
-    const tsResponse = NextResponse.rewrite(url);
-    if (nonSlashPath.startsWith("/docs")) tsResponse.headers.set("Link", `<https://buywhere.ai${nonSlashPath}>; rel="canonical"`);
+    const tsResponse = NextResponse.redirect(url, 301);
+    tsResponse.headers.set("Link", `<https://buywhere.ai${nonSlashPath}>; rel="canonical"`);
     return tsResponse;
   }
 
