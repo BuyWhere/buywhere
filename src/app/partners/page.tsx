@@ -2,6 +2,8 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import type { Metadata } from "next";
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
 import { buildPageMetadata } from "@/lib/page-metadata";
 export const metadata = buildPageMetadata({
   title: "Partners — Commerce Attribution & Partnerships | BuyWhere",
@@ -29,9 +31,21 @@ const partnerTypes = [
 ];
 
 export default function PartnersPage() {
+  const schema = buildWebPageSchema({
+    path: "/partners",
+    name: "Partners — Commerce Attribution & Partnerships | BuyWhere",
+    description:
+      "Partner with BuyWhere to solve attribution, referral, and demand routing for AI-agent commerce in Singapore.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "Partners", path: "/partners" },
+    ],
+  });
   return (
-    <div className="flex flex-col min-h-screen">
-      <Nav />
+    <>
+      <Schema data={schema} />
+      <div className="flex flex-col min-h-screen">
+        <Nav />
 
       {/* Hero */}
       <section className="bg-gradient-to-br from-violet-600 via-violet-700 to-violet-900 text-white py-20">
@@ -134,7 +148,8 @@ export default function PartnersPage() {
         </div>
       </section>
 
-      <Footer />
-    </div>
+        <Footer />
+      </div>
+    </>
   );
 }
