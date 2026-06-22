@@ -5,16 +5,13 @@ import Footer from "@/components/Footer";
 import PartnershipInquiryForm from "@/components/partnership/PartnershipInquiryForm";
 import Schema from "@/components/Schema";
 import { buildWebPageSchema } from "@/lib/page-schema";
-import { toSiteUrl } from "@/lib/site-url";
-
-export const metadata: Metadata = {
+import { buildPageMetadata } from "@/lib/page-metadata";
+export const metadata = buildPageMetadata({
   title: "Merchant Partnerships | BuyWhere",
   description:
     "Feature your products on BuyWhere and reach price-conscious shoppers, AI agents, and comparison experiences across Singapore and Southeast Asia.",
-  alternates: {
-    canonical: toSiteUrl("/partnership"),
-  },
-};
+  path: "/partnership",
+});
 
 const valueProps = [
   {

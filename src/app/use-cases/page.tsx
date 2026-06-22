@@ -4,16 +4,15 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import Schema from "@/components/Schema";
 import { buildWebPageSchema } from "@/lib/page-schema";
-import { toSiteUrl } from "@/lib/site-url";
 import { PopularComparisons } from "@/components/PopularComparisons";
 
-export const metadata: Metadata = {
+import { buildPageMetadata } from "@/lib/page-metadata";
+export const metadata = buildPageMetadata({
   title: "Use Cases — BuyWhere",
-  description: "Explore use cases for BuyWhere's product catalog API: shopping assistants, price comparison agents, and more.",
-  alternates: {
-    canonical: toSiteUrl("/use-cases/"),
-  },
-};
+  description:
+    "Explore use cases for BuyWhere's product catalog API: shopping assistants, price comparison agents, and more.",
+  path: "/use-cases/",
+});
 
 const useCases = [
   {

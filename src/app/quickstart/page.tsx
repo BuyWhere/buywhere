@@ -5,16 +5,15 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Schema from "@/components/Schema";
 import { buildWebPageSchema } from "@/lib/page-schema";
-import { toSiteUrl } from "@/lib/site-url";
 import { PopularComparisons } from "@/components/PopularComparisons";
 
-export const metadata: Metadata = {
+import { buildPageMetadata } from "@/lib/page-metadata";
+export const metadata = buildPageMetadata({
   title: "BuyWhere Quickstart",
-  description: "Create a BuyWhere API key, run your first product search, and add BuyWhere to an MCP-compatible agent in minutes.",
-  alternates: {
-    canonical: toSiteUrl("/quickstart"),
-  },
-};
+  description:
+    "Create a BuyWhere API key, run your first product search, and add BuyWhere to an MCP-compatible agent in minutes.",
+  path: "/quickstart",
+});
 
 const curlExample = `curl -sS "https://api.buywhere.ai/v1/products/search?q=wireless+headphones&limit=5" \\
   -H "Authorization: Bearer bw_live_your_key_here"`;

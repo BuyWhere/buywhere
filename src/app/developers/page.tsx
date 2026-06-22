@@ -4,17 +4,15 @@ import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { TrustLayer } from "@/components/TrustLayer";
-import { toSiteUrl } from "@/lib/site-url";
 import { PopularComparisons } from "@/components/PopularComparisons";
 
-export const metadata: Metadata = {
+import { buildPageMetadata } from "@/lib/page-metadata";
+export const metadata = buildPageMetadata({
   title: "Developer Portal — BuyWhere MCP & API for AI Agents",
   description:
     "BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff starting in Singapore, expanding across Southeast Asia.",
-  alternates: {
-    canonical: toSiteUrl("/developers"),
-  },
-};
+  path: "/developers",
+});
 
 const mcpConfig = `{
   "mcpServers": {

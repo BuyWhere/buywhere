@@ -5,16 +5,13 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Schema from "@/components/Schema";
 import { buildWebPageSchema } from "@/lib/page-schema";
-import { toSiteUrl } from "@/lib/site-url";
-
-export const metadata: Metadata = {
+import { buildPageMetadata } from "@/lib/page-metadata";
+export const metadata = buildPageMetadata({
   title: "BuyWhere Integration Guide — MCP Server & API for AI Agents",
   description:
     "Connect BuyWhere to your AI agent in minutes. Use the MCP server to give your agent product search, price comparison, and deal discovery across Singapore and the US.",
-  alternates: {
-    canonical: toSiteUrl("/integrate"),
-  },
-};
+  path: "/integrate",
+});
 
 const mcpTools = [
   {

@@ -2,16 +2,13 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { toSiteUrl } from "@/lib/site-url";
-
-export const metadata: Metadata = {
+import { buildPageMetadata } from "@/lib/page-metadata";
+export const metadata = buildPageMetadata({
   title: "Partners — Commerce Attribution & Partnerships | BuyWhere",
   description:
     "Partner with BuyWhere to solve attribution, referral, and demand routing for AI-agent commerce in Singapore.",
-  alternates: {
-    canonical: toSiteUrl("/partners/"),
-  },
-};
+  path: "/partners/",
+});
 
 const partnerTypes = [
   {

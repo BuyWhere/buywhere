@@ -4,15 +4,13 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import Schema from "@/components/Schema";
 import { buildWebPageSchema } from "@/lib/page-schema";
-import { toSiteUrl } from "@/lib/site-url";
-
-export const metadata: Metadata = {
+import { buildPageMetadata } from "@/lib/page-metadata";
+export const metadata = buildPageMetadata({
   title: "About BuyWhere — AI-Powered Product Catalog",
-  description: "Learn about BuyWhere's mission to build the neutral product catalog layer for AI agents in Southeast Asia.",
-  alternates: {
-    canonical: toSiteUrl("/about/"),
-  },
-};
+  description:
+    "Learn about BuyWhere's mission to build the neutral product catalog layer for AI agents in Southeast Asia.",
+  path: "/about/",
+});
 
 const values = [
   {
