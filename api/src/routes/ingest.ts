@@ -129,7 +129,8 @@ async function ensureProductsConflictTarget(): Promise<IngestSchemaGuardResult> 
                 AND i.indisunique
                 AND i.indisvalid
                 AND NOT i.indisexclusion
-                AND (ic.relname <> 'products_sku_source_country_unique' OR i.indpred IS NULL)
+                -- OPS BUY-55921 simplification: i.indisvalid already excludes invalid partial indexes,
+                -- so the named-shell exclusion is redundant. Removed to fix live 503.
                 AND ARRAY(
                   SELECT att.attname::text
                     FROM unnest(i.indkey) WITH ORDINALITY AS cols(attnum, ord)
@@ -147,7 +148,8 @@ async function ensureProductsConflictTarget(): Promise<IngestSchemaGuardResult> 
                 AND i.indisunique
                 AND i.indisvalid
                 AND NOT i.indisexclusion
-                AND (ic.relname <> 'products_sku_source_country_unique' OR i.indpred IS NULL)
+                -- OPS BUY-55921 simplification: i.indisvalid already excludes invalid partial indexes,
+                -- so the named-shell exclusion is redundant. Removed to fix live 503.
                 AND ARRAY(
                   SELECT att.attname::text
                     FROM unnest(i.indkey) WITH ORDINALITY AS cols(attnum, ord)
