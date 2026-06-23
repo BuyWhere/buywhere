@@ -628,6 +628,7 @@ async function handleListCategories(args: Record<string, unknown>) {
   const queryPromise = (async () => {
     const client = await db.connect();
     try {
+      await client.query('SET statement_timeout = 8000');
       const tableCheck = await client.query(
         `SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`
       );
