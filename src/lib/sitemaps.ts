@@ -76,7 +76,6 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/partners", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/use-cases", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/pricing", priority: 0.8, changeFrequency: "monthly" as const },
-  { path: "/about", priority: 0.6, changeFrequency: "monthly" as const },
   { path: "/contact", priority: 0.5, changeFrequency: "monthly" as const },
   { path: "/best-gaming-laptops-us", priority: 0.9, changeFrequency: "weekly" as const },
   // BUY-45870: 35 additional static /best-{slug}-us pages (all verified 200 in prod)

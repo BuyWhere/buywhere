@@ -629,9 +629,9 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
   },
   "best-robot-vacuums-2026": {
     slug: "best-robot-vacuums-2026",
-    title: "Best Robot Vacuums in 2026 | Top Robot Vacuum Deals Compared",
+    title: "Best Robot Vacuum & Roomba Sale 2026 — Compare Prices Across Roborock, iRobot, Shark, Ecovacs",
     description:
-      "Compare the best robot vacuums in the US with live BuyWhere search results, price anchors, and buying advice across Roborock, iRobot, Shark, Ecovacs, and eufy.",
+      "Compare live Roomba and robot vacuum sale prices across Roborock, iRobot, Shark, and Ecovacs in 2026, with buying advice and the best deals refreshed weekly.",
     heroEyebrow: "US Home Guide",
     heroTitle: "Best Robot Vacuums in 2026",
     heroBody:
@@ -800,9 +800,9 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
   },
   "best-gaming-laptop-singapore": {
     slug: "best-gaming-laptop-singapore",
-    title: "Best Gaming Laptops in Singapore 2026 | Compare RTX Gaming Laptop Deals",
+    title: "Best Gaming Laptop Price & Sales in Singapore 2026 — Compare ROG, Legion, Predator",
     description:
-      "Compare the best gaming laptops in Singapore with live BuyWhere search results, price benchmarks, and buying advice across ASUS ROG, Lenovo Legion, Alienware, HP Omen, and Acer Predator.",
+      "Compare the best gaming laptop prices and sales in Singapore for 2026 across ASUS ROG, Lenovo Legion, Acer Predator, HP Omen, and Alienware, with live SG retailer pricing.",
     heroEyebrow: "Singapore Laptop Guide",
     heroTitle: "Best Gaming Laptops in Singapore",
     heroBody:
@@ -2711,9 +2711,9 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
   },
   "best-instant-pots-us": {
     slug: "best-instant-pots-us",
-    title: "Best Instant Pots in the US 2026 | Compare Prices Across US Retailers",
+    title: "Which Instant Pot Should You Buy in 2026? — 6qt vs 8qt vs Duo vs Ultra",
     description:
-      "Find the best Instant Pot or multi-cooker with live price comparison from Amazon and Best Buy.",
+      "Wondering which Instant Pot to buy in 2026? Compare 6qt vs 8qt, Duo vs Ultra, and other multi-cookers with live prices from Amazon, Best Buy, and Walmart.",
     heroEyebrow: "US Shopping Guide",
     heroTitle: "Best Instant Pots in the US",
     heroBody:
@@ -5035,9 +5035,9 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
   },
   "best-smart-home-us": {
     slug: "best-smart-home-us",
-    title: "Best Smart Home Devices in the US 2026 | Compare Prices Across US Retailers",
+    title: "Best Smart Home Retailers for Selection & Availability — Echo, Nest, Hue",
     description:
-      "Find the best smart home devices from Amazon Echo, Google Nest, and Philips Hue.",
+      "Find the best retailers for smart home products — compare Echo, Google Nest, and Philips Hue selection, availability, and live prices across top US stores.",
     heroEyebrow: "US Shopping Guide",
     heroTitle: "Best Smart Home Devices in the US",
     heroBody:
@@ -8897,8 +8897,8 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
 
   "best-budget-tvs-us": {
     slug: "best-budget-tvs-us",
-    title: "Best Budget TVs in the US 2026",
-    description: "Find affordable TVs under $500 from TCL, Hisense, Amazon Fire. Best budget TVs for bedrooms and apartments.",
+    title: "Where to Buy the Cheapest TVs in 2026 — Best Budget TVs Under $500",
+    description: "Find the cheapest TVs to buy in 2026. Compare budget TVs under $500 from TCL, Hisense, Amazon Fire, and other top US retailers with live prices and ratings.",
     heroEyebrow: "US Shopping Guide",
     heroTitle: "Best Budget TVs in the US 2026",
     heroBody: "Find affordable TVs under $500 from TCL, Hisense, Amazon Fire. Best budget TVs for bedrooms and apartments.",

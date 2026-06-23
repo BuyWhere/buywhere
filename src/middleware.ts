@@ -352,6 +352,14 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
 
+  // BUY-55986: /about ranks for the brand query "buywhere" and cannibalises the homepage.
+  // 301 /about → / so Google consolidates ranking signals on the homepage.
+  if (normalizedForDead === "/about") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    return NextResponse.redirect(url, 301);
+  }
+
   // Dead Singapore product slug pages — thin-content pages (Google soft 404 bucket BUY-37750)
   // These pages only render a product name + description with no prices (client-side only).
   // 410 Gone signals permanent removal; Google drops them faster than noindex.
