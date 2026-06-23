@@ -351,6 +351,40 @@ CREATE INDEX IF NOT EXISTS idx_merchant_events_merchant_id ON merchant_events(me
 CREATE INDEX IF NOT EXISTS idx_merchant_events_event_type ON merchant_events(event_type);
 `;
 
+// BUY-56217: Unique constraint (sku, source, country_code) on products table.
+// The schema guard in the ingest route requires this constraint to exist;
+// without it, POST /v1/ingest returns 503 database_schema_mismatch.
+// Idempotent; handles the partial-index CIC shell with the same name (BUY-55726).
+const PRODUCTS_UNIQUE_CONSTRAINT_DDL = `
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'products'::regclass
+      AND conname = 'products_sku_source_country_unique'
+      AND contype = 'u'
+  ) THEN
+    RAISE NOTICE 'Constraint products_sku_source_country_unique already exists, skipping';
+    RETURN;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_class c
+    WHERE c.relkind = 'i'
+      AND c.relname = 'products_sku_source_country_unique'
+  ) THEN
+    EXECUTE 'DROP INDEX public.products_sku_source_country_unique';
+    RAISE NOTICE 'Dropped partial-index shell products_sku_source_country_unique';
+  END IF;
+
+  ALTER TABLE products
+    ADD CONSTRAINT products_sku_source_country_unique
+    UNIQUE (sku, source, country_code);
+  RAISE NOTICE 'Constraint products_sku_source_country_unique added successfully';
+END
+$$;
+`;
+
 export async function runMigrations() {
   console.log('Running migrations...');
 
@@ -361,6 +395,24 @@ export async function runMigrations() {
     console.log('Full migration completed.');
   } catch (err: any) {
     console.warn(`[migration] Full migration block failed (non-fatal): ${err.message?.slice(0, 200)}`);
+  }
+
+  // BUY-56217: ensure products has the UNIQUE (sku, source, country_code) constraint
+  // required by POST /v1/ingest. Own try/catch so MIGRATION failures can't block it.
+  try {
+    console.log('[migration] Ensuring products UNIQUE (sku, source, country_code) constraint (BUY-56217)...');
+    const uqClient = await db.connect();
+    try {
+      await uqClient.query('SET statement_timeout = 300000');
+      await uqClient.query('SET lock_timeout = 60000');
+      await uqClient.query(PRODUCTS_UNIQUE_CONSTRAINT_DDL);
+      console.log('[migration] products UNIQUE constraint verified (BUY-56217).');
+    } finally {
+      uqClient.release();
+    }
+  } catch (err: any) {
+    console.error(`[migration] FATAL: products UNIQUE constraint failed (BUY-56217): ${err.message?.slice(0, 200)}`);
+    throw err;
   }
 
   // BUY-45553: Prune redundant DUPLICATE indexes on the products partitioned table.

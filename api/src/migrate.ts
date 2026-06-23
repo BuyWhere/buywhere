@@ -23,38 +23,7 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS review_count   INTEGER;
 -- Full-text search support on products table
 CREATE INDEX IF NOT EXISTS idx_products_search_vector ON products USING GIN(search_vector);
 
--- BUY-31015 / BUY-55570: Unique constraint required for ON CONFLICT (sku, source, country_code) upserts
--- in POST /v1/ingest. Idempotent: constraint created only if not exists.
--- BUY-55726 fix (Ops 2026-06-23): if a partial-index CIC shell with the same name
--- exists (no matching constraint in pg_constraint), drop it before adding the
--- constraint. Otherwise the ADD CONSTRAINT fails with "already exists".
-DO $$
-BEGIN
-  -- If the constraint already exists, nothing to do.
-  IF EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'products'::regclass
-      AND conname = 'products_sku_source_country_unique'
-      AND contype = 'u'
-  ) THEN
-    RETURN;
-  END IF;
-
-  -- Otherwise, drop any leftover INDEX with the same name (partial-index CIC shell
-  -- from a previous cancelled attempt) before adding the constraint.
-  IF EXISTS (
-    SELECT 1 FROM pg_class c
-    WHERE c.relkind = 'i'
-      AND c.relname = 'products_sku_source_country_unique'
-  ) THEN
-    EXECUTE 'DROP INDEX public.products_sku_source_country_unique';
-  END IF;
-
-  ALTER TABLE products
-    ADD CONSTRAINT products_sku_source_country_unique
-    UNIQUE (sku, source, country_code);
-END
-$$;
+-- BUY-56217: unique constraint is now created in PRODUCTS_UNIQUE_CONSTRAINT_DDL (own try/catch) so a failure in any other migration statement can't block ingest.
 
 
 
@@ -386,6 +355,49 @@ CREATE INDEX IF NOT EXISTS idx_merchant_events_merchant_id ON merchant_events(me
 CREATE INDEX IF NOT EXISTS idx_merchant_events_event_type ON merchant_events(event_type);
 `;
 
+// BUY-56217: Unique constraint (sku, source, country_code) on products table.
+// The schema guard in api/src/routes/ingest.ts requires this constraint to exist;
+// without it, POST /v1/ingest returns 503 database_schema_mismatch for every source
+// that uses ON CONFLICT (sku, source, country_code) (e.g. woocommerce_deep).
+//
+// Extracted from the monolithic MIGRATION block into its own try/catch so that a
+// failure in any other statement in MIGRATION (extensions, indexes, etc.) cannot
+// silently prevent this constraint from being created. Idempotent.
+// Handles the partial-index CIC shell with the same name (BUY-55726 fix) by
+// dropping it before adding the constraint.
+const PRODUCTS_UNIQUE_CONSTRAINT_DDL = `
+DO $$
+BEGIN
+  -- If the constraint already exists, nothing to do.
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'products'::regclass
+      AND conname = 'products_sku_source_country_unique'
+      AND contype = 'u'
+  ) THEN
+    RAISE NOTICE 'Constraint products_sku_source_country_unique already exists, skipping';
+    RETURN;
+  END IF;
+
+  -- Otherwise, drop any leftover INDEX with the same name (partial-index CIC shell
+  -- from a previous cancelled attempt) before adding the constraint.
+  IF EXISTS (
+    SELECT 1 FROM pg_class c
+    WHERE c.relkind = 'i'
+      AND c.relname = 'products_sku_source_country_unique'
+  ) THEN
+    EXECUTE 'DROP INDEX public.products_sku_source_country_unique';
+    RAISE NOTICE 'Dropped partial-index shell products_sku_source_country_unique';
+  END IF;
+
+  ALTER TABLE products
+    ADD CONSTRAINT products_sku_source_country_unique
+    UNIQUE (sku, source, country_code);
+  RAISE NOTICE 'Constraint products_sku_source_country_unique added successfully';
+END
+$$;
+`;
+
 export async function runMigrations() {
   console.log('Running migrations...');
 
@@ -396,6 +408,45 @@ export async function runMigrations() {
     console.log('Full migration completed.');
   } catch (err: any) {
     console.warn(`[migration] Full migration block failed (non-fatal): ${err.message?.slice(0, 200)}`);
+  }
+
+  // BUY-56217: ensure products has the UNIQUE (sku, source, country_code) constraint
+  // required by POST /v1/ingest's ON CONFLICT clause. Run as a SEPARATE try/catch so
+  // that a failure in the monolithic MIGRATION block (extension install, index
+  // creation, etc.) cannot silently prevent this constraint from being created. On
+  // production this was the root cause of `database_schema_mismatch` 503s: the
+  // constraint DO block lived inside the MIGRATION string, so when MIGRATION failed
+  // before reaching it (and the catch only logged), the constraint was never
+  // created and ingest returned schema_mismatch for every woocommerce_deep batch.
+  // Idempotent; handles the partial-index CIC shell with the same name.
+  try {
+    console.log('[migration] Ensuring products UNIQUE (sku, source, country_code) constraint (BUY-56217)...');
+    const uqClient = await db.connect();
+    try {
+      // 5-min statement timeout: with 14M+ rows the index build can take a while.
+      // 60s lock timeout: do not block live ingest traffic.
+      await uqClient.query('SET statement_timeout = 300000');
+      await uqClient.query('SET lock_timeout = 60000');
+      await uqClient.query(PRODUCTS_UNIQUE_CONSTRAINT_DDL);
+      console.log('[migration] products UNIQUE constraint verified (BUY-56217).');
+    } finally {
+      uqClient.release();
+    }
+    // Verify the constraint is now in place — emit a clear error if not.
+    const uqVerify = await db.query(
+      `SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'products'::regclass
+          AND conname = 'products_sku_source_country_unique'
+          AND contype = 'u'`
+    );
+    if (uqVerify.rowCount === 0) {
+      throw new Error('Constraint products_sku_source_country_unique not found after CREATE — manual intervention required');
+    }
+  } catch (err: any) {
+    console.error(`[migration] FATAL: products UNIQUE constraint failed (BUY-56217): ${err.message?.slice(0, 200)}`);
+    // Re-throw so the failure is visible in startup logs; the schema guard
+    // would otherwise silently fail every ingest for the lifetime of the deploy.
+    throw err;
   }
 
   // BUY-45553: Prune redundant DUPLICATE indexes on the products partitioned table.
