@@ -55,6 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     needs: [api-regression]
+    if: success() || failure()
 
     steps:
       - uses: actions/checkout@v4
