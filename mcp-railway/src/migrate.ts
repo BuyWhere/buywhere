@@ -351,21 +351,33 @@ CREATE INDEX IF NOT EXISTS idx_merchant_events_merchant_id ON merchant_events(me
 CREATE INDEX IF NOT EXISTS idx_merchant_events_event_type ON merchant_events(event_type);
 `;
 
-// BUY-56217: Unique constraint (sku, source, country_code) on products table.
-// The schema guard in the ingest route requires this constraint to exist;
-// without it, POST /v1/ingest returns 503 database_schema_mismatch.
-// Idempotent; handles the partial-index CIC shell with the same name (BUY-55726).
+// BUY-56217: Unique conflict target (sku, source, country_code) on products table.
+// The schema guard in the ingest route requires this to exist; without it,
+// POST /v1/ingest returns 503 database_schema_mismatch for every source that
+// uses ON CONFLICT (sku, source, country_code) (e.g. woocommerce_deep).
+//
+// products is a PARTITIONED table (by country_code). A previous version used
+// ALTER TABLE ADD CONSTRAINT UNIQUE, which creates an ON ONLY index on the parent
+// that does NOT propagate to partitions. PostgreSQL's ON CONFLICT cannot use
+// ON ONLY indexes on partitioned tables — it requires a proper partitioned
+// unique index. This version creates a non-ONLY partitioned index that
+// PostgreSQL auto-propagates to all existing and future partitions. Idempotent.
 const PRODUCTS_UNIQUE_CONSTRAINT_DDL = `
 DO $$
+DECLARE
+  r record;
 BEGIN
+  -- Drop any existing ON ONLY parent constraint/index (created by a previous
+  -- ALTER TABLE ADD CONSTRAINT UNIQUE). ON ONLY indexes do NOT work with
+  -- ON CONFLICT on partitioned tables.
   IF EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conrelid = 'products'::regclass
       AND conname = 'products_sku_source_country_unique'
       AND contype = 'u'
   ) THEN
-    RAISE NOTICE 'Constraint products_sku_source_country_unique already exists, skipping';
-    RETURN;
+    ALTER TABLE products DROP CONSTRAINT products_sku_source_country_unique;
+    RAISE NOTICE 'Dropped ON ONLY parent constraint products_sku_source_country_unique';
   END IF;
 
   IF EXISTS (
@@ -374,13 +386,31 @@ BEGIN
       AND c.relname = 'products_sku_source_country_unique'
   ) THEN
     EXECUTE 'DROP INDEX public.products_sku_source_country_unique';
-    RAISE NOTICE 'Dropped partial-index shell products_sku_source_country_unique';
+    RAISE NOTICE 'Dropped ON ONLY parent index products_sku_source_country_unique';
   END IF;
 
-  ALTER TABLE products
-    ADD CONSTRAINT products_sku_source_country_unique
-    UNIQUE (sku, source, country_code);
-  RAISE NOTICE 'Constraint products_sku_source_country_unique added successfully';
+  -- Drop per-partition standalone unique indexes on (sku, source, country_code).
+  FOR r IN
+    SELECT ic.relname AS idxname
+      FROM pg_index i
+      JOIN pg_class ic ON ic.oid = i.indexrelid
+     WHERE i.indrelid IN (
+             SELECT inhrelid FROM pg_inherits
+              WHERE inhparent = 'public.products'::regclass
+           )
+       AND i.indisunique
+       AND pg_get_indexdef(i.indexrelid) LIKE '%btree (sku, source, country_code)'
+       AND NOT EXISTS (
+             SELECT 1 FROM pg_constraint con WHERE con.conindid = i.indexrelid
+           )
+  LOOP
+    EXECUTE format('DROP INDEX IF EXISTS public.%I', r.idxname);
+    RAISE NOTICE 'Dropped per-partition duplicate index %', r.idxname;
+  END LOOP;
+
+  CREATE UNIQUE INDEX IF NOT EXISTS products_sku_source_country_unique
+    ON products (sku, source, country_code);
+  RAISE NOTICE 'Partitioned unique index products_sku_source_country_unique created/verified';
 END
 $$;
 `;
@@ -400,18 +430,18 @@ export async function runMigrations() {
   // BUY-56217: ensure products has the UNIQUE (sku, source, country_code) constraint
   // required by POST /v1/ingest. Own try/catch so MIGRATION failures can't block it.
   try {
-    console.log('[migration] Ensuring products UNIQUE (sku, source, country_code) constraint (BUY-56217)...');
+    console.log('[migration] Ensuring products partitioned UNIQUE index (sku, source, country_code) (BUY-56217)...');
     const uqClient = await db.connect();
     try {
       await uqClient.query('SET statement_timeout = 300000');
       await uqClient.query('SET lock_timeout = 60000');
       await uqClient.query(PRODUCTS_UNIQUE_CONSTRAINT_DDL);
-      console.log('[migration] products UNIQUE constraint verified (BUY-56217).');
+      console.log('[migration] products partitioned UNIQUE index verified (BUY-56217).');
     } finally {
       uqClient.release();
     }
   } catch (err: any) {
-    console.error(`[migration] FATAL: products UNIQUE constraint failed (BUY-56217): ${err.message?.slice(0, 200)}`);
+    console.error(`[migration] FATAL: products UNIQUE index failed (BUY-56217): ${err.message?.slice(0, 200)}`);
     throw err;
   }
 

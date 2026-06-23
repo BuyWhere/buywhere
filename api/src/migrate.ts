@@ -355,45 +355,74 @@ CREATE INDEX IF NOT EXISTS idx_merchant_events_merchant_id ON merchant_events(me
 CREATE INDEX IF NOT EXISTS idx_merchant_events_event_type ON merchant_events(event_type);
 `;
 
-// BUY-56217: Unique constraint (sku, source, country_code) on products table.
-// The schema guard in api/src/routes/ingest.ts requires this constraint to exist;
+// BUY-56217: Unique conflict target (sku, source, country_code) on products table.
+// The schema guard in api/src/routes/ingest.ts requires a valid unique index to exist;
 // without it, POST /v1/ingest returns 503 database_schema_mismatch for every source
 // that uses ON CONFLICT (sku, source, country_code) (e.g. woocommerce_deep).
 //
-// Extracted from the monolithic MIGRATION block into its own try/catch so that a
-// failure in any other statement in MIGRATION (extensions, indexes, etc.) cannot
-// silently prevent this constraint from being created. Idempotent.
-// Handles the partial-index CIC shell with the same name (BUY-55726 fix) by
-// dropping it before adding the constraint.
+// products is a PARTITIONED table (by country_code). A previous version of this DDL
+// used ALTER TABLE ADD CONSTRAINT UNIQUE, which creates an ON ONLY index on the parent
+// that does NOT propagate to partitions. PostgreSQL's ON CONFLICT cannot use ON ONLY
+// indexes on partitioned tables — it requires a proper partitioned unique index.
+// This version creates a non-ONLY partitioned index that PostgreSQL auto-propagates
+// to all existing and future partitions. Idempotent.
 const PRODUCTS_UNIQUE_CONSTRAINT_DDL = `
 DO $$
+DECLARE
+  r record;
 BEGIN
-  -- If the constraint already exists, nothing to do.
+  -- Drop any existing ON ONLY parent constraint/index (created by a previous
+  -- ALTER TABLE ADD CONSTRAINT UNIQUE). ON ONLY indexes do NOT work with
+  -- ON CONFLICT on partitioned tables — PostgreSQL requires a proper
+  -- partitioned unique index (without ONLY) so the conflict target exists
+  -- on each partition.
   IF EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conrelid = 'products'::regclass
       AND conname = 'products_sku_source_country_unique'
       AND contype = 'u'
   ) THEN
-    RAISE NOTICE 'Constraint products_sku_source_country_unique already exists, skipping';
-    RETURN;
+    ALTER TABLE products DROP CONSTRAINT products_sku_source_country_unique;
+    RAISE NOTICE 'Dropped ON ONLY parent constraint products_sku_source_country_unique';
   END IF;
 
-  -- Otherwise, drop any leftover INDEX with the same name (partial-index CIC shell
-  -- from a previous cancelled attempt) before adding the constraint.
   IF EXISTS (
     SELECT 1 FROM pg_class c
     WHERE c.relkind = 'i'
       AND c.relname = 'products_sku_source_country_unique'
   ) THEN
     EXECUTE 'DROP INDEX public.products_sku_source_country_unique';
-    RAISE NOTICE 'Dropped partial-index shell products_sku_source_country_unique';
+    RAISE NOTICE 'Dropped ON ONLY parent index products_sku_source_country_unique';
   END IF;
 
-  ALTER TABLE products
-    ADD CONSTRAINT products_sku_source_country_unique
-    UNIQUE (sku, source, country_code);
-  RAISE NOTICE 'Constraint products_sku_source_country_unique added successfully';
+  -- Drop per-partition standalone unique indexes on (sku, source, country_code).
+  -- These were created by earlier migration attempts and conflict with the
+  -- partitioned index we are about to create. Only drop indexes NOT backing
+  -- a constraint (safety: never drop PK or FK-backed indexes).
+  FOR r IN
+    SELECT ic.relname AS idxname
+      FROM pg_index i
+      JOIN pg_class ic ON ic.oid = i.indexrelid
+     WHERE i.indrelid IN (
+             SELECT inhrelid FROM pg_inherits
+              WHERE inhparent = 'public.products'::regclass
+           )
+       AND i.indisunique
+       AND pg_get_indexdef(i.indexrelid) LIKE '%btree (sku, source, country_code)'
+       AND NOT EXISTS (
+             SELECT 1 FROM pg_constraint con WHERE con.conindid = i.indexrelid
+           )
+  LOOP
+    EXECUTE format('DROP INDEX IF EXISTS public.%I', r.idxname);
+    RAISE NOTICE 'Dropped per-partition duplicate index %', r.idxname;
+  END LOOP;
+
+  -- Create a proper PARTITIONED unique index (no ONLY).
+  -- PostgreSQL auto-propagates this to all existing and future partitions,
+  -- enabling ON CONFLICT (sku, source, country_code) on the partitioned table.
+  CREATE UNIQUE INDEX IF NOT EXISTS products_sku_source_country_unique
+    ON products (sku, source, country_code);
+  RAISE NOTICE 'Partitioned unique index products_sku_source_country_unique created/verified';
 END
 $$;
 `;
@@ -418,9 +447,10 @@ export async function runMigrations() {
   // constraint DO block lived inside the MIGRATION string, so when MIGRATION failed
   // before reaching it (and the catch only logged), the constraint was never
   // created and ingest returned schema_mismatch for every woocommerce_deep batch.
-  // Idempotent; handles the partial-index CIC shell with the same name.
+  // Idempotent; drops any stale ON ONLY constraint/index and creates a proper
+  // partitioned unique index that works with ON CONFLICT on the partitioned table.
   try {
-    console.log('[migration] Ensuring products UNIQUE (sku, source, country_code) constraint (BUY-56217)...');
+    console.log('[migration] Ensuring products partitioned UNIQUE index (sku, source, country_code) (BUY-56217)...');
     const uqClient = await db.connect();
     try {
       // 5-min statement timeout: with 14M+ rows the index build can take a while.
@@ -428,22 +458,25 @@ export async function runMigrations() {
       await uqClient.query('SET statement_timeout = 300000');
       await uqClient.query('SET lock_timeout = 60000');
       await uqClient.query(PRODUCTS_UNIQUE_CONSTRAINT_DDL);
-      console.log('[migration] products UNIQUE constraint verified (BUY-56217).');
+      console.log('[migration] products partitioned UNIQUE index verified (BUY-56217).');
     } finally {
       uqClient.release();
     }
-    // Verify the constraint is now in place — emit a clear error if not.
+    // Verify the unique index is now in place — emit a clear error if not.
+    // We check pg_index (not pg_constraint) because we CREATE UNIQUE INDEX
+    // (not ALTER TABLE ADD CONSTRAINT) to get a proper partitioned index.
     const uqVerify = await db.query(
-      `SELECT 1 FROM pg_constraint
-        WHERE conrelid = 'products'::regclass
-          AND conname = 'products_sku_source_country_unique'
-          AND contype = 'u'`
+      `SELECT 1 FROM pg_index i
+        JOIN pg_class c ON c.oid = i.indexrelid
+       WHERE i.indrelid = 'products'::regclass
+         AND c.relname = 'products_sku_source_country_unique'
+         AND i.indisunique AND i.indisvalid`
     );
     if (uqVerify.rowCount === 0) {
-      throw new Error('Constraint products_sku_source_country_unique not found after CREATE — manual intervention required');
+      throw new Error('Unique index products_sku_source_country_unique not found after CREATE — manual intervention required');
     }
   } catch (err: any) {
-    console.error(`[migration] FATAL: products UNIQUE constraint failed (BUY-56217): ${err.message?.slice(0, 200)}`);
+    console.error(`[migration] FATAL: products UNIQUE index failed (BUY-56217): ${err.message?.slice(0, 200)}`);
     // Re-throw so the failure is visible in startup logs; the schema guard
     // would otherwise silently fail every ingest for the lifetime of the deploy.
     throw err;
