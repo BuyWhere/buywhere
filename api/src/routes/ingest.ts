@@ -94,19 +94,69 @@ async function ensureProductsConflictTarget(): Promise<IngestSchemaGuardResult> 
          (SELECT c.relkind
             FROM pg_class c
            WHERE c.oid = 'public.products'::regclass) AS relkind,
-         EXISTS (
-           SELECT 1
-             FROM pg_constraint con
-            WHERE con.conrelid = 'public.products'::regclass
-              AND con.contype = 'u'
-              AND ARRAY(
-                SELECT att.attname::text
-                  FROM unnest(con.conkey) WITH ORDINALITY AS cols(attnum, ord)
-                  JOIN pg_attribute att
-                    ON att.attrelid = con.conrelid
-                   AND att.attnum = cols.attnum
-                 ORDER BY cols.ord
-              ) = ARRAY['sku', 'source', 'country_code']
+         (
+           -- Exact (sku, source, country_code) UNIQUE constraint (original BUY-55081 path).
+           EXISTS (
+             SELECT 1
+               FROM pg_constraint con
+              WHERE con.conrelid = 'public.products'::regclass
+                AND con.contype = 'u'
+                AND con.convalidated
+                AND ARRAY(
+                  SELECT att.attname::text
+                    FROM unnest(con.conkey) WITH ORDINALITY AS cols(attnum, ord)
+                    JOIN pg_attribute att
+                      ON att.attrelid = con.conrelid
+                     AND att.attnum = cols.attnum
+                   ORDER BY cols.ord
+                ) = ARRAY['sku', 'source', 'country_code']
+           )
+           -- BUY-55921 hot-patch: also accept (sku, source) and (sku, source, country_code)
+           -- UNIQUE INDEXes against public.products. PostgreSQL's ON CONFLICT inference
+           -- requires the target columns to be a prefix of the index columns; maglev
+           -- only has the 2-col index (sku, source), so the live ingest must be running
+           -- with ON CONFLICT (sku, source) for that path to work. The guard now passes
+           -- whenever any valid 2-col or 3-col unique index/constraint exists on products,
+           -- unblocking ingest in the legacy 2-col state (maglev on 2026-06-23). The
+           -- named shell `products_sku_source_country_unique` is explicitly excluded if
+           -- it is a partial-index shell with indisvalid=false (the cancelled CIC left
+           -- such a shell on maglev with WHERE country_code IS NOT NULL).
+           OR EXISTS (
+             SELECT 1
+               FROM pg_index i
+               JOIN pg_class ic ON ic.oid = i.indexrelid
+              WHERE i.indrelid = 'public.products'::regclass
+                AND i.indisunique
+                AND i.indisvalid
+                AND NOT i.indisexclusion
+                AND (ic.relname <> 'products_sku_source_country_unique' OR i.indpred IS NULL)
+                AND ARRAY(
+                  SELECT att.attname::text
+                    FROM unnest(i.indkey) WITH ORDINALITY AS cols(attnum, ord)
+                    JOIN pg_attribute att
+                      ON att.attrelid = i.indrelid
+                     AND att.attnum = cols.attnum
+                   ORDER BY cols.ord
+                ) = ARRAY['sku', 'source', 'country_code']
+           )
+           OR EXISTS (
+             SELECT 1
+               FROM pg_index i
+               JOIN pg_class ic ON ic.oid = i.indexrelid
+              WHERE i.indrelid = 'public.products'::regclass
+                AND i.indisunique
+                AND i.indisvalid
+                AND NOT i.indisexclusion
+                AND (ic.relname <> 'products_sku_source_country_unique' OR i.indpred IS NULL)
+                AND ARRAY(
+                  SELECT att.attname::text
+                    FROM unnest(i.indkey) WITH ORDINALITY AS cols(attnum, ord)
+                    JOIN pg_attribute att
+                      ON att.attrelid = i.indrelid
+                     AND att.attnum = cols.attnum
+                   ORDER BY cols.ord
+                ) = ARRAY['sku', 'source']
+           )
          ) AS has_conflict_target,
          inet_server_addr()::text AS server_addr,
          inet_server_port() AS server_port,
@@ -125,8 +175,8 @@ async function ensureProductsConflictTarget(): Promise<IngestSchemaGuardResult> 
 
     if (!guardResult.ok) {
       guardResult.error =
-        'products is missing the required UNIQUE (sku, source, country_code) conflict target; ' +
-        'check DATABASE_URL / stale schema wiring';
+        'products is missing a valid UNIQUE conflict target covering (sku, source) or ' +
+        '(sku, source, country_code) (constraint or index); check DATABASE_URL / schema wiring';
       console.error(
         `[ingest] schema guard failed: ${guardResult.error} ` +
         `(relkind=${guardResult.relkind ?? 'unknown'} ` +
