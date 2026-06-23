@@ -665,7 +665,7 @@ async function handleListCategories(args: Record<string, unknown>) {
       redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
       return data;
     } finally {
-      client.release();
+      releaseClientSafely(client);
     }
   })();
 
