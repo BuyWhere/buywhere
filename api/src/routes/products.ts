@@ -6,6 +6,7 @@ import { readDb, ReplicaUnavailableError, servingReadDbConnect } from '../lib/re
 import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
+import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
@@ -136,7 +137,7 @@ router.get(
 
     const cacheKey = `list:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}`;
     try {
-      const cached = await redis.get(cacheKey);
+      const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
       if (cached) {
         const parsed = JSON.parse(cached);
         parsed.pagination.response_time_ms = Date.now() - requestStart;
@@ -284,7 +285,7 @@ router.get(
     // Check Redis cache for this exact query (60s TTL)
     const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}`;
     try {
-      const cached = await redis.get(cacheKey);
+      const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
       if (cached) {
         const parsed = JSON.parse(cached);
         const elapsed = Date.now() - requestStart;
@@ -728,7 +729,7 @@ router.get(
 
     const cacheKey = `deals:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
     try {
-      const cached = await redis.get(cacheKey);
+      const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
       if (cached) {
         const parsed = JSON.parse(cached);
         parsed.cached = true;

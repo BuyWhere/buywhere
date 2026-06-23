@@ -3,6 +3,7 @@ import { db, redis, vectorDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
+import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
 
@@ -192,7 +193,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
 
   const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
   try {
-    const cached = await redis.get(cacheKey);
+    const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
     if (cached) {
       const parsed = JSON.parse(cached);
       if (parsed.results) {
@@ -259,7 +260,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         let queryVec: string | null = null;
         try {
           const embedKey = `qembed:${Buffer.from(q).toString('base64').slice(0, 48)}`;
-          queryVec = await redis.get(embedKey).catch(() => null);
+          queryVec = await recordQueryCacheLookup(redis, embedKey, () => redis.get(embedKey));
           if (!queryVec) {
             queryVec = await embedQuery(q, geminiKey);
             await redis.set(embedKey, queryVec, 'EX', 60).catch(() => {});

@@ -44,6 +44,22 @@ function shouldTrackEndpoint(req: Request): boolean {
   return TRACKED_ENDPOINTS.some(endpoint => path.startsWith(endpoint));
 }
 
+/**
+ * Map a request path to the short endpoint discriminator used by the
+ * buywhere-monitoring-api /api/monitoring/p95/history?endpoint= query.
+ *
+ * BUY-54722: without this normalization the rows in monitoring.p95_latency
+ * store the full path ('/v1/products/search', '/v1/products/:id/similar')
+ * but the monitoring-api filter expects the short discriminator ('search',
+ * 'similar'). Without this, the embedding-alerts p95 check would always
+ * see no data for search/similar.
+ */
+function normalizeEndpoint(path: string): string {
+  if (path.includes('/similar')) return 'similar';
+  if (path.includes('/search')) return 'search';
+  return path;
+}
+
 export function latencyMiddleware(req: Request, res: Response, next: NextFunction): void {
   if (!shouldTrackEndpoint(req)) {
     return next();
@@ -51,7 +67,7 @@ export function latencyMiddleware(req: Request, res: Response, next: NextFunctio
 
   const startTime = Date.now();
   const market = extractMarketFromRequest(req);
-  const endpoint = req.path;
+  const endpoint = normalizeEndpoint(req.path);
 
   const originalSend = res.send.bind(res);
   res.send = function(this: Response, body?: any): Response {
@@ -71,7 +87,11 @@ export function latencyMiddleware(req: Request, res: Response, next: NextFunctio
 export async function computeP95ForAllMarkets(): Promise<void> {
   const { computeAndStoreP95 } = await import('./p95');
   const markets = ['sg', 'us', 'my', 'vn', 'th'];
-  const endpoints = ['/mcp', '/v1/products', '/v1/categories'];
+  // BUY-54722: short endpoint discriminators (must match what latencyMiddleware
+  // writes via normalizeEndpoint). Using 'mcp' for /mcp + /api/mcp, 'products'
+  // for /v1/products list+deals, 'search' for /v1/products/search,
+  // 'similar' for /v1/products/:id/similar, 'categories' for /v1/categories.
+  const endpoints = ['mcp', 'products', 'categories', 'search', 'similar'];
 
   for (const market of markets) {
     for (const endpoint of endpoints) {
