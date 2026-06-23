@@ -1,4 +1,8 @@
 {
+  "build": {
+    "builder": "NIXPACKS",
+    "dockerfilePath": "Dockerfile"
+  },
   "deploy": {
     "startCommand": "node dist/mcp-server.js",
     "healthcheckPath": "/healthz",
