@@ -1,8 +1,4 @@
 {
-  "build": {
-    "builder": "DOCKERFILE",
-    "dockerfilePath": "Dockerfile"
-  },
   "deploy": {
     "startCommand": "node dist/mcp-server.js",
     "healthcheckPath": "/healthz",
