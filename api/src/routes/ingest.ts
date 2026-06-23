@@ -118,7 +118,7 @@ async function ensureProductsConflictTarget(): Promise<IngestSchemaGuardResult> 
            -- with ON CONFLICT (sku, source) for that path to work. The guard now passes
            -- whenever any valid 2-col or 3-col unique index/constraint exists on products,
            -- unblocking ingest in the legacy 2-col state (maglev on 2026-06-23). The
-           -- named shell `products_sku_source_country_unique` is explicitly excluded if
+           -- named shell products_sku_source_country_unique is explicitly excluded if
            -- it is a partial-index shell with indisvalid=false (the cancelled CIC left
            -- such a shell on maglev with WHERE country_code IS NOT NULL).
            OR EXISTS (

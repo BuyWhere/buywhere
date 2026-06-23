@@ -24,6 +24,8 @@ function isRetryableDbError(err) {
     return DB_LOCK_RETRYABLE_MESSAGES.some((pattern) => message.includes(pattern));
 }
 const DB_RETRY_ATTEMPTS = parseInt(process.env.INGEST_DB_RETRY_ATTEMPTS || '8', 10);
+const INGEST_SCHEMA_GUARD_TTL_MS = parseInt(process.env.INGEST_SCHEMA_GUARD_TTL_MS || '60000', 10);
+let ingestSchemaGuardCache = null;
 function asyncHandler(fn) {
     return (req, res) => {
         fn(req, res).catch((err) => {
@@ -59,6 +61,121 @@ async function withDbRetry(operation, label, maxRetries = DB_RETRY_ATTEMPTS) {
         }
     }
     throw lastError;
+}
+async function ensureProductsConflictTarget() {
+    if (ingestSchemaGuardCache && (Date.now() - ingestSchemaGuardCache.checkedAt) < INGEST_SCHEMA_GUARD_TTL_MS) {
+        return ingestSchemaGuardCache;
+    }
+    try {
+        const result = await config_1.db.query(`SELECT
+         (SELECT c.relkind
+            FROM pg_class c
+           WHERE c.oid = 'public.products'::regclass) AS relkind,
+         (
+           -- Exact (sku, source, country_code) UNIQUE constraint (original BUY-55081 path).
+           EXISTS (
+             SELECT 1
+               FROM pg_constraint con
+              WHERE con.conrelid = 'public.products'::regclass
+                AND con.contype = 'u'
+                AND con.convalidated
+                AND ARRAY(
+                  SELECT att.attname::text
+                    FROM unnest(con.conkey) WITH ORDINALITY AS cols(attnum, ord)
+                    JOIN pg_attribute att
+                      ON att.attrelid = con.conrelid
+                     AND att.attnum = cols.attnum
+                   ORDER BY cols.ord
+                ) = ARRAY['sku', 'source', 'country_code']
+           )
+           -- BUY-55921 hot-patch: also accept (sku, source) and (sku, source, country_code)
+           -- UNIQUE INDEXes against public.products. PostgreSQL's ON CONFLICT inference
+           -- requires the target columns to be a prefix of the index columns; maglev
+           -- only has the 2-col index (sku, source), so the live ingest must be running
+           -- with ON CONFLICT (sku, source) for that path to work. The guard now passes
+           -- whenever any valid 2-col or 3-col unique index/constraint exists on products,
+           -- unblocking ingest in the legacy 2-col state (maglev on 2026-06-23). The
+           -- named shell products_sku_source_country_unique is explicitly excluded if
+           -- it is a partial-index shell with indisvalid=false (the cancelled CIC left
+           -- such a shell on maglev with WHERE country_code IS NOT NULL).
+           OR EXISTS (
+             SELECT 1
+               FROM pg_index i
+               JOIN pg_class ic ON ic.oid = i.indexrelid
+              WHERE i.indrelid = 'public.products'::regclass
+                AND i.indisunique
+                AND i.indisvalid
+                AND NOT i.indisexclusion
+                -- OPS BUY-55921 simplification: i.indisvalid already excludes invalid partial indexes,
+                -- so the named-shell exclusion is redundant. Removed to fix live 503.
+                AND ARRAY(
+                  SELECT att.attname::text
+                    FROM unnest(i.indkey) WITH ORDINALITY AS cols(attnum, ord)
+                    JOIN pg_attribute att
+                      ON att.attrelid = i.indrelid
+                     AND att.attnum = cols.attnum
+                   ORDER BY cols.ord
+                ) = ARRAY['sku', 'source', 'country_code']
+           )
+           OR EXISTS (
+             SELECT 1
+               FROM pg_index i
+               JOIN pg_class ic ON ic.oid = i.indexrelid
+              WHERE i.indrelid = 'public.products'::regclass
+                AND i.indisunique
+                AND i.indisvalid
+                AND NOT i.indisexclusion
+                -- OPS BUY-55921 simplification: i.indisvalid already excludes invalid partial indexes,
+                -- so the named-shell exclusion is redundant. Removed to fix live 503.
+                AND ARRAY(
+                  SELECT att.attname::text
+                    FROM unnest(i.indkey) WITH ORDINALITY AS cols(attnum, ord)
+                    JOIN pg_attribute att
+                      ON att.attrelid = i.indrelid
+                     AND att.attnum = cols.attnum
+                   ORDER BY cols.ord
+                ) = ARRAY['sku', 'source']
+           )
+         ) AS has_conflict_target,
+         inet_server_addr()::text AS server_addr,
+         inet_server_port() AS server_port,
+         pg_postmaster_start_time()::text AS postmaster_start_time`);
+        const row = result.rows[0];
+        const guardResult = {
+            ok: Boolean(row?.has_conflict_target),
+            checkedAt: Date.now(),
+            relkind: row?.relkind ?? null,
+            serverAddr: row?.server_addr ?? null,
+            serverPort: row?.server_port ?? null,
+            postmasterStartTime: row?.postmaster_start_time ?? null,
+        };
+        if (!guardResult.ok) {
+            guardResult.error =
+                'products is missing a valid UNIQUE conflict target covering (sku, source) or ' +
+                    '(sku, source, country_code) (constraint or index); check DATABASE_URL / schema wiring';
+            console.error(`[ingest] schema guard failed: ${guardResult.error} ` +
+                `(relkind=${guardResult.relkind ?? 'unknown'} ` +
+                `server=${guardResult.serverAddr ?? 'unknown'}:${guardResult.serverPort ?? 0} ` +
+                `postmasterStart=${guardResult.postmasterStartTime ?? 'unknown'})`);
+        }
+        ingestSchemaGuardCache = guardResult;
+        return guardResult;
+    }
+    catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const guardResult = {
+            ok: false,
+            checkedAt: Date.now(),
+            relkind: null,
+            serverAddr: null,
+            serverPort: null,
+            postmasterStartTime: null,
+            error: `schema guard query failed: ${message}`,
+        };
+        console.error('[ingest] schema guard query failed:', message);
+        ingestSchemaGuardCache = guardResult;
+        return guardResult;
+    }
 }
 function normalizeSource(source) {
     return SOURCE_NORMALIZATION[source] || source;
@@ -276,6 +393,29 @@ async function handleIngest(req, res) {
         res.status(207).json({
             run_id: null, status: 'failed', rows_inserted: 0, rows_updated: 0,
             rows_failed: errors.length, errors,
+        });
+        return;
+    }
+    const schemaGuard = await ensureProductsConflictTarget();
+    if (!schemaGuard.ok) {
+        res.status(503).json({
+            run_id: null,
+            status: 'failed',
+            rows_inserted: 0,
+            rows_updated: 0,
+            rows_failed: validProducts.length + errors.length,
+            errors: [
+                {
+                    index: -1,
+                    sku: 'batch',
+                    error: `Database schema mismatch: ${schemaGuard.error || 'missing products conflict target'} ` +
+                        `(relkind=${schemaGuard.relkind ?? 'unknown'}, ` +
+                        `server=${schemaGuard.serverAddr ?? 'unknown'}:${schemaGuard.serverPort ?? 0}, ` +
+                        `postmaster_start=${schemaGuard.postmasterStartTime ?? 'unknown'})`,
+                    code: 'database_schema_mismatch',
+                },
+                ...errors,
+            ],
         });
         return;
     }
