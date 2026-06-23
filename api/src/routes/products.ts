@@ -67,7 +67,7 @@ async function getCachedQueryEmbedding(query: string, geminiKey: string): Promis
     if (cached) return cached;
     // BUY-52466: switched from Jina to Google gemini-embedding-001 (512-dim).
     const vector = await embedQuery(query, geminiKey);
-    await redis.set(embedKey, vector, 'EX', 60).catch(() => {});
+    await redis.set(embedKey, vector, 'EX', 3600).catch(() => {});
     return vector;
   } catch (err) {
     console.warn('[products.search] embed query failed, falling back to keyword:', (err as Error).message);
@@ -517,22 +517,56 @@ router.get(
       await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
       await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
       await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
+      // BUY-56117: fire the Gemini embed + vector KNN + FTS as concurrent
+      // promises and await them with Promise.all. Previously these ran in
+      // strict serial order (embed → KNN → FTS), so a 200-400ms Gemini cold
+      // call serialised the FTS behind it. Vector KNN and FTS are independent
+      // and share no state — safe to run in parallel on the same client.
       const geminiKey = process.env.GEMINI_API_KEY ?? '';
       const activeVectorDb = q !== '' && searchMode !== 'keyword' && vectorDb != null && geminiKey !== ''
         ? vectorDb
         : null;
+      const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
 
+      type VectorResult = { product_id: string };
+      let queryVector: string | null = null;
+      let semanticCandidates: { rows: VectorResult[] } = { rows: [] };
+      let ftsCandidates: { rows: Array<{ id: string }> } = { rows: [] };
+      let embedFailed = false;
       if (activeVectorDb) {
-        const queryVector = await getCachedQueryEmbedding(q, geminiKey);
-        if (queryVector) {
-          const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
-          const semanticCandidates = await activeVectorDb.query<{ product_id: string }>(
-            `SELECT product_id FROM product_embeddings
-             ORDER BY embedding <=> $1::vector
-             LIMIT $2`,
-            [queryVector, candidateCap]
-          );
+        // FTS can fire immediately on the same client — independent of the
+        // embed result. Embed+KNN start at the same time on the vector pool.
+        const ftsPromise = searchMode === 'hybrid'
+          ? client.query<{ id: string }>(
+              `SELECT id
+               FROM products
+               ${whereClause}
+               ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
+               LIMIT 200`,
+              searchParams
+            ).then((r) => { ftsCandidates = r; }).catch((err) => {
+              console.warn('[products.search] FTS failed in hybrid path:', (err as Error).message);
+            })
+          : Promise.resolve();
+        const embedPromise = getCachedQueryEmbedding(q, geminiKey)
+          .then(async (vec) => {
+            if (!vec) { embedFailed = true; return; }
+            queryVector = vec;
+            semanticCandidates = await activeVectorDb.query<VectorResult>(
+              `SELECT product_id FROM product_embeddings
+               ORDER BY embedding <=> $1::vector
+               LIMIT $2`,
+              [vec, candidateCap]
+            );
+          })
+          .catch((err) => {
+            console.warn('[products.search] vector path failed, falling back to keyword:', (err as Error).message);
+            embedFailed = true;
+          });
+        await Promise.all([ftsPromise, embedPromise]);
+      }
 
+      if (activeVectorDb && queryVector && !embedFailed) {
           const rawSemanticIds = semanticCandidates.rows.map((row) => row.product_id);
           let filteredSemanticIds: string[] = [];
           if (rawSemanticIds.length > 0) {
@@ -551,14 +585,6 @@ router.get(
 
           let rankedCandidateIds = filteredSemanticIds;
           if (searchMode === 'hybrid') {
-            const ftsCandidates = await client.query<{ id: string }>(
-              `SELECT id
-               FROM products
-               ${whereClause}
-               ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
-               LIMIT 200`,
-              searchParams
-            );
             rankedCandidateIds = mergeRrfCandidateIds(
               ftsCandidates.rows.map((row) => row.id),
               filteredSemanticIds,
@@ -595,9 +621,6 @@ router.get(
               [rankedCandidateIds, requestedRows, offset]
             );
           }
-        } else {
-          dataResult = await client.query(dataQuery, dataParams);
-        }
       } else {
         dataResult = await client.query(dataQuery, dataParams);
       }
