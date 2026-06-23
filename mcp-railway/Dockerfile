@@ -2,14 +2,14 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package.json ./
-RUN npm ci --include=dev
+COPY package.json package-lock.json ./
+RUN npm ci
 
 COPY tsconfig.json ./
 COPY src/ ./src/
 
 RUN npm run build
-RUN npm prune --omit=dev
+RUN npm prune --production
 
 ENV NODE_ENV=production
 ENV MCP_PORT=8081
