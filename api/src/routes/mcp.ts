@@ -526,16 +526,18 @@ async function handleGetDeals(args: Record<string, unknown>) {
     ? 'discount_pct DESC'
     : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
 
-  // Use dedicated client with extended timeout when discount_pct column is absent.
-  // When discount_pct exists (happy path), this query is fast via idx_products_deals.
-  // Without it, the metadata regex+cast fallback can exceed the default 10s statement_timeout.
-  const dealsClient = await db.connect();
+  // Use dedicated client with bounded statement_timeout so a slow deals scan returns
+  // a structured -32603 envelope to the MCP client (which drops at ~35s) instead of
+  // hanging the connection until the 5-min default. The deals query is index-backed
+  // (idx_products_deals_country/region) for both paths; 25s is more than enough.
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
+  const dealsClient = await db.connect().catch((err: unknown) => {
+    console.error('[mcp] get_deals db.connect failed:', err);
+    throw { code: -32603, message: 'Database unavailable' };
+  });
   try {
-    // 5-minute timeout for both paths: fast path is index-backed but deals index may
-    // still lag on very large scans; fallback regex on 13.7M rows needs the headroom.
-    await dealsClient.query('SET statement_timeout = 300000');
+    await dealsClient.query('SET statement_timeout = 25000');
     const countResult = await dealsClient.query(
       `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`,
       params
