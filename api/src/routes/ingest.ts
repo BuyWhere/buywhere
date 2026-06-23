@@ -115,7 +115,7 @@ async function ensureProductsConflictTarget(): Promise<IngestSchemaGuardResult> 
            -- UNIQUE INDEXes against public.products. PostgreSQL's ON CONFLICT inference
            -- requires the target columns to be a prefix of the index columns; maglev
            -- only has the 2-col index (sku, source), so the live ingest must be running
-           -- with ON CONFLICT (sku, source) for that path to work. The guard now passes
+           -- with ON CONFLICT (sku, source, country_code) for that path to work. The guard now passes
            -- whenever any valid 2-col or 3-col unique index/constraint exists on products,
            -- unblocking ingest in the legacy 2-col state (maglev on 2026-06-23). The
            -- named shell products_sku_source_country_unique is explicitly excluded if
@@ -491,7 +491,7 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
 
     // Deduplicate by (sku, source, country_code) — PostgreSQL rejects ON CONFLICT DO UPDATE
     // when the same row would be affected twice in a single command. The unique constraint
-    // on products is (sku, source, country_code) (see products_partitioned_sku_source_unique),
+    // on products is (sku, source, country_code) (see products_sku_source_country_unique),
     // so the in-batch dedup key must match.
     {
       const seen = new Set<string>();
@@ -506,7 +506,7 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
         const dupes = validProducts.length - unique.length;
         validProducts.length = 0;
         validProducts.push(...unique);
-        console.warn(`[ingest] Deduped ${dupes} duplicate (sku,source,country_code) tuple(s) from ${source} batch`);
+        console.warn(`[ingest] Deduped ${dupes} duplicate (sku,source) tuple(s) from ${source} batch`);
       }
     }
 
