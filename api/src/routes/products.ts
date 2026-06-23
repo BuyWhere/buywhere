@@ -484,7 +484,7 @@ router.get(
 
     let client: PoolClient;
     try {
-      client = await servingReadDbConnect();
+      client = await db.connect();
     } catch (err) {
       if (err instanceof ReplicaUnavailableError) {
         res.status(503).json({

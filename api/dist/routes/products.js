@@ -466,7 +466,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     }
     let client;
     try {
-        client = await (0, readReplica_1.servingReadDbConnect)();
+        client = await (0, config_1.db.connect)();
     }
     catch (err) {
         if (err instanceof readReplica_1.ReplicaUnavailableError) {
