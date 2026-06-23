@@ -564,6 +564,46 @@ router.get(
             embedFailed = true;
           });
         await Promise.all([ftsPromise, embedPromise]);
+
+        // BUY-56117: if FTS failed (lock_timeout on concurrent schema migrations),
+        // the transaction is ABORTED — every subsequent query on `client` will
+        // throw "current transaction is aborted". Rollback, re-run as keyword-only
+        // on a fresh client, send the response, and return. The original `client`
+        // and its transaction are released; control never reaches the rest of
+        // the BEGIN block, so no double-response / "Cannot set headers" crash.
+        const ftsFailed = searchMode === 'hybrid' && ftsCandidates.rows.length === 0
+          && !embedFailed
+          && (ftsCandidates as { rows: Array<{ id: string }> }).rows.length === 0;
+        if (ftsFailed) {
+          await client.query('ROLLBACK').catch(() => {});
+          client.release();
+          const fbClient = await servingReadDbConnect();
+          try {
+            await fbClient.query('BEGIN');
+            await fbClient.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
+            await fbClient.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
+            await fbClient.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
+            const fbResult = await fbClient.query(dataQuery, dataParams);
+            await fbClient.query('COMMIT');
+            fbClient.release();
+            const fbData = fbResult;
+            let fbHasMore = fbData.rows.length > limit;
+            if (fbHasMore) fbData.rows.pop();
+            const fbTotal = offset + fbData.rows.length + (fbHasMore ? 1 : 0);
+            const fbTime = Date.now() - requestStart;
+            const fbProducts = fbData.rows.map((row) =>
+              buildProduct(row as Record<string, unknown>, currency, compact)
+            );
+            const fbBody = buildSearchResponse(fbProducts, fbTotal, limit, offset, fbTime, fbHasMore);
+            redis.set(cacheKey, JSON.stringify(fbBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+            res.json(fbBody);
+            return;
+          } catch (fbErr: unknown) {
+            await fbClient.query('ROLLBACK').catch(() => {});
+            fbClient.release();
+            throw fbErr;
+          }
+        }
       }
 
       if (activeVectorDb && queryVector && !embedFailed) {
