@@ -203,6 +203,18 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
     return "/docs";
   }
 
+  // BUY-55853: legacy /best-{slug} URLs (no /blog/ prefix) used to 404.  They
+  // are blog posts that moved under /blog/, so 301 redirect them to the
+  // canonical /blog/{slug} URL.  Only redirect when the slug is currently a
+  // live blog post (ACTIVE_BLOG_SLUGS); unknown slugs fall through to the
+  // normal 404.  Mirrors the same redirect used for /docs/blog/posts/{slug}.
+  if (normalizedPath.startsWith("/best-")) {
+    const slug = normalizedPath.slice(1); // strip leading slash, e.g. "best-laptop-deals-singapore"
+    if (ACTIVE_BLOG_SLUGS.has(slug)) {
+      return `/blog/${slug}`;
+    }
+  }
+
   if (normalizedPath.startsWith("/blog/")) {
     const slug = normalizedPath.slice("/blog/".length);
     if (!slug) {
