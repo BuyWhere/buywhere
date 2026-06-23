@@ -1,14 +1,15 @@
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_api_key
 from app.database import get_db
 from app.models.product import ApiKey, IngestionRun, Product
-from app.schemas.status import CatalogStatus, IngestionRunInfo, PlatformProductCount, ScraperHealthReport, SystemHealthReport
+from app.schemas.status import CatalogStatus, IngestionRunInfo, PlatformProductCount, ScraperHealthReport, SystemHealthReport, DiskSpaceStatus
 from app.rate_limit import limiter
 from app.services.scraper_health import get_scraper_health
 from app.services.health import get_db_health
+from app.services.disk_watchdog import get_last_check
 
 router = APIRouter(prefix="/v1/status", tags=["status"])
 
@@ -121,4 +122,36 @@ async def get_system_health(
     return SystemHealthReport(
         db=db_health,
         scrapers=ScraperHealthReport(**scraper_data),
+    )
+
+@router.get("/disk", response_model=DiskSpaceStatus, summary="Get disk space status from the watchdog")
+@limiter.limit("100/minute")
+async def get_disk_space_status(
+    request: Request,
+    api_key: ApiKey = Depends(get_current_api_key),
+) -> DiskSpaceStatus:
+    request.state.api_key = api_key
+    last_check = get_last_check()
+    if last_check is None:
+        raise HTTPException(status_code=503, detail="Disk watchdog has not completed a check yet")
+    from app.services.disk_watchdog import WARN_FREE_GB, CRITICAL_FREE_GB, CHECK_PATH
+    free_gb = last_check["free_gb"]
+    if free_gb < CRITICAL_FREE_GB:
+        status = "critical"
+    elif free_gb < WARN_FREE_GB:
+        status = "warning"
+    else:
+        status = "healthy"
+    return DiskSpaceStatus(
+        total_bytes=last_check["total_bytes"],
+        used_bytes=last_check["used_bytes"],
+        available_bytes=last_check["available_bytes"],
+        free_gb=last_check["free_gb"],
+        usage_percent=last_check["usage_percent"],
+        ok=last_check["usage_percent"] < 90,
+        threshold_warn_gb=WARN_FREE_GB,
+        threshold_critical_gb=CRITICAL_FREE_GB,
+        check_path=CHECK_PATH,
+        checked_at=last_check["checked_at"],
+        status=status,
     )

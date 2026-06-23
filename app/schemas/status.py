@@ -318,6 +318,21 @@ class DiskSpaceHealth(BaseModel):
     ok: bool
 
 
+class DiskSpaceStatus(BaseModel):
+    total_bytes: int
+    used_bytes: int
+    available_bytes: int
+    free_gb: float
+    usage_percent: float
+    ok: bool
+    threshold_warn_gb: float = 20.0
+    threshold_critical_gb: float = 5.0
+    check_path: str = "/"
+    checked_at: Optional[datetime] = None
+    incident_created: bool = False
+    status: str = Field(..., description="healthy, warning, or critical")
+
+
 class APIResponseTimeHealth(BaseModel):
     endpoint: str
     latency_ms: float
