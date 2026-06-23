@@ -25,18 +25,34 @@ CREATE INDEX IF NOT EXISTS idx_products_search_vector ON products USING GIN(sear
 
 -- BUY-31015 / BUY-55570: Unique constraint required for ON CONFLICT (sku, source, country_code) upserts
 -- in POST /v1/ingest. Idempotent: constraint created only if not exists.
+-- BUY-55726 fix (Ops 2026-06-23): if a partial-index CIC shell with the same name
+-- exists (no matching constraint in pg_constraint), drop it before adding the
+-- constraint. Otherwise the ADD CONSTRAINT fails with "already exists".
 DO $$
 BEGIN
-  IF NOT EXISTS (
+  -- If the constraint already exists, nothing to do.
+  IF EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conrelid = 'products'::regclass
       AND conname = 'products_sku_source_country_unique'
       AND contype = 'u'
   ) THEN
-    ALTER TABLE products
-      ADD CONSTRAINT products_sku_source_country_unique
-      UNIQUE (sku, source, country_code);
+    RETURN;
   END IF;
+
+  -- Otherwise, drop any leftover INDEX with the same name (partial-index CIC shell
+  -- from a previous cancelled attempt) before adding the constraint.
+  IF EXISTS (
+    SELECT 1 FROM pg_class c
+    WHERE c.relkind = 'i'
+      AND c.relname = 'products_sku_source_country_unique'
+  ) THEN
+    EXECUTE 'DROP INDEX public.products_sku_source_country_unique';
+  END IF;
+
+  ALTER TABLE products
+    ADD CONSTRAINT products_sku_source_country_unique
+    UNIQUE (sku, source, country_code);
 END
 $$;
 
