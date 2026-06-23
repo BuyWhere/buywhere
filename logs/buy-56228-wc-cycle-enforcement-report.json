@@ -1,0 +1,22 @@
+{
+  "ts": "2026-06-23T15:37:31Z",
+  "workspace_dir": "/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c",
+  "workspaces_root": "/paperclip/instances/default/workspaces",
+  "workspace_count": 1,
+  "apply": 1,
+  "keep_hours": 48,
+  "trash_retention_hours": 48,
+  "scanned_count": 120,
+  "moved_count": 120,
+  "purged_count": 0,
+  "skipped_open_count": 0,
+  "reclaimed_kb": 0,
+  "disk_after_pct": 73,
+  "disk_used_kb": 147155456,
+  "disk_free_kb": 54879216,
+  "alert_threshold_pct": 90,
+  "alert_required": 0,
+  "issue": "BUY-56228",
+  "disk_before_pct": 73,
+  "run_started_at": "2026-06-23T15:37:31Z"
+}
