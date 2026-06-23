@@ -1,0 +1,294 @@
+[
+  {
+    "segment": "english",
+    "type": "search",
+    "query": "running shoes",
+    "mode": "hybrid",
+    "expected_product_ids": [
+      "746445119273840712",
+      "233574150465642357",
+      "321371791877549544",
+      "206134354742934973",
+      "760856589364109209",
+      "249266882296980091",
+      "1042160575981633954",
+      "131001822427516329",
+      "168188266505805666",
+      "1152793240167906849"
+    ],
+    "expected_category": null,
+    "_note": "Seeded 2026-06-21 by Kai from live API top-10 results"
+  },
+  {
+    "segment": "english",
+    "type": "search",
+    "query": "wireless earbuds",
+    "mode": "hybrid",
+    "expected_product_ids": [
+      "712334679345339227",
+      "1152793240148074769",
+      "1000055028789594909",
+      "805997660223457886",
+      "55732684876412441",
+      "559194808932031",
+      "1074704656220341",
+      "1074836437089136",
+      "1074836441283441",
+      "1152793240166455067"
+    ],
+    "expected_category": null,
+    "_note": "Seeded 2026-06-21 by Kai from live API top-10 results"
+  },
+  {
+    "segment": "english",
+    "type": "search",
+    "query": "office chair",
+    "mode": "hybrid",
+    "expected_product_ids": [
+      "1152793240151076680",
+      "556545696852482478",
+      "269511740446036143",
+      "326248945240128726",
+      "1152793240166635026",
+      "713773260262060756",
+      "962807854661891283",
+      "114527305904331933",
+      "1152793240151076675",
+      "826335236159931874"
+    ],
+    "expected_category": null,
+    "_note": "Seeded 2026-06-21 by Kai from live API top-10 results"
+  },
+  {
+    "segment": "english",
+    "type": "search",
+    "query": "coffee maker",
+    "mode": "hybrid",
+    "expected_product_ids": [
+      "835253628278189992",
+      "1152793240150678290",
+      "6496757396738259",
+      "1152793240150681448",
+      "1152793240150678596",
+      "6496633920593364",
+      "1152793240150685943",
+      "6496314088059894",
+      "1152793240150678594",
+      "1152793240150678601"
+    ],
+    "expected_category": null,
+    "_note": "Seeded 2026-06-21 by Kai from live API top-10 results"
+  },
+  {
+    "segment": "english",
+    "type": "search",
+    "query": "yoga mat",
+    "mode": "hybrid",
+    "expected_product_ids": [
+      "1152793240146104974",
+      "1152793240146103354",
+      "1152793240146103471",
+      "623148032233735993",
+      "270484464066124501",
+      "624594389674940448",
+      "1145431083371976789",
+      "1152793240146104120",
+      "1152793240146105136",
+      "1152793240146104551"
+    ],
+    "expected_category": null,
+    "_note": "Seeded 2026-06-21 by Kai from live API top-10 results"
+  },
+  {
+    "segment": "english",
+    "type": "search",
+    "query": "bluetooth speaker",
+    "mode": "hybrid",
+    "expected_product_ids": [
+      "1152793240166490650",
+      "1152793240166490756",
+      "1075006700706306",
+      "1074676843783886",
+      "1070785132723805",
+      "1074676847978191",
+      "1075299006016061",
+      "1074676852172496",
+      "1070329174021560",
+      "1074813741704781"
+    ],
+    "expected_category": null,
+    "_note": "Seeded 2026-06-21 by Kai from live API top-10 results"
+  },
+  {
+    "segment": "english",
+    "type": "search",
+    "query": "smartphone",
+    "mode": "hybrid",
+    "expected_product_ids": [
+      "1152793240148073294",
+      "1152793240148072864",
+      "1152793240148072889",
+      "1152793240148072843",
+      "407527540215533879",
+      "1152793240148072867",
+      "1152793240148072871",
+      "915793264090285820",
+      "1152793240148073360",
+      "1152793240166632716"
+    ],
+    "expected_category": null,
+    "_note": "Seeded 2026-06-21 by Kai from live API top-10 results"
+  },
+  {
+    "segment": "english",
+    "type": "search",
+    "query": "laptop bag",
+    "mode": "hybrid",
+    "expected_product_ids": [
+      "1126150856089603981",
+      "622808562906977152",
+      "1140224595278948807",
+      "418577723600229949",
+      "161548233162601252",
+      "238757248334026714",
+      "202682771342448002",
+      "818960031762718079",
+      "16928203231252550",
+      "747494225273407879"
+    ],
+    "expected_category": null,
+    "_note": "Seeded 2026-06-21 by Kai from live API top-10 results"
+  },
+  {
+    "segment": "sea",
+    "type": "search",
+    "query": "harvey norman aircon",
+    "mode": "hybrid",
+    "expected_product_ids": [
+      "1673654547560515",
+      "322568399705481785",
+      "635190095786384887",
+      "171605148884809282",
+      "1152793240166466912",
+      "1152793240166466950",
+      "1152793240166467178",
+      "1152793240166467378",
+      "1152793240166467379",
+      "1152793240166467935"
+    ],
+    "expected_category": null,
+    "_note": "Seeded 2026-06-21 by Kai from live API top-10 results"
+  },
+  {
+    "segment": "sea",
+    "type": "search",
+    "query": "courts refrigerator",
+    "mode": "hybrid",
+    "expected_product_ids": [
+      "727760794027622644",
+      "790043790104732090",
+      "115308013487493177",
+      "6497219147775709",
+      "562850563377552702",
+      "6496310187356244",
+      "6496310183161939",
+      "6496310178967634",
+      "6496310174773329",
+      "6496597388196814"
+    ],
+    "expected_category": null,
+    "_note": "Seeded 2026-06-21 by Kai from live API top-10 results"
+  },
+  {
+    "segment": "sea",
+    "type": "search",
+    "query": "best denki washing machine",
+    "mode": "hybrid",
+    "expected_product_ids": [
+      "6496328453554519",
+      "6492528358698554",
+      "6496624659567924",
+      "6496328457748824",
+      "6492528362892859",
+      "6496328336113979",
+      "6496328340308284",
+      "6496315052750044",
+      "6492546641674049",
+      "6497369186454169"
+    ],
+    "expected_category": null,
+    "_note": "Seeded 2026-06-21 by Kai from live API top-10 results"
+  },
+  {
+    "segment": "sku_exact",
+    "type": "search",
+    "query": "iphone 15 pro max",
+    "mode": "hybrid",
+    "expected_product_ids": [
+      "782348098329908136",
+      "650545550211134388",
+      "108723333441338816",
+      "186722434110602207",
+      "1152793240166633881",
+      "1152793240148072866",
+      "1152793240148095562",
+      "856328164014688549",
+      "664451175458735042",
+      "1089568804482040019"
+    ],
+    "expected_category": null,
+    "_note": "Seeded 2026-06-21 by Kai from live API top-10 results"
+  },
+  {
+    "segment": "sku_exact",
+    "type": "search",
+    "query": "samsung galaxy s24",
+    "mode": "hybrid",
+    "expected_product_ids": [
+      "950344139188024178",
+      "1074512674491881"
+    ],
+    "expected_category": null,
+    "_note": "Seeded 2026-06-21 by Kai from live API top-10 results"
+  },
+  {
+    "segment": "sku_exact",
+    "type": "search",
+    "query": "sony wh-1000xm5",
+    "mode": "hybrid",
+    "expected_product_ids": [
+      "222567404963715962",
+      "7941840231481111",
+      "7941964097696371",
+      "7941972561803861",
+      "7941972565998166",
+      "7089883327813733",
+      "7090007194028993",
+      "7090015658136483",
+      "7090015662330788",
+      "458024976240010384"
+    ],
+    "expected_category": null,
+    "_note": "Seeded 2026-06-21 by Kai from live API top-10 results"
+  },
+  {
+    "segment": "sku_exact",
+    "type": "search",
+    "query": "dyson v12",
+    "mode": "hybrid",
+    "expected_product_ids": [
+      "95553392799253138",
+      "1152793240166634250",
+      "6496177475351739",
+      "1152793240166634215",
+      "1152793240166457250",
+      "1152793240166457251",
+      "1152793240166457424",
+      "1088041824740551153",
+      "741754093990792511",
+      "572657433279788725"
+    ],
+    "expected_category": null,
+    "_note": "Seeded 2026-06-21 by Kai from live API top-10 results"
+  }
+]
