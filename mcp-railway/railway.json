@@ -4,6 +4,7 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
+    "startCommand": "node dist/mcp-server.js",
     "healthcheckPath": "/healthz",
     "healthcheckTimeout": 600,
     "restartPolicyType": "ON_FAILURE",
