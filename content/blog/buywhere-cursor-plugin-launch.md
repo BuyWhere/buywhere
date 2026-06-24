@@ -1,6 +1,31 @@
+---
+slug: "buywhere-cursor-plugin-launch"
+title: "BuyWhere for Cursor: AI-Powered Product Search Now in Your Code Editor"
+description: "Shop smarter without leaving your code editor. BuyWhere brings AI-powered product search and price comparison directly into Cursor with a one-click npm install."
+author: "BuyWhere Team"
+publishedAt: "2026-06-16"
+tags: ["cursor", "plugin", "product search", "price comparison", "shopping", "mcp", "ai"]
+jsonLd: >
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "BuyWhere for Cursor: AI-Powered Product Search Now in Your Code Editor",
+    "description": "BuyWhere brings AI-powered product search and price comparison directly into Cursor with a one-click npm install.",
+    "datePublished": "2026-06-16",
+    "dateModified": "2026-06-16",
+    "author": { "@type": "Organization", "name": "BuyWhere Team", "url": "https://buywhere.ai" },
+    "publisher": {
+      "@type": "Organization",
+      "name": "BuyWhere",
+      "url": "https://buywhere.ai",
+      "logo": { "@type": "ImageObject", "url": "https://buywhere.ai/logo.png" }
+    },
+    "mainEntityOfPage": "https://buywhere.ai/blog/buywhere-cursor-plugin-launch"
+  }
+---
+
 # BuyWhere for Cursor: AI-Powered Product Search Now in Your Code Editor
 
-*Published: 2026-06-16 | Category: Product Launch | Tags: cursor, plugin, product search, price comparison, shopping, mcp, ai*
 
 Shop smarter without leaving your code editor. BuyWhere brings AI-powered product search and price comparison directly into Cursor — so you can compare prices across Amazon, Walmart, Best Buy, Target, and thousands of other retailers without opening a browser tab.
 
