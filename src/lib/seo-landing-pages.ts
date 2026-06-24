@@ -629,9 +629,9 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
   },
   "best-robot-vacuums-2026": {
     slug: "best-robot-vacuums-2026",
-    title: "Best Robot Vacuum & Roomba Sale 2026 — Compare Prices Across Roborock, iRobot, Shark, Ecovacs",
+    title: "Roomba Sale 2026: Save Up To $400 | iRobot, Roborock, Shark Deals",
     description:
-      "Compare live Roomba and robot vacuum sale prices across Roborock, iRobot, Shark, and Ecovacs in 2026, with buying advice and the best deals refreshed weekly.",
+      "Live Roomba sale prices 2026. Compare iRobot, Roborock, Shark robot vacuums. Save $200-$400 with verified deals at Amazon, Best Buy, Walmart. Updated daily.",
     heroEyebrow: "US Home Guide",
     heroTitle: "Best Robot Vacuums in 2026",
     heroBody:
@@ -5035,9 +5035,9 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
   },
   "best-smart-home-us": {
     slug: "best-smart-home-us",
-    title: "Best Smart Home Retailers for Selection & Availability — Echo, Nest, Hue",
+    title: "Best Smart Home Retailers 2026 | Amazon, Best Buy, Walmart Compared",
     description:
-      "Find the best retailers for smart home products — compare Echo, Google Nest, and Philips Hue selection, availability, and live prices across top US stores.",
+      "Compare smart home product selection at Amazon, Best Buy, Walmart. Live stock & prices for Echo, Nest, Hue. Find what's in stock now.",
     heroEyebrow: "US Shopping Guide",
     heroTitle: "Best Smart Home Devices in the US",
     heroBody:
