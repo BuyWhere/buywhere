@@ -106,8 +106,12 @@ move_to_trash() {
   target=$(trash_target_for "$file")
 
   if [ "$APPLY" = "1" ]; then
+    if [ ! -f "$file" ]; then
+      log "skip-gone path=$file"
+      return 0
+    fi
     mkdir -p "$(dirname "$target")"
-    mv -- "$file" "$target"
+    mv -- "$file" "$target" 2>/dev/null || { log "skip-race path=$file"; return 0; }
     action="trash"
   else
     action="dryrun"
