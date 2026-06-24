@@ -92,3 +92,6 @@ __pycache__/
 *.heartbeat
 *.pid
 *-state.json
+
+# Runtime worker status/heartbeat files (actively written by live processes)
+*-status.json
