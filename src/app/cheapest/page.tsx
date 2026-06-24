@@ -26,6 +26,11 @@ const config: SeoLandingPageConfig = {
     { Route: "Cheapest TVs", Coverage: "US TV comparisons", "Best for": "Value-focused living room upgrades" },
     { Route: "Cheapest AirPods", Coverage: "Audio accessories", "Best for": "Apple audio shoppers" },
     { Route: "Cheapest MacBooks", Coverage: "US laptop comparisons", "Best for": "Buyers waiting on the best Apple deal" },
+    { Route: "Cheapest Dyson", Coverage: "US vacuum and haircare", "Best for": "Dyson cordless and haircare shoppers" },
+    { Route: "Cheapest iPads", Coverage: "US tablet comparisons", "Best for": "Apple tablet buyers tracking the lowest visible checkout price" },
+    { Route: "Cheapest PS5", Coverage: "US PlayStation consoles and bundles", "Best for": "PlayStation gamers chasing the lowest PS5 deal" },
+    { Route: "Cheapest Samsung TVs", Coverage: "US Samsung TV lineup", "Best for": "Samsung TV shoppers watching the lowest visible checkout price" },
+    { Route: "Cheapest Nintendo Switch", Coverage: "US Switch consoles and bundles", "Best for": "Nintendo Switch and Switch OLED buyers" },
   ],
   highlightSectionTitle: "Why this hub exists",
   highlights: [
@@ -85,6 +90,11 @@ const config: SeoLandingPageConfig = {
     { id: "cheapest-tv-us", name: "Cheapest TVs", price: null, currency: "USD", merchant: "BuyWhere", imageUrl: null, href: "/cheapest-tv-us", brand: null, category: "Cheapest hub" },
     { id: "cheapest-airpods-us", name: "Cheapest AirPods", price: null, currency: "USD", merchant: "BuyWhere", imageUrl: null, href: "/cheapest-airpods-us", brand: null, category: "Cheapest hub" },
     { id: "cheapest-macbook-us", name: "Cheapest MacBooks", price: null, currency: "USD", merchant: "BuyWhere", imageUrl: null, href: "/cheapest-macbook-us", brand: null, category: "Cheapest hub" },
+    { id: "cheapest-dyson-us", name: "Cheapest Dyson", price: null, currency: "USD", merchant: "BuyWhere", imageUrl: null, href: "/cheapest-dyson-us", brand: null, category: "Cheapest hub" },
+    { id: "cheapest-ipad-us", name: "Cheapest iPads", price: null, currency: "USD", merchant: "BuyWhere", imageUrl: null, href: "/cheapest-ipad-us", brand: null, category: "Cheapest hub" },
+    { id: "cheapest-ps5-us", name: "Cheapest PS5", price: null, currency: "USD", merchant: "BuyWhere", imageUrl: null, href: "/cheapest-ps5-us", brand: null, category: "Cheapest hub" },
+    { id: "cheapest-samsung-tv-us", name: "Cheapest Samsung TVs", price: null, currency: "USD", merchant: "BuyWhere", imageUrl: null, href: "/cheapest-samsung-tv-us", brand: null, category: "Cheapest hub" },
+    { id: "cheapest-switch-us", name: "Cheapest Nintendo Switch", price: null, currency: "USD", merchant: "BuyWhere", imageUrl: null, href: "/cheapest-switch-us", brand: null, category: "Cheapest hub" },
   ],
 };
 
