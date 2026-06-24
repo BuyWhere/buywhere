@@ -8,6 +8,7 @@
 
 # testing
 /coverage
+.pytest_cache/
 
 # next.js
 /.next/
@@ -15,6 +16,7 @@
 
 # production
 /build
+api/dist/
 
 # misc
 .DS_Store
@@ -35,3 +37,36 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .next-deploy/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs
+logs/
+
+# Evidence artifacts
+BUY-*-evidence/
+
+# Catalog runtime state
+data/.catalog_db_url
+data/.env.*
+data/.buy*
+data/buy31015-*
+data/reports/
+data/_trash/
+data/_cleanup_log.jsonl
+
+# Large scrape data (should live in R2, not git)
+data/carousell-sg/
+data/scrape/
+gamestop_data/
+*.jsonl
+*.ndjson
+
+# Backup files
+*.bak*
+*~
+
+/api/node_modules
