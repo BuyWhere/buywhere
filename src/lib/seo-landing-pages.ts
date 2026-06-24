@@ -8897,8 +8897,8 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
 
   "best-budget-tvs-us": {
     slug: "best-budget-tvs-us",
-    title: "Where to Buy the Cheapest TVs in 2026 — Best Budget TVs Under $500",
-    description: "Find the cheapest TVs to buy in 2026. Compare budget TVs under $500 from TCL, Hisense, Amazon Fire, and other top US retailers with live prices and ratings.",
+    title: "Cheapest TVs in 2026: TCL vs Hisense vs Amazon Fire — Best Deals Under $500",
+    description: "Compare budget TVs under $500: TCL 4-Series, Hisense U6, Amazon Fire TV — live prices from 5 US retailers. Updated weekly.",
     heroEyebrow: "US Shopping Guide",
     heroTitle: "Best Budget TVs in the US 2026",
     heroBody: "Find affordable TVs under $500 from TCL, Hisense, Amazon Fire. Best budget TVs for bedrooms and apartments.",
