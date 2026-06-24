@@ -453,9 +453,9 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
   },
   "best-gaming-laptops-us": {
     slug: "best-gaming-laptops-us",
-    title: "Best Gaming Laptops in 2026 | Top RTX Gaming Laptop Deals Compared",
+    title: "Best Gaming Laptops in 2026 — Top RTX 5070 & 5080 Deals from $1,099",
     description:
-      "Compare the best gaming laptops in the US with live BuyWhere search results, price benchmarks, and buying advice across ASUS ROG, Lenovo Legion, Alienware, HP Omen, and Acer Predator.",
+      "Compare RTX 5070 and 5080 gaming laptop deals across ASUS ROG Zephyrus G16, Lenovo Legion Pro 7i, HP Omen, Acer Predator, and Alienware — live prices from $1,099.",
     heroEyebrow: "US Laptop Guide",
     heroTitle: "Best Gaming Laptops in 2026",
     heroBody:
