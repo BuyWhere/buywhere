@@ -58,12 +58,6 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/developers", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/agents", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/blog", priority: 0.9, changeFrequency: "weekly" as const },
-  { path: "/blog/cheapest-iphone-singapore-2026", priority: 0.8, changeFrequency: "monthly" as const },
-  { path: "/blog/best-laptop-deals-singapore", priority: 0.8, changeFrequency: "monthly" as const },
-  { path: "/blog/best-gaming-laptops-us-2026", priority: 0.8, changeFrequency: "weekly" as const },
-  { path: "/blog/compare-headphones-singapore-2026", priority: 0.8, changeFrequency: "monthly" as const },
-  { path: "/blog/home-appliance-deals-singapore-2026", priority: 0.8, changeFrequency: "monthly" as const },
-  { path: "/blog/compare-product-prices-singapore-2026", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/best", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/cheapest", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/quickstart", priority: 0.9, changeFrequency: "weekly" as const },
@@ -77,13 +71,15 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/use-cases", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/pricing", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/contact", priority: 0.5, changeFrequency: "monthly" as const },
-  // BUY-56627: /best-* URLs removed from STATIC_SITEMAP_ROUTES — they are
-  // already auto-derived from the seoLandingPages registry (line ~259).
-  // Keeping them here caused every /best-* slug to appear TWICE in
-  // sitemap-pages.xml (once with priority 0.9, once with 0.8).
-  { path: "/iphone-16-price-singapore", priority: 0.9, changeFrequency: "weekly" as const },
-  { path: "/laptop-singapore", priority: 0.9, changeFrequency: "weekly" as const },
-  { path: "/air-purifier-singapore", priority: 0.9, changeFrequency: "weekly" as const },
+  // BUY-56627 / BUY-57452: /best-* URLs and the 6 blog + 3 product
+  // dupes (cheapest-iphone-singapore-2026, best-laptop-deals-singapore,
+  // best-gaming-laptops-us-2026, compare-headphones-singapore-2026,
+  // home-appliance-deals-singapore-2026, compare-product-prices-singapore-2026,
+  // iphone-16-price-singapore, laptop-singapore, air-purifier-singapore) were
+  // removed from STATIC_SITEMAP_ROUTES because they are already emitted by
+  // either the seoLandingPages registry (line ~262) or getAllBlogPosts()
+  // (line ~190). Keeping them here caused each of those 9 URLs to appear
+  // TWICE in sitemap-pages.xml (once with priority 0.9 and once with 0.8).
   { path: "/mcp-ecommerce", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/challenge", priority: 0.9, changeFrequency: "daily" as const },
   { path: "/privacy", priority: 0.3, changeFrequency: "yearly" as const },
@@ -173,33 +169,76 @@ export function getStaticSitemapEntries(): SitemapUrlEntry[] {
   const now = new Date();
   const blogPosts = safeGetBlogPosts();
 
-  return [
-    ...STATIC_SITEMAP_ROUTES.map(({ path, priority, changeFrequency }) => ({
+  // BUY-57452: dedupe by canonical <loc>. When two sources emit the same URL
+  // we keep the entry with the HIGHER priority and the NEWER lastModified.
+  // This is a safety net on top of the source-level fix that removed the
+  // 9 hardcoded duplicates from STATIC_SITEMAP_ROUTES — if a future change
+  // re-introduces a double emission, the sitemap stays clean (one <loc>)
+  // and a single console.warn surfaces the regression instead of two
+  // competing <url> blocks reaching Google Search Console.
+  const byUrl = new Map<string, SitemapUrlEntry>();
+  const dupes: string[] = [];
+  const upsert = (entry: SitemapUrlEntry) => {
+    const existing = byUrl.get(entry.url);
+    if (!existing) {
+      byUrl.set(entry.url, entry);
+      return;
+    }
+    dupes.push(entry.url);
+    const incomingPriority = entry.priority ?? 0;
+    const existingPriority = existing.priority ?? 0;
+    if (
+      incomingPriority > existingPriority ||
+      (incomingPriority === existingPriority &&
+        new Date(entry.lastModified).getTime() >
+          new Date(existing.lastModified).getTime())
+    ) {
+      byUrl.set(entry.url, entry);
+    }
+  };
+
+  for (const { path, priority, changeFrequency } of STATIC_SITEMAP_ROUTES) {
+    upsert({
       url: toSiteUrl(path),
       lastModified: now,
       changeFrequency,
       priority,
-    })),
-    ...DOC_SLUGS.map((slug) => ({
+    });
+  }
+  for (const slug of DOC_SLUGS) {
+    upsert({
       url: toSiteUrl(`/docs/${slug}`),
       lastModified: now,
       changeFrequency: "weekly" as const,
       priority: 0.7,
-    })),
-    ...blogPosts.map((post) => ({
+    });
+  }
+  for (const post of blogPosts) {
+    upsert({
       url: toSiteUrl(`/blog/${post.slug}`),
       lastModified: new Date(post.publishedAt),
       changeFrequency: "monthly" as const,
       priority: 0.8,
-    })),
-    // BUY-14269: add all SEO landing pages to sitemap
-    ...Object.keys(seoLandingPages).map((slug) => ({
+    });
+  }
+  // BUY-14269: add all SEO landing pages to sitemap
+  for (const slug of Object.keys(seoLandingPages)) {
+    upsert({
       url: toSiteUrl(`/${slug}/`),
       lastModified: now,
       changeFrequency: "weekly" as const,
       priority: 0.8,
-    })),
-  ];
+    });
+  }
+
+  if (dupes.length > 0) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[sitemap] getStaticSitemapEntries deduped ${dupes.length} duplicate URL(s): ${dupes.slice(0, 10).join(", ")}${dupes.length > 10 ? "..." : ""}`
+    );
+  }
+
+  return Array.from(byUrl.values());
 }
 
 export function getCategorySitemapEntries(): SitemapUrlEntry[] {
