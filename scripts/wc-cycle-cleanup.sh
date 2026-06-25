@@ -90,6 +90,10 @@ is_open_file() {
   if ! command -v lsof >/dev/null 2>&1; then
     return 1
   fi
+  # Zero-byte files cannot be meaningfully open at scale — skip lsof which is expensive on 50K+ files.
+  if [ "$(stat -c '%s' -- "$1" 2>/dev/null || echo 0)" -eq 0 ]; then
+    return 1
+  fi
   lsof -- "$1" >/dev/null 2>&1
 }
 
