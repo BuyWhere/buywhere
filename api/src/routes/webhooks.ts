@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import Stripe from 'stripe';
-import crypto from 'crypto';
 import { db, redis } from '../config';
 
 const router = Router();
@@ -17,49 +16,14 @@ const REX_AGENT_ID = '8ca957f8-0911-4e81-a963-e2cf54c97d44';
 const PARENT_ISSUE_ID = '79d50257-93fa-43d2-9042-bc14bcafd4b4'; // BUY-13701
 const GOAL_ID = '2c19e8cc-3e32-4144-8fcb-c4f206cb9fa4';
 
-/** Known BuyWhere production host suffixes that should create incidents. */
-const SUPPORTED_MONITOR_HOSTS = [
-  'buywhere.ai',
-  'api.buywhere.ai',
-  'mcp.buywhere.ai',
-  'www.buywhere.ai',
-  'buywhere-monitoring-api.up.railway.app',
-];
-
-/**
- * Computes a stable SHA-256 fingerprint for a UptimeRobot alert.
- * Uses monitor_id, alert_type, detected_at (if present), and monitor_url
- * to uniquely identify the alert event.
- */
-const computeAlertFingerprint = (alert: UptimeRobotAlert, detectedAt?: string): string => {
-  const parts = [
-    alert.monitorID || '',
-    String(alert.alertType ?? alert.alert_type ?? ''),
-    detectedAt || '',
-    alert.monitorURL || '',
-  ];
-  return crypto.createHash('sha256').update(parts.join('|')).digest('hex');
-};
-
-/**
- * Dedup window in seconds — prevents duplicate issues for the same alert
- * within this window (e.g. UptimeRobot retries, multiple webhook deliveries).
- */
-const DEDUP_WINDOW_SECONDS = 300; // 5 minutes
-
-/**
- * Returns true if the monitor URL points to a supported BuyWhere production host.
- * Unsupported hosts (e.g. dedup.ai) are silently ignored.
- */
-const isSupportedMonitorHost = (monitorURL: string): boolean => {
-  try {
-    const hostname = new URL(monitorURL).hostname.toLowerCase();
-    return SUPPORTED_MONITOR_HOSTS.some((host) => hostname === host || hostname.endsWith('.' + host));
-  } catch {
-    // If URL is malformed, let it through — false negatives are worse than false positives
-    return true;
-  }
-};
+// Redis-backed dedup for UptimeRobot webhook alerts (BUY-57442).
+// UptimeRobot can fire duplicate alerts while a monitor is still DOWN, and the
+// relay used to forward every duplicate into a new Paperclip issue. We dedup
+// per (monitorID, alertType, status-bucket) for 5 minutes; a state transition
+// (DOWN -> UP) starts a fresh window because the alertType changes.
+const DEDUP_PREFIX = 'uptime:dedup:';
+const DEDUP_TTL_SECONDS = 300;
+const DEDUP_ENABLED = !!redis;
 
 interface UptimeRobotAlert {
   monitorID?: string;
@@ -76,6 +40,34 @@ interface UptimeRobotAlert {
   monitorStatusCode?: string;
 }
 
+const alertStatus = (alert: UptimeRobotAlert): 'down' | 'up' | 'other' => {
+  const alertType = alert.alertType ?? alert.alert_type;
+  if (alertType === 1 || alertType === '1' || alertType === 'down' || alertType === 'DOWN' || alertType === 'Down') {
+    return 'down';
+  }
+  if (alertType === 2 || alertType === '2' || alertType === 'up' || alertType === 'UP' || alertType === 'Up') {
+    return 'up';
+  }
+  return 'other';
+};
+
+const dedupKey = (alert: UptimeRobotAlert, status: 'down' | 'up'): string | null => {
+  const monitorID = alert.monitorID || alert.monitorFriendlyName || alert.monitorName || alert.monitor_name;
+  if (!monitorID) return null;
+  return `${DEDUP_PREFIX}${monitorID}:${status}`;
+};
+
+const claimDedupSlot = async (key: string): Promise<boolean> => {
+  if (!DEDUP_ENABLED) return true;
+  try {
+    const result = await (redis as any).set(key, '1', 'EX', DEDUP_TTL_SECONDS, 'NX');
+    return result === 'OK' || result === true || result === 1;
+  } catch (err) {
+    console.warn('[webhooks/uptime-robot] Redis dedup SET failed (allowing create):', (err as Error).message);
+    return true;
+  }
+};
+
 const createPaperclipIssue = async (alert: UptimeRobotAlert, isDown: boolean): Promise<void> => {
   if (!PAPERCLIP_BASE_URL || !PAPERCLIP_API_KEY) {
     console.warn('[webhooks/uptime-robot] Relay not configured (missing URL or API key)');
@@ -85,7 +77,6 @@ const createPaperclipIssue = async (alert: UptimeRobotAlert, isDown: boolean): P
   const friendlyName = alert.monitorFriendlyName || alert.monitorName || alert.monitor_name || 'unknown';
   const monitorURL = alert.monitorURL || 'unknown';
   const alertDetails = alert.alertDetails || alert.alert_details || '';
-
   const status = isDown ? 'DOWN' : 'UP';
   const timestamp = new Date().toISOString();
 
@@ -138,51 +129,44 @@ router.post('/uptime-robot', async (req: Request, res: Response) => {
   const payload = req.body as UptimeRobotAlert;
   console.log('[webhooks/uptime-robot] Received alert:', JSON.stringify(payload));
 
-  const alertType = payload?.alertType ?? payload?.alert_type;
+  const status = alertStatus(payload);
   const friendlyName = payload?.monitorFriendlyName || payload?.monitorName || payload?.monitor_name || 'unknown';
   const monitorURL = payload?.monitorURL || 'unknown';
   const alertDetails = payload?.alertDetails ?? payload?.alert_details ?? '';
 
-  if (!isSupportedMonitorHost(monitorURL)) {
-    console.warn(`[webhooks/uptime-robot] Ignoring alert for unsupported host: ${monitorURL} (friendlyName=${friendlyName})`);
-    res.status(202).json({ ignored: true, reason: 'unsupported_monitor_host' });
-    return;
-  }
-
-  // BUY-57442: Idempotency via Redis fingerprint with 5-minute dedup window.
-  // Only create issues for DOWN alerts (UP/recovery is informational, no new issue).
-  const isDown = alertType === 1 || alertType === '1' || alertType === 'down' || alertType === 'DOWN' || alertType === 'Down';
-  const isUp = alertType === 2 || alertType === '2' || alertType === 'up' || alertType === 'UP' || alertType === 'Up';
-
-  if (isDown) {
-    const detectedAt = payload?.alertDetails || payload?.alert_details || new Date().toISOString();
-    const fingerprint = computeAlertFingerprint(payload, detectedAt);
-    const redisKey = `webhook:uptime-robot:dedup:${fingerprint}`;
-
-    try {
-      // SET NX = only set if key doesn't exist (atomic dedup check-and-set)
-      const isNew = await redis.set(redisKey, Date.now().toString(), 'EX', DEDUP_WINDOW_SECONDS, 'NX');
-
-      if (!isNew) {
-        console.log(`[webhooks/uptime-robot] Deduped duplicate alert: ${fingerprint} (${friendlyName})`);
-        res.status(200).json({ received: true, deduplicated: true });
-        return;
+  try {
+    if (status === 'down') {
+      console.warn(`[webhooks/uptime-robot] Monitor DOWN: ${friendlyName} (${monitorURL}) — ${alertDetails}`);
+      const key = dedupKey(payload, 'down');
+      if (key) {
+        const claimed = await claimDedupSlot(key);
+        if (!claimed) {
+          console.log(`[webhooks/uptime-robot] dedup-hit (down): ${key}`);
+          res.status(200).json({ received: true, deduplicated: true });
+          return;
+        }
       }
-    } catch (redisErr) {
-      // Redis unavailable — proceed with issue creation (fail open, prefer no missed alerts)
-      console.warn('[webhooks/uptime-robot] Redis dedup check failed, proceeding without dedup:', redisErr);
+      void createPaperclipIssue(payload, true);
+    } else if (status === 'up') {
+      console.log(`[webhooks/uptime-robot] Monitor UP: ${friendlyName} (${monitorURL})`);
+      const key = dedupKey(payload, 'up');
+      if (key) {
+        const claimed = await claimDedupSlot(key);
+        if (!claimed) {
+          console.log(`[webhooks/uptime-robot] dedup-hit (up): ${key}`);
+          res.status(200).json({ received: true, deduplicated: true });
+          return;
+        }
+      }
+      void createPaperclipIssue(payload, false);
+    } else {
+      console.log(`[webhooks/uptime-robot] Alert type ${payload?.alertType ?? payload?.alert_type}: ${friendlyName} (${monitorURL}) — ${alertDetails}`);
     }
-
-    console.warn(`[webhooks/uptime-robot] Monitor DOWN: ${friendlyName} (${monitorURL}) — ${alertDetails}`);
-    await createPaperclipIssue(payload, true);
-    res.status(201).json({ received: true, created: true });
-  } else if (isUp) {
-    console.log(`[webhooks/uptime-robot] Monitor UP: ${friendlyName} (${monitorURL})`);
-    res.status(200).json({ received: true });
-  } else {
-    console.log(`[webhooks/uptime-robot] Alert type ${alertType}: ${friendlyName} (${monitorURL}) — ${alertDetails}`);
-    res.status(200).json({ received: true });
+  } catch (err) {
+    console.error('[webhooks/uptime-robot] handler error:', err);
   }
+
+  res.status(200).json({ received: true });
 });
 
 router.post('/stripe', async (req: Request, res: Response) => {
