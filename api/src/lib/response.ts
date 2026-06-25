@@ -2,6 +2,7 @@ import { CanonicalProduct, ComparisonAttribute, SearchResponse } from '../types/
 import { resolvePrecomputedAffiliateUrl } from './affiliateWrapper';
 import { buildAffiliateRedirectUrl, buildClickUrl } from './instrumentation';
 
+import { getCachedFxRates } from './fxRatesLoader';
 export const CURRENCY_RATES: Record<string, number> = {
   USD: 1, SGD: 0.74, VND: 0.000039, THB: 0.028, MYR: 0.22, GBP: 0.79,
 };
@@ -69,7 +70,8 @@ export function buildProduct(
     if (structured_specs.color != null)
       comparison_attributes.push({ key: 'color', label: 'Color', value: structured_specs.color });
 
-    const rate = CURRENCY_RATES[currency] ?? null;
+    const rates = getCachedFxRates();
+    const rate = rates[currency] ?? CURRENCY_RATES[currency] ?? null;
     const normalized_price_usd = amount != null && rate != null ? +(amount * rate).toFixed(4) : null;
 
     base.canonical_id = row.id as string;

@@ -27,7 +27,9 @@
     "load:stress": "PROFILE=stress node tests/load/load-harness.mjs",
     "load:suite": "bash tests/load/run-load-suite.sh",
     "start:embed": "node dist/jobs/embedRunner.js",
-    "embed": "ts-node src/jobs/embedRunner.ts"
+    "embed": "ts-node src/jobs/embedRunner.ts",
+    "fx-refresh": "ts-node src/jobs/fxRefreshRunner.ts",
+    "start:fx-refresh": "node dist/jobs/fxRefreshRunner.js"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.1024.0",

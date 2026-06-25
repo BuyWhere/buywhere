@@ -280,6 +280,23 @@ CREATE INDEX IF NOT EXISTS idx_clicks_product    ON clicks(product_id);
 CREATE INDEX IF NOT EXISTS idx_clicks_merchant   ON clicks(merchant_id);
 CREATE INDEX IF NOT EXISTS idx_clicks_clicked_at ON clicks(clicked_at);
 
+-- fx_rates table for live FX rate storage (BUY-54078 / BUY-52476)
+-- Primary source: frankfurter.app (ECB rates, free, keyless)
+-- Fallback source: open.er-api.org (free tier, keyless)
+-- Refresh cadence: every 6 hours via fxRefreshScheduler
+CREATE TABLE IF NOT EXISTS fx_rates (
+  id              BIGSERIAL PRIMARY KEY,
+  base_currency   TEXT          NOT NULL,  -- e.g. 'EUR'
+  quote_currency  TEXT          NOT NULL,  -- e.g. 'USD'
+  rate            NUMERIC(20,10) NOT NULL, -- units of target per 1 base
+  source          TEXT          NOT NULL,  -- 'frankfurter' | 'open.er-api'
+  fetched_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  CONSTRAINT fx_rates_pair_unique UNIQUE (base_currency, quote_currency)
+);
+CREATE INDEX IF NOT EXISTS idx_fx_rates_currencies ON fx_rates(base_currency, quote_currency);
+CREATE INDEX IF NOT EXISTS idx_fx_rates_fetched_at ON fx_rates(fetched_at DESC);
+
 -- Merchants onboarding table (BUY-6932)
 CREATE TABLE IF NOT EXISTS merchants (
   id              TEXT        PRIMARY KEY,

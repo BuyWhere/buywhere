@@ -6,6 +6,7 @@ import { queryLogMiddleware } from '../middleware/queryLog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
+import { getCachedFxRates } from '../lib/fxRatesLoader';
 
 const router = Router();
 
@@ -742,7 +743,8 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   }
 
   const currency = COUNTRY_CURRENCY[country] || 'SGD';
-  const toUsd = CURRENCY_RATES[currency] ?? 1;
+  const rates = getCachedFxRates();
+  const toUsd = rates[currency] ?? CURRENCY_RATES[currency] ?? 1;
 
   const data = result.rows.map((r: Record<string, unknown>) => ({
     id: r.id,

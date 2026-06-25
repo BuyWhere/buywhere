@@ -9,6 +9,7 @@ import { warmSearchCache } from './routes/products';
 import { startP95Runner } from './jobs/p95Runner';
 import { startP95ProbeScheduler, stopP95ProbeScheduler } from './jobs/p95ProbeScheduler';
 import { startDiskSpaceRunner } from './jobs/diskSpaceRunner';
+import { startFxRefreshScheduler } from './jobs/fxRefreshRunner';
 
 // Initialize Sentry before anything else so all errors are captured
 initSentry();
@@ -36,6 +37,9 @@ async function start() {
 
   // BUY-48801: start disk space monitoring (every 5 min)
   startDiskSpaceRunner();
+
+  // BUY-54078 / BUY-52476: refresh fx_rates every 6 hours (frankfurter + open.er-api fallback).
+  startFxRefreshScheduler();
 
   // Refresh category materialized views + Redis caches every 5 min so counts stay
   // current as products are ingested, and the Redis TTL (600s) never expires cold.

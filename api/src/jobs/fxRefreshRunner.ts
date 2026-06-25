@@ -40,6 +40,9 @@ async function tick(): Promise<void> {
   console.log('[fx-refresh-runner] Job triggered');
   try {
     const result = await runFxRefresh();
+    // Refresh the in-memory cache so buildProduct uses fresh rates
+    const { loadFxRates } = await import('../lib/fxRatesLoader');
+    await loadFxRates();
     console.log(
       `[fx-refresh-runner] Completed in ${result.durationMs}ms — ` +
       `${result.ratesUpserted} rates upserted from [${result.sources.join(', ')}]` +
