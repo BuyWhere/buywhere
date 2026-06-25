@@ -12,8 +12,22 @@ PID_FILE="${OUTPUT_DIR}/scraper.pid"
 LOG_FILE="${OUTPUT_DIR}/scraper.log"
 MONITOR_LOG="/tmp/carousell-sg-monitor.log"
 
-SCRAPER_CMD=(python3 -m scrapers.carousell_sg --scrape-only --continuous --refresh-interval 14400)
-SCRAPER_PROC_PATTERN="python3 -m scrapers\.carousell_sg .*--continuous"
+# BUY-56868 — Cron-launched shells do not inherit SCRAPERAPI_KEY, so
+# scraper_scheduler.py exits with "error_no_scraperapi_key" every cycle.
+# Source the canonical fleet-secrets file (same pattern as
+# scripts/buy52477-r2-heartbeat.sh and scripts/buy31015-deep-page-keepalive.sh)
+# so the spawned daemon sees a valid key without depending on the cron env.
+SECRETS_FILE="${SECRETS_FILE:-/home/paperclip/.secrets/fleet-secrets.json}"
+if [[ -z "${SCRAPERAPI_KEY:-}" && -r "$SECRETS_FILE" ]]; then
+  export SCRAPERAPI_KEY="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("SCRAPERAPI_KEY",""))' "$SECRETS_FILE" 2>/dev/null || true)"
+  export BRIGHTDATA_ZONE_PASSWORD="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("BRIGHTDATA_ZONE_PASSWORD",""))' "$SECRETS_FILE" 2>/dev/null || true)"
+fi
+
+# BUY-56868: Launch via scripts/scraper_scheduler.py --continuous --platform carousell_sg
+# (the scraper module does not accept --continuous/--refresh-interval; only the scheduler
+# daemon does, and it owns the SCRAPERAPI_KEY validation + inner scraper args.)
+SCRAPER_CMD=(python3 scripts/scraper_scheduler.py --continuous --platform carousell_sg)
+SCRAPER_PROC_PATTERN="python3 scripts/scraper_scheduler\.py .*--platform carousell_sg"
 
 declare -i RESTART=0
 declare -i JSONL_NEW=0
@@ -41,11 +55,10 @@ check_alive() {
         cmd=$(echo "$line" | cut -d' ' -f2-)
         if [[ -n "$live_pid" && "$cmd" =~ $SCRAPER_PROC_PATTERN ]]; then
             ((live_count += 1))
-            pid_from_file=1
         fi
-    done < <(pgrep -af "python3 -m scrapers.carousell_sg")
+    done < <(pgrep -af "scraper_scheduler\.py .*--platform carousell_sg")
 
-    if [[ $pid_from_file -eq 1 ]]; then
+    if [[ $live_count -ge 1 ]]; then
         return 0
     fi
 
@@ -91,7 +104,7 @@ if [[ $RESTART -eq 1 ]] || [[ $JSONL_NEW -eq 1 ]]; then
         if [[ "$cmd" =~ $SCRAPER_PROC_PATTERN ]]; then
             kill "$pid" 2>/dev/null || true
         fi
-    done < <(pgrep -af "python3 -m scrapers.carousell_sg")
+    done < <(pgrep -af "scraper_scheduler\.py .*--platform carousell_sg")
     sleep 2
     cd "$WORKDIR"
     nohup "${SCRAPER_CMD[@]}" >> "$LOG_FILE" 2>&1 &

@@ -1,0 +1,17 @@
+{
+  "last_check": {
+    "total_bytes": 206900281344,
+    "used_bytes": 129605955584,
+    "available_bytes": 77277548544,
+    "free_gb": 71.97,
+    "usage_percent": 62.6,
+    "checked_at": "2026-06-25T08:25:00.000000+00:00"
+  },
+  "incident_created": false,
+  "checked_at": "2026-06-25T08:25:00.000000+00:00",
+  "recovery_status": "healthy",
+  "workspace_git_valid": true,
+  "cron_active": true,
+  "last_cron_run": "2026-06-25T08:20:01Z",
+  "provider_error_prior": "minimax-m3 unavailable — transient, not a code issue"
+}

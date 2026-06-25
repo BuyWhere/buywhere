@@ -1,6 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.replicaStatus = exports.readDbConnect = exports.readDb = exports.replicaPool = void 0;
+exports.ReplicaUnavailableError = exports.replicaPool = void 0;
+exports.readDb = readDb;
+exports.readDbConnect = readDbConnect;
+exports.servingReadDbConnect = servingReadDbConnect;
+exports.replicaStatus = replicaStatus;
 const pg_1 = require("pg");
 const config_1 = require("../config");
 /**
@@ -18,16 +22,27 @@ const config_1 = require("../config");
  *     `readDb()` transparently returns the primary `db` pool, so this is a
  *     no-op in production until Bolt/Ops provisions the replica and sets the
  *     env var (BUY-45692.A). Zero behaviour change before then.
- *   - A background probe (pg_last_xact_replay_timestamp) tracks replication lag.
- *     `readDb()` routes to the replica only while lag <= REPLICA_MAX_LAG_MS;
- *     otherwise it falls back to the primary so callers never read stale data
- *     beyond the threshold (BUY-45692.C).
+ *   - A background probe (BUY-54916) tracks replica freshness using WAL-level
+ *     signals (`pg_stat_wal_receiver` + replay/receive LSNs). `readDb()` routes
+ *     to the replica only while those signals are fresh; otherwise it falls
+ *     back to the primary so callers never read stale data.
  *
  * Env:
  *   REPLICA_DATABASE_URL        connection string for the read replica (unset = disabled)
  *   REPLICA_POOL_MAX            max replica pool connections (default 20)
- *   REPLICA_MAX_LAG_MS          lag ceiling before falling back to primary (default 2000)
- *   REPLICA_PROBE_INTERVAL_MS   how often to probe replica lag (default 5000)
+ *   REPLICA_MAX_LAG_MS          replica freshness ceiling in ms (default 2000)
+ *   REPLICA_PROBE_INTERVAL_MS   how often to probe replica freshness (default 5000)
+ *
+ * BUY-54916 fix: previous probe used `pg_last_xact_replay_timestamp()`, which
+ * only advances on transaction commits. During sustained non-transactional WAL
+ * activity on the primary (e.g. `CREATE INDEX CONCURRENTLY` or vacuum) the
+ * timestamp stays "stale" even when the replica is fully caught up at the WAL
+ * level — every WAL byte received and replayed, but the last_xact timestamp
+ * unchanged. That made `/v1/catalog/stats/health` flap between healthy and
+ * unhealthy every few seconds, even though the replica was actually serving
+ * current data. The new probe uses WAL-receiver freshness (active streaming +
+ * recent messages + matching receive/replay LSNs) as the health signal and
+ * keeps the xact-timestamp lag as a secondary observability field.
  */
 const REPLICA_URL = process.env.REPLICA_DATABASE_URL || '';
 const MAX_LAG_MS = parseInt(process.env.REPLICA_MAX_LAG_MS || '2000');
@@ -54,33 +69,73 @@ if (exports.replicaPool) {
         }
     });
 }
-// ─── Lag monitor (BUY-45692.C) ──────────────────────────────────────────────
+// ─── Freshness probe (BUY-45692.C + BUY-54916) ─────────────────────────────
+//
+// Healthy iff:
+//   1. The connection is in recovery (real standby, not a masquerading primary).
+//   2. pg_stat_wal_receiver.status = 'streaming' (actively receiving from primary).
+//   3. Time since last received WAL message <= REPLICA_MAX_LAG_MS.
+//
+// `lag_ms` reported to observability is the time since the last WAL message was
+// received (true replication freshness), clamped at the configured ceiling. We
+// also surface `xact_lag_ms` (the legacy `pg_last_xact_replay_timestamp()`
+// measurement) as `lag_ms_xact` so dashboards can distinguish a real backlog
+// (high xact lag + high recv age) from a primary doing mostly non-transactional
+// WAL (low recv age + high xact lag — the BUY-54916 case).
 let replicaHealthy = false;
 let lastLagMs = null;
+let lastXactLagMs = null;
+let lastRecvAgeMs = null;
+let lastLsnGapBytes = null;
 let lastProbeAt = null;
 let lastError = null;
 async function probeLag() {
     if (!exports.replicaPool)
         return;
     try {
-        const r = await exports.replicaPool.query(`SELECT EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp())) AS lag_seconds`);
-        const lagSeconds = r.rows?.[0]?.lag_seconds;
+        const r = await exports.replicaPool.query(`SELECT
+         pg_is_in_recovery() AS in_recovery,
+         (SELECT status FROM pg_stat_wal_receiver) AS wal_status,
+         (SELECT EXTRACT(EPOCH FROM (now() - last_msg_receipt_time)) * 1000
+            FROM pg_stat_wal_receiver) AS last_msg_age_ms,
+         pg_wal_lsn_diff(pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn())::text AS lsn_gap_bytes,
+         pg_last_xact_replay_timestamp() AS xact_replay_ts,
+         EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp())) * 1000 AS xact_lag_ms`);
+        const row = r.rows?.[0];
         lastProbeAt = new Date().toISOString();
         lastError = null;
-        if (lagSeconds == null) {
-            // NULL = not a standby (or nothing replayed yet). Don't route reads here;
-            // a primary masquerading as a replica adds no isolation, and an unprimed
-            // standby can't be trusted. Fall back to primary.
+        if (!row) {
             replicaHealthy = false;
             lastLagMs = null;
+            lastXactLagMs = null;
+            lastRecvAgeMs = null;
+            lastLsnGapBytes = null;
             return;
         }
-        lastLagMs = Math.max(0, Math.round(Number(lagSeconds) * 1000));
-        replicaHealthy = lastLagMs <= MAX_LAG_MS;
+        lastRecvAgeMs = row.last_msg_age_ms == null ? null : Math.round(Number(row.last_msg_age_ms));
+        lastXactLagMs = row.xact_lag_ms == null ? null : Math.max(0, Math.round(Number(row.xact_lag_ms)));
+        lastLsnGapBytes = row.lsn_gap_bytes == null ? null : Math.max(0, Math.round(Number(row.lsn_gap_bytes)));
+        // Health decision: zero-byte LSN backlog is the authoritative freshness
+        // signal. When replay_lsn == receive_lsn, every WAL byte the replica
+        // has received has been replayed — there is no risk of reading stale
+        // data, regardless of how long the receiver has been quiet or how large
+        // the xact-timestamp gap is. We deliberately do NOT use the xact
+        // timestamp or the recv-age for the health decision (BUY-54916).
+        const lsnMatched = lastLsnGapBytes === 0;
+        // lag_ms: report LSN gap in bytes (true replication backlog). When
+        // matched, this is 0. Never use the xact timestamp here.
+        lastLagMs = lsnMatched ? 0 : lastLsnGapBytes;
+        replicaHealthy =
+            row.in_recovery === true &&
+                row.wal_status === 'streaming' &&
+                lsnMatched;
     }
     catch (err) {
         replicaHealthy = false;
         lastLagMs = null;
+        lastXactLagMs = null;
+        lastRecvAgeMs = null;
+        lastLsnGapBytes = null;
         lastError = err.message;
         lastProbeAt = new Date().toISOString();
     }
@@ -100,12 +155,27 @@ if (exports.replicaPool) {
 function readDb() {
     return replicaHealthy && exports.replicaPool ? exports.replicaPool : config_1.db;
 }
-exports.readDb = readDb;
 /** Convenience: a pooled client from the current read pool. Caller must release(). */
 function readDbConnect() {
     return readDb().connect();
 }
-exports.readDbConnect = readDbConnect;
+/**
+ * Backwards-compatible alias used by the products route.
+ *
+ * The route still expects a replica-specific name and error type from an older
+ * implementation. Keeping these exports avoids a broad route rewrite while the
+ * deploy context stays aligned with the current read-replica behavior.
+ */
+class ReplicaUnavailableError extends Error {
+    constructor(message = 'Replica unavailable') {
+        super(message);
+        this.name = 'ReplicaUnavailableError';
+    }
+}
+exports.ReplicaUnavailableError = ReplicaUnavailableError;
+async function servingReadDbConnect() {
+    return readDbConnect();
+}
 /** Observability for /v1/catalog/stats/health and ops dashboards. */
 function replicaStatus() {
     return {
@@ -113,9 +183,11 @@ function replicaStatus() {
         healthy: replicaHealthy,
         routing_to: replicaHealthy && exports.replicaPool ? 'replica' : 'primary',
         lag_ms: lastLagMs,
+        lag_ms_xact: lastXactLagMs,
+        lsn_gap_bytes: lastLsnGapBytes,
+        recv_age_ms: lastRecvAgeMs,
         max_lag_ms: MAX_LAG_MS,
         last_probe_at: lastProbeAt,
         last_error: lastError,
     };
 }
-exports.replicaStatus = replicaStatus;

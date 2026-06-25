@@ -94,6 +94,10 @@ function parseArgs(argv) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function loadMerchants() {
+  if (!existsSync(MERCHANTS_PATH)) {
+    console.error(`[wc-deep] WARNING: merchants file not found at ${MERCHANTS_PATH} — returning empty list`);
+    return [];
+  }
   const raw = readFileSync(MERCHANTS_PATH, 'utf8');
   const data = JSON.parse(raw);
   const list = Array.isArray(data) ? data : (data.merchants || []);

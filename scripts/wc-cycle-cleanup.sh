@@ -80,7 +80,7 @@ append_jsonl() {
   mkdir -p "$(dirname "$LOG_PATH")"
   printf '{"ts":"%s","file":"%s","kb":%s,"reason":"%s","action":"%s"}\n' \
     "$(ts)" \
-    "$(printf '%s' "${file#"$CURRENT_WORKSPACE_DIR"/}" | json_escape)" \
+    "$(printf '%s' "${file#$CURRENT_WORKSPACE_DIR/}" | json_escape)" \
     "$kb" \
     "$(printf '%s' "$reason" | json_escape)" \
     "$(printf '%s' "$action" | json_escape)" >> "$LOG_PATH"
@@ -95,7 +95,7 @@ is_open_file() {
 
 trash_target_for() {
   local file="$1"
-  printf '%s/%s/%s' "$TRASH_DIR" "$(dirname "${file#"$CURRENT_WORKSPACE_DIR/data"/}")" "$(basename "$file")"
+  printf '%s/%s/%s' "$TRASH_DIR" "$(dirname "${file#$CURRENT_WORKSPACE_DIR/}")" "$(basename "$file")"
 }
 
 move_to_trash() {
@@ -244,13 +244,27 @@ cleanup_workspace() {
   local data_dir="$workspace_dir/data"
 
   CURRENT_WORKSPACE_DIR="$workspace_dir"
-  if [ ! -d "$data_dir" ]; then
-    return 0
+  # If data/ subdir does not exist or contains no cycle files, check workspace root
+  if [ ! -d "$data_dir" ] || ! find "$data_dir" -maxdepth 2 -name 'cycle-*.ndjson' -print -quit 2>/dev/null | grep -q .; then
+    if find "$workspace_dir" -maxdepth 2 -name 'cycle-*.ndjson' -print -quit 2>/dev/null | grep -q .; then
+      data_dir="$workspace_dir"
+    elif [ ! -d "$data_dir" ]; then
+      return 0
+    fi
   fi
 
-  if ! find "$data_dir" -type f \
+  local has_ndjson=0
+  if find "$data_dir" -type f \
     \( -name 'cycle-*.ndjson' -o -name 'wc-deep-cycle-*.ndjson' \) \
     ! -path '*/_trash/*' -print -quit 2>/dev/null | grep -q .; then
+    has_ndjson=1
+  elif [ "$data_dir" != "$workspace_dir" ] && find "$workspace_dir" -maxdepth 2 -type f \
+    \( -name 'cycle-*.ndjson' -o -name 'wc-deep-cycle-*.ndjson' \) \
+    ! -path '*/_trash/*' ! -path '*/data/*' -print -quit 2>/dev/null | grep -q .; then
+    has_ndjson=1
+  fi
+
+  if [ "$has_ndjson" = "0" ]; then
     if [ -d "$data_dir/_trash" ]; then
       TRASH_BASE="$data_dir/_trash"
       TRASH_DIR="$TRASH_BASE/$(date -u +%F)"
@@ -265,10 +279,13 @@ cleanup_workspace() {
 
   log "starting workspace=$workspace_dir apply=$APPLY keep_hours=$KEEP_HOURS alert_pct=$ALERT_PCT"
 
+  # Use the location where ndjson files were detected
+  local find_base="$data_dir"
+
   while IFS= read -r -d '' file; do
     cleanup_main_file "$file"
   done < <(
-    find "$data_dir" -type f \
+    find "$find_base" -maxdepth 2 -type f \
       \( -name 'cycle-*.ndjson' -o -name 'wc-deep-cycle-*.ndjson' \) \
       -mmin +"$((KEEP_HOURS * 60))" \
       ! -path '*/_trash/*' \

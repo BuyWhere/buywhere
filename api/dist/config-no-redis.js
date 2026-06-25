@@ -18,6 +18,11 @@ exports.db.on('connect', (client) => {
         client.query(`SET lock_timeout = ${pgLockTimeout}`),
     ]).catch(() => { });
 });
+// BUY-33815: mirror production hardening — swallow idle-client errors so a
+// Postgres restart does not crash this test variant either.
+exports.db.on('error', (err) => {
+    console.warn('[pg-pool] idle client error (BUY-33815 hardening):', err.message);
+});
 // Disabled Redis for testing - MCP server should work without caching
 exports.redis = {
     get: async () => { return null; },

@@ -1,37 +1,4 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.warmSearchCache = warmSearchCache;
 const express_1 = require("express");
@@ -41,6 +8,7 @@ const readReplica_1 = require("../lib/readReplica");
 const apiKey_1 = require("../middleware/apiKey");
 const agentDetect_1 = require("../middleware/agentDetect");
 const posthog_1 = require("../analytics/posthog");
+const cacheStats_1 = require("../monitoring/cacheStats");
 const queryLog_1 = require("../middleware/queryLog");
 const response_1 = require("../lib/response");
 const compare_query_1 = require("../lib/compare-query");
@@ -151,7 +119,7 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
     const cacheKey = `list:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}`;
     try {
-        const cached = await config_1.redis.get(cacheKey);
+        const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
         if (cached) {
             const parsed = JSON.parse(cached);
             parsed.pagination.response_time_ms = Date.now() - requestStart;
@@ -275,7 +243,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // Check Redis cache for this exact query (60s TTL)
     const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}`;
     try {
-        const cached = await config_1.redis.get(cacheKey);
+        const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
         if (cached) {
             const parsed = JSON.parse(cached);
             const elapsed = Date.now() - requestStart;
@@ -671,7 +639,7 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     const offset = parseInt(req.query.offset || '0');
     const cacheKey = `deals:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
     try {
-        const cached = await config_1.redis.get(cacheKey);
+        const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
         if (cached) {
             const parsed = JSON.parse(cached);
             parsed.cached = true;
@@ -918,8 +886,9 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
     }
     const src = srcResult.rows[0];
     // Phase 1: Try embedding-based KNN (vector store).
-    // BUY-41137 / BUY-54796: follow the shared vector DB pool and the live
-    // public schema so the route works with the deployed Railway wiring.
+    // BUY-54718 / BUY-41137 / BUY-54796: use the shared vectorDb pool and the
+    // live public.product_embeddings schema so this route follows the Railway
+    // wiring instead of a separate VECTOR_STORE_DATABASE_URL.
     let similar = [];
     let similarityFallback = false;
     if (config_1.vectorDb) {
@@ -942,7 +911,7 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
                     // Fetch full product details from main DB.
                     const placeholders = knnIds.map((_, i) => `$${i + 1}`).join(',');
                     const detailResult = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                     image_url, brand, category_path, region, country_code
+                      image_url, brand, category_path, region, country_code
                FROM products
                WHERE id IN (${placeholders})`, knnIds);
                     const detailById = new Map(detailResult.rows.map((row) => [String(row.id), row]));
@@ -964,9 +933,6 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
             console.warn('[similar] vector KNN failed, using fallback:', err.message);
             similarityFallback = true;
         }
-    }
-    else {
-        similarityFallback = true;
     }
     // Phase 2 (fallback): same brand + category, or FTS on title
     if (similarityFallback || similar.length === 0) {

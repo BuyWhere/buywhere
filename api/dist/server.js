@@ -15,18 +15,28 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createApp = void 0;
+exports.createApp = createApp;
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const compression_1 = __importDefault(require("compression"));
@@ -59,8 +69,9 @@ const middleware_1 = require("./monitoring/middleware");
 const latency_1 = require("./middleware/latency");
 const uptime_1 = __importDefault(require("./routes/admin/uptime"));
 const metrics_1 = __importDefault(require("./routes/admin/metrics"));
+const fxRefresh_1 = __importDefault(require("./routes/admin/fxRefresh"));
 const config_1 = require("./config");
-const DISCOVERY_CACHE_CONTROL = 'public, max-age=86400, s-maxage=86400';
+const DISCOVERY_CACHE_CONTROL = 'public, max-age=3600, s-maxage=3600';
 const AGENTS_TXT_CONTENT = `# BuyWhere AI Agents Discovery
 User-agent: *
 MCP: https://api.buywhere.ai/mcp/sse
@@ -68,7 +79,8 @@ A2A: https://api.buywhere.ai/.well-known/agent.json
 API: https://api.buywhere.ai/v1
 API-Docs: https://api.buywhere.ai/docs
 Auth: X-API-Key
-Auth-Url: https://api.buywhere.ai/v1/keys
+Auth-Url: https://api.buywhere.ai/v1/auth/register
+Register: POST https://api.buywhere.ai/v1/auth/register {"agent_name":"<your-agent>"} -> instant free API key, no email or human signup required
 `;
 function createApp() {
     const app = (0, express_1.default)();
@@ -296,10 +308,21 @@ function createApp() {
     });
     // Block all crawlers from api.buywhere.ai — this is an API server, not a content site
     app.get('/robots.txt', (_req, res) => {
-        res.set('Content-Signal', 'ai-train=no, search=no, ai-input=no');
+        res.set('Content-Signal', 'ai-train=no, search=yes, ai-input=yes');
         res.type('text/plain').send([
             'User-agent: *',
+            '# Discovery surface — crawlable by search engines and AI agents',
+            'Allow: /llms.txt',
+            'Allow: /agents.txt',
+            'Allow: /openapi',
+            'Allow: /openapi.json',
+            'Allow: /sitemap.xml',
+            'Allow: /mcp',
+            'Allow: /.well-known/',
+            '# Data + functional API endpoints are not for crawling',
             'Disallow: /',
+            '',
+            'Sitemap: https://api.buywhere.ai/sitemap.xml',
         ].join('\n'));
     });
     app.get('/llms.txt', (_req, res) => {
@@ -322,6 +345,9 @@ function createApp() {
     // Auth is handled inside each router via Authorization: Bearer <admin key>.
     app.use(uptime_1.default);
     app.use(metrics_1.default);
+    // BUY-52476 / BUY-55347: admin endpoint to force-refresh fx_rates.
+    // Auth is handled inside the router via Authorization: Bearer <admin key>.
+    app.use(fxRefresh_1.default);
     // 404 fallback
     app.use((_req, res) => {
         res.status(404).json({ error: 'Not found' });
@@ -334,4 +360,3 @@ function createApp() {
     });
     return app;
 }
-exports.createApp = createApp;

@@ -95,3 +95,9 @@ __pycache__/
 
 # Runtime worker status/heartbeat files (actively written by live processes)
 *-status.json
+
+# Sub-package node_modules (standalone packages, not part of main build)
+/packages/*/node_modules/
+
+# Probe runtime output
+/data/mcp-health-probe/

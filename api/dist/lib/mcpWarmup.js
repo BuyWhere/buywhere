@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.refreshCategorySummaries = exports.warmupMcpCaches = void 0;
+exports.warmupMcpCaches = warmupMcpCaches;
+exports.refreshCategorySummaries = refreshCategorySummaries;
 const config_1 = require("../config");
 async function warmupMcpCaches() {
     const client = await config_1.db.connect();
@@ -109,7 +110,6 @@ async function warmupMcpCaches() {
         client.release();
     }
 }
-exports.warmupMcpCaches = warmupMcpCaches;
 const CATEGORY_REFRESH_COUNTRIES = ['SG', 'US', 'VN', 'TH', 'MY'];
 // Lightweight periodic refresh — called every 5 min from index.ts.
 // Uses CONCURRENTLY so reads are never blocked during the refresh.
@@ -140,4 +140,3 @@ async function refreshCategorySummaries() {
         client.release();
     }
 }
-exports.refreshCategorySummaries = refreshCategorySummaries;

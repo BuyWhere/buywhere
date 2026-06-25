@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.runMigrations = void 0;
+exports.runMigrations = runMigrations;
 const config_1 = require("./config");
 const MIGRATION = `
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -24,6 +24,10 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS review_count   INTEGER;
 
 -- Full-text search support on products table
 CREATE INDEX IF NOT EXISTS idx_products_search_vector ON products USING GIN(search_vector);
+
+-- BUY-56217: unique constraint is now created in PRODUCTS_UNIQUE_CONSTRAINT_DDL (own try/catch) so a failure in any other migration statement can't block ingest.
+
+
 
 -- Drop the old broken trigger that referenced non-existent columns (name, tags).
 DROP TRIGGER IF EXISTS products_search_vector_trig ON products;
@@ -278,6 +282,23 @@ CREATE INDEX IF NOT EXISTS idx_clicks_product    ON clicks(product_id);
 CREATE INDEX IF NOT EXISTS idx_clicks_merchant   ON clicks(merchant_id);
 CREATE INDEX IF NOT EXISTS idx_clicks_clicked_at ON clicks(clicked_at);
 
+-- fx_rates table for live FX rate storage (BUY-54078 / BUY-52476)
+-- Primary source: frankfurter.app (ECB rates, free, keyless)
+-- Fallback source: open.er-api.org (free tier, keyless)
+-- Refresh cadence: every 6 hours via fxRefreshScheduler
+CREATE TABLE IF NOT EXISTS fx_rates (
+  id              BIGSERIAL PRIMARY KEY,
+  base_currency   TEXT          NOT NULL,  -- e.g. 'EUR'
+  quote_currency  TEXT          NOT NULL,  -- e.g. 'USD'
+  rate            NUMERIC(20,10) NOT NULL, -- units of target per 1 base
+  source          TEXT          NOT NULL,  -- 'frankfurter' | 'open.er-api'
+  fetched_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  CONSTRAINT fx_rates_pair_unique UNIQUE (base_currency, quote_currency)
+);
+CREATE INDEX IF NOT EXISTS idx_fx_rates_currencies ON fx_rates(base_currency, quote_currency);
+CREATE INDEX IF NOT EXISTS idx_fx_rates_fetched_at ON fx_rates(fetched_at DESC);
+
 -- Merchants onboarding table (BUY-6932)
 CREATE TABLE IF NOT EXISTS merchants (
   id              TEXT        PRIMARY KEY,
@@ -351,6 +372,77 @@ CREATE TABLE IF NOT EXISTS merchant_events (
 CREATE INDEX IF NOT EXISTS idx_merchant_events_merchant_id ON merchant_events(merchant_id);
 CREATE INDEX IF NOT EXISTS idx_merchant_events_event_type ON merchant_events(event_type);
 `;
+// BUY-56217: Unique conflict target (sku, source, country_code) on products table.
+// The schema guard in api/src/routes/ingest.ts requires a valid unique index to exist;
+// without it, POST /v1/ingest returns 503 database_schema_mismatch for every source
+// that uses ON CONFLICT (sku, source, country_code) (e.g. woocommerce_deep).
+//
+// products is a PARTITIONED table (by country_code). A previous version of this DDL
+// used ALTER TABLE ADD CONSTRAINT UNIQUE, which creates an ON ONLY index on the parent
+// that does NOT propagate to partitions. PostgreSQL's ON CONFLICT cannot use ON ONLY
+// indexes on partitioned tables — it requires a proper partitioned unique index.
+// This version creates a non-ONLY partitioned index that PostgreSQL auto-propagates
+// to all existing and future partitions. Idempotent.
+const PRODUCTS_UNIQUE_CONSTRAINT_DDL = `
+DO $$
+DECLARE
+  r record;
+BEGIN
+  -- Drop any existing ON ONLY parent constraint/index (created by a previous
+  -- ALTER TABLE ADD CONSTRAINT UNIQUE). ON ONLY indexes do NOT work with
+  -- ON CONFLICT on partitioned tables — PostgreSQL requires a proper
+  -- partitioned unique index (without ONLY) so the conflict target exists
+  -- on each partition.
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'products'::regclass
+      AND conname = 'products_sku_source_country_unique'
+      AND contype = 'u'
+  ) THEN
+    ALTER TABLE products DROP CONSTRAINT products_sku_source_country_unique;
+    RAISE NOTICE 'Dropped ON ONLY parent constraint products_sku_source_country_unique';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_class c
+    WHERE c.relkind = 'i'
+      AND c.relname = 'products_sku_source_country_unique'
+  ) THEN
+    EXECUTE 'DROP INDEX public.products_sku_source_country_unique';
+    RAISE NOTICE 'Dropped ON ONLY parent index products_sku_source_country_unique';
+  END IF;
+
+  -- Drop per-partition standalone unique indexes on (sku, source, country_code).
+  -- These were created by earlier migration attempts and conflict with the
+  -- partitioned index we are about to create. Only drop indexes NOT backing
+  -- a constraint (safety: never drop PK or FK-backed indexes).
+  FOR r IN
+    SELECT ic.relname AS idxname
+      FROM pg_index i
+      JOIN pg_class ic ON ic.oid = i.indexrelid
+     WHERE i.indrelid IN (
+             SELECT inhrelid FROM pg_inherits
+              WHERE inhparent = 'public.products'::regclass
+           )
+       AND i.indisunique
+       AND pg_get_indexdef(i.indexrelid) LIKE '%btree (sku, source, country_code)'
+       AND NOT EXISTS (
+             SELECT 1 FROM pg_constraint con WHERE con.conindid = i.indexrelid
+           )
+  LOOP
+    EXECUTE format('DROP INDEX IF EXISTS public.%I', r.idxname);
+    RAISE NOTICE 'Dropped per-partition duplicate index %', r.idxname;
+  END LOOP;
+
+  -- Create a proper PARTITIONED unique index (no ONLY).
+  -- PostgreSQL auto-propagates this to all existing and future partitions,
+  -- enabling ON CONFLICT (sku, source, country_code) on the partitioned table.
+  CREATE UNIQUE INDEX IF NOT EXISTS products_sku_source_country_unique
+    ON products (sku, source, country_code);
+  RAISE NOTICE 'Partitioned unique index products_sku_source_country_unique created/verified';
+END
+$$;
+`;
 async function runMigrations() {
     console.log('Running migrations...');
     // Run full migration block as-is (best-effort, may fail on extensions or
@@ -361,6 +453,48 @@ async function runMigrations() {
     }
     catch (err) {
         console.warn(`[migration] Full migration block failed (non-fatal): ${err.message?.slice(0, 200)}`);
+    }
+    // BUY-56217: ensure products has the UNIQUE (sku, source, country_code) constraint
+    // required by POST /v1/ingest's ON CONFLICT clause. Run as a SEPARATE try/catch so
+    // that a failure in the monolithic MIGRATION block (extension install, index
+    // creation, etc.) cannot silently prevent this constraint from being created. On
+    // production this was the root cause of `database_schema_mismatch` 503s: the
+    // constraint DO block lived inside the MIGRATION string, so when MIGRATION failed
+    // before reaching it (and the catch only logged), the constraint was never
+    // created and ingest returned schema_mismatch for every woocommerce_deep batch.
+    // Idempotent; drops any stale ON ONLY constraint/index and creates a proper
+    // partitioned unique index that works with ON CONFLICT on the partitioned table.
+    try {
+        console.log('[migration] Ensuring products partitioned UNIQUE index (sku, source, country_code) (BUY-56217)...');
+        const uqClient = await config_1.db.connect();
+        try {
+            // 5-min statement timeout: with 14M+ rows the index build can take a while.
+            // 60s lock timeout: do not block live ingest traffic.
+            await uqClient.query('SET statement_timeout = 300000');
+            await uqClient.query('SET lock_timeout = 60000');
+            await uqClient.query(PRODUCTS_UNIQUE_CONSTRAINT_DDL);
+            console.log('[migration] products partitioned UNIQUE index verified (BUY-56217).');
+        }
+        finally {
+            uqClient.release();
+        }
+        // Verify the unique index is now in place — emit a clear error if not.
+        // We check pg_index (not pg_constraint) because we CREATE UNIQUE INDEX
+        // (not ALTER TABLE ADD CONSTRAINT) to get a proper partitioned index.
+        const uqVerify = await config_1.db.query(`SELECT 1 FROM pg_index i
+        JOIN pg_class c ON c.oid = i.indexrelid
+       WHERE i.indrelid = 'products'::regclass
+         AND c.relname = 'products_sku_source_country_unique'
+         AND i.indisunique AND i.indisvalid`);
+        if (uqVerify.rowCount === 0) {
+            throw new Error('Unique index products_sku_source_country_unique not found after CREATE — manual intervention required');
+        }
+    }
+    catch (err) {
+        console.error(`[migration] FATAL: products UNIQUE index failed (BUY-56217): ${err.message?.slice(0, 200)}`);
+        // Re-throw so the failure is visible in startup logs; the schema guard
+        // would otherwise silently fail every ingest for the lifetime of the deploy.
+        throw err;
     }
     // BUY-45553: Prune redundant DUPLICATE indexes on the products partitioned table.
     //
@@ -550,6 +684,32 @@ async function runMigrations() {
     catch (err) {
         console.error(`[migration] Merchants table creation failed: ${err.message?.slice(0, 200)}`);
     }
+    // BUY-52288: Ensure the merchants table has all 10 columns that the route
+    // handlers (POST /upsert, GET /, GET /:id) SELECT/INSERT. The original
+    // CREATE TABLE IF NOT EXISTS in MERCHANTS_MIGRATION only applies to a brand-
+    // new table — the live DB was created earlier with just (id, name, source,
+    // country, created_at, onboarding_stage), which made every /v1/merchants
+    // call 500 and emptied sitemap-products.xml. All idempotent. Also backfills
+    // updated_at on pre-existing rows that were created with no updated_at.
+    try {
+        await config_1.db.query(`
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS domain            TEXT;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS contact_email     TEXT;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS contact_phone     TEXT;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS scraping_priority TEXT     DEFAULT 'medium';
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS is_active         BOOLEAN  NOT NULL DEFAULT true;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS first_indexed_at  TIMESTAMPTZ;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS products_count    INTEGER;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS last_scraped_at   TIMESTAMPTZ;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS scrape_error      TEXT;
+      ALTER TABLE merchants ADD COLUMN IF NOT EXISTS updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW();
+      UPDATE merchants SET updated_at = created_at WHERE updated_at IS NULL;
+    `);
+        console.log('[migration] merchants column set ensured (BUY-52288).');
+    }
+    catch (err) {
+        console.warn(`[migration] merchants column ensure failed (non-fatal): ${err.message?.slice(0, 200)}`);
+    }
     // BUY-24284: Restore the search_vector trigger that was dropped in a prior migration.
     // Without it, every new product insert leaves search_vector NULL and FTS returns 0 results.
     try {
@@ -675,7 +835,6 @@ async function runMigrations() {
     }
     console.log('Migrations complete.');
 }
-exports.runMigrations = runMigrations;
 async function migrate() {
     await runMigrations();
     await config_1.db.end();

@@ -5,9 +5,29 @@ const config_1 = require("../config");
 const embedProducts_1 = require("../jobs/embedProducts");
 const apiKey_1 = require("../middleware/apiKey");
 const queryLog_1 = require("../middleware/queryLog");
+const cacheStats_1 = require("../monitoring/cacheStats");
 const errors_1 = require("../middleware/errors");
 const response_1 = require("../lib/response");
+const fxRatesLoader_1 = require("../lib/fxRatesLoader");
 const router = (0, express_1.Router)();
+// BUY-56185: Detect statement_timeout poisoned connections.
+// When PostgreSQL's statement_timeout fires, the query is cancelled but the
+// connection enters PQTRANS_INERROR state. Returning such a connection to the
+// pool poises every subsequent query on it with "current transaction is aborted".
+// client.state returns 'error' in this state — discard instead of reusing.
+function releaseClientSafely(client) {
+    try {
+        if (client && typeof client.state === 'string' && client.state === 'error') {
+            client.release(true); // discard — do NOT return poisoned connection to pool
+        }
+        else {
+            client.release();
+        }
+    }
+    catch (_) {
+        // Swallow release errors — pool will remove the bad client anyway.
+    }
+}
 // MCP tools manifest
 const TOOLS = [
     {
@@ -27,7 +47,7 @@ const TOOLS = [
                 offset: { type: 'integer', description: 'Pagination offset', default: 0 },
                 compact: { type: 'boolean', description: 'Return agent-optimized compact shape: structured_specs, comparison_attributes, normalized_price_usd. Reduces response size ~40%. Recommended for agent tool-use.', default: false },
                 category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Televisions"). Use to exclude accessories and get actual products.' },
-                mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or JINA_API_KEY unavailable.', default: 'hybrid' },
+                mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or GEMINI_API_KEY unavailable.', default: 'hybrid' },
             },
         },
     },
@@ -166,8 +186,8 @@ async function handleSearchProducts(args) {
     const t0 = Date.now();
     const q = args.q || '';
     const mode = args.mode || 'hybrid';
-    const jinaKey = process.env.JINA_API_KEY ?? '';
-    const useVector = config_1.vectorDb != null && jinaKey !== '' && q !== '' && mode !== 'keyword';
+    const geminiKey = process.env.GEMINI_API_KEY ?? '';
+    const useVector = config_1.vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
     const domain = args.domain || '';
     const region = args.region || '';
     // country_code is canonical; `country` kept as alias for backward compat
@@ -186,7 +206,7 @@ async function handleSearchProducts(args) {
     const currency = country ? (response_1.COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
     const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
     try {
-        const cached = await config_1.redis.get(cacheKey);
+        const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
         if (cached) {
             const parsed = JSON.parse(cached);
             if (parsed.results) {
@@ -231,7 +251,10 @@ async function handleSearchProducts(args) {
     // Use a dedicated client with extended timeout — FTS on 14M rows can exceed the 10s pool default.
     const searchClient = await config_1.db.connect();
     try {
-        await searchClient.query('SET statement_timeout = 30000'); // BUY-31962: bumped from 10s — non-FTS filtered scans on 14M rows can approach 10s
+        // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
+        // complete within 12s via GIN index; anything longer signals plan regression or
+        // pool exhaustion. Failing fast prevents cascading connection starvation.
+        await searchClient.query('SET statement_timeout = 12000');
         await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
         const COUNT_CAP = 1001;
         if (q) {
@@ -245,9 +268,9 @@ async function handleSearchProducts(args) {
                 let queryVec = null;
                 try {
                     const embedKey = `qembed:${Buffer.from(q).toString('base64').slice(0, 48)}`;
-                    queryVec = await config_1.redis.get(embedKey).catch(() => null);
+                    queryVec = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, embedKey, () => config_1.redis.get(embedKey));
                     if (!queryVec) {
-                        queryVec = await (0, embedProducts_1.embedQuery)(q, jinaKey);
+                        queryVec = await (0, embedProducts_1.embedQuery)(q, geminiKey);
                         await config_1.redis.set(embedKey, queryVec, 'EX', 60).catch(() => { });
                     }
                 }
@@ -356,7 +379,8 @@ async function handleSearchProducts(args) {
         }
     }
     finally {
-        searchClient.release();
+        // BUY-56185: always use safe release to discard connections poisoned by statement_timeout
+        releaseClientSafely(searchClient);
     }
     const products = rows.map(r => (0, response_1.buildProduct)(r, currency, compact));
     const result = (0, response_1.buildSearchResponse)(products, total, limit, offset, Date.now() - t0, false);
@@ -472,16 +496,23 @@ async function handleGetDeals(args) {
     const discountOrder = useDiscountCol
         ? 'discount_pct DESC'
         : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
-    // Use dedicated client with extended timeout when discount_pct column is absent.
-    // When discount_pct exists (happy path), this query is fast via idx_products_deals.
-    // Without it, the metadata regex+cast fallback can exceed the default 10s statement_timeout.
-    const dealsClient = await config_1.db.connect();
+    // Use dedicated client with bounded statement_timeout so a slow deals scan returns
+    // a structured -32603 envelope to the MCP client (which drops at ~35s) instead of
+    // hanging the connection until the 5-min default. The deals query is index-backed
+    // (idx_products_deals_country/region) for both paths; 25s is more than enough.
     let products = [];
     let total = 0;
+    const dealsClient = await config_1.db.connect().catch((err) => {
+        console.error('[mcp] get_deals db.connect failed:', err);
+        throw { code: -32603, message: 'Database unavailable' };
+    });
     try {
-        // 5-minute timeout for both paths: fast path is index-backed but deals index may
-        // still lag on very large scans; fallback regex on 13.7M rows needs the headroom.
-        await dealsClient.query('SET statement_timeout = 300000');
+        // BUY-56185: reduced from 300s (5min) to 15s. A 5-minute hold on a pool
+        // connection during pool exhaustion starves search_products and find_best_price,
+        // causing cascading -32603 and hangs. With discount_pct index (happy path) this
+        // query completes in <1s; without it, the regex fallback on 14M rows is not worth
+        // a 5-minute hold — better to fail fast and let the next request retry.
+        await dealsClient.query('SET statement_timeout = 15000');
         const countResult = await dealsClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`, params);
         total = parseInt(countResult.rows[0].count, 10);
         const dataParams = [...params, limit, offset];
@@ -500,7 +531,8 @@ async function handleGetDeals(args) {
         products = dataResult.rows.map((r) => (0, response_1.buildProduct)(r, currency, false));
     }
     finally {
-        dealsClient.release();
+        // BUY-56185: discard connections poisoned by statement_timeout
+        releaseClientSafely(dealsClient);
     }
     const result = (0, response_1.buildSearchResponse)(products, total, limit, offset, Date.now() - t0, false);
     config_1.redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => { });
@@ -532,6 +564,7 @@ async function handleListCategories(args) {
     const queryPromise = (async () => {
         const client = await config_1.db.connect();
         try {
+            await client.query('SET statement_timeout = 8000');
             const tableCheck = await client.query(`SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`);
             let rows;
             if (tableCheck.rows[0]?.tbl) {
@@ -560,7 +593,7 @@ async function handleListCategories(args) {
             return data;
         }
         finally {
-            client.release();
+            releaseClientSafely(client);
         }
     })();
     categoryListInflight.set(country, queryPromise);
@@ -618,10 +651,12 @@ async function handleFindBestPrice(args) {
        LIMIT $${params.length}`, params);
     }
     finally {
-        bestPriceClient.release();
+        // BUY-56185: discard connections poisoned by statement_timeout
+        releaseClientSafely(bestPriceClient);
     }
     const currency = response_1.COUNTRY_CURRENCY[country] || 'SGD';
-    const toUsd = response_1.CURRENCY_RATES[currency] ?? 1;
+    const rates = (0, fxRatesLoader_1.getCachedFxRates)();
+    const toUsd = rates[currency] ?? response_1.CURRENCY_RATES[currency] ?? 1;
     const data = result.rows.map((r) => ({
         id: r.id,
         title: r.title,

@@ -108,6 +108,10 @@ Env: INGEST_API_URL, BUYWHERE_API_KEY, WC_CONSUMER_KEY, WC_CONSUMER_SECRET,
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function loadMerchants() {
+  if (!existsSync(MERCHANTS_PATH)) {
+    console.error(`[wc-rest] WARNING: merchants file not found at ${MERCHANTS_PATH} — returning empty list`);
+    return [];
+  }
   const raw = await fs.readFile(MERCHANTS_PATH, 'utf8');
   const data = JSON.parse(raw);
   const list = Array.isArray(data) ? data : (data.merchants || []);

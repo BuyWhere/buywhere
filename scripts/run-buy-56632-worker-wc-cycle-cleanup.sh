@@ -36,8 +36,8 @@ bash "$SCRIPT_DIR/wc-cycle-cleanup.sh" \
   --apply \
   --keep="$KEEP_HOURS" \
   --alert-pct="$ALERT_PCT" \
-  --log-path="$LOG_PATH" \
-  --report-path="$REPORT_PATH" || inner_exit=$?
+  --log-jsonl="$LOG_PATH" \
+  --report="$REPORT_PATH" || inner_exit=$?
 
 if [ -s "$REPORT_PATH" ]; then
   tmp_report=$(mktemp)

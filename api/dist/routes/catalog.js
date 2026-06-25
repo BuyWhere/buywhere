@@ -22,7 +22,7 @@ const CATALOG_STATS_SOURCE_FALLBACK = 'pg_class_fallback';
 // and exact count on the much-smaller merchants table.
 async function collectStats() {
     const now = new Date().toISOString();
-    const reader = (0, readReplica_1.readDb)();
+    const reader = config_1.catalogDb;
     const [productsEst, merchantsExact, activeRatio,] = await Promise.all([
         // Total products: pg_class.reltuples (instant, no table scan)
         reader.query(`SELECT reltuples::bigint AS est FROM pg_class WHERE oid = 'public.products'::regclass`)
@@ -63,7 +63,7 @@ async function collectStats() {
 // ─── Try exact count (background use, may time out on large tables) ─────
 async function tryExactCount(timeoutMs = 45000) {
     // Heavy full-table count — route to the replica when available (BUY-45692).
-    const client = await (0, readReplica_1.readDb)().connect();
+    const client = await config_1.catalogDb.connect();
     try {
         await client.query('BEGIN');
         await client.query(`SET LOCAL statement_timeout = ${timeoutMs}`);
@@ -253,7 +253,7 @@ router.get('/stats/health', async (_req, res) => {
 router.get('/categories', async (_req, res) => {
     const start = Date.now();
     try {
-        const result = await (0, readReplica_1.readDb)().query(`SELECT slug, name, product_count FROM mcp_category_summary ORDER BY product_count DESC LIMIT 50`);
+        const result = await config_1.catalogDb.query(`SELECT slug, name, product_count FROM mcp_category_summary ORDER BY product_count DESC LIMIT 50`);
         const categories = result.rows.map((row) => ({
             slug: row.slug,
             name: row.name,

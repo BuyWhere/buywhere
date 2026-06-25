@@ -137,17 +137,69 @@ async function ensureProductsConflictTarget() {
                 ) = ARRAY['sku', 'source']
            )
          ) AS has_conflict_target,
+         -- BUY-56338: return the exact column list for the ON CONFLICT target so the
+         -- INSERT can match the unique index that actually exists in the database.
+         -- Prefer 3-col (sku, source, country_code); fall back to 2-col (sku, source).
+         COALESCE(
+           (
+             SELECT ARRAY['sku', 'source', 'country_code']
+               FROM pg_index i
+              WHERE i.indrelid = 'public.products'::regclass
+                AND i.indisunique AND i.indisvalid AND NOT i.indisexclusion
+                AND ARRAY(
+                  SELECT att.attname::text
+                    FROM unnest(i.indkey) WITH ORDINALITY AS cols(attnum, ord)
+                    JOIN pg_attribute att
+                      ON att.attrelid = i.indrelid AND att.attnum = cols.attnum
+                   ORDER BY cols.ord
+                ) = ARRAY['sku', 'source', 'country_code']
+              LIMIT 1
+           ),
+           (
+             SELECT ARRAY['sku', 'source']
+               FROM pg_index i
+              WHERE i.indrelid = 'public.products'::regclass
+                AND i.indisunique AND i.indisvalid AND NOT i.indisexclusion
+                AND ARRAY(
+                  SELECT att.attname::text
+                    FROM unnest(i.indkey) WITH ORDINALITY AS cols(attnum, ord)
+                    JOIN pg_attribute att
+                      ON att.attrelid = i.indrelid AND att.attnum = cols.attnum
+                   ORDER BY cols.ord
+                ) = ARRAY['sku', 'source']
+              LIMIT 1
+           ),
+           (
+             SELECT ARRAY['sku', 'source', 'country_code']
+               FROM pg_constraint con
+              WHERE con.conrelid = 'public.products'::regclass
+                AND con.contype = 'u' AND con.convalidated
+                AND ARRAY(
+                  SELECT att.attname::text
+                    FROM unnest(con.conkey) WITH ORDINALITY AS cols(attnum, ord)
+                    JOIN pg_attribute att
+                      ON att.attrelid = con.conrelid AND att.attnum = cols.attnum
+                   ORDER BY cols.ord
+                ) = ARRAY['sku', 'source', 'country_code']
+              LIMIT 1
+           )
+         ) AS conflict_columns,
          inet_server_addr()::text AS server_addr,
          inet_server_port() AS server_port,
          pg_postmaster_start_time()::text AS postmaster_start_time`);
         const row = result.rows[0];
+        const rawConflictColumns = row?.conflict_columns;
+        const conflictColumns = Array.isArray(rawConflictColumns) && rawConflictColumns.every((c) => c === 'sku' || c === 'source' || c === 'country_code')
+            ? rawConflictColumns
+            : null;
         const guardResult = {
-            ok: Boolean(row?.has_conflict_target),
+            ok: Boolean(row?.has_conflict_target) && conflictColumns !== null,
             checkedAt: Date.now(),
             relkind: row?.relkind ?? null,
             serverAddr: row?.server_addr ?? null,
             serverPort: row?.server_port ?? null,
             postmasterStartTime: row?.postmaster_start_time ?? null,
+            conflictColumns,
         };
         if (!guardResult.ok) {
             guardResult.error =
@@ -170,6 +222,7 @@ async function ensureProductsConflictTarget() {
             serverAddr: null,
             serverPort: null,
             postmasterStartTime: null,
+            conflictColumns: null,
             error: `schema guard query failed: ${message}`,
         };
         console.error('[ingest] schema guard query failed:', message);
@@ -495,11 +548,22 @@ async function handleIngest(req, res) {
             p.region || (p.country_code ? p.country_code.toLowerCase() : null) || 'sg', p.country_code || null);
             placeholders.push(`($${base},$${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},$${base + 13},$${base + 14})`);
         }
+        // BUY-56338: pick the ON CONFLICT target dynamically from the schema guard
+        // so the INSERT matches the unique index that actually exists in the database.
+        // PostgreSQL requires ON CONFLICT columns to match a valid unique index exactly.
+        // The guard returns either ['sku', 'source', 'country_code'] (3-col) or
+        // ['sku', 'source'] (2-col). We previously hardcoded 3-col, which broke ingest
+        // when the DB only had the 2-col index — the guard would pass but the INSERT
+        // would fail with "no unique or exclusion constraint matching the ON CONFLICT".
+        const conflictCols = (schemaGuard.conflictColumns && schemaGuard.conflictColumns.length > 0)
+            ? schemaGuard.conflictColumns
+            : ['sku', 'source', 'country_code'];
+        const conflictTarget = `(${conflictCols.join(', ')})`;
         await withDbRetry(() => config_1.db.query(`INSERT INTO products
            (sku, source, merchant_id, title, description, price, currency, url,
             image_url, category_path, brand, metadata, is_active, region, country_code)
          VALUES ${placeholders.join(', ')}
-         ON CONFLICT (sku, source, country_code)
+         ON CONFLICT ${conflictTarget}
          DO UPDATE SET
            title = EXCLUDED.title,
            description = EXCLUDED.description,

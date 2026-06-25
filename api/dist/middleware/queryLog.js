@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.queryLogMiddleware = void 0;
+exports.queryLogMiddleware = queryLogMiddleware;
 const config_1 = require("../config");
 const posthog_1 = require("../analytics/posthog");
 // Known human User-Agent patterns — browsers, Googlebot, etc.
@@ -152,4 +152,3 @@ function queryLogMiddleware(endpoint) {
         next();
     };
 }
-exports.queryLogMiddleware = queryLogMiddleware;

@@ -6,6 +6,7 @@ const { Pool } = require('pg');
 const { registerRoutes } = require('./monitoring/routes');
 const { startProbeScheduler, stopProbeScheduler, API_BASE_URL } = require('./monitoring/p95');
 const { registerEmbeddingRoutes } = require('./monitoring/embedding');
+const { probeAndRecordDiskSpace, DISK_CHECK_INTERVAL_MS, getLatestDiskUsage, getDiskHistory } = require('./monitoring/disk_space');
 
 // Initialize Express app
 const app = express();
@@ -80,10 +81,46 @@ console.log(`Probe target: ${API_BASE_URL}`);
 console.log('Database URL present, starting probe scheduler immediately');
 startProbeScheduler(pool);
 
+// BUY-56114: Disk Space Watchdog (5min) — probe, record, and alert on disk usage
+console.log(`Starting disk space watchdog (interval=${DISK_CHECK_INTERVAL_MS}ms)`);
+const diskSpaceTimer = setInterval(() => {
+  probeAndRecordDiskSpace(pool).catch(err => {
+    console.error('[disk_space] Watchdog cycle error:', err.message);
+  });
+}, DISK_CHECK_INTERVAL_MS);
+// Run once immediately on startup
+probeAndRecordDiskSpace(pool).catch(err => {
+  console.error('[disk_space] Initial probe error:', err.message);
+});
+
 // Register monitoring routes
 registerRoutes(app, pool);
 
 // BUY-54722: embedding pipeline + cache stats endpoints
+// BUY-56114: Register disk-space API endpoints
+const apiBase = '/api/monitoring';
+app.get(`${apiBase}/disk-space/latest`, async (req, res) => {
+  try {
+    const rows = await getLatestDiskUsage(pool);
+    res.json({ timestamp: new Date().toISOString(), mounts: rows });
+  } catch (error) {
+    console.error('[disk_space] Error fetching latest:', error.message);
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Failed to fetch latest disk usage' });
+  }
+});
+
+app.get(`${apiBase}/disk-space/history`, async (req, res) => {
+  try {
+    const mountPoint = req.query.mount || '/';
+    const limit = parseInt(req.query.limit, 10) || 100;
+    const result = await getDiskHistory(pool, mountPoint, limit);
+    res.json({ timestamp: new Date().toISOString(), ...result });
+  } catch (error) {
+    console.error('[disk_space] Error fetching history:', error.message);
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Failed to fetch disk usage history' });
+  }
+});
+
 registerEmbeddingRoutes(app, {
   pool,
   vectorPool,
@@ -112,13 +149,16 @@ app.get('/', (req, res) => {
       record: 'POST /api/monitoring/p95/record',
       compute: 'POST /api/monitoring/p95/compute',
       embedding_pipeline_state: 'GET /api/monitoring/embedding/pipeline_state',
-      embedding_cache_stats: 'GET /api/monitoring/embedding/cache_stats?window=1h'
+      embedding_cache_stats: 'GET /api/monitoring/embedding/cache_stats?window=1h',
+      disk_space_latest: 'GET /api/monitoring/disk-space/latest',
+      disk_space_history: 'GET /api/monitoring/disk-space/history?mount=/&limit=100'
     },
     probes: {
       health: { interval_ms: 30_000, regions: ['sg', 'us', 'my', 'vn', 'th'] },
       catalog_stats: { interval_ms: 60_000, regions: ['sg'] },
       mcp_list_categories: { interval_ms: 60_000, regions: ['sg'] },
-      railway_deploy_fail: { interval_ms: 300_000, statuses: ['FAILED'] }
+      railway_deploy_fail: { interval_ms: 300_000, statuses: ['FAILED'] },
+      disk_space: { interval_ms: 300_000, thresholds: { warn: '20GB free', critical: '5GB free' } }
     },
     documentation: 'BUY-31208 P95 Monitoring Infrastructure, BUY-22737 extended probes, BUY-54722 embedding-pipeline metrics'
   });
@@ -134,6 +174,7 @@ app.listen(PORT, () => {
 process.on('SIGTERM', () => {
   console.log('SIGTERM signal received: closing HTTP server');
   stopProbeScheduler();
+  clearInterval(diskSpaceTimer);
   pool.end().catch(() => {});
   if (vectorPool) vectorPool.end().catch(() => {});
   if (redisClient) redisClient.quit().catch(() => {});

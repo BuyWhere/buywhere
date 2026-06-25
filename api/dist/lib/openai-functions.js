@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getFunctionSchema = exports.BUYWHERE_FUNCTIONS = void 0;
+exports.BUYWHERE_FUNCTIONS = void 0;
+exports.getFunctionSchema = getFunctionSchema;
 exports.BUYWHERE_FUNCTIONS = [
     {
         type: 'function',
@@ -160,4 +161,3 @@ exports.BUYWHERE_FUNCTIONS = [
 function getFunctionSchema(name) {
     return exports.BUYWHERE_FUNCTIONS.find((f) => f.function.name === name);
 }
-exports.getFunctionSchema = getFunctionSchema;

@@ -10,7 +10,10 @@
 // by GET /v1/admin/uptime. No persistent storage here — the prober handles
 // persistence into monitoring.p95_raw_measurements.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports._resetHistogramForTests = exports.histogramLatencyMiddleware = exports.snapshotHistograms = exports.LATENCY_BUCKETS_MS = void 0;
+exports.LATENCY_BUCKETS_MS = void 0;
+exports.snapshotHistograms = snapshotHistograms;
+exports.histogramLatencyMiddleware = histogramLatencyMiddleware;
+exports._resetHistogramForTests = _resetHistogramForTests;
 // Hard-coded buckets per the plan (ms). The trailing +Inf bucket is implicit
 // in the response (count - sum(bucket counts)).
 exports.LATENCY_BUCKETS_MS = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000];
@@ -121,7 +124,6 @@ function snapshotHistograms() {
         generated_at: new Date().toISOString(),
     };
 }
-exports.snapshotHistograms = snapshotHistograms;
 /**
  * Build a stable route key for a finished request.
  *   - Uses req.route.path (the template) when available so /v1/products/abc
@@ -167,9 +169,7 @@ function histogramLatencyMiddleware(req, res, next) {
     });
     next();
 }
-exports.histogramLatencyMiddleware = histogramLatencyMiddleware;
 // Test helper — only used in unit tests.
 function _resetHistogramForTests() {
     ROUTE_STATS.clear();
 }
-exports._resetHistogramForTests = _resetHistogramForTests;

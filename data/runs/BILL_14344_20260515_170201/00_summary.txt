@@ -1,3 +1,0 @@
-=== BUY-14344 run started 2026-05-15T17:02:01+00:00 ===
-homedepot_exit=0
-bestbuy_exit=0

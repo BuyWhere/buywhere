@@ -15,15 +15,26 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.computeP95ForAllMarkets = exports.latencyMiddleware = void 0;
+exports.latencyMiddleware = latencyMiddleware;
+exports.computeP95ForAllMarkets = computeP95ForAllMarkets;
 const p95_1 = require("./p95");
 const TRACKED_ENDPOINTS = [
     '/mcp',
@@ -61,13 +72,30 @@ function shouldTrackEndpoint(req) {
     const path = req.path;
     return TRACKED_ENDPOINTS.some(endpoint => path.startsWith(endpoint));
 }
+/**
+ * Map a request path to the short endpoint discriminator used by the
+ * buywhere-monitoring-api /api/monitoring/p95/history?endpoint= query.
+ *
+ * BUY-54722: without this normalization the rows in monitoring.p95_latency
+ * store the full path ('/v1/products/search', '/v1/products/:id/similar')
+ * but the monitoring-api filter expects the short discriminator ('search',
+ * 'similar'). Without this, the embedding-alerts p95 check would always
+ * see no data for search/similar.
+ */
+function normalizeEndpoint(path) {
+    if (path.includes('/similar'))
+        return 'similar';
+    if (path.includes('/search'))
+        return 'search';
+    return path;
+}
 function latencyMiddleware(req, res, next) {
     if (!shouldTrackEndpoint(req)) {
         return next();
     }
     const startTime = Date.now();
     const market = extractMarketFromRequest(req);
-    const endpoint = req.path;
+    const endpoint = normalizeEndpoint(req.path);
     const originalSend = res.send.bind(res);
     res.send = function (body) {
         const endTime = Date.now();
@@ -79,11 +107,14 @@ function latencyMiddleware(req, res, next) {
     };
     next();
 }
-exports.latencyMiddleware = latencyMiddleware;
 async function computeP95ForAllMarkets() {
     const { computeAndStoreP95 } = await Promise.resolve().then(() => __importStar(require('./p95')));
     const markets = ['sg', 'us', 'my', 'vn', 'th'];
-    const endpoints = ['/mcp', '/v1/products', '/v1/categories'];
+    // BUY-54722: short endpoint discriminators (must match what latencyMiddleware
+    // writes via normalizeEndpoint). Using 'mcp' for /mcp + /api/mcp, 'products'
+    // for /v1/products list+deals, 'search' for /v1/products/search,
+    // 'similar' for /v1/products/:id/similar, 'categories' for /v1/categories.
+    const endpoints = ['mcp', 'products', 'categories', 'search', 'similar'];
     for (const market of markets) {
         for (const endpoint of endpoints) {
             try {
@@ -95,4 +126,3 @@ async function computeP95ForAllMarkets() {
         }
     }
 }
-exports.computeP95ForAllMarkets = computeP95ForAllMarkets;

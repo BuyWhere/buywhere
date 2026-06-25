@@ -224,7 +224,15 @@ async def lifespan(app: FastAPI):
         get_configmap_syncer()
     except Exception:
         pass
+    from app.services.disk_watchdog import start_disk_watchdog, stop_disk_watchdog
+    watchdog_task = await start_disk_watchdog()
+    logger.info('Disk space watchdog started')
+
     yield
+
+    await stop_disk_watchdog(watchdog_task)
+    logger.info('Disk space watchdog stopped')
+
     try:
         from app.services.feature_flags_configmap import stop_configmap_syncer
         stop_configmap_syncer()

@@ -1,7 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildSearchResponse = exports.buildProduct = exports.COUNTRY_CURRENCY = exports.CURRENCY_RATES = void 0;
+exports.COUNTRY_CURRENCY = exports.CURRENCY_RATES = void 0;
+exports.buildProduct = buildProduct;
+exports.buildSearchResponse = buildSearchResponse;
 const affiliateWrapper_1 = require("./affiliateWrapper");
+const instrumentation_1 = require("./instrumentation");
+const fxRatesLoader_1 = require("./fxRatesLoader");
 exports.CURRENCY_RATES = {
     USD: 1, SGD: 0.74, VND: 0.000039, THB: 0.028, MYR: 0.22, GBP: 0.79,
 };
@@ -12,17 +16,32 @@ function buildProduct(row, defaultCurrency, compact) {
     const currency = row.currency || defaultCurrency;
     const amount = row.price != null ? parseFloat(row.price) : null;
     const affiliateUrl = (0, affiliateWrapper_1.resolvePrecomputedAffiliateUrl)(row.affiliate_url);
+    const productId = String(row.id);
+    const merchant = row.domain || '';
+    const destinationUrl = affiliateUrl ?? row.url;
+    // BUY-52474: every /v1 product response now carries tracking URLs so the FE
+    // naturally routes user clicks through /r/ (logs affiliate_clicks) and /api/click
+    // (logs clicks). The raw merchant URL is still in `url` for agents/SEO use;
+    // `affiliate_url` keeps its precomputed wrapper when present.
+    const clickUrl = destinationUrl
+        ? (0, instrumentation_1.buildClickUrl)({ productId, destinationUrl, merchantId: merchant || null })
+        : null;
+    const affiliateRedirectUrl = destinationUrl
+        ? (0, instrumentation_1.buildAffiliateRedirectUrl)({ productId, source: 'product_card' })
+        : null;
     const base = {
-        id: row.id,
+        id: productId,
         title: row.title,
         price: { amount, currency },
-        merchant: row.domain,
-        url: affiliateUrl ?? row.url,
+        merchant,
+        url: destinationUrl,
         image_url: row.image_url || null,
         region: row.region || null,
         country_code: row.country_code || null,
         updated_at: row.updated_at || null,
         ...(affiliateUrl != null && { affiliate_url: affiliateUrl }),
+        ...(clickUrl != null && { click_url: clickUrl }),
+        ...(affiliateRedirectUrl != null && { affiliate_redirect_url: affiliateRedirectUrl }),
     };
     if (compact) {
         const meta = row.metadata;
@@ -43,7 +62,8 @@ function buildProduct(row, defaultCurrency, compact) {
             comparison_attributes.push({ key: 'model', label: 'Model', value: structured_specs.model });
         if (structured_specs.color != null)
             comparison_attributes.push({ key: 'color', label: 'Color', value: structured_specs.color });
-        const rate = exports.CURRENCY_RATES[currency] ?? null;
+        const rates = (0, fxRatesLoader_1.getCachedFxRates)();
+        const rate = rates[currency] ?? exports.CURRENCY_RATES[currency] ?? null;
         const normalized_price_usd = amount != null && rate != null ? +(amount * rate).toFixed(4) : null;
         base.canonical_id = row.id;
         base.normalized_price_usd = normalized_price_usd;
@@ -61,7 +81,6 @@ function buildProduct(row, defaultCurrency, compact) {
     }
     return base;
 }
-exports.buildProduct = buildProduct;
 function buildSearchResponse(products, total, limit, offset, responseTimeMs, cached) {
     return {
         results: products,
@@ -71,4 +90,3 @@ function buildSearchResponse(products, total, limit, offset, responseTimeMs, cac
         cached,
     };
 }
-exports.buildSearchResponse = buildSearchResponse;

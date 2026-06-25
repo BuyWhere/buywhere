@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.vectorDb = exports.TIER_LIMITS = exports.FREE_TIER = exports.API_BASE_URL = exports.PORT = exports.redis = exports.db = void 0;
+exports.vectorDb = exports.TIER_LIMITS = exports.FREE_TIER = exports.API_BASE_URL = exports.PORT = exports.redis = exports.catalogDb = exports.replicaDb = exports.db = void 0;
 const pg_1 = require("pg");
 const ioredis_1 = __importDefault(require("ioredis"));
 // BUY-51454: a missing DATABASE_URL used to silently fall back to localhost:5432, which
@@ -22,6 +22,17 @@ exports.db = new pg_1.Pool({
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
 });
+// Replica DB pool for read-heavy operations (e.g., embedding pipeline).
+// Explicitly gated by REPLICA_DATABASE_URL so callers can enforce replica-only
+// reads instead of silently falling back to the primary.
+exports.replicaDb = process.env.REPLICA_DATABASE_URL
+    ? new pg_1.Pool({
+        connectionString: process.env.REPLICA_DATABASE_URL,
+        max: parseInt(process.env.PG_POOL_MAX || '20'),
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+    })
+    : null;
 const pgStatementTimeout = parseInt(process.env.PG_STATEMENT_TIMEOUT || '30000');
 const pgLockTimeout = parseInt(process.env.PG_LOCK_TIMEOUT || '2000');
 exports.db.on('connect', (client) => {
@@ -29,6 +40,46 @@ exports.db.on('connect', (client) => {
         client.query(`SET statement_timeout = ${pgStatementTimeout}`),
         client.query(`SET lock_timeout = ${pgLockTimeout}`),
     ]).catch(() => { });
+});
+// BUY-53789: catalog reads (search, stats, product lookups) serve the canonical
+// maglev catalog (~127M) when CATALOG_DATABASE_URL is set; otherwise they fall back
+// to the primary `db` (zero behavior change). Auth and ALL writes stay on `db`.
+exports.catalogDb = process.env.CATALOG_DATABASE_URL
+    ? new pg_1.Pool({
+        connectionString: process.env.CATALOG_DATABASE_URL,
+        max: parseInt(process.env.CATALOG_POOL_MAX || '30'),
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+    })
+    : exports.db;
+if (process.env.CATALOG_DATABASE_URL) {
+    exports.catalogDb.on('connect', (client) => {
+        Promise.all([
+            client.query(`SET statement_timeout = ${pgStatementTimeout}`),
+            client.query(`SET lock_timeout = ${pgLockTimeout}`),
+        ]).catch(() => { });
+    });
+}
+// BUY-33815: swallow idle-client errors so a Postgres restart (which terminates
+// every in-flight socket) does not surface as a process-level uncaughtException.
+// The pool will reconnect on the next checkout. Sentry still sees it via the
+// global uncaughtException/unhandledRejection handlers in index.ts, but the
+// process stays up. Without this, BUY-33735-style crashes recurred on every
+// Railway Postgres maintenance window.
+exports.db.on('error', (err) => {
+    const code = err?.code;
+    const isConnectionLoss = code === 'ECONNRESET' ||
+        code === '08006' || // SQLSTATE connection_failure
+        code === '57P' || // admin_shutdown (Postgres fast shutdown)
+        code === '57P01' || // admin_shutdown
+        code === '57P02' || // crash_shutdown
+        code === '57P03'; // cannot_connect_now
+    if (isConnectionLoss) {
+        console.warn('[pg-pool] idle client error (expected during PG restart, pool will reconnect):', err.message);
+        return;
+    }
+    // Unknown error on an idle client — log loudly but do not crash.
+    console.error('[pg-pool] unexpected idle client error:', err);
 });
 exports.redis = new ioredis_1.default({
     host: process.env.REDIS_HOST || '127.0.0.1',
