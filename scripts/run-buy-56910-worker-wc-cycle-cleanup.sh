@@ -1,4 +1,5 @@
 #!/bin/bash
+# DEPRECATED by BUY-57327. Use run-buy-57311-worker-wc-cycle-cleanup.sh instead.
 # BUY-56910: Worker node disk-space enforcement (WC cycle artifact cleanup)
 set -euo pipefail
 

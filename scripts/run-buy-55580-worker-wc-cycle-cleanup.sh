@@ -1,4 +1,5 @@
 #!/bin/bash
+# DEPRECATED by BUY-57327. Use run-buy-57311-worker-wc-cycle-cleanup.sh instead.
 # BUY-55580: Worker node WC cycle artifact cleanup
 # Executes wc-cycle-cleanup.sh with --apply --keep=48 to delete orphaned
 # WC cycle ndjson files older than 48h. Alerts if disk > 90%.

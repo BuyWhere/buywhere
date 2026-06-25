@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED by BUY-57327. Use run-buy-57311-worker-wc-cycle-cleanup.sh instead.
 # run-buy-57203-worker-wc-cycle-cleanup.sh
 # BUY-57203: Worker node disk-space enforcement (WC cycle artifact cleanup)
 #

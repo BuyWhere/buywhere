@@ -1,3 +1,4 @@
+# DEPRECATED by BUY-57327. Use run-buy-57311-worker-wc-cycle-cleanup.sh instead.
 # run-buy-56625-worker-wc-cycle-cleanup.sh
 # BUY-56625: Worker node disk-space enforcement (WC cycle artifact cleanup)
 #
