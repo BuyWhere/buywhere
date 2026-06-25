@@ -716,10 +716,15 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
-  const bestPriceClient = await db.connect();
+  // BUY-57258: add connect timeout so pool exhaustion fails fast; reduce statement_timeout
+  // to 5s to prevent cascading connection starvation during contention.
+  const bestPriceClient = await db.connect().catch((err) => {
+    console.warn('[find_best_price] db.connect failed:', err.message);
+    throw { code: -32603, message: 'Database connection timeout' };
+  });
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 10000');
+    await bestPriceClient.query('SET statement_timeout = 5000');
     result = await bestPriceClient.query(
       `SELECT * FROM (
          SELECT id, title, price, currency, source AS domain, url, image_url,
