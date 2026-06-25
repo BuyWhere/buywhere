@@ -91,7 +91,7 @@ test("getStaticSitemapEntries emits each <loc> at most once (BUY-57452)", () => 
   for (const entry of entries) {
     counts.set(entry.url, (counts.get(entry.url) ?? 0) + 1);
   }
-  const dupes = [...counts.entries()].filter(([, c]) => c > 1);
+  const dupes = Array.from(counts.entries()).filter(([, c]) => c > 1);
   assert.deepEqual(
     dupes,
     [],
