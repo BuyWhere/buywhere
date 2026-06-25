@@ -1,7 +1,7 @@
 ---
 slug: "cheapest-macbook-air-m3-12-countries-compared"
 title: "Cheapest MacBook Air M3 in 2026 — 12 Countries Compared"
-description: "Find the cheapest MacBook Air M3 across 12 countries (US, UK, Australia, Singapore, Malaysia, Japan, Canada, Germany, France, India, Mexico, Brazil) with live pricing from Amazon, Apple Store, local retailers."
+description: "MacBook Air M3 prices compared across 12 countries. India and Mexico are cheapest; US starts at $999. See live prices from Amazon, Apple Store, and more."
 author: "BuyWhere Team"
 publishedAt: "2026-06-30"
 tags: ["macbook-air", "apple", "m3-chip", "global-pricing", "laptop", "12-countries", "comparison"]

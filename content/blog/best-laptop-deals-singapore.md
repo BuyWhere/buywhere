@@ -1,7 +1,7 @@
 ---
 slug: "best-laptop-deals-singapore"
 title: "Best Laptop Deals Singapore 2026 — Compare Prices Across All Retailers"
-description: "Compare current laptop prices from Apple Store, Shopee, Lazada, Challenger, Courts, Harvey Norman, and Amazon SG. Find the best laptop deals in Singapore for 2026."
+description: "Compare laptop prices across 7 Singapore retailers. MacBook Air from S$1,299, Lenovo from S$699. Updated daily with real-time deals from Shopee, Lazada, and more."
 author: "BuyWhere Team"
 publishedAt: "2026-06-19"
 lastUpdatedAt: "2026-06-18"
