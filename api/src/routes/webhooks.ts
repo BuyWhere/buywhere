@@ -5,7 +5,7 @@ import { db, redis } from '../config';
 const router = Router();
 
 const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-04-22.dahlia' })
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-05-27.dahlia' })
   : null;
 
 const PAPERCLIP_BASE_URL = process.env.UPTIMEROBOT_WEBHOOK_RELAY_URL?.trim() || '';
@@ -24,6 +24,48 @@ const GOAL_ID = '2c19e8cc-3e32-4144-8fcb-c4f206cb9fa4';
 const DEDUP_PREFIX = 'uptime:dedup:';
 const DEDUP_TTL_SECONDS = 300;
 const DEDUP_ENABLED = !!redis;
+
+/** Known BuyWhere production host suffixes that should create incidents. */
+const SUPPORTED_MONITOR_HOSTS = [
+  'buywhere.ai',
+  'api.buywhere.ai',
+  'mcp.buywhere.ai',
+  'www.buywhere.ai',
+  'buywhere-monitoring-api.up.railway.app',
+];
+
+/**
+ * BUY-57443: Allowlist of canonical production UptimeRobot monitor IDs.
+ * Any incoming alert with a monitorID not in this set is silently dropped.
+ * This is the primary defense against phantom monitor IDs (e.g. 999999 from
+ * external accounts) creating bogus incidents — the URL host check is the
+ * second line of defense.
+ */
+const SUPPORTED_MONITOR_IDS = new Set<string>([
+  '802985723',
+  '802985724',
+  '802964898',
+  '803121776',
+  '802964899',
+  '802964896',
+  '803121777',
+  '803121778',
+  '803294913',
+  '802985725',
+]);
+
+/**
+ * Returns true if the monitor URL points to a supported BuyWhere production host.
+ * Unsupported hosts (e.g. dedup.ai) are silently ignored.
+ */
+const isSupportedMonitorHost = (monitorURL: string): boolean => {
+  try {
+    const hostname = new URL(monitorURL).hostname.toLowerCase();
+    return SUPPORTED_MONITOR_HOSTS.some((host) => hostname === host || hostname.endsWith('.' + host));
+  } catch {
+    return true;
+  }
+};
 
 interface UptimeRobotAlert {
   monitorID?: string;
@@ -133,6 +175,24 @@ router.post('/uptime-robot', async (req: Request, res: Response) => {
   const friendlyName = payload?.monitorFriendlyName || payload?.monitorName || payload?.monitor_name || 'unknown';
   const monitorURL = payload?.monitorURL || 'unknown';
   const alertDetails = payload?.alertDetails ?? payload?.alert_details ?? '';
+  const monitorID = payload?.monitorID != null ? String(payload.monitorID) : '';
+
+  // BUY-57443: First line of defense — reject phantom monitor IDs not in the
+  // production allowlist. Phantom IDs (e.g. 999999 from an external UptimeRobot
+  // account) were creating real Paperclip incidents routed to Rex.
+  if (monitorID && !SUPPORTED_MONITOR_IDS.has(monitorID)) {
+    console.warn(`[webhooks/uptime-robot] Ignoring alert for unknown monitorID: ${monitorID} (friendlyName=${friendlyName}, monitorURL=${monitorURL})`);
+    res.status(202).json({ received: true, ignored: true, reason: 'unknown_monitor_id' });
+    return;
+  }
+
+  // BUY-57443: Second line of defense — URL host check catches spoofed hosts
+  // for legitimate monitor IDs.
+  if (!isSupportedMonitorHost(monitorURL)) {
+    console.warn(`[webhooks/uptime-robot] Ignoring alert for unsupported host: ${monitorURL} (friendlyName=${friendlyName})`);
+    res.status(202).json({ ignored: true, reason: 'unsupported_monitor_host' });
+    return;
+  }
 
   try {
     if (status === 'down') {
