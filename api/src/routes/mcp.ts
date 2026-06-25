@@ -257,8 +257,16 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   let rows: unknown[];
   let total: number;
 
-  // Use a dedicated client with extended timeout — FTS on 14M rows can exceed the 10s pool default.
-  const searchClient = await db.connect();
+  // BUY-57370: catch pool exhaustion fast — under concurrent load (e.g. Tune
+  // automated testing), the 50-connection pool can saturate when US-partition
+  // queries hold connections for 5-12s. Without .catch(), the raw pg PoolError
+  // (string code like '57P01') escapes to the outer handler which checks
+  // typeof code === 'number' — fails for string codes — and returns the
+  // opaque -32603 "Internal error" that Tune detected.
+  const searchClient = await db.connect().catch((err) => {
+    console.warn('[search_products] db.connect failed:', err.message);
+    throw { code: -32603, message: 'Database connection timeout — pool may be exhausted' };
+  });
   try {
     // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
     // complete within 12s via GIN index; anything longer signals plan regression or
@@ -630,7 +638,10 @@ async function handleListCategories(args: Record<string, unknown>) {
 
   // 3. No in-flight query — start one and register it so concurrent callers coalesce
   const queryPromise = (async () => {
-    const client = await db.connect();
+    const client = await db.connect().catch((err) => {
+      console.warn('[list_categories] db.connect failed:', err.message);
+      throw { code: -32603, message: 'Database connection timeout — pool may be exhausted' };
+    });
     try {
       await client.query('SET statement_timeout = 8000');
       const tableCheck = await client.query(
@@ -1314,12 +1325,21 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
     }
   } catch (err: unknown) {
-    const e = err as { code?: number; message?: string };
+    const e = err as { code?: number | string; message?: string };
+    // BUY-57370: handle both numeric tool-error codes (e.g. -32603) and
+    // PostgreSQL string error codes (e.g. '57014' for statement_timeout).
+    // Without this, PG errors (string codes) always fall through to -32603,
+    // masking the real cause from monitoring/Tune.
     if (typeof e.code === 'number' && e.message) {
       const envelopeCode = e.code === -32001 ? ErrorCode.NOT_FOUND
         : e.code === -32602 ? ErrorCode.INVALID_PARAMETER
         : ErrorCode.INTERNAL_ERROR;
       return res.json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
+    }
+    if (typeof e.code === 'string' && e.message) {
+      // PostgreSQL error — log the real code for diagnostics, return -32603 for MCP compat
+      console.error(`[mcp] pg error (code=${e.code}):`, e.message);
+      return res.json(jsonrpcErr(id, -32603, `Internal error: ${e.message.slice(0, 120)}`, undefined, ErrorCode.INTERNAL_ERROR));
     }
     console.error('[mcp] error:', err);
     return res.json(jsonrpcErr(id, -32603, 'Internal error', undefined, ErrorCode.INTERNAL_ERROR));
