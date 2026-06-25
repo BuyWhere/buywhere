@@ -4,8 +4,10 @@ import { db } from '../config';
 
 const router = Router();
 
+// BUY-57370: use LatestApiVersion type to avoid TS literal mismatch when
+// Stripe SDK is updated independently of the pinned apiVersion string.
 const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-05-27.dahlia' })
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-04-22.dahlia' as Stripe.LatestApiVersion })
   : null;
 
 const PAPERCLIP_BASE_URL = process.env.UPTIMEROBOT_WEBHOOK_RELAY_URL?.trim() || '';
