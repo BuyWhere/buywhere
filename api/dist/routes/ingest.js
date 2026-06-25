@@ -307,6 +307,10 @@ function buildCategoryPathLiteral(paths) {
         return '{}';
     return `{${paths.map(c => `"${c.replace(/"/g, '\\"')}"`).join(',')}}`;
 }
+// Health response cache (BUY-57333): serve cached status for up to 30s to
+// reduce DB load during congestion. Internal monitoring bypasses the cache.
+const HEALTH_CACHE_TTL_MS = parseInt(process.env.HEALTH_CACHE_TTL_MS || '30000', 10);
+let healthCache = null;
 // GET /v1/ingest/health — ingestion pipeline health check.
 //
 // Auth: requires a valid API key via Authorization: Bearer or X-API-Key header.
@@ -314,6 +318,11 @@ function buildCategoryPathLiteral(paths) {
 // get full market-level freshness data. This header is intended for internal
 // monitoring tools (scripts/check_ingestion_health.mjs, BUY-31745).
 router.get('/health', async (req, res) => {
+    // Serve from cache if within TTL (internal monitoring bypasses cache)
+    if (healthCache && (Date.now() - healthCache.ts) < HEALTH_CACHE_TTL_MS && req.headers['x-internal-monitoring'] !== 'true') {
+        const cached = healthCache.data;
+        return res.json({ ...cached, cached: true, ts: new Date().toISOString() });
+    }
     const isInternal = req.headers['x-internal-monitoring'] === 'true';
     // For internal monitoring, skip the bot-UA check but still require auth.
     // For external callers the standard requireApiKey gate applies.
@@ -323,15 +332,20 @@ router.get('/health', async (req, res) => {
             // Basic liveness: Redis ping
             let redisOk = false;
             try {
-                redisOk = (await config_1.redis.ping()) === 'PONG';
+                redisOk = await Promise.race([
+                    config_1.redis.ping().then(r => r === 'PONG'),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('redis ping timed out')), 1000)),
+                ]);
             }
             catch { /* redis down — report degraded but continue */ }
             // Last ingestion run per source (recent 24 h) — quick scan
-            const runsResult = await config_1.db.query(`SELECT source, status, MAX(started_at) AS last_run, COUNT(*) AS run_count
+            const runsResult = await config_1.db.query(`SET statement_timeout = 3000`).then(() => config_1.db.query(`SELECT source, status, MAX(started_at) AS last_run, COUNT(*) AS run_count
            FROM ingestion_runs
           WHERE started_at > NOW() - INTERVAL '24 hours'
           GROUP BY source, status
-          ORDER BY source, last_run DESC`);
+          ORDER BY source, last_run DESC`)).finally(() => {
+                config_1.db.query(`SET statement_timeout = 30000`).catch(() => { });
+            });
             // Aggregate per source: last_success, last_failure, success_count, failure_count
             const sourceMap = {};
             for (const row of runsResult.rows) {
@@ -354,13 +368,17 @@ router.get('/health', async (req, res) => {
             // Product freshness: products updated in last 24 h (approximate via reltuples for speed)
             let recentProducts24h = null;
             try {
-                const freshnessResult = await config_1.db.query(`SELECT COUNT(*) AS cnt FROM products WHERE updated_at > NOW() - INTERVAL '24 hours'`);
+                const freshnessResult = await config_1.db.query(`SET statement_timeout = 3000`).then(() => config_1.db.query(`SELECT COUNT(*) AS cnt FROM products WHERE updated_at > NOW() - INTERVAL '24 hours'`)).finally(() => {
+                    config_1.db.query(`SET statement_timeout = 30000`).catch(() => { });
+                });
                 recentProducts24h = parseInt(freshnessResult.rows[0]?.cnt ?? '0', 10);
             }
             catch { /* skip on timeout */ }
             // Zombie runs: stuck in 'running' > 1 hour
-            const zombieResult = await config_1.db.query(`SELECT COUNT(*) AS cnt FROM ingestion_runs
-          WHERE status = 'running' AND started_at < NOW() - INTERVAL '1 hour'`);
+            const zombieResult = await config_1.db.query(`SET statement_timeout = 3000`).then(() => config_1.db.query(`SELECT COUNT(*) AS cnt FROM ingestion_runs
+          WHERE status = 'running' AND started_at < NOW() - INTERVAL '1 hour'`)).finally(() => {
+                config_1.db.query(`SET statement_timeout = 30000`).catch(() => { });
+            });
             const zombieCount = parseInt(zombieResult.rows[0]?.cnt ?? '0', 10);
             const sources = Object.entries(sourceMap).map(([source, s]) => ({
                 source,
@@ -372,7 +390,7 @@ router.get('/health', async (req, res) => {
             const overallStatus = zombieCount > 0 ? 'degraded'
                 : sources.length === 0 ? 'idle'
                     : 'ok';
-            res.json({
+            const responseBody = {
                 status: overallStatus,
                 redis: redisOk ? 'ok' : 'degraded',
                 sources,
@@ -380,7 +398,9 @@ router.get('/health', async (req, res) => {
                 zombie_runs: zombieCount,
                 ts: now.toISOString(),
                 internal: isInternal,
-            });
+            };
+            healthCache = { data: responseBody, ts: Date.now() };
+            res.json(responseBody);
         }
         catch (err) {
             res.status(500).json({
