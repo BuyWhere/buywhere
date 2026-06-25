@@ -25,28 +25,34 @@
    - Deduplicates via marker — removes any stale `disk-enforcement-cron` entries
    - Validates runner exists before install
 
+4. **`scripts/wc-cycle-cleanup.sh` optimization** — Zero-byte file lsof skip
+   - Zero-byte cycle ndjson files are never meaningfully open at scale
+   - `lsof` is expensive on directories with 50K+ files
+   - Skip `lsof` for zero-byte files, returning "not open" immediately
+   - Improves enforcement pipeline performance
+
 ### Crontab status
 
 - Installed: `*/10 * * * *` — `disk-enforcement-cron` marker verified (exactly 1 entry)
+- 4 enforcement runs completed since deployment
 - Does NOT interfere with existing cron entries:
   - `wc-cycle-cleanup-cron` (BUY-57311, every 6h) — still active
   - `disk-watchdog-cron` (BUY-57232, every 5 min) — still active
   - All other existing entries untouched
 
-### Initial enforcement pass
+### Latest enforcement status
 
-- Root disk: 64% (71GB free) — well below 85% enforce threshold
-- All 70+ workspace directories scanned; none exceeded threshold
+- Root disk: 64% (70GB free) — well below 85% enforce threshold
+- All workspace directories scanned; none exceeded threshold
 - No incidents created (expected — disk is healthy)
-- No stale ndjson cleanup triggered (handled by BUY-57311 every 6h)
+- Exit code: 0 (success)
 
 ### Verification
 
 - `crontab -l | grep disk-enforcement-cron` → exactly 1 entry
-- `bash -n scripts/worker-node-disk-enforcement.sh` → syntax OK
-- `bash -n scripts/run-buy-57336-worker-disk-enforcement.sh` → syntax OK
-- `bash -n scripts/setup-buy-57336-worker-disk-enforcement.sh` → syntax OK
-- Initial dry run + apply run completed (exit 0)
+- All scripts pass `bash -n` syntax check
+- Dry run + apply run confirmed working
+- Evidence report: `BUY-57336-evidence/enforcement-latest.json`
 
 ### Scripts created
 
