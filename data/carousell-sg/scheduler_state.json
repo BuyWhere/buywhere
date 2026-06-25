@@ -1,10 +1,10 @@
 {
   "platform": "carousell_sg",
-  "started_at": "2026-06-25T08:40:04Z",
-  "pid": 4092865,
+  "started_at": "2026-06-25T08:45:04Z",
+  "pid": 4127707,
   "run_budget_seconds": 14400,
   "restarts": 0,
-  "last_status": "completed_clean",
-  "last_restart_at": "2026-06-25T08:42:06Z",
+  "last_status": "starting",
+  "last_restart_at": "2026-06-25T08:44:14Z",
   "completed_at": "2026-06-25T08:14:41Z"
 }
