@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getCategorySitemapEntries, getCompareSitemapEntries } from "@/lib/sitemaps";
+import { getCategorySitemapEntries, getCompareSitemapEntries, getStaticSitemapEntries } from "@/lib/sitemaps";
 import { toSiteUrl } from "@/lib/site-url";
 
 test("getCategorySitemapEntries uses canonical (no trailing slash) URLs", () => {
@@ -80,3 +80,57 @@ test("merchant listing path with trailing slash is normalized to canonical (BUY-
   );
 });
 
+// BUY-57452: sitemap-pages.xml must emit each <loc> at most once. The 9
+// URLs flagged (6 blog + 3 product) used to appear twice because both
+// STATIC_SITEMAP_ROUTES and the dynamic registries (getAllBlogPosts(),
+// seoLandingPages) emitted them. The fix removed the hardcoded copies
+// from STATIC_SITEMAP_ROUTES and added a Map-based dedupe in the emitter.
+test("getStaticSitemapEntries emits each <loc> at most once (BUY-57452)", () => {
+  const entries = getStaticSitemapEntries();
+  const counts = new Map<string, number>();
+  for (const entry of entries) {
+    counts.set(entry.url, (counts.get(entry.url) ?? 0) + 1);
+  }
+  const dupes = [...counts.entries()].filter(([, c]) => c > 1);
+  assert.deepEqual(
+    dupes,
+    [],
+    `sitemap-pages.xml would emit ${dupes.length} duplicate <loc>(s): ${dupes
+      .slice(0, 10)
+      .map(([u, c]) => `${u} x${c}`)
+      .join(", ")}`,
+  );
+});
+
+test("getStaticSitemapEntries contains the 9 previously-duplicate URLs (BUY-57452)", () => {
+  // These 9 URLs must still appear (we removed hardcoded copies, not the
+  // pages themselves), and each must now appear exactly once.
+  const entries = getStaticSitemapEntries();
+  const urls = new Set(entries.map((e) => e.url));
+  const required = [
+    "https://buywhere.ai/blog/cheapest-iphone-singapore-2026",
+    "https://buywhere.ai/blog/best-laptop-deals-singapore",
+    "https://buywhere.ai/blog/best-gaming-laptops-us-2026",
+    "https://buywhere.ai/blog/compare-headphones-singapore-2026",
+    "https://buywhere.ai/blog/home-appliance-deals-singapore-2026",
+    "https://buywhere.ai/blog/compare-product-prices-singapore-2026",
+    "https://buywhere.ai/iphone-16-price-singapore",
+    "https://buywhere.ai/laptop-singapore",
+    "https://buywhere.ai/air-purifier-singapore",
+  ];
+  for (const url of required) {
+    assert.ok(urls.has(url), `expected ${url} in sitemap-pages.xml`);
+  }
+});
+
+test("getStaticSitemapEntries count is 230 (matches the post-fix prod target) or fewer (BUY-57452)", () => {
+  // Pre-fix: 239 <url> blocks (230 unique). Post-fix: 230 <url> blocks.
+  // We accept <=230 to tolerate future removals (e.g. soft-404 slugs)
+  // without breaking the test. We assert <=230 strictly so any future
+  // re-emission of removed hardcoded entries surfaces here, not in GSC.
+  const entries = getStaticSitemapEntries();
+  assert.ok(
+    entries.length <= 230,
+    `sitemap-pages.xml emitted ${entries.length} entries; expected <= 230`,
+  );
+});
