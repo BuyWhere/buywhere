@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # DEPRECATED by BUY-57311. Use run-buy-57311-worker-wc-cycle-cleanup.sh instead.
-# run-buy-56542-worker-node-disk-space-enforcement.sh
-# BUY-56542: Worker node disk-space enforcement (WC cycle artifact cleanup)
+# DEPRECATED by BUY-57311. Use run-buy-57311-worker-wc-cycle-cleanup.sh instead.
+# run-buy-57262-worker-wc-cycle-cleanup.sh
+# BUY-57262: Worker node disk-space enforcement (WC cycle artifact cleanup)
 #
 # Runs wc-cycle-cleanup.sh --apply --keep=48 in Oracle workspace to delete
 # orphaned WC cycle ndjson files older than 48h. Alerts if disk > 90%.
@@ -11,7 +12,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 WORKSPACE_DIR="/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c"
-REPORT_PATH="$REPO_ROOT/logs/buy-56542-wc-cycle-enforcement-report.json"
+REPORT_PATH="$REPO_ROOT/logs/buy-57262-wc-cycle-enforcement-report.json"
 LOG_PATH="$WORKSPACE_DIR/data/_wc_cleanup_log.jsonl"
 mkdir -p "$REPO_ROOT/logs"
 
@@ -29,7 +30,7 @@ KEEP_HOURS=48
 
 log "Disk before: ${disk_pct_before}% keep_hours=${KEEP_HOURS}"
 log "Workspace: $WORKSPACE_DIR"
-log "Issue: BUY-56542"
+log "Issue: BUY-57262"
 
 bash "$SCRIPT_DIR/wc-cycle-cleanup.sh" \
   --apply \
@@ -47,7 +48,7 @@ import json, sys
 with open(sys.argv[1], 'r') as f:
     r = json.load(f)
 r['ts'] = sys.argv[2]
-r['issue'] = 'BUY-56542'
+r['issue'] = 'BUY-57262'
 r['keep_hours'] = int(sys.argv[3])
 r['disk_before_pct'] = int(sys.argv[4])
 r['run_started_at'] = sys.argv[2]
@@ -66,5 +67,5 @@ if [ "$inner_exit" -ne 0 ] && [ "$inner_exit" -ne 10 ]; then
   exit "$inner_exit"
 fi
 
-log "BUY-56542 enforcement completed. inner_exit=$inner_exit"
+log "BUY-57262 enforcement completed. inner_exit=$inner_exit"
 exit $inner_exit
