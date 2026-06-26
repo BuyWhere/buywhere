@@ -19,7 +19,7 @@
 
 import { NextResponse } from "next/server";
 
-const BASE_URL = process.env.SITE_HEALTH_BASE_URL || "https://buywhere.ai";
+const FALLBACK_BASE_URL = "https://buywhere.ai";
 const TIMEOUT_MS = 8000;
 const KEYWORD = "BuyWhere";
 
@@ -68,7 +68,26 @@ interface CheckResult {
 
 export const runtime = "nodejs";
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(req: Request): Promise<NextResponse> {
+  // Railway healthchecks run inside the container. Allow a `self=1` query param
+  // to short-circuit the external homepage probe and validate only the local
+  // origin. This avoids the chicken-and-egg case where the public domain is
+  // down and prevents the container from becoming healthy.
+  const url = new URL(req.url);
+  if (url.searchParams.get("self") === "1") {
+    return NextResponse.json(
+      {
+        status: "ok",
+        ts: new Date().toISOString(),
+        site: url.origin,
+        checks: [{ check: "self", status: "ok", detail: "local healthcheck" }],
+        summary: { total: 1, ok: 1, fail: 0 },
+      },
+      { status: 200, headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } },
+    );
+  }
+
+  const baseUrl = process.env.SITE_HEALTH_BASE_URL || FALLBACK_BASE_URL;
   const checks: CheckResult[] = [];
   let overallStatus: "ok" | "degraded" | "down" = "ok";
 
@@ -76,7 +95,7 @@ export async function GET(): Promise<NextResponse> {
   let homepageHtml = "";
   const t0 = Date.now();
   try {
-    const resp = await fetchWithTimeout(BASE_URL, TIMEOUT_MS);
+    const resp = await fetchWithTimeout(baseUrl, TIMEOUT_MS);
     const latency = Date.now() - t0;
     if (!resp.ok) {
       checks.push({ check: "homepage_status", status: "fail", detail: `HTTP ${resp.status}`, latency_ms: latency });
@@ -104,18 +123,18 @@ export async function GET(): Promise<NextResponse> {
 
   // ── Check 2: Dynamic static assets from the page ─────────────────────────
   if (homepageHtml) {
-    const assetUrls = extractStaticAssets(homepageHtml, BASE_URL);
+    const assetUrls = extractStaticAssets(homepageHtml, baseUrl);
     let assetFails = 0;
-    for (const url of assetUrls) {
+    for (const assetUrl of assetUrls) {
       const t1 = Date.now();
       try {
-        const resp = await fetchWithTimeout(url, TIMEOUT_MS);
+        const resp = await fetchWithTimeout(assetUrl, TIMEOUT_MS);
         const latency = Date.now() - t1;
         const ok = resp.ok;
         checks.push({
           check: "static_asset",
           status: ok ? "ok" : "fail",
-          detail: ok ? url : `${url} → HTTP ${resp.status}`,
+          detail: ok ? assetUrl : `${assetUrl} → HTTP ${resp.status}`,
           latency_ms: latency,
         });
         if (!ok) assetFails++;
@@ -123,7 +142,7 @@ export async function GET(): Promise<NextResponse> {
         checks.push({
           check: "static_asset",
           status: "fail",
-          detail: `${url} → fetch failed: ${(err as Error).message}`,
+          detail: `${assetUrl} → fetch failed: ${(err as Error).message}`,
         });
         assetFails++;
       }
@@ -139,16 +158,16 @@ export async function GET(): Promise<NextResponse> {
   // ── Check 3: Stable assets (logo, manifest, favicon) ─────────────────────
   let stableAssetFails = 0;
   for (const path of STABLE_ASSETS) {
-    const url = `${BASE_URL}${path}`;
+    const assetUrl = `${baseUrl}${path}`;
     const t2 = Date.now();
     try {
-      const resp = await fetchWithTimeout(url, TIMEOUT_MS);
+      const resp = await fetchWithTimeout(assetUrl, TIMEOUT_MS);
       const latency = Date.now() - t2;
       const ok = resp.ok;
       checks.push({
         check: "stable_asset",
         status: ok ? "ok" : "fail",
-        detail: ok ? url : `${url} → HTTP ${resp.status}`,
+        detail: ok ? assetUrl : `${assetUrl} → HTTP ${resp.status}`,
         latency_ms: latency,
       });
       if (!ok) stableAssetFails++;
@@ -156,7 +175,7 @@ export async function GET(): Promise<NextResponse> {
       checks.push({
         check: "stable_asset",
         status: "fail",
-        detail: `${url} → fetch failed: ${(err as Error).message}`,
+        detail: `${assetUrl} → fetch failed: ${(err as Error).message}`,
       });
       stableAssetFails++;
     }
@@ -171,7 +190,7 @@ export async function GET(): Promise<NextResponse> {
     {
       status: overallStatus,
       ts: new Date().toISOString(),
-      site: BASE_URL,
+      site: baseUrl,
       checks,
       summary: {
         total: checks.length,
