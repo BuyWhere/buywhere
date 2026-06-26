@@ -30,7 +30,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = 15000;
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
 // unavailable, semantic/hybrid requests fall back to the keyword path.
 const VALID_SEARCH_MODES = new Set(['keyword', 'semantic', 'hybrid']);
-const DEFAULT_SEARCH_MODE = 'keyword';
+const DEFAULT_SEARCH_MODE = 'hybrid';
 const VECTOR_CANDIDATE_CAP = 1000;
 const HYBRID_RRF_K = 60;
 
