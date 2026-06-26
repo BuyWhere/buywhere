@@ -1,6 +1,6 @@
 ---
 slug: "best-price-tracking-tools-singapore"
-title: "Best Price Tracking Tools for Singapore Shoppers [2026]"
+title: "CamelCamelCamel Singapore Alternatives: Best Price Trackers for Shopee, Lazada & Amazon.sg"
 description: "Compare the best price tracking tools for Singapore — from Honey to CamelCamelCamel to BuyWhere. Find which tracker covers Shopee, Lazada, Amazon.sg, and more."
 author: "BuyWhere Team"
 publishedAt: "2026-05-01"
