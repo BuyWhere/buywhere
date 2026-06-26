@@ -717,7 +717,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
   },
   "airpods-singapore": {
     slug: "airpods-singapore",
-    title: "Best AirPods Deals in Singapore 2026 | Compare Prices Across SG Retailers",
+    title: "AirPods Price in Singapore 2026 | Compare AirPods Pro, 4, 3 Deals & Live Prices",
     description:
       "Find the best AirPods deals in Singapore with live BuyWhere prices, retailer comparisons, and buying advice across Apple, Shopee, Lazada, Courts, and Challenger.",
     heroEyebrow: "Singapore Audio Guide",
