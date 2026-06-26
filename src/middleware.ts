@@ -407,9 +407,16 @@ export function middleware(request: NextRequest) {
     // No legacy remap: 301 to the canonical non-slash URL on the same origin.
     // Emit rel=canonical via Link header so GSC picks up the canonical signal
     // even if the destination page metadata is missing.
-    const url = request.nextUrl.clone();
-    url.pathname = nonSlashPath;
-    const tsResponse = NextResponse.redirect(url, 301);
+    // BUY-57754: construct URL via new URL() rather than request.nextUrl.clone()
+    // because the edge-runtime clone preserves the trailing slash from the
+    // original request, producing a Location header that still ends with "/"
+    // and a self-referencing 301 (e.g. /merchants/ -> /merchants/).  Building
+    // a fresh URL from the request's path+search string normalises the
+    // pathname correctly.
+    const tsResponse = NextResponse.redirect(
+      new URL(`${nonSlashPath}${request.nextUrl.search}`, request.url),
+      301
+    );
     tsResponse.headers.set("Link", `<https://buywhere.ai${nonSlashPath}>; rel="canonical"`);
     return tsResponse;
   }
