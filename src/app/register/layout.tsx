@@ -18,10 +18,14 @@ export const metadata: Metadata = {
     description: "Create your free BuyWhere developer account and get instant API access. No credit card required - start building in minutes with 1,000 requests/day.",
   },
   robots: {
-    index: true,
+    index: false,
     follow: true,
   },
 };
+
+// BUY-57869: registration utility page is low-value for search; noindex but allow
+// crawlers to follow links off-page so internal pages still get discovered.
+
 
 export default function RegisterLayout({
   children,

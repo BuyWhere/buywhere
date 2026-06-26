@@ -114,6 +114,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     description:
       merchant?.description ??
       `Browse all products from ${displayName} in ${regionLabel}. Compare prices and find the best deals on BuyWhere.`,
+    // BUY-57869: thin "coming soon" placeholder pages — noindex until the
+    // real catalog lands.  Allows crawlers to follow links off-page so the
+    // merchant + region hubs still get discovered.
+    robots: { index: false, follow: true },
     alternates: { canonical: canonicalUrl },
     openGraph: {
       title: `${displayName} Products in ${regionLabel} | BuyWhere`,

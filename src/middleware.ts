@@ -356,12 +356,15 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
 
-  // BUY-55986: /about ranks for the brand query "buywhere" and cannibalises the homepage.
-  // 301 /about → / so Google consolidates ranking signals on the homepage.
+  // BUY-57869: /about previously 301'd to / (BUY-55986) which produced a soft-404
+  // signal in GSC because the destination was the homepage.  Returning 410 Gone
+  // signals permanent removal so Google de-indexes the URL faster than a redirect.
+  // (GSC showed 24 imp / 0 clk for /about at avg pos 3.1 — reclaim that.)
   if (normalizedForDead === "/about") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url, 301);
+    return new NextResponse(null, {
+      status: 410,
+      headers: { "Content-Type": "text/plain" },
+    });
   }
 
   // Dead Singapore product slug pages — thin-content pages (Google soft 404 bucket BUY-37750)
