@@ -568,12 +568,11 @@ async function handleGetDeals(args: Record<string, unknown>) {
     throw { code: -32603, message: 'Database unavailable' };
   });
   try {
-    // BUY-56185: reduced from 300s (5min) to 15s. A 5-minute hold on a pool
-    // connection during pool exhaustion starves search_products and find_best_price,
-    // causing cascading -32603 and hangs. With discount_pct index (happy path) this
-    // query completes in <1s; without it, the regex fallback on 14M rows is not worth
-    // a 5-minute hold — better to fail fast and let the next request retry.
-    await dealsClient.query('SET statement_timeout = 15000');
+    // BUY-56635: reduced from 15s to 8s. The idx_products_deals_country index
+    // (warmup) should satisfy this query in <1s; if it doesn't (e.g. index not
+    // yet created), a fast timeout avoids holding the pool connection and lets
+    // the caller receive a structured error rather than waiting 15s for -32603.
+    await dealsClient.query('SET statement_timeout = 8000');
     const countResult = await dealsClient.query(
       `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`,
       params
@@ -648,6 +647,7 @@ async function handleListCategories(args: Record<string, unknown>) {
         `SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`
       );
       let rows: Array<{ slug: string; name: string; product_count: number }>;
+      let unavailable = false;
       if (tableCheck.rows[0]?.tbl) {
         const summaryResult = await client.query(
           `SELECT slug, name, product_count
@@ -658,24 +658,32 @@ async function handleListCategories(args: Record<string, unknown>) {
           [country]
         );
         rows = summaryResult.rows;
+        // BUY-56635: materialized view exists but is empty for this country
+        // (REFRESH hasn't run yet or warmup missed it). Surface as unavailable
+        // rather than falling through to the 14M-row GROUP BY which always
+        // blows past the 8s statement_timeout and surfaces as -32603 to Tune.
+        if (rows.length === 0) unavailable = true;
       } else {
-        // Fallback GROUP BY — fast via idx_products_country_cat1 (sub-second with partial index)
-        const result = await client.query(
-          `SELECT category_path[1] AS slug,
-                  category_path[1] AS name,
-                  COUNT(*) AS product_count
-           FROM products
-           WHERE category_path[1] IS NOT NULL
-             AND country_code = $1
-           GROUP BY category_path[1]
-           ORDER BY product_count DESC
-           LIMIT 100`,
-          [country]
-        );
-        rows = result.rows;
+        // BUY-56635: materialized view doesn't exist yet (pre-warmup deploy).
+        // Return unavailable immediately — do NOT run the live GROUP BY on
+        // 14M+ rows here; it always exceeds statement_timeout and poisons the
+        // pool. The warmup job (mcpWarmup.ts) creates the view on startup.
+        unavailable = true;
+        rows = [];
       }
-      const data = { data: rows, meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false } };
-      redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
+      const meta: Record<string, unknown> = {
+        total: rows.length,
+        country_code: country,
+        response_time_ms: 0,
+        cached: false,
+      };
+      if (unavailable) meta.unavailable = true;
+      const data = { data: rows, meta };
+      // Only cache successful results; skip cache write when unavailable so the
+      // next request retries after the warmup job creates/refreshes the view.
+      if (!unavailable) {
+        redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
+      }
       return data;
     } finally {
       releaseClientSafely(client);
