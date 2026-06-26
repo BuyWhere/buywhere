@@ -403,9 +403,21 @@ export function middleware(request: NextRequest) {
     // No legacy remap: 301 to the canonical non-slash URL on the same origin.
     // Emit rel=canonical via Link header so GSC picks up the canonical signal
     // even if the destination page metadata is missing.
-    const url = request.nextUrl.clone();
-    url.pathname = nonSlashPath;
-    const tsResponse = NextResponse.redirect(url, 301);
+    // BUY-57663: build the redirect URL via `new URL(string)` rather than
+    // mutating `request.nextUrl.clone().pathname`.  Mutating pathname on the
+    // cloned NextURL can leak the original trailing slash into the Location
+    // header on some Next.js versions, producing an infinite 301→self loop
+    // (regression observed on Railway deploy).  Forcing a fresh URL from a
+    // canonical string guarantees the slash is stripped.
+    const canonicalHost = host || request.nextUrl.host || "buywhere.ai";
+    const canonicalProto =
+      (request.headers.get("x-forwarded-proto") || request.nextUrl.protocol.replace(":", ""))
+        .split(",")[0]
+        .trim() || "https";
+    const redirectUrl = new URL(
+      `${canonicalProto}://${canonicalHost}${nonSlashPath}${request.nextUrl.search}`
+    );
+    const tsResponse = NextResponse.redirect(redirectUrl, 301);
     tsResponse.headers.set("Link", `<https://buywhere.ai${nonSlashPath}>; rel="canonical"`);
     return tsResponse;
   }
