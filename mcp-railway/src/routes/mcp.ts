@@ -246,10 +246,13 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     params.push(region);
     conditions.push(`region = $${params.length}`);
   }
-  if (country) {
-    params.push(country.toUpperCase());
-    conditions.push(`country_code = $${params.length}`);
-  }
+  // BUY-57657: country_code is post-filtered on the candidate set instead of
+  // included in the WHERE clause. The (FTS + country_code) composite predicate
+  // causes the planner to pick a slow index under sustained load (observed
+  // 10-12s latency, hits statement_timeout). Fetching extra FTS candidates
+  // (overfetchMul multiplier) and filtering country_code in JS keeps latency
+  // at ~400ms via the partial GIN FTS index. Mirrors the browse-mode pattern.
+  const postCountryFilter = !!country;
   if (category) {
     params.push(`%${category}%`);
     conditions.push(`category ILIKE $${params.length}`);
@@ -348,7 +351,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           }
         } else {
           // Embed failed — fall through to keyword FTS
-          const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
+          // BUY-57657: increase over-fetch when post-filtering country_code.
+          const overfetchMul = postCountryFilter ? 30 : 10;
+          const CANDIDATE_LIMIT = Math.min((limit + offset) * overfetchMul, 8000);
           params.push(CANDIDATE_LIMIT, limit, offset);
           const result = await searchClient.query(
             `SELECT * FROM (
@@ -365,7 +370,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         }
       } else {
         // Keyword (FTS) path — BUY-31962 subquery pattern
-        const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
+        // BUY-57657: same over-fetch multiplier as the fallback path above.
+        const overfetchMul = postCountryFilter ? 30 : 10;
+        const CANDIDATE_LIMIT = Math.min((limit + offset) * overfetchMul, 8000);
         params.push(CANDIDATE_LIMIT, limit, offset);
         const result = await searchClient.query(
           `SELECT * FROM (
@@ -379,6 +386,16 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           params
         );
         rows = result.rows;
+        // BUY-57657: post-filter country_code on the small candidate set.
+        if (postCountryFilter) {
+          const countryUpper = country.toUpperCase();
+          rows = (rows as Record<string, unknown>[]).filter(
+            r => ((r.country_code as string) || '').toUpperCase() === countryUpper
+          );
+          // BUY-57657: total was the unfiltered count; after country filter we only
+          // know the post-filter count is bounded by the over-fetched candidate set.
+          total = rows.length;
+        }
       }
     } else {
       // No FTS — browse mode. Use reltuples for approximate total and fetch
