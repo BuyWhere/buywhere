@@ -32,6 +32,7 @@ from typing import Any, Optional
 import httpx
 
 from scrapers.scraper_registry import register
+from scrapers.proxy_config import Zone, proxy_url
 
 MERCHANT_ID = "carousell_sg"
 SOURCE = "carousell_sg"
@@ -40,10 +41,8 @@ OUTPUT_DIR = Path("/home/paperclip/buywhere-api/data/carousell-sg")
 API_INGEST_URL = "https://api.buywhere.ai/v1/ingest"
 
 # Brightdata residential proxy for Singapore (Carousell blocks ScraperAPI)
-BRIGHTDATA_PROXY = os.environ.get(
-    "BRIGHTDATA_RESIDENTIAL_PROXY",
-    "http://brd-customer-hl_3ab737be-zone-residential_proxy_01:0sdt2q30mo7f@brd.superproxy.io:22225"
-)
+# Uses centralized proxy_config to ensure correct zone credentials
+BRIGHTDATA_PROXY = os.environ.get("BRIGHTDATA_RESIDENTIAL_PROXY") or proxy_url(Zone.RESIDENTIAL_PROXY1)
 
 # Carousell SG categories to scrape
 CATEGORIES = [

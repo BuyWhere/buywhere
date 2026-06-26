@@ -1,8 +1,8 @@
 {
   "merchant_id": "carousell_sg",
-  "started_at": "2026-06-25T08:32:14Z",
-  "completed_at": "2026-06-25T08:34:16Z",
-  "duration_seconds": 121.7,
+  "started_at": "2026-06-26T08:15:04Z",
+  "completed_at": "2026-06-26T08:17:05Z",
+  "duration_seconds": 121.4,
   "categories_attempted": [
     "electronics-phones",
     "electronics-laptops",
@@ -57,5 +57,5 @@
   "concurrency": 6,
   "batch_size": 50,
   "page_limit": 5,
-  "output_file": "/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_1782376334542.jsonl"
+  "output_file": "/paperclip/instances/default/workspaces/476c8023-3635-45bb-9f71-db6f4f5700e1/buywhere-api/data/carousell-sg/products_1782461704222.jsonl"
 }

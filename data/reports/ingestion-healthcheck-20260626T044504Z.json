@@ -1,0 +1,112 @@
+{
+  "overall": "degraded",
+  "exit_code": 1,
+  "timestamp": "2026-06-26T04:45:04.905684+00:00",
+  "checks": 4,
+  "ok": 3,
+  "warnings": 1,
+  "critical": 0,
+  "results": [
+    {
+      "check": "api_health",
+      "status": "ok",
+      "message": "API healthy (latency: 57.0ms)",
+      "detail": {
+        "status": "ok",
+        "ts": "2026-06-26T04:45:02.217Z",
+        "fix": "BUY-14407-v1"
+      },
+      "timestamp": "2026-06-26T04:45:02.189870+00:00"
+    },
+    {
+      "check": "database",
+      "status": "ok",
+      "message": "DB healthy (38.3ms, 27966357 products)",
+      "detail": {
+        "latency_ms": 38.3,
+        "total_products": 27966357,
+        "zombie_runs": 0,
+        "running_runs": 1,
+        "stale_active_products": 17442144,
+        "runs_last_24h": {
+          "success": 0,
+          "failed": 19,
+          "total": 20
+        },
+        "zombie_sources": [],
+        "fresh_sources": [
+          {
+            "source": "chewy_us",
+            "count": 122527,
+            "last_updated": "2026-06-26 04:44:41.981277+00:00"
+          },
+          {
+            "source": "scout_gh_wave6_2026_06_26",
+            "count": 119924,
+            "last_updated": "2026-06-26 04:15:27.545072+00:00"
+          },
+          {
+            "source": "shopify",
+            "count": 53799,
+            "last_updated": "2026-06-26 02:01:53.532937+00:00"
+          },
+          {
+            "source": "scout_gh_wave2_2026_06_25",
+            "count": 44334,
+            "last_updated": "2026-06-25 23:05:53.164144+00:00"
+          },
+          {
+            "source": "scout_gh_2026_06_25",
+            "count": 43477,
+            "last_updated": "2026-06-25 21:13:22.847228+00:00"
+          },
+          {
+            "source": "spoonflower.com",
+            "count": 38535,
+            "last_updated": "2026-06-26 00:46:55.025299+00:00"
+          },
+          {
+            "source": "supertails.com",
+            "count": 30111,
+            "last_updated": "2026-06-25 10:06:34.209062+00:00"
+          },
+          {
+            "source": "frankiesbikinis.com",
+            "count": 25372,
+            "last_updated": "2026-06-25 22:01:11.477332+00:00"
+          },
+          {
+            "source": "scout_gh_wave4_2026_06_26",
+            "count": 16963,
+            "last_updated": "2026-06-26 01:28:56.048891+00:00"
+          },
+          {
+            "source": "scout_gh_wave3_2026_06_26",
+            "count": 12964,
+            "last_updated": "2026-06-26 01:28:56.048891+00:00"
+          }
+        ]
+      },
+      "timestamp": "2026-06-26T04:45:04.759298+00:00"
+    },
+    {
+      "check": "redis",
+      "status": "warning",
+      "message": "REDIS_URL not set, skipping",
+      "detail": null,
+      "timestamp": "2026-06-26T04:45:04.759322+00:00"
+    },
+    {
+      "check": "ingestion_success_rate",
+      "status": "ok",
+      "message": "Success rate: 99.8% (7d, 531794 runs)",
+      "detail": {
+        "total": 531794,
+        "success": 530670,
+        "failed": 1119,
+        "success_rate_pct": 99.8
+      },
+      "timestamp": "2026-06-26T04:45:04.905636+00:00"
+    }
+  ]
+}
