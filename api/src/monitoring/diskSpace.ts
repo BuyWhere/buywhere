@@ -6,9 +6,11 @@
  */
 
 import { exec } from 'child_process';
+import { existsSync } from 'fs';
+import { resolve } from 'path';
 import { promisify } from 'util';
 
-const execAsync = promisify(exec);
+const execAsync = promisify(exec) as unknown as (cmd: string, opts?: any) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
 
 // Thresholds in bytes
 export const WARN_THRESHOLD_GB = 20;
@@ -235,5 +237,87 @@ export async function markAlertSent(severity: 'warning' | 'critical', redis: any
     await redis.set(key, new Date().toISOString(), 'EX', 86400); // 24 hour TTL
   } catch (err) {
     console.error('[disk-space] Error marking alert sent:', err);
+  }
+}
+// BUY-57674: WC cycle artifact cleanup
+export interface ArtifactCleanupResult {
+  success: boolean;
+  scannedCount: number;
+  removedCount: number;
+  reclaimedKb: number;
+  alertRequired: boolean;
+  error?: string;
+}
+
+/**
+ * Run the worker node artifact cleanup script.
+ * Script prunes orphaned WC cycle ndjson files, stale pid/heartbeat files, old logs.
+ *
+ * @param apply - If true, actually delete files; otherwise dry-run
+ * @param retentionHours - Delete artifacts older than this many hours (default: 48)
+ */
+export async function runArtifactCleanup(
+  apply: boolean = false,
+  retentionHours: number = 48
+): Promise<ArtifactCleanupResult> {
+  const cleanupScriptPath = resolve(__dirname, '../../../../scripts/buy-53114-worker-node-artifact-cleanup.sh');
+
+  if (!existsSync(cleanupScriptPath)) {
+    return {
+      success: false,
+      scannedCount: 0,
+      removedCount: 0,
+      reclaimedKb: 0,
+      alertRequired: false,
+      error: `Cleanup script not found at: ${cleanupScriptPath}`,
+    };
+  }
+
+  const applyFlag = apply ? '1' : '0';
+  const reportPath = process.env.ARTIFACT_CLEANUP_REPORT_PATH || '/tmp/artifact_cleanup_report.json';
+
+  try {
+    const { stdout, stderr, exitCode } = await execAsync(
+      `WORKSPACES_ROOT="${process.env.WORKSPACES_ROOT || '/paperclip/instances/default/workspaces'}" ` +
+      `APPLY=${applyFlag} ` +
+      `DISK_ARTIFACT_RETENTION_DAYS=${Math.ceil(retentionHours / 24)} ` +
+      `REPORT_PATH="${reportPath}" ` +
+      `bash "${cleanupScriptPath}"`,
+      { timeout: 300_000 } // 5 min timeout
+    );
+
+    // Read the JSON report if it was written
+    try {
+      const { readFile } = await import('fs/promises');
+      const reportContent = await readFile(reportPath, 'utf-8');
+      const report = JSON.parse(reportContent);
+      return {
+        success: exitCode === 0,
+        scannedCount: report.scanned_count || 0,
+        removedCount: report.removed_count || 0,
+        reclaimedKb: report.reclaimed_kb || 0,
+        alertRequired: report.alert_required === 1,
+        error: exitCode !== 0 ? `Script exited with code ${exitCode}` : undefined,
+      };
+    } catch {
+      // Report file not available, return basic info from exit code
+      return {
+        success: exitCode === 0,
+        scannedCount: 0,
+        removedCount: 0,
+        reclaimedKb: 0,
+        alertRequired: false,
+        error: exitCode !== 0 ? `Script exited with code ${exitCode}` : undefined,
+      };
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      scannedCount: 0,
+      removedCount: 0,
+      reclaimedKb: 0,
+      alertRequired: false,
+      error: err.message || String(err),
+    };
   }
 }
