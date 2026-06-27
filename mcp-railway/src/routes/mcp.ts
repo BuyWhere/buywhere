@@ -275,7 +275,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
     // complete within 12s via GIN index; anything longer signals plan regression or
     // pool exhaustion. Failing fast prevents cascading connection starvation.
-    await searchClient.query('SET statement_timeout = 12000');
+    await searchClient.query('SET statement_timeout = 18000'); // BUY-58015: bumped for cold-cache US partition
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
     const COUNT_CAP = 1001;
     if (q) {
@@ -504,7 +504,10 @@ async function handleCompareProducts(args: Record<string, unknown>) {
 async function handleGetDeals(args: Record<string, unknown>) {
   const t0 = Date.now();
   const minDiscount = Number(args.min_discount) || 10;
-  const currency = ((args.currency as string) || 'SGD').toUpperCase();
+  // BUY-58015: infer currency from country_code when not explicitly set.
+  const explicitCurrency = ((args.currency as string) || '').toUpperCase();
+  const dealsCountry = ((args.country_code as string) || (args.country as string) || '').toUpperCase();
+  const currency = explicitCurrency || (dealsCountry ? (COUNTRY_CURRENCY[dealsCountry] || 'SGD') : 'SGD');
   const region = (args.region as string) || '';
   const country = ((args.country_code as string) || (args.country as string) || '').toUpperCase();
   const limit = Math.min(Number(args.limit) || 20, 100);
@@ -572,7 +575,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // (warmup) should satisfy this query in <1s; if it doesn't (e.g. index not
     // yet created), a fast timeout avoids holding the pool connection and lets
     // the caller receive a structured error rather than waiting 15s for -32603.
-    await dealsClient.query('SET statement_timeout = 8000');
+    await dealsClient.query('SET statement_timeout = 20000'); // BUY-58015: bumped for cold-cache US partition
     const countResult = await dealsClient.query(
       `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`,
       params
@@ -605,7 +608,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
 
   const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
 
-  redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
+  redis.set(cacheKey, JSON.stringify(result), 'EX', 300).catch(() => {}); // BUY-58015: bumped TTL
 
   return result;
 }
@@ -736,7 +739,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const bestPriceClient = await db.connect();
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 10000');
+    await bestPriceClient.query('SET statement_timeout = 12000'); // BUY-58015: bumped for cold-cache
     result = await bestPriceClient.query(
       `SELECT * FROM (
          SELECT id, title, price, currency, source AS domain, url, image_url,
