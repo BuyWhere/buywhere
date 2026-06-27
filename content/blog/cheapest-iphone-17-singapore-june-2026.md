@@ -1,7 +1,7 @@
 ---
 slug: "cheapest-iphone-17-singapore-june-2026"
 title: "Cheapest iPhone 17 in Singapore — June 2026 Pricing Compared"
-description: "Compare iPhone 17, iPhone 17 Air, and iPhone 17 Pro prices across Shopee, Lazada, Amazon.sg, Apple Store SG, Challenger, Courts, Harvey Norman, and Best Denki. Find the cheapest iPhone 17 in Singapore for June 2026."
+description: "iPhone 17 prices compared across 8 Singapore retailers. Find the cheapest iPhone 17, 17 Air, and 17 Pro from Apple Store, Shopee, and Lazada. Updated June 2026."
 author: "BuyWhere Team"
 publishedAt: "2026-06-18"
 tags: ["iphone", "iphone-17", "singapore", "pricing", "comparison", "apple"]
