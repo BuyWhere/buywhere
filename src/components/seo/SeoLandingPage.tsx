@@ -196,28 +196,28 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
           </div>
         </section>
 
-        {config.roombaIntro && (
+        {config.categoryIntro && (
           <section className="py-12">
             <div className="mx-auto max-w-6xl px-4 sm:px-6">
               <div className="rounded-[28px] border border-amber-100 bg-amber-50/60 p-8 sm:p-10">
                 <h2 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
-                  {config.roombaIntro.heading}
+                  {config.categoryIntro.heading}
                 </h2>
                 <p className="mt-4 max-w-4xl text-base leading-7 text-slate-700">
-                  {config.roombaIntro.body}
+                  {config.categoryIntro.body}
                 </p>
               </div>
             </div>
           </section>
         )}
 
-        {config.roombaComparisonRows && config.roombaComparisonRows.length > 0 && (
+        {config.categoryComparisonRows && config.categoryComparisonRows.length > 0 && (
           <section className="py-12">
             <div className="mx-auto max-w-6xl px-4 sm:px-6">
               <div className="max-w-3xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">iRobot Roomba</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">{config.categoryComparisonEyebrow || "Featured models"}</p>
                 <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
-                  {config.roombaComparisonTitle || "Roomba models compared"}
+                  {config.categoryComparisonTitle || "Models compared"}
                 </h2>
               </div>
               <div className="mt-8 overflow-hidden rounded-[28px] border border-slate-200 shadow-sm">
@@ -225,7 +225,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                   <table className="min-w-full bg-white text-left text-sm text-slate-700">
                     <thead className="bg-slate-900 text-xs uppercase tracking-[0.18em] text-slate-200">
                       <tr>
-                        {(config.roombaComparisonColumns || Object.keys(config.roombaComparisonRows[0])).map((column) => (
+                        {(config.categoryComparisonColumns || Object.keys(config.categoryComparisonRows[0])).map((column) => (
                           <th key={column} className="px-4 py-4 font-semibold">
                             {column}
                           </th>
@@ -233,9 +233,9 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                       </tr>
                     </thead>
                     <tbody>
-                      {config.roombaComparisonRows.map((row, index) => (
-                        <tr key={`${row[config.roombaComparisonColumns?.[0] || Object.keys(row)[0]]}-${index}`} className="border-t border-slate-100">
-                          {(config.roombaComparisonColumns || Object.keys(row)).map((column) => (
+                      {config.categoryComparisonRows.map((row, index) => (
+                        <tr key={`${row[config.categoryComparisonColumns?.[0] || Object.keys(row)[0]]}-${index}`} className="border-t border-slate-100">
+                          {(config.categoryComparisonColumns || Object.keys(row)).map((column) => (
                             <td key={column} className="px-4 py-4 align-top">
                               {row[column]}
                             </td>

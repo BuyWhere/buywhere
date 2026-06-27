@@ -85,15 +85,16 @@ export type SeoLandingPageConfig = {
   shopperCta?: Cta;
   developerCta?: Cta;
   fallbackProducts: LandingProduct[];
-  /** Roomba-specific intro paragraph shown before the comparison section */
-  roombaIntro?: {
+  /** Category-specific intro paragraph shown before the comparison section */
+  categoryIntro?: {
     heading: string;
     body: string;
   };
-  /** Dedicated Roomba/iRobot comparison table */
-  roombaComparisonTitle?: string;
-  roombaComparisonColumns?: string[];
-  roombaComparisonRows?: ComparisonRow[];
+  /** Dedicated category comparison table (e.g. "iRobot Roomba" or "Budget QLED TVs") */
+  categoryComparisonEyebrow?: string;
+  categoryComparisonTitle?: string;
+  categoryComparisonColumns?: string[];
+  categoryComparisonRows?: ComparisonRow[];
   /** Render RelatedCategoryBlock on this page */
   showRelatedCategory?: boolean;
 };
@@ -722,13 +723,14 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       { id: "r5", name: "eufy X10 Pro Omni", price: 799, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=eufy+X10+Pro+Omni&country=us", brand: "eufy", category: "Robot Vacuums" },
       { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
     ],
-    roombaIntro: {
+    categoryIntro: {
       heading: "Roomba Sale 2026 — iRobot's Best Deals Right Now",
       body: "The iRobot Roomba lineup spans from budget-friendly models like the Roomba i3 EVO (typically $249–$299 on sale) to premium self-mapping robots like the Roomba Combo j9+ ($999 MSRP, often $599–$699 during sales). Roomba sales peak during Amazon Prime Day (July), Black Friday (November), and holiday weekends, with discounts of 15–40% off MSRP. You can find Roomba deals at Amazon, Best Buy, Walmart, Costco, and directly on iRobot.com. The key models to watch in 2026 include the Roomba j7+ (AI obstacle avoidance), Roomba Combo j5+ (vacuum and mop), Roomba s9+ (premium suction), and the flagship Roomba Combo j9+ with automatic self-emptying and mopping. If you're comparing Roomba to competitors like Roborock or Shark, Roomba stands out for its superior pet-hair pickup, intuitive app, and broad retail availability — though Roborock often wins on mopping performance and runtime.",
     },
-    roombaComparisonTitle: "iRobot Roomba models compared — 2026 sale prices",
-    roombaComparisonColumns: ["Model", "Sale Price", "MSRP", "Self-Empty", "Mop", "Best For"],
-    roombaComparisonRows: [
+    categoryComparisonEyebrow: "iRobot Roomba",
+    categoryComparisonTitle: "iRobot Roomba models compared — 2026 sale prices",
+    categoryComparisonColumns: ["Model", "Sale Price", "MSRP", "Self-Empty", "Mop", "Best For"],
+    categoryComparisonRows: [
       { Model: "iRobot Roomba Combo j9+", "Sale Price": "$599–$699", MSRP: "$999", "Self-Empty": "Yes", Mop: "Yes", "Best For": "Best overall Roomba" },
       { Model: "iRobot Roomba j7+", "Sale Price": "$349–$449", MSRP: "$599", "Self-Empty": "Yes", Mop: "No", "Best For": "Best for pet owners" },
       { Model: "iRobot Roomba Combo j5+", "Sale Price": "$349–$399", MSRP: "$529", "Self-Empty": "Yes", Mop: "Yes", "Best For": "Best mid-range Roomba" },
@@ -742,17 +744,17 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     slug: "airpods-singapore",
     title: "Best AirPods Deals in Singapore 2026 | Compare Prices Across SG Retailers",
     description:
-      "Find the best AirPods deals in Singapore with live BuyWhere prices, retailer comparisons, and buying advice across Apple, Shopee, Lazada, Courts, and Challenger.",
+      "AirPods price in Singapore 2026: AirPods Pro 2 from S$339, AirPods 4 from S$189, AirPods Max from S$699. Live SG prices across Apple Store, Shopee, Lazada, Courts, and Challenger with voucher stacking tips.",
     heroEyebrow: "Singapore Audio Guide",
     heroTitle: "Best AirPods Deals in Singapore",
     heroBody:
-      "AirPods are among the most searched audio products in Singapore. This page combines the latest AirPods deals across Apple Store, Shopee, Lazada, and local electronics retailers with practical buying guidance so you can find the lowest real price.",
+      "AirPods Pro 2, AirPods 4, and AirPods Max all have official Singapore prices and parallel-import deals on Shopee Mall and LazMall. We track AirPods prices across Apple Store, Shopee, Lazada, Courts, and Challenger so you can find the lowest real price during 5.5, 9.9, 11.11, and 12.12 campaigns.",
     canonicalPath: "/airpods-singapore",
     country: "SG",
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "AirPods",
-    refreshedLabel: "Updated May 4, 2026",
+    refreshedLabel: "Updated June 27, 2026",
     productSectionTitle: "Live AirPods offers across Singapore",
     comparisonSectionTitle: "Popular AirPods picks at a glance",
     comparisonColumns: ["Model", "Price", "Battery", "ANC", "Best For"],
@@ -761,44 +763,83 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       { Model: "AirPods 4", Price: "S$199", Battery: "5h", ANC: "No", "Best For": "Best value" },
       { Model: "AirPods Max", Price: "S$699", Battery: "20h", ANC: "Yes", "Best For": "Best over-ear" },
     ],
+    categoryIntro: {
+      heading: "AirPods price in Singapore 2026 — AirPods Pro 2, AirPods 4, AirPods Max compared",
+      body: "AirPods pricing in Singapore is split between Apple Store Official at RRP and Shopee Mall and LazMall authorised resellers at 10 to 20 percent below. As of mid-2026, AirPods Pro 2 sells for S$349 at Apple Store and from S$339 on Shopee with vouchers. AirPods 4 starts at S$199 at Apple Store and drops to S$189 on Courts during non-campaign weeks. AirPods Max remains at S$699 RRP with limited campaign discount. The cheapest weeks are 5.5 (May), 9.9 (September), 11.11 (November), and 12.12 (December), when Shopee and Lazada stack vouchers for an extra S$40 to S$80 off. BuyWhere tracks Apple Store, Shopee, Lazada, Courts, Challenger, and Harvey Norman prices every hour so you can see when each model hits its lowest real price.",
+    },
+    categoryComparisonEyebrow: "AirPods SG tracker",
+    categoryComparisonTitle: "AirPods Singapore price tracker (live across 6 retailers)",
+    categoryComparisonColumns: ["Model", "Apple Store", "Shopee Mall", "LazMall", "Courts", "Challenger", "Best SG Price"],
+    categoryComparisonRows: [
+      { Model: "AirPods Pro 2 (USB-C)", "Apple Store": "S$349", "Shopee Mall": "S$339", "LazMall": "S$339", "Courts": "S$349", "Challenger": "S$349", "Best SG Price": "S$339" },
+      { Model: "AirPods 4 (no ANC)", "Apple Store": "S$199", "Shopee Mall": "S$189", "LazMall": "S$189", "Courts": "S$189", "Challenger": "S$199", "Best SG Price": "S$189" },
+      { Model: "AirPods 4 ANC", "Apple Store": "S$279", "Shopee Mall": "S$259", "LazMall": "S$259", "Courts": "S$269", "Challenger": "S$279", "Best SG Price": "S$259" },
+      { Model: "AirPods Max (USB-C, 2024)", "Apple Store": "S$699", "Shopee Mall": "S$679", "LazMall": "S$679", "Courts": "S$699", "Challenger": "S$699", "Best SG Price": "S$679" },
+      { Model: "AirPods Pro 2 MagSafe Case", "Apple Store": "S$379", "Shopee Mall": "S$359", "LazMall": "S$359", "Courts": "S$369", "Challenger": "S$379", "Best SG Price": "S$359" },
+    ],
     highlightSectionTitle: "What Singapore buyers check before buying",
     highlights: [
       {
         title: "Apple Store vs marketplace pricing",
-        body: "Apple Store Official sells at fixed RRP. Shopee Mall and LazMall often undercut Apple pricing by 10-20% during campaign windows.",
+        body: "Apple Store Official sells at fixed RRP (AirPods Pro 2 at S$349, AirPods 4 at S$199, AirPods Max at S$699). Shopee Mall and LazMall often undercut Apple pricing by S$10 to S$60 during non-campaign weeks and S$40 to S$80 during 5.5, 9.9, 11.11, and 12.12.",
       },
       {
         title: "Warranty matters for AirPods",
-        body: "Verify the seller is an Apple Authorised Reseller. Non-authorised gray-market units may not be covered by Apple Singapore warranty.",
+        body: "Verify the seller is an Apple Authorised Reseller. Apple Singapore warranty on AirPods is one year. Non-authorised gray-market units bought from individual Shopee sellers may not be covered, even if the box is sealed.",
       },
       {
         title: "Campaign vouchers move prices",
-        body: "5.5, 9.9, 11.11, and 12.12 usually deliver the lowest AirPods prices on Shopee and Lazada through stackable vouchers.",
+        body: "5.5 (May), 9.9 (September), 11.11 (November), and 12.12 (December) usually deliver the lowest AirPods prices on Shopee and Lazada. Stack platform vouchers with shop vouchers and free-shipping coupons for an extra S$30 to S$80 off the listed price.",
+      },
+      {
+        title: "AirPods Pro 2 vs AirPods 4 — what is the real difference",
+        body: "AirPods Pro 2 add Active Noise Cancellation, Adaptive Transparency, and silicone tips (3 sizes). AirPods 4 ANC adds ANC but keeps the open design. AirPods Pro 2 at S$349 is the right pick for commuters; AirPods 4 at S$199 is the right pick if you do not need ANC.",
+      },
+      {
+        title: "AirPods Max is a niche buy in 2026",
+        body: "At S$699 RRP, AirPods Max is more than double the price of AirPods Pro 2. The 2024 USB-C refresh added lossless audio over USB-C and refreshed colors, but weight (385g) is the main complaint. Skip AirPods Max unless you specifically want over-ear ANC from Apple.",
       },
     ],
-    adviceSectionTitle: "How to choose the right AirPods",
+    adviceSectionTitle: "How to choose the right AirPods in Singapore",
     advicePoints: [
-      "For commuters and office workers, AirPods Pro 2 with ANC is the best everyday choice.",
-      "If you do not need noise cancellation, AirPods 4 deliver solid audio at a lower price point.",
-      "Check whether the listing includes international warranty or only local Apple Singapore coverage.",
-      "Marketplace prices during 5.5, 9.9, and 11.11 can beat Apple Store by S$40 to S$80 or more.",
+      "For iPhone commuters, AirPods Pro 2 at S$349 is the right pick — best ANC, best call quality, tight Apple ecosystem integration.",
+      "If you do not need ANC, AirPods 4 at S$199 delivers solid audio at a noticeably lower price. AirPods 4 ANC at S$279 is the middle ground if you want noise cancellation without silicone tips.",
+      "AirPods Max at S$699 is for Apple users who specifically want over-ear ANC from Apple. For over-ear at lower weight, look at Sony WH-1000XM5 or Bose QC Ultra on Lazada instead.",
+      "Buy from Apple Store or Apple Authorised Resellers (Shopee Mall, LazMall, Courts, Challenger) to keep the one-year Apple Singapore warranty valid. Avoid individual marketplace sellers at prices significantly below market.",
+      "Stack vouchers during 5.5, 9.9, 11.11, and 12.12: a S$349 AirPods Pro 2 with platform voucher, shop voucher, and free-shipping coupon can drop to S$269 to S$289 effective price.",
+      "Compare total cost, not just sticker: factor in the optional AppleCare+ for Headphones (S$59 to S$99) which covers battery service and one incident of accidental damage per year.",
     ],
     faqSectionTitle: "AirPods Singapore FAQ",
     faqs: [
       {
         question: "Where is the cheapest place to buy AirPods in Singapore?",
         answer:
-          "Shopee Mall and LazMall authorised resellers often have the lowest AirPods prices during campaign days (5.5, 9.9, 11.11). Apple Store is more consistent but rarely the cheapest.",
+          "Shopee Mall and LazMall authorised resellers often have the lowest AirPods prices during campaign days (5.5, 9.9, 11.11, 12.12). Off-season, Courts and Challenger match Shopee within S$10 to S$20. Apple Store is the most consistent but rarely the cheapest.",
       },
       {
         question: "Is AirPods Pro 2 worth buying in 2026?",
         answer:
-          "Yes. AirPods Pro 2 remains the best wireless earbuds for iPhone users in 2026 with excellent ANC, transparency mode, and tight Apple ecosystem integration.",
+          "Yes. AirPods Pro 2 remains the best wireless earbuds for iPhone users in 2026 with excellent ANC, transparency mode, conversation awareness, and tight Apple ecosystem integration. The 2023 USB-C update added lossless audio and IP54 rating.",
       },
       {
         question: "How do I verify AirPods are genuine in Singapore?",
         answer:
-          "Buy from Apple Store, Apple Authorised Resellers, or verified Shopee Mall / LazMall stores. Avoid unbranded marketplace sellers at prices significantly below market.",
+          "Buy from Apple Store, Apple Authorised Resellers, or verified Shopee Mall / LazMall stores. Check for the Apple Singapore warranty card in the box. Avoid unbranded marketplace sellers at prices significantly below market — gray-market units may lack warranty or be counterfeit.",
+      },
+      {
+        question: "When is the cheapest time to buy AirPods in Singapore?",
+        answer:
+          "5.5 (May), 9.9 (September), 11.11 (November), and 12.12 (December) campaign days on Shopee and Lazada deliver the lowest AirPods prices. AirPods Pro 2 has dropped to S$269 during 11.11 with stacked vouchers. Off-season, look for back-to-school (July) and Chinese New Year (January/February) sales on Courts and Challenger.",
+      },
+      {
+        question: "Should I buy AirPods 4 or AirPods Pro 2?",
+        answer:
+          "AirPods Pro 2 at S$349 if you want ANC, silicone tip fit, and the best call quality. AirPods 4 ANC at S$279 if you want ANC but prefer the open fit. AirPods 4 at S$199 if you do not need ANC at all and want the lowest price.",
+      },
+      {
+        question: "Does Apple Singapore cover international warranty on AirPods?",
+        answer:
+          "Yes. Apple Singapore provides a one-year warranty on AirPods bought from Apple Store Singapore or Apple Authorised Resellers. AirPods bought from parallel importers may not be covered. BuyWhere tags each listing with the warranty type so you can filter for Apple Singapore warranty only.",
       },
     ],
     shopperCta: {
@@ -814,13 +855,15 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "ap1", name: "Apple AirPods Pro 2", price: 349, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=AirPods+Pro+2&country=sg", brand: "Apple", category: "Audio" },
+      { id: "ap1", name: "Apple AirPods Pro 2 (USB-C)", price: 349, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=AirPods+Pro+2&country=sg", brand: "Apple", category: "Audio" },
       { id: "ap2", name: "Apple AirPods 4", price: 199, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=AirPods+4&country=sg", brand: "Apple", category: "Audio" },
-      { id: "ap3", name: "Apple AirPods Max", price: 699, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=AirPods+Max&country=sg", brand: "Apple", category: "Audio" },
-      { id: "ap4", name: "Apple AirPods Pro 2", price: 339, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=AirPods+Pro+2&country=sg", brand: "Apple", category: "Audio" },
-      { id: "ap5", name: "Apple AirPods 4", price: 189, currency: "SGD", merchant: "Courts", imageUrl: null, href: "/search?q=AirPods+4&country=sg", brand: "Apple", category: "Audio" },
+      { id: "ap3", name: "Apple AirPods Max (USB-C, 2024)", price: 699, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=AirPods+Max&country=sg", brand: "Apple", category: "Audio" },
+      { id: "ap4", name: "Apple AirPods Pro 2 MagSafe Case", price: 379, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=AirPods+Pro+2+MagSafe&country=sg", brand: "Apple", category: "Audio" },
+      { id: "ap5", name: "Apple AirPods 4 ANC", price: 279, currency: "SGD", merchant: "Courts", imageUrl: null, href: "/search?q=AirPods+4+ANC&country=sg", brand: "Apple", category: "Audio" },
+      { id: "ap6", name: "Apple AirPods 4", price: 189, currency: "SGD", merchant: "Challenger", imageUrl: null, href: "/search?q=AirPods+4&country=sg", brand: "Apple", category: "Audio" },
     ],
   },
+
   "best-gaming-laptop-singapore": {
     slug: "best-gaming-laptop-singapore",
     title: "Best Gaming Laptop Price & Sales in Singapore 2026 — Compare ROG, Legion, Predator",
@@ -8872,68 +8915,94 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
 
   "best-qled-tvs-us": {
     slug: "best-qled-tvs-us",
-    title: "Best QLED TVs in the US 2026",
-    description: "Compare Samsung QN90D, TCL QM8, Hisense U8N. Find the best QLED TV for bright rooms and HDR content.",
-    heroEyebrow: "US Shopping Guide",
+    title: "Best QLED TVs US 2026: Samsung, TCL, Hisense Compared",
+    description: "Best QLED TVs in 2026: Samsung QN85D/QN90D from $797, TCL QM8 from $799, Hisense U7N/U8N from $598. Compare sizes, brightness, HDR, and live US prices across Amazon, Best Buy, Walmart.",
+    heroEyebrow: "US TV Buying Guide",
     heroTitle: "Best QLED TVs in the US 2026",
-    heroBody: "Compare Samsung QN90D, TCL QM8, Hisense U8N. Find the best QLED TV for bright rooms and HDR content.",
+    heroBody: "Shopping for the best QLED TV in 2026? Samsung, TCL, and Hisense dominate the category from $598 to $2,797. We compare the Samsung QN85D and QN90D, TCL QM8 and Q6 QLED, and Hisense U7N and U8N with live prices, screen sizes, peak brightness, and HDR performance so you can find the right QLED for bright rooms, gaming, or movies.",
     canonicalPath: "/best-qled-tvs-us",
     country: "US" as const,
     currency: "USD" as const,
     locale: "en_US" as const,
-    searchQuery: "QLED TVs",
-    refreshedLabel: "Updated May 7, 2026",
-    productSectionTitle: "Live QLED TVs offers across the US",
-    comparisonSectionTitle: "Popular QLED TVs picks at a glance",
-    comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
+    searchQuery: "QLED TV",
+    refreshedLabel: "Updated June 27, 2026",
+    productSectionTitle: "Live QLED TV deals across the US",
+    comparisonSectionTitle: "Best QLED TVs 2026 — side-by-side",
+    comparisonColumns: ["Model", "Screen Size", "Price", "Peak Brightness", "Where to Buy"],
     comparisonRows: [
-      { Model: "Top Pick QLED TVs A", Price: "$299", Merchant: "Amazon", Rating: "4.6/5" },
-      { Model: "Runner-up QLED TVs B", Price: "$349", Merchant: "Best Buy", Rating: "4.5/5" },
-      { Model: "Value Pick QLED TVs C", Price: "$249", Merchant: "Walmart", Rating: "4.3/5" },
+      { Model: "Hisense U8N / U8 Series QLED Mini-LED", Screen: "55-85 in", Price: "$598-$1,297", Brightness: "3,000 nits", Merchant: "Amazon, Best Buy, Walmart" },
+      { Model: "Hisense U7N / U7 Series QLED Mini-LED", Screen: "55-75 in", Price: "$498-$898", Brightness: "1,500 nits", Merchant: "Amazon, Best Buy, Walmart" },
+      { Model: "Samsung QN85D / QN85 QLED 4K", Screen: "55-85 in", Price: "$797-$1,797", Brightness: "1,500 nits", Merchant: "Amazon, Best Buy, Samsung" },
+      { Model: "Samsung QN90D / QN90 QLED 4K", Screen: "55-85 in", Price: "$1,297-$2,797", Brightness: "2,000 nits", Merchant: "Amazon, Best Buy, Samsung" },
+      { Model: "TCL QM8 QLED 4K Mini-LED", Screen: "55-85 in", Price: "$799-$1,499", Brightness: "2,000 nits", Merchant: "Amazon, Best Buy, Walmart" },
+      { Model: "TCL Q6 / Q-Class QLED 4K", Screen: "55-75 in", Price: "$398-$698", Brightness: "600 nits", Merchant: "Amazon, Walmart, Best Buy" },
+      { Model: "Amazon Fire TV Omni QLED", Screen: "43-75 in", Price: "$319-$799", Brightness: "600 nits", Merchant: "Amazon" },
     ],
-    highlightSectionTitle: "What US buyers check before buying",
+    categoryIntro: {
+      heading: "Best QLED TVs in 2026 — Samsung vs TCL vs Hisense",
+      body: "QLED TVs in 2026 split into three clear value tiers. Under $700, the TCL Q6 and Amazon Fire TV Omni QLED are the strongest picks, both Quantum Dot with Google TV or Fire TV built in. From $700 to $1,200, the Hisense U7N and U8N deliver Mini-LED backlighting and 1,500 to 3,000 nits peak brightness that beat most Samsung sets at the same price. Above $1,200, Samsung QN85D and QN90D remain the gold standard for color volume and gaming HDMI 2.1 ports, though Hisense U8N often matches them on brightness at $500 less. All seven models above use Quantum Dot film for wider color, all are available across Amazon, Best Buy, and Walmart, and all drop 20 to 35 percent during Amazon Prime Day in July and Black Friday in late November.",
+    },
+    categoryComparisonEyebrow: "QLED by size",
+    categoryComparisonTitle: "Best QLED TVs by screen size (55 / 65 / 75-inch)",
+    categoryComparisonColumns: ["Size", "Best Value", "Best Mid-Range", "Best Premium"],
+    categoryComparisonRows: [
+      { Size: "55-inch", "Best Value": "TCL Q6 QLED ($398)", "Best Mid-Range": "Hisense U7N ($598)", "Best Premium": "Samsung QN85D ($997)" },
+      { Size: "65-inch", "Best Value": "Fire TV Omni QLED ($549)", "Best Mid-Range": "Hisense U8N ($897)", "Best Premium": "Samsung QN90D ($1,497)" },
+      { Size: "75-inch", "Best Value": "TCL Q6 QLED ($698)", "Best Mid-Range": "TCL QM8 Mini-LED ($1,199)", "Best Premium": "Samsung QN90D ($1,997)" },
+      { Size: "85-inch", "Best Value": "Hisense U7N ($1,498)", "Best Mid-Range": "Hisense U8N ($1,797)", "Best Premium": "Samsung QN90D ($2,797)" },
+    ],
+    highlightSectionTitle: "What to check before buying a QLED TV in 2026",
     highlights: [
-      { title: "Price across major retailers", body: "Prices vary between Amazon, Best Buy, Walmart, Target, and manufacturer stores. BuyWhere shows you every option in one search for QLED TVs." },
-      { title: "Seasonal sales windows", body: "Prime Day, Black Friday, Cyber Monday, Presidents Day, and Memorial Day are the strongest US discount windows." },
-      { title: "Authenticity and warranty", body: "Buy from authorized sellers to maintain manufacturer warranty. Amazon Marketplace and third-party sellers may not qualify." },
+      { title: "Mini-LED matters more than Quantum Dot", body: "Quantum Dot film gives a QLED TV its wider color. Mini-LED backlighting — found on Hisense U7N, U8N, Samsung QN85D, QN90D, and TCL QM8 — adds hundreds or thousands of local dimming zones for better contrast. Skip Mini-LED and you get washed-out dark scenes on a $700 QLED." },
+      { title: "Peak brightness separates real HDR from marketing", body: "Genuine HDR (Dolby Vision, HDR10+) needs at least 1,000 nits peak brightness. TCL Q6 and Fire TV Omni QLED top out near 600 nits — fine for daytime TV, weak for HDR movies. Hisense U8N at 3,000 nits is the brightest mainstream QLED in 2026." },
+      { title: "Gamers need HDMI 2.1 with 4K 120Hz", body: "PS5 and Xbox Series X output 4K at 120Hz but only on HDMI 2.1 ports with ALLM and VRR. Samsung QN85D and QN90D have 4 HDMI 2.1 ports. Hisense U7N and U8N have 2. TCL Q6 only has 1 — fine for casual gaming, weak for a dedicated console setup." },
+      { title: "Buy during Prime Day or Black Friday for 20-35% off", body: "QLED prices drop sharply during Amazon Prime Day in July, Black Friday in late November, and Super Bowl week in late January. Samsung QN90D typically falls from $1,997 to $1,397 during Black Friday. Hisense U8N drops from $1,297 to $897 on Prime Day. Off-season, Walmart undercuts Amazon by $30 to $80." },
+      { title: "55 to 65 inches is the sweet spot in 2026", body: "A 75-inch QLED still costs $1,200 to $2,000. For most living rooms, a 65-inch QLED delivers the best balance of price and immersion. BuyWhere shows per-inch cost so you can spot which size has the steepest QLED panel premium." },
     ],
-    adviceSectionTitle: "How to choose the right QLED TVs",
+    adviceSectionTitle: "How to choose the right QLED TV in 2026",
     advicePoints: [
-      "Start with your budget. In most categories, spending $100-300 gets you a quality product that will last 3-5 years.",
-      "Check return policies before buying. Major retailers offer free returns within 30 days.",
-      "Read verified buyer reviews focusing on 6-month+ ownership reviews to gauge long-term reliability.",
+      "Set your budget first: $400 to $700 gets a Quantum Dot set without Mini-LED (TCL Q6, Fire TV Omni QLED). $700 to $1,200 unlocks Mini-LED with real HDR (Hisense U7N, U8N, TCL QM8). Above $1,200 is Samsung territory for the widest color volume.",
+      "Pick screen size by viewing distance: 6 to 8 feet needs 55 inches; 8 to 10 feet needs 65 inches; 10 to 12 feet needs 75 inches; 12+ feet needs 85 inches. Bigger is not always better at this category — a 75-inch QLED at $1,200 is the same panel tech as a 65-inch at $997.",
+      "Match the smart platform to your streaming habits: Fire TV (Alexa and Prime Video) on Omni QLED; Google TV on Hisense and TCL; Tizen on Samsung. All free, all support Netflix, Disney Plus, HBO Max, and YouTube.",
+      "Check HDMI 2.1 port count for gaming: Samsung QN85D and QN90D have 4 HDMI 2.1 ports; Hisense U7N and U8N have 2; TCL Q6 and Fire TV Omni QLED have 1. PC gamers using both console and PC should look for Samsung.",
+      "Buy during Amazon Prime Day in July or Black Friday in November for 20 to 35 percent off. Off-season, Walmart undercuts Amazon by $30 to $80 on the same Hisense and TCL QLED sets.",
+      "Compare total cost, not just sticker: factor in Geek Squad delivery ($99 to $199) and a 3-year protection plan ($50 to $100). A QLED panel replacement out of warranty often runs $600 or more, so the protection plan pays for itself on day one.",
     ],
-    faqSectionTitle: "QLED TVs FAQ",
+    faqSectionTitle: "QLED TV questions, answered",
     faqs: [
-      { question: "What is the best QLED TVs to buy in 2026?", answer: "The best QLED TVs depends on your budget and use case. Check the comparison table above for current prices across Amazon, Best Buy, and Walmart." },
-      { question: "Where is the best place to buy QLED TVs?", answer: "Amazon has the widest selection and fastest shipping. Best Buy is best for electronics with in-store pickup. Walmart is best for budget options." },
-      { question: "When is the best time to buy QLED TVs?", answer: "Black Friday and Prime Day offer the deepest discounts (20-40% off). Presidents Day and Memorial Day also have strong sales." },
+      { question: "What is the best QLED TV to buy in 2026?", answer: "For most buyers, the Hisense U8N (55-inch at $598 to $797, 3,000 nits peak brightness, Mini-LED) is the best QLED TV in 2026. If you want Samsung specifically, the QN85D (55-inch at $997) is the entry premium pick. The TCL QM8 (65-inch at $999) wins on big-screen value." },
+      { question: "Are QLED TVs better than OLED?", answer: "For bright rooms and HDR movies, QLED wins (Hisense U8N at 3,000 nits vs OLED at 1,000 nits). For dark rooms and cinema viewing, OLED still wins on per-pixel contrast and perfect blacks. In 2026 the QLED sweet spot is $600 to $1,200; OLED sweet spot is $1,200 to $2,500." },
+      { question: "Where is the cheapest place to buy QLED TVs?", answer: "Amazon has the widest selection and the deepest Prime Day discounts on Samsung and TCL. Best Buy matches Amazon on Samsung and Hisense and adds free in-store pickup. Walmart usually beats Amazon by $30 to $80 on Hisense U7N, U8N, and TCL Q6 outside of major sale events." },
+      { question: "Is QLED worth it over a regular LED TV?", answer: "Yes for screen sizes 55 inches and larger, especially in bright rooms. Quantum Dot film adds 25 to 40 percent wider color gamut vs standard LED, which is most visible in HDR content. Under 50 inches, the difference is small enough that a regular 4K LED may be the better value." },
+      { question: "Which QLED brand is most reliable in 2026?", answer: "Samsung has the longest QLED track record and the strongest US warranty network. Hisense U7N and U8N have improved reliability each generation since 2022. TCL Q6 and QM8 are reliable at their price tier but use less premium panels than Samsung at the same screen size." },
+      { question: "When is the best time to buy a QLED TV?", answer: "Amazon Prime Day in July and Black Friday in late November are the two cheapest weeks to buy a QLED TV. Expect 20 to 35 percent off list price on Samsung QN85D, QN90D, and Hisense U8N. Off-season, Walmart runs clearance rollbacks every 4 to 6 weeks." },
     ],
     shopperCta: {
-      title: "Compare QLED TVs prices across the US",
-      body: "Find the lowest QLED TVs prices across Amazon, Best Buy, Walmart, and Target with live BuyWhere search.",
-      href: "/search?q=best+qled+tvs&country=us",
+      title: "Compare QLED TV prices across the US",
+      body: "Find the lowest QLED TV prices across Amazon, Best Buy, Walmart, and Samsung with live BuyWhere search.",
+      href: "/search?q=QLED+TV&country=us",
       label: "Shop QLED TVs",
     },
     developerCta: {
-      title: "Build QLED TVs price tracking tools",
-      body: "Use BuyWhere APIs to monitor QLED TVs pricing, merchant availability, and price changes across US retailers in real time.",
+      title: "Build QLED TV price tracking tools",
+      body: "Use BuyWhere APIs to monitor QLED TV pricing, merchant availability, and price changes across Amazon, Best Buy, Walmart, and Samsung in real time.",
       href: "/developers",
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "f1", name: "QLED TVs Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+qled+tvs&country=us", brand: "Brand A", category: "QLED TVs" },
-      { id: "f2", name: "QLED TVs Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+qled+tvs&country=us", brand: "Brand B", category: "QLED TVs" },
-      { id: "f3", name: "QLED TVs Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+qled+tvs&country=us", brand: "Brand C", category: "QLED TVs" },
-      { id: "f4", name: "QLED TVs Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+qled+tvs&country=us", brand: "Brand D", category: "QLED TVs" },
-      { id: "f5", name: "QLED TVs Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+qled+tvs&country=us", brand: "Brand E", category: "QLED TVs" },
+      { id: "q1", name: "Hisense 55-inch U8N Series Mini-LED QLED 4K Smart TV", price: 598, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=Hisense+U8N&country=us", brand: "Hisense", category: "QLED TVs" },
+      { id: "q2", name: "Samsung 65-inch QN85D QLED 4K Smart TV", price: 1197, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=Samsung+QN85D&country=us", brand: "Samsung", category: "QLED TVs" },
+      { id: "q3", name: "TCL 65-inch QM8 QLED 4K Mini-LED Smart TV", price: 999, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=TCL+QM8&country=us", brand: "TCL", category: "QLED TVs" },
+      { id: "q4", name: "Hisense 55-inch U7N Series Mini-LED QLED 4K Smart TV", price: 498, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=Hisense+U7N&country=us", brand: "Hisense", category: "QLED TVs" },
+      { id: "q5", name: "Samsung 55-inch QN90D Neo QLED 4K Smart TV", price: 1297, currency: "USD", merchant: "Samsung", imageUrl: null, href: "/search?q=Samsung+QN90D&country=us", brand: "Samsung", category: "QLED TVs" },
     ],
   },
+
 
   "best-budget-tvs-us": {
     slug: "best-budget-tvs-us",
     title: "Where to Buy the Cheapest TVs in 2026 — Best Budget TVs Under $500",
-    description: "Find the cheapest TVs to buy in 2026. Compare budget TVs under $500 from TCL, Hisense, Amazon Fire, and other top US retailers with live prices and ratings.",
+    description: "Best cheap TVs in 2026: Hisense A6 from $198, Fire TV Omni QLED from $319, TCL S5 from $228. Compare budget 4K TVs under $500 across Amazon, Walmart, Best Buy.",
     heroEyebrow: "US TV Buying Guide",
     heroTitle: "Where to Buy the Cheapest TVs in 2026 (Under $500)",
     heroBody: "Looking for a cheap TV in 2026? We compare budget 4K TVs under $500 across TCL, Hisense, Amazon Fire TV, and Walmart Onn with live prices, sale windows, and exactly where to buy each model for the lowest total cost.",
@@ -8954,6 +9023,23 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       { Model: "Walmart Onn 4K UHD Roku TV", Screen: "43-65 in", Price: "$178-$298", Merchant: "Walmart" },
       { Model: "Samsung Crystal UHD CU7000", Screen: "43-65 in", Price: "$248-$398", Merchant: "Best Buy, Amazon" },
       { Model: "LG UR/UQ Series UHD", Screen: "43-65 in", Price: "$219-$399", Merchant: "Best Buy, Walmart" },
+    ],
+    categoryIntro: {
+      heading: "Best cheap TVs to buy in 2026 — TCL, Hisense, Fire TV, Onn compared",
+      body: "If you're shopping for a budget TV in 2026, the four models worth comparing first are the Hisense A6 (43 to 50-inch at $198 to $278 on Walmart, the cheapest 4K TV we track), the Walmart Onn 4K UHD Roku TV (43-inch at $178, simplest smart platform), the Amazon Fire TV Omni QLED (43 to 55-inch at $319 to $449, the only sub-$500 QLED with Fire TV built in), and the TCL S5 / S-Class 4K HDR (50 to 65-inch at $228 to $348, best budget value for larger screens). All four sit under $500 at list and drop another $30 to $80 during Prime Day in July and Black Friday in November. BuyWhere tracks live prices across Amazon, Walmart, Best Buy, and Target so you can see the cheapest total cost including shipping before you buy.",
+    },
+    categoryComparisonEyebrow: "Budget TV picks",
+    categoryComparisonTitle: "Best budget TVs under $500 by price tier (2026)",
+    categoryComparisonColumns: ["Tier", "Model", "Screen", "Price", "Best For"],
+    categoryComparisonRows: [
+      { Tier: "Under $300", Model: "Walmart Onn 4K UHD Roku TV", Screen: "43 in", Price: "$178", "Best For": "Cheapest 4K, kids room, garage" },
+      { Tier: "Under $300", Model: "Hisense A6 Series 4K", Screen: "50 in", Price: "$228-$278", "Best For": "Best value under $300" },
+      { Tier: "Under $300", Model: "TCL S5 4K HDR", Screen: "50 in", Price: "$228-$278", "Best For": "Best build quality under $300" },
+      { Tier: "$300-$500", Model: "Amazon Fire TV Omni QLED", Screen: "43-55 in", Price: "$319-$449", "Best For": "Best sub-$500 QLED, Fire TV" },
+      { Tier: "$300-$500", Model: "Samsung Crystal UHD CU7000", Screen: "55 in", Price: "$348-$398", "Best For": "Best Samsung under $400" },
+      { Tier: "$300-$500", Model: "Hisense A7 / U6 Series", Screen: "55 in", Price: "$378-$449", "Best For": "Best picture quality under $500" },
+      { Tier: "$300-$500", Model: "LG UR/UQ UHD", Screen: "55 in", Price: "$349-$399", "Best For": "Best webOS, widest viewing angle" },
+      { Tier: "$500-$700", Model: "Roku Pro Series 4K QLED", Screen: "50-65 in", Price: "$499-$699", "Best For": "Best budget QLED upgrade" },
     ],
     highlightSectionTitle: "What to check before buying a cheap TV in 2026",
     highlights: [
@@ -9726,7 +9812,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
   "best-bluetooth-speakers-us": {
     slug: "best-bluetooth-speakers-us",
     title: "Best Bluetooth Speakers 2026 — JBL, Bose, UE, Sonos Compared",
-    description: "Looking for the best Bluetooth speaker in 2026? Compare JBL Flip 7, JBL Charge 5, Bose SoundLink Flex, UE Boom 4, Sonos Roam 2, and Anker Soundcore with live US prices.",
+    description: "Best Bluetooth speakers in 2026: JBL Flip 7 from $129, JBL Charge 5 from $179, Bose SoundLink Flex from $149, UE Boom 4 from $149. Compare battery, IP rating, and live US prices.",
     heroEyebrow: "US Audio Buying Guide",
     heroTitle: "Best Bluetooth Speakers in the US 2026",
     heroBody: "Looking for the best portable Bluetooth speaker in 2026? We compare JBL Flip 7, Bose SoundLink Flex, UE Boom 4, Sonos Roam 2, and Anker Soundcore with live prices from Amazon, Best Buy, and Walmart so you can find the right speaker for home, beach, or backyard.",
@@ -9748,6 +9834,23 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       { Model: "Sonos Roam 2", Battery: "10 hrs", IP: "IP67", Price: "$179", Merchant: "Best Buy, Sonos" },
       { Model: "Anker Soundcore Motion 300", Battery: "13 hrs", IP: "IPX7", Price: "$79", Merchant: "Amazon, Walmart" },
       { Model: "Tribit StormBox Blast", Battery: "30 hrs", IP: "IPX7", Price: "$129", Merchant: "Amazon" },
+    ],
+    categoryIntro: {
+      heading: "Best Bluetooth speakers in 2026 — JBL Flip 7, Charge 5, Bose SoundLink Flex, UE Boom 4",
+      body: "If you are shopping for the best Bluetooth speaker in 2026, the four models worth comparing first are the JBL Flip 7 ($129, 14-hour battery, IP67), the JBL Charge 5 ($179, 20-hour battery, IP67, doubles as a power bank), the Bose SoundLink Flex ($149, premium build, 12-hour battery), and the UE Boom 4 ($149, 360-degree sound, IP67, floats in water). For budget picks under $100, the UE Wonderboom 4 ($99) and Anker Soundcore Motion 300 ($79) are the strongest values. All seven models are widely available across Amazon, Best Buy, and Walmart in the US, and they drop 20 to 35 percent during Amazon Prime Day in July, Black Friday in November, and back-to-school in late July. BuyWhere tracks live US prices and the per-pair cost for stereo pairing so you can plan a JBL PartyBoost or UE PartyUp setup.",
+    },
+    categoryComparisonEyebrow: "By use case",
+    categoryComparisonTitle: "Best Bluetooth speaker by use case (2026)",
+    categoryComparisonColumns: ["Use Case", "Best Pick", "Battery", "Price", "Why"],
+    categoryComparisonRows: [
+      { "Use Case": "Pool & Beach", "Best Pick": "JBL Flip 7", Battery: "14 hrs", Price: "$129", Why: "IP67, compact, loud enough outdoors" },
+      { "Use Case": "Pool & Beach", "Best Pick": "UE Wonderboom 4", Battery: "14 hrs", Price: "$99", Why: "Floats in water, brightest colors" },
+      { "Use Case": "Backyard Party", "Best Pick": "JBL Charge 5", Battery: "20 hrs", Price: "$179", Why: "Big bass, doubles as power bank" },
+      { "Use Case": "Backyard Party", "Best Pick": "Tribit StormBox Blast", Battery: "30 hrs", Price: "$129", Why: "Longest battery, 90W output" },
+      { "Use Case": "Travel", "Best Pick": "Bose SoundLink Flex", Battery: "12 hrs", Price: "$149", Why: "Premium build, compact, best at low volume" },
+      { "Use Case": "Home + Travel", "Best Pick": "Sonos Roam 2", Battery: "10 hrs", Price: "$179", Why: "Wi-Fi at home, Bluetooth outside" },
+      { "Use Case": "Budget / Kids", "Best Pick": "Anker Soundcore Motion 300", Battery: "13 hrs", Price: "$79", Why: "Best sound under $80" },
+      { "Use Case": "Stereo Pair", "Best Pick": "2x JBL Flip 7", Battery: "14 hrs", Price: "$258", Why: "PartyBoost stereo at lowest pair cost" },
     ],
     highlightSectionTitle: "What to look for in a Bluetooth speaker in 2026",
     highlights: [
