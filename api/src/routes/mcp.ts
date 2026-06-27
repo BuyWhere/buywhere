@@ -259,10 +259,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // Use a dedicated client with extended timeout — FTS on 14M rows can exceed the 10s pool default.
   const searchClient = await db.connect();
   try {
-    // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
-    // complete within 12s via GIN index; anything longer signals plan regression or
-    // pool exhaustion. Failing fast prevents cascading connection starvation.
-    await searchClient.query('SET statement_timeout = 12000');
+    // BUY-58015: bumped from 12s to 18s. Cold-cache GIN bitmap scans on the 30M-row
+    // products_us partition can take 12-15s on the first request before shared_buffers
+    // warms up. 12s was too tight and caused intermittent cold-cache -32603 failures.
+    await searchClient.query('SET statement_timeout = 18000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
     const COUNT_CAP = 1001;
     if (q) {
@@ -491,7 +491,13 @@ async function handleCompareProducts(args: Record<string, unknown>) {
 async function handleGetDeals(args: Record<string, unknown>) {
   const t0 = Date.now();
   const minDiscount = Number(args.min_discount) || 10;
-  const currency = ((args.currency as string) || 'SGD').toUpperCase();
+  // BUY-58015: infer currency from country_code when not explicitly set.
+  // Without this, get_deals country_code=US defaults to currency='SGD', which
+  // matches almost no US rows and forces an inefficient index scan + sort on
+  // the 30M-row products_us partition, blowing the statement_timeout on cold cache.
+  const explicitCurrency = ((args.currency as string) || '').toUpperCase();
+  const dealsCountry = ((args.country_code as string) || (args.country as string) || '').toUpperCase();
+  const currency = explicitCurrency || (dealsCountry ? (COUNTRY_CURRENCY[dealsCountry] || 'SGD') : 'SGD');
   const region = (args.region as string) || '';
   const country = ((args.country_code as string) || (args.country as string) || '').toUpperCase();
   const limit = Math.min(Number(args.limit) || 20, 100);
@@ -559,12 +565,10 @@ async function handleGetDeals(args: Record<string, unknown>) {
     throw { code: -32603, message: 'Database unavailable' };
   });
   try {
-    // BUY-56185: reduced from 300s (5min) to 15s. A 5-minute hold on a pool
-    // connection during pool exhaustion starves search_products and find_best_price,
-    // causing cascading -32603 and hangs. With discount_pct index (happy path) this
-    // query completes in <1s; without it, the regex fallback on 14M rows is not worth
-    // a 5-minute hold — better to fail fast and let the next request retry.
-    await dealsClient.query('SET statement_timeout = 15000');
+    // BUY-58015: bumped from 15s to 20s. The deals index scan on the 30M-row
+    // products_us partition reads 140K+ buffers on cold cache (~1.1GB I/O) before
+    // the sort can complete. 15s was too tight for cold-cache first requests.
+    await dealsClient.query('SET statement_timeout = 20000');
     const countResult = await dealsClient.query(
       `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`,
       params
@@ -597,7 +601,9 @@ async function handleGetDeals(args: Record<string, unknown>) {
 
   const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
 
-  redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
+  // BUY-58015: bumped TTL from 60s to 300s to keep the deals cache warm longer
+  // and reduce cold-cache pressure on the 30M-row US partition.
+  redis.set(cacheKey, JSON.stringify(result), 'EX', 300).catch(() => {});
 
   return result;
 }
