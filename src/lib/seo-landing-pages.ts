@@ -85,6 +85,15 @@ export type SeoLandingPageConfig = {
   shopperCta?: Cta;
   developerCta?: Cta;
   fallbackProducts: LandingProduct[];
+  /** Roomba-specific intro paragraph shown before the comparison section */
+  roombaIntro?: {
+    heading: string;
+    body: string;
+  };
+  /** Dedicated Roomba/iRobot comparison table */
+  roombaComparisonTitle?: string;
+  roombaComparisonColumns?: string[];
+  roombaComparisonRows?: ComparisonRow[];
   /** Render RelatedCategoryBlock on this page */
   showRelatedCategory?: boolean;
 };
@@ -633,9 +642,9 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     description:
       "Compare live Roomba and robot vacuum sale prices across Roborock, iRobot, Shark, and Ecovacs in 2026, with buying advice and the best deals refreshed weekly.",
     heroEyebrow: "US Home Guide",
-    heroTitle: "Best Robot Vacuums in 2026",
+    heroTitle: "Best Robot Vacuums & Roomba Deals in 2026",
     heroBody:
-      "Robot vacuums in 2026 are better at navigation, self-emptying, and mopping than earlier generations, but the category is also harder to decode quickly. This page pairs editorial recommendations with live BuyWhere product listings so shoppers can move directly from research into current offers.",
+      "Looking for the best Roomba sale in 2026? iRobot Roomba models — from the j7+ to the Combo j9+ — regularly drop 15–40% during Prime Day, Black Friday, and holiday events. This page tracks live Roomba and robot vacuum deals across Amazon, Best Buy, Walmart, and Costco so you never miss a discount.",
     canonicalPath: "/best-robot-vacuums-2026",
     country: "US",
     currency: "USD",
@@ -643,7 +652,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     searchQuery: "robot vacuum",
     refreshedLabel: "Refreshed April 26, 2026",
     productSectionTitle: "Live robot vacuum deals across the US",
-    comparisonSectionTitle: "Top robot vacuum picks at a glance",
+    comparisonSectionTitle: "Top robot vacuum & Roomba picks at a glance",
     comparisonColumns: ["Model", "Price", "Suction", "Mop", "Self-Emptying", "Best For"],
     comparisonRows: [
       { Model: "Roborock S8 MaxV Ultra", Price: "$1,299", Suction: "10,000 Pa", Mop: "Yes", "Self-Emptying": "Yes", "Best For": "Best overall" },
@@ -712,6 +721,20 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       { id: "r4", name: "Ecovacs Deebot X2 Omni", price: 1099, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=Ecovacs+Deebot+X2+Omni&country=us", brand: "Ecovacs", category: "Robot Vacuums" },
       { id: "r5", name: "eufy X10 Pro Omni", price: 799, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=eufy+X10+Pro+Omni&country=us", brand: "eufy", category: "Robot Vacuums" },
       { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
+    ],
+    roombaIntro: {
+      heading: "Roomba Sale 2026 — iRobot's Best Deals Right Now",
+      body: "The iRobot Roomba lineup spans from budget-friendly models like the Roomba i3 EVO (typically $249–$299 on sale) to premium self-mapping robots like the Roomba Combo j9+ ($999 MSRP, often $599–$699 during sales). Roomba sales peak during Amazon Prime Day (July), Black Friday (November), and holiday weekends, with discounts of 15–40% off MSRP. You can find Roomba deals at Amazon, Best Buy, Walmart, Costco, and directly on iRobot.com. The key models to watch in 2026 include the Roomba j7+ (AI obstacle avoidance), Roomba Combo j5+ (vacuum and mop), Roomba s9+ (premium suction), and the flagship Roomba Combo j9+ with automatic self-emptying and mopping. If you're comparing Roomba to competitors like Roborock or Shark, Roomba stands out for its superior pet-hair pickup, intuitive app, and broad retail availability — though Roborock often wins on mopping performance and runtime.",
+    },
+    roombaComparisonTitle: "iRobot Roomba models compared — 2026 sale prices",
+    roombaComparisonColumns: ["Model", "Sale Price", "MSRP", "Self-Empty", "Mop", "Best For"],
+    roombaComparisonRows: [
+      { Model: "iRobot Roomba Combo j9+", "Sale Price": "$599–$699", MSRP: "$999", "Self-Empty": "Yes", Mop: "Yes", "Best For": "Best overall Roomba" },
+      { Model: "iRobot Roomba j7+", "Sale Price": "$349–$449", MSRP: "$599", "Self-Empty": "Yes", Mop: "No", "Best For": "Best for pet owners" },
+      { Model: "iRobot Roomba Combo j5+", "Sale Price": "$349–$399", MSRP: "$529", "Self-Empty": "Yes", Mop: "Yes", "Best For": "Best mid-range Roomba" },
+      { Model: "iRobot Roomba s9+", "Sale Price": "$449–$549", MSRP: "$799", "Self-Empty": "Yes", Mop: "No", "Best For": "Best suction power" },
+      { Model: "iRobot Roomba i3 EVO", "Sale Price": "$199–$249", MSRP: "$349", "Self-Empty": "No", Mop: "No", "Best For": "Best budget Roomba" },
+      { Model: "iRobot Roomba i5 EVO", "Sale Price": "$249–$299", MSRP: "$399", "Self-Empty": "No", Mop: "No", "Best For": "Best value Roomba" },
     ],
     showRelatedCategory: true,
   },
