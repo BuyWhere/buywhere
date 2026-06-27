@@ -908,9 +908,9 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
   },
   "macbook-air-singapore": {
     slug: "macbook-air-singapore",
-    title: "Cheapest MacBook Air in Singapore 2026 | Compare M3 & M4 Prices",
+    title: "MacBook Air Singapore from S$1,299 — M3 & M4 Prices (2026)",
     description:
-      "Find the cheapest MacBook Air in Singapore with live BuyWhere search results, retailer pricing benchmarks, and buying advice across Apple Store, Shopee, Lazada, and local retailers.",
+      "MacBook Air in Singapore starts at S$1,299 during the 6.6 campaign (vs S$1,499 at Apple Store). Compare M3 and M4 prices across Apple, Shopee, Lazada, and authorised resellers.",
     heroEyebrow: "Singapore Laptop Guide",
     heroTitle: "Cheapest MacBook Air in Singapore",
     heroBody:
