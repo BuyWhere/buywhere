@@ -35,10 +35,11 @@ export async function warmupMcpCaches(): Promise<void> {
           ) STORED
       `);
     }
+    // BUY-58273: correct shape — must match the production index definition exactly.
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_products_deals_discount_pct
-        ON products (currency, discount_pct DESC)
-        WHERE discount_pct IS NOT NULL AND price > 0
+        ON products (discount_pct)
+        WHERE discount_pct > 0
     `);
     // BUY-56635: country-aware deals index. The plain (currency, discount_pct DESC)
     // index is not used when the MCP deals query also filters by country_code;
