@@ -356,16 +356,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
 
-  // BUY-57869: /about previously 301'd to / (BUY-55986) which produced a soft-404
-  // signal in GSC because the destination was the homepage.  Returning 410 Gone
-  // signals permanent removal so Google de-indexes the URL faster than a redirect.
-  // (GSC showed 24 imp / 0 clk for /about at avg pos 3.1 — reclaim that.)
-  if (normalizedForDead === "/about") {
-    return new NextResponse(null, {
-      status: 410,
-      headers: { "Content-Type": "text/plain" },
-    });
-  }
+  // /about now renders src/app/about/page.tsx with title + meta description
+  // (see BUY-58440).  Previously this middleware returned 410 (BUY-57869), which
+  // suppressed the page even though the page itself shipped the correct metadata.
+  // Result: Google indexed /about at avg pos 3.4 with 44 imp / 0 clk (BUY-58440).
+  // We now let the page render so Google can pick up <title> + <meta description>.
 
   // Dead Singapore product slug pages — thin-content pages (Google soft 404 bucket BUY-37750)
   // These pages only render a product name + description with no prices (client-side only).
