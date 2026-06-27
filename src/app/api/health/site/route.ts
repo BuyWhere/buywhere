@@ -23,6 +23,28 @@ const FALLBACK_BASE_URL = "https://buywhere.ai";
 const TIMEOUT_MS = 8000;
 const KEYWORD = "BuyWhere";
 
+/**
+ * Resolve the base URL to probe. BUY-58553: Railway may auto-inject (or a
+ * dashboard may set) `SITE_HEALTH_BASE_URL` to an internal mesh hostname such
+ * as `buywhere.railway.internal`, which is NOT reachable from this route
+ * handler's own outbound fetch and therefore always fails the content probe —
+ * producing a sustained HTTP 503 even though the public site is healthy. Any
+ * internal-only host is rejected here in favour of the canonical public URL.
+ */
+function resolveBaseUrl(): string {
+  const configured = process.env.SITE_HEALTH_BASE_URL;
+  if (configured) {
+    try {
+      const host = new URL(configured).hostname.toLowerCase();
+      const isInternal = host.endsWith(".railway.internal") || host.endsWith(".internal") || host === "localhost";
+      if (!isInternal) return configured.replace(/\/$/, "");
+    } catch {
+      // malformed value — fall through to public fallback
+    }
+  }
+  return FALLBACK_BASE_URL;
+}
+
 // Stable assets that must always be accessible (not hash-versioned)
 const STABLE_ASSETS = [
   "/logo.png",
@@ -87,7 +109,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     );
   }
 
-  const baseUrl = process.env.SITE_HEALTH_BASE_URL || FALLBACK_BASE_URL;
+  const baseUrl = resolveBaseUrl();
   const checks: CheckResult[] = [];
   let overallStatus: "ok" | "degraded" | "down" = "ok";
 
