@@ -150,6 +150,14 @@ The best laptop deal in Singapore in June 2026 is the **ASUS Zenbook 14 OLED at 
 
 BuyWhere's product catalog API lets AI agents monitor laptop prices across all Singapore merchants in real time. Developers can use the `compare_prices` tool to get instant cross-merchant comparisons, or `search_products` to filter by brand, CPU, RAM, or price range.
 
+**Get a key in 3 seconds — no signup, no email:**
+
+```bash
+curl -X POST https://api.buywhere.ai/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"agent_name":"your-agent"}'
+```
+
 **For AI agent developers:**
 - API: `https://api.buywhere.ai`
 - MCP Server: `https://api.buywhere.ai/mcp`
