@@ -124,41 +124,49 @@ async def get_deals(
 
     threshold = 1.0 - (min_discount_pct / 100.0)
 
-    # Query products where metadata.original_price exists and discount qualifies.
-    # Cast via JSONB: metadata->>'original_price' is text, convert to numeric.
+    # Query products where metadata.original_price exists (simple filter, no CAST).
+    # Discount calculation and sorting done in Python to avoid replica timeout.
     base_query = (
         select(Product)
         .where(Product.is_active == True)
         .where(text("metadata->>'original_price' IS NOT NULL"))
-        .where(
-            text(
-                "price < :threshold * CAST(metadata->>'original_price' AS NUMERIC)"
-            ).bindparams(threshold=threshold)
-        )
     )
 
     if category:
         base_query = base_query.where(Product.category.ilike(f"%{category}%"))
 
-    # Sort by discount depth (largest discount first) using SQL expression
-    base_query = base_query.order_by(
-        text(
-            "(CAST(metadata->>'original_price' AS NUMERIC) - price) "
-            "/ CAST(metadata->>'original_price' AS NUMERIC) DESC"
-        )
-    )
+    # Sort by price to make Python filtering more predictable
+    base_query = base_query.order_by(Product.price.desc())
 
-    # Total count (without pagination)
-    from sqlalchemy import func
-    count_q = select(func.count()).select_from(base_query.subquery())
-    total = (await db.execute(count_q)).scalar_one()
-
-    result = await db.execute(base_query.limit(limit).offset(offset))
-    products = result.scalars().all()
+    # Get candidates and filter/sort in Python (avoid expensive CAST on replica)
+    result = await db.execute(base_query)
+    all_candidates = result.scalars().all()
+    
+    # Filter by discount threshold and calculate discount pct in Python
+    qualified_items = []
+    for p in all_candidates:
+        meta = p.metadata_ or {}
+        raw_orig = meta.get("original_price") if isinstance(meta, dict) else None
+        if raw_orig is not None:
+            try:
+                original_price = Decimal(str(raw_orig))
+                if original_price > 0 and p.price < original_price:
+                    discount_pct = float((original_price - p.price) / original_price * 100)
+                    if discount_pct >= min_discount_pct:
+                        qualified_items.append((discount_pct, p))
+            except Exception:
+                pass
+    
+    # Sort by discount (highest first)
+    qualified_items.sort(key=lambda x: x[0], reverse=True)
+    
+    # Apply pagination
+    total = len(qualified_items)
+    paginated = [p for _, p in qualified_items[offset:offset + limit]]
 
     return DealsResponse(
         total=total,
         limit=limit,
         offset=offset,
-        items=[_to_deal_item(p) for p in products],
+        items=[_to_deal_item(p) for p in paginated],
     )

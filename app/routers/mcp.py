@@ -138,6 +138,18 @@ def get_mcp_server() -> Server:
                             "required": [],
                         },
                     ),
+                    Tool(
+                        name="list_categories",
+                        description=(
+                            "Browse available product categories. Returns the category taxonomy "
+                            "and product counts."
+                        ),
+                        inputSchema={
+                            "type": "object",
+                            "properties": {},
+                            "required": [],
+                        },
+                    ),
                 ]
             )
 
@@ -151,6 +163,8 @@ def get_mcp_server() -> Server:
                 return await _handle_find_best_price(arguments)
             if name == "get_deals":
                 return await _handle_get_deals(arguments)
+            if name == "list_categories":
+                return await _handle_list_categories(arguments)
             return CallToolResult(
                 content=[TextContent(type="text", text=f"Unknown tool: {name}")],
                 isError=True,
@@ -290,6 +304,31 @@ async def _handle_get_deals(args: dict[str, Any]) -> CallToolResult:
     return CallToolResult(content=[TextContent(type="text", text="\n".join(lines))])
 
 
+
+
+async def _handle_list_categories(args: dict[str, Any]) -> CallToolResult:
+    try:
+        data = await _api_get("/v1/categories")
+    except Exception as exc:
+        logger.exception("list_categories API error")
+        return CallToolResult(
+            content=[TextContent(type="text", text=f"Categories fetch failed: {exc}")],
+            isError=True,
+        )
+
+    categories = data.get("categories", []) if isinstance(data, dict) else []
+    if not categories:
+        return CallToolResult(
+            content=[TextContent(type="text", text="No categories available.")]
+        )
+
+    lines = [f"Found {len(categories)} categories:\n"]
+    for i, cat in enumerate(categories, 1):
+        name = cat.get("name", "Unknown")
+        count = cat.get("count", 0)
+        slug = cat.get("slug", "")
+        lines.append(f"{i}. **{name}** — {count} products (/{slug})")
+    return CallToolResult(content=[TextContent(type="text", text="\n".join(lines))])
 async def _api_get(path: str, params: dict[str, Any] | None = None) -> Any:
     import httpx
     from app.config import get_settings
