@@ -421,6 +421,24 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     assert.ok(body.error);
     assert.equal(body.error.code, -32602);
   });
+
+  // BUY-59390 — find_similar previously surfaced -32603 raw SQL errors when given a
+  // UUID-shaped product_id (product_embeddings.product_id is bigint). Reject upfront
+  // with -32602 and never reach the vector DB query.
+  it('find_similar rejects UUID input with -32602 (BUY-59390)', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 21, method: 'tools/call',
+        params: { name: 'find_similar', arguments: { product_id: 'b3aa5b4d-aaaa-bbbb-cccc-dddddddddddd' } },
+      }),
+    });
+    const body = await res.json();
+    assert.ok(body.error, 'should return error envelope');
+    assert.equal(body.error.code, -32602);
+    assert.match(body.error.message, /Invalid product_id format/);
+  });
 });
 
 describe('MCP JSON-RPC — error handling', () => {

@@ -1067,27 +1067,45 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   if (!productId) {
     throw { code: -32602, message: 'missing required parameter: product_id' };
   }
+
+  // product_embeddings.product_id is bigint; reject non-numeric IDs upfront so the
+  // SQL parameter doesn't blow up with "invalid input syntax for type bigint".
+  // BUY-59390 — previously the handler exposed -32603 raw SQL errors.
+  if (!/^\d+$/.test(productId)) {
+    throw { code: -32602, message: `Invalid product_id format: expected numeric ID, got "${productId}"` };
+  }
+
   if (!vectorDb) {
     throw { code: -32001, message: 'Vector search not available — vector DB not configured' };
   }
 
   // Step 1: get reference embedding from vector DB
-  const refResult = await vectorDb.query<{ embedding: string }>(
-    `SELECT embedding::text FROM product_embeddings WHERE product_id = $1`,
-    [productId]
-  );
+  let refResult;
+  try {
+    refResult = await vectorDb.query<{ embedding: string }>(
+      `SELECT embedding::text FROM product_embeddings WHERE product_id = $1`,
+      [productId]
+    );
+  } catch {
+    throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
+  }
   if (!refResult.rows.length) {
     throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
   }
   const refEmbedding = refResult.rows[0].embedding;
 
   // Step 2: find nearest neighbours in vector DB (excluding source product)
-  const nearResult = await vectorDb.query<{ product_id: string; distance: number }>(
-    `SELECT product_id, (embedding <=> $1::vector)::float AS distance
-     FROM product_embeddings WHERE product_id != $2
-     ORDER BY distance LIMIT $3`,
-    [refEmbedding, productId, limit]
-  );
+  let nearResult;
+  try {
+    nearResult = await vectorDb.query<{ product_id: string; distance: number }>(
+      `SELECT product_id, (embedding <=> $1::vector)::float AS distance
+       FROM product_embeddings WHERE product_id != $2
+       ORDER BY distance LIMIT $3`,
+      [refEmbedding, productId, limit]
+    );
+  } catch {
+    throw { code: -32001, message: 'No similar products found' };
+  }
   if (!nearResult.rows.length) {
     throw { code: -32001, message: 'No similar products found' };
   }
