@@ -504,9 +504,12 @@ async function handleCompareProducts(args: Record<string, unknown>) {
 async function handleGetDeals(args: Record<string, unknown>) {
   const t0 = Date.now();
   const minDiscount = Number(args.min_discount) || 10;
-  const currency = ((args.currency as string) || 'SGD').toUpperCase();
+  // BUY-59768: infer currency from country_code when not explicitly set.
+  const explicitCurrency = ((args.currency as string) || '').toUpperCase();
+  const dealsCountry = ((args.country_code as string) || (args.country as string) || '').toUpperCase();
+  const currency = explicitCurrency || (dealsCountry ? (COUNTRY_CURRENCY[dealsCountry] || 'SGD') : 'SGD');
   const region = (args.region as string) || '';
-  const country = ((args.country_code as string) || (args.country as string) || '').toUpperCase();
+  const country = dealsCountry;
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
 
@@ -572,7 +575,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // (warmup) should satisfy this query in <1s; if it doesn't (e.g. index not
     // yet created), a fast timeout avoids holding the pool connection and lets
     // the caller receive a structured error rather than waiting 15s for -32603.
-    await dealsClient.query('SET statement_timeout = 8000');
+    await dealsClient.query('SET statement_timeout = 20000'); // BUY-59768: cold-cache US partition needs >8s
     const countResult = await dealsClient.query(
       `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`,
       params
@@ -605,7 +608,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
 
   const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
 
-  redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
+  redis.set(cacheKey, JSON.stringify(result), 'EX', 300).catch(() => {}); // BUY-59768: bumped TTL 60s->300s to survive cold-cache re-scans
 
   return result;
 }
@@ -616,7 +619,11 @@ const categoryListInflight = new Map<string, Promise<{ data: unknown[]; meta: Re
 
 async function handleListCategories(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const country = (((args.country_code as string) || (args.country as string)) || 'SG').toUpperCase();
+  // BUY-59768: also accept `region` arg (e.g. region=us) — map to country_code so the materialized
+  // view is actually queried for US instead of silently defaulting to SG.
+  const regionArg = ((args.region as string) || '').toUpperCase();
+  const countryArg = (((args.country_code as string) || (args.country as string)) || '').toUpperCase();
+  const country = countryArg || regionArg || 'SG';
   const cacheKey = `categories_mcp:top100:${country}`;
 
   // 1. Redis fast path
