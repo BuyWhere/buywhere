@@ -577,7 +577,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // (warmup) should satisfy this query in <1s; if it doesn't (e.g. index not
     // yet created), a fast timeout avoids holding the pool connection and lets
     // the caller receive a structured error rather than waiting 15s for -32603.
-    await dealsClient.query('SET statement_timeout = 45000'); // BUY-59768: bumped 20s->45s for cold-cache US partition (Railway cold-cache sometimes exceeds 20s)
+    await dealsClient.query('SET statement_timeout = 60000'); // BUY-59768: bumped 45s->60s for Railway cold-cache US partition (30M rows)
     const countResult = await dealsClient.query(
       `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`,
       params
@@ -655,8 +655,9 @@ async function handleListCategories(args: Record<string, unknown>) {
       let rows: Array<{ slug: string; name: string; product_count: number }>;
       let unavailable = false;
       const MAT_VIEW_TIMEOUT_MS = 8000;
-      const LIVE_TIMEOUT_MS = 25000;
-      const FALLBACK_COUNTRIES = new Set(['SG', 'MY', 'TH', 'VN', 'GB', 'PH', 'ID']);
+      // BUY-59768: US partition has 30M rows — needs more headroom than SG's 794K rows.
+      const LIVE_TIMEOUT_MS = 60000;
+      const FALLBACK_COUNTRIES = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'GB', 'PH', 'ID']);
       rows = [];
       if (tableCheck.rows[0]?.tbl) {
         const summaryResult = await client.query(
