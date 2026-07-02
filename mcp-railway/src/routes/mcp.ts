@@ -504,11 +504,13 @@ async function handleCompareProducts(args: Record<string, unknown>) {
 async function handleGetDeals(args: Record<string, unknown>) {
   const t0 = Date.now();
   const minDiscount = Number(args.min_discount) || 10;
-  // BUY-59768: infer currency from country_code when not explicitly set.
+  // BUY-59768: infer currency from country_code (or region) when not explicitly set.
+  const REGION_TO_COUNTRY: Record<string, string> = { sg: 'SG', us: 'US', my: 'MY', th: 'TH', vn: 'VN', gb: 'GB' };
   const explicitCurrency = ((args.currency as string) || '').toUpperCase();
-  const dealsCountry = ((args.country_code as string) || (args.country as string) || '').toUpperCase();
+  const regionArg = ((args.region as string) || '').toLowerCase();
+  const dealsCountry = ((args.country_code as string) || (args.country as string) || REGION_TO_COUNTRY[regionArg] || '').toUpperCase();
   const currency = explicitCurrency || (dealsCountry ? (COUNTRY_CURRENCY[dealsCountry] || 'SGD') : 'SGD');
-  const region = (args.region as string) || '';
+  const region = regionArg;
   const country = dealsCountry;
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
@@ -652,6 +654,10 @@ async function handleListCategories(args: Record<string, unknown>) {
       );
       let rows: Array<{ slug: string; name: string; product_count: number }>;
       let unavailable = false;
+      const MAT_VIEW_TIMEOUT_MS = 8000;
+      const LIVE_TIMEOUT_MS = 25000;
+      const FALLBACK_COUNTRIES = new Set(['SG', 'MY', 'TH', 'VN', 'GB', 'PH', 'ID']);
+      rows = [];
       if (tableCheck.rows[0]?.tbl) {
         const summaryResult = await client.query(
           `SELECT slug, name, product_count
@@ -662,19 +668,35 @@ async function handleListCategories(args: Record<string, unknown>) {
           [country]
         );
         rows = summaryResult.rows;
-        // BUY-56635: materialized view exists but is empty for this country
-        // (REFRESH hasn't run yet or warmup missed it). Surface as unavailable
-        // rather than falling through to the 14M-row GROUP BY which always
-        // blows past the 8s statement_timeout and surfaces as -32603 to Tune.
-        if (rows.length === 0) unavailable = true;
-      } else {
-        // BUY-56635: materialized view doesn't exist yet (pre-warmup deploy).
-        // Return unavailable immediately — do NOT run the live GROUP BY on
-        // 14M+ rows here; it always exceeds statement_timeout and poisons the
-        // pool. The warmup job (mcpWarmup.ts) creates the view on startup.
-        unavailable = true;
-        rows = [];
       }
+      // BUY-59768: view empty or missing for this country — fall through to a
+      // bounded live GROUP BY on the country_code partition (uses partition
+      // pruning on the LIST-partitioned `products` table so US 30M rows stay
+      // tractable). This runs with a separate timeout and only for countries
+      // known to have a partition (US excluded — its 30M-row scan still
+      // exceeds the timeout budget even with partition pruning).
+      if (rows.length === 0 && FALLBACK_COUNTRIES.has(country)) {
+        try {
+          await client.query(`SET statement_timeout = ${LIVE_TIMEOUT_MS}`);
+          const liveResult = await client.query(
+            `SELECT category_path[1] AS slug, category_path[1] AS name, COUNT(*) AS product_count
+             FROM products
+             WHERE country_code = $1
+               AND category_path[1] IS NOT NULL
+               AND is_active = true
+             GROUP BY category_path[1]
+             ORDER BY COUNT(*) DESC
+             LIMIT 100`,
+            [country]
+          );
+          if (liveResult.rows.length > 0) rows = liveResult.rows;
+        } catch (_) {
+          // Live GROUP BY timed out or failed — leave rows empty and surface unavailable
+        } finally {
+          await client.query(`SET statement_timeout = ${MAT_VIEW_TIMEOUT_MS}`);
+        }
+      }
+      if (rows.length === 0) unavailable = true;
       const meta: Record<string, unknown> = {
         total: rows.length,
         country_code: country,
