@@ -594,6 +594,7 @@ async def best_price(
     q: str = Query(..., min_length=1, description="Product name to search for"),
     category: Optional[str] = Query(None, description="Optional category filter"),
     currency: Optional[str] = Query(None, description=f"Target currency for price conversion. Supported: {', '.join(SUPPORTED_CURRENCIES)}"),
+    country_code: Optional[str] = Query(None, description="ISO-2 country code to restrict search (e.g. SG, US). Prunes partitions for faster queries."),
     db: AsyncSession = Depends(get_db),
     api_key: ApiKey = Depends(get_current_api_key),
 ) -> ProductResponse:
@@ -605,11 +606,15 @@ async def best_price(
         q=q,
         category=category,
         currency=currency,
+        country_code=country_code,
     )
     cached = await cache.cache_get(cache_key)
     if cached:
         return ProductResponse(**cached)
 
+    # BUY-59774 fix: add country_code filter for partition pruning.
+    # Without it, the query scans ALL partitions (products_default, products_vn, etc.)
+    # on every /v1/products/best-price call, causing 7s+ execution times.
     base_query = (
         select(Product)
         .where(Product.is_active == True)
@@ -619,6 +624,8 @@ async def best_price(
     )
     if category:
         base_query = base_query.where(Product.category.ilike(f"%{category}%"))
+    if country_code:
+        base_query = base_query.where(Product.country_code == country_code.upper())
 
     base_query = base_query.order_by(Product.price.asc()).limit(1)
     result = await db.execute(base_query)
@@ -633,6 +640,8 @@ async def best_price(
         )
         if category:
             fallback = fallback.where(Product.category.ilike(f"%{category}%"))
+        if country_code:
+            fallback = fallback.where(Product.country_code == country_code.upper())
         fallback = fallback.order_by(Product.price.asc()).limit(1)
         result2 = await db.execute(fallback)
         product = result2.scalar_one_or_none()

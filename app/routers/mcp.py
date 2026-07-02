@@ -87,9 +87,9 @@ def get_mcp_server() -> Server:
                     Tool(
                         name="find_best_price",
                         description=(
-                            "Find the single cheapest listing for a product across all Singapore "
-                            "e-commerce platforms. Returns the platform, price, and affiliate URL "
-                            "for the lowest available price."
+                            "Find the single cheapest listing for a product. Specify country_code "
+                            "to scope results to a single market and avoid cross-market scans "
+                            "(strongly recommended for performance)."
                         ),
                         inputSchema={
                             "type": "object",
@@ -101,6 +101,10 @@ def get_mcp_server() -> Server:
                                 "category": {
                                     "type": "string",
                                     "description": "Optional category to narrow the search.",
+                                },
+                                "country_code": {
+                                    "type": "string",
+                                    "description": "ISO-2 country code (SG, US, MY, TH, VN, PH). Scopes the scan to one partition for fast responses.",
                                 },
                             },
                             "required": ["product_name"],
@@ -240,6 +244,8 @@ async def _handle_find_best_price(args: dict[str, Any]) -> CallToolResult:
     params = {"q": product_name}
     if args.get("category"):
         params["category"] = args["category"]
+    if args.get("country_code"):
+        params["country_code"] = str(args["country_code"]).upper()
 
     try:
         p = await _api_get("/v1/products/best-price", params)
