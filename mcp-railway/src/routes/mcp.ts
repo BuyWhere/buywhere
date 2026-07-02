@@ -577,7 +577,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // (warmup) should satisfy this query in <1s; if it doesn't (e.g. index not
     // yet created), a fast timeout avoids holding the pool connection and lets
     // the caller receive a structured error rather than waiting 15s for -32603.
-    await dealsClient.query('SET statement_timeout = 20000'); // BUY-59768: cold-cache US partition needs >8s
+    await dealsClient.query('SET statement_timeout = 45000'); // BUY-59768: bumped 20s->45s for cold-cache US partition (Railway cold-cache sometimes exceeds 20s)
     const countResult = await dealsClient.query(
       `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`,
       params
