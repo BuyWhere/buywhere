@@ -578,6 +578,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // yet created), a fast timeout avoids holding the pool connection and lets
     // the caller receive a structured error rather than waiting 15s for -32603.
     await dealsClient.query('SET statement_timeout = 60000'); // BUY-59768: bumped 45s->60s for Railway cold-cache US partition (30M rows)
+    await dealsClient.query(`SET work_mem = '256MB'`);
     const countResult = await dealsClient.query(
       `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`,
       params
@@ -678,7 +679,11 @@ async function handleListCategories(args: Record<string, unknown>) {
       // exceeds the timeout budget even with partition pruning).
       if (rows.length === 0 && FALLBACK_COUNTRIES.has(country)) {
         try {
+          // BUY-59768: deployed Railway Postgres has small work_mem; force the planner
+          // to use a memory-frugal sort-based aggregate instead of HashAggregate.
           await client.query(`SET statement_timeout = ${LIVE_TIMEOUT_MS}`);
+          await client.query(`SET work_mem = '256MB'`);
+          await client.query(`SET enable_hashagg = off`);
           const liveResult = await client.query(
             `SELECT category_path[1] AS slug, category_path[1] AS name, COUNT(*) AS product_count
              FROM products
