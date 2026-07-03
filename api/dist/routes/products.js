@@ -347,12 +347,21 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const searchConditions = [...baseConditions];
     const searchParams = [...baseParams];
     let ftsParamIdx = 0;
+    let ftsOrParamIdx = 0;
     if (q) {
         // Use full-text search via GIN-indexed search_vector only.
         // The ILIKE fallback was removed: it defeats the GIN index and causes full table scans (3s vs 130ms).
-        ftsParamIdx = searchParams.length + 1;
-        searchConditions.push(`search_vector @@ plainto_tsquery('english', $${ftsParamIdx})`);
+        // MATCH with OR-semantics (to_tsquery 'a | b') so a multi-word query does not require
+        // EVERY lexeme in one product. plainto_tsquery AND-joined them ('run' & 'shoe') which gave
+        // near-zero recall on the skewed catalog ('running shoes'->0 while 'running'->N, 'shoes'->N).
+        // RANK still uses plainto_tsquery (below) so products matching MORE terms sort to the top.
+        ftsParamIdx = searchParams.length + 1; // RANK param (plainto / AND-relevance)
         searchParams.push(q);
+        const tsOr = q.trim().split(/\s+/)
+            .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).join(' | ');
+        ftsOrParamIdx = searchParams.length + 1; // MATCH param (to_tsquery / OR-recall)
+        searchParams.push(tsOr || q);
+        searchConditions.push(`search_vector @@ to_tsquery('english', $${ftsOrParamIdx})`);
     }
     const whereClause = searchConditions.length ? `WHERE ${searchConditions.join(' AND ')}` : '';
     // BUY-33987: SEARCH_STATEMENT_TIMEOUT_MS and SEARCH_HANDLER_TIMEOUT_MS are
@@ -1006,6 +1015,44 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
             response_time_ms: Date.now() - start,
         },
     });
+}));
+// GET /v1/products/featured
+// Keep this route above /:id so Express does not treat "featured" as a product id.
+router.get('/featured', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.featured'), asyncHandler(async (req, res) => {
+    const start = Date.now();
+    const rawCountry = req.query.country_code || req.query.country;
+    const countryCode = rawCountry?.toUpperCase() || 'SG';
+    const currency = req.query.currency || (response_1.COUNTRY_CURRENCY[countryCode] || 'SGD');
+    const limit = Math.min(parseInt(req.query.limit || '12'), 50);
+    const offset = Math.max(parseInt(req.query.offset || '0'), 0);
+    const compact = req.query.compact === 'true';
+    const cacheKey = `featured:${countryCode}:${currency}:${limit}:${offset}:${compact ? 'c' : 'f'}`;
+    try {
+        const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            parsed.cached = true;
+            parsed.response_time_ms = Date.now() - start;
+            return res.json(parsed);
+        }
+    }
+    catch (_) { }
+    const result = await (0, readReplica_1.readDb)().query(`SELECT id, sku AS source_id, source AS domain, url,
+              NULL::text AS affiliate_url,
+              title, price, currency, image_url, metadata, updated_at,
+              region, country_code
+       FROM products
+       WHERE is_active = true
+         AND country_code = $1
+         AND currency = $2
+         AND price IS NOT NULL
+       ORDER BY updated_at DESC
+       LIMIT $3 OFFSET $4`, [countryCode, currency, limit, offset]);
+    const products = result.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
+    const responseBody = (0, response_1.buildSearchResponse)(products, products.length, limit, offset, Date.now() - start, false);
+    config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => { });
+    res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
+    res.json(responseBody);
 }));
 // GET /v1/products/:id
 router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.get'), asyncHandler(async (req, res) => {

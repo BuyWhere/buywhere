@@ -1239,8 +1239,9 @@ router.get(
 
     const result = await readDb().query(
       `SELECT id, sku AS source_id, source AS domain, url,
+              NULL::text AS affiliate_url,
               title, price, currency, image_url, metadata, updated_at,
-              region, country_code, affiliate_url, original_price, discount_pct
+              region, country_code
        FROM products
        WHERE is_active = true
          AND country_code = $1
