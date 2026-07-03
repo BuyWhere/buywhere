@@ -595,6 +595,11 @@ router.get(
           // effort: if it times out on the memory-starved replica, serve the AND
           // rows alone rather than discarding good results for a degraded payload.
           if (andRes.rows.length >= requestedRows) return andRes;
+          // Budget guard: the OR top-up can cost up to a full statement timeout on a
+          // cold replica. Only attempt it when the request still has comfortable
+          // headroom inside the handler window; otherwise a thin-but-precise page
+          // NOW beats a degraded empty page at the handler timeout.
+          if (andRes.rows.length > 0 && Date.now() - requestStart > 2000) return andRes;
           if (andRes.rows.length > 0) {
             try {
               let orRes = await client.query(baseQuery, dataParams);
