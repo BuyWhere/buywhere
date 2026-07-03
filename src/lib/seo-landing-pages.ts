@@ -6,6 +6,7 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   process.env.NEXT_PUBLIC_BUYWHERE_API_URL ||
   "https://api.buywhere.ai";
+const API_KEY = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
 
 export type LandingProduct = {
   id: string;
@@ -23,11 +24,16 @@ type SearchApiItem = {
   id: number | string;
   name?: string | null;
   title?: string | null;
-  price?: number | string | null;
+  price?: number | string | { amount?: number | string | null; currency?: string | null } | null;
+  price_amount?: number | string | null;
+  price_currency?: string | null;
   currency?: string | null;
+  click_url?: string | null;
   source?: string | null;
   merchant?: string | null;
+  merchant_name?: string | null;
   image_url?: string | null;
+  image?: string | null;
   url?: string | null;
   buy_url?: string | null;
   affiliate_url?: string | null;
@@ -107,21 +113,29 @@ function formatMerchantName(value?: string | null) {
 }
 
 function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): LandingProduct {
+  const priceValue =
+    item.price && typeof item.price === "object" && "amount" in item.price
+      ? item.price.amount
+      : item.price_amount ?? item.price;
+  const priceCurrency =
+    item.price && typeof item.price === "object" && "currency" in item.price
+      ? item.price.currency
+      : item.price_currency ?? item.currency;
   const numericPrice =
-    typeof item.price === "number"
-      ? item.price
-      : typeof item.price === "string" && item.price.trim()
-        ? Number(item.price)
+    typeof priceValue === "number"
+      ? priceValue
+      : typeof priceValue === "string" && priceValue.trim()
+        ? Number(priceValue)
         : null;
 
   return {
     id: String(item.id),
     name: item.name || item.title || "Untitled product",
     price: Number.isFinite(numericPrice) ? numericPrice : null,
-    currency: item.currency || fallbackCurrency,
-    merchant: formatMerchantName(item.merchant || item.source),
-    imageUrl: item.image_url || null,
-    href: item.affiliate_url || item.buy_url || item.url || "#",
+    currency: priceCurrency || fallbackCurrency,
+    merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
+    imageUrl: item.image_url || item.image || null,
+    href: item.click_url || item.affiliate_url || item.buy_url || item.url || "#",
     brand: item.brand || null,
     category: item.category || null,
   };
@@ -138,6 +152,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     const response = await fetch(`${API_BASE_URL}/v1/products/search?${params.toString()}`, {
       headers: {
         Accept: "application/json",
+        ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
       },
       next: { revalidate: 60 * 60 * 4 },
     });
