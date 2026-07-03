@@ -473,25 +473,23 @@ router.get(
 
     let dataQuery: string;
     if (useFtsRanking) {
-      // BUY-32228: kept ts_rank ORDER BY in the CTE. BUY-31540 replaced this with
-      // `ORDER BY id DESC` + outer `ORDER BY products.updated_at DESC`, but on the
-      // partitioned `products` table (products_sg / products_us / products_default,
-      // 4.1M rows total) that combination forces the planner into a Merge Append
-      // across ALL partitions sorted by updated_at before the top_ids filter runs.
-      // Measured 2026-06-06 against prod DB: `laptop&country=US` 1447ms with
-      // id DESC vs 41ms with ts_rank (1.4M row products_us, planner chooses
-      // Bitmap Heap Scan → 200 pkey lookups via Nested Loop). Outer ORDER BY
-      // top_ids.rank DESC is also used here (matches warmSearchCache CTE), so
-      // relevance ranking survives. The 8s statement_timeout guard from
-      // BUY-31228 stays in place as the safety net.
+      // BUY-59923: do not sort every FTS hit by ts_rank. High-cardinality brand
+      // terms (`iphone 16 pro`, `dyson airwrap`) can match millions of SG rows;
+      // `ORDER BY ts_rank(...) LIMIT 200` still computes rank for the full hit set
+      // and was timing out at the 15s edge. Bound first by the partition-pruned id
+      // index, then rank that small slice for response relevance.
       const rankedWhereClause = useSgFreshnessGuardrail ? freshWhereClause : whereClause;
       dataQuery = `
-        WITH top_ids AS (
-          SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+        WITH recent_hits AS (
+          SELECT id, search_vector
           FROM products
           ${rankedWhereClause}
-          ORDER BY rank DESC
+          ORDER BY id DESC
           LIMIT ${CANDIDATE_CAP}
+        ), top_ids AS (
+          SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+          FROM recent_hits
+          ORDER BY rank DESC, id DESC
         )
         SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
         FROM top_ids

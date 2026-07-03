@@ -4,18 +4,17 @@
 // because on broad US queries (laptop+US = 70k+ matches) the CTE materialised all rows
 // before LIMIT and stalled the cache warm-up, leaving the live endpoint cold.
 //
-// BUY-32228 then put ts_rank BACK in the live /v1/products/search CTE after measuring
-// that `ORDER BY id DESC` + outer `ORDER BY products.updated_at DESC` on the partitioned
-// products table forced a Merge Append across all 4.1M rows (1447ms cold / 8s+ under
-// load, hitting the BUY-31228 statement_timeout). ts_rank gives the planner a Bitmap
-// Heap Scan on the FTS GIN index → 200 pkey lookups via Nested Loop (41ms for the same
-// query).
+// BUY-59923 bounded the live /v1/products/search CTE after measuring that sorting all
+// FTS hits by ts_rank for high-cardinality SG brand terms (`iphone 16 pro`, `dyson
+// airwrap`) still hit the 15s handler timeout. The live path now selects a small,
+// partition-pruned recent_hits slice by id first, then ranks only that bounded slice.
 //
 // Net rule:
 //   - warmSearchCache CTE and any other search CTE that is NOT the live /v1/products/search
 //     useFtsRanking branch must NOT use ts_rank in ORDER BY.
-//   - live /v1/products/search useFtsRanking branch MUST use ts_rank in ORDER BY and
-//     must NOT regress to the slow `id DESC` + outer `products.updated_at DESC` pattern.
+//   - live /v1/products/search useFtsRanking branch MUST rank a bounded recent_hits
+//     slice and must NOT regress to either all-hit ts_rank sorting or the slow
+//     `id DESC` + outer `products.updated_at DESC` pattern.
 //
 // Run in CI and as a pre-deploy gate.
 
@@ -104,15 +103,26 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
     );
   });
 
-  it('live useFtsRanking branch CTE ORDER BYs on rank DESC (not id DESC)', () => {
+  it('live useFtsRanking branch bounds FTS hits before ranking', () => {
     const src = readProductsSource();
     const block = extractUseFtsRankingBlock(src);
-    const cte = block.match(/WITH\s+top_ids\s+AS\s*\(([\s\S]*?)\)\s*(?:SELECT|;)/i);
-    assert.ok(cte, 'Expected a `WITH top_ids AS (...)` CTE in the useFtsRanking branch');
+    const recentHits = block.match(/WITH\s+recent_hits\s+AS\s*\(([\s\S]*?)\),\s*top_ids\s+AS/i);
+    assert.ok(recentHits, 'Expected a `WITH recent_hits AS (...)` CTE before top_ids');
+    assert.ok(
+      /ORDER\s+BY\s+id\s+DESC/i.test(recentHits[1]) && /LIMIT\s+\$?\{?CANDIDATE_CAP\}?/i.test(recentHits[1]),
+      'Expected recent_hits to `ORDER BY id DESC LIMIT ${CANDIDATE_CAP}` before ranking so ts_rank only sorts a bounded slice.'
+    );
+  });
+
+  it('live useFtsRanking branch ranks only recent_hits by rank DESC', () => {
+    const src = readProductsSource();
+    const block = extractUseFtsRankingBlock(src);
+    const cte = block.match(/top_ids\s+AS\s*\(([\s\S]*?)\)\s*SELECT/i);
+    assert.ok(cte, 'Expected a `top_ids AS (...)` CTE in the useFtsRanking branch');
+    assert.ok(/FROM\s+recent_hits/i.test(cte[1]), 'Expected top_ids to read from bounded recent_hits');
     assert.ok(
       /ORDER\s+BY\s+rank\s+DESC/i.test(cte[1]),
-      'Expected the live CTE to `ORDER BY rank DESC` so the LIMIT can short-circuit via the FTS index. '
-        + 'Switching to `ORDER BY id DESC` reintroduces the 8s timeout (BUY-32228).'
+      'Expected top_ids to `ORDER BY rank DESC` after recent_hits bounded the candidate set.'
     );
   });
 
@@ -130,8 +140,8 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
   it('live useFtsRanking branch does NOT regress to id DESC + outer products.updated_at DESC', () => {
     const src = readProductsSource();
     const block = extractUseFtsRankingBlock(src);
-    const cte = block.match(/WITH\s+top_ids\s+AS\s*\(([\s\S]*?)\)/i);
-    assert.ok(cte, 'Expected a `WITH top_ids AS (...)` CTE');
+    const cte = block.match(/top_ids\s+AS\s*\(([\s\S]*?)\)\s*SELECT/i);
+    assert.ok(cte, 'Expected a `top_ids AS (...)` CTE');
     const cteHasIdDesc = /ORDER\s+BY\s+id\s+DESC/i.test(cte[1]);
     const outerHasProductsUpdatedAt = /ORDER\s+BY\s+products\.updated_at\s+DESC/i.test(block);
     assert.ok(
