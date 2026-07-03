@@ -106,7 +106,23 @@ function formatMerchantName(value?: string | null) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): LandingProduct {
+function isValidLandingProduct(product: LandingProduct): boolean {
+  return (
+    !!product.id &&
+    product.name.trim().length > 0 &&
+    product.name !== "Untitled product" &&
+    product.price !== null &&
+    product.price >= 0
+  );
+}
+
+function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, fallbackCountry: string): LandingProduct {
+  const safeName =
+    typeof item.name === "string" && item.name.trim() ? item.name : typeof item.title === "string" && item.title.trim() ? item.title : "Untitled product";
+  const fallbackSearchParams = new URLSearchParams({
+    q: safeName,
+    country: fallbackCountry,
+  });
   const numericPrice =
     typeof item.price === "number"
       ? item.price
@@ -116,18 +132,20 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Landin
 
   return {
     id: String(item.id),
-    name: item.name || item.title || "Untitled product",
+    name: safeName,
     price: Number.isFinite(numericPrice) ? numericPrice : null,
     currency: item.currency || fallbackCurrency,
     merchant: formatMerchantName(item.merchant || item.source),
     imageUrl: item.image_url || null,
-    href: item.affiliate_url || item.buy_url || item.url || "#",
+    href: item.affiliate_url || item.buy_url || item.url || `/search?${fallbackSearchParams.toString()}`,
     brand: item.brand || null,
     category: item.category || null,
   };
 }
 
 export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promise<LandingProduct[]> {
+  const fallback = config.fallbackProducts.filter(isValidLandingProduct);
+
   try {
     const params = new URLSearchParams({
       q: config.searchQuery,
@@ -153,9 +171,18 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       throw new Error("Search response was empty");
     }
 
-    return items.map((item) => normalizeProduct(item, config.currency)).slice(0, 8);
+    const products = items
+      .map((item) => normalizeProduct(item, config.currency, config.country))
+      .filter(isValidLandingProduct)
+      .slice(0, 8);
+
+    if (products.length === 0) {
+      throw new Error("Search response contained no valid products");
+    }
+
+    return products;
   } catch {
-    return config.fallbackProducts;
+    return fallback;
   }
 }
 
