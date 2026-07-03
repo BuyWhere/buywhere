@@ -1209,6 +1209,56 @@ router.get(
   })
 );
 
+// GET /v1/products/featured
+// Keep this route above /:id so Express does not treat "featured" as a product id.
+router.get(
+  '/featured',
+  agentDetectMiddleware,
+  requireApiKey,
+  checkRateLimit,
+  queryLogMiddleware('products.featured'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const start = Date.now();
+    const rawCountry = (req.query.country_code as string | undefined) || (req.query.country as string | undefined);
+    const countryCode = rawCountry?.toUpperCase() || 'SG';
+    const currency = (req.query.currency as string) || (COUNTRY_CURRENCY[countryCode] || 'SGD');
+    const limit = Math.min(parseInt((req.query.limit as string) || '12'), 50);
+    const offset = Math.max(parseInt((req.query.offset as string) || '0'), 0);
+    const compact = req.query.compact === 'true';
+
+    const cacheKey = `featured:${countryCode}:${currency}:${limit}:${offset}:${compact ? 'c' : 'f'}`;
+    try {
+      const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        parsed.cached = true;
+        parsed.response_time_ms = Date.now() - start;
+        return res.json(parsed);
+      }
+    } catch (_) {}
+
+    const result = await readDb().query(
+      `SELECT id, sku AS source_id, source AS domain, url,
+              title, price, currency, image_url, metadata, updated_at,
+              region, country_code, affiliate_url, original_price, discount_pct
+       FROM products
+       WHERE is_active = true
+         AND country_code = $1
+         AND currency = $2
+         AND price IS NOT NULL
+       ORDER BY updated_at DESC
+       LIMIT $3 OFFSET $4`,
+      [countryCode, currency, limit, offset]
+    );
+
+    const products = result.rows.map((row: Record<string, unknown>) => buildProduct(row, currency, compact));
+    const responseBody = buildSearchResponse(products, products.length, limit, offset, Date.now() - start, false);
+    redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => {});
+    res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
+    res.json(responseBody);
+  })
+);
+
 // GET /v1/products/:id
 router.get(
   '/:id',
