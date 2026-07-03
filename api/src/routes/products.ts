@@ -25,7 +25,6 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 // BUY-33985 deals endpoint fix at 15s.
 const SEARCH_STATEMENT_TIMEOUT_MS = 15000;
 const SEARCH_HANDLER_TIMEOUT_MS = 15000;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
 const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'sg-fresh-v1';
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
@@ -427,12 +426,7 @@ router.get(
 
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
-    const useFtsRanking = (!effectiveSort || effectiveSort === 'relevance') && ftsParamIdx;
-    const useSgFreshnessGuardrail = countryCode === 'SG' && (!effectiveSort || effectiveSort === 'relevance') && Boolean(q);
-    const freshSearchConditions = useSgFreshnessGuardrail
-      ? [...searchConditions, `products.updated_at >= NOW() - INTERVAL '${SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS} hours'`]
-      : searchConditions;
-    const freshWhereClause = freshSearchConditions.length ? `WHERE ${freshSearchConditions.join(' AND ')}` : '';
+    const useFtsRanking = effectiveSort === 'relevance' && ftsParamIdx;
 
     function buildSortOrder(): string {
       if (!effectiveSort || effectiveSort === 'relevance') return 'products.updated_at DESC';
@@ -473,12 +467,11 @@ router.get(
       // top_ids.rank DESC is also used here (matches warmSearchCache CTE), so
       // relevance ranking survives. The 8s statement_timeout guard from
       // BUY-31228 stays in place as the safety net.
-      const rankedWhereClause = useSgFreshnessGuardrail ? freshWhereClause : whereClause;
       dataQuery = `
         WITH top_ids AS (
           SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
           FROM products
-          ${rankedWhereClause}
+          ${whereClause}
           ORDER BY rank DESC
           LIMIT ${CANDIDATE_CAP}
         )
@@ -494,7 +487,7 @@ router.get(
         SELECT ${joinedColumns}
         FROM products
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-        ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
+        ${whereClause}
         ORDER BY ${buildSortOrder()}
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
       `;
@@ -572,7 +565,7 @@ router.get(
             const ftsCandidates = await client.query<{ id: string }>(
               `SELECT id
                FROM products
-              ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
+              ${whereClause}
                ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
                LIMIT 200`,
               searchParams
@@ -615,17 +608,9 @@ router.get(
           }
         } else {
           dataResult = await client.query(dataQuery, dataParams);
-          if (useSgFreshnessGuardrail && dataResult.rows.length === 0) {
-            dataQuery = dataQuery.replace(freshWhereClause, whereClause);
-            dataResult = await client.query(dataQuery, dataParams);
-          }
         }
       } else {
         dataResult = await client.query(dataQuery, dataParams);
-        if (useSgFreshnessGuardrail && dataResult.rows.length === 0) {
-          dataQuery = dataQuery.replace(freshWhereClause, whereClause);
-          dataResult = await client.query(dataQuery, dataParams);
-        }
       }
       await client.query('COMMIT');
     } catch (err: unknown) {
