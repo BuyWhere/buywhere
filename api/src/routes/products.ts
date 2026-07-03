@@ -476,7 +476,7 @@ router.get(
       const rankedWhereClause = useSgFreshnessGuardrail ? freshWhereClause : whereClause;
       dataQuery = `
         WITH top_ids AS (
-          SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+          SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
           FROM products
           ${rankedWhereClause}
           ORDER BY rank DESC
@@ -484,7 +484,7 @@ router.get(
         )
         SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
         FROM top_ids
-        JOIN products ON products.id = top_ids.id
+        JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY top_ids.rank DESC
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
