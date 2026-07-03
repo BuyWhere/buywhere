@@ -137,6 +137,20 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
     );
   });
 
+  it('live useFtsRanking branch joins the country partition when country_code is fixed', () => {
+    const src = readProductsSource();
+    const block = extractUseFtsRankingBlock(src);
+    assert.ok(
+      /const\s+productsJoinTable\s*=\s*countryCode\s*\?/i.test(src),
+      'Expected a productsJoinTable selected from countryCode before building the ranked query.'
+    );
+    assert.ok(
+      /JOIN\s+\$\{productsJoinTable\}\s+products\s+ON\s+products\.id\s*=\s*top_ids\.id/i.test(block),
+      'Expected ranked search to join the concrete country partition (for SG: products_sg) instead of the parent products table. '
+        + 'The parent join probes every partition for each ranked id and regresses compact cold latency.'
+    );
+  });
+
   it('live useFtsRanking branch does NOT regress to id DESC + outer products.updated_at DESC', () => {
     const src = readProductsSource();
     const block = extractUseFtsRankingBlock(src);
