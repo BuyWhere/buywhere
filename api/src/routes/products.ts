@@ -293,8 +293,15 @@ router.get(
     const { cleanedQuery, canonicalSources } = preprocessSearchQuery(rawQuery, minPrice, maxPrice);
     const q = cleanedQuery || rawQuery;
 
-    // Check Redis cache for this exact query (60s TTL)
-    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}`;
+    // Sprint C (1.4): normalize the q component of the cache key — lowercase,
+    // sorted, punctuation-stripped token set — so "Running Shoes", "running shoe s"
+    // orderings and casings share one cache entry (AND/OR matching is order-
+    // independent, so results are identical). Falls back to trimmed lowercase q
+    // when normalization strips everything (pure-punctuation queries).
+    const qNorm = q.toLowerCase().trim().split(/\s+/)
+      .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
+      || q.toLowerCase().trim();
+    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}`;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
       if (cached) {
@@ -582,12 +589,37 @@ router.get(
             const andBroad = whereClause.split(ftsOrMatch).join(ftsAndMatch);
             andRes = await client.query(andQuery.replace(andFresh, andBroad), dataParams);
           }
-          // Use the strict AND match whenever it yields ANY real results: on the
-          // skewed catalog a common term like \"dog food\" has ~1 true match but its
-          // OR expansion (dog | food) unions ~2M rows -> 11s. One precise result beats
-          // thousands of loosely-related ones. Only fall back to OR when AND is empty
-          // (e.g. \"running shoes\" where no product contains both lexemes).
-          if (andRes.rows.length > 0) return andRes;
+          // Strict AND matches rank first (precise). Sprint C: if AND under-fills
+          // the page, TOP UP from the broad OR match (dedup by id) so the page is
+          // full without losing precision-first ordering. The OR top-up is best-
+          // effort: if it times out on the memory-starved replica, serve the AND
+          // rows alone rather than discarding good results for a degraded payload.
+          if (andRes.rows.length >= requestedRows) return andRes;
+          if (andRes.rows.length > 0) {
+            try {
+              let orRes = await client.query(baseQuery, dataParams);
+              if (useSgFreshnessGuardrail && orRes.rows.length === 0) {
+                orRes = await client.query(baseQuery.replace(freshWhereClause, whereClause), dataParams);
+              }
+              const seenIds = new Set(andRes.rows.map((r0) => String((r0 as Record<string, unknown>).id)));
+              const merged = [...andRes.rows];
+              for (const row of orRes.rows) {
+                if (merged.length >= requestedRows) break;
+                const rid = String((row as Record<string, unknown>).id);
+                if (!seenIds.has(rid)) { seenIds.add(rid); merged.push(row); }
+              }
+              return { rows: merged };
+            } catch {
+              // OR top-up timed out/failed — the transaction is aborted, so recover
+              // it and serve the precise AND rows we already have.
+              await client.query('ROLLBACK').catch(() => {});
+              await client.query('BEGIN').catch(() => {});
+              await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`).catch(() => {});
+              await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`).catch(() => {});
+              await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`).catch(() => {});
+              return andRes;
+            }
+          }
         }
         let r = await client.query(baseQuery, dataParams);
         if (useSgFreshnessGuardrail && r.rows.length === 0) {
@@ -1671,6 +1703,10 @@ export async function warmSearchCache(): Promise<void> {
         skipped++;
         continue;
       }
+
+      // Sprint C: stagger cold warm-queries so the 4-min loop doesn't stampede
+      // the replica with all seeds at once.
+      await new Promise((resolve) => setTimeout(resolve, 1500));
 
       // Build the query the same way the handler does
       // BUY-33987: include `is_active = true` so the warm CTE matches the
