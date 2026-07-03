@@ -390,12 +390,21 @@ router.get(
     const searchConditions = [...baseConditions];
     const searchParams = [...baseParams];
     let ftsParamIdx = 0;
+    let ftsOrParamIdx = 0;
     if (q) {
       // Use full-text search via GIN-indexed search_vector only.
       // The ILIKE fallback was removed: it defeats the GIN index and causes full table scans (3s vs 130ms).
-      ftsParamIdx = searchParams.length + 1;
-      searchConditions.push(`search_vector @@ plainto_tsquery('english', $${ftsParamIdx})`);
+      // MATCH with OR-semantics (to_tsquery 'a | b') so a multi-word query does not require
+      // EVERY lexeme in one product. plainto_tsquery AND-joined them ('run' & 'shoe') which gave
+      // near-zero recall on the skewed catalog ('running shoes'->0 while 'running'->N, 'shoes'->N).
+      // RANK still uses plainto_tsquery (below) so products matching MORE terms sort to the top.
+      ftsParamIdx = searchParams.length + 1;      // RANK param (plainto / AND-relevance)
       searchParams.push(q);
+      const tsOr = q.trim().split(/\s+/)
+        .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).join(' | ');
+      ftsOrParamIdx = searchParams.length + 1;    // MATCH param (to_tsquery / OR-recall)
+      searchParams.push(tsOr || q);
+      searchConditions.push(`search_vector @@ to_tsquery('english', $${ftsOrParamIdx})`);
     }
 
     const whereClause = searchConditions.length ? `WHERE ${searchConditions.join(' AND ')}` : '';
