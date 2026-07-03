@@ -23,8 +23,10 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 // path is still ~15-75ms; the 5s ceiling was below the latency budget the API
 // advertises and produced 504 upstream_timeout on every search. Mirrors the
 // BUY-33985 deals endpoint fix at 15s.
-const SEARCH_STATEMENT_TIMEOUT_MS = 15000;
-const SEARCH_HANDLER_TIMEOUT_MS = 15000;
+// Sprint A (2026-07-03): env-tunable latency budget. Agents abandon long before
+// 15s; degraded-200s replace 504s below so a slow answer is still an answer.
+const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
+const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
 const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'sg-fresh-v1';
 
@@ -223,6 +225,7 @@ router.get(
     };
 
     redis.set(cacheKey, JSON.stringify(body), 'EX', LIST_SORT_TTL_SECONDS).catch(() => {});
+    if (res.headersSent) return;
     res.json(body);
   })
 );
@@ -244,7 +247,13 @@ router.get(
     // socket will close. Mirrors the BUY-33985 deals fix.
     res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, () => {
       if (!res.headersSent) {
-        res.status(504).json({ error: 'upstream_timeout', timeout_ms: SEARCH_HANDLER_TIMEOUT_MS });
+        // Degraded 200, not 504: a fast honest partial answer keeps BuyWhere in the
+        // agent's toolchain; a 504 gets the tool dropped from rotation.
+        res.status(200).json({
+          products: [], results: [], total: 0, degraded: true,
+          hint: 'query exceeded the latency budget; add a brand, category, or price constraint, or retry shortly',
+          timeout_ms: SEARCH_HANDLER_TIMEOUT_MS,
+        });
       }
     });
     const requestStart = Date.now();
@@ -393,6 +402,7 @@ router.get(
     const searchParams = [...baseParams];
     let ftsParamIdx = 0;
     let ftsOrParamIdx = 0;
+    let ftsOrFn = 'to_tsquery';
     if (q) {
       // Use full-text search via GIN-indexed search_vector only.
       // The ILIKE fallback was removed: it defeats the GIN index and causes full table scans (3s vs 130ms).
@@ -404,21 +414,28 @@ router.get(
       searchParams.push(q);
       const tsOr = q.trim().split(/\s+/)
         .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).join(' | ');
-      ftsOrParamIdx = searchParams.length + 1;    // MATCH param (to_tsquery / OR-recall)
+      // Sprint A 0.2: if q is pure punctuation, tsOr is empty — NEVER fall back to
+      // feeding raw q into to_tsquery ("no operand in tsquery" -> 500). Use
+      // plainto_tsquery for the OR slot instead: it is safe on arbitrary input and
+      // yields an empty tsquery (0 results, 200) on junk.
+      ftsOrFn = tsOr ? 'to_tsquery' : 'plainto_tsquery';
+      ftsOrParamIdx = searchParams.length + 1;    // MATCH param (OR-recall)
       searchParams.push(tsOr || q);
-      searchConditions.push(`search_vector @@ to_tsquery('english', $${ftsOrParamIdx})`);
+      searchConditions.push(`search_vector @@ ${ftsOrFn}('english', $${ftsOrParamIdx})`);
     }
 
     // AND-first-then-OR (BUY search-tail 2026-07-03): the two match strings + a
     // multi-word flag, used at execution to try the strict plainto (AND) match
     // before the broad to_tsquery (OR) match. See execFtsQuery below.
     const ftsIsMultiWord = q ? q.trim().split(/\s+/).filter(Boolean).length > 1 : false;
-    const ftsOrMatch = `search_vector @@ to_tsquery('english', $${ftsOrParamIdx})`;
+    const ftsOrMatch = `search_vector @@ ${ftsOrFn}('english', $${ftsOrParamIdx})`;
     // The OR->AND swap below drops the to_tsquery($ftsOrParamIdx) reference, which
     // would orphan that bind param (Postgres: \"could not determine data type of
     // parameter\"). Keep it referenced with an always-true typed no-op so the param
     // stays typed. tsOr is never null (we push `tsOr || q`).
-    const ftsAndMatch = `search_vector @@ plainto_tsquery('english', $${ftsParamIdx}) AND $${ftsOrParamIdx}::text IS NOT NULL`;
+    // Sprint A 1.1-delta: strict pass uses websearch_to_tsquery — same AND semantics
+    // as plainto but adds quoted-phrase + '-term' support and is safe on raw input.
+    const ftsAndMatch = `search_vector @@ websearch_to_tsquery('english', $${ftsParamIdx}) AND $${ftsOrParamIdx}::text IS NOT NULL`;
 
     const whereClause = searchConditions.length ? `WHERE ${searchConditions.join(' AND ')}` : '';
 
@@ -668,7 +685,13 @@ router.get(
       const pgErr = err as { code?: string };
       if (pgErr.code === '57014') {
         client.release();
-        res.status(503).json({ error: 'Search query timed out', timeout_ms: SEARCH_STATEMENT_TIMEOUT_MS });
+        if (!res.headersSent) {
+          res.status(200).json({
+            products: [], results: [], total: 0, degraded: true,
+            hint: 'broad query timed out; add a brand, category, or price constraint',
+            timeout_ms: SEARCH_STATEMENT_TIMEOUT_MS,
+          });
+        }
         return;
       }
       // BUY-34291: shared_buffers exhaustion (SQLSTATE 53200) under load — return
@@ -676,7 +699,9 @@ router.get(
       // is just under memory pressure. Client should retry.
       if (pgErr.code === '53200' || (typeof (err as Error)?.message === 'string' && (err as Error).message.includes('No space left on device'))) {
         client.release();
-        res.status(503).json({ error: 'Search temporarily unavailable', reason: 'db_memory_pressure', retry_after_ms: 1000 });
+        if (!res.headersSent) {
+          res.status(503).json({ error: 'Search temporarily unavailable', reason: 'db_memory_pressure', retry_after_ms: 1000 });
+        }
         return;
       }
       client.release();
@@ -761,6 +786,7 @@ router.get(
       req,
     });
 
+    if (res.headersSent) return;
     res.json(responseBody);
   })
 );
