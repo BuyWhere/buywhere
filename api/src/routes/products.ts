@@ -35,16 +35,6 @@ const VALID_SEARCH_MODES = new Set(['keyword', 'semantic', 'hybrid']);
 const DEFAULT_SEARCH_MODE = 'keyword';
 const VECTOR_CANDIDATE_CAP = 1000;
 const HYBRID_RRF_K = 60;
-const PRODUCT_PARTITION_BY_COUNTRY: Record<string, string> = {
-  ID: 'products_id',
-  KR: 'products_kr',
-  MY: 'products_my',
-  PH: 'products_ph',
-  SG: 'products_sg',
-  TH: 'products_th',
-  US: 'products_us',
-  VN: 'products_vn',
-};
 
 // BUY-34291: cap per-query work_mem to 4MB (down from 64MB default) so concurrent
 // search requests don't compete for shared_buffers. Without this, the planner's
@@ -445,7 +435,6 @@ router.get(
                al.destination_url AS affiliate_url,
                products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
                products.region, products.country_code, ${specColumnsJoined}`;
-    const productsJoinTable = countryCode ? (PRODUCT_PARTITION_BY_COUNTRY[countryCode] || 'products') : 'products';
 
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
@@ -504,7 +493,7 @@ router.get(
         )
         SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
         FROM top_ids
-        JOIN ${productsJoinTable} products ON products.id = top_ids.id
+        JOIN products ON products.id = top_ids.id
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY top_ids.rank DESC
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
