@@ -414,7 +414,11 @@ router.get(
     // before the broad to_tsquery (OR) match. See execFtsQuery below.
     const ftsIsMultiWord = q ? q.trim().split(/\s+/).filter(Boolean).length > 1 : false;
     const ftsOrMatch = `search_vector @@ to_tsquery('english', $${ftsOrParamIdx})`;
-    const ftsAndMatch = `search_vector @@ plainto_tsquery('english', $${ftsParamIdx})`;
+    // The OR->AND swap below drops the to_tsquery($ftsOrParamIdx) reference, which
+    // would orphan that bind param (Postgres: \"could not determine data type of
+    // parameter\"). Keep it referenced with an always-true typed no-op so the param
+    // stays typed. tsOr is never null (we push `tsOr || q`).
+    const ftsAndMatch = `search_vector @@ plainto_tsquery('english', $${ftsParamIdx}) AND $${ftsOrParamIdx}::text IS NOT NULL`;
 
     const whereClause = searchConditions.length ? `WHERE ${searchConditions.join(' AND ')}` : '';
 
