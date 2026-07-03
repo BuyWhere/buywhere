@@ -409,6 +409,13 @@ router.get(
       searchConditions.push(`search_vector @@ to_tsquery('english', $${ftsOrParamIdx})`);
     }
 
+    // AND-first-then-OR (BUY search-tail 2026-07-03): the two match strings + a
+    // multi-word flag, used at execution to try the strict plainto (AND) match
+    // before the broad to_tsquery (OR) match. See execFtsQuery below.
+    const ftsIsMultiWord = q ? q.trim().split(/\s+/).filter(Boolean).length > 1 : false;
+    const ftsOrMatch = `search_vector @@ to_tsquery('english', $${ftsOrParamIdx})`;
+    const ftsAndMatch = `search_vector @@ plainto_tsquery('english', $${ftsParamIdx})`;
+
     const whereClause = searchConditions.length ? `WHERE ${searchConditions.join(' AND ')}` : '';
 
     // BUY-33987: SEARCH_STATEMENT_TIMEOUT_MS and SEARCH_HANDLER_TIMEOUT_MS are
@@ -535,6 +542,28 @@ router.get(
       await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
       await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
       await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
+
+      // AND-first-then-OR execution (non-SG relevance multi-word queries only; SG
+      // queries are already bounded by the freshness guardrail, so their OR cost is
+      // capped). Try the strict plainto (AND) match first — a small, fast candidate
+      // set (e.g. products literally titled \"dog food\") that avoids unioning the
+      // huge \"dog\" | \"food\" posting lists on the memory-starved search replica.
+      // Fall back to the broad OR match only when AND under-fills the page (preserves
+      // recall for skewed-catalog terms like \"running shoes\" where no product has
+      // both lexemes). Non-FTS/sorted queries just run the base query + the existing
+      // SG-freshness fallback, unchanged.
+      const execFtsQuery = async (baseQuery: string): Promise<{ rows: Array<Record<string, unknown>> }> => {
+        if (useFtsRanking && ftsIsMultiWord && !useSgFreshnessGuardrail) {
+          const andQuery = baseQuery.split(ftsOrMatch).join(ftsAndMatch);
+          const andRes = await client.query(andQuery, dataParams);
+          if (andRes.rows.length >= requestedRows) return andRes;
+        }
+        let r = await client.query(baseQuery, dataParams);
+        if (useSgFreshnessGuardrail && r.rows.length === 0) {
+          r = await client.query(baseQuery.replace(freshWhereClause, whereClause), dataParams);
+        }
+        return r;
+      };
       const geminiKey = process.env.GEMINI_API_KEY ?? '';
       const activeVectorDb = q !== '' && searchMode !== 'keyword' && vectorDb != null && geminiKey !== ''
         ? vectorDb
@@ -614,18 +643,10 @@ router.get(
             );
           }
         } else {
-          dataResult = await client.query(dataQuery, dataParams);
-          if (useSgFreshnessGuardrail && dataResult.rows.length === 0) {
-            dataQuery = dataQuery.replace(freshWhereClause, whereClause);
-            dataResult = await client.query(dataQuery, dataParams);
-          }
+          dataResult = await execFtsQuery(dataQuery);
         }
       } else {
-        dataResult = await client.query(dataQuery, dataParams);
-        if (useSgFreshnessGuardrail && dataResult.rows.length === 0) {
-          dataQuery = dataQuery.replace(freshWhereClause, whereClause);
-          dataResult = await client.query(dataQuery, dataParams);
-        }
+        dataResult = await execFtsQuery(dataQuery);
       }
       await client.query('COMMIT');
     } catch (err: unknown) {
