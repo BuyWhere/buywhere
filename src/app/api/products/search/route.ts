@@ -26,8 +26,11 @@ export async function GET(request: NextRequest) {
   });
 
   const country = upstreamParams.get('country');
-  if (country && !upstreamParams.has('country_code')) {
-    upstreamParams.set('country_code', country);
+  if (country) {
+    if (!upstreamParams.has('country_code')) {
+      upstreamParams.set('country_code', country);
+    }
+    upstreamParams.delete('country');
   }
 
   try {
