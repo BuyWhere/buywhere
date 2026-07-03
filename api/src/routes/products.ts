@@ -25,6 +25,8 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 // BUY-33985 deals endpoint fix at 15s.
 const SEARCH_STATEMENT_TIMEOUT_MS = 15000;
 const SEARCH_HANDLER_TIMEOUT_MS = 15000;
+const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'sg-fresh-v1';
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -283,7 +285,7 @@ router.get(
     const q = cleanedQuery || rawQuery;
 
     // Check Redis cache for this exact query (60s TTL)
-    const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}`;
+    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}`;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
       if (cached) {
@@ -426,6 +428,11 @@ router.get(
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
     const useFtsRanking = (!effectiveSort || effectiveSort === 'relevance') && ftsParamIdx;
+    const useSgFreshnessGuardrail = countryCode === 'SG' && (!effectiveSort || effectiveSort === 'relevance') && Boolean(q);
+    const freshSearchConditions = useSgFreshnessGuardrail
+      ? [...searchConditions, `products.updated_at >= NOW() - INTERVAL '${SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS} hours'`]
+      : searchConditions;
+    const freshWhereClause = freshSearchConditions.length ? `WHERE ${freshSearchConditions.join(' AND ')}` : '';
 
     function buildSortOrder(): string {
       if (!effectiveSort || effectiveSort === 'relevance') return 'products.updated_at DESC';
@@ -466,11 +473,12 @@ router.get(
       // top_ids.rank DESC is also used here (matches warmSearchCache CTE), so
       // relevance ranking survives. The 8s statement_timeout guard from
       // BUY-31228 stays in place as the safety net.
+      const rankedWhereClause = useSgFreshnessGuardrail ? freshWhereClause : whereClause;
       dataQuery = `
         WITH top_ids AS (
           SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
           FROM products
-          ${whereClause}
+          ${rankedWhereClause}
           ORDER BY rank DESC
           LIMIT ${CANDIDATE_CAP}
         )
@@ -486,7 +494,7 @@ router.get(
         SELECT ${joinedColumns}
         FROM products
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-        ${whereClause}
+        ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
         ORDER BY ${buildSortOrder()}
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
       `;
@@ -564,7 +572,7 @@ router.get(
             const ftsCandidates = await client.query<{ id: string }>(
               `SELECT id
                FROM products
-               ${whereClause}
+              ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
                ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
                LIMIT 200`,
               searchParams
@@ -607,9 +615,17 @@ router.get(
           }
         } else {
           dataResult = await client.query(dataQuery, dataParams);
+          if (useSgFreshnessGuardrail && dataResult.rows.length === 0) {
+            dataQuery = dataQuery.replace(freshWhereClause, whereClause);
+            dataResult = await client.query(dataQuery, dataParams);
+          }
         }
       } else {
         dataResult = await client.query(dataQuery, dataParams);
+        if (useSgFreshnessGuardrail && dataResult.rows.length === 0) {
+          dataQuery = dataQuery.replace(freshWhereClause, whereClause);
+          dataResult = await client.query(dataQuery, dataParams);
+        }
       }
       await client.query('COMMIT');
     } catch (err: unknown) {
@@ -1247,7 +1263,7 @@ router.get(
          AND country_code = $1
          AND currency = $2
          AND price IS NOT NULL
-       ORDER BY updated_at DESC
+       ORDER BY id DESC
        LIMIT $3 OFFSET $4`,
       [countryCode, currency, limit, offset]
     );
