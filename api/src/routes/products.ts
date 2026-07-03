@@ -553,10 +553,22 @@ router.get(
       // both lexemes). Non-FTS/sorted queries just run the base query + the existing
       // SG-freshness fallback, unchanged.
       const execFtsQuery = async (baseQuery: string): Promise<{ rows: Array<Record<string, unknown>> }> => {
-        if (useFtsRanking && ftsIsMultiWord && !useSgFreshnessGuardrail) {
+        if (useFtsRanking && ftsIsMultiWord) {
           const andQuery = baseQuery.split(ftsOrMatch).join(ftsAndMatch);
-          const andRes = await client.query(andQuery, dataParams);
-          if (andRes.rows.length >= requestedRows) return andRes;
+          let andRes = await client.query(andQuery, dataParams);
+          // SG queries embed the freshness guardrail; if the strict AND match finds
+          // nothing fresh, widen it past the freshness window before giving up on AND.
+          if (useSgFreshnessGuardrail && andRes.rows.length === 0) {
+            const andFresh = freshWhereClause.split(ftsOrMatch).join(ftsAndMatch);
+            const andBroad = whereClause.split(ftsOrMatch).join(ftsAndMatch);
+            andRes = await client.query(andQuery.replace(andFresh, andBroad), dataParams);
+          }
+          // Use the strict AND match whenever it yields ANY real results: on the
+          // skewed catalog a common term like \"dog food\" has ~1 true match but its
+          // OR expansion (dog | food) unions ~2M rows -> 11s. One precise result beats
+          // thousands of loosely-related ones. Only fall back to OR when AND is empty
+          // (e.g. \"running shoes\" where no product contains both lexemes).
+          if (andRes.rows.length > 0) return andRes;
         }
         let r = await client.query(baseQuery, dataParams);
         if (useSgFreshnessGuardrail && r.rows.length === 0) {
