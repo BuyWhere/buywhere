@@ -599,6 +599,11 @@ router.get(
           // cold replica. Only attempt it when the request still has comfortable
           // headroom inside the handler window; otherwise a thin-but-precise page
           // NOW beats a degraded empty page at the handler timeout.
+          // KILL-SWITCH (2026-07-03): top-up DEFAULT OFF — sustained ~18/hr degraded
+          // searches traced to broad OR scans churning the 4GB replica buffers.
+          // Re-enable with SEARCH_OR_TOPUP=1 once the search tier (plan Phase 3)
+          // gives OR scans a working set that fits in RAM.
+          if (andRes.rows.length > 0 && process.env.SEARCH_OR_TOPUP !== '1') return andRes;
           if (andRes.rows.length > 0 && Date.now() - requestStart > 2000) return andRes;
           if (andRes.rows.length > 0) {
             try {
