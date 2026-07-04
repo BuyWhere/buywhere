@@ -781,6 +781,22 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
        LIMIT $4`,
       [50000, requestedCountry, titlePattern, limit]
     );
+    if (result.rows.length === 0) {
+      result = await bestPriceClient.query(
+        `SELECT * FROM (
+           SELECT id, title, price, currency, source AS domain, url, image_url,
+                  country_code, updated_at
+           FROM products
+           WHERE is_active = true AND price > 0
+           ORDER BY updated_at DESC
+           LIMIT $1
+         ) _candidates
+         WHERE country_code = $2
+         ORDER BY price ASC, updated_at DESC
+         LIMIT $3`,
+        [50000, requestedCountry, limit]
+      );
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);
