@@ -18,6 +18,13 @@ const JWT_CACHE_TTL_SECONDS = 300;
 function hashKey(rawKey) {
     return (0, crypto_1.createHash)('sha256').update(rawKey).digest('hex');
 }
+function apiKeyLookupHashes(rawKey) {
+    const hashes = [hashKey(rawKey)];
+    if (rawKey.startsWith('bw_beta_')) {
+        hashes.push(hashKey(`bw_${rawKey.slice('bw_beta_'.length)}`));
+    }
+    return [...new Set(hashes)];
+}
 function base64UrlDecode(s) {
     const base64 = s.replace(/-/g, '+').replace(/_/g, '/');
     return Buffer.from(base64, 'base64').toString('utf8');
@@ -233,10 +240,10 @@ async function requireApiKey(req, res, next) {
         (0, errors_2.sendSpecError)(res, 'invalid_api_key', 'Invalid Paperclip token', 401);
         return;
     }
-    const keyHash = hashKey(key);
+    const keyHashes = apiKeyLookupHashes(key);
     const result = await config_1.db.query(`SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_active,
             daily_request_count, daily_reset_at, rpm_limit, daily_limit
-     FROM api_keys WHERE key_hash = $1`, [keyHash]);
+     FROM api_keys WHERE key_hash = ANY($1::text[])`, [keyHashes]);
     if (result.rows.length === 0) {
         (0, errors_2.sendSpecError)(res, 'invalid_api_key', undefined, 401);
         return;

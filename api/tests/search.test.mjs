@@ -2,6 +2,7 @@ import { describe, it, before, after, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'http';
 import { createRequire } from 'module';
+import { createHash } from 'crypto';
 
 const require = createRequire(import.meta.url);
 
@@ -40,6 +41,10 @@ function makeProduct(id, overrides = {}) {
     updated_at: '2026-05-03T00:00:00Z',
     region: overrides.region || 'SEA', country_code: overrides.country_code || 'SG',
   };
+}
+
+function hashKey(rawKey) {
+  return createHash('sha256').update(rawKey).digest('hex');
 }
 
 function defaultQueryHandler(sql, params) {
@@ -90,6 +95,29 @@ describe('NL search queries — response correctness', () => {
 
   after(() => { server?.close(); });
   beforeEach(() => { setupDefaultMocks(); });
+
+  it('accepts bw_beta signup keys by looking up the canonical bw hash', async () => {
+    const suffix = '988b4fad03aa1064593196ef0513ca0287b892a8';
+    const betaKey = `bw_beta_${suffix}`;
+    const canonicalHash = hashKey(`bw_${suffix}`);
+
+    queryMock.mock.mockImplementation((sql, params) => {
+      if (typeof sql === 'string' && sql.includes('FROM api_keys')) {
+        assert.ok(sql.includes('key_hash = ANY'));
+        assert.ok(params[0].includes(canonicalHash));
+        return Promise.resolve({
+          rows: [{ id: 'test-k', key_hash: canonicalHash, name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }],
+        });
+      }
+      return defaultQueryHandler(sql, params);
+    });
+
+    const res = await fetch(`http://localhost:${port}/v1/products/search?q=laptop`, {
+      headers: { Authorization: `Bearer ${betaKey}` },
+    });
+
+    assert.equal(res.status, 200);
+  });
 
   it('returns SearchResponse shape for simple NL query "laptop"', async () => {
     const res = await fetch(`http://localhost:${port}/v1/products/search?q=laptop`, {

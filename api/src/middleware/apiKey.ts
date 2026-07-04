@@ -17,6 +17,14 @@ export function hashKey(rawKey: string): string {
   return createHash('sha256').update(rawKey).digest('hex');
 }
 
+function apiKeyLookupHashes(rawKey: string): string[] {
+  const hashes = [hashKey(rawKey)];
+  if (rawKey.startsWith('bw_beta_')) {
+    hashes.push(hashKey(`bw_${rawKey.slice('bw_beta_'.length)}`));
+  }
+  return [...new Set(hashes)];
+}
+
 function base64UrlDecode(s: string): string {
   const base64 = s.replace(/-/g, '+').replace(/_/g, '/');
   return Buffer.from(base64, 'base64').toString('utf8');
@@ -273,12 +281,12 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
     return;
   }
 
-  const keyHash = hashKey(key);
+  const keyHashes = apiKeyLookupHashes(key);
   const result = await db.query(
     `SELECT id, key_hash, name, tier, signup_channel, attribution_source, is_active,
             daily_request_count, daily_reset_at, rpm_limit, daily_limit
-     FROM api_keys WHERE key_hash = $1`,
-    [keyHash]
+     FROM api_keys WHERE key_hash = ANY($1::text[])`,
+    [keyHashes]
   );
 
   if (result.rows.length === 0) {
