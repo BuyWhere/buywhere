@@ -694,6 +694,67 @@ router.get(
             `;
             return client.query(recentSliceQuery, dataParams);
           };
+          if (useSgFreshnessGuardrail) {
+            const runBoundedSgMatch = async (
+              matchExpr: string,
+              params = dataParams,
+              sliceWhereClause = recentSliceWhereClause,
+            ): Promise<{ rows: Array<Record<string, unknown>> }> => {
+              const boundedQuery = `
+                WITH recent_candidates AS (
+                  SELECT id, search_vector
+                  FROM products
+                  ${sliceWhereClause}
+                  ORDER BY id DESC
+                  LIMIT ${RECENT_SLICE_CAP}
+                ), top_ids AS (
+                  SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+                  FROM recent_candidates
+                  WHERE ${matchExpr}
+                  ORDER BY rank DESC, id DESC
+                  LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
+                )
+                SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
+                FROM top_ids
+                JOIN products ON products.id = top_ids.id
+                LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+                ORDER BY top_ids.rank DESC
+              `;
+              return client.query(boundedQuery, params);
+            };
+
+            // BUY-60117: keep the entire SG multi-word fallback ladder bounded by
+            // a recent id slice. The previous zero-AND guard still paid the strict
+            // AND GIN scan first, so zero-hit probes could time out before reaching
+            // BUY-60112's bounded OR slice.
+            let boundedAndRes = await runBoundedSgMatch(ftsAndMatch);
+            if (boundedAndRes.rows.length > 0) return boundedAndRes;
+            boundedAndRes = await runBoundedSgMatch(ftsAndMatch, dataParams, broadRecentSliceWhereClause);
+            if (boundedAndRes.rows.length > 0) return boundedAndRes;
+
+            if (ftsLexemes.length >= 3) {
+              const relaxedQueries = [...new Map(
+                ftsLexemes
+                  .map((lexeme, dropIdx) => ({ lexeme, query: ftsLexemes.filter((__, idx) => idx !== dropIdx).join(' ') }))
+                  .sort((a, b) => a.lexeme.length - b.lexeme.length)
+                  .map((entry) => [entry.query, entry.query])
+              ).values()];
+              for (const relaxedQuery of relaxedQueries) {
+                const relaxedParamIdx = dataParams.length + 1;
+                const relaxedMatch = `search_vector @@ websearch_to_tsquery('english', $${relaxedParamIdx}) AND $${ftsOrParamIdx}::text IS NOT NULL`;
+                const relaxedParams = [...dataParams, relaxedQuery];
+                let relaxedRes = await runBoundedSgMatch(relaxedMatch, relaxedParams);
+                if (relaxedRes.rows.length > 0) return relaxedRes;
+                relaxedRes = await runBoundedSgMatch(relaxedMatch, relaxedParams, broadRecentSliceWhereClause);
+                if (relaxedRes.rows.length > 0) return relaxedRes;
+              }
+            }
+
+            const recentSliceRes = await runRecentSliceFallback();
+            if (recentSliceRes.rows.length > 0) return recentSliceRes;
+            return runRecentSliceFallback(broadRecentSliceWhereClause);
+          }
+
           const andQuery = baseQuery.split(ftsOrMatch).join(ftsAndMatch);
           let andRes = await client.query(andQuery, dataParams);
           // SG queries embed the freshness guardrail; if the strict AND match finds
