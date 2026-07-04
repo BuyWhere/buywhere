@@ -477,6 +477,11 @@ router.get(
       ? [...searchConditions, `products.updated_at >= NOW() - INTERVAL '${SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS} hours'`]
       : searchConditions;
     const freshWhereClause = freshSearchConditions.length ? `WHERE ${freshSearchConditions.join(' AND ')}` : '';
+    const recentSliceConditions = useSgFreshnessGuardrail
+      ? [...baseConditions, `products.updated_at >= NOW() - INTERVAL '${SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS} hours'`]
+      : baseConditions;
+    const recentSliceWhereClause = recentSliceConditions.length ? `WHERE ${recentSliceConditions.join(' AND ')}` : '';
+    const broadRecentSliceWhereClause = baseConditions.length ? `WHERE ${baseConditions.join(' AND ')}` : '';
 
     function buildSortOrder(): string {
       if (!effectiveSort || effectiveSort === 'relevance') return 'products.updated_at DESC';
@@ -503,6 +508,7 @@ router.get(
     const limitParamIdx = searchParams.length + 1;
     const offsetParamIdx = searchParams.length + 2;
     const dataParams = [...searchParams, requestedRows, offset];
+    const RECENT_SLICE_CAP = 5000;
 
     const seoFallbackTerms = q.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
     const seoFallbackConditions = baseConditions;
@@ -665,6 +671,29 @@ router.get(
       // SG-freshness fallback, unchanged.
       const execFtsQuery = async (baseQuery: string): Promise<{ rows: Array<Record<string, unknown>> }> => {
         if (useFtsRanking && ftsIsMultiWord) {
+          const runRecentSliceFallback = async (sliceWhereClause = recentSliceWhereClause): Promise<{ rows: Array<Record<string, unknown>> }> => {
+            const recentSliceQuery = `
+              WITH recent_candidates AS (
+                SELECT id, search_vector
+                FROM products
+                ${sliceWhereClause}
+                ORDER BY id DESC
+                LIMIT ${RECENT_SLICE_CAP}
+              ), top_ids AS (
+                SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+                FROM recent_candidates
+                WHERE ${ftsOrMatch}
+                ORDER BY rank DESC, id DESC
+                LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
+              )
+              SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
+              FROM top_ids
+              JOIN products ON products.id = top_ids.id
+              LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+              ORDER BY top_ids.rank DESC
+            `;
+            return client.query(recentSliceQuery, dataParams);
+          };
           const andQuery = baseQuery.split(ftsOrMatch).join(ftsAndMatch);
           let andRes = await client.query(andQuery, dataParams);
           // SG queries embed the freshness guardrail; if the strict AND match finds
@@ -700,6 +729,16 @@ router.get(
               }
               if (relaxedRes.rows.length > 0) return relaxedRes;
             }
+          }
+          // BUY-60112: the remaining zero-AND SG path was still dropping into the
+          // broad OR GIN scan and returning 8s degraded empty responses for broad
+          // terms (`dog food`, `wireless headphones`, `iphone 16 pro`). Keep OR
+          // semantics for recall, but evaluate them over a bounded recent id slice
+          // first so first-touch stays fast without re-enabling OR top-up.
+          if (andRes.rows.length === 0 && useSgFreshnessGuardrail) {
+            const recentSliceRes = await runRecentSliceFallback();
+            if (recentSliceRes.rows.length > 0) return recentSliceRes;
+            return runRecentSliceFallback(broadRecentSliceWhereClause);
           }
           // Strict AND matches rank first (precise). Sprint C: if AND under-fills
           // the page, TOP UP from the broad OR match (dedup by id) so the page is

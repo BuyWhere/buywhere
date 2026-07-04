@@ -172,4 +172,17 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
     assert.ok(/websearch_to_tsquery\('english',\s*\$\$\{relaxedParamIdx\}\)/.test(fallbackBlock), 'Expected relaxed passes to keep AND semantics');
     assert.ok(/return\s+relaxedRes/.test(fallbackBlock), 'Expected successful relaxed pass to return before broad OR fallback');
   });
+
+  it('BUY-60112 keeps zero-AND SG broad queries on a bounded recent slice', () => {
+    const src = readProductsSource();
+    const fallbackStart = src.indexOf('BUY-60112: the remaining zero-AND SG path');
+    const broadOrStart = src.indexOf('let r = await client.query(baseQuery, dataParams);', fallbackStart);
+    assert.ok(fallbackStart >= 0, 'Expected BUY-60112 zero-AND SG fallback comment');
+    assert.ok(broadOrStart > fallbackStart, 'Expected broad OR baseQuery fallback after BUY-60112 block');
+    const fallbackBlock = src.slice(fallbackStart, broadOrStart);
+    assert.ok(/andRes\.rows\.length\s*===\s*0\s*&&\s*useSgFreshnessGuardrail/.test(fallbackBlock), 'Expected fallback to be limited to zero-AND SG relevance searches');
+    assert.ok(/runRecentSliceFallback\(\)/.test(fallbackBlock), 'Expected fresh bounded slice fallback before broad OR');
+    assert.ok(/runRecentSliceFallback\(broadRecentSliceWhereClause\)/.test(fallbackBlock), 'Expected all-time bounded slice retry before broad OR');
+    assert.ok(/LIMIT\s+\$\{RECENT_SLICE_CAP\}/.test(src), 'Expected fallback to cap the recent id slice before OR matching');
+  });
 });
