@@ -100,7 +100,8 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Defaults to SG.' },
+        region: { type: 'string', enum: ['us', 'sg', 'my', 'gb', 'in', 'au'], description: 'Region alias mapped to ISO country code.' },
+        country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY', 'GB', 'IN', 'AU'], description: 'Filter by ISO country code. Defaults to SG.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
       },
     },
@@ -657,7 +658,17 @@ const categoryListInflight = new Map<string, Promise<{ data: unknown[]; meta: Re
 
 async function handleListCategories(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const country = (((args.country_code as string) || (args.country as string)) || 'SG').toUpperCase();
+  const regionCountry: Record<string, string> = {
+    us: 'US',
+    sg: 'SG',
+    my: 'MY',
+    gb: 'GB',
+    uk: 'GB',
+    in: 'IN',
+    au: 'AU',
+  };
+  const region = ((args.region as string) || '').toLowerCase();
+  const country = (((args.country_code as string) || (args.country as string) || regionCountry[region]) || 'SG').toUpperCase();
   const cacheKey = `categories_mcp:top100:${country}`;
 
   // 1. Redis fast path
