@@ -502,7 +502,11 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const minDiscount = Number(args.min_discount) || 10;
   const region = (args.region as string) || '';
   const country = ((args.country_code as string) || (args.country as string) || '').toUpperCase();
-  const currency = ((args.currency as string) || (country ? COUNTRY_CURRENCY[country] : '') || 'SGD').toUpperCase();
+  // BUY-60068: when only `region` is supplied (no `country_code`), derive country
+  // from region so the currency filter and country-specific fallback both fire.
+  // Mirrors the existing derivation in handleFindBestPrice below.
+  const effectiveCountry = country || (region.toLowerCase() === 'us' ? 'US' : region.toLowerCase() === 'sea' ? 'SG' : '');
+  const currency = ((args.currency as string) || (effectiveCountry ? COUNTRY_CURRENCY[effectiveCountry] : '') || 'SGD').toUpperCase();
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
 
@@ -543,8 +547,8 @@ async function handleGetDeals(args: Record<string, unknown>) {
     params.push(region);
     conditions.push(`region = $${params.length}`);
   }
-  if (country) {
-    params.push(country.toUpperCase());
+  if (effectiveCountry) {
+    params.push(effectiveCountry);
     conditions.push(`country_code = $${params.length}`);
   }
 
@@ -604,12 +608,14 @@ async function handleGetDeals(args: Record<string, unknown>) {
     products = dataResult.rows.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
-    if (products.length === 0 && country) {
+    if (products.length === 0 && effectiveCountry) {
       // BUY-60056: many live rows lack original_price/discount metadata, so the
       // strict discount filter can be empty even while the regional catalog is
       // healthy. Return a bounded recent regional sample instead of a timeout or
       // empty response; callers still get product/country metadata under 5s.
-      const fallbackQuery = country === 'US' ? 'watch' : 'laptop';
+      // BUY-60068: extend the fallback to fire whenever a region-derived country
+      // exists, not only when country_code is explicitly passed.
+      const fallbackQuery = effectiveCountry === 'US' ? 'watch' : 'laptop';
       const fallbackResult = await dealsClient.query(
         `SELECT id, sku AS source, source AS domain, url, title,
                 price, NULL::numeric AS original_price, currency, image_url,
@@ -620,7 +626,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
            AND country_code = $1
            AND search_vector @@ plainto_tsquery('english', $2)
          LIMIT $3`,
-        [country, fallbackQuery, limit]
+        [effectiveCountry, fallbackQuery, limit]
       );
       total = fallbackResult.rows.length;
       products = fallbackResult.rows.map((r: Record<string, unknown>) =>
@@ -633,6 +639,12 @@ async function handleGetDeals(args: Record<string, unknown>) {
   }
 
   const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
+  // BUY-60068: surface `meta.unavailable:true` when both the strict discount filter
+  // and the regional fallback returned zero rows for the requested region/country,
+  // so callers can distinguish "no live deals" from "server bug".
+  if ((region || country) && products.length === 0) {
+    (result as { unavailable?: boolean }).unavailable = true;
+  }
 
   redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
 
