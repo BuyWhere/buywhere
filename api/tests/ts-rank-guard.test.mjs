@@ -106,8 +106,8 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
   it('live useFtsRanking branch bounds FTS hits before ranking', () => {
     const src = readProductsSource();
     const block = extractUseFtsRankingBlock(src);
-    const recentHits = block.match(/WITH\s+recent_hits\s+AS\s*\(([\s\S]*?)\),\s*top_ids\s+AS/i);
-    assert.ok(recentHits, 'Expected a `WITH recent_hits AS (...)` CTE before top_ids');
+    const recentHits = block.match(/WITH\s+recent_hits\s+AS\s+(?:MATERIALIZED\s+)?\(([\s\S]*?)\),\s*top_ids\s+AS/i);
+    assert.ok(recentHits, 'Expected a `WITH recent_hits AS [MATERIALIZED] (...)` CTE before top_ids');
     assert.ok(
       /ORDER\s+BY\s+id\s+DESC/i.test(recentHits[1]) && /LIMIT\s+\$?\{?CANDIDATE_CAP\}?/i.test(recentHits[1]),
       'Expected recent_hits to `ORDER BY id DESC LIMIT ${CANDIDATE_CAP}` before ranking so ts_rank only sorts a bounded slice.'
@@ -184,5 +184,6 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
     assert.ok(/runRecentSliceFallback\(\)/.test(fallbackBlock), 'Expected fresh bounded slice fallback before broad OR');
     assert.ok(/runRecentSliceFallback\(broadRecentSliceWhereClause\)/.test(fallbackBlock), 'Expected all-time bounded slice retry before broad OR');
     assert.ok(/LIMIT\s+\$\{RECENT_SLICE_CAP\}/.test(src), 'Expected fallback to cap the recent id slice before OR matching');
+    assert.ok(/WITH\s+recent_candidates\s+AS\s+MATERIALIZED\s+\(/.test(src), 'Expected recent candidate slice to be materialized before FTS matching');
   });
 });

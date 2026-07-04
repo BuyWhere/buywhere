@@ -595,7 +595,7 @@ router.get(
       // index, then rank that small slice for response relevance.
       const rankedWhereClause = useSgFreshnessGuardrail ? freshWhereClause : whereClause;
       dataQuery = `
-        WITH recent_hits AS (
+        WITH recent_hits AS MATERIALIZED (
           SELECT id, search_vector
           FROM products
           ${rankedWhereClause}
@@ -673,7 +673,7 @@ router.get(
         if (useFtsRanking && ftsIsMultiWord) {
           const runRecentSliceFallback = async (sliceWhereClause = recentSliceWhereClause): Promise<{ rows: Array<Record<string, unknown>> }> => {
             const recentSliceQuery = `
-              WITH recent_candidates AS (
+              WITH recent_candidates AS MATERIALIZED (
                 SELECT id, search_vector
                 FROM products
                 ${sliceWhereClause}
@@ -701,7 +701,7 @@ router.get(
               sliceWhereClause = recentSliceWhereClause,
             ): Promise<{ rows: Array<Record<string, unknown>> }> => {
               const boundedQuery = `
-                WITH recent_candidates AS (
+                WITH recent_candidates AS MATERIALIZED (
                   SELECT id, search_vector
                   FROM products
                   ${sliceWhereClause}
