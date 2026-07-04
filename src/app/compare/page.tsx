@@ -71,7 +71,13 @@ async function fetchOffersByQuery(query: string): Promise<ComparisonOffer[]> {
     limit: "8",
   });
   const data = await fetchJson(`${API_BASE_URL}/v1/products/search?${params.toString()}`);
-  const rawItems = Array.isArray(data?.items) ? data.items : Array.isArray(data?.results) ? data.results : [];
+  const rawItems = Array.isArray(data?.products)
+    ? data.products
+    : Array.isArray(data?.items)
+      ? data.items
+      : Array.isArray(data?.results)
+        ? data.results
+        : [];
 
   return sortComparisonOffers(rawItems.map((item: Record<string, unknown>) => normalizeComparisonOffer(item)));
 }
