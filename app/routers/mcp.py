@@ -150,7 +150,20 @@ def get_mcp_server() -> Server:
                         ),
                         inputSchema={
                             "type": "object",
-                            "properties": {},
+                            "properties": {
+                                "country_code": {
+                                    "type": "string",
+                                    "description": "ISO country code (SG, US, MY, TH, VN, GB, IN, AU). Defaults to SG.",
+                                },
+                                "country": {
+                                    "type": "string",
+                                    "description": "Alias for country_code.",
+                                },
+                                "region": {
+                                    "type": "string",
+                                    "description": "Alias for country_code/market (us→US, sg→SG, my→MY, gb→GB, in→IN, au→AU).",
+                                },
+                            },
                             "required": [],
                         },
                     ),
@@ -313,8 +326,36 @@ async def _handle_get_deals(args: dict[str, Any]) -> CallToolResult:
 
 
 async def _handle_list_categories(args: dict[str, Any]) -> CallToolResult:
+    # BUY-60069: propagate region/country_code so the upstream categories endpoint
+    # can scope counts to the requested market instead of always defaulting to SG.
+    REGION_TO_COUNTRY: dict[str, str] = {
+        "sg": "SG",
+        "us": "US",
+        "my": "MY",
+        "th": "TH",
+        "vn": "VN",
+        "gb": "GB",
+        "uk": "GB",
+        "in": "IN",
+        "au": "AU",
+        "sea": "SG",
+    }
+
+    def normalize_country(value: Any) -> str:
+        raw = str(value or "").strip()
+        if not raw:
+            return ""
+        return REGION_TO_COUNTRY.get(raw.lower()) or raw.upper()
+
+    params: dict[str, Any] = {}
+    country = normalize_country(
+        args.get("country_code") or args.get("country") or args.get("region")
+    ) or "SG"
+    if country:
+        params["country_code"] = country
+
     try:
-        data = await _api_get("/v1/categories")
+        data = await _api_get("/v1/categories", params)
     except Exception as exc:
         logger.exception("list_categories API error")
         return CallToolResult(
