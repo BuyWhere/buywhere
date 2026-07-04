@@ -103,8 +103,9 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Defaults to SG.' },
+        country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY', 'GB', 'IN', 'AU'], description: 'Filter by ISO country code. Defaults to SG.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        region: { type: 'string', description: 'Alias for country_code/market (us→US, sg→SG, my→MY, gb→GB, in→IN, au→AU).' },
       },
     },
   },
@@ -622,11 +623,26 @@ const categoryListInflight = new Map<string, Promise<{ data: unknown[]; meta: Re
 
 async function handleListCategories(args: Record<string, unknown>) {
   const t0 = Date.now();
-  // BUY-59768: also accept `region` arg (e.g. region=us) — map to country_code so the materialized
-  // view is actually queried for US instead of silently defaulting to SG.
-  const regionArg = ((args.region as string) || '').toUpperCase();
-  const countryArg = (((args.country_code as string) || (args.country as string)) || '').toUpperCase();
-  const country = countryArg || regionArg || 'SG';
+  // BUY-60069: accept the public `region` alias and normalize it to the same
+  // ISO-2 country code used by the cache key and materialized-view lookup.
+  const REGION_TO_COUNTRY: Record<string, string> = {
+    sg: 'SG',
+    us: 'US',
+    my: 'MY',
+    th: 'TH',
+    vn: 'VN',
+    gb: 'GB',
+    uk: 'GB',
+    in: 'IN',
+    au: 'AU',
+    sea: 'SG',
+  };
+  const normalizeCountry = (value: unknown) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    return REGION_TO_COUNTRY[raw.toLowerCase()] || raw.toUpperCase();
+  };
+  const country = normalizeCountry(args.country_code || args.country || args.region) || 'SG';
   const cacheKey = `categories_mcp:top100:${country}`;
 
   // 1. Redis fast path
@@ -658,7 +674,7 @@ async function handleListCategories(args: Record<string, unknown>) {
       const MAT_VIEW_TIMEOUT_MS = 8000;
       // BUY-59768: US partition has 30M rows — needs more headroom than SG's 794K rows.
       const LIVE_TIMEOUT_MS = 60000;
-      const FALLBACK_COUNTRIES = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'GB', 'PH', 'ID']);
+      const FALLBACK_COUNTRIES = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'GB', 'PH', 'ID', 'IN', 'AU']);
       rows = [];
       if (tableCheck.rows[0]?.tbl) {
         const summaryResult = await client.query(
