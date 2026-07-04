@@ -653,7 +653,9 @@ async function handleListCategories(args: Record<string, unknown>) {
     const cached = await redis.get(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
-      return { ...parsed, meta: { ...parsed.meta, cached: true, response_time_ms: Date.now() - t0 } };
+      if (Array.isArray(parsed.data) && parsed.data.length > 0) {
+        return { ...parsed, meta: { ...parsed.meta, cached: true, response_time_ms: Date.now() - t0 } };
+      }
     }
   } catch (_) {}
 
