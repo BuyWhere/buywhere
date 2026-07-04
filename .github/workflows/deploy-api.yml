@@ -1,0 +1,86 @@
+# deploy-api — plan 0.6/9.2: push-to-main deploys with smoke test + auto-rollback.
+# INERT until repo secrets RAILWAY_TOKEN + SMOKE_KEY are set (steps guard on them).
+# This is the sanctioned deploy path per BUY-59936: no `railway up` from local trees.
+name: deploy-api
+on:
+  push:
+    branches: [main]
+    paths: ['api/**']
+
+concurrency:
+  group: deploy-api-production
+  cancel-in-progress: false
+
+env:
+  SERVICE_ID: 945e8a6d-6f89-41f1-8256-b8cc6a872a33
+  ENV_ID: ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae
+  GQL: https://backboard.railway.com/graphql/v2
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Typecheck (report + ratchet — fail only if error count increases)
+        working-directory: api
+        run: |
+          npm ci --silent
+          npx tsc --noEmit 2>&1 | tee /tmp/ts.txt || true
+          NOW=$(grep -c 'error TS' /tmp/ts.txt || true)
+          BASE=$(cat .ts-error-baseline 2>/dev/null || echo 999)
+          echo "TS errors: $NOW (baseline $BASE)"
+          if [ "$NOW" -gt "$BASE" ]; then echo "::error::TS error count increased ($BASE -> $NOW)"; exit 1; fi
+
+      - name: Trigger Railway deploy of this SHA
+        if: ${{ secrets.RAILWAY_TOKEN != '' }}
+        id: deploy
+        run: |
+          RESP=$(curl -sf "$GQL" \
+            -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
+            -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+            -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$SERVICE_ID\\\", environmentId: \\\"$ENV_ID\\\", commitSha: \\\"$GITHUB_SHA\\\") }\"}")
+          DID=$(echo "$RESP" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['serviceInstanceDeployV2'])")
+          echo "deployment_id=$DID" >> "$GITHUB_OUTPUT"
+          # poll to terminal state (max ~10 min)
+          for i in $(seq 1 24); do
+            S=$(curl -sf "$GQL" -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
+              -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+              -d "{\"query\":\"query { deployment(id: \\\"$DID\\\") { status } }\"}" \
+              | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['deployment']['status'])")
+            echo "[$i] $S"
+            case "$S" in SUCCESS) exit 0;; FAILED|CRASHED|REMOVED) exit 1;; esac
+            sleep 25
+          done
+          exit 1
+
+      - name: Smoke test (warm-up tolerant)
+        if: ${{ secrets.RAILWAY_TOKEN != '' && secrets.SMOKE_KEY != '' }}
+        run: |
+          sleep 60
+          curl -sf https://api.buywhere.ai/health
+          # search smoke: 200 + non-degraded within 5 attempts (cold-start tolerant)
+          for i in $(seq 1 5); do
+            BODY=$(curl -s -m 15 "https://api.buywhere.ai/v1/products/search?q=nike&limit=3" \
+                   -H "Authorization: Bearer ${{ secrets.SMOKE_KEY }}")
+            echo "$BODY" | grep -q '"id"' && exit 0
+            # 500 = hard fail immediately (products_sg-class regression)
+            CODE=$(curl -s -m 15 -o /dev/null -w "%{http_code}" \
+                   "https://api.buywhere.ai/v1/products/search?q=nike&country_code=SG&limit=1" \
+                   -H "Authorization: Bearer ${{ secrets.SMOKE_KEY }}")
+            [ "$CODE" = "500" ] && { echo "::error::search returning 500"; exit 1; }
+            sleep 45
+          done
+          echo "::error::search never returned results within warm-up window"; exit 1
+
+      - name: Auto-rollback on smoke failure
+        if: ${{ failure() && secrets.RAILWAY_TOKEN != '' }}
+        run: |
+          PREV=$(git rev-parse HEAD~1)
+          echo "Smoke failed — rolling back to $PREV"
+          curl -sf "$GQL" \
+            -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
+            -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+            -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$SERVICE_ID\\\", environmentId: \\\"$ENV_ID\\\", commitSha: \\\"$PREV\\\") }\"}"
