@@ -48,6 +48,7 @@ const HYBRID_RRF_K = 60;
 // 4MB is enough for the 200-row top-N sort + Nested Loop pkey lookups.
 const SEARCH_WORK_MEM = '4MB';
 const SEO_SEARCH_FALLBACK_SOURCE = 'seo_search_fallback';
+const GENERAL_SEARCH_FALLBACK_TIMEOUT_MS = Math.max(250, Number(process.env.GENERAL_SEARCH_FALLBACK_TIMEOUT_MS) || 1200);
 
 // Express 4 doesn't catch async rejections — unhandled errors crash the process.
 // This wrapper ensures all async route handlers return 500 instead of crashing.
@@ -538,6 +539,47 @@ router.get(
       offset,
     ];
 
+    const generalFallbackTermConditions = seoFallbackTerms.map((_, i) => `products.title ILIKE $${baseIdx + i}`);
+    const generalFallbackLimitParamIdx = baseIdx + seoFallbackTerms.length;
+    const generalFallbackWhereClause = `WHERE ${[
+      ...baseConditions,
+      ...(generalFallbackTermConditions.length ? [`(${generalFallbackTermConditions.join(' OR ')})`] : []),
+    ].join(' AND ')}`;
+    const generalFallbackQuery = `
+      SELECT ${joinedColumns}
+      FROM products
+      LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+      ${generalFallbackWhereClause}
+      ORDER BY products.updated_at DESC
+      LIMIT $${generalFallbackLimitParamIdx}
+    `;
+    const generalFallbackParams = [
+      ...baseParams,
+      ...seoFallbackTerms.map((term) => `%${term}%`),
+      requestedRows,
+    ];
+
+    const sendFallbackProducts = async (
+      rows: Array<Record<string, unknown>>,
+      source: string,
+    ): Promise<void> => {
+      dataResult = { rows };
+      total = rows.length;
+      hasMore = rows.length > limit;
+      if (hasMore) dataResult.rows = dataResult.rows.slice(0, limit);
+
+      const responseTimeMs = Date.now() - requestStart;
+      const fallbackProducts = dataResult.rows.map((row) =>
+        buildProduct(row as Record<string, unknown>, currency, compact)
+      );
+      const responseBody = buildSearchResponse(
+        fallbackProducts, total, limit, offset, responseTimeMs, hasMore
+      );
+      redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+      res.set('X-Search-Fallback', source);
+      res.json(responseBody);
+    };
+
     let dataQuery: string;
     if (useFtsRanking) {
       // BUY-59923: do not sort every FTS hit by ts_rank. High-cardinality brand
@@ -719,24 +761,9 @@ router.get(
       if (q && isSeoHeadQuery(q) && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
         const seoFallbackResult = await client.query(seoFallbackQuery, seoFallbackParamsWithPage);
         if (seoFallbackResult.rows.length > 0) {
-          dataResult = seoFallbackResult;
-          total = seoFallbackResult.rows.length;
-          hasMore = seoFallbackResult.rows.length > limit;
           await client.query('COMMIT');
           client.release();
-
-          if (hasMore) dataResult.rows = dataResult.rows.slice(0, limit);
-
-          const responseTimeMs = Date.now() - requestStart;
-          const fallbackProducts = dataResult.rows.map((row) =>
-            buildProduct(row as Record<string, unknown>, currency, compact)
-          );
-          const responseBody = buildSearchResponse(
-            fallbackProducts, total, limit, offset, responseTimeMs, hasMore
-          );
-          redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
-          res.set('X-Search-Fallback', SEO_SEARCH_FALLBACK_SOURCE);
-          res.json(responseBody);
+          await sendFallbackProducts(seoFallbackResult.rows, SEO_SEARCH_FALLBACK_SOURCE);
           return;
         }
       }
@@ -825,6 +852,21 @@ router.get(
       await client.query('ROLLBACK').catch(() => {});
       const pgErr = err as { code?: string };
       if (pgErr.code === '57014') {
+        if (q && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
+          try {
+            await client.query('BEGIN');
+            await client.query(`SET LOCAL statement_timeout = '${GENERAL_SEARCH_FALLBACK_TIMEOUT_MS}'`);
+            const fallbackResult = await client.query(generalFallbackQuery, generalFallbackParams);
+            await client.query('COMMIT');
+            if (fallbackResult.rows.length > 0 && !res.headersSent) {
+              client.release();
+              await sendFallbackProducts(fallbackResult.rows, 'general_search_fallback');
+              return;
+            }
+          } catch {
+            await client.query('ROLLBACK').catch(() => {});
+          }
+        }
         client.release();
         if (!res.headersSent) {
           res.status(200).json({
