@@ -47,6 +47,7 @@ const HYBRID_RRF_K = 60;
 // `could not resize shared memory segment... No space left on device` (SQLSTATE 53200).
 // 4MB is enough for the 200-row top-N sort + Nested Loop pkey lookups.
 const SEARCH_WORK_MEM = '4MB';
+const SEO_SEARCH_FALLBACK_SOURCE = 'seo_search_fallback';
 
 // Express 4 doesn't catch async rejections — unhandled errors crash the process.
 // This wrapper ensures all async route handlers return 500 instead of crashing.
@@ -94,6 +95,10 @@ function mergeRrfCandidateIds(ftsIds: string[], semanticIds: string[], limit: nu
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map((entry) => entry.id);
+}
+
+function isSeoHeadQuery(query: string): boolean {
+  return query.trim().split(/\s+/).filter(Boolean).length >= 2;
 }
 
 const router = Router();
@@ -498,6 +503,41 @@ router.get(
     const offsetParamIdx = searchParams.length + 2;
     const dataParams = [...searchParams, requestedRows, offset];
 
+    const seoFallbackTerms = q.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
+    const seoFallbackConditions = baseConditions;
+    const seoFallbackParams = baseParams;
+    const seoFallbackSourceParamIdx = seoFallbackParams.length + 1;
+    const seoFallbackTermStartIdx = seoFallbackSourceParamIdx + 1;
+    const seoFallbackTermConditions = seoFallbackTerms.map((_, i) => `products.title ILIKE $${seoFallbackTermStartIdx + i}`);
+    const seoFallbackLimitParamIdx = seoFallbackTermStartIdx + seoFallbackTerms.length;
+    const seoFallbackOffsetParamIdx = seoFallbackLimitParamIdx + 1;
+    const seoFallbackWhereClause = `WHERE ${[
+      ...seoFallbackConditions,
+      `source = $${seoFallbackSourceParamIdx}`,
+      ...(seoFallbackTermConditions.length ? [`(${seoFallbackTermConditions.join(' OR ')})`] : []),
+    ].join(' AND ')}`;
+    const seoFallbackQuery = `
+      WITH fallback_ids AS (
+        SELECT id, updated_at
+        FROM products
+        ${seoFallbackWhereClause}
+        ORDER BY updated_at DESC
+        LIMIT $${seoFallbackLimitParamIdx} OFFSET $${seoFallbackOffsetParamIdx}
+      )
+      SELECT ${joinedColumns}
+      FROM fallback_ids
+      JOIN products ON products.id = fallback_ids.id
+      LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+      ORDER BY fallback_ids.updated_at DESC
+    `;
+    const seoFallbackParamsWithPage = [
+      ...seoFallbackParams,
+      SEO_SEARCH_FALLBACK_SOURCE,
+      ...seoFallbackTerms.map((term) => `%${term}%`),
+      requestedRows,
+      offset,
+    ];
+
     let dataQuery: string;
     if (useFtsRanking) {
       // BUY-59923: do not sort every FTS hit by ts_rank. High-cardinality brand
@@ -671,6 +711,35 @@ router.get(
       const activeVectorDb = q !== '' && searchMode !== 'keyword' && vectorDb != null && geminiKey !== ''
         ? vectorDb
         : null;
+
+      // BUY-60082: SEO landing head queries may have curated fallback rows even
+      // when broad multi-token FTS is too expensive. Read those rows first via a
+      // tightly bounded source/country/currency predicate so `/api/products/search`
+      // returns real product cards instead of the degraded empty timeout response.
+      if (q && isSeoHeadQuery(q) && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
+        const seoFallbackResult = await client.query(seoFallbackQuery, seoFallbackParamsWithPage);
+        if (seoFallbackResult.rows.length > 0) {
+          dataResult = seoFallbackResult;
+          total = seoFallbackResult.rows.length;
+          hasMore = seoFallbackResult.rows.length > limit;
+          await client.query('COMMIT');
+          client.release();
+
+          if (hasMore) dataResult.rows = dataResult.rows.slice(0, limit);
+
+          const responseTimeMs = Date.now() - requestStart;
+          const fallbackProducts = dataResult.rows.map((row) =>
+            buildProduct(row as Record<string, unknown>, currency, compact)
+          );
+          const responseBody = buildSearchResponse(
+            fallbackProducts, total, limit, offset, responseTimeMs, hasMore
+          );
+          redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+          res.set('X-Search-Fallback', SEO_SEARCH_FALLBACK_SOURCE);
+          res.json(responseBody);
+          return;
+        }
+      }
 
       if (activeVectorDb) {
         const queryVector = await getCachedQueryEmbedding(q, geminiKey);
