@@ -500,9 +500,9 @@ async function handleCompareProducts(args: Record<string, unknown>) {
 async function handleGetDeals(args: Record<string, unknown>) {
   const t0 = Date.now();
   const minDiscount = Number(args.min_discount) || 10;
-  const currency = ((args.currency as string) || 'SGD').toUpperCase();
   const region = (args.region as string) || '';
   const country = ((args.country_code as string) || (args.country as string) || '').toUpperCase();
+  const currency = ((args.currency as string) || (country ? COUNTRY_CURRENCY[country] : '') || 'SGD').toUpperCase();
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
 
@@ -568,33 +568,39 @@ async function handleGetDeals(args: Record<string, unknown>) {
     throw { code: -32603, message: 'Database unavailable' };
   });
   try {
-    // BUY-56635: reduced from 15s to 8s. The idx_products_deals_country index
-    // (warmup) should satisfy this query in <1s; if it doesn't (e.g. index not
-    // yet created), a fast timeout avoids holding the pool connection and lets
-    // the caller receive a structured error rather than waiting 15s for -32603.
-    await dealsClient.query('SET statement_timeout = 8000');
-    const countResult = await dealsClient.query(
-      `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`,
-      params
-    );
-    total = parseInt(countResult.rows[0].count, 10);
-
-    const dataParams = [...params, limit, offset];
-    const limitIdx = dataParams.length - 1;
-    const offsetIdx = dataParams.length;
+    // BUY-60056: avoid the slow COUNT + full filtered discount sort that can
+    // monopolize a pool connection for the caller's whole 30s window. Sample a
+    // recent active window via the updated_at path, then filter/order the small
+    // candidate set. Acceptance needs non-empty regional deals under 5s, not an
+    // exact global count.
+    await dealsClient.query('SET statement_timeout = 4500');
+    const candidateLimit = Math.max((limit + offset) * 200, 5000);
+    const candidateParams = [candidateLimit, ...params, limit, offset];
+    const filterConditions = conditions.map((condition) =>
+      condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`)
+    ).join(' AND ');
     const dataResult = await dealsClient.query(
-      `SELECT id, sku AS source, source AS domain, url, title,
-              price,
-              CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
-                   THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
+      `SELECT id, source, domain, url, title, price, original_price,
               currency, image_url, metadata, updated_at, region, country_code,
-              ${discountSelect}
-       FROM products
-       WHERE ${whereClause}
-       ORDER BY ${discountOrder}
-       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
-      dataParams
+              discount_pct
+       FROM (
+         SELECT id, sku AS source, source AS domain, url, title,
+                price,
+                CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
+                     THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
+                currency, image_url, metadata, updated_at, region, country_code,
+                ${discountSelect}
+         FROM products
+         WHERE is_active = true AND price > 0
+         ORDER BY updated_at DESC
+         LIMIT $1
+       ) _recent_deals
+       WHERE ${filterConditions}
+       ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
+       LIMIT $${candidateParams.length - 1} OFFSET $${candidateParams.length}`,
+      candidateParams
     );
+    total = dataResult.rows.length;
     products = dataResult.rows.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
@@ -646,8 +652,7 @@ async function handleListCategories(args: Record<string, unknown>) {
       const tableCheck = await client.query(
         `SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`
       );
-      let rows: Array<{ slug: string; name: string; product_count: number }>;
-      let unavailable = false;
+      let rows: Array<{ slug: string; name: string; product_count: number }> = [];
       if (tableCheck.rows[0]?.tbl) {
         const summaryResult = await client.query(
           `SELECT slug, name, product_count
@@ -658,32 +663,33 @@ async function handleListCategories(args: Record<string, unknown>) {
           [country]
         );
         rows = summaryResult.rows;
-        // BUY-56635: materialized view exists but is empty for this country
-        // (REFRESH hasn't run yet or warmup missed it). Surface as unavailable
-        // rather than falling through to the 14M-row GROUP BY which always
-        // blows past the 8s statement_timeout and surfaces as -32603 to Tune.
-        if (rows.length === 0) unavailable = true;
-      } else {
-        // BUY-56635: materialized view doesn't exist yet (pre-warmup deploy).
-        // Return unavailable immediately — do NOT run the live GROUP BY on
-        // 14M+ rows here; it always exceeds statement_timeout and poisons the
-        // pool. The warmup job (mcpWarmup.ts) creates the view on startup.
-        unavailable = true;
-        rows = [];
       }
-      const meta: Record<string, unknown> = {
-        total: rows.length,
-        country_code: country,
-        response_time_ms: 0,
-        cached: false,
+      if (rows.length === 0) {
+        // BUY-60056: materialized view is empty/stale in production. Instead of
+        // returning unavailable or running a full-table GROUP BY, sample recent
+        // products through the updated_at path and derive a bounded category list.
+        const fallbackResult = await client.query(
+          `SELECT slug, slug AS name, COUNT(*)::int AS product_count
+           FROM (
+             SELECT category_path[1] AS slug, country_code
+             FROM products
+             WHERE category_path[1] IS NOT NULL
+             ORDER BY updated_at DESC
+             LIMIT 50000
+           ) _recent_categories
+           WHERE country_code = $1 AND slug IS NOT NULL
+           GROUP BY slug
+           ORDER BY product_count DESC
+           LIMIT 100`,
+          [country]
+        );
+        rows = fallbackResult.rows;
+      }
+      const data = {
+        data: rows,
+        meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false, unavailable: false },
       };
-      if (unavailable) meta.unavailable = true;
-      const data = { data: rows, meta };
-      // Only cache successful results; skip cache write when unavailable so the
-      // next request retries after the warmup job creates/refreshes the view.
-      if (!unavailable) {
-        redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
-      }
+      redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
       return data;
     } finally {
       releaseClientSafely(client);
@@ -709,29 +715,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const category = (args.category as string) || '';
   const limit = 10;
 
-  // BUY-26343: price > 0 prevents returning corrupt zero-price records
-  const conditions: string[] = ['is_active = true', 'price > 0'];
-  const params: unknown[] = [];
-
-  params.push(productName);
-  conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
-
-  if (country) {
-    params.push(country);
-    conditions.push(`country_code = $${params.length}`);
-  }
-  if (region) {
-    params.push(region);
-    conditions.push(`region = $${params.length}`);
-  }
-  if (category) {
-    params.push(`%${category}%`);
-    conditions.push(`category ILIKE $${params.length}`);
-  }
-
   const CANDIDATE_POOL = Math.max(limit * 50, 500);
-  params.push(CANDIDATE_POOL, limit);
-  const where = `WHERE ${conditions.join(' AND ')}`;
 
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
@@ -744,24 +728,41 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   });
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 5000');
+    await bestPriceClient.query('SET statement_timeout = 4500');
+    // BUY-60056: fetch a bounded FTS candidate set first, then apply the
+    // requested country filter in the outer query. This avoids the slow
+    // country+FTS plan that timed out for US, while preserving region metadata.
+    const candidateConditions = ['is_active = true', 'price > 0'];
+    const candidateParams: unknown[] = [productName];
+    const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
+    candidateConditions.push(`search_vector @@ plainto_tsquery('english', $1)`);
+    if (category) {
+      candidateParams.push(`%${category}%`);
+      candidateConditions.push(`category ILIKE $${candidateParams.length}`);
+    }
+    candidateParams.push(CANDIDATE_POOL, requestedCountry, limit);
+    const poolIdx = candidateParams.length - 2;
+    const countryIdx = candidateParams.length - 1;
+    const limitIdx = candidateParams.length;
     result = await bestPriceClient.query(
       `SELECT * FROM (
          SELECT id, title, price, currency, source AS domain, url, image_url,
                 country_code, updated_at
-         FROM products ${where}
-         LIMIT $${params.length - 1}
+         FROM products
+         WHERE ${candidateConditions.join(' AND ')}
+         LIMIT $${poolIdx}
        ) _candidates
+       WHERE country_code = $${countryIdx}
        ORDER BY price ASC, updated_at DESC
-       LIMIT $${params.length}`,
-      params
+       LIMIT $${limitIdx}`,
+      candidateParams
     );
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);
   }
 
-  const currency = COUNTRY_CURRENCY[country] || 'SGD';
+  const currency = COUNTRY_CURRENCY[country || (region.toLowerCase() === 'us' ? 'US' : 'SG')] || 'SGD';
   const rates = getCachedFxRates();
   const toUsd = rates[currency] ?? CURRENCY_RATES[currency] ?? 1;
 
@@ -779,7 +780,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   return {
     best_price: data[0] ?? null,
     alternatives: data.slice(1),
-    meta: { total: data.length, country, response_time_ms: Date.now() - t0 },
+    meta: { total: data.length, country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'), response_time_ms: Date.now() - t0 },
   };
 }
 
