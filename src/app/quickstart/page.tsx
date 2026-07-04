@@ -16,7 +16,7 @@ export const metadata = buildPageMetadata({
 });
 
 const curlExample = `curl -sS "https://api.buywhere.ai/v1/products/search?q=wireless+headphones&limit=5" \\
-  -H "Authorization: Bearer bw_live_your_key_here"`;
+  -H "Authorization: Bearer bw_beta_your_key_here"`;
 
 const responseExample = `{
   "data": [
@@ -44,7 +44,7 @@ const mcpConfig = `{
       "command": "npx",
       "args": ["-y", "@buywhere/mcp-server"],
       "env": {
-        "BUYWHERE_API_KEY": "bw_live_your_key_here"
+        "BUYWHERE_API_KEY": "bw_beta_your_key_here"
       }
     }
   }
