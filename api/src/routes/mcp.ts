@@ -588,7 +588,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
                 price,
                 CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
                      THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
-                currency, image_url, metadata, updated_at, region, country_code,
+                currency, image_url, metadata, updated_at, region, country_code, is_active,
                 ${discountSelect}
          FROM products
          WHERE is_active = true AND price > 0
@@ -671,12 +671,12 @@ async function handleListCategories(args: Record<string, unknown>) {
         const fallbackResult = await client.query(
           `SELECT slug, slug AS name, COUNT(*)::int AS product_count
            FROM (
-             SELECT category_path[1] AS slug, country_code
+             SELECT category_path, country_code
              FROM products
-             WHERE category_path[1] IS NOT NULL
              ORDER BY updated_at DESC
              LIMIT 50000
            ) _recent_categories
+           CROSS JOIN LATERAL (SELECT category_path[1] AS slug) _cat
            WHERE country_code = $1 AND slug IS NOT NULL
            GROUP BY slug
            ORDER BY product_count DESC
