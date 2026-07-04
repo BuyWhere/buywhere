@@ -7,6 +7,21 @@ import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/erro
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
 
 const router = Router();
+const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
+
+async function acquireMcpClient() {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      db.connect(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('mcp_db_pool_acquire_timeout')), MCP_DB_ACQUIRE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 // BUY-56185/BUY-56635: Detect statement_timeout poisoned connections.
 // When PostgreSQL's statement_timeout fires, the query is cancelled but the
@@ -589,27 +604,15 @@ async function handleGetDeals(args: Record<string, unknown>) {
     conditions.push(`country_code = $${params.length}`);
   }
 
-  const whereClause = conditions.join(' AND ');
-
-  if (country && offset === 0) {
-    const fallbackQuery = country === 'US' ? 'watch' : 'laptop';
-    const fastFallback = await getRegionalProductSample(country, fallbackQuery, limit, currency, t0);
-    if (fastFallback) return fastFallback;
-  }
-
   const discountSelect = useDiscountCol
     ? 'discount_pct'
     : `ROUND(((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)::numeric, 1) AS discount_pct`;
-  const discountOrder = useDiscountCol
-    ? 'discount_pct DESC'
-    : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
-
   // BUY-60076: bring the canonical mcp.buywhere.ai handleGetDeals in line with
   // the api/ service (BUY-60056): bound the deals scan with a recent-window
   // candidate set so the slow `SELECT COUNT(*)` over the filtered deals range
   // (which monopolised the pool connection for 60s under cold cache) is
   // replaced with a bounded 5k-row candidate inner scan. Mirrors api/src/routes/mcp.ts:574-635.
-  const dealsClient = await db.connect().catch((err: unknown) => {
+  const dealsClient = await acquireMcpClient().catch((err: unknown) => {
     console.error('[mcp] get_deals db.connect failed:', err);
     throw { code: -32603, message: 'Database unavailable' };
   });
@@ -735,7 +738,7 @@ async function handleListCategories(args: Record<string, unknown>) {
 
   // 3. No in-flight query — start one and register it so concurrent callers coalesce
   const queryPromise = (async () => {
-    const client = await db.connect();
+    const client = await acquireMcpClient();
     try {
       await client.query('SET statement_timeout = 8000');
       const tableCheck = await client.query(
@@ -744,8 +747,9 @@ async function handleListCategories(args: Record<string, unknown>) {
       let rows: Array<{ slug: string; name: string; product_count: number }>;
       let unavailable = false;
       const MAT_VIEW_TIMEOUT_MS = 8000;
-      // BUY-59768: US partition has 30M rows — needs more headroom than SG's 794K rows.
-      const LIVE_TIMEOUT_MS = 60000;
+      // BUY-60096: canonical MCP must never let category fallback monopolize the shared pool.
+      // If the materialized view is empty, return unavailable quickly instead of a 60s GROUP BY.
+      const LIVE_TIMEOUT_MS = 4500;
       const FALLBACK_COUNTRIES = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'GB', 'PH', 'ID', 'IN', 'AU']);
       rows = [];
       if (tableCheck.rows[0]?.tbl) {
@@ -856,7 +860,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
-  const bestPriceClient = await db.connect();
+  const bestPriceClient = await acquireMcpClient();
   let result: { rows: Record<string, unknown>[] };
   try {
     await bestPriceClient.query('SET statement_timeout = 10000');

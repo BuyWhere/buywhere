@@ -24,11 +24,19 @@ async function start() {
     console.error('Migration failed during startup (continuing):', err);
   }
 
-  // Pre-warm caches after migrations
-  loadAffiliateConfigs().catch(() => {});
-  warmupMcpCaches().catch((err) => console.warn('[mcp-warmup] failed:', err?.message));
-  // BUY-31302: seed Redis with top search queries so cold cache is always <5ms
-  warmSearchCache().catch((err) => console.warn('[cache-warm] failed:', err?.message));
+  // BUY-60097: warmups are advisory only. Do not block listen() behind DB-heavy
+  // cache work; after BUY-60076 this caused deploy-time health failures while
+  // mcp-warmup held a pool connection and timed out hot-path MCP calls.
+  const warmupStart = Date.now();
+  void Promise.allSettled([
+    warmupMcpCaches(),
+    warmSearchCache(),
+    loadAffiliateConfigs(),
+  ]).then((results) => {
+    const failed = results.filter((result) => result.status === 'rejected').length;
+    const warmupMs = Date.now() - warmupStart;
+    console.log(`[startup] advisory warmup settled in ${warmupMs}ms (failed=${failed})`);
+  }).catch((err) => console.warn('[startup] advisory warmup failed:', err?.message));
 
   // BUY-32082: start P95 latency computation job (every 5 min)
   startP95Runner();
