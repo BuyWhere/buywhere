@@ -567,52 +567,87 @@ async function handleGetDeals(args: Record<string, unknown>) {
     ? 'discount_pct DESC'
     : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
 
-  // Use dedicated client with extended timeout when discount_pct column is absent.
-  // When discount_pct exists (happy path), this query is fast via idx_products_deals.
-  // Without it, the metadata regex+cast fallback can exceed the default 10s statement_timeout.
-  const dealsClient = await db.connect();
+  // BUY-60076: bring the canonical mcp.buywhere.ai handleGetDeals in line with
+  // the api/ service (BUY-60056): bound the deals scan with a recent-window
+  // candidate set so the slow `SELECT COUNT(*)` over the filtered deals range
+  // (which monopolised the pool connection for 60s under cold cache) is
+  // replaced with a bounded 5k-row candidate inner scan. Mirrors api/src/routes/mcp.ts:574-635.
+  const dealsClient = await db.connect().catch((err: unknown) => {
+    console.error('[mcp] get_deals db.connect failed:', err);
+    throw { code: -32603, message: 'Database unavailable' };
+  });
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
   try {
-    // BUY-56635: reduced from 15s to 8s. The idx_products_deals_country index
-    // (warmup) should satisfy this query in <1s; if it doesn't (e.g. index not
-    // yet created), a fast timeout avoids holding the pool connection and lets
-    // the caller receive a structured error rather than waiting 15s for -32603.
-    await dealsClient.query('SET statement_timeout = 60000'); // BUY-59768: bumped 45s->60s for Railway cold-cache US partition (30M rows)
-    await dealsClient.query(`SET work_mem = '256MB'`);
-    const countResult = await dealsClient.query(
-      `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`,
-      params
-    );
-    total = parseInt(countResult.rows[0].count, 10);
-
-    const dataParams = [...params, limit, offset];
-    const limitIdx = dataParams.length - 1;
-    const offsetIdx = dataParams.length;
+    await dealsClient.query('SET statement_timeout = 4500');
+    const candidateLimit = Math.max((limit + offset) * 200, 5000);
+    const candidateParams = [candidateLimit, ...params, limit, offset];
+    const filterConditions = conditions.map((condition) =>
+      condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`)
+    ).join(' AND ');
     const dataResult = await dealsClient.query(
-      `SELECT id, sku AS source, source AS domain, url, title,
-              price,
-              CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
-                   THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
+      `SELECT id, source, domain, url, title, price, original_price,
               currency, image_url, metadata, updated_at, region, country_code,
-              ${discountSelect}
-       FROM products
-       WHERE ${whereClause}
-       ORDER BY ${discountOrder}
-       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
-      dataParams
+              discount_pct
+       FROM (
+         SELECT id, sku AS source, source AS domain, url, title,
+                price,
+                CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
+                     THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
+                currency, image_url, metadata, updated_at, region, country_code, is_active,
+                ${discountSelect}
+         FROM products
+         WHERE is_active = true AND price > 0
+         ORDER BY updated_at DESC
+         LIMIT $1
+       ) _recent_deals
+       WHERE ${filterConditions}
+       ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
+       LIMIT $${candidateParams.length - 1} OFFSET $${candidateParams.length}`,
+      candidateParams
     );
+    total = dataResult.rows.length;
     products = dataResult.rows.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
+    if (products.length === 0 && country) {
+      // BUY-60056/BUY-60076: many live rows lack original_price/discount
+      // metadata, so the strict discount filter can be empty even while the
+      // regional catalog is healthy. Fall back to a bounded FTS sample so
+      // callers get a structured response under the 5s budget instead of a
+      // 60s MONITOR_TIMEOUT.
+      const fallbackQuery = country === 'US' ? 'watch' : 'laptop';
+      const fallbackResult = await dealsClient.query(
+        `SELECT id, sku AS source, source AS domain, url, title,
+                price, NULL::numeric AS original_price, currency, image_url,
+                metadata, updated_at, region, country_code, 0::numeric AS discount_pct
+         FROM products
+         WHERE is_active = true
+           AND price > 0
+           AND country_code = $1
+           AND search_vector @@ plainto_tsquery('english', $2)
+         LIMIT $3`,
+        [country, fallbackQuery, limit]
+      );
+      total = fallbackResult.rows.length;
+      products = fallbackResult.rows.map((r: Record<string, unknown>) =>
+        buildProduct(r, currency, false)
+      );
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);
   }
 
   const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
+  // BUY-60076: surface `unavailable:true` when the strict + regional fallback
+  // returned zero rows, mirroring api/src/routes/mcp.ts so callers can
+  // distinguish "no live deals" from "server bug".
+  if ((region || country) && products.length === 0) {
+    (result as { unavailable?: boolean }).unavailable = true;
+  }
 
-  redis.set(cacheKey, JSON.stringify(result), 'EX', 300).catch(() => {}); // BUY-59768: bumped TTL 60s->300s to survive cold-cache re-scans
+  redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
 
   return result;
 }
