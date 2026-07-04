@@ -435,6 +435,9 @@ router.get(
     // multi-word flag, used at execution to try the strict plainto (AND) match
     // before the broad to_tsquery (OR) match. See execFtsQuery below.
     const ftsIsMultiWord = q ? q.trim().split(/\s+/).filter(Boolean).length > 1 : false;
+    const ftsLexemes = q
+      ? q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean)
+      : [];
     const ftsOrMatch = `search_vector @@ ${ftsOrFn}('english', $${ftsOrParamIdx})`;
     // The OR->AND swap below drops the to_tsquery($ftsOrParamIdx) reference, which
     // would orphan that bind param (Postgres: \"could not determine data type of
@@ -588,6 +591,33 @@ router.get(
             const andFresh = freshWhereClause.split(ftsOrMatch).join(ftsAndMatch);
             const andBroad = whereClause.split(ftsOrMatch).join(ftsAndMatch);
             andRes = await client.query(andQuery.replace(andFresh, andBroad), dataParams);
+          }
+          // BUY-60052: broad 3+ token first-touch queries can still hit the slow
+          // zero-AND -> broad-OR fallback (`iphone 16 pro` was observed at 8.5s
+          // degraded on a cold SG replica). Before touching OR, try bounded
+          // N-1 strict passes (drop one lexeme, keep AND semantics) so common
+          // modifier/model queries still return relevant rows from the same
+          // recent_hits CTE without unioning huge OR posting lists.
+          if (andRes.rows.length === 0 && ftsLexemes.length >= 3) {
+            const relaxedQueries = [...new Map(
+              ftsLexemes
+                .map((lexeme, dropIdx) => ({ lexeme, query: ftsLexemes.filter((__, idx) => idx !== dropIdx).join(' ') }))
+                .sort((a, b) => a.lexeme.length - b.lexeme.length)
+                .map((entry) => [entry.query, entry.query])
+            ).values()];
+            for (const relaxedQuery of relaxedQueries) {
+              const relaxedParamIdx = dataParams.length + 1;
+              const relaxedMatch = `search_vector @@ websearch_to_tsquery('english', $${relaxedParamIdx}) AND $${ftsOrParamIdx}::text IS NOT NULL`;
+              const relaxedSql = baseQuery.split(ftsOrMatch).join(relaxedMatch);
+              const relaxedParams = [...dataParams, relaxedQuery];
+              let relaxedRes = await client.query(relaxedSql, relaxedParams);
+              if (useSgFreshnessGuardrail && relaxedRes.rows.length === 0) {
+                const relaxedFresh = freshWhereClause.split(ftsOrMatch).join(relaxedMatch);
+                const relaxedBroad = whereClause.split(ftsOrMatch).join(relaxedMatch);
+                relaxedRes = await client.query(relaxedSql.replace(relaxedFresh, relaxedBroad), relaxedParams);
+              }
+              if (relaxedRes.rows.length > 0) return relaxedRes;
+            }
           }
           // Strict AND matches rank first (precise). Sprint C: if AND under-fills
           // the page, TOP UP from the broad OR match (dedup by id) so the page is

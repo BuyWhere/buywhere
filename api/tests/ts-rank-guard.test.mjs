@@ -160,4 +160,16 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
         + 'it is the runtime safety net for the live /search handler.'
     );
   });
+
+  it('BUY-60052 tries bounded N-1 AND relaxations before broad OR fallback', () => {
+    const src = readProductsSource();
+    const fallbackStart = src.indexOf('zero-AND -> broad-OR fallback');
+    const broadOrStart = src.indexOf('let r = await client.query(baseQuery, dataParams);', fallbackStart);
+    assert.ok(fallbackStart >= 0, 'Expected BUY-60052 zero-AND fallback comment');
+    assert.ok(broadOrStart > fallbackStart, 'Expected broad OR baseQuery fallback after BUY-60052 block');
+    const fallbackBlock = src.slice(fallbackStart, broadOrStart);
+    assert.ok(/ftsLexemes\.length\s*>=\s*3/.test(fallbackBlock), 'Expected N-1 fallback to be limited to 3+ token queries');
+    assert.ok(/websearch_to_tsquery\('english',\s*\$\$\{relaxedParamIdx\}\)/.test(fallbackBlock), 'Expected relaxed passes to keep AND semantics');
+    assert.ok(/return\s+relaxedRes/.test(fallbackBlock), 'Expected successful relaxed pass to return before broad OR fallback');
+  });
 });
