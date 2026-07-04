@@ -502,6 +502,37 @@ async function handleCompareProducts(args: Record<string, unknown>) {
   return buildSearchResponse(products, products.length, validIds.length, 0, Date.now() - t0, false);
 }
 
+async function getRegionalProductSample(
+  country: string,
+  fallbackQuery: string,
+  limit: number,
+  currency: string,
+  t0: number,
+) {
+  try {
+    const result = await db.query(
+      `SELECT id, sku AS source, source AS domain, url, title,
+              price, NULL::numeric AS original_price, currency, image_url,
+              metadata, updated_at, region, country_code, 0::numeric AS discount_pct
+       FROM products
+       WHERE is_active = true
+         AND price > 0
+         AND country_code = $1
+         AND search_vector @@ plainto_tsquery('english', $2)
+       LIMIT $3`,
+      [country, fallbackQuery, limit]
+    );
+    if (!result.rows.length) return null;
+    const products = result.rows.map((r: Record<string, unknown>) =>
+      buildProduct(r, currency, false)
+    );
+    return buildSearchResponse(products, products.length, limit, 0, Date.now() - t0, false);
+  } catch (err) {
+    console.warn('[mcp] regional deals sample failed:', (err as Error)?.message || err);
+    return null;
+  }
+}
+
 async function handleGetDeals(args: Record<string, unknown>) {
   const t0 = Date.now();
   const minDiscount = Number(args.min_discount) || 10;
@@ -559,6 +590,12 @@ async function handleGetDeals(args: Record<string, unknown>) {
   }
 
   const whereClause = conditions.join(' AND ');
+
+  if (country && offset === 0) {
+    const fallbackQuery = country === 'US' ? 'watch' : 'laptop';
+    const fastFallback = await getRegionalProductSample(country, fallbackQuery, limit, currency, t0);
+    if (fastFallback) return fastFallback;
+  }
 
   const discountSelect = useDiscountCol
     ? 'discount_pct'
