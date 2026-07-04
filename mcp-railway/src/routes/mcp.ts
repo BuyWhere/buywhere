@@ -533,7 +533,7 @@ async function getRegionalProductSample(
   }
 }
 
-async function handleGetDeals(args: Record<string, unknown>, authHeader?: string) {
+async function handleGetDeals(args: Record<string, unknown>) {
   const t0 = Date.now();
   const minDiscount = Number(args.min_discount) || 10;
   // BUY-59768: infer currency from country_code (or region) when not explicitly set.
@@ -548,27 +548,6 @@ async function handleGetDeals(args: Record<string, unknown>, authHeader?: string
   const offset = Number(args.offset) || 0;
 
   const cacheKey = `deals_mcp:${currency}:${minDiscount}:${region}:${country}:${limit}:${offset}`;
-  const apiServiceMcpUrl = process.env.API_SERVICE_MCP_URL || 'https://api.buywhere.ai/mcp';
-  if (authHeader && offset === 0) {
-    try {
-      const upstream = await fetch(apiServiceMcpUrl, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: authHeader },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'tools/call',
-          params: { name: 'get_deals', arguments: args },
-        }),
-        signal: AbortSignal.timeout(4500),
-      });
-      const payload = await upstream.json() as { result?: { content?: Array<{ text?: string }> } };
-      const text = payload.result?.content?.[0]?.text;
-      if (upstream.ok && text) return JSON.parse(text);
-    } catch (err) {
-      console.warn('[mcp] api get_deals proxy failed:', (err as Error)?.message || err);
-    }
-  }
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -1265,12 +1244,12 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   };
 }
 
-async function dispatchTool(name: string, args: Record<string, unknown>, authHeader?: string) {
+async function dispatchTool(name: string, args: Record<string, unknown>) {
   switch (name) {
     case 'search_products':  return handleSearchProducts(args);
     case 'get_product':      return handleGetProduct(args);
     case 'compare_products': return handleCompareProducts(args);
-    case 'get_deals':        return handleGetDeals(args, authHeader);
+    case 'get_deals':        return handleGetDeals(args);
     case 'list_categories':  return handleListCategories(args);
     case 'find_best_price':  return handleFindBestPrice(args);
     case 'ingest_products':  return handleIngestProducts(args);
@@ -1458,7 +1437,7 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         // BUY-22733: surface tool name to queryLog middleware so the finish
         // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
         res.locals.mcpToolName = toolName;
-        const result = await dispatchTool(toolName, toolArgs, req.headers.authorization);
+        const result = await dispatchTool(toolName, toolArgs);
         return res.json(jsonrpcOk(id, {
           content: [{ type: 'text', text: JSON.stringify(result) }],
         }));
