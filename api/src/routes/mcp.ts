@@ -764,30 +764,22 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     // BUY-60056: fetch a bounded FTS candidate set first, then apply the
     // requested country filter in the outer query. This avoids the slow
     // country+FTS plan that timed out for US, while preserving region metadata.
-    const candidateConditions = ['is_active = true', 'price > 0'];
-    const candidateParams: unknown[] = [productName];
     const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
-    candidateConditions.push(`search_vector @@ plainto_tsquery('english', $1)`);
-    if (category) {
-      candidateParams.push(`%${category}%`);
-      candidateConditions.push(`category ILIKE $${candidateParams.length}`);
-    }
-    candidateParams.push(CANDIDATE_POOL, requestedCountry, limit);
-    const poolIdx = candidateParams.length - 2;
-    const countryIdx = candidateParams.length - 1;
-    const limitIdx = candidateParams.length;
+    const titlePattern = `%${productName}%`;
     result = await bestPriceClient.query(
       `SELECT * FROM (
          SELECT id, title, price, currency, source AS domain, url, image_url,
                 country_code, updated_at
          FROM products
-         WHERE ${candidateConditions.join(' AND ')}
-         LIMIT $${poolIdx}
+         WHERE is_active = true AND price > 0
+         ORDER BY updated_at DESC
+         LIMIT $1
        ) _candidates
-       WHERE country_code = $${countryIdx}
+       WHERE country_code = $2
+         AND title ILIKE $3
        ORDER BY price ASC, updated_at DESC
-       LIMIT $${limitIdx}`,
-      candidateParams
+       LIMIT $4`,
+      [50000, requestedCountry, titlePattern, limit]
     );
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
