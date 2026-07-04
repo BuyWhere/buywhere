@@ -8,11 +8,10 @@ const stripe_1 = __importDefault(require("stripe"));
 const config_1 = require("../config");
 const router = (0, express_1.Router)();
 const stripe = process.env.STRIPE_SECRET_KEY
-    ? new stripe_1.default(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-04-22.dahlia' })
+    ? new stripe_1.default(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-05-27.dahlia' })
     : null;
 const PAPERCLIP_BASE_URL = process.env.UPTIMEROBOT_WEBHOOK_RELAY_URL?.trim() || '';
 const PAPERCLIP_API_KEY = process.env.UPTIMEROBOT_WEBHOOK_RELAY_API_KEY?.trim() || '';
-const UPTIMEROBOT_API_KEY = process.env.UPTIMEROBOT_API_KEY?.trim() || process.env.UPTIMEROBOT_KEY?.trim() || '';
 const COMPANY_ID = '177bc805-e3c8-4336-84cb-8e1e482d5a17';
 const ISSUES_ENDPOINT = `${PAPERCLIP_BASE_URL}/api/companies/${COMPANY_ID}/issues`;
 const REX_AGENT_ID = '8ca957f8-0911-4e81-a963-e2cf54c97d44';
@@ -76,13 +75,10 @@ const alertStatus = (alert) => {
     }
     return 'other';
 };
-// BUY-57479/BUY-57480: Dedup key must be strictly the monitorID. Falling back
-// to friendly_name caused dedup misses when two UptimeRobot accounts share a
-// numeric monitor ID with different friendly names (root cause of BUY-57476).
 const dedupKey = (alert, status) => {
-    if (alert.monitorID == null)
+    const monitorID = alert.monitorID || alert.monitorFriendlyName || alert.monitorName || alert.monitor_name;
+    if (!monitorID)
         return null;
-    const monitorID = String(alert.monitorID);
     return `${DEDUP_PREFIX}${monitorID}:${status}`;
 };
 const claimDedupSlot = async (key) => {
@@ -97,85 +93,28 @@ const claimDedupSlot = async (key) => {
         return true;
     }
 };
-const monitorCache = new Map();
-const MONITOR_CACHE_TTL_MS = 5 * 60 * 1000;
-const fetchMonitorFromUptimeRobot = async (monitorID) => {
-    if (!UPTIMEROBOT_API_KEY)
-        return null;
-    const cached = monitorCache.get(monitorID);
-    if (cached && cached.expiresAt > Date.now())
-        return cached.value;
-    try {
-        const body = new URLSearchParams({
-            api_key: UPTIMEROBOT_API_KEY,
-            format: 'json',
-            monitors: monitorID,
-        });
-        const res = await fetch('https://api.uptimerobot.com/v2/getMonitors', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: body.toString(),
-        });
-        if (!res.ok) {
-            console.warn(`[webhooks/uptime-robot] getMonitors ${monitorID} -> ${res.status}`);
-            monitorCache.set(monitorID, { value: null, expiresAt: Date.now() + 60000 });
-            return null;
-        }
-        const data = await res.json();
-        const mon = data.monitors?.[0] ?? null;
-        monitorCache.set(monitorID, { value: mon, expiresAt: Date.now() + MONITOR_CACHE_TTL_MS });
-        return mon;
-    }
-    catch (err) {
-        console.warn(`[webhooks/uptime-robot] getMonitors ${monitorID} failed:`, err.message);
-        return null;
-    }
-};
-const hostnameOf = (url) => {
-    try {
-        return new URL(url).hostname.toLowerCase();
-    }
-    catch {
-        return null;
-    }
-};
 const createPaperclipIssue = async (alert, isDown) => {
     if (!PAPERCLIP_BASE_URL || !PAPERCLIP_API_KEY) {
         console.warn('[webhooks/uptime-robot] Relay not configured (missing URL or API key)');
         return;
     }
-    // BUY-57479/BUY-57480: prefer authoritative monitor data from UptimeRobot v2.
-    const monitorIDStr = alert.monitorID != null ? String(alert.monitorID) : '';
-    const authoritativeMonitor = monitorIDStr ? await fetchMonitorFromUptimeRobot(monitorIDStr) : null;
-    const alertFriendlyName = alert.monitorFriendlyName || alert.monitorName || alert.monitor_name || 'unknown';
-    const alertMonitorURL = alert.monitorURL || 'unknown';
-    const friendlyName = authoritativeMonitor?.friendly_name || alertFriendlyName;
-    const monitorURL = authoritativeMonitor?.url || alertMonitorURL;
-    // BUY-57480: if the alert URL hostname disagrees with the authoritative
-    // monitor URL hostname, mark the incident as possibly-mislabeled and include
-    // both URLs so on-call sees the disagreement.
-    const alertHost = hostnameOf(alertMonitorURL);
-    const authHost = hostnameOf(monitorURL);
-    const hostMismatch = !!(alertHost && authHost && alertHost !== authHost);
+    const friendlyName = alert.monitorFriendlyName || alert.monitorName || alert.monitor_name || 'unknown';
+    const monitorURL = alert.monitorURL || 'unknown';
     const alertDetails = alert.alertDetails || alert.alert_details || '';
     const status = isDown ? 'DOWN' : 'UP';
     const timestamp = new Date().toISOString();
-    const titlePrefix = hostMismatch ? '[possibly-mislabeled] ' : '';
-    const title = `${titlePrefix}[INCIDENT] ${status} — ${friendlyName}`;
+    const title = `[INCIDENT] ${status} — ${friendlyName}`;
     const description = [
         `**Service:** ${friendlyName}`,
         `**Status:** ${status}`,
         `**Time:** ${timestamp}`,
         `**Check URL:** ${monitorURL}`,
     ];
-    if (hostMismatch) {
-        description.push('', '**⚠️ URL MISMATCH:**', '| Source | URL | Host |', '| --- | --- | --- |', `| UptimeRobot monitor.url (authoritative) | ${monitorURL} | ${authHost} |`, `| Alert payload monitorURL | ${alertMonitorURL} | ${alertHost} |`);
-    }
     if (alertDetails) {
         description.push(`**Details:** ${alertDetails}`);
     }
-    if (monitorIDStr) {
-        description.push(`**Monitor ID:** ${monitorIDStr}`);
+    if (alert.monitorID) {
+        description.push(`**Monitor ID:** ${alert.monitorID}`);
     }
     const issuePayload = {
         title,
