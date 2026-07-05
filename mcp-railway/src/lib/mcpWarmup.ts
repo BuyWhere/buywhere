@@ -1,8 +1,11 @@
 import { db, redis } from '../config';
 
-const MCP_WARMUP_STATEMENT_TIMEOUT_MS = parseInt(process.env.MCP_WARMUP_STATEMENT_TIMEOUT_MS || '5000', 10);
+// BUY-60170: 5s is too short for the initial matview population on Railway Postgres (~127M rows).
+// Increased to 60s for warmup (covers initial CREATE MATERIALIZED VIEW + GROUP BY on full catalog)
+// and 30s for periodic refresh (materialized view is already populated, only delta scan needed).
+const MCP_WARMUP_STATEMENT_TIMEOUT_MS = parseInt(process.env.MCP_WARMUP_STATEMENT_TIMEOUT_MS || '60000', 10);
 const MCP_WARMUP_LOCK_TIMEOUT_MS = parseInt(process.env.MCP_WARMUP_LOCK_TIMEOUT_MS || '1000', 10);
-const MCP_REFRESH_STATEMENT_TIMEOUT_MS = parseInt(process.env.MCP_REFRESH_STATEMENT_TIMEOUT_MS || '5000', 10);
+const MCP_REFRESH_STATEMENT_TIMEOUT_MS = parseInt(process.env.MCP_REFRESH_STATEMENT_TIMEOUT_MS || '30000', 10);
 const MCP_REFRESH_LOCK_TIMEOUT_MS = parseInt(process.env.MCP_REFRESH_LOCK_TIMEOUT_MS || '1000', 10);
 const MCP_ENABLE_STARTUP_DDL = process.env.MCP_ENABLE_STARTUP_DDL === 'true';
 
