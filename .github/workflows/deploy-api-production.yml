@@ -74,6 +74,18 @@ jobs:
         run: |
           gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }} --quiet
 
+      - name: Ensure Artifact Registry repository exists
+        run: |
+          if ! gcloud artifacts repositories describe "${{ env.IMAGE_REPO }}" \
+            --project="${{ env.GCP_PROJECT_ID }}" \
+            --location="${{ env.GCP_REGION }}" >/dev/null 2>&1; then
+            gcloud artifacts repositories create "${{ env.IMAGE_REPO }}" \
+              --project="${{ env.GCP_PROJECT_ID }}" \
+              --location="${{ env.GCP_REGION }}" \
+              --repository-format=docker \
+              --description="BuyWhere Docker images"
+          fi
+
       - name: Set image tag
         id: tag
         run: |
