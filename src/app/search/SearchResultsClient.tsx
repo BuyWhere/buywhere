@@ -161,6 +161,11 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
   const specs = item.structured_specs || item.metadata || null;
   const specBrand = typeof specs?.brand === 'string' ? specs.brand : null;
   const specCategory = typeof specs?.category === 'string' ? specs.category : null;
+  const imageUrl = hasUsableProductImage(item.image_url)
+    ? item.image_url || null
+    : hasUsableProductImage(item.image)
+      ? item.image || null
+      : null;
 
   return {
     id: String(item.id),
@@ -168,11 +173,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
     price: Number.isFinite(numericPrice) ? numericPrice : null,
     currency: priceCurrency || fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
-    imageUrl: hasUsableProductImage(item.image_url)
-      ? item.image_url
-      : hasUsableProductImage(item.image)
-        ? item.image
-        : null,
+    imageUrl,
     href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.buy_url || item.url || '#',
     brand: item.brand || specBrand,
     category: item.category || specCategory,
