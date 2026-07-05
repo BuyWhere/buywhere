@@ -45,4 +45,6 @@ export interface SearchResponse {
   page: { limit: number; offset: number };
   response_time_ms: number;
   cached: boolean;
+  // BUY-60309: degraded flag when deals query timed out or was cancelled
+  degraded?: boolean;
 }

@@ -1109,12 +1109,14 @@ router.get(
 
 // GET /v1/products/deals
 // Returns products on sale (original_price > price), sorted by discount %
-// BUY-33985: dedicated client with 5s statement_timeout + 5s res.setTimeout
-// so a slow fallback path (no discount_pct column) cannot hang the request
-// past 5s and leak the connection.
-// BUY-41572: bumped from 5s → 15s to match the search timeout bump and clear
-// the deals_upstream_timeout on the same path that the search eval is hitting.
-const DEALS_RESPONSE_TIMEOUT_MS = 15000;
+// BUY-60309: reduced timeouts (DEALS_QUERY_TIMEOUT_MS=4500, DEALS_RESPONSE_TIMEOUT_MS=5000),
+// removed COUNT query, bounded sampling from recent active candidates.
+// Timeout/cancel returns HTTP 200 with degraded envelope instead of 504.
+// BUY-33985: dedicated client with statement_timeout + res.setTimeout to prevent hangs.
+// BUY-41572: previously bumped from 5s → 15s (now reduced per BUY-60309).
+const DEALS_QUERY_TIMEOUT_MS = 4500;
+const DEALS_RESPONSE_TIMEOUT_MS = 5000;
+const DEALS_SAMPLE_CAP = 5000; // max candidates to sample for deals
 router.get(
   '/deals',
   agentDetectMiddleware,
@@ -1143,10 +1145,18 @@ router.get(
     // Express-side response timeout. Fires after DEALS_RESPONSE_TIMEOUT_MS
     // regardless of the DB state — guarantees the socket closes within 5s
     // so the client never sees a 30s+ hang.
+    // BUY-60309: returns HTTP 200 with degraded envelope instead of 504.
     res.setTimeout(DEALS_RESPONSE_TIMEOUT_MS, () => {
       if (!res.headersSent) {
         try {
-          res.status(504).json({ error: 'deals_upstream_timeout', message: 'Deals query exceeded server-side timeout' });
+          res.status(200).json({
+            products: [],
+            total: 0,
+            degraded: true,
+            error: 'deals_upstream_timeout',
+            message: 'Deals query exceeded server-side timeout',
+            response_time_ms: Date.now() - start
+          });
         } catch (_) {}
       }
     });
@@ -1197,31 +1207,23 @@ router.get(
       ? 'discount_pct DESC'
       : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
 
-    const COUNT_CAP = 1001;
-
-    // Dedicated client with 5s statement_timeout. The pool's default is 30s
-    // (config.ts PG_STATEMENT_TIMEOUT=30000) which is too generous for a
-    // user-facing read endpoint and was the source of the BUY-33985 30s+ hang.
-    // A 5s cap is well above the index-backed happy path (≈15ms) and well
-    // below the previous 30s client-visible ceiling. release() always runs.
+    // BUY-60309: removed COUNT query and added bounded sampling.
+    // Sample recent active candidates, then filter/order that bounded slice.
     // BUY-45692: deals is a heavy aggregate rollup — route to the read replica
     // when available (readDb() falls back to primary if unconfigured or lagging),
     // isolating it from interactive /v1/products/search on the primary.
     const dealsClient = await readDb().connect();
     let deals: ReturnType<typeof buildProduct>[] = [];
     let total = 0;
+    let degraded = false;
     try {
       // BUY-34291: cap work_mem too (same shared_buffers pressure reasoning as search)
       await dealsClient.query(`SET work_mem = '${SEARCH_WORK_MEM}'`);
-      await dealsClient.query(`SET statement_timeout = ${DEALS_RESPONSE_TIMEOUT_MS}`);
+      await dealsClient.query(`SET statement_timeout = ${DEALS_QUERY_TIMEOUT_MS}`);
 
-      const countResult = await dealsClient.query(
-        `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${dealWhere} LIMIT ${COUNT_CAP}) _sub`,
-        dealParams
-      );
-      total = parseInt(countResult.rows[0].count, 10);
-
-      const dataResult = await dealsClient.query(
+      // BUY-60309: bounded sampling - sample recent active candidates, filter, order, paginate
+      // This replaces the unbounded COUNT + ORDER BY over the full table
+      const sampleResult = await dealsClient.query(
         `SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
                 currency, image_url, metadata, updated_at,
@@ -1230,18 +1232,50 @@ router.get(
                 ${discountSelect}
          FROM products
          WHERE ${dealWhere}
-         ORDER BY ${discountOrder}, updated_at DESC
-         LIMIT $${dealIdx} OFFSET $${dealIdx + 1}`,
-        [...dealParams, limit, offset]
+         ORDER BY updated_at DESC
+         LIMIT ${DEALS_SAMPLE_CAP}`,
+        dealParams
       );
-      deals = dataResult.rows.map((row) =>
+
+      // Filter and order the bounded sample in memory (fast, no DB timeout risk)
+      const sampleDeals = sampleResult.rows
+        .filter(row => {
+          // Apply discount threshold - already in WHERE but double-check for safety
+          const discountPct = row.discount_pct;
+          return discountPct !== null && discountPct >= minDiscount;
+        })
+        .sort((a, b) => {
+          // Order by discount descending, then updated_at descending
+          const discountDiff = (b.discount_pct || 0) - (a.discount_pct || 0);
+          if (discountDiff !== 0) return discountDiff;
+          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+        })
+        .slice(offset, offset + limit);
+
+      total = sampleDeals.length; // Return actual count of sampled results
+      deals = sampleDeals.map((row) =>
         buildProduct(row as Record<string, unknown>, currency, false)
       );
+    } catch (err: unknown) {
+      // BUY-60309: on timeout/cancel, return HTTP 200 degraded instead of crashing
+      const pgErr = err as { code?: string };
+      if (pgErr.code === '57014' || pgErr.code === '57000') {
+        // Query cancelled or statement timeout
+        degraded = true;
+        deals = [];
+        total = 0;
+      } else {
+        throw err; // Re-throw other errors
+      }
     } finally {
       dealsClient.release();
     }
 
     const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false);
+    if (degraded) {
+      // BUY-60309: mark degraded so callers can distinguish partial from full results
+      Object.assign(responseBody, { degraded: true });
+    }
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
 
     // BUY-52474: log a product_view per deals card so /v1/products/deals drives
