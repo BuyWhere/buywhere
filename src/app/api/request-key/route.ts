@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
-import { randomBytes } from "crypto";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 
 const SES_REGION = process.env.AWS_REGION ?? "ap-southeast-1";
 const FROM_EMAIL = process.env.SES_FROM_EMAIL ?? "noreply@buywhere.ai";
 const NOTIFY_EMAIL = process.env.SIGNUP_NOTIFY_EMAIL ?? "hello@buywhere.ai";
 const SIGNUP_WEBHOOK_URL = process.env.SIGNUP_WEBHOOK_URL ?? "";
+const API_BASE_URL = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_BUYWHERE_API_URL ?? "https://api.buywhere.ai";
 const KEYS_FILE = "/tmp/bw-api-keys.json";
 
 // IP rate limit: 5 requests per hour per IP
@@ -27,8 +27,25 @@ function checkIpRateLimit(ip: string): boolean {
   return true;
 }
 
-function generateKey(): string {
-  return "bw_beta_" + randomBytes(20).toString("hex");
+function isApiIssuedKey(key: string): boolean {
+  return /^bw_[a-f0-9]{32}$/i.test(key);
+}
+
+async function issueApiKey({ name, email, useCase }: { name: string; email: string; useCase: string }): Promise<string> {
+  const response = await fetch(`${API_BASE_URL}/v1/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ agent_name: name, email, use_case: useCase || undefined }),
+    cache: "no-store",
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || typeof data.api_key !== "string" || !isApiIssuedKey(data.api_key)) {
+    console.error("API key registration failed:", response.status, data);
+    throw new Error("API key registration failed");
+  }
+
+  return data.api_key;
 }
 
 interface KeyRecord {
@@ -50,8 +67,8 @@ function loadKeys(): KeyRecord[] {
 }
 
 function findKeyByEmail(email: string): KeyRecord | undefined {
-  return loadKeys().find(
-    (r) => r.email.toLowerCase() === email.toLowerCase()
+  return loadKeys().slice().reverse().find(
+    (r) => r.email.toLowerCase() === email.toLowerCase() && isApiIssuedKey(r.key)
   );
 }
 
@@ -147,7 +164,15 @@ Free during beta. Fair-use limits apply. Questions? hello@buywhere.ai
   }
 
   // New registration
-  const key = generateKey();
+  let key: string;
+  try {
+    key = await issueApiKey({ name, email, useCase });
+  } catch {
+    return NextResponse.json(
+      { error: "Could not create an API key right now. Please try again." },
+      { status: 502 }
+    );
+  }
   const createdAt = new Date().toISOString();
 
   saveKey({ name, email, useCase, key, created_at: createdAt, usage_count: 0 });
