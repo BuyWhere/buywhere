@@ -971,11 +971,10 @@ router.get(
           }
         }
         // BUY-60112/60117 last-resort: SG multi-word zero-AND queries time out on
-        // the unbounded GIN scan. Use a simple ILIKE + id-desc scan — no MATERIALIZED
-        // (avoids forcing sequential scan of the full slice), no FTS ranking (avoids the
-        // rank sort), just grab recent active products and filter by title token overlap.
-        // Times out at SEARCH_HANDLER_TIMEOUT_MS (10s) rather than a short statement
-        // timeout — enough for the replica to return a few rows on cold cache.
+        // the unbounded GIN scan. Use a simple ILIKE scan — no id threshold (IDs are
+        // in the trillions for this table, so id > 800000000 matches ALL rows and
+        // forces a slow index scan). ORDER BY id DESC + LIMIT lets Postgres push the
+        // limit into a parallel sequential scan of just the matching rows (~700ms cold).
         if (countryCode === 'SG' && ftsParamIdx && ftsIsMultiWord && !domain && !merchantId && !canonicalSources?.length) {
           try {
             const tokens = q.trim().split(/\s+/).filter(Boolean);
@@ -985,7 +984,6 @@ router.get(
               SELECT ${joinedColumns}, 0 AS _fts_rank
               FROM products
               WHERE ${baseConditions.join(' AND ')}
-                AND id > 800000000
                 AND (${ilikeConditions.join(' AND ')})
               ORDER BY id DESC
               LIMIT $${baseIdx + tokens.length} OFFSET $${baseIdx + tokens.length + 1}
