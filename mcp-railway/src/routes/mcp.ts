@@ -794,6 +794,32 @@ async function handleListCategories(args: Record<string, unknown>) {
           await client.query(`SET statement_timeout = ${MAT_VIEW_TIMEOUT_MS}`);
         }
       }
+      // BUY-60170: third fallback — sample recent products via updated_at index, then
+      // GROUP BY category. This is fast (index scan, 50K row cap) and works regardless of
+      // matview staleness or live GROUP BY timeouts on large partitions (US 30M rows).
+      if (rows.length === 0) {
+        try {
+          await client.query(`SET statement_timeout = ${LIVE_TIMEOUT_MS}`);
+          const recentResult = await client.query(
+            `SELECT slug, slug AS name, COUNT(*)::int AS product_count
+             FROM (
+               SELECT category_path, country_code
+               FROM products
+               ORDER BY updated_at DESC
+               LIMIT 50000
+             ) _recent_categories
+             CROSS JOIN LATERAL (SELECT category_path[1] AS slug) _cat
+             WHERE country_code = $1 AND slug IS NOT NULL
+             GROUP BY slug
+             ORDER BY product_count DESC
+             LIMIT 100`,
+            [country]
+          );
+          if (recentResult.rows.length > 0) rows = recentResult.rows;
+        } catch (_) {
+          // recent-products fallback timed out — surface unavailable
+        }
+      }
       if (rows.length === 0) unavailable = true;
       const meta: Record<string, unknown> = {
         total: rows.length,
