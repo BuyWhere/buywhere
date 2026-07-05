@@ -596,19 +596,19 @@ router.get(
       const rankedWhereClause = useSgFreshnessGuardrail ? freshWhereClause : whereClause;
       dataQuery = `
         WITH recent_hits AS MATERIALIZED (
-          SELECT id, search_vector
+          SELECT id, country_code, search_vector
           FROM products
           ${rankedWhereClause}
           ORDER BY id DESC
           LIMIT ${CANDIDATE_CAP}
         ), top_ids AS (
-          SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+          SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
           FROM recent_hits
           ORDER BY rank DESC, id DESC
         )
         SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
         FROM top_ids
-        JOIN products ON products.id = top_ids.id
+        JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY top_ids.rank DESC
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
@@ -680,7 +680,7 @@ router.get(
                 ORDER BY id DESC
                 LIMIT ${RECENT_SLICE_CAP}
               ), top_ids AS (
-                SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+                SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
                 FROM recent_candidates
                 WHERE ${ftsOrMatch}
                 ORDER BY rank DESC, id DESC
@@ -688,7 +688,7 @@ router.get(
               )
               SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
               FROM top_ids
-              JOIN products ON products.id = top_ids.id
+              JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
               LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
               ORDER BY top_ids.rank DESC
             `;
@@ -702,13 +702,13 @@ router.get(
             ): Promise<{ rows: Array<Record<string, unknown>> }> => {
               const boundedQuery = `
                 WITH recent_candidates AS MATERIALIZED (
-                  SELECT id, search_vector
+                  SELECT id, country_code, search_vector
                   FROM products
                   ${sliceWhereClause}
                   ORDER BY id DESC
                   LIMIT ${RECENT_SLICE_CAP}
                 ), top_ids AS (
-                  SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+                  SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
                   FROM recent_candidates
                   WHERE ${matchExpr}
                   ORDER BY rank DESC, id DESC
@@ -716,7 +716,7 @@ router.get(
                 )
                 SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
                 FROM top_ids
-                JOIN products ON products.id = top_ids.id
+                JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
                 LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
                 ORDER BY top_ids.rank DESC
               `;
@@ -1992,7 +1992,7 @@ export async function warmSearchCache(): Promise<void> {
       // same slow path. Mirrors the live handler's CTE exactly so warm entries match cache keys.
       const dataQuery = `
         WITH top_ids AS (
-          SELECT id
+          SELECT id, country_code
           FROM products
           ${whereClause}
           ORDER BY id DESC
@@ -2000,7 +2000,7 @@ export async function warmSearchCache(): Promise<void> {
         )
         SELECT ${joinedColumns}
         FROM top_ids
-        JOIN products ON products.id = top_ids.id
+        JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY products.updated_at DESC
         LIMIT $${idx} OFFSET $${idx + 1}
