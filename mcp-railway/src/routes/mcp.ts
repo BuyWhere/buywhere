@@ -748,7 +748,7 @@ async function handleListCategories(args: Record<string, unknown>) {
       const MAT_VIEW_TIMEOUT_MS = 8000;
       // BUY-60096: canonical MCP must never let category fallback monopolize the shared pool.
       // If the materialized view is empty, keep fallbacks bounded so cold misses stay under 5s.
-      const LIVE_TIMEOUT_MS = 4500;
+      const LIVE_TIMEOUT_MS = 1800;
       const FALLBACK_COUNTRIES = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'GB', 'PH', 'ID', 'IN', 'AU']);
       rows = [];
       if (tableCheck.rows[0]?.tbl) {
