@@ -67,9 +67,11 @@ jobs:
           # account tokens in RAILWAY_API_TOKEN; RAILWAY_TOKEN is only for
           # project tokens and fails with "Invalid RAILWAY_TOKEN" here.
           RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
         run: |
           echo "Deploying ${GITHUB_SHA} to Railway site service ${RAILWAY_SERVICE_ID}..."
           railway up \
+            --project "$RAILWAY_PROJECT_ID" \
             --service "$RAILWAY_SERVICE_ID" \
             --environment "$RAILWAY_ENVIRONMENT_ID" \
             --ci
