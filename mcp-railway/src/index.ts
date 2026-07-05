@@ -37,9 +37,11 @@ async function start() {
       warmSearchCache(),
       loadAffiliateConfigs(),
     ]),
-    new Promise((resolve) => setTimeout(() => resolve('timeout'), ADVISORY_WARMUP_TIMEOUT_MS)),
+    new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), ADVISORY_WARMUP_TIMEOUT_MS)),
   ]).then((results) => {
-    const failed = results.filter((result) => result.status === 'rejected').length;
+    const failed = results === 'timeout'
+      ? 0
+      : results.filter((result) => result.status === 'rejected').length;
     const warmupMs = Date.now() - warmupStart;
     console.log(`[startup] advisory warmup settled in ${warmupMs}ms (failed=${failed})`);
   }).catch((err) => console.warn('[startup] advisory warmup failed:', err?.message));
