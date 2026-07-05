@@ -1,10 +1,11 @@
 import { db, redis } from '../config';
 
-// BUY-60170: 5s is too short for the initial matview population on Railway Postgres (~127M rows).
-// Increased to 60s for warmup (covers initial CREATE MATERIALIZED VIEW + GROUP BY on full catalog)
-// and 30s for periodic refresh (materialized view is already populated, only delta scan needed).
-const MCP_WARMUP_STATEMENT_TIMEOUT_MS = parseInt(process.env.MCP_WARMUP_STATEMENT_TIMEOUT_MS || '60000', 10);
-const MCP_WARMUP_LOCK_TIMEOUT_MS = parseInt(process.env.MCP_WARMUP_LOCK_TIMEOUT_MS || '1000', 10);
+// BUY-60170: Railway Postgres has ~127M product rows. The initial matview population
+// (CREATE MATERIALIZED VIEW + full GROUP BY) takes ~10 minutes on this dataset.
+// Set very high so first population completes. Subsequent refreshes (REFRESH MATERIALIZED
+// VIEW CONCURRENTLY) only need 30s since they scan only the delta.
+const MCP_WARMUP_STATEMENT_TIMEOUT_MS = parseInt(process.env.MCP_WARMUP_STATEMENT_TIMEOUT_MS || '600000', 10);
+const MCP_WARMUP_LOCK_TIMEOUT_MS = parseInt(process.env.MCP_WARMUP_LOCK_TIMEOUT_MS || '5000', 10);
 const MCP_REFRESH_STATEMENT_TIMEOUT_MS = parseInt(process.env.MCP_REFRESH_STATEMENT_TIMEOUT_MS || '30000', 10);
 const MCP_REFRESH_LOCK_TIMEOUT_MS = parseInt(process.env.MCP_REFRESH_LOCK_TIMEOUT_MS || '1000', 10);
 const MCP_ENABLE_STARTUP_DDL = process.env.MCP_ENABLE_STARTUP_DDL === 'true';
@@ -108,6 +109,11 @@ export async function warmupMcpCaches(): Promise<void> {
     `);
     console.log('[mcp-warmup] discount_pct column and indexes verified.');
 
+    // BUY-60170: Railway Postgres uses small shared_buffers; HashAggregate would
+    // try to build a hash table in memory for ~100 distinct categories, exceeding
+    // available memory and causing spills. Sort-based aggregate is memory-frugal.
+    await client.query(`SET enable_hashagg = off`);
+    await client.query(`SET work_mem = '256MB'`);
     // BUY-21057: Use MATERIALIZED VIEW so pg_cron/pgAgent can refresh it on a schedule,
     // eliminating the 68s GROUP BY on 14M rows that caused INTERNAL_ERROR timeouts.
     await queryWithWarmupBudget(client, `
