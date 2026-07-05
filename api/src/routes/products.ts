@@ -970,36 +970,28 @@ router.get(
             await client.query('ROLLBACK').catch(() => {});
           }
         }
-        // BUY-60112/60117 last-resort: SG zero-AND multi-word queries time out on
-        // the unbounded GIN scan before reaching any bounded path. Fall back to a
-        // tight bounded-OR scan (MATERIALIZED id slice + GIN within slice) so we
-        // return real products instead of an empty degraded response.
+        // BUY-60112/60117 last-resort: SG multi-word zero-AND queries time out on
+        // the unbounded GIN scan. Use a simple ILIKE + id-desc scan — no MATERIALIZED
+        // (avoids forcing sequential scan of the full slice), no FTS ranking (avoids the
+        // rank sort), just grab recent active products and filter by title token overlap.
+        // Times out at SEARCH_HANDLER_TIMEOUT_MS (10s) rather than a short statement
+        // timeout — enough for the replica to return a few rows on cold cache.
         if (countryCode === 'SG' && ftsParamIdx && ftsIsMultiWord && !domain && !merchantId && !canonicalSources?.length) {
           try {
-            const broadSliceWhere = baseConditions.length ? `WHERE ${baseConditions.join(' AND ')}` : '';
-            const sgTimeoutFallbackQuery = `
-              WITH recent_candidates AS MATERIALIZED (
-                SELECT id, search_vector
-                FROM products
-                ${broadSliceWhere}
-                ORDER BY id DESC
-                LIMIT ${RECENT_SLICE_CAP}
-              ), top_ids AS (
-                SELECT id, ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
-                FROM recent_candidates
-                WHERE search_vector @@ ${ftsOrFn}('english', $2)
-                ORDER BY rank DESC, id DESC
-                LIMIT $3 OFFSET $4
-              )
-              SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
-              FROM top_ids
-              JOIN products ON products.id = top_ids.id
-              LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-              ORDER BY top_ids.rank DESC
+            const tokens = q.trim().split(/\s+/).filter(Boolean);
+            const ilikeConditions = tokens.map((_, i) => `title ILIKE $${baseIdx + i}`);
+            const ilikeParams = tokens.map((t) => `%${t}%`);
+            const sgFallbackQuery = `
+              SELECT ${joinedColumns}, 0 AS _fts_rank
+              FROM products
+              WHERE ${baseConditions.join(' AND ')}
+                AND id > 800000000
+                AND (${ilikeConditions.join(' AND ')})
+              ORDER BY id DESC
+              LIMIT $${baseIdx + tokens.length} OFFSET $${baseIdx + tokens.length + 1}
             `;
             await client.query('BEGIN');
-            await client.query(`SET LOCAL statement_timeout = '${GENERAL_SEARCH_FALLBACK_TIMEOUT_MS}'`);
-            const sgFallbackResult = await client.query(sgTimeoutFallbackQuery, [q, q.split(/\s+/).filter(Boolean).join(' | ') || q, requestedRows, offset]);
+            const sgFallbackResult = await client.query(sgFallbackQuery, [...baseParams, ...ilikeParams, requestedRows, offset]);
             await client.query('COMMIT');
             if (sgFallbackResult.rows.length > 0 && !res.headersSent) {
               client.release();
