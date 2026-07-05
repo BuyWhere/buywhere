@@ -219,9 +219,12 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
       href={product.href}
       target="_blank"
       rel="noopener noreferrer"
-      className="group relative flex h-full min-h-[440px] flex-col overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
+      className="group relative flex h-full flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
-      <div className="relative aspect-[4/3] overflow-hidden border-b border-slate-100 bg-slate-100">
+      <div className="relative h-36 overflow-hidden border-b border-slate-100 bg-slate-100 sm:h-40">
+        <div className="absolute inset-0 flex items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))] text-sm font-semibold text-slate-400">
+          Product image
+        </div>
         {product.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -230,18 +233,21 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
             loading="lazy"
             decoding="async"
             referrerPolicy="no-referrer"
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            onError={(event) => {
+              event.currentTarget.style.display = 'none';
+            }}
+            className="relative z-10 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="flex h-full items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.2),_rgba(248,250,252,0.95)_55%,_rgba(226,232,240,0.95))] text-4xl text-slate-400">◎</div>
+          <div className="relative z-10 flex h-full items-center justify-center text-4xl text-slate-400">◎</div>
         )}
         <div className="absolute right-2 top-2">
           <CompareSelectButton product={product} className="h-9 w-9" />
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-4 bg-white p-4 sm:p-5">
-        <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-1 flex-col gap-3 bg-white p-4">
+        <div className="flex min-h-7 items-start justify-between gap-2">
           <MerchantBadge merchant={product.merchant} className="shrink-0" />
           <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
             Shop
@@ -249,13 +255,14 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
           </span>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <h2
-            className="line-clamp-2 min-h-[3.25rem] text-lg font-semibold leading-tight text-slate-950 transition-colors group-hover:text-amber-700"
+            className="text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
             style={{
               display: '-webkit-box',
               WebkitLineClamp: 2,
               WebkitBoxOrient: 'vertical',
+              maxHeight: '2.75rem',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
             }}
@@ -268,12 +275,12 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
           </div>
         </div>
 
-        <div className="mt-auto space-y-4 border-t border-slate-100 pt-4">
+        <div className="mt-auto space-y-3 border-t border-slate-100 pt-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Current price</p>
-            <p className="mt-1 text-3xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
+            <p className="mt-0.5 text-2xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
           </div>
-          <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
+          <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
             View Deal
             <ExternalLink className="h-4 w-4" />
           </span>
