@@ -4,6 +4,7 @@
 import express from 'express';
 import cors from 'cors';
 import mcpRouter from './routes/mcp';
+import wellknownRouter from './routes/wellknown';
 import { db, redis } from './config';
 import { shutdownPostHog } from './analytics/posthog';
 
@@ -32,6 +33,7 @@ app.get('/health', async (_req, res) => {
   }
 });
 
+app.use('/.well-known', wellknownRouter);
 app.use('/mcp', mcpRouter);
 
 // JSON-RPC root alias — allow POST / as shorthand for POST /mcp
