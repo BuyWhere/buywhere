@@ -1,7 +1,12 @@
+# deploy-mcp-railway — deploys MCP service via Railway GraphQL with smoke tests.
+# Uses serviceInstanceDeployV2 so project-scoped Railway tokens work without the Railway CLI gate.
 name: Deploy MCP to Railway
 
 on:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: buywhere-mcp-railway-production
@@ -10,6 +15,7 @@ concurrency:
 env:
   RAILWAY_SERVICE_ID: 9090706e-9515-4b3f-aa72-865dd55dac55
   RAILWAY_ENVIRONMENT_ID: ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae
+  GQL: https://backboard.railway.com/graphql/v2
   MCP_URL: https://mcp.buywhere.ai
 
 jobs:
@@ -19,23 +25,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
-      - name: Deploy to Railway
-        working-directory: mcp-railway
+      - name: Trigger Railway deploy of this SHA
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
-          railway up \
-            --service "$RAILWAY_SERVICE_ID" \
-            --environment "$RAILWAY_ENVIRONMENT_ID" \
-            --ci
+          RESP=$(curl -sf "$GQL" \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+            -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$RAILWAY_SERVICE_ID\\\", environmentId: \\\"$RAILWAY_ENVIRONMENT_ID\\\", commitSha: \\\"$GITHUB_SHA\\\") }\"}")
+          DID=$(echo "$RESP" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['serviceInstanceDeployV2'])")
+          echo "deployment: $DID"
+          for i in $(seq 1 25); do
+            S=$(curl -sf "$GQL" -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+              -d "{\"query\":\"query { deployment(id: \\\"$DID\\\") { status } }\"}" \
+              | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['deployment']['status'])")
+            echo "[$i] $S"
+            case "$S" in SUCCESS) exit 0;; FAILED|CRASHED|REMOVED) exit 1;; esac
+            sleep 25
+          done
+          exit 1
 
       - name: Post-deploy smoke test
         run: |
