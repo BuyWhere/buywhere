@@ -4,7 +4,6 @@ import { buildSoftwareApplicationSchema } from "@/lib/page-schema";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
-import type { Metadata } from "next";
 import { buildPageMetadata } from "@/lib/page-metadata";
 export const metadata = buildPageMetadata({
   title: "Pricing — BuyWhere Product Catalog API",
@@ -243,13 +242,15 @@ export default function PricingPage() {
                   {tiers.map((tier) => (
                     <th
                       key={tier.name}
+                      scope="col"
                       className={`text-center py-4 px-6 text-sm font-semibold ${
                         tier.highlighted ? "text-indigo-600" : "text-gray-900"
                       }`}
                     >
-                      {tier.name}
+                      <span className="sr-only">{tier.name}</span>
+                      <span aria-hidden="true" className="block">{tier.name}</span>
                       {tier.highlighted && (
-                        <span className="ml-2 text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                        <span aria-hidden="true" className="mt-1 inline-flex text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
                           Popular
                         </span>
                       )}
