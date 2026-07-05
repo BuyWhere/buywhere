@@ -24,14 +24,20 @@ async function start() {
     console.error('Migration failed during startup (continuing):', err);
   }
 
-  // BUY-60097: warmups are advisory only. Do not block listen() behind DB-heavy
-  // cache work; after BUY-60076 this caused deploy-time health failures while
-  // mcp-warmup held a pool connection and timed out hot-path MCP calls.
+  // BUY-60170: increased advisory timeout from 15s to 15min so the initial
+  // matview population (CREATE MATERIALIZED VIEW on ~127M rows, ~10min) completes
+  // before the advisory promise settles. The server still starts listening immediately;
+  // warmup is intentionally non-blocking. After the initial population, the periodic
+  // 5-min refresh completes in seconds via REFRESH CONCURRENTLY + delta scan.
   const warmupStart = Date.now();
-  void Promise.allSettled([
-    warmupMcpCaches(),
-    warmSearchCache(),
-    loadAffiliateConfigs(),
+  const ADVISORY_WARMUP_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+  void Promise.race([
+    Promise.allSettled([
+      warmupMcpCaches(),
+      warmSearchCache(),
+      loadAffiliateConfigs(),
+    ]),
+    new Promise((resolve) => setTimeout(() => resolve('timeout'), ADVISORY_WARMUP_TIMEOUT_MS)),
   ]).then((results) => {
     const failed = results.filter((result) => result.status === 'rejected').length;
     const warmupMs = Date.now() - warmupStart;
