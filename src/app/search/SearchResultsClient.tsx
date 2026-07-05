@@ -11,6 +11,7 @@ import { CompareSelectButton } from '@/components/compare/CompareSelectButton';
 import { openUpgradeIntentPrompt } from '@/lib/upgrade-intent-prompt';
 
 const PAGE_SIZE = 20;
+const SEARCH_FETCH_LIMIT = 40;
 const MIN_QUERY_LENGTH = 2;
 const SEARCH_HISTORY_KEY = 'bw_search_history';
 const SEARCH_HISTORY_LIMIT = 8;
@@ -106,6 +107,42 @@ function formatPrice(price: number | null, currency: string) {
   }
 }
 
+function hasUsableProductImage(value?: string | null) {
+  if (!value) return false;
+
+  try {
+    const imageUrl = new URL(value);
+    const hostname = imageUrl.hostname.toLowerCase();
+    const pathname = imageUrl.pathname.toLowerCase();
+    const search = imageUrl.search.toLowerCase();
+    const fullUrl = `${hostname}${pathname}${search}`;
+
+    if (hostname.includes('source.unsplash.com') || fullUrl.includes('source.unsplash.com')) return false;
+    if (hostname.includes('images.unsplash.com') || fullUrl.includes('images.unsplash.com')) return false;
+    if (hostname.includes('unsplash.com')) return false;
+    if (fullUrl.includes('placeholder')) return false;
+    if (fullUrl.includes('image-unavailable')) return false;
+    if (fullUrl.includes('no-image')) return false;
+    if (fullUrl.includes('no_image')) return false;
+    if (fullUrl.includes('missing-image')) return false;
+    if (fullUrl.includes('generic')) return false;
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function sortProductsByImageQuality(products: SearchCardProduct[]) {
+  return [...products].sort((leftProduct, rightProduct) => {
+    const leftHasImage = leftProduct.imageUrl ? 1 : 0;
+    const rightHasImage = rightProduct.imageUrl ? 1 : 0;
+
+    if (leftHasImage !== rightHasImage) return rightHasImage - leftHasImage;
+    return 0;
+  });
+}
+
 function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): SearchCardProduct {
   const priceValue =
     item.price && typeof item.price === 'object' && 'amount' in item.price
@@ -131,7 +168,11 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
     price: Number.isFinite(numericPrice) ? numericPrice : null,
     currency: priceCurrency || fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
-    imageUrl: item.image_url || item.image || null,
+    imageUrl: hasUsableProductImage(item.image_url)
+      ? item.image_url
+      : hasUsableProductImage(item.image)
+        ? item.image
+        : null,
     href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.buy_url || item.url || '#',
     brand: item.brand || specBrand,
     category: item.category || specCategory,
@@ -433,7 +474,7 @@ export default function SearchResultsClient({
     const params = new URLSearchParams({
       q: trimmedQuery,
       country: activeCountry.apiValue,
-      limit: String(PAGE_SIZE),
+      limit: String(SEARCH_FETCH_LIMIT),
     });
 
     if (cursor) {
@@ -478,7 +519,10 @@ export default function SearchResultsClient({
 
       const data: SearchApiResponse = await response.json();
       const rawItems = data.items || data.results || [];
-      const normalizedItems = rawItems.map((item) => normalizeProduct(item, activeCountry.currency));
+      const normalizedItems = sortProductsByImageQuality(
+        rawItems.map((item) => normalizeProduct(item, activeCountry.currency))
+      ).slice(0, PAGE_SIZE);
+      const fetchedPageIsFull = rawItems.length >= SEARCH_FETCH_LIMIT;
 
       if (lastRequestKeyRef.current !== requestKey) {
         return;
@@ -491,7 +535,7 @@ export default function SearchResultsClient({
         return nextItems;
       });
       setTotal(typeof data.total === 'number' ? data.total : mergedCount);
-      setHasMore(Boolean(data.has_more ?? data.hasMore ?? normalizedItems.length === PAGE_SIZE));
+      setHasMore(Boolean(data.has_more ?? data.hasMore ?? fetchedPageIsFull));
       setNextCursor(data.next_cursor ?? data.nextCursor ?? null);
       setOffset(typeof data.offset === 'number' ? data.offset : offsetValue ?? 0);
     } catch (caughtError) {
