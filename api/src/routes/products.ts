@@ -508,7 +508,10 @@ router.get(
     const limitParamIdx = searchParams.length + 1;
     const offsetParamIdx = searchParams.length + 2;
     const dataParams = [...searchParams, requestedRows, offset];
-    const RECENT_SLICE_CAP = 5000;
+    // BUY-60112/60117: 5000 was too small — only 23/12062 "dog food" SG products
+    // landed in the top-5000-by-id slice. 50k captures 125+ and stays ~50ms on the
+    // replica ( MATERIALIZED CTE forces sequential scan of 50k rows, ~50ms cold).
+    const RECENT_SLICE_CAP = 50000;
 
     const seoFallbackTerms = q.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
     const seoFallbackConditions = baseConditions;
@@ -961,6 +964,46 @@ router.get(
             if (fallbackResult.rows.length > 0 && !res.headersSent) {
               client.release();
               await sendFallbackProducts(fallbackResult.rows, 'general_search_fallback');
+              return;
+            }
+          } catch {
+            await client.query('ROLLBACK').catch(() => {});
+          }
+        }
+        // BUY-60112/60117 last-resort: SG zero-AND multi-word queries time out on
+        // the unbounded GIN scan before reaching any bounded path. Fall back to a
+        // tight bounded-OR scan (MATERIALIZED id slice + GIN within slice) so we
+        // return real products instead of an empty degraded response.
+        if (countryCode === 'SG' && ftsParamIdx && ftsIsMultiWord && !domain && !merchantId && !canonicalSources?.length) {
+          try {
+            const broadSliceWhere = baseConditions.length ? `WHERE ${baseConditions.join(' AND ')}` : '';
+            const sgTimeoutFallbackQuery = `
+              WITH recent_candidates AS MATERIALIZED (
+                SELECT id, search_vector
+                FROM products
+                ${broadSliceWhere}
+                ORDER BY id DESC
+                LIMIT ${RECENT_SLICE_CAP}
+              ), top_ids AS (
+                SELECT id, ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
+                FROM recent_candidates
+                WHERE search_vector @@ ${ftsOrFn}('english', $2)
+                ORDER BY rank DESC, id DESC
+                LIMIT $3 OFFSET $4
+              )
+              SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
+              FROM top_ids
+              JOIN products ON products.id = top_ids.id
+              LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+              ORDER BY top_ids.rank DESC
+            `;
+            await client.query('BEGIN');
+            await client.query(`SET LOCAL statement_timeout = '${GENERAL_SEARCH_FALLBACK_TIMEOUT_MS}'`);
+            const sgFallbackResult = await client.query(sgTimeoutFallbackQuery, [q, q.split(/\s+/).filter(Boolean).join(' | ') || q, requestedRows, offset]);
+            await client.query('COMMIT');
+            if (sgFallbackResult.rows.length > 0 && !res.headersSent) {
+              client.release();
+              await sendFallbackProducts(sgFallbackResult.rows, 'sg_timeout_fallback');
               return;
             }
           } catch {
