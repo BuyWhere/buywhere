@@ -2,17 +2,25 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import AuthNavControls from "@/components/AuthNavControls";
 import { useTheme } from "@/lib/use-theme";
 
 export default function Header() {
   const [open, setOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const pathname = usePathname();
+  const isHome = pathname === "/";
 
   return (
     <header tabIndex={-1} role="banner" aria-label="Site header" className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100 dark:bg-gray-900/90 dark:border-gray-800">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg text-indigo-600 dark:text-indigo-400" aria-label="BuyWhere Home" aria-current="page">
+        <Link
+          href="/"
+          className="flex items-center gap-2 font-bold text-lg text-indigo-600 dark:text-indigo-400"
+          aria-label="BuyWhere Home"
+          aria-current={isHome ? "page" : undefined}
+        >
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <rect width="28" height="28" rx="6" fill="#4f46e5" />
             <path d="M7 10h14M7 14h10M7 18h12" stroke="white" strokeWidth="2" strokeLinecap="round" />
