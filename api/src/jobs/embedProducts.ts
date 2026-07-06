@@ -166,13 +166,15 @@ export async function runEmbedBatch(
   // We overscan by a small factor so the in-JS hash gate has enough
   // candidates to fill `batchLimit` after skipping stale rows.
   //
-  // BUY-60378: the flat SELECT hit a ~3 min full-scan on the 154M-row
-  // products table (no covering index for is_active + price DESC), causing
-  // 57014 (query_canceled) on the replica. The CTE below pushes the LIMIT
-  // into an index-friendly keyset scan via the new idx_products_is_active_price
-  // covering index, so only `overscan` IDs are fetched from the main table.
-  // Lowered overscan from batchLimit*4 to batchLimit*2 — the 2x factor still
-  // covers the ~80% price-only skip rate while reducing scan width.
+  // BUY-60378/BUY-60446: the flat SELECT hit a full Sort on the 31M-row
+  // products table and 57014'd (statement_timeout) on the replica. Two causes:
+  //   1. `ORDER BY price DESC NULLS LAST` defeated the per-partition
+  //      *_is_active_price_idx indexes (NULLS LAST needs a re-sort), forcing
+  //      a 3.9M-cost Sort that blew the 30s statement_timeout. Active products
+  //      have ZERO null prices, so NULLS LAST was a no-op — dropped.
+  //   2. Selecting all columns widened the sort. The CTE now selects only `id`
+  //      (Merge Append over *_is_active_price_idx, cost ~3.4) then fetches the
+  //      full rows by PK. No new index required.
   const overscan = Math.max(batchLimit * 2, 64);
   const { rows: candidateIds } = await sourceDb.query<{ id: string }>(
     `WITH active_ids AS (
@@ -180,7 +182,7 @@ export async function runEmbedBatch(
        FROM products
        WHERE is_active = true
          AND price IS NOT NULL
-       ORDER BY price DESC NULLS LAST
+       ORDER BY price DESC
        LIMIT $1
      )
      SELECT id FROM active_ids`,
