@@ -5148,7 +5148,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     slug: "best-smart-home-us",
     title: "Best Smart Home Devices 2026 — Echo, Google Nest, Apple HomeKit Compared",
     description:
-      "Best smart home devices 2026: Amazon Echo (S$49–S$199), Google Nest (S$89–S$299), Apple HomeKit, and Philips Hue prices compared across Amazon, Best Buy, Walmart, and Target. Live US pricing and retailer availability.",
+      "Best smart home devices 2026: Amazon Echo ($49–$149), Google Nest ($99–$129), Apple HomeKit, and Philips Hue prices compared across Amazon, Best Buy, Walmart, and Target. Live US pricing and retailer availability.",
     heroEyebrow: "US Shopping Guide",
     heroTitle: "Best Smart Home Devices 2026 — Echo, Google Nest, Apple HomeKit",
     heroBody:
