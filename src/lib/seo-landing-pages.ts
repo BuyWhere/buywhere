@@ -157,7 +157,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
       },
       next: { revalidate: 60 * 15 },
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(20000),
     });
 
     // Non-OK HTTP - network issue, return fallback so page renders
