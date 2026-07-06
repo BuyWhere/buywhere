@@ -69,13 +69,19 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
   let affiliateLinkId = '';
   let destinationUrl: string | null = null;
 
+  // BUY-60548: The affiliateSlug (e.g. 'direct') is only a routing hint — the
+  // affiliate_links table has no 'platform'/'slug' column, so the previous
+  // `WHERE platform = $1` query threw "column does not exist", the catch block
+  // skipped the product fallback, and every click 302'd to FALLBACK_URL.
+  // Resolve the affiliate link by product_id (the canonical key used by the
+  // product search JOINs); if none exists, fall through to the product lookup.
   try {
-    // Look up affiliate link (bounded so a DB outage never stalls the revenue path)
     const linkResult = await withTimeout(
       db.query(
-        `SELECT id, merchant_id, platform, destination_url
-         FROM affiliate_links WHERE platform = $1 AND product_id = $2`,
-        [affiliateSlug, productId]
+        `SELECT id, merchant_id, destination_url
+         FROM affiliate_links WHERE product_id = $1
+         ORDER BY destination_url LIMIT 1`,
+        [productId]
       ),
       REDIRECT_TIMEOUT_MS,
       'affiliate_links lookup'
@@ -86,8 +92,15 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
       merchantId = link.merchant_id || affiliateSlug;
       affiliateLinkId = String(link.id);
       destinationUrl = link.destination_url;
-    } else {
-      // Fallback: try direct product lookup
+    }
+  } catch (err) {
+    console.warn('[redirect] affiliate_links lookup failed:', (err as Error).message);
+  }
+
+  // Product fallback runs in its own try/catch so an affiliate_links failure
+  // (or a missing link) still resolves the real merchant URL.
+  if (!destinationUrl) {
+    try {
       const productResult = await withTimeout(
         db.query(
           `SELECT url, merchant_id FROM products WHERE id = $1`,
@@ -100,9 +113,9 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
         destinationUrl = productResult.rows[0].url;
         merchantId = productResult.rows[0].merchant_id || 'unknown';
       }
+    } catch (err) {
+      console.warn('[redirect] products lookup failed:', (err as Error).message);
     }
-  } catch (err) {
-    console.warn('[redirect] lookup failed/timed out, falling back:', (err as Error).message);
   }
 
   if (!destinationUrl) {
