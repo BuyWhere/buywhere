@@ -42,6 +42,9 @@ type SearchApiItem = {
 };
 
 type SearchApiResponse = {
+  degraded?: boolean;
+  total?: number;
+  hint?: string;
   items?: SearchApiItem[];
   results?: SearchApiItem[];
 };
@@ -170,9 +173,9 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
 
     // Check for degraded API response - return empty array to show honest empty state
     // instead of misleading fallback products
-    if ((data as any).degraded || (data as any).total === 0) {
+    if (data.degraded || data.total === 0) {
       console.warn(
-        `[seo] degraded API response for ${config.slug}: degraded=${(data as any).degraded}, total=${(data as any).total}`
+        `[seo] degraded API response for ${config.slug}: degraded=${data.degraded}, total=${data.total}`
       );
       return [];
     }
