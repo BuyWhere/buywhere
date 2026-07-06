@@ -19,6 +19,18 @@ export function buildProduct(
   const currency = (row.currency as string) || defaultCurrency;
   const amount = row.price != null ? parseFloat(row.price as string) : null;
 
+  // BUY-60385: Sanitize anomalous prices from upstream affiliate/feed partners.
+  // Validation catches two categories of data-quality failures observed in production:
+  //   1. $0.00 prices — out-of-stock marker, missing price field, or parsing error
+  //   2. Prices over $10,000 — feed corruption, currency conversion unit errors
+  // Legitimate high-end products (luxury watches, high-end appliances, jewelry)
+  // stay under $10k. When a price fails validation the amount is nullified so
+  // the FE displays nothing instead of a deceptive value.
+  const PRICE_MAX = 10_000;
+  const sanitizedAmount = (amount != null && amount > 0 && amount <= PRICE_MAX)
+    ? amount
+    : null;
+
   const affiliateUrl = resolvePrecomputedAffiliateUrl(row.affiliate_url);
   const productId = String(row.id);
   const merchant = (row.domain as string) || '';
@@ -38,7 +50,7 @@ export function buildProduct(
   const base: CanonicalProduct = {
     id: productId,
     title: row.title as string,
-    price: { amount, currency },
+    price: { amount: sanitizedAmount, currency },
     merchant,
     url: destinationUrl,
     image_url: (row.image_url as string) || null,

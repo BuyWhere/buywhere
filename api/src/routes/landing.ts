@@ -568,7 +568,8 @@ router.get(
       return;
     }
 
-    const conditions: string[] = ['currency = $1'];
+    // BUY-60385: Exclude zero-price products (data quality guard)
+    const conditions: string[] = ['currency = $1', 'price > 0'];
     const params: unknown[] = [currency];
     let idx = 2;
 
