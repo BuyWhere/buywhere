@@ -1362,6 +1362,10 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
     const { id } = req.params;
+    if (!PRODUCT_ID_RE.test(String(id))) {
+      res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
+      return;
+    }
     const days = Math.min(parseInt((req.query.days as string) || '30'), 180);
 
     const [productResult, historyResult] = await Promise.all([
@@ -1426,6 +1430,10 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
     const { id } = req.params;
+    if (!PRODUCT_ID_RE.test(String(id))) {
+      res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
+      return;
+    }
     const days = Math.min(parseInt((req.query.days as string) || '30'), 90);
 
     const [productResult, historyResult] = await Promise.all([
@@ -1484,6 +1492,10 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
     const { id } = req.params;
+    if (!PRODUCT_ID_RE.test(String(id))) {
+      res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
+      return;
+    }
     const limit = Math.min(parseInt((req.query.limit as string) || '10'), 20);
 
     // Verify product exists in main DB
@@ -1701,6 +1713,10 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
     const { id } = req.params;
+    if (!PRODUCT_ID_RE.test(String(id))) {
+      res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
+      return;
+    }
 
     let result;
     try {
