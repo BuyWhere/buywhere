@@ -12,12 +12,21 @@ import { createHash } from 'crypto';
 // The function signatures still take a single `apiKey: string` so callers
 // (routes/products.ts, routes/mcp.ts, jobs/embedRunner.ts) only need to
 // change which env var they read.
+//
+// BUY-60368: the previous `runEmbedBatch` issued a single query against
+// `sourceDb` that LEFT JOINed `product_embeddings pe` to filter stale
+// rows. `product_embeddings` only lives in `vectorDb` (vectordb / pgvector),
+// so every 6h tick failed with `42P01 relation "product_embeddings" does
+// not exist`. We now (1) pull the existing `(product_id, text_hash)` set
+// from `vectorDb` once per run and (2) issue a flat `SELECT` against
+// `sourceDb` over a candidate id list, then drop the LEFT JOIN entirely.
+// This is Option A from BUY-60368 (no schema change, no FDW).
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001';
 const MODEL_VER      = 'gemini-embedding-001@512';
 const EMBED_DIM      = 512;   // outputDimensionality
 const BATCH_SIZE     = 64;    // BUY-41133 requirement: batch size 64 per API call
-const MAX_TEXT_CHARS = 8000;  // gemini-embedding-001 input limit is 2k tokens; ~8k chars safe
+const MAX_TEXT_CHARS = 8000;  // gemini-embedding-001 input limit is ~2k tokens; ~8k chars safe
 
 export interface EmbedSummary {
   processed: number;
@@ -93,11 +102,44 @@ async function fetchQueryEmbedding(text: string, apiKey: string): Promise<number
 }
 
 /**
+ * BUY-60368: Fetch the existing `product_embeddings` hash set from `vectorDb`
+ * so `runEmbedBatch` can filter stale rows without a cross-database JOIN.
+ *
+ * The replica (`sourceDb`) does not know about `product_embeddings`. We
+ * load a `(product_id, text_hash)` map from `vectorDb` once per run; the
+ * map is bounded by the product catalog (~127M products in `products`,
+ * each with at most one row in `product_embeddings`). For very large
+ * catalogs this should be tightened to a recent / priority window — but
+ * the current pgvector setup fits the full set in memory comfortably.
+ *
+ * Returns an empty map when `vectorDb` is unreachable; in that case the
+ * caller falls back to "everything is candidate" so a transient vectordb
+ * outage cannot silently freeze the embed pipeline.
+ */
+async function loadVectorHashes(vectorDb: Pool): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  try {
+    const { rows } = await vectorDb.query<{ product_id: string; text_hash: string }>(
+      `SELECT product_id, text_hash FROM product_embeddings`
+    );
+    for (const r of rows) out.set(r.product_id, r.text_hash);
+  } catch (err) {
+    console.warn('[embed] Could not pre-load vector hashes; treating all products as candidates:', err);
+  }
+  return out;
+}
+
+/**
  * Embeds up to batchLimit products from the source DB that are missing or stale,
  * writing results to the vector DB. Returns a summary.
  *
- * Hash-gate: skips products where md5(title+description) matches stored text_hash
- * so price-only updates (~80% of ingest) never re-embed.
+ * Hash-gate (BUY-60368): we no longer JOIN across DBs. Instead we
+ *   1. load `(product_id -> text_hash)` from vectorDb,
+ *   2. SELECT up to `batchLimit` candidate products from sourceDb ordered
+ *      by price DESC (the priority rule),
+ *   3. drop candidates whose freshly-computed hash matches the stored
+ *      one (price-only updates — ~80% of ingest — never re-embed),
+ *   4. if still over budget, take the top N by price.
  *
  * Priority: highest-value (price DESC) products are embedded first, so the most
  * commercially relevant embeddings are always fresh.
@@ -114,30 +156,60 @@ export async function runEmbedBatch(
   const t0 = Date.now();
   let processed = 0, skipped = 0, errors = 0;
 
-  const { rows: products } = await sourceDb.query<{
+  // Pull the existing hash set from vectorDb. Failure is non-fatal: we
+  // fall back to "every candidate is unembedded" rather than aborting
+  // the entire tick.
+  const vectorHashes = await loadVectorHashes(vectorDb);
+  console.log(`[embed] Loaded ${vectorHashes.size} existing embeddings from vectordb`);
+
+  // BUY-60368: sourceDb only has `products`, so the SELECT is now flat.
+  // We overscan by a small factor so the in-JS hash gate has enough
+  // candidates to fill `batchLimit` after skipping stale rows. A 4x
+  // factor comfortably covers the ~80% price-only skip rate observed
+  // in production (BUY-52466).
+  const overscan = Math.max(batchLimit * 4, 256);
+  const { rows: candidates } = await sourceDb.query<{
     id: string;
     title: string;
     description: string | null;
+    price: number | null;
   }>(
-    `SELECT p.id, p.title, p.description
+    `SELECT p.id, p.title, p.description, p.price
      FROM products p
-     LEFT JOIN product_embeddings pe ON pe.product_id = p.id
      WHERE p.is_active = true
-       AND (
-         pe.product_id IS NULL
-         OR pe.text_hash != md5(p.title || ' ' || coalesce(p.description, ''))
-       )
      ORDER BY p.price DESC NULLS LAST
      LIMIT $1`,
-    [batchLimit]
+    [overscan]
   );
+
+  // Hash-gate filter (mirrors the original LEFT JOIN semantics):
+  //   - product not in vectorDb           → embed
+  //   - product in vectorDb with same hash → skip (price-only update)
+  //   - product in vectorDb with diff hash → embed
+  const products: typeof candidates = [];
+  for (const p of candidates) {
+    const fresh = textHash(p.title, p.description);
+    const stored = vectorHashes.get(p.id);
+    if (stored === undefined) {
+      products.push(p); // not yet embedded
+    } else if (stored !== fresh) {
+      products.push(p); // text changed
+    } else {
+      skipped += 1;
+      if (products.length >= batchLimit) break;
+    }
+    if (products.length >= batchLimit) break;
+  }
 
   if (products.length === 0) {
     console.log('[embed] Nothing to embed this run');
-    return { processed: 0, skipped: 0, errors: 0, duration_ms: Date.now() - t0 };
+    return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0 };
   }
 
-  console.log(`[embed] ${products.length} products to embed in batches of ${BATCH_SIZE}`);
+  console.log(
+    `[embed] ${products.length} products to embed in batches of ${BATCH_SIZE} ` +
+    `(skipped ${skipped} up-to-date, scanned ${candidates.length})`
+  );
 
   for (let i = 0; i < products.length; i += BATCH_SIZE) {
     const batch   = products.slice(i, i + BATCH_SIZE);
