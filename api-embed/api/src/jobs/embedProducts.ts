@@ -164,10 +164,35 @@ export async function runEmbedBatch(
 
   // BUY-60368: sourceDb only has `products`, so the SELECT is now flat.
   // We overscan by a small factor so the in-JS hash gate has enough
-  // candidates to fill `batchLimit` after skipping stale rows. A 4x
-  // factor comfortably covers the ~80% price-only skip rate observed
-  // in production (BUY-52466).
-  const overscan = Math.max(batchLimit * 4, 256);
+  // candidates to fill `batchLimit` after skipping stale rows.
+  //
+  // BUY-60378: the flat SELECT hit a ~3 min full-scan on the 154M-row
+  // products table (no covering index for is_active + price DESC), causing
+  // 57014 (query_canceled) on the replica. The CTE below pushes the LIMIT
+  // into an index-friendly keyset scan via the new idx_products_is_active_price
+  // covering index, so only `overscan` IDs are fetched from the main table.
+  // Lowered overscan from batchLimit*4 to batchLimit*2 — the 2x factor still
+  // covers the ~80% price-only skip rate while reducing scan width.
+  const overscan = Math.max(batchLimit * 2, 64);
+  const { rows: candidateIds } = await sourceDb.query<{ id: string }>(
+    `WITH active_ids AS (
+       SELECT id
+       FROM products
+       WHERE is_active = true
+         AND price IS NOT NULL
+       ORDER BY price DESC NULLS LAST
+       LIMIT $1
+     )
+     SELECT id FROM active_ids`,
+    [overscan]
+  );
+
+  if (candidateIds.length === 0) {
+    console.log('[embed] Nothing to embed this run');
+    return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0 };
+  }
+
+  const ids = candidateIds.map(c => c.id);
   const { rows: candidates } = await sourceDb.query<{
     id: string;
     title: string;
@@ -176,10 +201,8 @@ export async function runEmbedBatch(
   }>(
     `SELECT p.id, p.title, p.description, p.price
      FROM products p
-     WHERE p.is_active = true
-     ORDER BY p.price DESC NULLS LAST
-     LIMIT $1`,
-    [overscan]
+     WHERE p.id = ANY($1::text[])`,
+    [ids]
   );
 
   // Hash-gate filter (mirrors the original LEFT JOIN semantics):
