@@ -152,11 +152,19 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               </Link>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {products.map((product) => (
-                <ProductGridCard key={product.id} product={product} />
-              ))}
-            </div>
+            {products.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center col-span-full">
+                <p className="text-slate-500">
+                  Live product data is currently unavailable for this category. Please check back shortly or use the search to find products.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {products.map((product) => (
+                  <ProductGridCard key={product.id} product={product} />
+                ))}
+              </div>
+            )}
           </div>
         </section>
 

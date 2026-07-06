@@ -142,6 +142,8 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Landin
 }
 
 export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promise<LandingProduct[]> {
+  const fallback = config.fallbackProducts;
+
   try {
     const params = new URLSearchParams({
       q: config.searchQuery,
@@ -154,23 +156,48 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         Accept: "application/json",
         ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
       },
-      next: { revalidate: 60 * 60 * 4 },
+      next: { revalidate: 60 * 15 },
+      signal: AbortSignal.timeout(10000),
     });
 
+    // Non-OK HTTP - network issue, return fallback so page renders
     if (!response.ok) {
-      throw new Error(`Search request failed with ${response.status}`);
+      console.warn(`[seo] search HTTP ${response.status} for ${config.slug}`);
+      return fallback;
     }
 
     const data = (await response.json()) as SearchApiResponse;
-    const items = data.items || data.results || [];
 
-    if (!Array.isArray(items) || items.length === 0) {
-      throw new Error("Search response was empty");
+    // Check for degraded API response - return empty array to show honest empty state
+    // instead of misleading fallback products
+    if ((data as any).degraded || (data as any).total === 0) {
+      console.warn(
+        `[seo] degraded API response for ${config.slug}: degraded=${(data as any).degraded}, total=${(data as any).total}`
+      );
+      return [];
     }
 
-    return items.map((item) => normalizeProduct(item, config.currency)).slice(0, 8);
-  } catch {
-    return config.fallbackProducts;
+    const items = data.items || data.results || [];
+
+    // Empty items array - return empty to show honest state
+    if (!Array.isArray(items) || items.length === 0) {
+      console.warn(`[seo] empty items array for ${config.slug}`);
+      return [];
+    }
+
+    const products = items.map((item) => normalizeProduct(item, config.currency)).slice(0, 8);
+
+    // No valid products after normalization - return empty
+    if (products.length === 0) {
+      console.warn(`[seo] no valid products after normalization for ${config.slug}`);
+      return [];
+    }
+
+    return products;
+  } catch (err) {
+    // Network failure - return fallback so page still renders
+    console.warn(`[seo] network failure for ${config.slug}:`, err);
+    return fallback;
   }
 }
 
