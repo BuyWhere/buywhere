@@ -48,41 +48,65 @@ function isAllowedDestination(url: string): boolean {
   }
 }
 
+const REDIRECT_TIMEOUT_MS = 4000;
+const FALLBACK_URL = 'https://buywhere.ai';
+
+function withTimeout<T>(promise: Promise<T>, ms: number, context: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`timeout after ${ms}ms (${context})`)), ms)
+    ),
+  ]);
+}
+
 // GET /r/:affiliateSlug/:productId
 // Log the affiliate click then redirect to destination
 router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => {
   const { affiliateSlug, productId } = req.params;
 
-  // Look up affiliate link
-  const linkResult = await db.query(
-    `SELECT id, merchant_id, platform, destination_url
-     FROM affiliate_links WHERE platform = $1 AND product_id = $2`,
-    [affiliateSlug, productId]
-  );
-
   let merchantId = 'unknown';
   let affiliateLinkId = '';
   let destinationUrl: string | null = null;
 
-  if (linkResult.rows.length > 0) {
-    const link = linkResult.rows[0];
-    merchantId = link.merchant_id || affiliateSlug;
-    affiliateLinkId = String(link.id);
-    destinationUrl = link.destination_url;
-  } else {
-    // Fallback: try direct product lookup
-    const productResult = await db.query(
-      `SELECT url, merchant_id FROM products WHERE id = $1`,
-      [productId]
+  try {
+    // Look up affiliate link (bounded so a DB outage never stalls the revenue path)
+    const linkResult = await withTimeout(
+      db.query(
+        `SELECT id, merchant_id, platform, destination_url
+         FROM affiliate_links WHERE platform = $1 AND product_id = $2`,
+        [affiliateSlug, productId]
+      ),
+      REDIRECT_TIMEOUT_MS,
+      'affiliate_links lookup'
     );
-    if (productResult.rows.length > 0) {
-      destinationUrl = productResult.rows[0].url;
-      merchantId = productResult.rows[0].merchant_id || 'unknown';
+
+    if (linkResult.rows.length > 0) {
+      const link = linkResult.rows[0];
+      merchantId = link.merchant_id || affiliateSlug;
+      affiliateLinkId = String(link.id);
+      destinationUrl = link.destination_url;
+    } else {
+      // Fallback: try direct product lookup
+      const productResult = await withTimeout(
+        db.query(
+          `SELECT url, merchant_id FROM products WHERE id = $1`,
+          [productId]
+        ),
+        REDIRECT_TIMEOUT_MS,
+        'products lookup'
+      );
+      if (productResult.rows.length > 0) {
+        destinationUrl = productResult.rows[0].url;
+        merchantId = productResult.rows[0].merchant_id || 'unknown';
+      }
     }
+  } catch (err) {
+    console.warn('[redirect] lookup failed/timed out, falling back:', (err as Error).message);
   }
 
   if (!destinationUrl) {
-    res.status(404).json({ error: 'Affiliate link not found' });
+    res.redirect(302, FALLBACK_URL);
     return;
   }
 
@@ -92,13 +116,23 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
   if (authHeader.startsWith('Bearer ')) apiKey = authHeader.slice(7).trim();
   const source = req.query.source as string || 'api_response';
 
-  // Log click to DB (before redirect)
-  await db.query(
-    `INSERT INTO affiliate_clicks
-       (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-    [apiKey, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl]
-  );
+  // Log click to DB best-effort (do not block the redirect on a slow write)
+  (async () => {
+    try {
+      await withTimeout(
+        db.query(
+          `INSERT INTO affiliate_clicks
+             (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [apiKey, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl]
+        ),
+        REDIRECT_TIMEOUT_MS,
+        'affiliate_clicks insert'
+      );
+    } catch (err) {
+      console.warn('[redirect] click logging failed:', (err as Error).message);
+    }
+  })();
 
   // PostHog event (fire-and-forget)
   // Hash API key before sending to third-party analytics
