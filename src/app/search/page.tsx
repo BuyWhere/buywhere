@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import SearchResultsClient from './SearchResultsClient';
 import Schema from '@/components/Schema';
@@ -44,7 +45,9 @@ export default function SearchPage({ searchParams }: SearchPageProps) {
   return (
     <>
       <Schema data={schema} />
-      <SearchResultsClient initialQuery={initialQuery} initialCountry={initialCountry} />
+      <Suspense fallback={null}>
+        <SearchResultsClient initialQuery={initialQuery} initialCountry={initialCountry} />
+      </Suspense>
     </>
   );
 }
