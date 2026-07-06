@@ -157,18 +157,33 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       headers: {
         Accept: "application/json",
       },
-      next: { revalidate: 60 * 60 * 4 },
+      next: { revalidate: 60 * 15 },
+      signal: AbortSignal.timeout(10000),
     });
 
+    // Non-OK HTTP response - return fallback so page still renders
     if (!response.ok) {
-      throw new Error(`Search request failed with ${response.status}`);
+      console.warn(`[seo] search HTTP ${response.status} for ${config.slug}`);
+      return fallback;
     }
 
     const data = (await response.json()) as SearchApiResponse;
+
+    // Check for degraded API response - return empty array to show honest empty state
+    // instead of misleading fallback products
+    if (data.degraded || (data.total !== undefined && data.total === 0)) {
+      console.warn(
+        `[seo] degraded API response for ${config.slug}: degraded=${data.degraded}, total=${data.total}`
+      );
+      return [];
+    }
+
     const items = data.items || data.results || [];
 
+    // Empty items array - return empty to show honest state
     if (!Array.isArray(items) || items.length === 0) {
-      throw new Error("Search response was empty");
+      console.warn(`[seo] empty items array for ${config.slug}`);
+      return [];
     }
 
     const products = items
@@ -176,12 +191,16 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       .filter(isValidLandingProduct)
       .slice(0, 8);
 
+    // No valid products after normalization - return empty
     if (products.length === 0) {
-      throw new Error("Search response contained no valid products");
+      console.warn(`[seo] no valid products after normalization for ${config.slug}`);
+      return [];
     }
 
     return products;
-  } catch {
+  } catch (err) {
+    // Network failure - return fallback so page still renders
+    console.warn(`[seo] network failure for ${config.slug}:`, err);
     return fallback;
   }
 }
