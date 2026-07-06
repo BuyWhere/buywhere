@@ -28,7 +28,7 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
 const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'sg-fresh-v3';
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'sg-fresh-v4';
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -159,7 +159,7 @@ router.get(
       // Redis miss or error — fall through to DB
     }
 
-    const conditions: string[] = ['currency = $1', 'is_active = true'];
+    const conditions: string[] = ['currency = $1', 'is_active = true', 'price > 0'];
     const params: unknown[] = [currency];
     let idx = 2;
 
@@ -328,7 +328,11 @@ router.get(
     // planner skip dead rows and the inactive non-leaf rows that previously
     // bloated the bitmap. EXPLAIN ANALYZE on roundhouse (post-fix) shows the
     // planner switches to the partial index and execution drops to ~15-30ms.
-    const baseConditions: string[] = ['currency = $1', 'is_active = true'];
+    // BUY-60385: Exclude zero-price products from search results (deceptive $0.00
+    // prices from upstream feeds). A meaningful price > $0 is a basic data quality
+    // requirement for any product listing. Products with $0 prices are either
+    // out-of-stock markers, missing price fields, or feed parsing errors.
+    const baseConditions: string[] = ['currency = $1', 'is_active = true', 'price > 0'];
     const baseParams: unknown[] = [currency];
     let baseIdx = 2;
 
@@ -1965,7 +1969,7 @@ export async function warmSearchCache(): Promise<void> {
       // index `products_*_search_vector_idx WHERE is_active = true`. Without
       // this, the warm path is slower than the live path and the warm cache
       // becomes a liability instead of an asset.
-      const conditions: string[] = ['currency = $1', 'is_active = true'];
+      const conditions: string[] = ['currency = $1', 'is_active = true', 'price > 0'];
       const params: unknown[] = [currency];
       let idx = 2;
       const ftsParamIdx = idx;
