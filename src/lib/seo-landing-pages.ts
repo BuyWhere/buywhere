@@ -80,6 +80,8 @@ export type SeoLandingPageConfig = {
   currency: "USD" | "SGD";
   locale: "en_US" | "en_SG";
   searchQuery: string;
+  /** Brand-specific queries tried in sequence when the broad searchQuery degrades/times out */
+  backupQueries?: string[];
   refreshedLabel: string;
   productSectionTitle: string;
   comparisonSectionTitle: string;
@@ -147,61 +149,88 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Landin
 export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promise<LandingProduct[]> {
   const fallback = config.fallbackProducts;
 
-  try {
-    const params = new URLSearchParams({
-      q: config.searchQuery,
-      country: config.country,
-      limit: "8",
-    });
+  // Try the broad query first, then progressively fall back to brand-specific
+  // backup queries. Broad queries on the product search API frequently time out
+  // (degraded:true) for popular categories; brand-scoped queries return fast.
+  const queries = [config.searchQuery, ...(config.backupQueries ?? [])];
 
-    const response = await fetch(`${API_BASE_URL}/v1/products/search?${params.toString()}`, {
-      headers: {
-        Accept: "application/json",
-        ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
-      },
-      next: { revalidate: 60 * 15 },
-      signal: AbortSignal.timeout(20000),
-    });
+  const seenIds = new Set<string>();
+  const collected: LandingProduct[] = [];
 
-    // Non-OK HTTP - network issue, return fallback so page renders
-    if (!response.ok) {
-      console.warn(`[seo] search HTTP ${response.status} for ${config.slug}`);
-      return fallback;
+  for (const query of queries) {
+    if (collected.length >= 8) break;
+
+    try {
+      const params = new URLSearchParams({
+        q: query,
+        country: config.country,
+        limit: "8",
+      });
+
+      const response = await fetch(`${API_BASE_URL}/v1/products/search?${params.toString()}`, {
+        headers: {
+          Accept: "application/json",
+          ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
+        },
+        next: { revalidate: 60 * 15 },
+        signal: AbortSignal.timeout(20000),
+      });
+
+      if (!response.ok) {
+        console.warn(`[seo] search HTTP ${response.status} for ${config.slug} (q="${query}")`);
+        continue;
+      }
+
+      const data = (await response.json()) as SearchApiResponse;
+
+      // Degraded/timeout response — try the next backup query
+      if (data.degraded || data.total === 0) {
+        console.warn(
+          `[seo] degraded API response for ${config.slug} (q="${query}"): degraded=${data.degraded}, total=${data.total}`
+        );
+        continue;
+      }
+
+      const items = data.items || data.results || [];
+      if (!Array.isArray(items) || items.length === 0) {
+        continue;
+      }
+
+      for (const item of items) {
+        const product = normalizeProduct(item, config.currency);
+        if (!seenIds.has(product.id) && product.name !== "Untitled product") {
+          seenIds.add(product.id);
+          collected.push(product);
+        }
+        if (collected.length >= 8) break;
+      }
+    } catch (err) {
+      console.warn(`[seo] fetch failure for ${config.slug} (q="${query}"):`, err);
+      continue;
     }
-
-    const data = (await response.json()) as SearchApiResponse;
-
-    // Check for degraded API response - return empty array to show honest empty state
-    // instead of misleading fallback products
-    if (data.degraded || data.total === 0) {
-      console.warn(
-        `[seo] degraded API response for ${config.slug}: degraded=${data.degraded}, total=${data.total}`
-      );
-      return [];
-    }
-
-    const items = data.items || data.results || [];
-
-    // Empty items array - return empty to show honest state
-    if (!Array.isArray(items) || items.length === 0) {
-      console.warn(`[seo] empty items array for ${config.slug}`);
-      return [];
-    }
-
-    const products = items.map((item) => normalizeProduct(item, config.currency)).slice(0, 8);
-
-    // No valid products after normalization - return empty
-    if (products.length === 0) {
-      console.warn(`[seo] no valid products after normalization for ${config.slug}`);
-      return [];
-    }
-
-    return products;
-  } catch (err) {
-    // Network failure - return fallback so page still renders
-    console.warn(`[seo] network failure for ${config.slug}:`, err);
-    return fallback;
   }
+
+  if (collected.length >= 4) {
+    return collected.slice(0, 8);
+  }
+
+  // If we got some (but fewer than 4) real products, top up with fallbacks so
+  // the page always shows at least 4 cards. Prefer real data first.
+  if (collected.length > 0) {
+    for (const fb of fallback) {
+      if (collected.length >= 4) break;
+      if (!seenIds.has(fb.id)) {
+        seenIds.add(fb.id);
+        collected.push(fb);
+      }
+    }
+    return collected.slice(0, 8);
+  }
+
+  // No real products from any query — show curated fallback products (with real
+  // names, prices, merchants, and deep-link search hrefs) rather than an empty
+  // page. These are honest editorial picks, not empty skeleton cards.
+  return fallback.slice(0, 8);
 }
 
 export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata {
@@ -348,6 +377,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "air purifier",
+    backupQueries: ["Coway air purifier", "Levoit air purifier", "Blueair air purifier", "Xiaomi air purifier"],
     refreshedLabel: "Updated May 1, 2026",
     productSectionTitle: "Live air purifier offers across Singapore",
     comparisonSectionTitle: "Popular air purifier picks at a glance",
@@ -520,6 +550,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "gaming laptop",
+    backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "HP Omen laptop", "Acer Predator laptop"],
     refreshedLabel: "Refreshed June 26, 2026",
     productSectionTitle: "Live gaming laptop deals across US retailers",
     comparisonSectionTitle: "Top gaming laptop picks at a glance",
@@ -696,6 +727,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "robot vacuum",
+    backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
     refreshedLabel: "Refreshed April 26, 2026",
     productSectionTitle: "Live robot vacuum deals across the US",
     comparisonSectionTitle: "Top robot vacuum & Roomba picks at a glance",
