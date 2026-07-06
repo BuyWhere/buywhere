@@ -177,6 +177,16 @@ export function createApp() {
 
   // Public quickstart alias — launch fallback for BUY-3724
   // api.buywhere.ai/quickstart → /docs/guides/mcp
+
+  // BUY-60201: /category/:slug → /c/:slug alias
+  app.get('/category/:slug', (req, res) => {
+    res.redirect(301, `/c/${req.params.slug}`);
+  });
+
+  // BUY-60201: /best/:slug → /c/:slug alias
+  app.get('/best/:slug', (req, res) => {
+    res.redirect(301, `/c/${req.params.slug}`);
+  });
   app.get('/quickstart', aiCrawlerHeaders, (_req, res) => res.redirect(301, '/docs/guides/mcp'));
   app.get('/search', (req, res) => {
     const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
