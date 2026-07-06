@@ -42,27 +42,54 @@ export function PosthogProvider({ children }: { children: React.ReactNode }) {
 
     const distinctId = getOrCreateAnonymousId();
 
-    posthog.init(POSTHOG_KEY, {
-      api_host: POSTHOG_HOST,
-      // Provide identity up-front so remote-config / early side effects never
-      // observe an unset distinct id (the source of the console warning).
-      identity_distinct_id: distinctId,
-      capture_pageview: true,
-      capture_pageleave: true,
-      autocapture: true,
-      persistence: 'localStorage',
-      loaded: (ph) => {
-        ph.identify(distinctId, { is_bot, agent_family });
-        ph.setPersonProperties({
-          $raw_user_agent: ua,
-          ...classifyAgent(ua),
-        });
-      },
-    });
+    // BUY-60203: Defer PostHog init past hydration so its script-injection
+    // side effects never land inside React's hydration phase. Without this,
+    // PostHog inserts remote <script> tags into the body before React finishes
+    // hydrating the server-rendered tree, producing a hydration mismatch
+    // (Minified React #418/#422). requestIdleCallback waits for hydration to
+    // settle; fall back to a small timeout in browsers without the API.
+    const scheduleInit = (cb: () => void) => {
+      const ric = (window as typeof window & { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback;
+      if (typeof ric === 'function') {
+        ric(cb);
+      } else {
+        setTimeout(cb, 200);
+      }
+    };
 
-    // Belt-and-suspenders: ensure identify has run with a non-empty id even if
-    // the loaded() callback fired before this effect (or was skipped).
-    posthog.identify(distinctId, { is_bot, agent_family });
+    scheduleInit(() => {
+      posthog.init(POSTHOG_KEY, {
+        api_host: POSTHOG_HOST,
+        // Provide identity up-front so remote-config / early side effects never
+        // observe an unset distinct id (the source of the console warning).
+        identity_distinct_id: distinctId,
+        capture_pageview: true,
+        capture_pageleave: true,
+        autocapture: true,
+        persistence: 'localStorage',
+        // BUY-60203: PostHog was injecting remote <script> tags
+        // (exception-autocapture, web-vitals, surveys, recorder) into the DOM
+        // during hydration, breaking SSR/CSR parity and triggering Minified
+        // React #418/#422 on every page. PostHog init is now deferred past
+        // hydration (see scheduleInit above) and the DOM-mutating features
+        // (session recording, surveys) are disabled so init no longer races
+        // with React's hydration phase.
+        disable_session_recording: true,
+        disable_surveys: true,
+        // Loaded runs after init completes; identify here so we still capture identity.
+        loaded: (ph) => {
+          ph.identify(distinctId, { is_bot, agent_family });
+          ph.setPersonProperties({
+            $raw_user_agent: ua,
+            ...classifyAgent(ua),
+          });
+        },
+      });
+
+      // Belt-and-suspenders: ensure identify has run with a non-empty id even if
+      // the loaded() callback fired before this effect (or was skipped).
+      posthog.identify(distinctId, { is_bot, agent_family });
+    });
   }, []);
 
   return <PostHogProvider client={posthog}>{children}</PostHogProvider>;
