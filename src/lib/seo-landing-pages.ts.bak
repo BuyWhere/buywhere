@@ -42,9 +42,6 @@ type SearchApiItem = {
 };
 
 type SearchApiResponse = {
-  degraded?: boolean;
-  total?: number;
-  hint?: string;
   items?: SearchApiItem[];
   results?: SearchApiItem[];
 };
@@ -80,8 +77,6 @@ export type SeoLandingPageConfig = {
   currency: "USD" | "SGD";
   locale: "en_US" | "en_SG";
   searchQuery: string;
-  /** Brand-specific queries tried in sequence when the broad searchQuery degrades/times out */
-  backupQueries?: string[];
   refreshedLabel: string;
   productSectionTitle: string;
   comparisonSectionTitle: string;
@@ -117,15 +112,23 @@ function formatMerchantName(value?: string | null) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): LandingProduct {
-  const priceValue =
-    item.price && typeof item.price === "object" && "amount" in item.price
-      ? item.price.amount
-      : item.price_amount ?? item.price;
-  const priceCurrency =
-    item.price && typeof item.price === "object" && "currency" in item.price
-      ? item.price.currency
-      : item.price_currency ?? item.currency;
+function isValidLandingProduct(product: LandingProduct): boolean {
+  return (
+    !!product.id &&
+    product.name.trim().length > 0 &&
+    product.name !== "Untitled product" &&
+    product.price !== null &&
+    product.price >= 0
+  );
+}
+
+function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, fallbackCountry: string): LandingProduct {
+  const safeName =
+    typeof item.name === "string" && item.name.trim() ? item.name : typeof item.title === "string" && item.title.trim() ? item.title : "Untitled product";
+  const fallbackSearchParams = new URLSearchParams({
+    q: safeName,
+    country: fallbackCountry,
+  });
   const numericPrice =
     typeof priceValue === "number"
       ? priceValue
@@ -135,102 +138,59 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Landin
 
   return {
     id: String(item.id),
-    name: item.name || item.title || "Untitled product",
+    name: safeName,
     price: Number.isFinite(numericPrice) ? numericPrice : null,
-    currency: priceCurrency || fallbackCurrency,
-    merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
-    imageUrl: item.image_url || item.image || null,
-    href: item.click_url || item.affiliate_url || item.buy_url || item.url || "#",
+    currency: item.currency || fallbackCurrency,
+    merchant: formatMerchantName(item.merchant || item.source),
+    imageUrl: item.image_url || null,
+    href: item.affiliate_url || item.buy_url || item.url || `/search?${fallbackSearchParams.toString()}`,
     brand: item.brand || null,
     category: item.category || null,
   };
 }
 
 export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promise<LandingProduct[]> {
-  const fallback = config.fallbackProducts;
+  const fallback = config.fallbackProducts.filter(isValidLandingProduct);
 
-  // Try the broad query first, then progressively fall back to brand-specific
-  // backup queries. Broad queries on the product search API frequently time out
-  // (degraded:true) for popular categories; brand-scoped queries return fast.
-  const queries = [config.searchQuery, ...(config.backupQueries ?? [])];
+  try {
+    const params = new URLSearchParams({
+      q: config.searchQuery,
+      country: config.country,
+      limit: "8",
+    });
 
-  const seenIds = new Set<string>();
-  const collected: LandingProduct[] = [];
+    const response = await fetch(`${API_BASE_URL}/v1/products/search?${params.toString()}`, {
+      headers: {
+        Accept: "application/json",
+        ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
+      },
+      next: { revalidate: 60 * 60 * 4 },
+    });
 
-  for (const query of queries) {
-    if (collected.length >= 8) break;
-
-    try {
-      const params = new URLSearchParams({
-        q: query,
-        country: config.country,
-        limit: "8",
-      });
-
-      const response = await fetch(`${API_BASE_URL}/v1/products/search?${params.toString()}`, {
-        headers: {
-          Accept: "application/json",
-          ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
-        },
-        next: { revalidate: 60 * 15 },
-        signal: AbortSignal.timeout(20000),
-      });
-
-      if (!response.ok) {
-        console.warn(`[seo] search HTTP ${response.status} for ${config.slug} (q="${query}")`);
-        continue;
-      }
-
-      const data = (await response.json()) as SearchApiResponse;
-
-      // Degraded/timeout response — try the next backup query
-      if (data.degraded || data.total === 0) {
-        console.warn(
-          `[seo] degraded API response for ${config.slug} (q="${query}"): degraded=${data.degraded}, total=${data.total}`
-        );
-        continue;
-      }
-
-      const items = data.items || data.results || [];
-      if (!Array.isArray(items) || items.length === 0) {
-        continue;
-      }
-
-      for (const item of items) {
-        const product = normalizeProduct(item, config.currency);
-        if (!seenIds.has(product.id) && product.name !== "Untitled product") {
-          seenIds.add(product.id);
-          collected.push(product);
-        }
-        if (collected.length >= 8) break;
-      }
-    } catch (err) {
-      console.warn(`[seo] fetch failure for ${config.slug} (q="${query}"):`, err);
-      continue;
+    if (!response.ok) {
+      throw new Error(`Search request failed with ${response.status}`);
     }
-  }
 
-  if (collected.length >= 4) {
-    return collected.slice(0, 8);
-  }
+    const data = (await response.json()) as SearchApiResponse;
+    const items = data.items || data.results || [];
 
-  // If we got some (but fewer than 4) real products, top up with fallbacks so
-  // the page always shows at least 4 cards. Prefer real data first.
-  if (collected.length > 0) {
-    for (const fb of fallback) {
-      if (collected.length >= 4) break;
-      if (!seenIds.has(fb.id)) {
-        seenIds.add(fb.id);
-        collected.push(fb);
-      }
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new Error("Search response was empty");
     }
-    return collected.slice(0, 8);
-  }
 
-  // No real products from any query — show curated fallback products (with real
-  // names, prices, merchants, and deep-link search hrefs) rather than an empty
-  // page. These are honest editorial picks, not empty skeleton cards.
-  return fallback.slice(0, 8);
+    const products = items
+      .map((item) => normalizeProduct(item, config.currency, config.country))
+      .filter(isValidLandingProduct)
+      .slice(0, 8);
+
+    if (products.length === 0) {
+      throw new Error("Search response contained no valid products");
+    }
+
+    return products;
+  } catch {
+    return fallback;
+  }
 }
 
 export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata {
@@ -377,7 +337,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "air purifier",
-    backupQueries: ["Coway air purifier", "Levoit air purifier", "Blueair air purifier", "Xiaomi air purifier"],
     refreshedLabel: "Updated May 1, 2026",
     productSectionTitle: "Live air purifier offers across Singapore",
     comparisonSectionTitle: "Popular air purifier picks at a glance",
@@ -464,7 +423,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "laptop",
-    backupQueries: ["MacBook laptop", "ASUS laptop", "Lenovo laptop", "Dell laptop"],
     refreshedLabel: "Updated May 1, 2026",
     productSectionTitle: "Live laptop offers across Singapore",
     comparisonSectionTitle: "Popular laptop picks at a glance",
@@ -551,7 +509,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "gaming laptop",
-    backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "HP Omen laptop", "Acer Predator laptop"],
     refreshedLabel: "Refreshed June 26, 2026",
     productSectionTitle: "Live gaming laptop deals across US retailers",
     comparisonSectionTitle: "Top gaming laptop picks at a glance",
@@ -640,7 +597,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "iPhone 16",
-    backupQueries: ["iPhone 16 Pro", "iPhone 15", "iPhone 14", "Apple iPhone"],
     refreshedLabel: "Updated April 26, 2026",
     productSectionTitle: "Live iPhone 16 offers across Singapore",
     comparisonSectionTitle: "Retailer price benchmarks",
@@ -729,7 +685,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "robot vacuum",
-    backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
     refreshedLabel: "Refreshed April 26, 2026",
     productSectionTitle: "Live robot vacuum deals across the US",
     comparisonSectionTitle: "Top robot vacuum & Roomba picks at a glance",
@@ -5182,7 +5137,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     slug: "best-smart-home-us",
     title: "Best Smart Home Devices 2026 — Echo, Google Nest, Apple HomeKit Compared",
     description:
-      "Best smart home devices 2026: Amazon Echo ($49–$149), Google Nest ($99–$129), Apple HomeKit, and Philips Hue prices compared across Amazon, Best Buy, Walmart, and Target. Live US pricing and retailer availability.",
+      "Best smart home devices 2026: Amazon Echo (S$49–S$199), Google Nest (S$89–S$299), Apple HomeKit, and Philips Hue prices compared across Amazon, Best Buy, Walmart, and Target. Live US pricing and retailer availability.",
     heroEyebrow: "US Shopping Guide",
     heroTitle: "Best Smart Home Devices 2026 — Echo, Google Nest, Apple HomeKit",
     heroBody:
@@ -11843,7 +11798,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Gaming Console",
-    backupQueries: ["PlayStation", "Xbox", "Nintendo Switch", "Steam Deck"],
     refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Gaming Console offers across the US",
     comparisonSectionTitle: "Popular Gaming Console picks at a glance",
