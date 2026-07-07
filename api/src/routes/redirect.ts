@@ -75,12 +75,14 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
   // skipped the product fallback, and every click 302'd to FALLBACK_URL.
   // Resolve the affiliate link by product_id (the canonical key used by the
   // product search JOINs); if none exists, fall through to the product lookup.
+  // BUY-60824: also select affiliate_url and prefer it over destination_url,
+  // which is empty for many rows. affiliate_url is the actual affiliate deeplink.
   try {
     const linkResult = await withTimeout(
       db.query(
-        `SELECT id, merchant_id, destination_url
+        `SELECT id, merchant_id, affiliate_url, destination_url
          FROM affiliate_links WHERE product_id = $1
-         ORDER BY destination_url LIMIT 1`,
+         ORDER BY affiliate_url NULLS LAST, destination_url LIMIT 1`,
         [productId]
       ),
       REDIRECT_TIMEOUT_MS,
@@ -91,7 +93,8 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
       const link = linkResult.rows[0];
       merchantId = link.merchant_id || affiliateSlug;
       affiliateLinkId = String(link.id);
-      destinationUrl = link.destination_url;
+      // Prefer explicit affiliate_url over destination_url (which may be empty)
+      destinationUrl = link.affiliate_url || link.destination_url;
     }
   } catch (err) {
     console.warn('[redirect] affiliate_links lookup failed:', (err as Error).message);
