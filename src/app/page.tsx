@@ -292,11 +292,8 @@ export default function HomePage() {
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
               The normalized, cross-merchant product layer AI agents should call first.
             </h1>
-            <p className="text-xl text-indigo-200 mb-10 leading-relaxed">
-              Give your agents real products, live merchant data, and structured catalog search for Singapore and Southeast Asia commerce workflows with one API.
-            </p>
-            <p className="text-base text-indigo-100/90 mb-8 leading-relaxed max-w-2xl">
-              BuyWhere helps AI assistants and agentic apps discover products, compare options, and power commerce experiences without scraping storefronts, relying on Amazon-only APIs, or stitching together generic shopping results.
+            <p className="text-xl text-indigo-100 mb-8 leading-relaxed">
+              Search real products and live merchant data with one API, so AI agents can compare options without scraping storefronts or stitching together generic shopping results.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 mb-6">
               <Link
