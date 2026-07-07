@@ -152,7 +152,7 @@ export default function Nav() {
                   className="py-1.5 hover:text-indigo-600"
                 >
                   <span className="font-medium">{label}</span>
-                  <span className="text-xs text-gray-400 ml-1.5">{description}</span>
+                  <span className="text-xs text-gray-600 ml-1.5">{description}</span>
                 </Link>
               ))}
             </div>

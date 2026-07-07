@@ -40,7 +40,7 @@ function ProductGridCard({ product }: { product: LandingProduct }) {
             className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-center text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">
+          <div className="flex h-full items-center justify-center text-center text-sm font-semibold uppercase tracking-[0.3em] text-slate-600">
             {product.brand || product.merchant}
           </div>
         )}
@@ -61,7 +61,7 @@ function ProductGridCard({ product }: { product: LandingProduct }) {
 
         <div className="mt-auto flex items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Current price</p>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-600">Current price</p>
             <p className="text-2xl font-semibold text-slate-900">{formatPrice(product.price, product.currency)}</p>
           </div>
           <span className="text-sm font-medium text-amber-700">View offer</span>
@@ -290,7 +290,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               </div>
 
               <div className="mt-6 rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Developer angle</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Developer angle</p>
                 <h3 className="mt-3 text-2xl font-semibold text-slate-900">{developerCta.title}</h3>
                 <p className="mt-3 text-sm leading-6 text-slate-600">{developerCta.body}</p>
                 <Link
