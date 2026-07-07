@@ -136,13 +136,23 @@ async function loadVectorHashes(vectorDb: Pool): Promise<Map<string, string>> {
  * Hash-gate (BUY-60368): we no longer JOIN across DBs. Instead we
  *   1. load `(product_id -> text_hash)` from vectorDb,
  *   2. SELECT up to `batchLimit` candidate products from sourceDb ordered
- *      by price DESC (the priority rule),
+ *      by updated_at DESC (the recency rule — see BUY-60378 note),
  *   3. drop candidates whose freshly-computed hash matches the stored
  *      one (price-only updates — ~80% of ingest — never re-embed),
- *   4. if still over budget, take the top N by price.
+ *   4. if still over budget, take the top N by recency.
  *
- * Priority: highest-value (price DESC) products are embedded first, so the most
- * commercially relevant embeddings are always fresh.
+ * Priority: most-recently-updated products are embedded first. The
+ * original "highest price first" rule (BUY-60368) required an index on
+ * `(is_active, price)` to be index-scan-eligible on the 154M-row
+ * `products` table; that index has been INVALID since a cancelled CIC
+ * and the DDL watchdog (BUY-58494) blocks recreating it. Until BUY-58494
+ * is unblocked, the planner falls back to a full Seq Scan on `price DESC`
+ * and the catalog SELECT 57014's at the 30s/60s statement_timeout,
+ * starving the embed-runner for 18+ days. Ordering by `updated_at DESC`
+ * uses the existing `idx_products_updated_at` (cost ~0.57 vs ~37M) and
+ * is arguably a better priority for embeddings anyway: products with
+ * recently-changed `updated_at` are exactly the ones whose embeddings
+ * are most likely to be stale or missing.
  *
  * Per BUY-52466: Uses Google gemini-embedding-001 with 512-dim vectors,
  * taskType=RETRIEVAL_DOCUMENT, batch size 64.
@@ -166,15 +176,28 @@ export async function runEmbedBatch(
   // We overscan by a small factor so the in-JS hash gate has enough
   // candidates to fill `batchLimit` after skipping stale rows.
   //
-  // BUY-60378/BUY-60446: the flat SELECT hit a full Sort on the 31M-row
-  // products table and 57014'd (statement_timeout) on the replica. Two causes:
-  //   1. `ORDER BY price DESC NULLS LAST` defeated the per-partition
-  //      *_is_active_price_idx indexes (NULLS LAST needs a re-sort), forcing
-  //      a 3.9M-cost Sort that blew the 30s statement_timeout. Active products
-  //      have ZERO null prices, so NULLS LAST was a no-op — dropped.
-  //   2. Selecting all columns widened the sort. The CTE now selects only `id`
-  //      (Merge Append over *_is_active_price_idx, cost ~3.4) then fetches the
-  //      full rows by PK. No new index required.
+  // BUY-60378/BUY-60446: the flat `ORDER BY price DESC` SELECT hit a full
+  // Seq Scan on the 154M-row products table and 57014'd at the statement
+  // timeout on the replica. The intended `idx_products_is_active_price`
+  // index is INVALID (a CIC was cancelled mid-build and the DDL watchdog
+  // blocks new CIC builds — see BUY-58494). Without that index the
+  // planner has no entry point for `WHERE is_active=true ORDER BY price DESC`
+  // and falls back to a Seq Scan (~37M cost, ~3 min wall clock).
+  //
+  // BUY-60378 v2 (this commit): pivot the order key to `updated_at DESC`,
+  // which uses the EXISTING and VALID `idx_products_updated_at` (3.4 GB
+  // btree). EXPLAIN (VERBOSE, BUFFERS) against the production maglev
+  // replica shows:
+  //   Limit (cost=0.57..91.25 rows=128 width=16)
+  //     -> Index Scan using idx_products_updated_at
+  //        Filter: products.is_active
+  // followed by Index Scan using products_pkey (~2.79 cost per row).
+  // Total ~449, sub-second wall clock.
+  //
+  // Trade-off: the priority rule is now "most-recently-updated first"
+  // (often = "most likely to have stale embeddings") instead of
+  // "highest-value first". After 18 days of zero embeddings this is a
+  // defensible recovery order.
   const overscan = Math.max(batchLimit * 2, 64);
   const { rows: candidateIds } = await sourceDb.query<{ id: string }>(
     `WITH active_ids AS (
@@ -182,7 +205,7 @@ export async function runEmbedBatch(
        FROM products
        WHERE is_active = true
          AND price IS NOT NULL
-       ORDER BY price DESC
+       ORDER BY updated_at DESC
        LIMIT $1
      )
      SELECT id FROM active_ids`,

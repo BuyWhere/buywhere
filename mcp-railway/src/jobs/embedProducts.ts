@@ -119,9 +119,15 @@ export async function runEmbedBatch(
   // hash-gate comparison now happens after loading candidates.
   //
   // BUY-60378: the flat SELECT hit a ~3 min full-scan on the 154M-row
-  // products table, causing 57014 (query_canceled) on the replica. The CTE
-  // below pushes the LIMIT into an index-friendly keyset scan via the new
-  // idx_products_is_active_price covering index.
+  // products table, causing 57014 (query_canceled) on the replica.
+  //
+  // BUY-60378 v2 (this commit): pivot the order key to `updated_at DESC`
+  // (no NULLS LAST), which uses the EXISTING and VALID `idx_products_updated_at`
+  // (~3.4 GB btree). Without the missing `idx_products_is_active_price`
+  // covering index, `ORDER BY price DESC` planner falls back to a Seq Scan
+  // (~37M cost, ~3 min wall clock); `updated_at DESC` flips to an Index Scan
+  // (cost ~91) and the CTE/SELECT finishes in well under the 60s
+  // statement_timeout on the replica.
   const overscan = Math.max(batchLimit * 2, 64);
   const { rows: candidateIds } = await sourceDb.query<{ id: string }>(
     `WITH active_ids AS (
@@ -129,7 +135,7 @@ export async function runEmbedBatch(
        FROM products
        WHERE is_active = true
          AND price IS NOT NULL
-       ORDER BY price DESC NULLS LAST
+       ORDER BY updated_at DESC
        LIMIT $1
      )
      SELECT id FROM active_ids`,
