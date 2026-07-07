@@ -43,7 +43,7 @@ function isAllowedDestination(url) {
 router.get('/:affiliateSlug/:productId', async (req, res) => {
     const { affiliateSlug, productId } = req.params;
     // Look up affiliate link
-    const linkResult = await config_1.db.query(`SELECT id, merchant_id, platform, destination_url
+    const linkResult = await config_1.db.query(`SELECT id, merchant_id, platform, affiliate_url, destination_url
      FROM affiliate_links WHERE platform = $1 AND product_id = $2`, [affiliateSlug, productId]);
     let merchantId = 'unknown';
     let affiliateLinkId = '';
@@ -52,7 +52,8 @@ router.get('/:affiliateSlug/:productId', async (req, res) => {
         const link = linkResult.rows[0];
         merchantId = link.merchant_id || affiliateSlug;
         affiliateLinkId = String(link.id);
-        destinationUrl = link.destination_url;
+        // Prefer explicit affiliate_url over destination_url (which may be empty)
+        destinationUrl = link.affiliate_url || link.destination_url;
     }
     else {
         // Fallback: try direct product lookup
