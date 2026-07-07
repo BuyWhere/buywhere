@@ -269,7 +269,7 @@ export default function HomePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <div className="flex flex-col min-h-screen">
+      <div className="flex min-h-screen flex-col overflow-x-hidden">
       <Nav />
       <script
         type="application/ld+json"
@@ -280,7 +280,7 @@ export default function HomePage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(webApplicationSchema) }}
       />
 
-      <main id="main-content" role="main" tabIndex={-1} aria-label="Main content">
+      <main id="main-content" role="main" tabIndex={-1} aria-label="Main content" className="overflow-x-hidden">
       {/* Hero */}
       <section role="region" aria-label="Content section" className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-24 md:py-32">
@@ -292,7 +292,7 @@ export default function HomePage() {
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
               The normalized, cross-merchant product layer AI agents should call first.
             </h1>
-            <p className="text-xl text-indigo-200 mb-10 leading-relaxed">
+            <p className="text-xl text-indigo-100 mb-10 leading-relaxed">
               Give your agents real products, live merchant data, and structured catalog search for Singapore and Southeast Asia commerce workflows with one API.
             </p>
             <p className="text-base text-indigo-100/90 mb-8 leading-relaxed max-w-2xl">
@@ -384,12 +384,12 @@ export default function HomePage() {
           <div className="flex flex-col md:flex-row items-start gap-12">
             <div className="flex-1 text-white">
               <h2 className="text-2xl font-bold mb-4">Query regional products in 5 lines</h2>
-              <p className="text-gray-400 mb-6">
+              <p className="text-gray-300 mb-6">
                 One API call returns structured product data: name, price, SKU, retailer, image, and availability. No scraping, no merchant-by-merchant parsing.
               </p>
               <Link
                 href="/developers"
-                className="inline-flex items-center text-indigo-400 font-medium hover:text-indigo-300 transition-colors"
+                className="inline-flex items-center text-indigo-300 font-medium hover:text-indigo-200 transition-colors"
               >
                 View docs →
               </Link>
@@ -544,7 +544,7 @@ export default function HomePage() {
       <section role="region" aria-label="Content section" className="py-20 bg-indigo-600 text-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-3xl font-bold mb-4">Launch product-aware agents without building a catalog pipeline.</h2>
-          <p className="text-indigo-200 mb-8 text-lg">
+          <p className="text-indigo-100 mb-8 text-lg">
             If your agent needs to answer &ldquo;what should I buy?&rdquo;, &ldquo;where can I get it?&rdquo;, or &ldquo;what are the best options in Singapore, the US, or Southeast Asia?&rdquo; BuyWhere gives you the product layer to ship faster.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
