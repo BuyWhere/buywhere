@@ -21,6 +21,7 @@ from app.rate_limit import limiter, rate_limit_from_request
 
 AVAILABILITY_CACHE_TTL = 3600
 STALE_THRESHOLD_DAYS = 7
+SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48
 
 _availability_http_client: Optional[httpx.AsyncClient] = None
 
@@ -198,8 +199,19 @@ async def list_products(
     else:
         total = None
 
-    results = await db.execute(base_query.limit(limit).offset(offset))
-    products = results.scalars().all()
+    products = []
+    if q and country and country.upper() == "SG" and sort_by in (None, "relevance"):
+        fresh_query = base_query.where(
+            Product.updated_at >= text(
+                f"NOW() - INTERVAL '{SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS} hours'"
+            )
+        )
+        fresh_results = await db.execute(fresh_query.limit(limit).offset(offset))
+        products = fresh_results.scalars().all()
+
+    if not products:
+        results = await db.execute(base_query.limit(limit).offset(offset))
+        products = results.scalars().all()
 
     items = [_map_product(p, target_currency=currency, confidence_score=None) for p in products]
     effective_total = total if total is not None else offset + len(items)

@@ -1,0 +1,529 @@
+
+> buywhere-api@0.1.1 test
+> node --test --test-force-exit tests/response.test.mjs tests/search.test.mjs tests/ts-rank-guard.test.mjs tests/cache-stats.test.mjs --test-name-pattern=NL search queries — response correctness
+
+TAP version 13
+# Subtest: cacheStats.recordQueryCacheLookup
+    # Subtest: counts a hit when fetcher returns a value
+    ok 1 - counts a hit when fetcher returns a value
+      ---
+      duration_ms: 2.279166
+      type: 'test'
+      ...
+    # Subtest: counts a miss when fetcher returns null
+    ok 2 - counts a miss when fetcher returns null
+      ---
+      duration_ms: 0.409955
+      type: 'test'
+      ...
+    # Subtest: counts a miss when fetcher throws
+    ok 3 - counts a miss when fetcher throws
+      ---
+      duration_ms: 0.379648
+      type: 'test'
+      ...
+    # Subtest: does not write stats when redis is null
+    ok 4 - does not write stats when redis is null
+      ---
+      duration_ms: 0.346013
+      type: 'test'
+      ...
+    # Subtest: aggregates multiple lookups in the same minute bucket
+    ok 5 - aggregates multiple lookups in the same minute bucket
+      ---
+      duration_ms: 0.834404
+      type: 'test'
+      ...
+    1..5
+ok 1 - cacheStats.recordQueryCacheLookup
+  ---
+  duration_ms: 5.492657
+  type: 'suite'
+  ...
+# Subtest: cacheStats.recordCacheOutcome
+    # Subtest: counts a hit
+    ok 1 - counts a hit
+      ---
+      duration_ms: 0.478956
+      type: 'test'
+      ...
+    # Subtest: counts a miss
+    ok 2 - counts a miss
+      ---
+      duration_ms: 0.216174
+      type: 'test'
+      ...
+    # Subtest: no-op when redis is null
+    ok 3 - no-op when redis is null
+      ---
+      duration_ms: 0.286319
+      type: 'test'
+      ...
+    1..3
+ok 2 - cacheStats.recordCacheOutcome
+  ---
+  duration_ms: 1.521966
+  type: 'suite'
+  ...
+# Subtest: buildProduct
+    # Subtest: builds canonical product from DB row (non-compact)
+    ok 1 - builds canonical product from DB row (non-compact)
+      ---
+      duration_ms: 1.851246
+      type: 'test'
+      ...
+    # Subtest: builds compact product with normalized price and specs
+    ok 2 - builds compact product with normalized price and specs
+      ---
+      duration_ms: 0.283398
+      type: 'test'
+      ...
+    # Subtest: compact mode does not include raw metadata
+    ok 3 - compact mode does not include raw metadata
+      ---
+      duration_ms: 0.187858
+      type: 'test'
+      ...
+    # Subtest: handles null price
+    ok 4 - handles null price
+      ---
+      duration_ms: 0.235682
+      type: 'test'
+      ...
+    # Subtest: handles missing image_url
+    ok 5 - handles missing image_url
+      ---
+      duration_ms: 0.271828
+      type: 'test'
+      ...
+    # Subtest: includes deal fields when present
+    ok 6 - includes deal fields when present
+      ---
+      duration_ms: 0.24288
+      type: 'test'
+      ...
+    # Subtest: uses default currency when row has no currency
+    ok 7 - uses default currency when row has no currency
+      ---
+      duration_ms: 0.236249
+      type: 'test'
+      ...
+    # Subtest: falls back to null for unmatched country currency
+    ok 8 - falls back to null for unmatched country currency
+      ---
+      duration_ms: 0.288264
+      type: 'test'
+      ...
+    # Subtest: handles metadata extraction in compact mode with minimal fields
+    ok 9 - handles metadata extraction in compact mode with minimal fields
+      ---
+      duration_ms: 0.335837
+      type: 'test'
+      ...
+    # Subtest: handles empty metadata in non-compact mode
+    ok 10 - handles empty metadata in non-compact mode
+      ---
+      duration_ms: 0.449186
+      type: 'test'
+      ...
+    # Subtest: canonical_id not present in non-compact mode
+    ok 11 - canonical_id not present in non-compact mode
+      ---
+      duration_ms: 0.152475
+      type: 'test'
+      ...
+    1..11
+ok 3 - buildProduct
+  ---
+  duration_ms: 5.955847
+  type: 'suite'
+  ...
+# Subtest: buildSearchResponse
+    # Subtest: wraps products with metadata
+    ok 1 - wraps products with metadata
+      ---
+      duration_ms: 0.209535
+      type: 'test'
+      ...
+    # Subtest: reports cached=true
+    ok 2 - reports cached=true
+      ---
+      duration_ms: 0.103754
+      type: 'test'
+      ...
+    # Subtest: handles empty results
+    ok 3 - handles empty results
+      ---
+      duration_ms: 0.123619
+      type: 'test'
+      ...
+    # Subtest: handles pagination offset
+    ok 4 - handles pagination offset
+      ---
+      duration_ms: 0.09252
+      type: 'test'
+      ...
+    # Subtest: response_time_ms is always a number
+    ok 5 - response_time_ms is always a number
+      ---
+      duration_ms: 0.140314
+      type: 'test'
+      ...
+    # Subtest: preserves product array order
+    ok 6 - preserves product array order
+      ---
+      duration_ms: 0.104031
+      type: 'test'
+      ...
+    1..6
+ok 4 - buildSearchResponse
+  ---
+  duration_ms: 2.455761
+  type: 'suite'
+  ...
+# Subtest: COUNTRY_CURRENCY
+    # Subtest: maps known country codes to currencies
+    ok 1 - maps known country codes to currencies
+      ---
+      duration_ms: 0.113452
+      type: 'test'
+      ...
+    1..1
+ok 5 - COUNTRY_CURRENCY
+  ---
+  duration_ms: 0.178411
+  type: 'suite'
+  ...
+# Subtest: NL search queries — response correctness
+    # Subtest: returns SearchResponse shape for simple NL query "laptop"
+    ok 1 - returns SearchResponse shape for simple NL query "laptop"
+      ---
+      duration_ms: 49.122996
+      type: 'test'
+      ...
+    # Subtest: constructs FTS query with plainto_tsquery for NL query
+    not ok 2 - constructs FTS query with plainto_tsquery for NL query
+      ---
+      duration_ms: 10.14976
+      type: 'test'
+      location: '/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/buywhere-api-buy59858/api/tests/search.test.mjs:113:3'
+      failureType: 'testCodeFailure'
+      error: 'Expected at least one FTS query'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      actual: false
+      operator: '=='
+      stack: |-
+        TestContext.<anonymous> (file:///paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/buywhere-api-buy59858/api/tests/search.test.mjs:122:12)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: passes query text as parameter to plainto_tsquery
+    not ok 3 - passes query text as parameter to plainto_tsquery
+      ---
+      duration_ms: 5.59529
+      type: 'test'
+      location: '/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/buywhere-api-buy59858/api/tests/search.test.mjs:127:3'
+      failureType: 'testCodeFailure'
+      error: 'Expected ts_rank query'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      operator: '=='
+      stack: |-
+        TestContext.<anonymous> (file:///paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/buywhere-api-buy59858/api/tests/search.test.mjs:136:12)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: enforces country_code=SG when no country or region is provided
+    ok 4 - enforces country_code=SG when no country or region is provided
+      ---
+      duration_ms: 4.615349
+      type: 'test'
+      ...
+    # Subtest: accepts country_code=US to override default SG
+    ok 5 - accepts country_code=US to override default SG
+      ---
+      duration_ms: 4.2914
+      type: 'test'
+      ...
+    # Subtest: applies price range filters with NL query
+    ok 6 - applies price range filters with NL query
+      ---
+      duration_ms: 3.708286
+      type: 'test'
+      ...
+    # Subtest: handles empty query (filter-only search)
+    ok 7 - handles empty query (filter-only search)
+      ---
+      duration_ms: 3.182846
+      type: 'test'
+      ...
+    # Subtest: supports pagination via limit and offset
+    ok 8 - supports pagination via limit and offset
+      ---
+      duration_ms: 3.387654
+      type: 'test'
+      ...
+    # Subtest: caps limit at 100
+    ok 9 - caps limit at 100
+      ---
+      duration_ms: 5.808268
+      type: 'test'
+      ...
+    # Subtest: handles special characters in query
+    not ok 10 - handles special characters in query
+      ---
+      duration_ms: 7.447299
+      type: 'test'
+      location: '/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/buywhere-api-buy59858/api/tests/search.test.mjs:245:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        The expression evaluated to a falsy value:
+        
+          assert.ok(ftsCall)
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      operator: '=='
+      stack: |-
+        TestContext.<anonymous> (file:///paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/buywhere-api-buy59858/api/tests/search.test.mjs:254:12)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: returns compact mode when compact=true
+    ok 11 - returns compact mode when compact=true
+      ---
+      duration_ms: 4.054102
+      type: 'test'
+      ...
+    # Subtest: returns cached response with cached=true flag
+    ok 12 - returns cached response with cached=true flag
+      ---
+      duration_ms: 3.810567
+      type: 'test'
+      ...
+    # Subtest: handles non-ASCII characters in NL query
+    not ok 13 - handles non-ASCII characters in NL query
+      ---
+      duration_ms: 3.744005
+      type: 'test'
+      location: '/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/buywhere-api-buy59858/api/tests/search.test.mjs:303:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        The expression evaluated to a falsy value:
+        
+          assert.ok(ftsCall)
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      operator: '=='
+      stack: |-
+        TestContext.<anonymous> (file:///paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/buywhere-api-buy59858/api/tests/search.test.mjs:312:12)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: supports domain/platform filter with NL query
+    ok 14 - supports domain/platform filter with NL query
+      ---
+      duration_ms: 3.171603
+      type: 'test'
+      ...
+    # Subtest: preserves backward-compat `country` param alias
+    ok 15 - preserves backward-compat `country` param alias
+      ---
+      duration_ms: 2.663418
+      type: 'test'
+      ...
+    # Subtest: region filter overrides default SG country
+    ok 16 - region filter overrides default SG country
+      ---
+      duration_ms: 3.553061
+      type: 'test'
+      ...
+    # Subtest: uses small-result-set ordering (ts_rank) when approxCount <= 1000
+    not ok 17 - uses small-result-set ordering (ts_rank) when approxCount <= 1000
+      ---
+      duration_ms: 3.555398
+      type: 'test'
+      location: '/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/buywhere-api-buy59858/api/tests/search.test.mjs:381:3'
+      failureType: 'testCodeFailure'
+      error: 'Expected direct ts_rank ORDER BY (small result set path)'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      operator: '=='
+      stack: |-
+        TestContext.<anonymous> (file:///paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/buywhere-api-buy59858/api/tests/search.test.mjs:405:12)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: keeps ts_rank relevance ordering even when the result set is large
+    not ok 18 - keeps ts_rank relevance ordering even when the result set is large
+      ---
+      duration_ms: 3.347541
+      type: 'test'
+      location: '/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/buywhere-api-buy59858/api/tests/search.test.mjs:409:3'
+      failureType: 'testCodeFailure'
+      error: 'Expected live route to keep ts_rank ordering'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      operator: '=='
+      stack: |-
+        TestContext.<anonymous> (file:///paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/buywhere-api-buy59858/api/tests/search.test.mjs:433:12)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: uses vector search for semantic mode when vector infra is available
+    ok 19 - uses vector search for semantic mode when vector infra is available
+      ---
+      duration_ms: 4.377889
+      type: 'test'
+      ...
+    # Subtest: uses RRF merge for hybrid mode when vector infra is available
+    ok 20 - uses RRF merge for hybrid mode when vector infra is available
+      ---
+      duration_ms: 3.308096
+      type: 'test'
+      ...
+    1..20
+not ok 6 - NL search queries — response correctness
+  ---
+  duration_ms: 213.400316
+  type: 'suite'
+  location: '/paperclip/instances/default/workspaces/3ec8f6dd-1735-4479-9825-a2c42edac34c/buywhere-api-buy59858/api/tests/search.test.mjs:75:1'
+  failureType: 'subtestsFailed'
+  error: '6 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: NL search queries — error handling
+    # Subtest: returns 401 when no API key is provided
+    ok 1 - returns 401 when no API key is provided
+      ---
+      duration_ms: 6.525532
+      type: 'test'
+      ...
+    # Subtest: returns 401 for invalid API key
+    ok 2 - returns 401 for invalid API key
+      ---
+      duration_ms: 7.365814
+      type: 'test'
+      ...
+# [products] unhandled error on GET /search: DB connection failed
+    # Subtest: handles DB query failure gracefully with 500
+    ok 3 - handles DB query failure gracefully with 500
+      ---
+      duration_ms: 3.049966
+      type: 'test'
+      ...
+    # Subtest: handles empty string query the same as missing q param
+    ok 4 - handles empty string query the same as missing q param
+      ---
+      duration_ms: 2.182183
+      type: 'test'
+      ...
+    # Subtest: handles missing q param entirely
+    ok 5 - handles missing q param entirely
+      ---
+      duration_ms: 2.147873
+      type: 'test'
+      ...
+    1..5
+ok 7 - NL search queries — error handling
+  ---
+  duration_ms: 23.186309
+  type: 'suite'
+  ...
+# Subtest: NL search — Redis caching behavior
+    # Subtest: checks Redis cache before querying DB
+    ok 1 - checks Redis cache before querying DB
+      ---
+      duration_ms: 4.365656
+      type: 'test'
+      ...
+    # Subtest: stores result in Redis after DB query
+    ok 2 - stores result in Redis after DB query
+      ---
+      duration_ms: 3.151736
+      type: 'test'
+      ...
+    # Subtest: uses correct cache key format
+    ok 3 - uses correct cache key format
+      ---
+      duration_ms: 2.478715
+      type: 'test'
+      ...
+    1..3
+ok 8 - NL search — Redis caching behavior
+  ---
+  duration_ms: 11.062811
+  type: 'suite'
+  ...
+# Subtest: BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard
+    # Subtest: warmSearchCache CTE in products.ts must NOT use ts_rank in ORDER BY
+    ok 1 - warmSearchCache CTE in products.ts must NOT use ts_rank in ORDER BY
+      ---
+      duration_ms: 3.360075
+      type: 'test'
+      ...
+    # Subtest: other non-live search files must not contain ts_rank in any ORDER BY clause
+    ok 2 - other non-live search files must not contain ts_rank in any ORDER BY clause
+      ---
+      duration_ms: 9.902776
+      type: 'test'
+      ...
+    # Subtest: live /v1/products/search useFtsRanking branch projects ts_rank in the SELECT
+    ok 3 - live /v1/products/search useFtsRanking branch projects ts_rank in the SELECT
+      ---
+      duration_ms: 0.880322
+      type: 'test'
+      ...
+    # Subtest: live useFtsRanking branch CTE ORDER BYs on rank DESC (not id DESC)
+    ok 4 - live useFtsRanking branch CTE ORDER BYs on rank DESC (not id DESC)
+      ---
+      duration_ms: 1.064673
+      type: 'test'
+      ...
+    # Subtest: live useFtsRanking branch orders the final SELECT by top_ids.rank DESC
+    ok 5 - live useFtsRanking branch orders the final SELECT by top_ids.rank DESC
+      ---
+      duration_ms: 0.587956
+      type: 'test'
+      ...
+    # Subtest: live useFtsRanking branch does NOT regress to id DESC + outer products.updated_at DESC
+    ok 6 - live useFtsRanking branch does NOT regress to id DESC + outer products.updated_at DESC
+      ---
+      duration_ms: 0.743624
+      type: 'test'
+      ...
+    # Subtest: 8s statement_timeout guard from BUY-31228 is still in place (runtime safety net)
+    ok 7 - 8s statement_timeout guard from BUY-31228 is still in place (runtime safety net)
+      ---
+      duration_ms: 0.5568
+      type: 'test'
+      ...
+    1..7
+ok 9 - BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard
+  ---
+  duration_ms: 18.575571
+  type: 'suite'
+  ...
+1..9
+# tests 61
+# suites 9
+# pass 55
+# fail 6
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 400.819749

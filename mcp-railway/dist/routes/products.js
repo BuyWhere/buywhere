@@ -8,7 +8,6 @@ const readReplica_1 = require("../lib/readReplica");
 const apiKey_1 = require("../middleware/apiKey");
 const agentDetect_1 = require("../middleware/agentDetect");
 const posthog_1 = require("../analytics/posthog");
-const cacheStats_1 = require("../monitoring/cacheStats");
 const queryLog_1 = require("../middleware/queryLog");
 const response_1 = require("../lib/response");
 const compare_query_1 = require("../lib/compare-query");
@@ -25,7 +24,6 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 // BUY-33985 deals endpoint fix at 15s.
 const SEARCH_STATEMENT_TIMEOUT_MS = 15000;
 const SEARCH_HANDLER_TIMEOUT_MS = 15000;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'sg-fresh-v1';
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
 // unavailable, semantic/hybrid requests fall back to the keyword path.
@@ -120,7 +118,7 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
     const cacheKey = `list:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}`;
     try {
-        const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
+        const cached = await config_1.redis.get(cacheKey);
         if (cached) {
             const parsed = JSON.parse(cached);
             parsed.pagination.response_time_ms = Date.now() - requestStart;
@@ -242,9 +240,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const { cleanedQuery, canonicalSources } = (0, queryPreprocessor_1.preprocessSearchQuery)(rawQuery, minPrice, maxPrice);
     const q = cleanedQuery || rawQuery;
     // Check Redis cache for this exact query (60s TTL)
-    const cacheKey = `fts:${q}:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}`;
+    const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}`;
     try {
-        const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
+        const cached = await config_1.redis.get(cacheKey);
         if (cached) {
             const parsed = JSON.parse(cached);
             const elapsed = Date.now() - requestStart;
@@ -348,21 +346,12 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const searchConditions = [...baseConditions];
     const searchParams = [...baseParams];
     let ftsParamIdx = 0;
-    let ftsOrParamIdx = 0;
     if (q) {
         // Use full-text search via GIN-indexed search_vector only.
         // The ILIKE fallback was removed: it defeats the GIN index and causes full table scans (3s vs 130ms).
-        // MATCH with OR-semantics (to_tsquery 'a | b') so a multi-word query does not require
-        // EVERY lexeme in one product. plainto_tsquery AND-joined them ('run' & 'shoe') which gave
-        // near-zero recall on the skewed catalog ('running shoes'->0 while 'running'->N, 'shoes'->N).
-        // RANK still uses plainto_tsquery (below) so products matching MORE terms sort to the top.
-        ftsParamIdx = searchParams.length + 1; // RANK param (plainto / AND-relevance)
+        ftsParamIdx = searchParams.length + 1;
+        searchConditions.push(`search_vector @@ plainto_tsquery('english', $${ftsParamIdx})`);
         searchParams.push(q);
-        const tsOr = q.trim().split(/\s+/)
-            .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).join(' | ');
-        ftsOrParamIdx = searchParams.length + 1; // MATCH param (to_tsquery / OR-recall)
-        searchParams.push(tsOr || q);
-        searchConditions.push(`search_vector @@ to_tsquery('english', $${ftsOrParamIdx})`);
     }
     const whereClause = searchConditions.length ? `WHERE ${searchConditions.join(' AND ')}` : '';
     // BUY-33987: SEARCH_STATEMENT_TIMEOUT_MS and SEARCH_HANDLER_TIMEOUT_MS are
@@ -378,14 +367,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                products.region, products.country_code, ${specColumnsJoined}`;
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
-    // BUY-59888: default first-touch searches must not rank every FTS hit before
-    // returning the first page. On cold cache, `ORDER BY ts_rank(...)` forces a
-    // Bitmap Heap Scan over thousands of matching SG rows and reads 5k-8k heap
-    // pages before the top-N sort can emit 21 rows (observed 5s-15s/504). The
-    // API's historical default sort is freshness (`buildSortOrder()` below), so
-    // keep that fast updated_at index path for default searches and only pay the
-    // full ts_rank cost when callers explicitly request `sort=relevance`.
-    const useFtsRanking = effectiveSort === 'relevance' && ftsParamIdx;
+    const useFtsRanking = (!effectiveSort || effectiveSort === 'relevance') && ftsParamIdx;
     function buildSortOrder() {
         if (!effectiveSort || effectiveSort === 'relevance')
             return 'products.updated_at DESC';
@@ -512,7 +494,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                 if (searchMode === 'hybrid') {
                     const ftsCandidates = await client.query(`SELECT id
                FROM products
-              ${whereClause}
+               ${whereClause}
                ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
                LIMIT 200`, searchParams);
                     rankedCandidateIds = mergeRrfCandidateIds(ftsCandidates.rows.map((row) => row.id), filteredSemanticIds, candidateCap);
@@ -656,7 +638,7 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     const offset = parseInt(req.query.offset || '0');
     const cacheKey = `deals:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
     try {
-        const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
+        const cached = await config_1.redis.get(cacheKey);
         if (cached) {
             const parsed = JSON.parse(cached);
             parsed.cached = true;
@@ -1023,44 +1005,6 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
             response_time_ms: Date.now() - start,
         },
     });
-}));
-// GET /v1/products/featured
-// Keep this route above /:id so Express does not treat "featured" as a product id.
-router.get('/featured', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.featured'), asyncHandler(async (req, res) => {
-    const start = Date.now();
-    const rawCountry = req.query.country_code || req.query.country;
-    const countryCode = rawCountry?.toUpperCase() || 'SG';
-    const currency = req.query.currency || (response_1.COUNTRY_CURRENCY[countryCode] || 'SGD');
-    const limit = Math.min(parseInt(req.query.limit || '12'), 50);
-    const offset = Math.max(parseInt(req.query.offset || '0'), 0);
-    const compact = req.query.compact === 'true';
-    const cacheKey = `featured:${countryCode}:${currency}:${limit}:${offset}:${compact ? 'c' : 'f'}`;
-    try {
-        const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
-        if (cached) {
-            const parsed = JSON.parse(cached);
-            parsed.cached = true;
-            parsed.response_time_ms = Date.now() - start;
-            return res.json(parsed);
-        }
-    }
-    catch (_) { }
-    const result = await (0, readReplica_1.readDb)().query(`SELECT id, sku AS source_id, source AS domain, url,
-              NULL::text AS affiliate_url,
-              title, price, currency, image_url, metadata, updated_at,
-              region, country_code
-       FROM products
-       WHERE is_active = true
-         AND country_code = $1
-         AND currency = $2
-         AND price IS NOT NULL
-       ORDER BY id DESC
-       LIMIT $3 OFFSET $4`, [countryCode, currency, limit, offset]);
-    const products = result.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
-    const responseBody = (0, response_1.buildSearchResponse)(products, products.length, limit, offset, Date.now() - start, false);
-    config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => { });
-    res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
-    res.json(responseBody);
 }));
 // GET /v1/products/:id
 router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.get'), asyncHandler(async (req, res) => {

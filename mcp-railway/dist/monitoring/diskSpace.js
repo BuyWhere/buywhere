@@ -5,39 +5,6 @@
  * Monitors /dev/vda1 free space and creates critical Paperclip incidents when
  * below 5GB (warns at 20GB). Runs every 5 minutes via diskSpaceRunner.
  */
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CRITICAL_THRESHOLD_GB = exports.WARN_THRESHOLD_GB = void 0;
 exports.getDiskSpaceInfo = getDiskSpaceInfo;
@@ -45,10 +12,7 @@ exports.checkDiskSpaceThresholds = checkDiskSpaceThresholds;
 exports.createDiskSpaceIncident = createDiskSpaceIncident;
 exports.shouldAlert = shouldAlert;
 exports.markAlertSent = markAlertSent;
-exports.runArtifactCleanup = runArtifactCleanup;
 const child_process_1 = require("child_process");
-const fs_1 = require("fs");
-const path_1 = require("path");
 const util_1 = require("util");
 const execAsync = (0, util_1.promisify)(child_process_1.exec);
 // Thresholds in bytes
@@ -240,70 +204,5 @@ async function markAlertSent(severity, redis) {
     }
     catch (err) {
         console.error('[disk-space] Error marking alert sent:', err);
-    }
-}
-/**
- * Run the worker node artifact cleanup script.
- * Script prunes orphaned WC cycle ndjson files, stale pid/heartbeat files, old logs.
- *
- * @param apply - If true, actually delete files; otherwise dry-run
- * @param retentionHours - Delete artifacts older than this many hours (default: 48)
- */
-async function runArtifactCleanup(apply = false, retentionHours = 48) {
-    const cleanupScriptPath = (0, path_1.resolve)(__dirname, '../../../../scripts/buy-53114-worker-node-artifact-cleanup.sh');
-    if (!(0, fs_1.existsSync)(cleanupScriptPath)) {
-        return {
-            success: false,
-            scannedCount: 0,
-            removedCount: 0,
-            reclaimedKb: 0,
-            alertRequired: false,
-            error: `Cleanup script not found at: ${cleanupScriptPath}`,
-        };
-    }
-    const applyFlag = apply ? '1' : '0';
-    const reportPath = process.env.ARTIFACT_CLEANUP_REPORT_PATH || '/tmp/artifact_cleanup_report.json';
-    try {
-        const { stdout, stderr, exitCode } = await execAsync(`WORKSPACES_ROOT="${process.env.WORKSPACES_ROOT || '/paperclip/instances/default/workspaces'}" ` +
-            `APPLY=${applyFlag} ` +
-            `DISK_ARTIFACT_RETENTION_DAYS=${Math.ceil(retentionHours / 24)} ` +
-            `REPORT_PATH="${reportPath}" ` +
-            `bash "${cleanupScriptPath}"`, { timeout: 300000 } // 5 min timeout
-        );
-        // Read the JSON report if it was written
-        try {
-            const { readFile } = await Promise.resolve().then(() => __importStar(require('fs/promises')));
-            const reportContent = await readFile(reportPath, 'utf-8');
-            const report = JSON.parse(reportContent);
-            return {
-                success: exitCode === 0,
-                scannedCount: report.scanned_count || 0,
-                removedCount: report.removed_count || 0,
-                reclaimedKb: report.reclaimed_kb || 0,
-                alertRequired: report.alert_required === 1,
-                error: exitCode !== 0 ? `Script exited with code ${exitCode}` : undefined,
-            };
-        }
-        catch {
-            // Report file not available, return basic info from exit code
-            return {
-                success: exitCode === 0,
-                scannedCount: 0,
-                removedCount: 0,
-                reclaimedKb: 0,
-                alertRequired: false,
-                error: exitCode !== 0 ? `Script exited with code ${exitCode}` : undefined,
-            };
-        }
-    }
-    catch (err) {
-        return {
-            success: false,
-            scannedCount: 0,
-            removedCount: 0,
-            reclaimedKb: 0,
-            alertRequired: false,
-            error: err.message || String(err),
-        };
     }
 }

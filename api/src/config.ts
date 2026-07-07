@@ -49,6 +49,18 @@ if (replicaDb) {
 const pgStatementTimeout = parseInt(process.env.PG_STATEMENT_TIMEOUT || '30000');
 const pgLockTimeout = parseInt(process.env.PG_LOCK_TIMEOUT || '2000');
 
+// BUY-60711: Set statement/lock timeout on replica connections to prevent
+// 57014 "canceling statement due to user request" errors from long-running
+// embed queries (which use md5 hash comparison on large text fields).
+if (replicaDb) {
+  replicaDb.on('connect', (client) => {
+    Promise.all([
+      client.query(`SET statement_timeout = ${pgStatementTimeout}`),
+      client.query(`SET lock_timeout = ${pgLockTimeout}`),
+    ]).catch(() => {});
+  });
+}
+
 db.on('connect', (client) => {
   Promise.all([
     client.query(`SET statement_timeout = ${pgStatementTimeout}`),

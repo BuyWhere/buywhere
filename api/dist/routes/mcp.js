@@ -515,12 +515,11 @@ async function handleGetDeals(args) {
         throw { code: -32603, message: 'Database unavailable' };
     });
     try {
-        // BUY-56185: reduced from 300s (5min) to 15s. A 5-minute hold on a pool
-        // connection during pool exhaustion starves search_products and find_best_price,
-        // causing cascading -32603 and hangs. With discount_pct index (happy path) this
-        // query completes in <1s; without it, the regex fallback on 14M rows is not worth
-        // a 5-minute hold — better to fail fast and let the next request retry.
-        await dealsClient.query('SET statement_timeout = 15000');
+        // BUY-56635: reduced from 15s to 8s. The idx_products_deals_country index
+        // (warmup) should satisfy this query in <1s; if it doesn't (e.g. index not
+        // yet created), a fast timeout avoids holding the pool connection and lets
+        // the caller receive a structured error rather than waiting 15s for -32603.
+        await dealsClient.query('SET statement_timeout = 8000');
         const countResult = await dealsClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`, params);
         total = parseInt(countResult.rows[0].count, 10);
         const dataParams = [...params, limit, offset];
@@ -578,6 +577,7 @@ async function handleListCategories(args) {
             await client.query('SET statement_timeout = 8000');
             const tableCheck = await client.query(`SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`);
             let rows;
+            let unavailable = false;
             if (tableCheck.rows[0]?.tbl) {
                 const summaryResult = await client.query(`SELECT slug, name, product_count
            FROM mcp_category_summary_by_country
@@ -585,22 +585,35 @@ async function handleListCategories(args) {
            ORDER BY product_count DESC
            LIMIT 100`, [country]);
                 rows = summaryResult.rows;
+                // BUY-56635: materialized view exists but is empty for this country
+                // (REFRESH hasn't run yet or warmup missed it). Surface as unavailable
+                // rather than falling through to the 14M-row GROUP BY which always
+                // blows past the 8s statement_timeout and surfaces as -32603 to Tune.
+                if (rows.length === 0)
+                    unavailable = true;
             }
             else {
-                // Fallback GROUP BY — fast via idx_products_country_cat1 (sub-second with partial index)
-                const result = await client.query(`SELECT category_path[1] AS slug,
-                  category_path[1] AS name,
-                  COUNT(*) AS product_count
-           FROM products
-           WHERE category_path[1] IS NOT NULL
-             AND country_code = $1
-           GROUP BY category_path[1]
-           ORDER BY product_count DESC
-           LIMIT 100`, [country]);
-                rows = result.rows;
+                // BUY-56635: materialized view doesn't exist yet (pre-warmup deploy).
+                // Return unavailable immediately — do NOT run the live GROUP BY on
+                // 14M+ rows here; it always exceeds statement_timeout and poisons the
+                // pool. The warmup job (mcpWarmup.ts) creates the view on startup.
+                unavailable = true;
+                rows = [];
             }
-            const data = { data: rows, meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false } };
-            config_1.redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => { }); // 10 min TTL
+            const meta = {
+                total: rows.length,
+                country_code: country,
+                response_time_ms: 0,
+                cached: false,
+            };
+            if (unavailable)
+                meta.unavailable = true;
+            const data = { data: rows, meta };
+            // Only cache successful results; skip cache write when unavailable so the
+            // next request retries after the warmup job creates/refreshes the view.
+            if (!unavailable) {
+                config_1.redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => { }); // 10 min TTL
+            }
             return data;
         }
         finally {
@@ -932,19 +945,37 @@ async function handleFindSimilar(args) {
     if (!productId) {
         throw { code: -32602, message: 'missing required parameter: product_id' };
     }
+    // product_embeddings.product_id is bigint; reject non-numeric IDs upfront so the
+    // SQL parameter doesn't blow up with "invalid input syntax for type bigint".
+    // BUY-59390 — previously the handler exposed -32603 raw SQL errors.
+    if (!/^\d+$/.test(productId)) {
+        throw { code: -32602, message: `Invalid product_id format: expected numeric ID, got "${productId}"` };
+    }
     if (!config_1.vectorDb) {
         throw { code: -32001, message: 'Vector search not available — vector DB not configured' };
     }
     // Step 1: get reference embedding from vector DB
-    const refResult = await config_1.vectorDb.query(`SELECT embedding::text FROM product_embeddings WHERE product_id = $1`, [productId]);
+    let refResult;
+    try {
+        refResult = await config_1.vectorDb.query(`SELECT embedding::text FROM product_embeddings WHERE product_id = $1`, [productId]);
+    }
+    catch {
+        throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
+    }
     if (!refResult.rows.length) {
         throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
     }
     const refEmbedding = refResult.rows[0].embedding;
     // Step 2: find nearest neighbours in vector DB (excluding source product)
-    const nearResult = await config_1.vectorDb.query(`SELECT product_id, (embedding <=> $1::vector)::float AS distance
-     FROM product_embeddings WHERE product_id != $2
-     ORDER BY distance LIMIT $3`, [refEmbedding, productId, limit]);
+    let nearResult;
+    try {
+        nearResult = await config_1.vectorDb.query(`SELECT product_id, (embedding <=> $1::vector)::float AS distance
+       FROM product_embeddings WHERE product_id != $2
+       ORDER BY distance LIMIT $3`, [refEmbedding, productId, limit]);
+    }
+    catch {
+        throw { code: -32001, message: 'No similar products found' };
+    }
     if (!nearResult.rows.length) {
         throw { code: -32001, message: 'No similar products found' };
     }

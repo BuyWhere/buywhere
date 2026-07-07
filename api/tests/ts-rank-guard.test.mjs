@@ -97,8 +97,8 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
     const src = readProductsSource();
     const block = extractUseFtsRankingBlock(src);
     assert.ok(
-      /SELECT\s+id,\s*ts_rank\(\s*search_vector\s*,\s*plainto_tsquery\(\s*'english'\s*,\s*\$+\{?ftsParamIdx\}?\s*\)\s*\)\s+AS\s+rank/i.test(block),
-      'Expected the live CTE to project `id, ts_rank(search_vector, plainto_tsquery(..., ${ftsParamIdx})) AS rank` — '
+      /SELECT\s+id,\s*(?:country_code,\s*)?ts_rank\(\s*search_vector\s*,\s*plainto_tsquery\(\s*'english'\s*,\s*\$+\{?ftsParamIdx\}?\s*\)\s*\)\s+AS\s+rank/i.test(block),
+      'Expected the live CTE to project `id, [country_code,] ts_rank(search_vector, plainto_tsquery(..., ${ftsParamIdx})) AS rank` — '
         + 'removing ts_rank forces a 1.4s+ Merge Append on the partitioned products table (BUY-32228).'
     );
   });

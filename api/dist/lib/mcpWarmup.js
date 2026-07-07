@@ -37,6 +37,8 @@ async function warmupMcpCaches() {
       `);
         }
         // BUY-58273: correct shape — must match the production index definition exactly.
+        // The old DDL (currency, discount_pct DESC) WHERE discount_pct IS NOT NULL AND price > 0
+        // conflicted with the target shape and caused IF NOT EXISTS to recreate the wrong index.
         await client.query(`
       CREATE INDEX IF NOT EXISTS idx_products_deals_discount_pct
         ON products (discount_pct)
