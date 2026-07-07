@@ -464,6 +464,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "laptop",
+    backupQueries: ["MacBook laptop", "ASUS laptop", "Lenovo laptop", "Dell laptop"],
     refreshedLabel: "Updated May 1, 2026",
     productSectionTitle: "Live laptop offers across Singapore",
     comparisonSectionTitle: "Popular laptop picks at a glance",

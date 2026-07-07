@@ -7,6 +7,17 @@ const nextConfig = {
   // of also returning 410.  Middleware already handles 301 → non-slash for
   // valid pages, so this flag lets 410 pages pass through unchanged.
   output: 'standalone',
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: 'picsum.photos' },
+      { protocol: 'https', hostname: 'm.media-amazon.com' },
+      { protocol: 'https', hostname: 'images-na.ssl-images-amazon.com' },
+      { protocol: 'https', hostname: 'cf.shopee.sg' },
+      { protocol: 'https', hostname: 's.shopee.sg' },
+      { protocol: 'https', hostname: '**.shopee.sg' },
+      { protocol: 'https', hostname: 'images.unsplash.com' },
+    ],
+  },
   distDir: '.next-deploy',
   async redirects() {
     return [
