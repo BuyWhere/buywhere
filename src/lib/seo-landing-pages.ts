@@ -82,6 +82,8 @@ export type SeoLandingPageConfig = {
   searchQuery: string;
   /** Brand-specific queries tried in sequence when the broad searchQuery degrades/times out */
   backupQueries?: string[];
+  /** Minimum price in local currency to filter out irrelevant products (e.g. accessories, clothing matched by brand name) */
+  minPrice?: number;
   refreshedLabel: string;
   productSectionTitle: string;
   comparisonSectionTitle: string;
@@ -117,7 +119,7 @@ function formatMerchantName(value?: string | null) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): LandingProduct {
+function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPrice?: number): LandingProduct | null {
   const priceValue =
     item.price && typeof item.price === "object" && "amount" in item.price
       ? item.price.amount
@@ -132,6 +134,13 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Landin
       : typeof priceValue === "string" && priceValue.trim()
         ? Number(priceValue)
         : null;
+
+  // Sanity check: if the product has a price and it's implausibly low for the
+  // category, the search likely matched noise (e.g. "HP Omen" matching a $1.49
+  // shearling jacket). Silently skip these rather than showing wrong products.
+  if (minPrice !== undefined && numericPrice !== null && numericPrice < minPrice) {
+    return null;
+  }
 
   return {
     id: String(item.id),
@@ -197,7 +206,8 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       }
 
       for (const item of items) {
-        const product = normalizeProduct(item, config.currency);
+        const product = normalizeProduct(item, config.currency, config.minPrice);
+        if (!product) continue;
         if (!seenIds.has(product.id) && product.name !== "Untitled product") {
           seenIds.add(product.id);
           collected.push(product);
@@ -378,6 +388,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     locale: "en_SG",
     searchQuery: "air purifier",
     backupQueries: ["Coway air purifier", "Levoit air purifier", "Blueair air purifier", "Xiaomi air purifier"],
+    minPrice: 50,
     refreshedLabel: "Updated May 1, 2026",
     productSectionTitle: "Live air purifier offers across Singapore",
     comparisonSectionTitle: "Popular air purifier picks at a glance",
@@ -465,6 +476,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     locale: "en_SG",
     searchQuery: "laptop",
     backupQueries: ["MacBook laptop", "ASUS laptop", "Lenovo laptop", "Dell laptop"],
+    minPrice: 300,
     refreshedLabel: "Updated May 1, 2026",
     productSectionTitle: "Live laptop offers across Singapore",
     comparisonSectionTitle: "Popular laptop picks at a glance",
@@ -551,7 +563,8 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "gaming laptop",
-    backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "HP Omen laptop", "Acer Predator laptop"],
+    backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator laptop", "gaming laptop NVIDIA RTX"],
+    minPrice: 300,
     refreshedLabel: "Refreshed June 26, 2026",
     productSectionTitle: "Live gaming laptop deals across US retailers",
     comparisonSectionTitle: "Top gaming laptop picks at a glance",
@@ -730,6 +743,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     locale: "en_US",
     searchQuery: "robot vacuum",
     backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
+    minPrice: 50,
     refreshedLabel: "Refreshed April 26, 2026",
     productSectionTitle: "Live robot vacuum deals across the US",
     comparisonSectionTitle: "Top robot vacuum & Roomba picks at a glance",
