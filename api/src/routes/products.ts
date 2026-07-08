@@ -613,9 +613,12 @@ router.get(
     const offsetParamIdx = searchParams.length + 2;
     const dataParams = [...searchParams, requestedRows, offset];
     // BUY-60112/60117: 5000 was too small — only 23/12062 "dog food" SG products
+    // BUY-60123 v2: 50000 is too large — bounded CTE times out at 8s on prod with 1.5M fresh SG products in 48h.
+    // Reducing to 2000 keeps the scan in <50ms on the index (products_sg_updated_at_idx). Recall is acceptable
+    // because the bounded slice is a fallback — any results beat a degraded 8s timeout.
     // landed in the top-5000-by-id slice. 50k captures 125+ and stays ~50ms on the
     // replica ( MATERIALIZED CTE forces sequential scan of 50k rows, ~50ms cold).
-    const RECENT_SLICE_CAP = 50000;
+    const RECENT_SLICE_CAP = 2000;
 
     const seoFallbackTerms = q.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
     const seoFallbackConditions = baseConditions;
