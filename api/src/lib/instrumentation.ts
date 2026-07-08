@@ -99,6 +99,7 @@ export function recordProductViewsBulk(opts: {
     if (seen.has(id)) continue;
     seen.add(id);
     if (!shouldInsert('product_views', id, callerId)) continue;
+    console.log('[instrumentation] recording product_view id=' + id + ' source=' + opts.source);
     db.query(
       `INSERT INTO product_views (product_id, source, query_hash) VALUES ($1, $2, $3)`,
       [id, opts.source, queryHash]
