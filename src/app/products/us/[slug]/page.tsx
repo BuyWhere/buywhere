@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import USProductDetail from "@/components/USProductDetail";
 import { toSiteUrl } from "@/lib/site-url";
 import { resolveUSProductRoute } from "@/lib/us-product-route";
-import { generateMockUSProducts, USProduct } from "@/lib/us-products";
+import { normalizeUSMerchantPrice, type USProduct, type USProductOfferApiItem } from "@/lib/us-products";
 
 interface PageProps {
   params: { slug: string };
@@ -51,36 +51,35 @@ async function fetchUSProductSSR(productId: string): Promise<USProduct | undefin
     });
 
     if (matchesRes.ok) {
-      const matchesJson = await matchesRes.json() as { matches?: Array<{ name: string; price: number; match_score: number }> };
+      const matchesJson = await matchesRes.json() as { matches?: Array<USProductOfferApiItem & { name?: string; match_score?: number }> };
       if (matchesJson.matches && matchesJson.matches.length > 0) {
         const apiMatch = matchesJson.matches[0];
+        const prices = matchesJson.matches.map(normalizeUSMerchantPrice).filter((price): price is NonNullable<typeof price> => Boolean(price));
+        if (prices.length === 0) return undefined;
+
         return {
           id: productId,
-          name: apiMatch.name,
-          image: `https://picsum.photos/seed/${productId}/400/400`,
-          description: `Compare prices for ${apiMatch.name} across top US retailers including Amazon, Walmart, Target, and Best Buy.`,
-          specs: { Brand: "Various" },
-          prices: matchesJson.matches.slice(0, 4).map((m, idx) => ({
-            merchant: (["Amazon.com", "Walmart", "Target", "Best Buy"] as const)[idx] || "Amazon.com",
-            price: m.price.toString(),
-            url: "#",
-            inStock: true,
-            lastUpdated: new Date().toISOString(),
-          })),
-          overallRating: 4.2,
-          reviewCount: 256,
-          brand: "Various",
+          name: apiMatch.name || resolvedProductName(productId),
+          image: "",
+          description: `Compare current catalog offers for ${apiMatch.name || "this product"}.`,
+          specs: apiMatch.match_score ? { "Match Score": `${(apiMatch.match_score * 100).toFixed(0)}%` } : {},
+          prices,
+          overallRating: 0,
+          reviewCount: 0,
+          brand: "",
           sku: `SKU-${productId}`,
         };
       }
     }
   } catch {
-    // API unavailable — fall through to mock
+    // API unavailable — return undefined (honest empty state)
   }
 
-  // Fall back to mock data for SSR so Googlebot sees real content
-  const mockProducts = generateMockUSProducts();
-  return mockProducts.find((p) => p.id === productId);
+  return undefined;
+}
+
+function resolvedProductName(productId: string): string {
+  return `Product ${productId}`;
 }
 
 export default async function USProductSlugPage({ params }: PageProps) {

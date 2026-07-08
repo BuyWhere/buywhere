@@ -5,10 +5,6 @@ export interface SGProductForSitemap {
   lastUpdated: string;
 }
 
-interface GetSGProductsOptions {
-  allowMockFallback?: boolean;
-}
-
 interface ProductListItem {
   _id?: string;
   id?: string | number;
@@ -121,45 +117,7 @@ async function loadSGProductsFromApi(): Promise<SGProductForSitemap[]> {
   return products;
 }
 
-let mockSgProducts: SGProductForSitemap[] | null = null;
-
-function generateMockSGProducts(): SGProductForSitemap[] {
-  if (mockSgProducts) return mockSgProducts;
-
-  const productNames = [
-    "Sony WH-1000XM5 Wireless Noise Canceling Headphones",
-    "Apple iPhone 16 Pro Max 256GB",
-    "Samsung Galaxy S25 Ultra",
-    "Dyson V15 Detect Cordless Vacuum",
-    "Nintendo Switch OLED",
-    "Apple MacBook Air M4",
-    "LG 65-inch OLED evo C4 TV",
-    "Bose QuietComfort Ultra Earbuds",
-    "Samsung Galaxy Tab S10 Ultra",
-    "Sony X90L 75-inch 4K TV",
-    "Marshall Stanmore III Bluetooth Speaker",
-    "Philips Air Purifier 3000 Series",
-    "Instant Pot Pro 8-Quart",
-    "Dyson Airwrap Complete Styler",
-    "Samsung Bespoke Jet AI Vacuum",
-  ];
-
-  const now = new Date();
-  mockSgProducts = productNames.map((name, idx) => {
-    const id = `sg-product-${idx}`;
-    return {
-      id,
-      name,
-      slug: buildSGProductSlug({ id, name }),
-      lastUpdated: new Date(now.getTime() - Math.random() * 86400000 * 7).toISOString(),
-    };
-  });
-
-  return mockSgProducts;
-}
-
-export async function getSGProducts(options: GetSGProductsOptions = {}): Promise<SGProductForSitemap[]> {
-  const { allowMockFallback = true } = options;
+export async function getSGProducts(): Promise<SGProductForSitemap[]> {
   const now = Date.now();
 
   if (cachedSGProducts && now - cachedSGProducts.fetchedAt < PRODUCT_CACHE_TTL_MS) {
@@ -172,27 +130,12 @@ export async function getSGProducts(options: GetSGProductsOptions = {}): Promise
         cachedSGProducts = { products, fetchedAt: Date.now() };
         return products;
       })
-      .catch((error) => {
-        if (!allowMockFallback) {
-          throw error;
-        }
-
-        return generateMockSGProducts();
-      })
       .finally(() => {
         inflightSGProducts = null;
       });
   }
 
-  try {
-    return await inflightSGProducts;
-  } catch {
-    if (allowMockFallback) {
-      return generateMockSGProducts();
-    }
-
-    throw new Error("Failed to load SG products");
-  }
+  return await inflightSGProducts;
 }
 
 export async function getAllSGProductIds(): Promise<string[]> {
