@@ -81,7 +81,7 @@ export function TrustLayer() {
                 <div className="flex items-center justify-center w-10 h-10 bg-indigo-50 rounded-lg text-indigo-600 mb-3 mx-auto">
                   {item.icon}
                 </div>
-                <div className="text-xs text-gray-400 uppercase tracking-wider mb-1">{item.label}</div>
+                <div className="text-xs text-gray-600 uppercase tracking-wider mb-1">{item.label}</div>
                 <div className="text-2xl font-bold text-gray-900 mb-2">{item.value}</div>
                 <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${item.badgeColor}`}>
                   {item.badge}

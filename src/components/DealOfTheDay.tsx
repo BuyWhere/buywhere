@@ -102,7 +102,7 @@ export function DealOfTheDay({ deal }: DealOfTheDayProps) {
             </span>
             {deal.original_price && (
               <>
-                <span className="text-lg text-gray-400 line-through">
+                <span className="text-lg text-gray-500 line-through">
                   ${deal.original_price.toFixed(2)}
                 </span>
                 <span className="text-green-600 font-semibold">

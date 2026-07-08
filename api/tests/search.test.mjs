@@ -207,6 +207,24 @@ describe('NL search queries — response correctness', () => {
     assert.equal(body.total, 3);
   });
 
+  it('uses bounded laptop product-intent fallback for US laptop searches', async () => {
+    const res = await fetch(`http://localhost:${port}/v1/products/search?q=asus+rog+laptop&country_code=US`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+    const body = await res.json();
+
+    assert.equal(res.status, 200);
+    assert.ok(body.results.length > 0);
+
+    const laptopFallbackCall = queryMock.mock.calls.find(
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('_accessory_rank')
+    );
+    assert.ok(laptopFallbackCall, 'Expected bounded laptop fallback query');
+    assert.ok(laptopFallbackCall.arguments[0].includes('ORDER BY _accessory_rank ASC'));
+    assert.ok(laptopFallbackCall.arguments[0].includes('products.title ILIKE'));
+    assert.deepEqual(laptopFallbackCall.arguments[1], ['USD', 'US', '%asus%', '%rog%', 21, 0]);
+  });
+
   it('applies price range filters with NL query', async () => {
     const res = await fetch(`http://localhost:${port}/v1/products/search?q=headphones&min_price=50&max_price=200`, {
       headers: { Authorization: 'Bearer test-key' },

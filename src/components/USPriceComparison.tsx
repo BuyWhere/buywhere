@@ -403,33 +403,33 @@ const schemaMarkup = {
       <section className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white py-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center gap-3 mb-4">
-            <span className="px-2 py-0.5 bg-indigo-500/30 text-indigo-200 text-xs font-medium rounded-full">
+            <span className="px-2 py-0.5 bg-white/15 text-white text-xs font-medium rounded-full">
               United States
             </span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-bold mb-4">
             Compare Amazon vs Walmart vs Target vs Best Buy
           </h1>
-          <p className="text-indigo-200 text-lg max-w-2xl">
+          <p className="text-white text-lg max-w-2xl">
             Find the best deals by comparing prices across America&apos;s top retailers — all in one place.
           </p>
 
           <div className="flex items-center gap-6 mt-8">
             <div className="flex items-center gap-2">
               <span className="text-2xl">📦</span>
-              <span className="text-sm text-indigo-200">Amazon</span>
+              <span className="text-sm text-white">Amazon</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-2xl">🛒</span>
-              <span className="text-sm text-indigo-200">Walmart</span>
+              <span className="text-sm text-white">Walmart</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-2xl">🎯</span>
-              <span className="text-sm text-indigo-200">Target</span>
+              <span className="text-sm text-white">Target</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-2xl">🏪</span>
-              <span className="text-sm text-indigo-200">Best Buy</span>
+              <span className="text-sm text-white">Best Buy</span>
             </div>
           </div>
         </div>

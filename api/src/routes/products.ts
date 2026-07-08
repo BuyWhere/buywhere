@@ -192,6 +192,18 @@ function isSeoHeadQuery(query: string): boolean {
   return query.trim().split(/\s+/).filter(Boolean).length >= 2;
 }
 
+function isLaptopSearchQuery(query: string): boolean {
+  return /\b(laptop|notebook|macbook)\b/i.test(query);
+}
+
+function buildSearchTokens(query: string): string[] {
+  return query.toLowerCase()
+    .split(/\s+/)
+    .map((token) => token.replace(/[^\p{L}\p{N}]/gu, ''))
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
 const router = Router();
 
 // GET /v1/products
@@ -655,6 +667,40 @@ router.get(
       offset,
     ];
 
+    const laptopSearchTerms = buildSearchTokens(q);
+    const isLaptopSearch = q ? isLaptopSearchQuery(q) : false;
+    const laptopPositiveTerms = laptopSearchTerms.filter((term) => !['laptop', 'notebook'].includes(term));
+    const laptopTermStartIdx = baseIdx;
+    const laptopTermConditions = laptopPositiveTerms.map((_, i) => `products.title ILIKE $${laptopTermStartIdx + i}`);
+    const laptopLimitParamIdx = laptopTermStartIdx + laptopPositiveTerms.length;
+    const laptopOffsetParamIdx = laptopLimitParamIdx + 1;
+    const laptopFallbackWhereClause = `WHERE ${[
+      ...baseConditions,
+      `(products.title ILIKE '%laptop%' OR products.title ILIKE '%notebook%' OR products.title ILIKE '%macbook%' OR products.category ILIKE '%laptop%' OR array_to_string(products.category_path, ' ') ILIKE '%laptop%')`,
+      ...(laptopTermConditions.length ? laptopTermConditions : []),
+    ].join(' AND ')}`;
+    const laptopAccessoryDemotionSql = `
+      CASE
+        WHEN products.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors)\\M'
+          OR products.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers)\\M'
+          OR array_to_string(products.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers)\\M'
+        THEN 1 ELSE 0
+      END`;
+    const laptopFallbackQuery = `
+      SELECT ${joinedColumns}, ${laptopAccessoryDemotionSql} AS _accessory_rank
+      FROM products
+      LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+      ${laptopFallbackWhereClause}
+      ORDER BY _accessory_rank ASC, products.updated_at DESC, products.id DESC
+      LIMIT $${laptopLimitParamIdx} OFFSET $${laptopOffsetParamIdx}
+    `;
+    const laptopFallbackParams = [
+      ...baseParams,
+      ...laptopPositiveTerms.map((term) => `%${term}%`),
+      requestedRows,
+      offset,
+    ];
+
     const generalFallbackTermConditions = seoFallbackTerms.map((_, i) => `products.title ILIKE $${baseIdx + i}`);
     const generalFallbackLimitParamIdx = baseIdx + seoFallbackTerms.length;
     const generalFallbackWhereClause = `WHERE ${[
@@ -968,6 +1014,20 @@ router.get(
       // when broad multi-token FTS is too expensive. Read those rows first via a
       // tightly bounded source/country/currency predicate so `/api/products/search`
       // returns real product cards instead of the degraded empty timeout response.
+      // BUY-59982 / BUY-60623: laptop category queries are high-cardinality in FTS
+      // and can burn the full request budget before any fallback runs. They also
+      // matched accessory SKUs (skins/decals/sleeves) too strongly. Use a bounded
+      // product-intent path first, with accessories demoted behind actual laptops.
+      if (isLaptopSearch && countryCode === 'US' && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
+        const laptopFallbackResult = await client.query(laptopFallbackQuery, laptopFallbackParams);
+        if (laptopFallbackResult.rows.length > 0) {
+          await client.query('COMMIT');
+          client.release();
+          await sendFallbackProducts(laptopFallbackResult.rows, 'laptop_product_intent');
+          return;
+        }
+      }
+
       if (q && isSeoHeadQuery(q) && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
         const seoFallbackResult = await client.query(seoFallbackQuery, seoFallbackParamsWithPage);
         if (seoFallbackResult.rows.length > 0) {

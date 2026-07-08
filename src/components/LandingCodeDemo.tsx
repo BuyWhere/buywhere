@@ -8,7 +8,7 @@ export default function LandingCodeDemo() {
               <div className="w-3 h-3 rounded-full bg-red-500/70"></div>
               <div className="w-3 h-3 rounded-full bg-yellow-500/70"></div>
               <div className="w-3 h-3 rounded-full bg-green-500/70"></div>
-              <span className="ml-2 text-xs text-gray-500 font-mono">search.js</span>
+              <span className="ml-2 text-xs text-gray-300 font-mono">search.js</span>
             </div>
             <pre className="p-4 text-sm text-gray-300 font-mono overflow-x-auto leading-relaxed">{`const response = await fetch(
   "https://api.buywhere.io/v1/products/search",
