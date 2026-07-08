@@ -72,14 +72,24 @@ const DEFAULT_ALLOWED_DOMAINS = [
 const allowedDomains = new Set((process.env.AFFILIATE_ALLOWED_DOMAINS
     ? process.env.AFFILIATE_ALLOWED_DOMAINS.split(',').map((d) => d.trim())
     : DEFAULT_ALLOWED_DOMAINS).filter(Boolean));
+// BUY-60383/BUY-60606: destinationUrl is always resolved from our own DB
+// (affiliate_links or products table — admin-curated, not user input), so the
+// guard only blocks dangerous schemes (open-redirect / XSS via javascript: /
+// data:). Any valid http(s) merchant URL is permitted.
+// Set AFFILIATE_STRICT_ALLOWLIST=1 to re-enable exact-domain matching against
+// AFFILIATE_ALLOWED_DOMAINS if an operator ever needs to lock down outbound
+// redirects to a fixed merchant set.
+const strictAllowlist = process.env.AFFILIATE_STRICT_ALLOWLIST === '1';
 function isAllowedDestination(url) {
     try {
-        const { hostname } = new URL(url);
-        const bare = hostname.replace(/^www\./, '');
+        const parsed = new URL(url);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')
+            return false;
+        if (!strictAllowlist)
+            return true;
+        const bare = parsed.hostname.replace(/^www\./, '');
         if (allowedDomains.has(bare))
             return true;
-        // BUY-60383/BUY-60606: allow any subdomain of a permitted root domain,
-        // e.g. music.amazon.com, shop.bestbuy.com, etc.
         for (const root of allowedDomains) {
             if (bare.endsWith('.' + root))
                 return true;

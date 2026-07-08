@@ -1,7 +1,7 @@
-// BUY-60606 / BUY-60383: regression test for the affiliate redirect allowlist.
-// Verifies that US/global merchant domains (country=us revenue path) pass the
-// destination guard, subdomains of permitted roots are allowed, and unsafe
-// destinations (javascript:, unknown lookalike hosts) are still rejected.
+// BUY-60606 / BUY-60383: regression test for the affiliate redirect guard.
+// destinationUrl is resolved from our own DB (admin-curated), so the guard only
+// blocks dangerous schemes (javascript:, data:). Any valid http(s) merchant URL
+// is permitted. AFFILIATE_STRICT_ALLOWLIST=1 re-enables domain matching.
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'module';
@@ -21,13 +21,16 @@ const fakeDb = {
 const Module = require('module');
 const origLoad = Module._load;
 
-Module._load = function (request, parent, isMain) {
-  if (request === '../config') return { db: fakeDb };
-  if (request === '../analytics/posthog') return { trackAffiliateClick: () => {} };
-  return origLoad.apply(this, arguments);
-};
-
-const router = require('../dist/routes/redirect').default;
+function loadRouter() {
+  Module._load = function (request, parent, isMain) {
+    if (request === '../config') return { db: fakeDb };
+    if (request === '../analytics/posthog') return { trackAffiliateClick: () => {} };
+    return origLoad.apply(this, arguments);
+  };
+  // Bust the require cache so env changes take effect.
+  delete require.cache[require.resolve('../dist/routes/redirect')];
+  return require('../dist/routes/redirect').default;
+}
 
 function makeReq({ slug = 'direct', productId = '1', query = {} }) {
   return { params: { affiliateSlug: slug, productId }, headers: {}, query, get: () => undefined };
@@ -42,13 +45,12 @@ function makeRes() {
   };
 }
 
-async function dispatch(req, res) {
+async function dispatch(router, req, res) {
   const layer = router.stack.find((l) => l.route && l.route.path === '/:affiliateSlug/:productId');
   const handle = layer.route.stack.find((h) => h.method === 'get').handle;
   return handle(req, res);
 }
 
-// Helper: program the "DB" to return a single product with the given url.
 function productWithUrl(url) {
   return (text) => {
     if (text.includes('FROM affiliate_links')) return { rows: [] };
@@ -57,59 +59,81 @@ function productWithUrl(url) {
   };
 }
 
-describe('BUY-60606 redirect allowlist — US/global revenue path', () => {
+describe('BUY-60606 redirect guard — trust DB-resolved destinations', () => {
   after(() => { Module._load = origLoad; });
 
-  it('allows amazon.com (country=us merchant)', async () => {
+  it('allows any https merchant URL (amazon.com)', async () => {
+    const router = loadRouter();
     queryHandler = productWithUrl('https://www.amazon.com/dp/B0D1VY9GH3');
     const res = makeRes();
-    await dispatch(makeReq({ productId: '646476722422638173' }), res);
+    await dispatch(router, makeReq({ productId: '646476722422638173' }), res);
     assert.equal(res.statusCode, 302);
     assert.equal(res.redirectedTo, 'https://www.amazon.com/dp/B0D1VY9GH3');
   });
 
   it('allows bestbuy.com', async () => {
+    const router = loadRouter();
     queryHandler = productWithUrl('https://www.bestbuy.com/site/laptop/123');
     const res = makeRes();
-    await dispatch(makeReq({}), res);
+    await dispatch(router, makeReq({}), res);
     assert.equal(res.statusCode, 302);
   });
 
   it('allows walmart.com', async () => {
+    const router = loadRouter();
     queryHandler = productWithUrl('https://www.walmart.com/ip/456');
     const res = makeRes();
-    await dispatch(makeReq({}), res);
+    await dispatch(router, makeReq({}), res);
     assert.equal(res.statusCode, 302);
   });
 
   it('allows awstrack.me affiliate deeplink', async () => {
+    const router = loadRouter();
     queryHandler = productWithUrl('https://awstrack.me/xyz/abc');
     const res = makeRes();
-    await dispatch(makeReq({}), res);
+    await dispatch(router, makeReq({}), res);
     assert.equal(res.statusCode, 302);
   });
 
-  it('allows subdomain of permitted root (music.amazon.com)', async () => {
+  it('allows subdomain of merchant (music.amazon.com)', async () => {
+    const router = loadRouter();
     queryHandler = productWithUrl('https://music.amazon.com/albums/123');
     const res = makeRes();
-    await dispatch(makeReq({}), res);
+    await dispatch(router, makeReq({}), res);
     assert.equal(res.statusCode, 302);
   });
 
-  it('still rejects unknown lookalike host', async () => {
-    queryHandler = productWithUrl('https://arnazon.com/evil');
+  it('allows arbitrary merchant not in any list (e.g. some-boutique-store.com)', async () => {
+    const router = loadRouter();
+    queryHandler = productWithUrl('https://some-boutique-store.com/products/42');
     const res = makeRes();
-    await dispatch(makeReq({}), res);
+    await dispatch(router, makeReq({}), res);
+    assert.equal(res.statusCode, 302);
+    assert.equal(res.redirectedTo, 'https://some-boutique-store.com/products/42');
+  });
+
+  it('blocks javascript: scheme (open-redirect / XSS guard)', async () => {
+    const router = loadRouter();
+    queryHandler = productWithUrl('javascript:alert(1)');
+    const res = makeRes();
+    await dispatch(router, makeReq({}), res);
     assert.equal(res.statusCode, 403);
     assert.deepEqual(res.jsonBody, { error: 'Destination not permitted' });
   });
 
-  it('still rejects non-http javascript: destination', async () => {
-    queryHandler = productWithUrl('javascript:alert(1)');
+  it('blocks data: scheme', async () => {
+    const router = loadRouter();
+    queryHandler = productWithUrl('data:text/html,<script>alert(1)</script>');
     const res = makeRes();
-    await dispatch(makeReq({}), res);
-    // new URL('javascript:...') throws in some runtimes; either way it must not 302
-    assert.notEqual(res.statusCode, 302);
-    assert.equal(res.redirectedTo, null);
+    await dispatch(router, makeReq({}), res);
+    assert.equal(res.statusCode, 403);
+  });
+
+  it('blocks malformed URL', async () => {
+    const router = loadRouter();
+    queryHandler = productWithUrl('not-a-url');
+    const res = makeRes();
+    await dispatch(router, makeReq({}), res);
+    assert.equal(res.statusCode, 403);
   });
 });
