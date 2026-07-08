@@ -67,6 +67,95 @@ function shiftSqlPlaceholders(sql: string, offset: number): string {
   return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
 }
 
+// ── Search-tier path (Phase 3). Serves from the RAM-fitting `search_products` tier
+// (quality-gated ~113M rows, ~4.7GB GIN that fits the replica cache -> no timeouts).
+// AND-first-then-OR for precision+recall. Returns true if it responded; returns false
+// on ANY error/replica issue so the caller falls through to the archive path unchanged
+// (hybrid = zero recall risk). Gated by SEARCH_USE_TIER=1 or ?_tier=1 (test override).
+async function tryTierSearch(
+  req: Request,
+  res: Response,
+  p: {
+    q: string; countryCode?: string; currency: string; limit: number; offset: number;
+    minPrice?: number; maxPrice?: number; category?: string; brand?: string; domain?: string;
+    compact: boolean; requestStart: number; cacheKey: string;
+  },
+): Promise<boolean> {
+  const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
+  if (lexemes.length === 0) return false;
+  const tsOr = lexemes.join(' | ');
+
+  const conds: string[] = [];
+  const params: unknown[] = [];
+  let i = 1;
+  const qIdx = i; params.push(p.q); i++;                    // $1 = raw q (rank + AND match)
+  const orIdx = i; params.push(tsOr); i++;                  // $2 = OR lexeme string
+  if (p.countryCode) { conds.push(`sp.country_code = $${i}`); params.push(p.countryCode); i++; }
+  if (p.minPrice != null && Number.isFinite(p.minPrice)) { conds.push(`sp.price >= $${i}`); params.push(p.minPrice); i++; }
+  if (p.maxPrice != null && Number.isFinite(p.maxPrice)) { conds.push(`sp.price <= $${i}`); params.push(p.maxPrice); i++; }
+  if (p.brand) { conds.push(`sp.brand ILIKE $${i}`); params.push(`%${p.brand}%`); i++; }
+  if (p.domain) { conds.push(`sp.source = $${i}`); params.push(p.domain); i++; }
+  // DEF-02: category filter that actually works — normalize the stored category to a
+  // slug (lower, spaces->hyphens) and compare to the slug param, instead of the old
+  // broken `category ILIKE '%pet-supplies%'` substring match.
+  if (p.category) { conds.push(`lower(regexp_replace(coalesce(sp.category,''),'\\s+','-','g')) = lower($${i})`); params.push(p.category); i++; }
+  const filterSql = conds.length ? ' AND ' + conds.join(' AND ') : '';
+  const limitIdx = i; params.push(p.limit + 1); i++;
+  const offsetIdx = i; params.push(p.offset); i++;
+
+  const cols = `sp.id, sp.source AS domain, sp.url, al.destination_url AS affiliate_url,
+    sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
+    jsonb_build_object('brand', sp.brand, 'category', sp.category,
+      'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
+
+  const mkQuery = (match: string) => `
+    WITH top AS (
+      SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) AS rank
+      FROM search_products sp
+      WHERE ${match}${filterSql}
+      ORDER BY rank DESC
+      LIMIT 200
+    )
+    SELECT ${cols}, top.rank AS _fts_rank
+    FROM top JOIN search_products sp ON sp.id = top.id
+    LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
+    ORDER BY top.rank DESC
+    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+
+  const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
+  const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
+
+  let client: PoolClient;
+  try { client = await servingReadDbConnect(); } catch { return false; }
+  try {
+    await client.query('BEGIN');
+    await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
+    await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
+    let rows = (await client.query(mkQuery(andMatch), params)).rows;
+    if (rows.length === 0 && lexemes.length > 1) {
+      rows = (await client.query(mkQuery(orMatch), params)).rows;   // recall fallback
+    }
+    await client.query('COMMIT');
+    client.release();
+    if (res.headersSent) return true;
+    const hasMore = rows.length > p.limit;
+    const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
+    const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
+    const total = p.offset + rows.length;
+    const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false) as unknown as Record<string, unknown>;
+    responseBody.source = 'search_products_tier';
+    redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
+    res.set('X-Search-Tier', '1');
+    res.json(responseBody);
+    return true;
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+    try { client.release(); } catch { /* ignore */ }
+    console.warn('[tier] fell back to archive:', (e as Error)?.message);
+    return false;
+  }
+}
+
 async function getCachedQueryEmbedding(query: string, geminiKey: string): Promise<string | null> {
   try {
     const embedKey = `qembed:${Buffer.from(query).toString('base64').slice(0, 48)}`;
@@ -332,6 +421,16 @@ router.get(
     // prices from upstream feeds). A meaningful price > $0 is a basic data quality
     // requirement for any product listing. Products with $0 prices are either
     // out-of-stock markers, missing price fields, or feed parsing errors.
+    // Search-tier cutover (feature-flagged). Tier-first; falls through to the archive
+    // path below on any error or replica issue (hybrid, zero recall risk).
+    if (q && (process.env.SEARCH_USE_TIER === '1' || req.query._tier === '1')) {
+      const handled = await tryTierSearch(req, res, {
+        q, countryCode, currency, limit, offset, minPrice, maxPrice,
+        category, brand, domain, compact, requestStart, cacheKey,
+      });
+      if (handled) return;
+    }
+
     const baseConditions: string[] = ['currency = $1', 'is_active = true', 'price > 0'];
     const baseParams: unknown[] = [currency];
     let baseIdx = 2;

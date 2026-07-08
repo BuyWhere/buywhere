@@ -57,6 +57,8 @@ export function buildProduct(
     region: (row.region as string) || null,
     country_code: (row.country_code as string) || null,
     updated_at: (row.updated_at as string) || null,
+    // CAT-08: expose stock status as a top-level boolean when known.
+    ...(row.in_stock != null && { in_stock: row.in_stock as boolean }),
     ...(affiliateUrl != null && { affiliate_url: affiliateUrl }),
     ...(clickUrl != null && { click_url: clickUrl }),
     ...(affiliateRedirectUrl != null && { affiliate_redirect_url: affiliateRedirectUrl }),
