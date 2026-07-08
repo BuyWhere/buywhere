@@ -21,14 +21,58 @@ function buildAwinUrl(advertiserId: string, destination: string, clickRef: strin
 }
 
 const DEFAULT_ALLOWED_DOMAINS = [
+  // Singapore retailers
   'lazada.sg',
   'shopee.sg',
   'bestdenki.com.sg',
   'amazon.sg',
   'courts.com.sg',
   'harvey-norman.com.sg',
+  'harveynorman.com.sg',
   'challenger.sg',
   'qoo10.sg',
+  'carousell.sg',
+  'popular.com.sg',
+  'guardian.com.sg',
+  'polypet.com.sg',
+  'pupsik.sg',
+  'robinsons.com.sg',
+  // Global / US retailers (country=us revenue path — BUY-60383/BUY-60606)
+  'amazon.com',
+  'amazon.co.uk',
+  'amazon.com.au',
+  'amazon.ca',
+  'amazon.de',
+  'amazon.fr',
+  'amazon.co.jp',
+  'bestbuy.com',
+  'walmart.com',
+  'target.com',
+  'ebay.com',
+  'ebay.sg',
+  'costco.com',
+  'bhphotovideo.com',
+  'adorama.com',
+  'newegg.com',
+  'homedepot.com',
+  'lowes.com',
+  'macys.com',
+  'nordstrom.com',
+  'apple.com',
+  'microsoft.com',
+  'dell.com',
+  'hp.com',
+  'lenovo.com',
+  'samsung.com',
+  'sony.com',
+  'bjs.com',
+  'samsclub.com',
+  // Affiliate tracking / redirect domains (deeplinks served from affiliate_links)
+  'awstrack.me',
+  'awin1.com',
+  'impact.com',
+  'go.skimresources.com',
+  'go.redirectingat.com',
 ];
 
 const allowedDomains: Set<string> = new Set(
@@ -42,7 +86,13 @@ function isAllowedDestination(url: string): boolean {
   try {
     const { hostname } = new URL(url);
     const bare = hostname.replace(/^www\./, '');
-    return allowedDomains.has(bare);
+    if (allowedDomains.has(bare)) return true;
+    // BUY-60383/BUY-60606: allow any subdomain of a permitted root domain,
+    // e.g. music.amazon.com, shop.bestbuy.com, etc.
+    for (const root of allowedDomains) {
+      if (bare.endsWith('.' + root)) return true;
+    }
+    return false;
   } catch {
     return false;
   }

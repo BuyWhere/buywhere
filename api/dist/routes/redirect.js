@@ -16,14 +16,58 @@ function buildAwinUrl(advertiserId, destination, clickRef) {
     return `https://www.awin1.com/cread.php?awinmid=${advertiserId}&awinaffid=${awinPublisherId}&clickref=${clickRef}&p=${encoded}`;
 }
 const DEFAULT_ALLOWED_DOMAINS = [
+    // Singapore retailers
     'lazada.sg',
     'shopee.sg',
     'bestdenki.com.sg',
     'amazon.sg',
     'courts.com.sg',
     'harvey-norman.com.sg',
+    'harveynorman.com.sg',
     'challenger.sg',
     'qoo10.sg',
+    'carousell.sg',
+    'popular.com.sg',
+    'guardian.com.sg',
+    'polypet.com.sg',
+    'pupsik.sg',
+    'robinsons.com.sg',
+    // Global / US retailers (country=us revenue path — BUY-60383/BUY-60606)
+    'amazon.com',
+    'amazon.co.uk',
+    'amazon.com.au',
+    'amazon.ca',
+    'amazon.de',
+    'amazon.fr',
+    'amazon.co.jp',
+    'bestbuy.com',
+    'walmart.com',
+    'target.com',
+    'ebay.com',
+    'ebay.sg',
+    'costco.com',
+    'bhphotovideo.com',
+    'adorama.com',
+    'newegg.com',
+    'homedepot.com',
+    'lowes.com',
+    'macys.com',
+    'nordstrom.com',
+    'apple.com',
+    'microsoft.com',
+    'dell.com',
+    'hp.com',
+    'lenovo.com',
+    'samsung.com',
+    'sony.com',
+    'bjs.com',
+    'samsclub.com',
+    // Affiliate tracking / redirect domains (deeplinks served from affiliate_links)
+    'awstrack.me',
+    'awin1.com',
+    'impact.com',
+    'go.skimresources.com',
+    'go.redirectingat.com',
 ];
 const allowedDomains = new Set((process.env.AFFILIATE_ALLOWED_DOMAINS
     ? process.env.AFFILIATE_ALLOWED_DOMAINS.split(',').map((d) => d.trim())
@@ -32,38 +76,74 @@ function isAllowedDestination(url) {
     try {
         const { hostname } = new URL(url);
         const bare = hostname.replace(/^www\./, '');
-        return allowedDomains.has(bare);
+        if (allowedDomains.has(bare))
+            return true;
+        // BUY-60383/BUY-60606: allow any subdomain of a permitted root domain,
+        // e.g. music.amazon.com, shop.bestbuy.com, etc.
+        for (const root of allowedDomains) {
+            if (bare.endsWith('.' + root))
+                return true;
+        }
+        return false;
     }
     catch {
         return false;
     }
 }
+const REDIRECT_TIMEOUT_MS = 4000;
+const FALLBACK_URL = 'https://buywhere.ai';
+function withTimeout(promise, ms, context) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`timeout after ${ms}ms (${context})`)), ms)),
+    ]);
+}
 // GET /r/:affiliateSlug/:productId
 // Log the affiliate click then redirect to destination
 router.get('/:affiliateSlug/:productId', async (req, res) => {
     const { affiliateSlug, productId } = req.params;
-    // Look up affiliate link
-    const linkResult = await config_1.db.query(`SELECT id, merchant_id, platform, destination_url
-     FROM affiliate_links WHERE platform = $1 AND product_id = $2`, [affiliateSlug, productId]);
     let merchantId = 'unknown';
     let affiliateLinkId = '';
     let destinationUrl = null;
-    if (linkResult.rows.length > 0) {
-        const link = linkResult.rows[0];
-        merchantId = link.merchant_id || affiliateSlug;
-        affiliateLinkId = String(link.id);
-        destinationUrl = link.destination_url;
+    // BUY-60548: The affiliateSlug (e.g. 'direct') is only a routing hint — the
+    // affiliate_links table has no 'platform'/'slug' column, so the previous
+    // `WHERE platform = $1` query threw "column does not exist", the catch block
+    // skipped the product fallback, and every click 302'd to FALLBACK_URL.
+    // Resolve the affiliate link by product_id (the canonical key used by the
+    // product search JOINs); if none exists, fall through to the product lookup.
+    // BUY-60824: also select affiliate_url and prefer it over destination_url,
+    // which is empty for many rows. affiliate_url is the actual affiliate deeplink.
+    try {
+        const linkResult = await withTimeout(config_1.db.query(`SELECT id, merchant_id, affiliate_url, destination_url
+         FROM affiliate_links WHERE product_id = $1
+         ORDER BY affiliate_url NULLS LAST, destination_url LIMIT 1`, [productId]), REDIRECT_TIMEOUT_MS, 'affiliate_links lookup');
+        if (linkResult.rows.length > 0) {
+            const link = linkResult.rows[0];
+            merchantId = link.merchant_id || affiliateSlug;
+            affiliateLinkId = String(link.id);
+            // Prefer explicit affiliate_url over destination_url (which may be empty)
+            destinationUrl = link.affiliate_url || link.destination_url;
+        }
     }
-    else {
-        // Fallback: try direct product lookup
-        const productResult = await config_1.db.query(`SELECT url, merchant_id FROM products WHERE id = $1`, [productId]);
-        if (productResult.rows.length > 0) {
-            destinationUrl = productResult.rows[0].url;
-            merchantId = productResult.rows[0].merchant_id || 'unknown';
+    catch (err) {
+        console.warn('[redirect] affiliate_links lookup failed:', err.message);
+    }
+    // Product fallback runs in its own try/catch so an affiliate_links failure
+    // (or a missing link) still resolves the real merchant URL.
+    if (!destinationUrl) {
+        try {
+            const productResult = await withTimeout(config_1.db.query(`SELECT url, merchant_id FROM products WHERE id = $1`, [productId]), REDIRECT_TIMEOUT_MS, 'products lookup');
+            if (productResult.rows.length > 0) {
+                destinationUrl = productResult.rows[0].url;
+                merchantId = productResult.rows[0].merchant_id || 'unknown';
+            }
+        }
+        catch (err) {
+            console.warn('[redirect] products lookup failed:', err.message);
         }
     }
     if (!destinationUrl) {
-        res.status(404).json({ error: 'Affiliate link not found' });
+        res.redirect(302, FALLBACK_URL);
         return;
     }
     // Determine API key for attribution
@@ -72,10 +152,17 @@ router.get('/:affiliateSlug/:productId', async (req, res) => {
     if (authHeader.startsWith('Bearer '))
         apiKey = authHeader.slice(7).trim();
     const source = req.query.source || 'api_response';
-    // Log click to DB (before redirect)
-    await config_1.db.query(`INSERT INTO affiliate_clicks
-       (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)`, [apiKey, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl]);
+    // Log click to DB best-effort (do not block the redirect on a slow write)
+    (async () => {
+        try {
+            await withTimeout(config_1.db.query(`INSERT INTO affiliate_clicks
+             (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)`, [apiKey, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl]), REDIRECT_TIMEOUT_MS, 'affiliate_clicks insert');
+        }
+        catch (err) {
+            console.warn('[redirect] click logging failed:', err.message);
+        }
+    })();
     // PostHog event (fire-and-forget)
     // Hash API key before sending to third-party analytics
     (0, posthog_1.trackAffiliateClick)({
