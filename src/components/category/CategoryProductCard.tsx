@@ -98,7 +98,7 @@ export const CategoryProductCard = React.memo(function CategoryProductCard({
               ${product.price.toFixed(2)}
             </span>
             {product.originalPrice && product.originalPrice > product.price && (
-              <span className="block text-xs text-gray-400 line-through">
+              <span className="block text-xs text-gray-500 line-through">
                 ${product.originalPrice.toFixed(2)}
               </span>
             )}
@@ -180,7 +180,7 @@ export const CategoryProductCard = React.memo(function CategoryProductCard({
             ${product.price.toFixed(2)}
           </span>
           {product.originalPrice && product.originalPrice > product.price && (
-            <span className="text-sm text-gray-400 line-through">
+            <span className="text-sm text-gray-500 line-through">
               ${product.originalPrice.toFixed(2)}
             </span>
           )}

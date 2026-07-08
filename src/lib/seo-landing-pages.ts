@@ -161,6 +161,18 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
   };
 }
 
+/**
+ * Ensures every LandingProduct has an imageUrl, substituting a deterministic
+ * placeholder from picsum.photos seeded by the product ID if none is set.
+ * This prevents gradient placeholder divs when the search API is degraded
+ * and we fall back to curated fallbackProducts (which have no imageUrl).
+ */
+function withPlaceholderImage(product: LandingProduct): LandingProduct {
+  if (product.imageUrl) return product;
+  const seed = product.id.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 50);
+  return { ...product, imageUrl: `https://picsum.photos/seed/${seed}/400/300` };
+}
+
 export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promise<LandingProduct[]> {
   const fallback = config.fallbackProducts;
 
@@ -227,7 +239,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   }
 
   if (collected.length >= 4) {
-    return collected.slice(0, 8);
+    return collected.slice(0, 8).map(withPlaceholderImage);
   }
 
   // If we got some (but fewer than 4) real products, top up with fallbacks so
@@ -240,13 +252,13 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         collected.push(fb);
       }
     }
-    return collected.slice(0, 8);
+    return collected.slice(0, 8).map(withPlaceholderImage);
   }
 
   // No real products from any query — show curated fallback products (with real
   // names, prices, merchants, and deep-link search hrefs) rather than an empty
   // page. These are honest editorial picks, not empty skeleton cards.
-  return fallback.slice(0, 8);
+  return fallback.slice(0, 8).map(withPlaceholderImage);
 }
 
 export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata {

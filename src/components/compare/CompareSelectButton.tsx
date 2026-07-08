@@ -57,7 +57,7 @@ export const CompareSelectButton = memo(function CompareSelectButton({
       className={`inline-flex items-center justify-center rounded-full border text-sm font-medium transition-all ${className} ${
         active
           ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
-          : 'border-slate-200 bg-white/95 text-slate-400 hover:border-amber-200 hover:text-amber-600'
+          : 'border-slate-200 bg-white/95 text-slate-500 hover:border-amber-200 hover:text-amber-700'
       }`}
       aria-label={active ? `Remove ${product.name} from compare` : `Add ${product.name} to compare`}
       aria-pressed={active}

@@ -23,8 +23,12 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 // path is still ~15-75ms; the 5s ceiling was below the latency budget the API
 // advertises and produced 504 upstream_timeout on every search. Mirrors the
 // BUY-33985 deals endpoint fix at 15s.
-const SEARCH_STATEMENT_TIMEOUT_MS = 15000;
-const SEARCH_HANDLER_TIMEOUT_MS = 15000;
+// Sprint A (2026-07-03): env-tunable latency budget. Agents abandon long before
+// 15s; degraded-200s replace 504s below so a slow answer is still an answer.
+const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
+const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
+const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'sg-fresh-v4';
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
 // unavailable, semantic/hybrid requests fall back to the keyword path.
@@ -41,6 +45,8 @@ const HYBRID_RRF_K = 60;
 // `could not resize shared memory segment... No space left on device` (SQLSTATE 53200).
 // 4MB is enough for the 200-row top-N sort + Nested Loop pkey lookups.
 const SEARCH_WORK_MEM = '4MB';
+const SEO_SEARCH_FALLBACK_SOURCE = 'seo_search_fallback';
+const GENERAL_SEARCH_FALLBACK_TIMEOUT_MS = Math.max(250, Number(process.env.GENERAL_SEARCH_FALLBACK_TIMEOUT_MS) || 1200);
 // Express 4 doesn't catch async rejections — unhandled errors crash the process.
 // This wrapper ensures all async route handlers return 500 instead of crashing.
 function asyncHandler(fn) {
@@ -85,6 +91,19 @@ function mergeRrfCandidateIds(ftsIds, semanticIds, limit) {
         .sort((a, b) => b.score - a.score)
         .slice(0, limit)
         .map((entry) => entry.id);
+}
+function isSeoHeadQuery(query) {
+    return query.trim().split(/\s+/).filter(Boolean).length >= 2;
+}
+function isLaptopSearchQuery(query) {
+    return /\b(laptop|notebook|macbook)\b/i.test(query);
+}
+function buildSearchTokens(query) {
+    return query.toLowerCase()
+        .split(/\s+/)
+        .map((token) => token.replace(/[^\p{L}\p{N}]/gu, ''))
+        .filter(Boolean)
+        .slice(0, 6);
 }
 const router = (0, express_1.Router)();
 // GET /v1/products
@@ -131,7 +150,7 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
     catch (_) {
         // Redis miss or error — fall through to DB
     }
-    const conditions = ['currency = $1', 'is_active = true'];
+    const conditions = ['currency = $1', 'is_active = true', 'price > 0'];
     const params = [currency];
     let idx = 2;
     if (countryCode) {
@@ -189,6 +208,8 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
         },
     };
     config_1.redis.set(cacheKey, JSON.stringify(body), 'EX', LIST_SORT_TTL_SECONDS).catch(() => { });
+    if (res.headersSent)
+        return;
     res.json(body);
 }));
 // GET /v1/products/search
@@ -202,7 +223,13 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // socket will close. Mirrors the BUY-33985 deals fix.
     res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, () => {
         if (!res.headersSent) {
-            res.status(504).json({ error: 'upstream_timeout', timeout_ms: SEARCH_HANDLER_TIMEOUT_MS });
+            // Degraded 200, not 504: a fast honest partial answer keeps BuyWhere in the
+            // agent's toolchain; a 504 gets the tool dropped from rotation.
+            res.status(200).json({
+                products: [], results: [], total: 0, degraded: true,
+                hint: 'query exceeded the latency budget; add a brand, category, or price constraint, or retry shortly',
+                timeout_ms: SEARCH_HANDLER_TIMEOUT_MS,
+            });
         }
     });
     const requestStart = Date.now();
@@ -240,8 +267,15 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // so FTS alone returns near-zero matches even when 10k+ products exist.
     const { cleanedQuery, canonicalSources } = (0, queryPreprocessor_1.preprocessSearchQuery)(rawQuery, minPrice, maxPrice);
     const q = cleanedQuery || rawQuery;
-    // Check Redis cache for this exact query (60s TTL)
-    const cacheKey = `fts:${q}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}`;
+    // Sprint C (1.4): normalize the q component of the cache key — lowercase,
+    // sorted, punctuation-stripped token set — so "Running Shoes", "running shoe s"
+    // orderings and casings share one cache entry (AND/OR matching is order-
+    // independent, so results are identical). Falls back to trimmed lowercase q
+    // when normalization strips everything (pure-punctuation queries).
+    const qNorm = q.toLowerCase().trim().split(/\s+/)
+        .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
+        || q.toLowerCase().trim();
+    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}`;
     try {
         const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
         if (cached) {
@@ -262,7 +296,11 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // planner skip dead rows and the inactive non-leaf rows that previously
     // bloated the bitmap. EXPLAIN ANALYZE on roundhouse (post-fix) shows the
     // planner switches to the partial index and execution drops to ~15-30ms.
-    const baseConditions = ['currency = $1', 'is_active = true'];
+    // BUY-60385: Exclude zero-price products from search results (deceptive $0.00
+    // prices from upstream feeds). A meaningful price > $0 is a basic data quality
+    // requirement for any product listing. Products with $0 prices are either
+    // out-of-stock markers, missing price fields, or feed parsing errors.
+    const baseConditions = ['currency = $1', 'is_active = true', 'price > 0'];
     const baseParams = [currency];
     let baseIdx = 2;
     // BUY-42589: SG retailer brand queries (harvey norman, courts, gaincity, etc.)
@@ -348,6 +386,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const searchParams = [...baseParams];
     let ftsParamIdx = 0;
     let ftsOrParamIdx = 0;
+    let ftsOrFn = 'to_tsquery';
     if (q) {
         // Use full-text search via GIN-indexed search_vector only.
         // The ILIKE fallback was removed: it defeats the GIN index and causes full table scans (3s vs 130ms).
@@ -359,10 +398,30 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         searchParams.push(q);
         const tsOr = q.trim().split(/\s+/)
             .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).join(' | ');
-        ftsOrParamIdx = searchParams.length + 1; // MATCH param (to_tsquery / OR-recall)
+        // Sprint A 0.2: if q is pure punctuation, tsOr is empty — NEVER fall back to
+        // feeding raw q into to_tsquery ("no operand in tsquery" -> 500). Use
+        // plainto_tsquery for the OR slot instead: it is safe on arbitrary input and
+        // yields an empty tsquery (0 results, 200) on junk.
+        ftsOrFn = tsOr ? 'to_tsquery' : 'plainto_tsquery';
+        ftsOrParamIdx = searchParams.length + 1; // MATCH param (OR-recall)
         searchParams.push(tsOr || q);
-        searchConditions.push(`search_vector @@ to_tsquery('english', $${ftsOrParamIdx})`);
+        searchConditions.push(`search_vector @@ ${ftsOrFn}('english', $${ftsOrParamIdx})`);
     }
+    // AND-first-then-OR (BUY search-tail 2026-07-03): the two match strings + a
+    // multi-word flag, used at execution to try the strict plainto (AND) match
+    // before the broad to_tsquery (OR) match. See execFtsQuery below.
+    const ftsIsMultiWord = q ? q.trim().split(/\s+/).filter(Boolean).length > 1 : false;
+    const ftsLexemes = q
+        ? q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean)
+        : [];
+    const ftsOrMatch = `search_vector @@ ${ftsOrFn}('english', $${ftsOrParamIdx})`;
+    // The OR->AND swap below drops the to_tsquery($ftsOrParamIdx) reference, which
+    // would orphan that bind param (Postgres: \"could not determine data type of
+    // parameter\"). Keep it referenced with an always-true typed no-op so the param
+    // stays typed. tsOr is never null (we push `tsOr || q`).
+    // Sprint A 1.1-delta: strict pass uses websearch_to_tsquery — same AND semantics
+    // as plainto but adds quoted-phrase + '-term' support and is safe on raw input.
+    const ftsAndMatch = `search_vector @@ websearch_to_tsquery('english', $${ftsParamIdx}) AND $${ftsOrParamIdx}::text IS NOT NULL`;
     const whereClause = searchConditions.length ? `WHERE ${searchConditions.join(' AND ')}` : '';
     // BUY-33987: SEARCH_STATEMENT_TIMEOUT_MS and SEARCH_HANDLER_TIMEOUT_MS are
     // declared at the top of the file so res.setTimeout() (above) can reference
@@ -378,6 +437,16 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
     const useFtsRanking = (!effectiveSort || effectiveSort === 'relevance') && ftsParamIdx;
+    const useSgFreshnessGuardrail = countryCode === 'SG' && (!effectiveSort || effectiveSort === 'relevance') && Boolean(q);
+    const freshSearchConditions = useSgFreshnessGuardrail
+        ? [...searchConditions, `products.updated_at >= NOW() - INTERVAL '${SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS} hours'`]
+        : searchConditions;
+    const freshWhereClause = freshSearchConditions.length ? `WHERE ${freshSearchConditions.join(' AND ')}` : '';
+    const recentSliceConditions = useSgFreshnessGuardrail
+        ? [...baseConditions, `products.updated_at >= NOW() - INTERVAL '${SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS} hours'`]
+        : baseConditions;
+    const recentSliceWhereClause = recentSliceConditions.length ? `WHERE ${recentSliceConditions.join(' AND ')}` : '';
+    const broadRecentSliceWhereClause = baseConditions.length ? `WHERE ${baseConditions.join(' AND ')}` : '';
     function buildSortOrder() {
         if (!effectiveSort || effectiveSort === 'relevance')
             return 'products.updated_at DESC';
@@ -402,30 +471,132 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const limitParamIdx = searchParams.length + 1;
     const offsetParamIdx = searchParams.length + 2;
     const dataParams = [...searchParams, requestedRows, offset];
+    // BUY-60112/60117: 5000 was too small — only 23/12062 "dog food" SG products
+    // landed in the top-5000-by-id slice. 50k captures 125+ and stays ~50ms on the
+    // replica ( MATERIALIZED CTE forces sequential scan of 50k rows, ~50ms cold).
+    const RECENT_SLICE_CAP = 50000;
+    const seoFallbackTerms = q.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
+    const seoFallbackConditions = baseConditions;
+    const seoFallbackParams = baseParams;
+    const seoFallbackSourceParamIdx = seoFallbackParams.length + 1;
+    const seoFallbackTermStartIdx = seoFallbackSourceParamIdx + 1;
+    const seoFallbackTermConditions = seoFallbackTerms.map((_, i) => `products.title ILIKE $${seoFallbackTermStartIdx + i}`);
+    const seoFallbackLimitParamIdx = seoFallbackTermStartIdx + seoFallbackTerms.length;
+    const seoFallbackOffsetParamIdx = seoFallbackLimitParamIdx + 1;
+    const seoFallbackWhereClause = `WHERE ${[
+        ...seoFallbackConditions,
+        `source = $${seoFallbackSourceParamIdx}`,
+        ...(seoFallbackTermConditions.length ? [`(${seoFallbackTermConditions.join(' OR ')})`] : []),
+    ].join(' AND ')}`;
+    const seoFallbackQuery = `
+      WITH fallback_ids AS (
+        SELECT id, updated_at
+        FROM products
+        ${seoFallbackWhereClause}
+        ORDER BY updated_at DESC
+        LIMIT $${seoFallbackLimitParamIdx} OFFSET $${seoFallbackOffsetParamIdx}
+      )
+      SELECT ${joinedColumns}
+      FROM fallback_ids
+      JOIN products ON products.id = fallback_ids.id
+      LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+      ORDER BY fallback_ids.updated_at DESC
+    `;
+    const seoFallbackParamsWithPage = [
+        ...seoFallbackParams,
+        SEO_SEARCH_FALLBACK_SOURCE,
+        ...seoFallbackTerms.map((term) => `%${term}%`),
+        requestedRows,
+        offset,
+    ];
+    const laptopSearchTerms = buildSearchTokens(q);
+    const isLaptopSearch = q ? isLaptopSearchQuery(q) : false;
+    const laptopPositiveTerms = laptopSearchTerms.filter((term) => !['laptop', 'notebook'].includes(term));
+    const laptopTermStartIdx = baseIdx;
+    const laptopTermConditions = laptopPositiveTerms.map((_, i) => `products.title ILIKE $${laptopTermStartIdx + i}`);
+    const laptopLimitParamIdx = laptopTermStartIdx + laptopPositiveTerms.length;
+    const laptopOffsetParamIdx = laptopLimitParamIdx + 1;
+    const laptopFallbackWhereClause = `WHERE ${[
+        ...baseConditions,
+        `(products.title ILIKE '%laptop%' OR products.title ILIKE '%notebook%' OR products.title ILIKE '%macbook%' OR products.category ILIKE '%laptop%' OR array_to_string(products.category_path, ' ') ILIKE '%laptop%')`,
+        ...(laptopTermConditions.length ? laptopTermConditions : []),
+    ].join(' AND ')}`;
+    const laptopAccessoryDemotionSql = `
+      CASE
+        WHEN products.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors)\\M'
+          OR products.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers)\\M'
+          OR array_to_string(products.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers)\\M'
+        THEN 1 ELSE 0
+      END`;
+    const laptopFallbackQuery = `
+      SELECT ${joinedColumns}, ${laptopAccessoryDemotionSql} AS _accessory_rank
+      FROM products
+      LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+      ${laptopFallbackWhereClause}
+      ORDER BY _accessory_rank ASC, products.updated_at DESC, products.id DESC
+      LIMIT $${laptopLimitParamIdx} OFFSET $${laptopOffsetParamIdx}
+    `;
+    const laptopFallbackParams = [
+        ...baseParams,
+        ...laptopPositiveTerms.map((term) => `%${term}%`),
+        requestedRows,
+        offset,
+    ];
+    const generalFallbackTermConditions = seoFallbackTerms.map((_, i) => `products.title ILIKE $${baseIdx + i}`);
+    const generalFallbackLimitParamIdx = baseIdx + seoFallbackTerms.length;
+    const generalFallbackWhereClause = `WHERE ${[
+        ...baseConditions,
+        ...(generalFallbackTermConditions.length ? [`(${generalFallbackTermConditions.join(' OR ')})`] : []),
+    ].join(' AND ')}`;
+    const generalFallbackQuery = `
+      SELECT ${joinedColumns}
+      FROM products
+      LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+      ${generalFallbackWhereClause}
+      ORDER BY products.updated_at DESC
+      LIMIT $${generalFallbackLimitParamIdx}
+    `;
+    const generalFallbackParams = [
+        ...baseParams,
+        ...seoFallbackTerms.map((term) => `%${term}%`),
+        requestedRows,
+    ];
+    const sendFallbackProducts = async (rows, source) => {
+        dataResult = { rows };
+        total = rows.length;
+        hasMore = rows.length > limit;
+        if (hasMore)
+            dataResult.rows = dataResult.rows.slice(0, limit);
+        const responseTimeMs = Date.now() - requestStart;
+        const fallbackProducts = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
+        const responseBody = (0, response_1.buildSearchResponse)(fallbackProducts, total, limit, offset, responseTimeMs, hasMore);
+        config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
+        res.set('X-Search-Fallback', source);
+        res.json(responseBody);
+    };
     let dataQuery;
     if (useFtsRanking) {
-        // BUY-32228: kept ts_rank ORDER BY in the CTE. BUY-31540 replaced this with
-        // `ORDER BY id DESC` + outer `ORDER BY products.updated_at DESC`, but on the
-        // partitioned `products` table (products_sg / products_us / products_default,
-        // 4.1M rows total) that combination forces the planner into a Merge Append
-        // across ALL partitions sorted by updated_at before the top_ids filter runs.
-        // Measured 2026-06-06 against prod DB: `laptop&country=US` 1447ms with
-        // id DESC vs 41ms with ts_rank (1.4M row products_us, planner chooses
-        // Bitmap Heap Scan → 200 pkey lookups via Nested Loop). Outer ORDER BY
-        // top_ids.rank DESC is also used here (matches warmSearchCache CTE), so
-        // relevance ranking survives. The 8s statement_timeout guard from
-        // BUY-31228 stays in place as the safety net.
+        // BUY-59923: do not sort every FTS hit by ts_rank. High-cardinality brand
+        // terms (`iphone 16 pro`, `dyson airwrap`) can match millions of SG rows;
+        // `ORDER BY ts_rank(...) LIMIT 200` still computes rank for the full hit set
+        // and was timing out at the 15s edge. Bound first by the partition-pruned id
+        // index, then rank that small slice for response relevance.
+        const rankedWhereClause = useSgFreshnessGuardrail ? freshWhereClause : whereClause;
         dataQuery = `
-        WITH top_ids AS (
-          SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+        WITH recent_hits AS MATERIALIZED (
+          SELECT id, country_code, search_vector
           FROM products
-          ${whereClause}
-          ORDER BY rank DESC
+          ${rankedWhereClause}
+          ORDER BY id DESC
           LIMIT ${CANDIDATE_CAP}
+        ), top_ids AS (
+          SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+          FROM recent_hits
+          ORDER BY rank DESC, id DESC
         )
         SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
         FROM top_ids
-        JOIN products ON products.id = top_ids.id
+        JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY top_ids.rank DESC
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
@@ -436,7 +607,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         SELECT ${joinedColumns}
         FROM products
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-        ${whereClause}
+        ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
         ORDER BY ${buildSortOrder()}
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
       `;
@@ -477,10 +648,228 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
         await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
         await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
+        // AND-first-then-OR execution (non-SG relevance multi-word queries only; SG
+        // queries are already bounded by the freshness guardrail, so their OR cost is
+        // capped). Try the strict plainto (AND) match first — a small, fast candidate
+        // set (e.g. products literally titled \"dog food\") that avoids unioning the
+        // huge \"dog\" | \"food\" posting lists on the memory-starved search replica.
+        // Fall back to the broad OR match only when AND under-fills the page (preserves
+        // recall for skewed-catalog terms like \"running shoes\" where no product has
+        // both lexemes). Non-FTS/sorted queries just run the base query + the existing
+        // SG-freshness fallback, unchanged.
+        const execFtsQuery = async (baseQuery) => {
+            if (useFtsRanking && ftsIsMultiWord) {
+                const runRecentSliceFallback = async (sliceWhereClause = recentSliceWhereClause) => {
+                    const recentSliceQuery = `
+              WITH recent_candidates AS MATERIALIZED (
+                SELECT id, search_vector
+                FROM products
+                ${sliceWhereClause}
+                ORDER BY id DESC
+                LIMIT ${RECENT_SLICE_CAP}
+              ), top_ids AS (
+                SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+                FROM recent_candidates
+                WHERE ${ftsOrMatch}
+                ORDER BY rank DESC, id DESC
+                LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
+              )
+              SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
+              FROM top_ids
+              JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
+              LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+              ORDER BY top_ids.rank DESC
+            `;
+                    return client.query(recentSliceQuery, dataParams);
+                };
+                if (useSgFreshnessGuardrail) {
+                    const runBoundedSgMatch = async (matchExpr, params = dataParams, sliceWhereClause = recentSliceWhereClause) => {
+                        const boundedQuery = `
+                WITH recent_candidates AS MATERIALIZED (
+                  SELECT id, country_code, search_vector
+                  FROM products
+                  ${sliceWhereClause}
+                  ORDER BY id DESC
+                  LIMIT ${RECENT_SLICE_CAP}
+                ), top_ids AS (
+                  SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+                  FROM recent_candidates
+                  WHERE ${matchExpr}
+                  ORDER BY rank DESC, id DESC
+                  LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
+                )
+                SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
+                FROM top_ids
+                JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
+                LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+                ORDER BY top_ids.rank DESC
+              `;
+                        return client.query(boundedQuery, params);
+                    };
+                    // BUY-60117: keep the entire SG multi-word fallback ladder bounded by
+                    // a recent id slice. The previous zero-AND guard still paid the strict
+                    // AND GIN scan first, so zero-hit probes could time out before reaching
+                    // BUY-60112's bounded OR slice.
+                    let boundedAndRes = await runBoundedSgMatch(ftsAndMatch);
+                    if (boundedAndRes.rows.length > 0)
+                        return boundedAndRes;
+                    boundedAndRes = await runBoundedSgMatch(ftsAndMatch, dataParams, broadRecentSliceWhereClause);
+                    if (boundedAndRes.rows.length > 0)
+                        return boundedAndRes;
+                    if (ftsLexemes.length >= 3) {
+                        const relaxedQueries = [...new Map(ftsLexemes
+                                .map((lexeme, dropIdx) => ({ lexeme, query: ftsLexemes.filter((__, idx) => idx !== dropIdx).join(' ') }))
+                                .sort((a, b) => a.lexeme.length - b.lexeme.length)
+                                .map((entry) => [entry.query, entry.query])).values()];
+                        for (const relaxedQuery of relaxedQueries) {
+                            const relaxedParamIdx = dataParams.length + 1;
+                            const relaxedMatch = `search_vector @@ websearch_to_tsquery('english', $${relaxedParamIdx}) AND $${ftsOrParamIdx}::text IS NOT NULL`;
+                            const relaxedParams = [...dataParams, relaxedQuery];
+                            let relaxedRes = await runBoundedSgMatch(relaxedMatch, relaxedParams);
+                            if (relaxedRes.rows.length > 0)
+                                return relaxedRes;
+                            relaxedRes = await runBoundedSgMatch(relaxedMatch, relaxedParams, broadRecentSliceWhereClause);
+                            if (relaxedRes.rows.length > 0)
+                                return relaxedRes;
+                        }
+                    }
+                    const recentSliceRes = await runRecentSliceFallback();
+                    if (recentSliceRes.rows.length > 0)
+                        return recentSliceRes;
+                    return runRecentSliceFallback(broadRecentSliceWhereClause);
+                }
+                const andQuery = baseQuery.split(ftsOrMatch).join(ftsAndMatch);
+                let andRes = await client.query(andQuery, dataParams);
+                // SG queries embed the freshness guardrail; if the strict AND match finds
+                // nothing fresh, widen it past the freshness window before giving up on AND.
+                if (useSgFreshnessGuardrail && andRes.rows.length === 0) {
+                    const andFresh = freshWhereClause.split(ftsOrMatch).join(ftsAndMatch);
+                    const andBroad = whereClause.split(ftsOrMatch).join(ftsAndMatch);
+                    andRes = await client.query(andQuery.replace(andFresh, andBroad), dataParams);
+                }
+                // BUY-60052: broad 3+ token first-touch queries can still hit the slow
+                // zero-AND -> broad-OR fallback (`iphone 16 pro` was observed at 8.5s
+                // degraded on a cold SG replica). Before touching OR, try bounded
+                // N-1 strict passes (drop one lexeme, keep AND semantics) so common
+                // modifier/model queries still return relevant rows from the same
+                // recent_hits CTE without unioning huge OR posting lists.
+                if (andRes.rows.length === 0 && ftsLexemes.length >= 3) {
+                    const relaxedQueries = [...new Map(ftsLexemes
+                            .map((lexeme, dropIdx) => ({ lexeme, query: ftsLexemes.filter((__, idx) => idx !== dropIdx).join(' ') }))
+                            .sort((a, b) => a.lexeme.length - b.lexeme.length)
+                            .map((entry) => [entry.query, entry.query])).values()];
+                    for (const relaxedQuery of relaxedQueries) {
+                        const relaxedParamIdx = dataParams.length + 1;
+                        const relaxedMatch = `search_vector @@ websearch_to_tsquery('english', $${relaxedParamIdx}) AND $${ftsOrParamIdx}::text IS NOT NULL`;
+                        const relaxedSql = baseQuery.split(ftsOrMatch).join(relaxedMatch);
+                        const relaxedParams = [...dataParams, relaxedQuery];
+                        let relaxedRes = await client.query(relaxedSql, relaxedParams);
+                        if (useSgFreshnessGuardrail && relaxedRes.rows.length === 0) {
+                            const relaxedFresh = freshWhereClause.split(ftsOrMatch).join(relaxedMatch);
+                            const relaxedBroad = whereClause.split(ftsOrMatch).join(relaxedMatch);
+                            relaxedRes = await client.query(relaxedSql.replace(relaxedFresh, relaxedBroad), relaxedParams);
+                        }
+                        if (relaxedRes.rows.length > 0)
+                            return relaxedRes;
+                    }
+                }
+                // BUY-60112: the remaining zero-AND SG path was still dropping into the
+                // broad OR GIN scan and returning 8s degraded empty responses for broad
+                // terms (`dog food`, `wireless headphones`, `iphone 16 pro`). Keep OR
+                // semantics for recall, but evaluate them over a bounded recent id slice
+                // first so first-touch stays fast without re-enabling OR top-up.
+                if (andRes.rows.length === 0 && useSgFreshnessGuardrail) {
+                    const recentSliceRes = await runRecentSliceFallback();
+                    if (recentSliceRes.rows.length > 0)
+                        return recentSliceRes;
+                    return runRecentSliceFallback(broadRecentSliceWhereClause);
+                }
+                // Strict AND matches rank first (precise). Sprint C: if AND under-fills
+                // the page, TOP UP from the broad OR match (dedup by id) so the page is
+                // full without losing precision-first ordering. The OR top-up is best-
+                // effort: if it times out on the memory-starved replica, serve the AND
+                // rows alone rather than discarding good results for a degraded payload.
+                if (andRes.rows.length >= requestedRows)
+                    return andRes;
+                // Budget guard: the OR top-up can cost up to a full statement timeout on a
+                // cold replica. Only attempt it when the request still has comfortable
+                // headroom inside the handler window; otherwise a thin-but-precise page
+                // NOW beats a degraded empty page at the handler timeout.
+                // KILL-SWITCH (2026-07-03): top-up DEFAULT OFF — sustained ~18/hr degraded
+                // searches traced to broad OR scans churning the 4GB replica buffers.
+                // Re-enable with SEARCH_OR_TOPUP=1 once the search tier (plan Phase 3)
+                // gives OR scans a working set that fits in RAM.
+                if (andRes.rows.length > 0 && process.env.SEARCH_OR_TOPUP !== '1')
+                    return andRes;
+                if (andRes.rows.length > 0 && Date.now() - requestStart > 2000)
+                    return andRes;
+                if (andRes.rows.length > 0) {
+                    try {
+                        let orRes = await client.query(baseQuery, dataParams);
+                        if (useSgFreshnessGuardrail && orRes.rows.length === 0) {
+                            orRes = await client.query(baseQuery.replace(freshWhereClause, whereClause), dataParams);
+                        }
+                        const seenIds = new Set(andRes.rows.map((r0) => String(r0.id)));
+                        const merged = [...andRes.rows];
+                        for (const row of orRes.rows) {
+                            if (merged.length >= requestedRows)
+                                break;
+                            const rid = String(row.id);
+                            if (!seenIds.has(rid)) {
+                                seenIds.add(rid);
+                                merged.push(row);
+                            }
+                        }
+                        return { rows: merged };
+                    }
+                    catch {
+                        // OR top-up timed out/failed — the transaction is aborted, so recover
+                        // it and serve the precise AND rows we already have.
+                        await client.query('ROLLBACK').catch(() => { });
+                        await client.query('BEGIN').catch(() => { });
+                        await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`).catch(() => { });
+                        await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`).catch(() => { });
+                        await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`).catch(() => { });
+                        return andRes;
+                    }
+                }
+            }
+            let r = await client.query(baseQuery, dataParams);
+            if (useSgFreshnessGuardrail && r.rows.length === 0) {
+                r = await client.query(baseQuery.replace(freshWhereClause, whereClause), dataParams);
+            }
+            return r;
+        };
         const geminiKey = process.env.GEMINI_API_KEY ?? '';
         const activeVectorDb = q !== '' && searchMode !== 'keyword' && config_1.vectorDb != null && geminiKey !== ''
             ? config_1.vectorDb
             : null;
+        // BUY-60082: SEO landing head queries may have curated fallback rows even
+        // when broad multi-token FTS is too expensive. Read those rows first via a
+        // tightly bounded source/country/currency predicate so `/api/products/search`
+        // returns real product cards instead of the degraded empty timeout response.
+        // BUY-59982 / BUY-60623: laptop category queries are high-cardinality in FTS
+        // and can burn the full request budget before any fallback runs. They also
+        // matched accessory SKUs (skins/decals/sleeves) too strongly. Use a bounded
+        // product-intent path first, with accessories demoted behind actual laptops.
+        if (isLaptopSearch && countryCode === 'US' && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
+            const laptopFallbackResult = await client.query(laptopFallbackQuery, laptopFallbackParams);
+            if (laptopFallbackResult.rows.length > 0) {
+                await client.query('COMMIT');
+                client.release();
+                await sendFallbackProducts(laptopFallbackResult.rows, 'laptop_product_intent');
+                return;
+            }
+        }
+        if (q && isSeoHeadQuery(q) && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
+            const seoFallbackResult = await client.query(seoFallbackQuery, seoFallbackParamsWithPage);
+            if (seoFallbackResult.rows.length > 0) {
+                await client.query('COMMIT');
+                client.release();
+                await sendFallbackProducts(seoFallbackResult.rows, SEO_SEARCH_FALLBACK_SOURCE);
+                return;
+            }
+        }
         if (activeVectorDb) {
             const queryVector = await getCachedQueryEmbedding(q, geminiKey);
             if (queryVector) {
@@ -504,7 +893,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                 if (searchMode === 'hybrid') {
                     const ftsCandidates = await client.query(`SELECT id
                FROM products
-               ${whereClause}
+              ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
                ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
                LIMIT 200`, searchParams);
                     rankedCandidateIds = mergeRrfCandidateIds(ftsCandidates.rows.map((row) => row.id), filteredSemanticIds, candidateCap);
@@ -535,11 +924,11 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                 }
             }
             else {
-                dataResult = await client.query(dataQuery, dataParams);
+                dataResult = await execFtsQuery(dataQuery);
             }
         }
         else {
-            dataResult = await client.query(dataQuery, dataParams);
+            dataResult = await execFtsQuery(dataQuery);
         }
         await client.query('COMMIT');
     }
@@ -547,8 +936,61 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         await client.query('ROLLBACK').catch(() => { });
         const pgErr = err;
         if (pgErr.code === '57014') {
+            if (q && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
+                try {
+                    await client.query('BEGIN');
+                    await client.query(`SET LOCAL statement_timeout = '${GENERAL_SEARCH_FALLBACK_TIMEOUT_MS}'`);
+                    const fallbackResult = await client.query(generalFallbackQuery, generalFallbackParams);
+                    await client.query('COMMIT');
+                    if (fallbackResult.rows.length > 0 && !res.headersSent) {
+                        client.release();
+                        await sendFallbackProducts(fallbackResult.rows, 'general_search_fallback');
+                        return;
+                    }
+                }
+                catch {
+                    await client.query('ROLLBACK').catch(() => { });
+                }
+            }
+            // BUY-60112/60117 last-resort: SG multi-word zero-AND queries time out on
+            // the unbounded GIN scan. Use a simple ILIKE scan — no id threshold (IDs are
+            // in the trillions for this table, so id > 800000000 matches ALL rows and
+            // forces a slow index scan). ORDER BY id DESC + LIMIT lets Postgres push the
+            // limit into a parallel sequential scan of just the matching rows (~700ms cold).
+            if (countryCode === 'SG' && ftsParamIdx && ftsIsMultiWord && !domain && !merchantId && !canonicalSources?.length) {
+                try {
+                    const tokens = q.trim().split(/\s+/).filter(Boolean);
+                    const ilikeConditions = tokens.map((_, i) => `title ILIKE $${baseIdx + i}`);
+                    const ilikeParams = tokens.map((t) => `%${t}%`);
+                    const sgFallbackQuery = `
+              SELECT ${joinedColumns}, 0 AS _fts_rank
+              FROM products
+              WHERE ${baseConditions.join(' AND ')}
+                AND (${ilikeConditions.join(' AND ')})
+              ORDER BY id DESC
+              LIMIT $${baseIdx + tokens.length} OFFSET $${baseIdx + tokens.length + 1}
+            `;
+                    await client.query('BEGIN');
+                    const sgFallbackResult = await client.query(sgFallbackQuery, [...baseParams, ...ilikeParams, requestedRows, offset]);
+                    await client.query('COMMIT');
+                    if (sgFallbackResult.rows.length > 0 && !res.headersSent) {
+                        client.release();
+                        await sendFallbackProducts(sgFallbackResult.rows, 'sg_timeout_fallback');
+                        return;
+                    }
+                }
+                catch {
+                    await client.query('ROLLBACK').catch(() => { });
+                }
+            }
             client.release();
-            res.status(503).json({ error: 'Search query timed out', timeout_ms: SEARCH_STATEMENT_TIMEOUT_MS });
+            if (!res.headersSent) {
+                res.status(200).json({
+                    products: [], results: [], total: 0, degraded: true,
+                    hint: 'broad query timed out; add a brand, category, or price constraint',
+                    timeout_ms: SEARCH_STATEMENT_TIMEOUT_MS,
+                });
+            }
             return;
         }
         // BUY-34291: shared_buffers exhaustion (SQLSTATE 53200) under load — return
@@ -556,7 +998,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         // is just under memory pressure. Client should retry.
         if (pgErr.code === '53200' || (typeof err?.message === 'string' && err.message.includes('No space left on device'))) {
             client.release();
-            res.status(503).json({ error: 'Search temporarily unavailable', reason: 'db_memory_pressure', retry_after_ms: 1000 });
+            if (!res.headersSent) {
+                res.status(503).json({ error: 'Search temporarily unavailable', reason: 'db_memory_pressure', retry_after_ms: 1000 });
+            }
             return;
         }
         client.release();
@@ -629,16 +1073,20 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         queryHash: q ? (0, crypto_1.createHash)('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
         req,
     });
+    if (res.headersSent)
+        return;
     res.json(responseBody);
 }));
 // GET /v1/products/deals
 // Returns products on sale (original_price > price), sorted by discount %
-// BUY-33985: dedicated client with 5s statement_timeout + 5s res.setTimeout
-// so a slow fallback path (no discount_pct column) cannot hang the request
-// past 5s and leak the connection.
-// BUY-41572: bumped from 5s → 15s to match the search timeout bump and clear
-// the deals_upstream_timeout on the same path that the search eval is hitting.
-const DEALS_RESPONSE_TIMEOUT_MS = 15000;
+// BUY-60309: reduced timeouts (DEALS_QUERY_TIMEOUT_MS=4500, DEALS_RESPONSE_TIMEOUT_MS=5000),
+// removed COUNT query, bounded sampling from recent active candidates.
+// Timeout/cancel returns HTTP 200 with degraded envelope instead of 504.
+// BUY-33985: dedicated client with statement_timeout + res.setTimeout to prevent hangs.
+// BUY-41572: previously bumped from 5s → 15s (now reduced per BUY-60309).
+const DEALS_QUERY_TIMEOUT_MS = 4500;
+const DEALS_RESPONSE_TIMEOUT_MS = 5000;
+const DEALS_SAMPLE_CAP = 5000; // max candidates to sample for deals
 router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.deals'), asyncHandler(async (req, res) => {
     const start = Date.now();
     const currency = req.query.currency || 'SGD';
@@ -660,10 +1108,18 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     // Express-side response timeout. Fires after DEALS_RESPONSE_TIMEOUT_MS
     // regardless of the DB state — guarantees the socket closes within 5s
     // so the client never sees a 30s+ hang.
+    // BUY-60309: returns HTTP 200 with degraded envelope instead of 504.
     res.setTimeout(DEALS_RESPONSE_TIMEOUT_MS, () => {
         if (!res.headersSent) {
             try {
-                res.status(504).json({ error: 'deals_upstream_timeout', message: 'Deals query exceeded server-side timeout' });
+                res.status(200).json({
+                    products: [],
+                    total: 0,
+                    degraded: true,
+                    error: 'deals_upstream_timeout',
+                    message: 'Deals query exceeded server-side timeout',
+                    response_time_ms: Date.now() - start
+                });
             }
             catch (_) { }
         }
@@ -708,25 +1164,22 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     const discountOrder = useDiscountCol
         ? 'discount_pct DESC'
         : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
-    const COUNT_CAP = 1001;
-    // Dedicated client with 5s statement_timeout. The pool's default is 30s
-    // (config.ts PG_STATEMENT_TIMEOUT=30000) which is too generous for a
-    // user-facing read endpoint and was the source of the BUY-33985 30s+ hang.
-    // A 5s cap is well above the index-backed happy path (≈15ms) and well
-    // below the previous 30s client-visible ceiling. release() always runs.
+    // BUY-60309: removed COUNT query and added bounded sampling.
+    // Sample recent active candidates, then filter/order that bounded slice.
     // BUY-45692: deals is a heavy aggregate rollup — route to the read replica
     // when available (readDb() falls back to primary if unconfigured or lagging),
     // isolating it from interactive /v1/products/search on the primary.
     const dealsClient = await (0, readReplica_1.readDb)().connect();
     let deals = [];
     let total = 0;
+    let degraded = false;
     try {
         // BUY-34291: cap work_mem too (same shared_buffers pressure reasoning as search)
         await dealsClient.query(`SET work_mem = '${SEARCH_WORK_MEM}'`);
-        await dealsClient.query(`SET statement_timeout = ${DEALS_RESPONSE_TIMEOUT_MS}`);
-        const countResult = await dealsClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${dealWhere} LIMIT ${COUNT_CAP}) _sub`, dealParams);
-        total = parseInt(countResult.rows[0].count, 10);
-        const dataResult = await dealsClient.query(`SELECT id, sku AS source_id, source AS domain, url,
+        await dealsClient.query(`SET statement_timeout = ${DEALS_QUERY_TIMEOUT_MS}`);
+        // BUY-60309: bounded sampling - sample recent active candidates, filter, order, paginate
+        // This replaces the unbounded COUNT + ORDER BY over the full table
+        const sampleResult = await dealsClient.query(`SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
                 currency, image_url, metadata, updated_at,
                 region, country_code, created_at, description, brand, mpn, gtin,
@@ -734,14 +1187,47 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
                 ${discountSelect}
          FROM products
          WHERE ${dealWhere}
-         ORDER BY ${discountOrder}, updated_at DESC
-         LIMIT $${dealIdx} OFFSET $${dealIdx + 1}`, [...dealParams, limit, offset]);
-        deals = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, false));
+         ORDER BY updated_at DESC
+         LIMIT ${DEALS_SAMPLE_CAP}`, dealParams);
+        // Filter and order the bounded sample in memory (fast, no DB timeout risk)
+        const sampleDeals = sampleResult.rows
+            .filter(row => {
+            // Apply discount threshold - already in WHERE but double-check for safety
+            const discountPct = row.discount_pct;
+            return discountPct !== null && discountPct >= minDiscount;
+        })
+            .sort((a, b) => {
+            // Order by discount descending, then updated_at descending
+            const discountDiff = (b.discount_pct || 0) - (a.discount_pct || 0);
+            if (discountDiff !== 0)
+                return discountDiff;
+            return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+        })
+            .slice(offset, offset + limit);
+        total = sampleDeals.length; // Return actual count of sampled results
+        deals = sampleDeals.map((row) => (0, response_1.buildProduct)(row, currency, false));
+    }
+    catch (err) {
+        // BUY-60309: on timeout/cancel, return HTTP 200 degraded instead of crashing
+        const pgErr = err;
+        if (pgErr.code === '57014' || pgErr.code === '57000') {
+            // Query cancelled or statement timeout
+            degraded = true;
+            deals = [];
+            total = 0;
+        }
+        else {
+            throw err; // Re-throw other errors
+        }
     }
     finally {
         dealsClient.release();
     }
     const responseBody = (0, response_1.buildSearchResponse)(deals, total, limit, offset, Date.now() - start, false);
+    if (degraded) {
+        // BUY-60309: mark degraded so callers can distinguish partial from full results
+        Object.assign(responseBody, { degraded: true });
+    }
     config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
     // BUY-52474: log a product_view per deals card so /v1/products/deals drives
     // product_views growth alongside /search and /:id.
@@ -797,6 +1283,10 @@ router.get('/compare', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiK
 router.get('/:id/price-history', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.price-history'), asyncHandler(async (req, res) => {
     const start = Date.now();
     const { id } = req.params;
+    if (!compare_query_1.PRODUCT_ID_RE.test(String(id))) {
+        res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
+        return;
+    }
     const days = Math.min(parseInt(req.query.days || '30'), 180);
     const [productResult, historyResult] = await Promise.all([
         config_1.db.query(`SELECT id, title, price, currency FROM products WHERE id = $1`, [id]),
@@ -845,6 +1335,10 @@ router.get('/:id/price-history', agentDetect_1.agentDetectMiddleware, apiKey_1.r
 router.get('/:id/prices', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.prices'), asyncHandler(async (req, res) => {
     const start = Date.now();
     const { id } = req.params;
+    if (!compare_query_1.PRODUCT_ID_RE.test(String(id))) {
+        res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
+        return;
+    }
     const days = Math.min(parseInt(req.query.days || '30'), 90);
     const [productResult, historyResult] = await Promise.all([
         config_1.db.query(`SELECT id, title, price, currency FROM products WHERE id = $1`, [id]),
@@ -885,6 +1379,10 @@ router.get('/:id/prices', agentDetect_1.agentDetectMiddleware, apiKey_1.requireA
 router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.similar'), asyncHandler(async (req, res) => {
     const start = Date.now();
     const { id } = req.params;
+    if (!compare_query_1.PRODUCT_ID_RE.test(String(id))) {
+        res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
+        return;
+    }
     const limit = Math.min(parseInt(req.query.limit || '10'), 20);
     // Verify product exists in main DB
     const srcResult = await config_1.db.query(`SELECT id, title, brand, category_path, currency, country_code
@@ -1046,7 +1544,7 @@ router.get('/featured', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApi
          AND country_code = $1
          AND currency = $2
          AND price IS NOT NULL
-       ORDER BY updated_at DESC
+       ORDER BY id DESC
        LIMIT $3 OFFSET $4`, [countryCode, currency, limit, offset]);
     const products = result.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
     const responseBody = (0, response_1.buildSearchResponse)(products, products.length, limit, offset, Date.now() - start, false);
@@ -1058,6 +1556,10 @@ router.get('/featured', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApi
 router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.get'), asyncHandler(async (req, res) => {
     const start = Date.now();
     const { id } = req.params;
+    if (!compare_query_1.PRODUCT_ID_RE.test(String(id))) {
+        res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
+        return;
+    }
     let result;
     try {
         result = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
@@ -1358,13 +1860,16 @@ async function warmSearchCache() {
                 skipped++;
                 continue;
             }
+            // Sprint C: stagger cold warm-queries so the 4-min loop doesn't stampede
+            // the replica with all seeds at once.
+            await new Promise((resolve) => setTimeout(resolve, 1500));
             // Build the query the same way the handler does
             // BUY-33987: include `is_active = true` so the warm CTE matches the
             // handler's CTE exactly AND so the planner can pick the partial GIN
             // index `products_*_search_vector_idx WHERE is_active = true`. Without
             // this, the warm path is slower than the live path and the warm cache
             // becomes a liability instead of an asset.
-            const conditions = ['currency = $1', 'is_active = true'];
+            const conditions = ['currency = $1', 'is_active = true', 'price > 0'];
             const params = [currency];
             let idx = 2;
             const ftsParamIdx = idx;
@@ -1388,7 +1893,7 @@ async function warmSearchCache() {
             // same slow path. Mirrors the live handler's CTE exactly so warm entries match cache keys.
             const dataQuery = `
         WITH top_ids AS (
-          SELECT id
+          SELECT id, country_code
           FROM products
           ${whereClause}
           ORDER BY id DESC
@@ -1396,7 +1901,7 @@ async function warmSearchCache() {
         )
         SELECT ${joinedColumns}
         FROM top_ids
-        JOIN products ON products.id = top_ids.id
+        JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY products.updated_at DESC
         LIMIT $${idx} OFFSET $${idx + 1}
