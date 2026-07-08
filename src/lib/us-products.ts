@@ -220,6 +220,10 @@ export async function getUSProducts(): Promise<USProductForSitemap[]> {
         cachedUSProducts = { products, fetchedAt: Date.now() };
         return products;
       })
+      .catch((err) => {
+        console.warn('[us-products] API fetch failed during build, returning empty product list:', err instanceof Error ? err.message : err);
+        return [];
+      })
       .finally(() => {
         inflightUSProducts = null;
       });
