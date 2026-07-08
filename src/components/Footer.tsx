@@ -70,7 +70,7 @@ export default function Footer() {
           <div className="mb-4">
             <AffiliateDisclosure variant="inline" />
           </div>
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-2 text-sm text-gray-400">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-2 text-sm text-gray-500">
             <span tabIndex={0} aria-label={`Copyright ${COPYRIGHT_YEAR} BuyWhere Pte. Ltd. All rights reserved.`}>© {COPYRIGHT_YEAR} BuyWhere Pte. Ltd. All rights reserved.</span>
           </div>
         </div>
