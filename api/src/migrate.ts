@@ -204,7 +204,8 @@ BEGIN
   END IF;
 END$$;
 
--- Add affiliate_url to affiliate_links if not present (BUY-2274)
+-- Add affiliate_url to affiliate_links if not present (BUY-2274, BUY-60824)
+ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS affiliate_url TEXT;
 
 -- Price refresh job log (BUY-2274)
 CREATE TABLE IF NOT EXISTS price_refresh_log (
