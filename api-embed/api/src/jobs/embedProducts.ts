@@ -226,7 +226,7 @@ export async function runEmbedBatch(
   }>(
     `SELECT p.id, p.title, p.description, p.price
      FROM products p
-     WHERE p.id = ANY($1::text[])`,
+     WHERE p.id = ANY($1::bigint[])`,
     [ids]
   );
 
