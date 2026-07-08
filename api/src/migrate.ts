@@ -448,6 +448,18 @@ $$;
 export async function runMigrations() {
   console.log('Running migrations...');
 
+  // BUY-60824: run tiny redirect-critical schema patches before the monolithic
+  // migration block. The full block can time out while building product indexes;
+  // this column must still be present so /r/:affiliateSlug/:productId can read
+  // affiliate_url instead of falling back to stale/empty destination_url.
+  try {
+    await db.query('SET lock_timeout = 5000');
+    await db.query('ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS affiliate_url TEXT');
+    console.log('[migration] affiliate_links.affiliate_url verified (BUY-60824).');
+  } catch (err: any) {
+    console.warn(`[migration] affiliate_url preflight failed (non-fatal): ${err.message?.slice(0, 200)}`);
+  }
+
   // Run full migration block as-is (best-effort, may fail on extensions or
   // products columns if those tables/perms don't exist yet).
   try {
