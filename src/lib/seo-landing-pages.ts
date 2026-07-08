@@ -98,6 +98,12 @@ export type SeoLandingPageConfig = {
   shopperCta?: Cta;
   developerCta?: Cta;
   fallbackProducts: LandingProduct[];
+  /**
+   * Optional cross-locale alternates for hreflang. Keys are hreflang codes (e.g. "en-US", "en-SG"),
+   * values are canonical paths (e.g. "/airpods-singapore"). "x-default" is rendered when provided.
+   * When this is omitted, the page emits an x-default self-reference only.
+   */
+  hreflangAlternates?: { [hreflang: string]: string };
   /** Category-specific intro paragraph shown before the comparison section */
   categoryIntro?: {
     heading: string;
@@ -246,11 +252,33 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
 export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata {
   const canonical = toSiteUrl(config.canonicalPath);
 
+  // Build hreflang language alternates: each provided locale -> its canonical path URL.
+  // x-default always points at this page unless explicitly overridden.
+  const languages: Record<string, string> = {
+    "x-default": canonical,
+    [config.locale.replace("_", "-")]: canonical,
+  };
+  if (config.hreflangAlternates) {
+    for (const [code, path] of Object.entries(config.hreflangAlternates)) {
+      languages[code] = toSiteUrl(path);
+    }
+  }
+
+  const ogLocaleAlternate =
+    config.country === "US" ? "en_SG" : "en_US";
+
   return {
     title: config.title,
     description: config.description,
     alternates: {
       canonical,
+      languages,
+    },
+    other: {
+      "geo.region": config.country === "US" ? "US" : "SG",
+      "geo.placename": config.country === "US" ? "United States" : "Singapore",
+      "content-language": config.locale.replace("_", "-"),
+      "og:locale:alternate": ogLocaleAlternate,
     },
     openGraph: {
       title: config.title,
@@ -563,8 +591,9 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "gaming laptop",
-    backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator laptop", "gaming laptop NVIDIA RTX"],
+backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator laptop", "gaming laptop NVIDIA RTX"],
     minPrice: 300,
+    hreflangAlternates: { "en-SG": "/best-gaming-laptop-singapore" },
     refreshedLabel: "Refreshed June 26, 2026",
     productSectionTitle: "Live gaming laptop deals across US retailers",
     comparisonSectionTitle: "Top gaming laptop picks at a glance",
@@ -742,8 +771,9 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "robot vacuum",
-    backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
+backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
     minPrice: 50,
+    hreflangAlternates: { "en-SG": "/best-robot-vacuums-singapore" },
     refreshedLabel: "Refreshed April 26, 2026",
     productSectionTitle: "Live robot vacuum deals across the US",
     comparisonSectionTitle: "Top robot vacuum & Roomba picks at a glance",
@@ -830,6 +860,95 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       { Model: "iRobot Roomba s9+", "Sale Price": "$449–$549", MSRP: "$799", "Self-Empty": "Yes", Mop: "No", "Best For": "Best suction power" },
       { Model: "iRobot Roomba i3 EVO", "Sale Price": "$199–$249", MSRP: "$349", "Self-Empty": "No", Mop: "No", "Best For": "Best budget Roomba" },
       { Model: "iRobot Roomba i5 EVO", "Sale Price": "$249–$299", MSRP: "$399", "Self-Empty": "No", Mop: "No", "Best For": "Best value Roomba" },
+    ],
+    showRelatedCategory: true,
+  },
+  "best-robot-vacuums-singapore": {
+    slug: "best-robot-vacuums-singapore",
+    title: "Best Robot Vacuum & Roborock Deals in Singapore 2026 — Compare Prices Across Shopee, Lazada, Challenger",
+    description:
+      "Compare live robot vacuum and Roborock sale prices across Shopee, Lazada, Challenger, Harvey Norman, and Best Denki in Singapore 2026, with buying advice and the best deals refreshed weekly.",
+    heroEyebrow: "Singapore Home Guide",
+    heroTitle: "Best Robot Vacuum & Roborock Deals in Singapore 2026",
+    heroBody:
+      "Looking for the best robot vacuum sale in Singapore for 2026? Roborock, Dreame, Xiaomi, and Ecovacs models regularly drop 20-40% during 5.5, 6.6, 9.9, and 11.11 mega campaigns. This page tracks live robot vacuum and Roborock deals across Shopee Mall, LazMall, Challenger, Harvey Norman, and Best Denki so you never miss a discount.",
+    canonicalPath: "/best-robot-vacuums-singapore",
+    country: "SG",
+    currency: "SGD",
+    locale: "en_SG",
+    searchQuery: "robot vacuum",
+    hreflangAlternates: { "en-US": "/best-robot-vacuums-2026" },
+    refreshedLabel: "Refreshed July 8, 2026",
+    productSectionTitle: "Live robot vacuum deals across Singapore",
+    comparisonSectionTitle: "Top robot vacuum & Roborock picks at a glance",
+    comparisonColumns: ["Model", "Price", "Suction", "Mop", "Self-Emptying", "Best For"],
+    comparisonRows: [
+      { Model: "Roborock S8 MaxV Ultra", Price: "S$1,899", Suction: "10,000 Pa", Mop: "Yes", "Self-Emptying": "Yes", "Best For": "Best overall" },
+      { Model: "Dreame L20 Ultra", Price: "S$1,499", Suction: "7,000 Pa", Mop: "Yes", "Self-Emptying": "Yes", "Best For": "Best mid-range flagship" },
+      { Model: "Roborock Q Revo MaxV", Price: "S$1,199", Suction: "6,000 Pa", Mop: "Yes", "Self-Emptying": "Yes", "Best For": "Best value premium" },
+      { Model: "Ecovacs Deebot X2 Omni", Price: "S$1,599", Suction: "8,000 Pa", Mop: "Yes", "Self-Emptying": "Yes", "Best For": "Best navigation" },
+      { Model: "Xiaomi Robot Vacuum X10+", Price: "S$799", Suction: "4,000 Pa", Mop: "Yes", "Self-Emptying": "Yes", "Best For": "Best value mid-range" },
+      { Model: "Roborock Q5 Pro+", Price: "S$649", Suction: "5,500 Pa", Mop: "No", "Self-Emptying": "Yes", "Best For": "Best under S$700" },
+    ],
+    highlightSectionTitle: "What separates the best picks for SG buyers",
+    highlights: [
+      {
+        title: "Roborock S8 MaxV Ultra",
+        body: "The safest premium recommendation if you want strong suction, dependable mopping, and a dock that minimizes manual maintenance. Look for Shopee Mall authorised listings with local warranty.",
+      },
+      {
+        title: "Dreame L20 Ultra",
+        body: "Often priced S$200-S$400 below the Roborock flagship during 9.9 and 11.11. Comparable mopping performance for SG apartments with mostly hard floors.",
+      },
+      {
+        title: "Roborock Q5 Pro+",
+        body: "The practical buy for SG HDB shoppers who care more about vacuuming value than mopping features or luxury docks.",
+      },
+    ],
+    adviceSectionTitle: "How to choose a robot vacuum in Singapore",
+    advicePoints: [
+      "If your home is mostly tile or vinyl (typical SG HDB), a vacuum-and-mop combo usually saves more time than a vacuum-only model.",
+      "For pet owners, prioritise tangle-free brushrolls and self-emptying docks over headline mopping features.",
+      "Buy from Shopee Mall, LazMall, Challenger, Harvey Norman, or Best Denki for clearer local warranty support than parallel-import listings.",
+      "Best SG discount windows: 5.5 (May), 6.6 (June), 7.7, 8.8, 9.9 (Sep), 10.10, 11.11 (Nov), 12.12 mega campaigns.",
+    ],
+    faqSectionTitle: "Robot vacuum Singapore FAQ",
+    faqs: [
+      {
+        question: "What is the best robot vacuum in Singapore right now?",
+        answer:
+          "For most SG buyers, the Roborock S8 MaxV Ultra is the best robot vacuum in Singapore because it combines strong cleaning, dependable navigation, effective mopping, and one of the best all-in-one docks available locally.",
+      },
+      {
+        question: "Are robot vacuums worth it in Singapore?",
+        answer:
+          "Yes. Singapore's mostly hard floors make robot vacuums especially effective for daily maintenance. The main value is time saved and consistent upkeep in air-conditioned HDB or condo spaces.",
+      },
+      {
+        question: "Where is the cheapest place to buy a robot vacuum in Singapore?",
+        answer:
+          "Shopee Mall and LazMall during 5.5, 9.9, and 11.11 campaigns often have the lowest prices. Challenger, Harvey Norman, and Best Denki are better for in-store pickup and local warranty support.",
+      },
+    ],
+    shopperCta: {
+      title: "Compare robot vacuum prices in Singapore",
+      body: "Find Roborock, Dreame, Xiaomi, and Ecovacs deals across Shopee, Lazada, Challenger, and Harvey Norman in one search view.",
+      href: "/search?q=robot+vacuum&country=sg",
+      label: "Shop robot vacuums",
+    },
+    developerCta: {
+      title: "Build robot vacuum price trackers",
+      body: "Use BuyWhere APIs to monitor robot vacuum pricing, availability, and mega-campaign deal swings across SG retailers.",
+      href: "/developers",
+      label: "Explore the API",
+    },
+    fallbackProducts: [
+      { id: "r1", name: "Roborock S8 MaxV Ultra", price: 1899, currency: "SGD", merchant: "Shopee Mall", imageUrl: null, href: "/search?q=Roborock+S8+MaxV+Ultra&country=sg", brand: "Roborock", category: "Robot Vacuums" },
+      { id: "r2", name: "Dreame L20 Ultra", price: 1499, currency: "SGD", merchant: "LazMall", imageUrl: null, href: "/search?q=Dreame+L20+Ultra&country=sg", brand: "Dreame", category: "Robot Vacuums" },
+      { id: "r3", name: "Ecovacs Deebot X2 Omni", price: 1599, currency: "SGD", merchant: "Challenger", imageUrl: null, href: "/search?q=Ecovacs+Deebot+X2+Omni&country=sg", brand: "Ecovacs", category: "Robot Vacuums" },
+      { id: "r4", name: "Roborock Q Revo MaxV", price: 1199, currency: "SGD", merchant: "Shopee Mall", imageUrl: null, href: "/search?q=Roborock+Q+Revo+MaxV&country=sg", brand: "Roborock", category: "Robot Vacuums" },
+      { id: "r5", name: "Xiaomi Robot Vacuum X10+", price: 799, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=Xiaomi+Robot+Vacuum+X10%2B&country=sg", brand: "Xiaomi", category: "Robot Vacuums" },
+      { id: "r6", name: "Roborock Q5 Pro+", price: 649, currency: "SGD", merchant: "Harvey Norman", imageUrl: null, href: "/search?q=Roborock+Q5+Pro%2B&country=sg", brand: "Roborock", category: "Robot Vacuums" },
     ],
     showRelatedCategory: true,
   },
@@ -971,6 +1090,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "gaming laptop",
+    hreflangAlternates: { "en-US": "/best-gaming-laptops-us" },
     refreshedLabel: "Updated June 26, 2026",
     productSectionTitle: "Live gaming laptop deals across Singapore",
     comparisonSectionTitle: "Top gaming laptop picks at a glance",
