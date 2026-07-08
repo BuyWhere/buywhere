@@ -7,7 +7,7 @@
 // BUY-59923 bounded the live /v1/products/search CTE after measuring that sorting all
 // FTS hits by ts_rank for high-cardinality SG brand terms (`iphone 16 pro`, `dyson
 // airwrap`) still hit the 15s handler timeout. The live path now selects a small,
-// partition-pruned recent_hits slice by id first, then ranks only that bounded slice.
+// partition-pruned recent_hits slice by indexed freshness first, then ranks only that bounded slice.
 //
 // Net rule:
 //   - warmSearchCache CTE and any other search CTE that is NOT the live /v1/products/search
@@ -97,7 +97,7 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
     const src = readProductsSource();
     const block = extractUseFtsRankingBlock(src);
     assert.ok(
-      /SELECT\s+id,\s*ts_rank\(\s*search_vector\s*,\s*plainto_tsquery\(\s*'english'\s*,\s*\$+\{?ftsParamIdx\}?\s*\)\s*\)\s+AS\s+rank/i.test(block),
+      /SELECT\s+id,\s*(?:country_code,\s*)?ts_rank\(\s*search_vector\s*,\s*plainto_tsquery\(\s*'english'\s*,\s*\$+\{?ftsParamIdx\}?\s*\)\s*\)\s+AS\s+rank/i.test(block),
       'Expected the live CTE to project `id, ts_rank(search_vector, plainto_tsquery(..., ${ftsParamIdx})) AS rank` — '
         + 'removing ts_rank forces a 1.4s+ Merge Append on the partitioned products table (BUY-32228).'
     );
@@ -109,8 +109,8 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
     const recentHits = block.match(/WITH\s+recent_hits\s+AS\s+(?:MATERIALIZED\s+)?\(([\s\S]*?)\),\s*top_ids\s+AS/i);
     assert.ok(recentHits, 'Expected a `WITH recent_hits AS [MATERIALIZED] (...)` CTE before top_ids');
     assert.ok(
-      /ORDER\s+BY\s+id\s+DESC/i.test(recentHits[1]) && /LIMIT\s+\$?\{?CANDIDATE_CAP\}?/i.test(recentHits[1]),
-      'Expected recent_hits to `ORDER BY id DESC LIMIT ${CANDIDATE_CAP}` before ranking so ts_rank only sorts a bounded slice.'
+      /ORDER\s+BY\s+updated_at\s+DESC/i.test(recentHits[1]) && /LIMIT\s+\$?\{?CANDIDATE_CAP\}?/i.test(recentHits[1]),
+      'Expected recent_hits to `ORDER BY updated_at DESC LIMIT ${CANDIDATE_CAP}` before ranking so ts_rank only sorts an indexed bounded slice.'
     );
   });
 
@@ -179,11 +179,14 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
     const broadOrStart = src.indexOf('let r = await client.query(baseQuery, dataParams);', fallbackStart);
     assert.ok(fallbackStart >= 0, 'Expected BUY-60112 zero-AND SG fallback comment');
     assert.ok(broadOrStart > fallbackStart, 'Expected broad OR baseQuery fallback after BUY-60112 block');
-    const fallbackBlock = src.slice(fallbackStart, broadOrStart);
+    const boundedSliceStart = src.lastIndexOf('const runRecentSliceFallback', fallbackStart);
+    const fallbackBlock = src.slice(boundedSliceStart, broadOrStart);
     assert.ok(/andRes\.rows\.length\s*===\s*0\s*&&\s*useSgFreshnessGuardrail/.test(fallbackBlock), 'Expected fallback to be limited to zero-AND SG relevance searches');
     assert.ok(/runRecentSliceFallback\(\)/.test(fallbackBlock), 'Expected fresh bounded slice fallback before broad OR');
     assert.ok(/runRecentSliceFallback\(broadRecentSliceWhereClause\)/.test(fallbackBlock), 'Expected all-time bounded slice retry before broad OR');
-    assert.ok(/LIMIT\s+\$\{RECENT_SLICE_CAP\}/.test(src), 'Expected fallback to cap the recent id slice before OR matching');
+    assert.ok(/LIMIT\s+\$\{RECENT_SLICE_CAP\}/.test(src), 'Expected fallback to cap the recent freshness slice before OR matching');
+    assert.ok(/ORDER\s+BY\s+updated_at\s+DESC/.test(fallbackBlock), 'Expected bounded SG slice to use the indexed freshness order');
+    assert.ok(!/ORDER\s+BY\s+id\s+DESC/.test(fallbackBlock), 'Expected bounded SG fallback to avoid partition-wide id ordering');
     assert.ok(/WITH\s+recent_candidates\s+AS\s+MATERIALIZED\s+\(/.test(src), 'Expected recent candidate slice to be materialized before FTS matching');
   });
 });

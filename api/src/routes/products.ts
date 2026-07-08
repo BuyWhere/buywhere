@@ -612,9 +612,10 @@ router.get(
     const limitParamIdx = searchParams.length + 1;
     const offsetParamIdx = searchParams.length + 2;
     const dataParams = [...searchParams, requestedRows, offset];
-    // BUY-60112/60117: 5000 was too small — only 23/12062 "dog food" SG products
-    // landed in the top-5000-by-id slice. 50k captures 125+ and stays ~50ms on the
-    // replica ( MATERIALIZED CTE forces sequential scan of 50k rows, ~50ms cold).
+    // BUY-60112/60117/60123: 5000 was too small — only 23/12062 "dog food" SG
+    // products landed in the top-5000 slice. Keep the 50k cap, but order by the
+    // indexed freshness column; ordering by partitioned id forced cold scans that
+    // still hit the statement timeout before the bounded fallback could help.
     const RECENT_SLICE_CAP = 50000;
 
     const seoFallbackTerms = q.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
@@ -706,7 +707,7 @@ router.get(
           SELECT id, country_code, search_vector
           FROM products
           ${rankedWhereClause}
-          ORDER BY id DESC
+          ORDER BY updated_at DESC
           LIMIT ${CANDIDATE_CAP}
         ), top_ids AS (
           SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
@@ -784,7 +785,7 @@ router.get(
                 SELECT id, search_vector
                 FROM products
                 ${sliceWhereClause}
-                ORDER BY id DESC
+                ORDER BY updated_at DESC
                 LIMIT ${RECENT_SLICE_CAP}
               ), top_ids AS (
                 SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
@@ -812,7 +813,7 @@ router.get(
                   SELECT id, country_code, search_vector
                   FROM products
                   ${sliceWhereClause}
-                  ORDER BY id DESC
+                  ORDER BY updated_at DESC
                   LIMIT ${RECENT_SLICE_CAP}
                 ), top_ids AS (
                   SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
