@@ -264,7 +264,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
       className="group relative flex h-full flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
       <div className="relative h-36 overflow-hidden border-b border-slate-100 bg-slate-100 sm:h-40">
-        <div className="absolute inset-0 flex items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))] text-sm font-semibold text-slate-400">
+        <div className="absolute inset-0 flex items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))] text-sm font-semibold text-slate-600">
           Product image
         </div>
         {product.imageUrl ? (
@@ -281,7 +281,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
             className="relative z-10 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="relative z-10 flex h-full items-center justify-center text-4xl text-slate-400">◎</div>
+          <div className="relative z-10 flex h-full items-center justify-center text-4xl text-slate-600">◎</div>
         )}
         <div className="absolute right-2 top-2">
           <CompareSelectButton product={product} className="h-9 w-9" />
@@ -319,7 +319,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
 
         <div className="mt-auto space-y-3 border-t border-slate-100 pt-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Current price</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Current price</p>
             <p className="mt-0.5 text-2xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
           </div>
           <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
@@ -617,7 +617,7 @@ export default function SearchResultsClient({
               <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
                 <label ref={searchFieldRef} className="relative block">
                   <span className="mb-2 block text-sm font-medium text-slate-700">Search query</span>
-                  <Search className="pointer-events-none absolute left-4 top-[3.2rem] h-5 w-5 text-slate-400" aria-hidden="true" />
+                  <Search className="pointer-events-none absolute left-4 top-[3.2rem] h-5 w-5 text-slate-600" aria-hidden="true" />
                   <input
                     ref={searchInputRef}
                     type="search"
@@ -690,7 +690,7 @@ export default function SearchResultsClient({
                       role="listbox"
                       className="absolute left-0 right-0 top-[calc(100%+0.75rem)] z-20 overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_20px_60px_-32px_rgba(15,23,42,0.45)]"
                     >
-                      <div className="border-b border-slate-100 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      <div className="border-b border-slate-100 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
                         Recent searches
                       </div>
                       <ul className="py-2">
@@ -711,12 +711,12 @@ export default function SearchResultsClient({
                               onMouseDown={(event) => event.preventDefault()}
                               onClick={() => runSearch(entry)}
                             >
-                              <Search className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                              <Search className="h-4 w-4 shrink-0 text-slate-600" aria-hidden="true" />
                               <span className="truncate text-sm font-medium text-slate-900">{entry}</span>
                             </button>
                             <button
                               type="button"
-                              className="rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                              className="rounded-full p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-700"
                               onMouseDown={(event) => event.preventDefault()}
                               onClick={() => removeHistoryEntry(entry)}
                               aria-label={`Delete ${entry} from search history`}
@@ -777,7 +777,7 @@ export default function SearchResultsClient({
         <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
           {showSearchPrompt ? (
             <div className="rounded-[28px] border border-dashed border-slate-300 bg-white/90 p-8 text-center shadow-sm">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Start browsing</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-600">Start browsing</p>
               <h2 className="mt-3 text-2xl font-semibold text-slate-900">Enter at least 2 characters to see results</h2>
               <p className="mt-3 text-slate-600">Try a product type, brand, or category and switch countries as needed.</p>
             </div>
@@ -814,7 +814,7 @@ export default function SearchResultsClient({
 
               {showEmptyState ? (
                 <div className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm">
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">No matches</p>
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">No matches</p>
                   <h2 className="mt-2 text-2xl font-semibold text-slate-900">
                     No products found for “{debouncedQuery}”
                   </h2>

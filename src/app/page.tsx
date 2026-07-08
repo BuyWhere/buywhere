@@ -381,7 +381,7 @@ export default function HomePage() {
           <div className="flex flex-col md:flex-row items-start gap-12">
             <div className="flex-1 text-white">
               <h2 className="text-2xl font-bold mb-4">Query regional products in 5 lines</h2>
-              <p className="text-gray-400 mb-6">
+              <p className="text-gray-300 mb-6">
                 One API call returns structured product data: name, price, SKU, retailer, image, and availability. No scraping, no merchant-by-merchant parsing.
               </p>
               <Link
@@ -397,7 +397,7 @@ export default function HomePage() {
                   <div className="w-3 h-3 rounded-full bg-red-500/70"></div>
                   <div className="w-3 h-3 rounded-full bg-yellow-500/70"></div>
                   <div className="w-3 h-3 rounded-full bg-green-500/70"></div>
-                  <span className="ml-2 text-xs text-gray-500 font-mono">search.py</span>
+                  <span className="ml-2 text-xs text-gray-300 font-mono">search.py</span>
                 </div>
                 <pre className="p-4 text-sm text-gray-300 font-mono overflow-x-auto leading-relaxed">
                   <code>{codeSnippet}</code>
@@ -541,7 +541,7 @@ export default function HomePage() {
       <section role="region" aria-label="Content section" className="py-20 bg-indigo-600 text-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-3xl font-bold mb-4">Launch product-aware agents without building a catalog pipeline.</h2>
-          <p className="text-indigo-200 mb-8 text-lg">
+          <p className="text-white mb-8 text-lg">
             If your agent needs to answer &ldquo;what should I buy?&rdquo;, &ldquo;where can I get it?&rdquo;, or &ldquo;what are the best options in Singapore, the US, or Southeast Asia?&rdquo; BuyWhere gives you the product layer to ship faster.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
