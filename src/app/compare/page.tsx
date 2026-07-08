@@ -5,10 +5,10 @@ import { AffiliateLink } from "@/components/AffiliateLink";
 import ComparisonShareButton from "@/components/compare/ComparisonShareButton";
 import { MerchantBadge } from "@/components/ui/MerchantBadge";
 import {
+  buildFallbackComparisonOffers,
   ComparisonOffer,
   findBestOffer,
   formatOfferPrice,
-  hasRetailerHref,
   normalizeComparisonOffer,
   parseIdsParam,
   sortComparisonOffers,
@@ -23,23 +23,14 @@ import { toSiteUrl } from "@/lib/site-url";
 export const metadata = buildCompareIndexMetadata();
 
 const API_BASE_URL =
-  process.env.BUYWHERE_API_INTERNAL_URL ||
-  process.env.BUYWHERE_API_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   process.env.NEXT_PUBLIC_BUYWHERE_API_URL ||
   "https://api.buywhere.ai";
-
-const API_KEY =
-  process.env.BUYWHERE_API_KEY ||
-  process.env.NEXT_PUBLIC_BUYWHERE_API_KEY ||
-  process.env.BUYWHERE_API_INTERNAL_KEY;
 
 type ComparePageProps = {
   searchParams?: {
     q?: string;
     ids?: string;
-    country?: string;
-    country_code?: string;
   };
 };
 
@@ -60,13 +51,9 @@ const schemaMarkup = {
 };
 
 async function fetchJson(url: string) {
-  if (!API_KEY) {
-    throw new Error("BUYWHERE API key is required for compare page live offers");
-  }
-
   const response = await fetch(url, {
     headers: {
-      Authorization: `Bearer ${API_KEY}`,
+      Authorization: `Bearer ${process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || ""}`,
     },
     next: { revalidate: 300 },
   });
@@ -78,16 +65,11 @@ async function fetchJson(url: string) {
   return response.json();
 }
 
-async function fetchOffersByQuery(query: string, country?: string): Promise<ComparisonOffer[]> {
+async function fetchOffersByQuery(query: string): Promise<ComparisonOffer[]> {
   const params = new URLSearchParams({
     q: query,
     limit: "8",
   });
-
-  if (country) {
-    params.set("country_code", country);
-  }
-
   const data = await fetchJson(`${API_BASE_URL}/v1/products/search?${params.toString()}`);
   const rawItems = Array.isArray(data?.products)
     ? data.products
@@ -97,9 +79,7 @@ async function fetchOffersByQuery(query: string, country?: string): Promise<Comp
         ? data.results
         : [];
 
-  return sortComparisonOffers(
-    rawItems.map((item: Record<string, unknown>) => normalizeComparisonOffer(item)).filter(hasRetailerHref),
-  );
+  return sortComparisonOffers(rawItems.map((item: Record<string, unknown>) => normalizeComparisonOffer(item)));
 }
 
 async function fetchOffersByIds(ids: string[]): Promise<ComparisonOffer[]> {
@@ -114,12 +94,11 @@ async function fetchOffersByIds(ids: string[]): Promise<ComparisonOffer[]> {
   return sortComparisonOffers(
     settled
       .filter((result): result is PromiseFulfilledResult<ComparisonOffer> => result.status === "fulfilled")
-      .map((result) => result.value)
-      .filter(hasRetailerHref),
+      .map((result) => result.value),
   );
 }
 
-async function loadComparisonOffers(query?: string, ids: string[] = [], country?: string): Promise<ComparisonOffer[]> {
+async function loadComparisonOffers(query?: string, ids: string[] = []): Promise<ComparisonOffer[]> {
   try {
     if (ids.length > 0) {
       const offersByIds = await fetchOffersByIds(ids);
@@ -127,13 +106,13 @@ async function loadComparisonOffers(query?: string, ids: string[] = [], country?
     }
 
     if (query) {
-      const offersByQuery = await fetchOffersByQuery(query, country);
+      const offersByQuery = await fetchOffersByQuery(query);
       if (offersByQuery.length > 0) return offersByQuery;
     }
   } catch {
   }
 
-  return [];
+  return buildFallbackComparisonOffers(query, ids);
 }
 
 function offerToCompareProduct(offer: ComparisonOffer): CompareProduct {
@@ -468,19 +447,8 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
   const query = searchParams?.q?.trim() || "";
   const rawIds = searchParams?.ids || "";
   const ids = parseIdsParam(rawIds);
-  const country = (searchParams?.country_code || searchParams?.country)?.trim().toLowerCase();
   const showComparison = query.length > 0 || ids.length > 0;
-  const offers = showComparison ? await loadComparisonOffers(query, ids, country) : [];
-  const emptyStateTitle = query
-    ? `No results found for “${query}”`
-    : ids.length > 0
-      ? "No results found for those product IDs"
-      : "Try a product query to start comparing";
-  const emptyStateDescription = query
-    ? "We searched for that query but did not find comparable retailer offers. Try a broader product name, remove brand qualifiers, or paste direct product IDs."
-    : ids.length > 0
-      ? "We checked the requested product IDs but did not find retailer offers ready to compare. Check the IDs or try a natural-language product query."
-      : "Enter a product name or paste product IDs to compare prices, availability, imagery, and affiliate destinations.";
+  const offers = showComparison ? await loadComparisonOffers(query, ids) : [];
 
   const compareProducts: CompareProduct[] = offers.map(offerToCompareProduct);
 
@@ -526,9 +494,9 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
               </div>
             ) : (
               <div className="rounded-[32px] border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
-                <h2 className="text-2xl font-semibold text-slate-950">{emptyStateTitle}</h2>
+                <h2 className="text-2xl font-semibold text-slate-950">No comparison results yet</h2>
                 <p className="mt-3 text-sm text-slate-600">
-                  {emptyStateDescription}
+                  Try a broader query, remove brand qualifiers, or switch to direct `ids` input for a fixed offer set.
                 </p>
               </div>
             )

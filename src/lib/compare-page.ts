@@ -34,8 +34,6 @@ type SearchLikeItem = {
   product_url?: string | null;
   buy_url?: string | null;
   affiliate_url?: string | null;
-  affiliate_redirect_url?: string | null;
-  click_url?: string | null;
   affiliateLink?: string | null;
   brand?: string | null;
   category?: string | null;
@@ -55,29 +53,6 @@ export function parseIdsParam(ids?: string): string[] {
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
-}
-
-function normalizeRetailerHref(...values: Array<string | null | undefined>): string | null {
-  for (const value of values) {
-    if (!value) continue;
-
-    const trimmed = value.trim();
-    if (!trimmed || trimmed === "#") continue;
-
-    try {
-      const url = new URL(trimmed);
-      if (url.protocol === "http:" || url.protocol === "https:") {
-        return url.toString();
-      }
-    } catch {
-    }
-  }
-
-  return null;
-}
-
-export function hasRetailerHref(offer: Pick<ComparisonOffer, "href">): boolean {
-  return normalizeRetailerHref(offer.href) !== null;
 }
 
 export function formatMerchantName(value?: string | null): string {
@@ -146,16 +121,7 @@ export function normalizeComparisonOffer(
     price: normalizePrice(item.price ?? item.current_price),
     currency: item.currency || fallbackCurrency,
     imageUrl: item.image_url || item.thumbnail_url || item.image || null,
-    href:
-      normalizeRetailerHref(
-        item.affiliate_redirect_url,
-        item.click_url,
-        item.affiliate_url,
-        item.affiliateLink,
-        item.buy_url,
-        item.url,
-        item.product_url,
-      ) || "#",
+    href: item.affiliate_url || item.affiliateLink || item.buy_url || item.url || item.product_url || "#",
     availability: availability.availability,
     inStock: availability.inStock,
     brand: item.brand || null,
