@@ -109,12 +109,13 @@ async function tryTierSearch(
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
 
   const mkQuery = (match: string) => `
-    WITH top AS (
-      SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) AS rank
-      FROM search_products sp
+    WITH cand AS (
+      SELECT id, search_vector FROM search_products sp
       WHERE ${match}${filterSql}
-      ORDER BY rank DESC
-      LIMIT 200
+      LIMIT 5000
+    ), top AS (
+      SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) AS rank
+      FROM cand ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
     FROM top JOIN search_products sp ON sp.id = top.id
@@ -129,7 +130,7 @@ async function tryTierSearch(
   try { client = await servingReadDbConnect(); } catch { return false; }
   try {
     await client.query('BEGIN');
-    await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
+    await client.query(`SET LOCAL statement_timeout = '4000'`);
     await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
     let rows = (await client.query(mkQuery(andMatch), params)).rows;
     if (rows.length === 0 && lexemes.length > 1) {
