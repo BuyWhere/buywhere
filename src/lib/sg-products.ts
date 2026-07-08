@@ -130,6 +130,10 @@ export async function getSGProducts(): Promise<SGProductForSitemap[]> {
         cachedSGProducts = { products, fetchedAt: Date.now() };
         return products;
       })
+      .catch((err) => {
+        console.warn('[sg-products] API fetch failed during build, returning empty product list:', err instanceof Error ? err.message : err);
+        return [];
+      })
       .finally(() => {
         inflightSGProducts = null;
       });
