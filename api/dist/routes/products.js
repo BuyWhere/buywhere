@@ -62,6 +62,128 @@ function asyncHandler(fn) {
 function shiftSqlPlaceholders(sql, offset) {
     return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
 }
+// ── Search-tier path (Phase 3). Serves from the RAM-fitting `search_products` tier
+// (quality-gated ~113M rows, ~4.7GB GIN that fits the replica cache -> no timeouts).
+// AND-first-then-OR for precision+recall. Returns true if it responded; returns false
+// on ANY error/replica issue so the caller falls through to the archive path unchanged
+// (hybrid = zero recall risk). Gated by SEARCH_USE_TIER=1 or ?_tier=1 (test override).
+async function tryTierSearch(req, res, p) {
+    const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
+    if (lexemes.length === 0)
+        return false;
+    const tsOr = lexemes.join(' | ');
+    const conds = [];
+    const params = [];
+    let i = 1;
+    const qIdx = i;
+    params.push(p.q);
+    i++; // $1 = raw q (rank + AND match)
+    const orIdx = i;
+    params.push(tsOr);
+    i++; // $2 = OR lexeme string
+    if (p.countryCode) {
+        conds.push(`sp.country_code = $${i}`);
+        params.push(p.countryCode);
+        i++;
+    }
+    if (p.minPrice != null && Number.isFinite(p.minPrice)) {
+        conds.push(`sp.price >= $${i}`);
+        params.push(p.minPrice);
+        i++;
+    }
+    if (p.maxPrice != null && Number.isFinite(p.maxPrice)) {
+        conds.push(`sp.price <= $${i}`);
+        params.push(p.maxPrice);
+        i++;
+    }
+    if (p.brand) {
+        conds.push(`sp.brand ILIKE $${i}`);
+        params.push(`%${p.brand}%`);
+        i++;
+    }
+    if (p.domain) {
+        conds.push(`sp.source = $${i}`);
+        params.push(p.domain);
+        i++;
+    }
+    // DEF-02: category filter that actually works — normalize the stored category to a
+    // slug (lower, spaces->hyphens) and compare to the slug param, instead of the old
+    // broken `category ILIKE '%pet-supplies%'` substring match.
+    if (p.category) {
+        conds.push(`lower(regexp_replace(coalesce(sp.category,''),'\\s+','-','g')) = lower($${i})`);
+        params.push(p.category);
+        i++;
+    }
+    const filterSql = conds.length ? ' AND ' + conds.join(' AND ') : '';
+    const limitIdx = i;
+    params.push(p.limit + 1);
+    i++;
+    const offsetIdx = i;
+    params.push(p.offset);
+    i++;
+    const cols = `sp.id, sp.source AS domain, sp.url, al.destination_url AS affiliate_url,
+    sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
+    jsonb_build_object('brand', sp.brand, 'category', sp.category,
+      'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
+    const mkQuery = (match) => `
+    WITH cand AS (
+      SELECT id, search_vector FROM search_products sp
+      WHERE ${match}${filterSql}
+      LIMIT 5000
+    ), top AS (
+      SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) AS rank
+      FROM cand ORDER BY rank DESC LIMIT 200
+    )
+    SELECT ${cols}, top.rank AS _fts_rank
+    FROM top JOIN search_products sp ON sp.id = top.id
+    LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
+    ORDER BY top.rank DESC
+    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+    const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
+    const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
+    let client;
+    try {
+        client = await (0, readReplica_1.servingReadDbConnect)();
+    }
+    catch {
+        return false;
+    }
+    try {
+        await client.query('BEGIN');
+        await client.query(`SET LOCAL statement_timeout = '4000'`);
+        await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
+        let rows = (await client.query(mkQuery(andMatch), params)).rows;
+        if (rows.length === 0 && lexemes.length > 1) {
+            rows = (await client.query(mkQuery(orMatch), params)).rows; // recall fallback
+        }
+        await client.query('COMMIT');
+        client.release();
+        if (res.headersSent)
+            return true;
+        const hasMore = rows.length > p.limit;
+        const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
+        const products = pageRows.map((r) => (0, response_1.buildProduct)(r, p.currency, p.compact));
+        const total = p.offset + rows.length;
+        const responseBody = (0, response_1.buildSearchResponse)(products, total, p.limit, p.offset, Date.now() - p.requestStart, false);
+        responseBody.source = 'search_products_tier';
+        config_1.redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => { });
+        res.set('X-Search-Tier', '1');
+        res.json(responseBody);
+        return true;
+    }
+    catch (e) {
+        try {
+            await client.query('ROLLBACK');
+        }
+        catch { /* ignore */ }
+        try {
+            client.release();
+        }
+        catch { /* ignore */ }
+        console.warn('[tier] fell back to archive:', e?.message);
+        return false;
+    }
+}
 async function getCachedQueryEmbedding(query, geminiKey) {
     try {
         const embedKey = `qembed:${Buffer.from(query).toString('base64').slice(0, 48)}`;
@@ -120,6 +242,27 @@ const LIST_SORT_COLUMNS = {
 };
 const LIST_SORT_TTL_SECONDS = 60;
 router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.list'), asyncHandler(async (req, res) => {
+    // Backward compatibility: early public docs and clients used
+    // `/v1/products?query=...` for search. Treat that as the canonical
+    // bounded search route instead of falling through to the unsearched list
+    // query, which is intentionally optimized for paginated browsing.
+    const legacyQuery = req.query.query;
+    if (legacyQuery && !req.query.q) {
+        const searchParams = new URLSearchParams();
+        for (const [key, value] of Object.entries(req.query)) {
+            if (value === undefined)
+                continue;
+            const targetKey = key === 'query' ? 'q' : key;
+            if (Array.isArray(value)) {
+                for (const item of value)
+                    searchParams.append(targetKey, String(item));
+            }
+            else {
+                searchParams.set(targetKey, String(value));
+            }
+        }
+        return res.redirect(307, `/v1/products/search?${searchParams.toString()}`);
+    }
     const requestStart = Date.now();
     // Pagination — contract defaults: page=1, limit=20, max 100
     const rawPage = parseInt(req.query.page || '1');
@@ -233,7 +376,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         }
     });
     const requestStart = Date.now();
-    const rawQuery = req.query.q || '';
+    const rawQuery = (req.query.q || req.query.query) || '';
     const domain = req.query.domain;
     const region = req.query.region;
     const category = req.query.category;
@@ -300,6 +443,16 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // prices from upstream feeds). A meaningful price > $0 is a basic data quality
     // requirement for any product listing. Products with $0 prices are either
     // out-of-stock markers, missing price fields, or feed parsing errors.
+    // Search-tier cutover (feature-flagged). Tier-first; falls through to the archive
+    // path below on any error or replica issue (hybrid, zero recall risk).
+    if (q && (process.env.SEARCH_USE_TIER === '1' || req.query._tier === '1')) {
+        const handled = await tryTierSearch(req, res, {
+            q, countryCode, currency, limit, offset, minPrice, maxPrice,
+            category, brand, domain, compact, requestStart, cacheKey,
+        });
+        if (handled)
+            return;
+    }
     const baseConditions = ['currency = $1', 'is_active = true', 'price > 0'];
     const baseParams = [currency];
     let baseIdx = 2;
@@ -472,9 +625,12 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const offsetParamIdx = searchParams.length + 2;
     const dataParams = [...searchParams, requestedRows, offset];
     // BUY-60112/60117: 5000 was too small — only 23/12062 "dog food" SG products
+    // BUY-60123 v2: 50000 is too large — bounded CTE times out at 8s on prod with 1.5M fresh SG products in 48h.
+    // Reducing to 2000 keeps the scan in <50ms on the index (products_sg_updated_at_idx). Recall is acceptable
+    // because the bounded slice is a fallback — any results beat a degraded 8s timeout.
     // landed in the top-5000-by-id slice. 50k captures 125+ and stays ~50ms on the
     // replica ( MATERIALIZED CTE forces sequential scan of 50k rows, ~50ms cold).
-    const RECENT_SLICE_CAP = 50000;
+    const RECENT_SLICE_CAP = 2000;
     const seoFallbackTerms = q.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
     const seoFallbackConditions = baseConditions;
     const seoFallbackParams = baseParams;
@@ -587,7 +743,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
           SELECT id, country_code, search_vector
           FROM products
           ${rankedWhereClause}
-          ORDER BY id DESC
+          ORDER BY updated_at DESC
           LIMIT ${CANDIDATE_CAP}
         ), top_ids AS (
           SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
@@ -665,7 +821,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                 SELECT id, search_vector
                 FROM products
                 ${sliceWhereClause}
-                ORDER BY id DESC
+                ORDER BY updated_at DESC
                 LIMIT ${RECENT_SLICE_CAP}
               ), top_ids AS (
                 SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
@@ -689,7 +845,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                   SELECT id, country_code, search_vector
                   FROM products
                   ${sliceWhereClause}
-                  ORDER BY id DESC
+                  ORDER BY updated_at DESC
                   LIMIT ${RECENT_SLICE_CAP}
                 ), top_ids AS (
                   SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
@@ -1028,6 +1184,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             'rating', 'title', 'country_code', 'region',
             'canonical_id', 'normalized_price_usd', 'structured_specs',
             'comparison_attributes', 'metadata', 'original_price', 'discount_pct',
+            'affiliate_url', 'click_url', 'affiliate_redirect_url',
+            'has_affiliate_tracking', 'is_affiliate', 'affiliate_disclosure',
         ]);
         const requested = fields.filter(f => VALID_FIELDS.has(f));
         if (requested.length > 0) {
