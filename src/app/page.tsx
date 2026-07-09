@@ -4,6 +4,7 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { TrustLayer } from "@/components/TrustLayer";
 import { PopularComparisons } from "@/components/PopularComparisons";
+import { HomeProductSearch } from "@/components/HomeProductSearch";
 
 export const metadata: Metadata = {
   alternates: {
@@ -295,6 +296,7 @@ export default function HomePage() {
             <p className="text-xl text-indigo-100 mb-8 leading-relaxed">
               Search real products and live merchant data with one API, so AI agents can compare options without scraping storefronts or stitching together generic shopping results.
             </p>
+            <HomeProductSearch />
             <div className="flex flex-col sm:flex-row gap-4 mb-6">
               <Link
                 href="/api-keys"
