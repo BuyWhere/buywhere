@@ -38,6 +38,10 @@ export interface CanonicalProduct {
   // product has a destination URL to track.
   click_url?: string | null;
   affiliate_redirect_url?: string | null;
+  // Explicit machine-readable affiliate disclosure fields for agents/API clients.
+  has_affiliate_tracking: boolean;
+  is_affiliate: boolean;
+  affiliate_disclosure?: string;
 }
 
 export interface SearchResponse {

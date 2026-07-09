@@ -34,6 +34,23 @@ describe('buildProduct', () => {
     assert.equal(product.country_code, 'SG');
     assert.ok(product.updated_at);
     assert.deepEqual(product.metadata, { brand: 'Test', category: 'Electronics' });
+    assert.equal(product.has_affiliate_tracking, true);
+    assert.equal(product.is_affiliate, true);
+    assert.match(product.affiliate_disclosure, /commission/i);
+  });
+
+  it('discloses generated affiliate redirects for clean merchant URLs', () => {
+    const product = buildProduct({
+      ...baseRow,
+      affiliate_url: null,
+      url: 'https://www.bestbuy.com/site/test-product/12345.p',
+    }, 'USD', false);
+
+    assert.equal(product.url, 'https://www.bestbuy.com/site/test-product/12345.p');
+    assert.ok(product.affiliate_redirect_url);
+    assert.equal(product.has_affiliate_tracking, true);
+    assert.equal(product.is_affiliate, true);
+    assert.match(product.affiliate_disclosure, /commission/i);
   });
 
   it('builds compact product with normalized price and specs', () => {

@@ -46,6 +46,7 @@ export function buildProduct(
   const affiliateRedirectUrl = destinationUrl
     ? buildAffiliateRedirectUrl({ productId, source: 'product_card' })
     : null;
+  const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
 
   const base: CanonicalProduct = {
     id: productId,
@@ -62,6 +63,11 @@ export function buildProduct(
     ...(affiliateUrl != null && { affiliate_url: affiliateUrl }),
     ...(clickUrl != null && { click_url: clickUrl }),
     ...(affiliateRedirectUrl != null && { affiliate_redirect_url: affiliateRedirectUrl }),
+    has_affiliate_tracking: hasAffiliateTracking,
+    is_affiliate: hasAffiliateTracking,
+    ...(hasAffiliateTracking && {
+      affiliate_disclosure: 'BuyWhere may earn a commission from purchases made through tracked product links.',
+    }),
   };
 
   if (compact) {

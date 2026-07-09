@@ -1235,6 +1235,8 @@ router.get(
         'rating', 'title', 'country_code', 'region',
         'canonical_id', 'normalized_price_usd', 'structured_specs',
         'comparison_attributes', 'metadata', 'original_price', 'discount_pct',
+        'affiliate_url', 'click_url', 'affiliate_redirect_url',
+        'has_affiliate_tracking', 'is_affiliate', 'affiliate_disclosure',
       ]);
       const requested = fields.filter(f => VALID_FIELDS.has(f));
       if (requested.length > 0) {
