@@ -227,6 +227,25 @@ router.get(
   checkRateLimit,
   queryLogMiddleware('products.list'),
   asyncHandler(async (req: Request, res: Response) => {
+    // Backward compatibility: early public docs and clients used
+    // `/v1/products?query=...` for search. Treat that as the canonical
+    // bounded search route instead of falling through to the unsearched list
+    // query, which is intentionally optimized for paginated browsing.
+    const legacyQuery = req.query.query as string | undefined;
+    if (legacyQuery && !req.query.q) {
+      const searchParams = new URLSearchParams();
+      for (const [key, value] of Object.entries(req.query)) {
+        if (value === undefined) continue;
+        const targetKey = key === 'query' ? 'q' : key;
+        if (Array.isArray(value)) {
+          for (const item of value) searchParams.append(targetKey, String(item));
+        } else {
+          searchParams.set(targetKey, String(value));
+        }
+      }
+      return res.redirect(307, `/v1/products/search?${searchParams.toString()}`);
+    }
+
     const requestStart = Date.now();
 
     // Pagination — contract defaults: page=1, limit=20, max 100
@@ -365,7 +384,7 @@ router.get(
       }
     });
     const requestStart = Date.now();
-    const rawQuery = (req.query.q as string) || '';
+    const rawQuery = ((req.query.q || req.query.query) as string) || '';
     const domain = req.query.domain as string | undefined;
     const region = req.query.region as string | undefined;
     const category = req.query.category as string | undefined;
