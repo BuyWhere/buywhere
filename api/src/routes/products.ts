@@ -272,6 +272,13 @@ router.get(
       if (cached) {
         const parsed = JSON.parse(cached);
         parsed.pagination.response_time_ms = Date.now() - requestStart;
+        recordProductViewsBulk({
+          productIds: (parsed.data || parsed.products || parsed.results || [])
+            .map((product: { id?: string | number }) => product.id)
+            .filter(Boolean),
+          source: 'products.list.cache',
+          req,
+        });
         res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
         res.set('X-Cache', 'HIT');
         return res.json(parsed);
@@ -436,6 +443,15 @@ router.get(
         const elapsed = Date.now() - requestStart;
         parsed.cached = true;
         parsed.response_time_ms = elapsed;
+        const cachedProducts = parsed.products || parsed.results || parsed.data || [];
+        recordProductViewsBulk({
+          productIds: cachedProducts
+            .map((product: { id?: string | number }) => product.id)
+            .filter(Boolean),
+          source: 'products.search.cache',
+          queryHash: q ? createHash('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
+          req,
+        });
         res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
         res.set('X-Cache', 'HIT');
         return res.json(parsed);
@@ -1326,6 +1342,13 @@ router.get(
         const parsed = JSON.parse(cached);
         parsed.cached = true;
         parsed.response_time_ms = Date.now() - start;
+        recordProductViewsBulk({
+          productIds: (parsed.products || parsed.results || parsed.data || [])
+            .map((product: { id?: string | number }) => product.id)
+            .filter(Boolean),
+          source: 'products.deals.cache',
+          req,
+        });
         return res.json(parsed);
       }
     } catch (_) {}
@@ -1860,6 +1883,13 @@ router.get(
         const parsed = JSON.parse(cached);
         parsed.cached = true;
         parsed.response_time_ms = Date.now() - start;
+        recordProductViewsBulk({
+          productIds: (parsed.products || parsed.results || parsed.data || [])
+            .map((product: { id?: string | number }) => product.id)
+            .filter(Boolean),
+          source: 'products.featured.cache',
+          req,
+        });
         return res.json(parsed);
       }
     } catch (_) {}
