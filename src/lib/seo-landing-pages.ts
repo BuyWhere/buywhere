@@ -89,6 +89,7 @@ export type SeoLandingPageConfig = {
   comparisonSectionTitle: string;
   comparisonColumns: string[];
   comparisonRows: ComparisonRow[];
+  comparisonDisclaimer?: string;
   highlightSectionTitle: string;
   highlights: Highlight[];
   adviceSectionTitle: string;
@@ -503,6 +504,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
   },
   "laptop-singapore": {
     slug: "laptop-singapore",
+    comparisonDisclaimer: "Editor's picks — not all models may appear in the live results above. Prices shown are reference prices and may differ from live listings.",
     title: "Best Laptops in Singapore 2026 | Compare Laptop Prices Across SG Retailers",
     description:
       "Compare the best laptops in Singapore with live BuyWhere listings, retailer price checks, and quick buying advice across Apple, ASUS, Lenovo, HP, Acer, and Dell.",
