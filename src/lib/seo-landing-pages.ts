@@ -150,17 +150,31 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     return null;
   }
 
+  const imageUrl = item.image_url || item.image || null;
+
   return {
     id: String(item.id),
     name: item.name || item.title || "Untitled product",
     price: Number.isFinite(numericPrice) ? numericPrice : null,
     currency: priceCurrency || fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
-    imageUrl: item.image_url || item.image || null,
+    imageUrl: isUsableProductImage(imageUrl) ? imageUrl : null,
     href: item.click_url || item.affiliate_url || item.buy_url || item.url || "#",
     brand: item.brand || null,
     category: item.category || null,
   };
+}
+
+function isUsableProductImage(imageUrl?: string | null) {
+  if (!imageUrl) return false;
+  if (imageUrl.startsWith("data:image/svg+xml")) return true;
+
+  try {
+    const url = new URL(imageUrl);
+    return url.hostname !== "source.unsplash.com";
+  } catch {
+    return false;
+  }
 }
 
 function productMatchesRequiredTerms(product: LandingProduct, requiredTerms?: string[]) {
@@ -170,7 +184,7 @@ function productMatchesRequiredTerms(product: LandingProduct, requiredTerms?: st
 }
 
 function hasUsableLiveCard(product: LandingProduct) {
-  return Boolean(product.name && product.name !== "Untitled product" && product.price !== null && product.imageUrl && product.href !== "#");
+  return Boolean(product.name && product.name !== "Untitled product" && product.price !== null && product.href !== "#");
 }
 
 function buildCategoryImage(product: LandingProduct) {
@@ -241,7 +255,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         if (!productMatchesRequiredTerms(product, config.requiredProductTerms)) continue;
         if (!seenIds.has(product.id)) {
           seenIds.add(product.id);
-          collected.push(product);
+          collected.push(withFallbackImage(product));
         }
         if (collected.length >= 8) break;
       }
