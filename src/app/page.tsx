@@ -4,6 +4,7 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { TrustLayer } from "@/components/TrustLayer";
 import { PopularComparisons } from "@/components/PopularComparisons";
+import { HomeProductSearch } from "@/components/HomeProductSearch";
 
 export const metadata: Metadata = {
   alternates: {
@@ -283,34 +284,37 @@ export default function HomePage() {
       <main id="main-content" role="main" tabIndex={-1} aria-label="Main content">
       {/* Hero */}
       <section role="region" aria-label="Content section" className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-24 md:py-32">
-          <div className="max-w-3xl">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 md:py-24">
+          <div className="max-w-3xl mx-auto text-center mb-4">
             <div className="inline-flex items-center gap-2 bg-white/10 text-white/90 text-sm font-medium px-3 py-1 rounded-full mb-6">
               <span className="w-2 h-2 bg-green-400 rounded-full"></span>
-              Now in developer beta · SG + Southeast Asia
+              Search millions of products across Singapore &amp; the US
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
-              The normalized, cross-merchant product layer AI agents should call first.
+              Find the best prices across every store.
             </h1>
-            <p className="text-xl text-indigo-100 mb-8 leading-relaxed">
-              Search real products and live merchant data with one API, so AI agents can compare options without scraping storefronts or stitching together generic shopping results.
+            <p className="text-xl text-indigo-200 mb-8 leading-relaxed">
+              Compare products from Lazada, Shopee, Amazon, FairPrice, Carousell, and more — all in one search.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          </div>
+          <HomeProductSearch />
+          <div className="max-w-3xl mx-auto text-center mt-8">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
               <Link
-                href="/api-keys"
+                href="/compare"
                 className="inline-flex items-center justify-center px-6 py-3 bg-white text-indigo-700 font-semibold rounded-xl hover:bg-indigo-50 transition-colors"
               >
-                Get API key →
+                Browse price comparisons →
               </Link>
               <Link
                 href="/developers"
                 className="inline-flex items-center justify-center px-6 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-colors border border-white/20"
               >
-                View docs
+                Developers: Get API access
               </Link>
             </div>
             <p className="text-sm text-indigo-100/80">
-              Built for agentic commerce, product search, merchant discovery, and real-world buying workflows across Singapore and Southeast Asia.
+              Powered by structured product data from 7+ merchants across Singapore and Southeast Asia.
             </p>
           </div>
         </div>
