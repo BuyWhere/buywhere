@@ -590,7 +590,8 @@ export default function SearchResultsClient({
   }, [historyOpen, query, searchHistory.length]);
 
   const showSearchPrompt = debouncedQuery.length < MIN_QUERY_LENGTH;
-  const showEmptyState = !loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && products.length === 0;
+  const catalogStale = !loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && total > 0 && products.length === 0;
+  const showEmptyState = !loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && products.length === 0 && !catalogStale;
   const showHistoryDropdown = historyOpen && query.trim().length === 0 && searchHistory.length > 0;
   const reversedSearchHistory = useMemo(() => [...searchHistory].reverse(), [searchHistory]);
 
@@ -811,6 +812,27 @@ export default function SearchResultsClient({
               </div>
 
               {loadingInitial ? <SearchResultsSkeleton /> : null}
+
+
+              {catalogStale ? (
+                <div className="rounded-[28px] border border-amber-200 bg-amber-50 p-8 shadow-sm">
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Catalog refresh in progress</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+                    Results for "{debouncedQuery}" are temporarily unavailable
+                  </h2>
+                  <p className="mt-3 max-w-2xl text-slate-600">
+                    Our product catalog is being updated. You can browse our homepage for featured products, or try your search again in a few minutes.
+                  </p>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <Link
+                      href="/"
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800"
+                    >
+                      Browse homepage
+                    </Link>
+                  </div>
+                </div>
+              ) : null}
 
               {showEmptyState ? (
                 <div className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm">
