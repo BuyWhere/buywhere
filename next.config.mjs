@@ -29,6 +29,7 @@ const nextConfig = {
       { protocol: 'https', hostname: 'down-sg.img.susercontent.com' },
       { protocol: 'https', hostname: 'www.courts.com.sg' },
       { protocol: 'https', hostname: 'www.gaincity.com' },
+      { protocol: 'https', hostname: 'cdn.bestdenki.com.sg' },
     ],
   },
   async redirects() {

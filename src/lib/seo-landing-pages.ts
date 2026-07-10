@@ -84,6 +84,8 @@ export type SeoLandingPageConfig = {
   backupQueries?: string[];
   /** Minimum price in local currency to filter out irrelevant products (e.g. accessories, clothing matched by brand name) */
   minPrice?: number;
+  /** Terms that must appear in live search products to avoid unrelated broad-query matches */
+  requiredProductTerms?: string[];
   refreshedLabel: string;
   productSectionTitle: string;
   comparisonSectionTitle: string;
@@ -161,16 +163,25 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
   };
 }
 
-/**
- * Ensures every LandingProduct has an imageUrl, substituting a deterministic
- * placeholder from picsum.photos seeded by the product ID if none is set.
- * This prevents gradient placeholder divs when the search API is degraded
- * and we fall back to curated fallbackProducts (which have no imageUrl).
- */
-function withPlaceholderImage(product: LandingProduct): LandingProduct {
+function productMatchesRequiredTerms(product: LandingProduct, requiredTerms?: string[]) {
+  if (!requiredTerms || requiredTerms.length === 0) return true;
+  const haystack = [product.name, product.brand, product.category].filter(Boolean).join(" ").toLowerCase();
+  return requiredTerms.some((term) => haystack.includes(term.toLowerCase()));
+}
+
+function hasUsableLiveCard(product: LandingProduct) {
+  return Boolean(product.name && product.name !== "Untitled product" && product.price !== null && product.imageUrl && product.href !== "#");
+}
+
+function buildCategoryImage(product: LandingProduct) {
+  const label = encodeURIComponent(product.category || product.brand || product.name);
+  const brand = encodeURIComponent(product.brand || "BuyWhere");
+  return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 420'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop stop-color='%23eff6ff'/%3E%3Cstop offset='1' stop-color='%23fef3c7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='640' height='420' fill='url(%23g)'/%3E%3Crect x='118' y='92' width='404' height='236' rx='32' fill='white' stroke='%23cbd5e1' stroke-width='6'/%3E%3Ccircle cx='470' cy='142' r='26' fill='%23f59e0b'/%3E%3Cpath d='M196 272h248M226 218h188M256 164h128' stroke='%230f172a' stroke-width='18' stroke-linecap='round'/%3E%3Ctext x='320' y='374' text-anchor='middle' font-family='Arial,sans-serif' font-size='30' font-weight='700' fill='%230f172a'%3E${label}%3C/text%3E%3Ctext x='320' y='404' text-anchor='middle' font-family='Arial,sans-serif' font-size='18' fill='%23475569'%3E${brand}%3C/text%3E%3C/svg%3E`;
+}
+
+function withFallbackImage(product: LandingProduct): LandingProduct {
   if (product.imageUrl) return product;
-  const seed = product.id.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 50);
-  return { ...product, imageUrl: `https://picsum.photos/seed/${seed}/400/300` };
+  return { ...product, imageUrl: buildCategoryImage(product) };
 }
 
 export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promise<LandingProduct[]> {
@@ -200,7 +211,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
           ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
         },
         next: { revalidate: 60 * 15 },
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(8000),
       });
 
       if (!response.ok) {
@@ -226,7 +237,9 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       for (const item of items) {
         const product = normalizeProduct(item, config.currency, config.minPrice);
         if (!product) continue;
-        if (!seenIds.has(product.id) && product.name !== "Untitled product") {
+        if (!hasUsableLiveCard(product)) continue;
+        if (!productMatchesRequiredTerms(product, config.requiredProductTerms)) continue;
+        if (!seenIds.has(product.id)) {
           seenIds.add(product.id);
           collected.push(product);
         }
@@ -239,7 +252,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   }
 
   if (collected.length >= 4) {
-    return collected.slice(0, 8).map(withPlaceholderImage);
+    return collected.slice(0, 8);
   }
 
   // If we got some (but fewer than 4) real products, top up with fallbacks so
@@ -249,16 +262,16 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       if (collected.length >= 4) break;
       if (!seenIds.has(fb.id)) {
         seenIds.add(fb.id);
-        collected.push(fb);
+        collected.push(withFallbackImage(fb));
       }
     }
-    return collected.slice(0, 8).map(withPlaceholderImage);
+    return collected.slice(0, 8);
   }
 
   // No real products from any query — show curated fallback products (with real
   // names, prices, merchants, and deep-link search hrefs) rather than an empty
   // page. These are honest editorial picks, not empty skeleton cards.
-  return fallback.slice(0, 8).map(withPlaceholderImage);
+  return fallback.slice(0, 8).map(withFallbackImage);
 }
 
 export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata {
@@ -429,6 +442,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     searchQuery: "air purifier",
     backupQueries: ["Coway air purifier", "Levoit air purifier", "Blueair air purifier", "Xiaomi air purifier"],
     minPrice: 50,
+    requiredProductTerms: ["air purifier", "purifier", "hepa", "dyson", "philips", "xiaomi", "sharp", "sterra", "coway", "levoit", "blueair"],
     refreshedLabel: "Updated May 1, 2026",
     productSectionTitle: "Live air purifier offers across Singapore",
     comparisonSectionTitle: "Popular air purifier picks at a glance",
@@ -517,6 +531,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     searchQuery: "laptop",
     backupQueries: ["MacBook laptop", "ASUS laptop", "Lenovo laptop", "Dell laptop"],
     minPrice: 300,
+    requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
     refreshedLabel: "Updated May 1, 2026",
     productSectionTitle: "Live laptop offers across Singapore",
     comparisonSectionTitle: "Popular laptop picks at a glance",
@@ -605,6 +620,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     searchQuery: "gaming laptop",
 backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator laptop", "gaming laptop NVIDIA RTX"],
     minPrice: 300,
+    requiredProductTerms: ["gaming laptop", "laptop", "rog", "legion", "alienware", "omen", "predator", "tuf", "msi", "nvidia rtx"],
     hreflangAlternates: { "en-SG": "/best-gaming-laptop-singapore" },
     refreshedLabel: "Refreshed June 26, 2026",
     productSectionTitle: "Live gaming laptop deals across US retailers",
@@ -785,6 +801,7 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
     searchQuery: "robot vacuum",
 backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
     minPrice: 50,
+    requiredProductTerms: ["robot vacuum", "vacuum", "roomba", "roborock", "deebot", "eufy", "shark", "irobot"],
     hreflangAlternates: { "en-SG": "/best-robot-vacuums-singapore" },
     refreshedLabel: "Refreshed April 26, 2026",
     productSectionTitle: "Live robot vacuum deals across the US",

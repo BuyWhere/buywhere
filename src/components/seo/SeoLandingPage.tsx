@@ -31,7 +31,16 @@ function ProductGridCard({ product }: { product: LandingProduct }) {
       className="group flex h-full flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.25),_rgba(248,250,252,0.92)_55%,_rgba(226,232,240,0.95))]">
-        {product.imageUrl ? (
+        {product.imageUrl?.startsWith("data:image/svg+xml") ? (
+          <Image
+            src={product.imageUrl}
+            alt={product.name}
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 25vw"
+            unoptimized
+            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          />
+        ) : product.imageUrl ? (
           <Image
             src={product.imageUrl}
             alt={product.name}
@@ -99,7 +108,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
       />
 
       <main id="main-content" className="flex-1">
-        <section className="overflow-hidden bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#f59e0b_130%)] text-white">
+        <section className="overflow-hidden max-sm:overflow-visible bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#f59e0b_130%)] text-white">
           <div className="mx-auto grid max-w-6xl gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end lg:py-24">
             <div>
               <div className="mb-5 inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-200">
