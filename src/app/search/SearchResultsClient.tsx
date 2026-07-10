@@ -590,7 +590,9 @@ export default function SearchResultsClient({
   }, [historyOpen, query, searchHistory.length]);
 
   const showSearchPrompt = debouncedQuery.length < MIN_QUERY_LENGTH;
-  const showEmptyState = !loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && products.length === 0;
+  const noResults = !loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && products.length === 0;
+  const catalogStale = noResults && total > 0;
+  const showEmptyState = catalogStale ? false : noResults;
   const showHistoryDropdown = historyOpen && query.trim().length === 0 && searchHistory.length > 0;
   const reversedSearchHistory = useMemo(() => [...searchHistory].reverse(), [searchHistory]);
 
@@ -810,9 +812,26 @@ export default function SearchResultsClient({
                 </Link>
               </div>
 
-              {loadingInitial ? <SearchResultsSkeleton /> : null}
+            {loadingInitial ? <SearchResultsSkeleton /> : null}
 
-              {showEmptyState ? (
+            {catalogStale ? (
+              <div className="rounded-[28px] border border-amber-200 bg-amber-50 p-6 shadow-sm" role="status" aria-live="polite">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
+                  Catalog refresh in progress
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold text-amber-900">
+                  Live results are temporarily unavailable
+                </h2>
+                <p className="mt-3 max-w-2xl text-amber-900/80">
+                  BuyWhere indexes product listings from dozens of retailers, and the catalog is still reloading after recent changes.
+                  Live prices and availability for <strong>"{debouncedQuery}"</strong> in <strong>{activeCountry.label}</strong> should return within a few minutes.
+                  In the meantime, try a broader term or another country from the picker above.
+                </p>
+              </div>
+            ) : null}
+
+
+            {showEmptyState ? (
                 <div className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm">
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">No matches</p>
                   <h2 className="mt-2 text-2xl font-semibold text-slate-900">
