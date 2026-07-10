@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import { HeroSearch } from "@/components/HeroSearch";
 import { TrustLayer } from "@/components/TrustLayer";
 import { PopularComparisons } from "@/components/PopularComparisons";
 
@@ -283,35 +284,26 @@ export default function HomePage() {
       <main id="main-content" role="main" tabIndex={-1} aria-label="Main content">
       {/* Hero */}
       <section role="region" aria-label="Content section" className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-24 md:py-32">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-20 md:py-28">
           <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 bg-white/10 text-white/90 text-sm font-medium px-3 py-1 rounded-full mb-6">
-              <span className="w-2 h-2 bg-green-400 rounded-full"></span>
-              Now in developer beta · SG + Southeast Asia
-            </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
-              The normalized, cross-merchant product layer AI agents should call first.
+              Search products across 7+ merchants in Singapore and the US.
             </h1>
             <p className="text-xl text-indigo-100 mb-8 leading-relaxed">
-              Search real products and live merchant data with one API, so AI agents can compare options without scraping storefronts or stitching together generic shopping results.
+              Find the best prices on electronics, home goods, fashion, and more — compared across Shopee, Lazada, Amazon, Walmart, and other top stores.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
-              <Link
-                href="/api-keys"
-                className="inline-flex items-center justify-center px-6 py-3 bg-white text-indigo-700 font-semibold rounded-xl hover:bg-indigo-50 transition-colors"
-              >
-                Get API key →
+            <HeroSearch />
+            <div className="flex flex-wrap gap-4 mt-6">
+              <Link href="/compare" className="inline-flex items-center gap-1.5 text-sm text-indigo-100 hover:text-white transition-colors">
+                Price comparisons →
               </Link>
-              <Link
-                href="/developers"
-                className="inline-flex items-center justify-center px-6 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-colors border border-white/20"
-              >
-                View docs
+              <Link href="/categories" className="inline-flex items-center gap-1.5 text-sm text-indigo-100 hover:text-white transition-colors">
+                Browse categories →
+              </Link>
+              <Link href="/developers" className="inline-flex items-center gap-1.5 text-sm text-indigo-100 hover:text-white transition-colors">
+                Developer API →
               </Link>
             </div>
-            <p className="text-sm text-indigo-100/80">
-              Built for agentic commerce, product search, merchant discovery, and real-world buying workflows across Singapore and Southeast Asia.
-            </p>
           </div>
         </div>
       </section>
