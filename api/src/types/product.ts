@@ -44,12 +44,17 @@ export interface CanonicalProduct {
   affiliate_disclosure?: string;
 }
 
-export interface SearchResponse {
-  results: CanonicalProduct[];
+export interface SearchMeta {
   total: number;
-  page: { limit: number; offset: number };
+  limit: number;
+  offset: number;
   response_time_ms: number;
   cached: boolean;
   // BUY-60309: degraded flag when deals query timed out or was cancelled
   degraded?: boolean;
+}
+
+export interface SearchResponse {
+  data: CanonicalProduct[];
+  meta: SearchMeta;
 }

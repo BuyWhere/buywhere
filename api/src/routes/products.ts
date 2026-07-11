@@ -390,9 +390,15 @@ router.get(
         // Degraded 200, not 504: a fast honest partial answer keeps BuyWhere in the
         // agent's toolchain; a 504 gets the tool dropped from rotation.
         res.status(200).json({
-          products: [], results: [], total: 0, degraded: true,
-          hint: 'query exceeded the latency budget; add a brand, category, or price constraint, or retry shortly',
-          timeout_ms: SEARCH_HANDLER_TIMEOUT_MS,
+          data: [],
+          meta: {
+            total: 0,
+            limit: 20,
+            offset: 0,
+            response_time_ms: Date.now() - requestStart,
+            cached: false,
+            degraded: true,
+          },
         });
       }
     });
@@ -1183,9 +1189,15 @@ router.get(
         client.release();
         if (!res.headersSent) {
           res.status(200).json({
-            products: [], results: [], total: 0, degraded: true,
-            hint: 'broad query timed out; add a brand, category, or price constraint',
-            timeout_ms: SEARCH_STATEMENT_TIMEOUT_MS,
+            data: [],
+            meta: {
+              total: 0,
+              limit: 20,
+              offset: 0,
+              response_time_ms: 0,
+              cached: false,
+              degraded: true,
+            },
           });
         }
         return;
@@ -1339,12 +1351,15 @@ router.get(
       if (!res.headersSent) {
         try {
           res.status(200).json({
-            products: [],
-            total: 0,
-            degraded: true,
-            error: 'deals_upstream_timeout',
-            message: 'Deals query exceeded server-side timeout',
-            response_time_ms: Date.now() - start
+            data: [],
+            meta: {
+              total: 0,
+              limit: 20,
+              offset: 0,
+              response_time_ms: Date.now() - start,
+              cached: false,
+              degraded: true,
+            },
           });
         } catch (_) {}
       }
@@ -1460,11 +1475,7 @@ router.get(
       dealsClient.release();
     }
 
-    const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false);
-    if (degraded) {
-      // BUY-60309: mark degraded so callers can distinguish partial from full results
-      Object.assign(responseBody, { degraded: true });
-    }
+    const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false, degraded);
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
 
     // BUY-52474: log a product_view per deals card so /v1/products/deals drives
