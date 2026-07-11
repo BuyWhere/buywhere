@@ -822,6 +822,15 @@ router.get(
             if (recentSliceRes.rows.length > 0) return recentSliceRes;
             return runRecentSliceFallback(broadRecentSliceWhereClause);
           }
+          // BUY-59847: for non-SG broad searches, do not fall through to the
+          // original unbounded OR ranking query when strict AND finds nothing.
+          // Common probes can make the replica union huge posting lists and spend
+          // the whole Railway budget before returning. Keep recall, but rank only
+          // a recent bounded slice so the endpoint returns a fast partial page.
+          if (andRes.rows.length === 0) {
+            return runRecentSliceFallback(broadRecentSliceWhereClause);
+          }
+
           // Strict AND matches rank first (precise). Sprint C: if AND under-fills
           // the page, TOP UP from the broad OR match (dedup by id) so the page is
           // full without losing precision-first ordering. The OR top-up is best-

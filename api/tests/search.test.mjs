@@ -225,6 +225,40 @@ describe('NL search queries — response correctness', () => {
     assert.deepEqual(laptopFallbackCall.arguments[1], ['USD', 'US', '%asus%', '%rog%', 21, 0]);
   });
 
+  it('bounds zero-AND broad US searches before OR fallback', async () => {
+    queryMock.mock.mockImplementation((sql, params) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (typeof sql === 'string' && sql.includes('websearch_to_tsquery')) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (typeof sql === 'string' && sql.includes('recent_candidates AS MATERIALIZED')) {
+        return Promise.resolve({ rows: [makeProduct('9', { title: 'Wireless Headphones', country_code: 'US', currency: 'USD' })] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await fetch(`http://localhost:${port}/v1/products/search?q=wireless+headphones&country_code=US&limit=3`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+    const body = await res.json();
+
+    assert.equal(res.status, 200);
+    assert.equal(body.results[0].title, 'Wireless Headphones');
+
+    const boundedFallbackCall = queryMock.mock.calls.find(
+      c => typeof c.arguments[0] === 'string' &&
+        c.arguments[0].includes('recent_candidates AS MATERIALIZED') &&
+        c.arguments[0].includes('LIMIT 2000') &&
+        c.arguments[0].includes('WHERE search_vector @@')
+    );
+    assert.ok(boundedFallbackCall, 'Expected bounded recent-slice fallback instead of unbounded OR query');
+  });
+
   it('applies price range filters with NL query', async () => {
     const res = await fetch(`http://localhost:${port}/v1/products/search?q=headphones&min_price=50&max_price=200`, {
       headers: { Authorization: 'Bearer test-key' },
