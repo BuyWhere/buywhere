@@ -250,7 +250,7 @@ async function runTierSearch(p: {
     await client.query('COMMIT');
     const products = (rows as Record<string, unknown>[]).map((r) => buildProduct(r, p.currency, p.compact));
     const total = p.offset + rows.length;
-    const resp = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.t0, false) as Record<string, unknown>;
+    const resp = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.t0, false) as unknown as Record<string, unknown>;
     resp.source = 'search_products_tier';
     return resp;
   } catch (e) {
