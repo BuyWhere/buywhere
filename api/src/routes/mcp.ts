@@ -243,6 +243,7 @@ async function runTierSearch(p: {
     await client.query('BEGIN');
     await client.query(`SET LOCAL statement_timeout = '4000'`);
     await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
+    await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`); // fuzzy sampling breaks multi-word AND
     let rows = (await client.query(mkQuery(andMatch), params)).rows;
     if (rows.length === 0 && lexemes.length > 1) {
       rows = (await client.query(mkQuery(orMatch), params)).rows;
