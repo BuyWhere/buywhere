@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { db, redis, vectorDb } from '../config';
+import { db, redis, vectorDb, replicaDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -187,6 +187,80 @@ async function probeDiscountPctColumn(): Promise<boolean> {
 probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() => {});
 
 // Tool handlers
+// ── Search-tier query for MCP (parity with REST products.ts). Serves keyword
+// search from the RAM-fitting search_products tier with AND-first-then-OR and
+// ts_rank relevance ordering (composite gin(country_code,search_vector) keeps
+// broad+country fast). Returns a response object on success, or null so the
+// caller falls through to the archive path (hybrid — zero recall risk).
+async function runTierSearch(p: {
+  q: string; country: string; domain: string; category: string;
+  minPrice: number | null; maxPrice: number | null; limit: number; offset: number;
+  compact: boolean; currency: string; t0: number;
+}): Promise<Record<string, unknown> | null> {
+  const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
+  if (lexemes.length === 0) return null;
+  const tsOr = lexemes.join(' | ');
+
+  const conds: string[] = [];
+  const params: unknown[] = [];
+  let i = 1;
+  const qIdx = i; params.push(p.q); i++;
+  const orIdx = i; params.push(tsOr); i++;
+  if (p.country) { conds.push(`sp.country_code = $${i}`); params.push(p.country.toUpperCase()); i++; }
+  if (p.minPrice != null && Number.isFinite(p.minPrice)) { conds.push(`sp.price >= $${i}`); params.push(p.minPrice); i++; }
+  if (p.maxPrice != null && Number.isFinite(p.maxPrice)) { conds.push(`sp.price <= $${i}`); params.push(p.maxPrice); i++; }
+  if (p.domain) { conds.push(`sp.source = $${i}`); params.push(p.domain); i++; }
+  if (p.category) { conds.push(`lower(regexp_replace(coalesce(sp.category,''),'\\s+','-','g')) = lower($${i})`); params.push(p.category); i++; }
+  const filterSql = conds.length ? ' AND ' + conds.join(' AND ') : '';
+  const limitIdx = i; params.push(p.limit); i++;
+  const offsetIdx = i; params.push(p.offset); i++;
+
+  const cols = `sp.id, sp.sku AS source, sp.source AS domain, sp.url, sp.title, sp.price, sp.currency,
+    sp.image_url,
+    jsonb_build_object('brand', sp.brand, 'category', sp.category,
+      'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata,
+    sp.updated_at, sp.region, sp.country_code, sp.in_stock`;
+
+  const mkQuery = (match: string) => `
+    WITH top AS (
+      SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) AS rank
+      FROM search_products sp
+      WHERE ${match}${filterSql}
+      ORDER BY rank DESC
+      LIMIT 200
+    )
+    SELECT ${cols}, top.rank AS _fts_rank
+    FROM top JOIN search_products sp ON sp.id = top.id
+    ORDER BY top.rank DESC
+    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+
+  const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
+  const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
+
+  const pool = replicaDb ?? db;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`SET LOCAL statement_timeout = '4000'`);
+    await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
+    let rows = (await client.query(mkQuery(andMatch), params)).rows;
+    if (rows.length === 0 && lexemes.length > 1) {
+      rows = (await client.query(mkQuery(orMatch), params)).rows;
+    }
+    await client.query('COMMIT');
+    const products = (rows as Record<string, unknown>[]).map((r) => buildProduct(r, p.currency, p.compact));
+    const total = p.offset + rows.length;
+    const resp = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.t0, false) as Record<string, unknown>;
+    resp.source = 'search_products_tier';
+    return resp;
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (_) { /* ignore */ }
+    throw e;
+  } finally {
+    releaseClientSafely(client);
+  }
+}
+
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
   const q = (args.q as string) || '';
@@ -220,6 +294,19 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       }
     }
   } catch (_) { /* redis miss — proceed */ }
+
+  // ── SEARCH TIER fast-path (gated by SEARCH_USE_TIER). Keyword search only; the
+  // vector/hybrid path is unchanged. On any error, fall through to the archive
+  // path below (hybrid — zero recall risk).
+  if (q && !useVector && process.env.SEARCH_USE_TIER === '1') {
+    const tierRes = await runTierSearch({
+      q, country, domain, category, minPrice, maxPrice, limit, offset, compact, currency, t0,
+    }).catch((e) => { console.warn('[mcp tier] fell back to archive:', (e as Error)?.message); return null; });
+    if (tierRes) {
+      try { await redis.set(cacheKey, JSON.stringify(tierRes), 'EX', 3600); } catch (_) { /* non-fatal */ }
+      return tierRes;
+    }
+  }
 
   const conditions: string[] = ['is_active = true'];
   const params: unknown[] = [];
