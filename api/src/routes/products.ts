@@ -976,6 +976,19 @@ router.get(
             if (recentSliceRes.rows.length > 0) return recentSliceRes;
             return runBoundedSgMatch(ftsOrMatch, dataParams, broadRecentSliceWhereClause);
           }
+          // BUY-59847: non-SG broad probes (e.g. `wireless headphones`, `baby formula`,
+          // `dog food`, `nintendo switch`) had zero matches on the strict AND pass
+          // then dropped into the unbounded OR top-up below. The OR scan can churn
+          // the 4GB replica for the full 8s statement_timeout and return degraded
+          // 0-result pages. Reuse the GIN-bounded CTE path (same as SG) over the
+          // country/currency broad slice — bounded by CANDIDATE_CAP rows so the
+          // scan stays index-friendly — for any zero-AND multi-word non-SG query,
+          // before falling through to the unbounded OR top-up.
+          if (andRes.rows.length === 0) {
+            const recentSliceRes = await runBoundedSgMatch(ftsOrMatch);
+            if (recentSliceRes.rows.length > 0) return recentSliceRes;
+            return runBoundedSgMatch(ftsOrMatch, dataParams, broadRecentSliceWhereClause);
+          }
           // Strict AND matches rank first (precise). Sprint C: if AND under-fills
           // the page, TOP UP from the broad OR match (dedup by id) so the page is
           // full without losing precision-first ordering. The OR top-up is best-

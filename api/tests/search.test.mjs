@@ -286,6 +286,57 @@ describe('NL search queries — response correctness', () => {
     assert.deepEqual(laptopFallbackCall.arguments[1], ['USD', 'US', '%asus%', '%rog%', 21, 0]);
   });
 
+  it('BUY-59847: bounds zero-AND non-SG broad queries before unbounded OR', async () => {
+    // Without the fix, a zero-AND non-SG query drops into the unbounded OR top-up
+    // and either times out the statement_timeout or returns a degraded 0-result page.
+    // With the fix, the archive path short-circuits to a GIN-bounded recent-slice CTE.
+    queryMock.mock.mockImplementation((sql, params) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (typeof sql === 'string' && (sql.includes('BEGIN') || sql.includes('COMMIT') || sql.includes('ROLLBACK') || sql.includes('SET LOCAL'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (typeof sql === 'string' && sql.includes('FROM search_products sp')) {
+        return Promise.resolve({ rows: [] });
+      }
+      // AND-style plainto_tsquery returns nothing → triggers zero-AND short-circuit
+      if (typeof sql === 'string' && sql.includes('websearch_to_tsquery')) {
+        return Promise.resolve({ rows: [] });
+      }
+      // Bounded CTE returns the row → archive short-circuit fires, no unbounded OR
+      if (typeof sql === 'string' && sql.includes('recent_candidates AS MATERIALIZED')) {
+        return Promise.resolve({ rows: [makeProduct('archive-bounded', { title: 'Wireless Headphones', country_code: 'US' })] });
+      }
+      if (typeof sql === 'string' && sql.includes('COUNT')) {
+        return Promise.resolve({ rows: [{ count: '1' }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await fetch(`http://localhost:${port}/v1/products/search?q=wireless+headphones&country_code=US&_tier=1`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+    const body = await res.json();
+
+    assert.equal(res.status, 200);
+    assert.equal(body.meta.total, 1);
+    assert.equal(body.data[0].title, 'Wireless Headphones');
+
+    const boundedCall = queryMock.mock.calls.find(
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('recent_candidates AS MATERIALIZED')
+    );
+    assert.ok(boundedCall, 'Expected GIN-bounded recent-slice CTE in archive fallback');
+    // The CTE must include the FTS match IN its WHERE so the GIN index bounds it.
+    assert.ok(
+      boundedCall.arguments[0].includes('search_vector @@'),
+      'Expected bounded CTE to apply FTS match inside the CTE WHERE clause'
+    );
+  });
+
   it('applies price range filters with NL query', async () => {
     const res = await fetch(`http://localhost:${port}/v1/products/search?q=headphones&min_price=50&max_price=200`, {
       headers: { Authorization: 'Bearer test-key' },
