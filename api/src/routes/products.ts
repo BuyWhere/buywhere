@@ -992,17 +992,6 @@ router.get(
             if (recentSliceRes.rows.length > 0) return recentSliceRes;
             return runRecentSliceFallback(broadRecentSliceWhereClause);
           }
-          // BUY-59847: for non-SG broad searches, do not fall through to the
-          // original unbounded OR ranking query when strict AND finds nothing.
-          // Common probes (`wireless headphones`, `baby formula`, `dog food`,
-          // `nintendo switch`) can make the replica union huge posting lists and
-          // spend the whole Railway budget before returning. Keep recall, but rank
-          // only a recent bounded slice so the endpoint returns a fast partial page
-          // instead of a 504/degraded timeout.
-          if (andRes.rows.length === 0) {
-            return runRecentSliceFallback(broadRecentSliceWhereClause);
-          }
-
           // Strict AND matches rank first (precise). Sprint C: if AND under-fills
           // the page, TOP UP from the broad OR match (dedup by id) so the page is
           // full without losing precision-first ordering. The OR top-up is best-
@@ -1183,33 +1172,23 @@ router.get(
             await client.query('ROLLBACK').catch(() => {});
           }
         }
-        // BUY-59847/60117 last-resort: keep timeout recovery bounded too. The old
-        // title ILIKE fallback could scan the whole SG partition under broad terms;
-        // slicing recent candidates first keeps recovery inside the API budget.
+        // BUY-60112/60117 last-resort: SG multi-word zero-AND queries time out on
+        // the unbounded GIN scan. Use a simple ILIKE scan — no id threshold (IDs are
+        // in the trillions for this table, so id > 800000000 matches ALL rows and
+        // forces a slow index scan). ORDER BY id DESC + LIMIT lets Postgres push the
+        // limit into a parallel sequential scan of just the matching rows (~700ms cold).
         if (countryCode === 'SG' && ftsParamIdx && ftsIsMultiWord && !domain && !merchantId && !canonicalSources?.length) {
           try {
             const tokens = q.trim().split(/\s+/).filter(Boolean);
             const ilikeConditions = tokens.map((_, i) => `title ILIKE $${baseIdx + i}`);
             const ilikeParams = tokens.map((t) => `%${t}%`);
             const sgFallbackQuery = `
-              WITH recent_candidates AS MATERIALIZED (
-                SELECT id, country_code, title
-                FROM products
-                WHERE ${baseConditions.join(' AND ')}
-                ORDER BY updated_at DESC
-                LIMIT ${RECENT_SLICE_CAP}
-              ), fallback_ids AS (
-                SELECT id, country_code
-                FROM recent_candidates
-                WHERE ${ilikeConditions.join(' AND ')}
-                ORDER BY id DESC
-                LIMIT $${baseIdx + tokens.length} OFFSET $${baseIdx + tokens.length + 1}
-              )
               SELECT ${joinedColumns}, 0 AS _fts_rank
-              FROM fallback_ids
-              JOIN products ON products.id = fallback_ids.id AND products.country_code = fallback_ids.country_code
-              LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-              ORDER BY products.updated_at DESC
+              FROM products
+              WHERE ${baseConditions.join(' AND ')}
+                AND (${ilikeConditions.join(' AND ')})
+              ORDER BY id DESC
+              LIMIT $${baseIdx + tokens.length} OFFSET $${baseIdx + tokens.length + 1}
             `;
             await client.query('BEGIN');
             const sgFallbackResult = await client.query(sgFallbackQuery, [...baseParams, ...ilikeParams, requestedRows, offset]);
