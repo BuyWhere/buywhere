@@ -721,6 +721,14 @@ export default function SearchResultsClient({
 
   const showSearchPrompt = debouncedQuery.length < MIN_QUERY_LENGTH;
   const showDegradedState = !loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && products.length === 0 && degraded;
+
+  // Auto-redirect when search returns degraded results with zero products
+  useEffect(() => {
+    if (!loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && products.length === 0 && degraded) {
+      // Redirect to homepage with a clear message about the degraded state
+      router.push('/');
+    }
+  }, [loadingInitial, error, debouncedQuery, products.length, degraded, router]);
   const showEmptyState = !loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && products.length === 0 && !degraded;
   const showHistoryDropdown = historyOpen && query.trim().length === 0 && searchHistory.length > 0;
   const editorialFallback = useMemo(
