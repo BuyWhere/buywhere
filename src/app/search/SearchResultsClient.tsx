@@ -53,7 +53,25 @@ type SearchApiItem = {
   metadata?: Record<string, unknown> | null;
 };
 
+type SearchApiResponseMeta = {
+  total?: number;
+  limit?: number;
+  offset?: number;
+  response_time_ms?: number;
+  cached?: boolean;
+  degraded?: boolean;
+  has_more?: boolean;
+  hasMore?: boolean;
+  next_cursor?: string | null;
+  nextCursor?: string | null;
+  hint?: string;
+};
+
 type SearchApiResponse = {
+  // BUY-61770: canonical schema is { data, meta }
+  data?: SearchApiItem[];
+  meta?: SearchApiResponseMeta | null;
+  // Legacy / inline fallbacks (older non-meta shape)
   total?: number;
   limit?: number;
   offset?: number;
@@ -525,11 +543,14 @@ export default function SearchResultsClient({
       }
 
       const data: SearchApiResponse = await response.json();
-      const rawItems = data.items || data.results || data.products || [];
-      if (data.degraded) {
+      const meta = data.meta ?? null;
+      const rawItems = data.data || data.items || data.results || data.products || [];
+      const isDegraded = Boolean(meta?.degraded ?? data.degraded);
+      const hint = typeof meta?.hint === 'string' ? meta.hint : data.hint;
+      if (isDegraded) {
         setDegraded(true);
-        if (typeof data.hint === 'string' && data.hint.trim().length > 0) {
-          setDegradedHint(data.hint);
+        if (typeof hint === 'string' && hint.trim().length > 0) {
+          setDegradedHint(hint);
         }
       } else {
         setDegraded(false);
@@ -550,10 +571,10 @@ export default function SearchResultsClient({
         mergedCount = nextItems.length;
         return nextItems;
       });
-      setTotal(typeof data.total === 'number' ? data.total : mergedCount);
-      setHasMore(Boolean(data.has_more ?? data.hasMore ?? fetchedPageIsFull));
-      setNextCursor(data.next_cursor ?? data.nextCursor ?? null);
-      setOffset(typeof data.offset === 'number' ? data.offset : offsetValue ?? 0);
+      setTotal(typeof meta?.total === 'number' ? meta.total : typeof data.total === 'number' ? data.total : mergedCount);
+      setHasMore(Boolean(meta?.has_more ?? meta?.hasMore ?? data.has_more ?? data.hasMore ?? fetchedPageIsFull));
+      setNextCursor(meta?.next_cursor ?? meta?.nextCursor ?? data.next_cursor ?? data.nextCursor ?? null);
+      setOffset(typeof meta?.offset === 'number' ? meta.offset : typeof data.offset === 'number' ? data.offset : offsetValue ?? 0);
     } catch (caughtError) {
       if (signal.aborted) {
         return;

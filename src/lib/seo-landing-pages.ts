@@ -41,7 +41,15 @@ type SearchApiItem = {
   category?: string | null;
 };
 
+type SearchApiResponseMeta = {
+  total?: number;
+  degraded?: boolean;
+  hint?: string;
+};
+
 type SearchApiResponse = {
+  data?: SearchApiItem[];
+  meta?: SearchApiResponseMeta | null;
   degraded?: boolean;
   total?: number;
   hint?: string;
@@ -234,16 +242,19 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       }
 
       const data = (await response.json()) as SearchApiResponse;
+      const meta = data.meta ?? null;
+      const isDegraded = Boolean(meta?.degraded ?? data.degraded);
+      const total = typeof meta?.total === "number" ? meta.total : data.total;
 
       // Degraded/timeout response — try the next backup query
-      if (data.degraded || data.total === 0) {
+      if (isDegraded || total === 0) {
         console.warn(
-          `[seo] degraded API response for ${config.slug} (q="${query}"): degraded=${data.degraded}, total=${data.total}`
+          `[seo] degraded API response for ${config.slug} (q="${query}"): degraded=${isDegraded}, total=${total}`
         );
         continue;
       }
 
-      const items = data.items || data.results || [];
+      const items = data.data || data.items || data.results || [];
       if (!Array.isArray(items) || items.length === 0) {
         continue;
       }
