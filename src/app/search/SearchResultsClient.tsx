@@ -64,6 +64,10 @@ type SearchApiResponse = {
   nextCursor?: string | null;
   items?: SearchApiItem[];
   results?: SearchApiItem[];
+  products?: SearchApiItem[];
+  degraded?: boolean;
+  hint?: string;
+  timeout_ms?: number;
 };
 
 export type SearchCardProduct = {
@@ -352,6 +356,8 @@ export default function SearchResultsClient({
   const [loadingInitial, setLoadingInitial] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [degraded, setDegraded] = useState(false);
+  const [degradedHint, setDegradedHint] = useState<string | null>(null);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeHistoryIndex, setActiveHistoryIndex] = useState(-1);
@@ -519,7 +525,16 @@ export default function SearchResultsClient({
       }
 
       const data: SearchApiResponse = await response.json();
-      const rawItems = data.items || data.results || [];
+      const rawItems = data.items || data.results || data.products || [];
+      if (data.degraded) {
+        setDegraded(true);
+        if (typeof data.hint === 'string' && data.hint.trim().length > 0) {
+          setDegradedHint(data.hint);
+        }
+      } else {
+        setDegraded(false);
+        setDegradedHint(null);
+      }
       const normalizedItems = sortProductsByImageQuality(
         rawItems.map((item) => normalizeProduct(item, activeCountry.currency))
       ).slice(0, PAGE_SIZE);
@@ -590,7 +605,8 @@ export default function SearchResultsClient({
   }, [historyOpen, query, searchHistory.length]);
 
   const showSearchPrompt = debouncedQuery.length < MIN_QUERY_LENGTH;
-  const showEmptyState = !loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && products.length === 0;
+  const showDegradedState = !loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && products.length === 0 && degraded;
+  const showEmptyState = !loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && products.length === 0 && !degraded;
   const showHistoryDropdown = historyOpen && query.trim().length === 0 && searchHistory.length > 0;
   const reversedSearchHistory = useMemo(() => [...searchHistory].reverse(), [searchHistory]);
 
@@ -812,8 +828,44 @@ export default function SearchResultsClient({
 
               {loadingInitial ? <SearchResultsSkeleton /> : null}
 
+              {showDegradedState ? (
+                <div
+                  role="status"
+                  data-testid="search-degraded-banner"
+                  className="rounded-[28px] border border-amber-300 bg-amber-50 p-8 shadow-sm"
+                >
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Catalog update in progress</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+                    Live results for “{debouncedQuery}” are temporarily unavailable
+                  </h2>
+                  <p className="mt-3 max-w-2xl text-slate-700">
+                    {degradedHint
+                      ? degradedHint
+                      : 'Our catalog is being refreshed right now. Real product results will return once the update finishes.'}
+                  </p>
+                  <p className="mt-3 max-w-2xl text-sm text-slate-600">
+                    Try a more specific query (add a brand, category, or model), pick a different country, or come back in a few minutes.
+                  </p>
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <Link
+                      href="/"
+                      className="inline-flex min-h-[44px] items-center rounded-full bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-700"
+                    >
+                      Browse homepage
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => runSearch(debouncedQuery)}
+                      className="inline-flex min-h-[44px] items-center rounded-full border border-amber-300 bg-white px-5 py-2.5 text-sm font-semibold text-amber-800 transition-colors hover:bg-amber-100"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
               {showEmptyState ? (
-                <div className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm">
+                <div className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm" data-testid="search-no-matches">
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">No matches</p>
                   <h2 className="mt-2 text-2xl font-semibold text-slate-900">
                     No products found for “{debouncedQuery}”
