@@ -34,6 +34,11 @@ const nextConfig = {
   async redirects() {
     return [
       {
+        source: '/mcp',
+        destination: '/integrate',
+        permanent: true,
+      },
+      {
         source: '/:path*',
         has: [
           {
