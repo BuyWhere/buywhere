@@ -620,7 +620,7 @@ export default function SearchResultsClient({
             <div className="max-w-3xl">
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">Product search</p>
               <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-                Find live catalog results without leaving BuyWhere
+                {query.trim() ? `Search results for "${query.trim()}"` : "Find live catalog results without leaving BuyWhere"}
               </h1>
               <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
                 Search BuyWhere&apos;s product index by query and country, then jump directly to retailer listings.
