@@ -91,6 +91,7 @@ export type SeoLandingPageConfig = {
   comparisonSectionTitle: string;
   comparisonColumns: string[];
   comparisonRows: ComparisonRow[];
+  comparisonDisclaimer?: string;
   highlightSectionTitle: string;
   highlights: Highlight[];
   adviceSectionTitle: string;
@@ -558,6 +559,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       { Model: "Dell XPS 14", Price: "S$2,199", Weight: "1.68kg", Chip: "Intel Core Ultra 7", "Best For": "Best premium Windows" },
     ],
     highlightSectionTitle: "What SG buyers usually optimise for",
+    comparisonDisclaimer: "Reference prices for editorial comparison — live prices shown above may differ.",
     highlights: [
       {
         title: "Portability matters most",

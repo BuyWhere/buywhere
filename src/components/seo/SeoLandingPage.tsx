@@ -182,6 +182,9 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
             <div className="mb-8 max-w-3xl">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Editor summary</p>
               <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.comparisonSectionTitle}</h2>
+              {config.comparisonDisclaimer && (
+                <p className="mt-3 text-sm leading-6 text-slate-500">{config.comparisonDisclaimer}</p>
+              )}
             </div>
 
             <div className="overflow-hidden rounded-[28px] border border-slate-200 shadow-sm">
