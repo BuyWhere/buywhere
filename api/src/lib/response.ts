@@ -11,6 +11,19 @@ export const COUNTRY_CURRENCY: Record<string, string> = {
   SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
 };
 
+function normalizeImageUrl(imageUrl: unknown): string | null {
+  if (typeof imageUrl !== 'string' || imageUrl.trim() === '') return null;
+
+  try {
+    const parsed = new URL(imageUrl);
+    if (parsed.hostname.toLowerCase() === 'source.unsplash.com') return null;
+  } catch {
+    return imageUrl;
+  }
+
+  return imageUrl;
+}
+
 export function buildProduct(
   row: Record<string, unknown>,
   defaultCurrency: string,
@@ -54,7 +67,7 @@ export function buildProduct(
     price: { amount: sanitizedAmount, currency },
     merchant,
     url: destinationUrl,
-    image_url: (row.image_url as string) || null,
+    image_url: normalizeImageUrl(row.image_url),
     region: (row.region as string) || null,
     country_code: (row.country_code as string) || null,
     updated_at: (row.updated_at as string) || null,

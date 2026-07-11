@@ -94,6 +94,18 @@ describe('buildProduct', () => {
     assert.equal(product.image_url, null);
   });
 
+  it('removes source.unsplash.com placeholder image URLs', () => {
+    const row = { ...baseRow, image_url: 'https://source.unsplash.com/400x400/?laptop' };
+    const product = buildProduct(row, 'SGD', false);
+    assert.equal(product.image_url, null);
+  });
+
+  it('preserves valid merchant image URLs', () => {
+    const row = { ...baseRow, image_url: 'https://images.example.com/products/laptop.jpg' };
+    const product = buildProduct(row, 'SGD', false);
+    assert.equal(product.image_url, 'https://images.example.com/products/laptop.jpg');
+  });
+
   it('includes deal fields when present', () => {
     const row = { ...baseRow, original_price: 199.99, discount_pct: 50.0 };
     const product = buildProduct(row, 'SGD', false);
@@ -145,45 +157,45 @@ describe('buildSearchResponse', () => {
   it('wraps products with metadata', () => {
     const res = buildSearchResponse([sampleProduct], 1, 20, 0, 150, false);
 
-    assert.equal(res.results.length, 1);
-    assert.equal(res.total, 1);
-    assert.equal(res.page.limit, 20);
-    assert.equal(res.page.offset, 0);
-    assert.equal(res.response_time_ms, 150);
-    assert.equal(res.cached, false);
-    assert.deepEqual(res.results[0], sampleProduct);
+    assert.equal(res.data.length, 1);
+    assert.equal(res.meta.total, 1);
+    assert.equal(res.meta.limit, 20);
+    assert.equal(res.meta.offset, 0);
+    assert.equal(res.meta.response_time_ms, 150);
+    assert.equal(res.meta.cached, false);
+    assert.deepEqual(res.data[0], sampleProduct);
   });
 
   it('reports cached=true', () => {
     const res = buildSearchResponse([], 0, 20, 0, 5, true);
-    assert.equal(res.cached, true);
+    assert.equal(res.meta.cached, true);
   });
 
   it('handles empty results', () => {
     const res = buildSearchResponse([], 0, 20, 0, 10, false);
-    assert.equal(res.results.length, 0);
-    assert.equal(res.total, 0);
+    assert.equal(res.data.length, 0);
+    assert.equal(res.meta.total, 0);
   });
 
   it('handles pagination offset', () => {
     const res = buildSearchResponse([], 100, 10, 30, 20, false);
-    assert.equal(res.page.limit, 10);
-    assert.equal(res.page.offset, 30);
+    assert.equal(res.meta.limit, 10);
+    assert.equal(res.meta.offset, 30);
   });
 
   it('response_time_ms is always a number', () => {
     const res = buildSearchResponse([sampleProduct], 1, 20, 0, 0, false);
-    assert.equal(typeof res.response_time_ms, 'number');
-    assert.equal(res.response_time_ms, 0);
+    assert.equal(typeof res.meta.response_time_ms, 'number');
+    assert.equal(res.meta.response_time_ms, 0);
   });
 
   it('preserves product array order', () => {
     const p2 = { ...sampleProduct, id: 'p2' };
     const p3 = { ...sampleProduct, id: 'p3' };
     const res = buildSearchResponse([sampleProduct, p2, p3], 3, 20, 0, 5, false);
-    assert.equal(res.results[0].id, 'p1');
-    assert.equal(res.results[1].id, 'p2');
-    assert.equal(res.results[2].id, 'p3');
+    assert.equal(res.data[0].id, 'p1');
+    assert.equal(res.data[1].id, 'p2');
+    assert.equal(res.data[2].id, 'p3');
   });
 });
 
