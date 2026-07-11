@@ -65,6 +65,7 @@ type SearchApiResponse = {
   items?: SearchApiItem[];
   results?: SearchApiItem[];
   products?: SearchApiItem[];
+  data?: SearchApiItem[];
   degraded?: boolean;
   hint?: string;
   timeout_ms?: number;
@@ -525,7 +526,7 @@ export default function SearchResultsClient({
       }
 
       const data: SearchApiResponse = await response.json();
-      const rawItems = data.items || data.results || data.products || [];
+      const rawItems = data.items || data.results || data.products || data.data || [];
       if (data.degraded) {
         setDegraded(true);
         if (typeof data.hint === 'string' && data.hint.trim().length > 0) {
@@ -588,14 +589,6 @@ export default function SearchResultsClient({
   }, [fetchResults]);
 
   useEffect(() => {
-
-  // Auto-redirect when search returns degraded results with zero products
-  useEffect(() => {
-    if (!loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && products.length === 0 && degraded) {
-      // Redirect to homepage with a clear message about the degraded state
-      router.push('/');
-    }
-  }, [loadingInitial, error, debouncedQuery, products.length, degraded, router]);
     const handlePointerDown = (event: MouseEvent) => {
       if (searchFieldRef.current && !searchFieldRef.current.contains(event.target as Node)) {
         setHistoryOpen(false);
