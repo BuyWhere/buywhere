@@ -28,7 +28,7 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
 const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'sg-fresh-v4';
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-default-v1';
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -71,7 +71,8 @@ function shiftSqlPlaceholders(sql: string, offset: number): string {
 // (quality-gated ~113M rows, ~4.7GB GIN that fits the replica cache -> no timeouts).
 // AND-first-then-OR for precision+recall. Returns true if it responded; returns false
 // on ANY error/replica issue so the caller falls through to the archive path unchanged
-// (hybrid = zero recall risk). Gated by SEARCH_USE_TIER=1 or ?_tier=1 (test override).
+// (hybrid = zero recall risk). Default-on after BUY-61117; opt out with
+// SEARCH_USE_TIER=0 or force with ?_tier=1 (test override).
 async function tryTierSearch(
   req: Request,
   res: Response,
@@ -90,6 +91,7 @@ async function tryTierSearch(
   let i = 1;
   const qIdx = i; params.push(p.q); i++;                    // $1 = raw q (rank + AND match)
   const orIdx = i; params.push(tsOr); i++;                  // $2 = OR lexeme string
+  conds.push(`sp.currency = $${i}`); params.push(p.currency); i++;
   if (p.countryCode) { conds.push(`sp.country_code = $${i}`); params.push(p.countryCode); i++; }
   if (p.minPrice != null && Number.isFinite(p.minPrice)) { conds.push(`sp.price >= $${i}`); params.push(p.minPrice); i++; }
   if (p.maxPrice != null && Number.isFinite(p.maxPrice)) { conds.push(`sp.price <= $${i}`); params.push(p.maxPrice); i++; }
@@ -139,6 +141,9 @@ async function tryTierSearch(
     }
     await client.query('COMMIT');
     client.release();
+    if (rows.length === 0) {
+      return false;
+    }
     if (res.headersSent) return true;
     const hasMore = rows.length > p.limit;
     const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
@@ -470,9 +475,13 @@ router.get(
     // prices from upstream feeds). A meaningful price > $0 is a basic data quality
     // requirement for any product listing. Products with $0 prices are either
     // out-of-stock markers, missing price fields, or feed parsing errors.
-    // Search-tier cutover (feature-flagged). Tier-first; falls through to the archive
-    // path below on any error or replica issue (hybrid, zero recall risk).
-    if (q && (process.env.SEARCH_USE_TIER === '1' || req.query._tier === '1')) {
+    // BUY-61117: make the RAM-fitting search tier the default for keyword search.
+    // Hermes QA found the archive path still returns degraded:true,total=0 for
+    // common cold broad queries across SG+US. Tier-first preserves Richmond's
+    // single-table archive constraints because it falls through unchanged on any
+    // tier error, and SEARCH_USE_TIER=0 remains a runtime kill switch.
+    const useSearchTier = req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0');
+    if (q && searchMode === 'keyword' && useSearchTier) {
       const handled = await tryTierSearch(req, res, {
         q, countryCode, currency, limit, offset, minPrice, maxPrice,
         category, brand, domain, compact, requestStart, cacheKey,
@@ -863,18 +872,31 @@ router.get(
       // SG-freshness fallback, unchanged.
       const execFtsQuery = async (baseQuery: string): Promise<{ rows: Array<Record<string, unknown>> }> => {
         if (useFtsRanking && ftsIsMultiWord) {
-          const runRecentSliceFallback = async (sliceWhereClause = recentSliceWhereClause): Promise<{ rows: Array<Record<string, unknown>> }> => {
-            const recentSliceQuery = `
+          // BUY-61117: the previous bounded SG path materialized a 2000-row slice of
+          // ALL fresh SG products (no FTS in the CTE WHERE) then applied the FTS
+          // filter after materialization. Without a (country_code, updated_at)
+          // index, scanning 1.5M+ fresh SG rows took seconds per query, and the
+          // 10-query fallback ladder exceeded the handler timeout → degraded 0-result
+          // responses. Fix: include the FTS match IN the CTE WHERE so the GIN index
+          // (idx_products_search_country) bounds the scan to matching products only,
+          // then sort+limit the small result set. This mirrors the single-word
+          // dataQuery pattern that already works in <100ms for SG.
+          const runBoundedSgMatch = async (
+            matchExpr: string,
+            params = dataParams,
+            sliceWhereClause = recentSliceWhereClause,
+          ): Promise<{ rows: Array<Record<string, unknown>> }> => {
+            const boundedQuery = `
               WITH recent_candidates AS MATERIALIZED (
-                SELECT id, search_vector
+                SELECT id, country_code, search_vector
                 FROM products
                 ${sliceWhereClause}
+                  AND ${matchExpr}
                 ORDER BY updated_at DESC
-                LIMIT ${RECENT_SLICE_CAP}
+                LIMIT ${CANDIDATE_CAP}
               ), top_ids AS (
                 SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
                 FROM recent_candidates
-                WHERE ${ftsOrMatch}
                 ORDER BY rank DESC, id DESC
                 LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
               )
@@ -884,67 +906,22 @@ router.get(
               LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
               ORDER BY top_ids.rank DESC
             `;
-            return client.query(recentSliceQuery, dataParams);
+            return client.query(boundedQuery, params);
           };
           if (useSgFreshnessGuardrail) {
-            const runBoundedSgMatch = async (
-              matchExpr: string,
-              params = dataParams,
-              sliceWhereClause = recentSliceWhereClause,
-            ): Promise<{ rows: Array<Record<string, unknown>> }> => {
-              const boundedQuery = `
-                WITH recent_candidates AS MATERIALIZED (
-                  SELECT id, country_code, search_vector
-                  FROM products
-                  ${sliceWhereClause}
-                  ORDER BY updated_at DESC
-                  LIMIT ${RECENT_SLICE_CAP}
-                ), top_ids AS (
-                  SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
-                  FROM recent_candidates
-                  WHERE ${matchExpr}
-                  ORDER BY rank DESC, id DESC
-                  LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
-                )
-                SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
-                FROM top_ids
-                JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
-                LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-                ORDER BY top_ids.rank DESC
-              `;
-              return client.query(boundedQuery, params);
-            };
+            // BUY-61117: simplified 4-step ladder. AND match first (precise),
+            // then OR match (recall). Each step tries fresh-48h first, then broad.
+            // The GIN index bounds each query to matching products only, so each
+            // step is fast (<100ms typical). If all 4 steps return 0 rows, the
+            // outer 57014 catch fires the ILIKE timeout fallback as before.
+            let boundedRes = await runBoundedSgMatch(ftsAndMatch);
+            if (boundedRes.rows.length > 0) return boundedRes;
+            boundedRes = await runBoundedSgMatch(ftsAndMatch, dataParams, broadRecentSliceWhereClause);
+            if (boundedRes.rows.length > 0) return boundedRes;
 
-            // BUY-60117: keep the entire SG multi-word fallback ladder bounded by
-            // a recent id slice. The previous zero-AND guard still paid the strict
-            // AND GIN scan first, so zero-hit probes could time out before reaching
-            // BUY-60112's bounded OR slice.
-            let boundedAndRes = await runBoundedSgMatch(ftsAndMatch);
-            if (boundedAndRes.rows.length > 0) return boundedAndRes;
-            boundedAndRes = await runBoundedSgMatch(ftsAndMatch, dataParams, broadRecentSliceWhereClause);
-            if (boundedAndRes.rows.length > 0) return boundedAndRes;
-
-            if (ftsLexemes.length >= 3) {
-              const relaxedQueries = [...new Map(
-                ftsLexemes
-                  .map((lexeme, dropIdx) => ({ lexeme, query: ftsLexemes.filter((__, idx) => idx !== dropIdx).join(' ') }))
-                  .sort((a, b) => a.lexeme.length - b.lexeme.length)
-                  .map((entry) => [entry.query, entry.query])
-              ).values()];
-              for (const relaxedQuery of relaxedQueries) {
-                const relaxedParamIdx = dataParams.length + 1;
-                const relaxedMatch = `search_vector @@ websearch_to_tsquery('english', $${relaxedParamIdx}) AND $${ftsOrParamIdx}::text IS NOT NULL`;
-                const relaxedParams = [...dataParams, relaxedQuery];
-                let relaxedRes = await runBoundedSgMatch(relaxedMatch, relaxedParams);
-                if (relaxedRes.rows.length > 0) return relaxedRes;
-                relaxedRes = await runBoundedSgMatch(relaxedMatch, relaxedParams, broadRecentSliceWhereClause);
-                if (relaxedRes.rows.length > 0) return relaxedRes;
-              }
-            }
-
-            const recentSliceRes = await runRecentSliceFallback();
-            if (recentSliceRes.rows.length > 0) return recentSliceRes;
-            return runRecentSliceFallback(broadRecentSliceWhereClause);
+            boundedRes = await runBoundedSgMatch(ftsOrMatch);
+            if (boundedRes.rows.length > 0) return boundedRes;
+            return runBoundedSgMatch(ftsOrMatch, dataParams, broadRecentSliceWhereClause);
           }
 
           const andQuery = baseQuery.split(ftsOrMatch).join(ftsAndMatch);
@@ -989,9 +966,9 @@ router.get(
           // semantics for recall, but evaluate them over a bounded recent id slice
           // first so first-touch stays fast without re-enabling OR top-up.
           if (andRes.rows.length === 0 && useSgFreshnessGuardrail) {
-            const recentSliceRes = await runRecentSliceFallback();
+            const recentSliceRes = await runBoundedSgMatch(ftsOrMatch);
             if (recentSliceRes.rows.length > 0) return recentSliceRes;
-            return runRecentSliceFallback(broadRecentSliceWhereClause);
+            return runBoundedSgMatch(ftsOrMatch, dataParams, broadRecentSliceWhereClause);
           }
           // Strict AND matches rank first (precise). Sprint C: if AND under-fills
           // the page, TOP UP from the broad OR match (dedup by id) so the page is

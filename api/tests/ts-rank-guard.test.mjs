@@ -173,20 +173,37 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
     assert.ok(/return\s+relaxedRes/.test(fallbackBlock), 'Expected successful relaxed pass to return before broad OR fallback');
   });
 
-  it('BUY-60112 keeps zero-AND SG broad queries on a bounded recent slice', () => {
+  it('BUY-61117 keeps zero-AND SG broad queries bounded by FTS before sorting', () => {
     const src = readProductsSource();
     const fallbackStart = src.indexOf('BUY-60112: the remaining zero-AND SG path');
     const broadOrStart = src.indexOf('let r = await client.query(baseQuery, dataParams);', fallbackStart);
     assert.ok(fallbackStart >= 0, 'Expected BUY-60112 zero-AND SG fallback comment');
     assert.ok(broadOrStart > fallbackStart, 'Expected broad OR baseQuery fallback after BUY-60112 block');
-    const boundedSliceStart = src.lastIndexOf('const runRecentSliceFallback', fallbackStart);
+    const boundedSliceStart = src.lastIndexOf('const runBoundedSgMatch', fallbackStart);
     const fallbackBlock = src.slice(boundedSliceStart, broadOrStart);
     assert.ok(/andRes\.rows\.length\s*===\s*0\s*&&\s*useSgFreshnessGuardrail/.test(fallbackBlock), 'Expected fallback to be limited to zero-AND SG relevance searches');
-    assert.ok(/runRecentSliceFallback\(\)/.test(fallbackBlock), 'Expected fresh bounded slice fallback before broad OR');
-    assert.ok(/runRecentSliceFallback\(broadRecentSliceWhereClause\)/.test(fallbackBlock), 'Expected all-time bounded slice retry before broad OR');
-    assert.ok(/LIMIT\s+\$\{RECENT_SLICE_CAP\}/.test(src), 'Expected fallback to cap the recent freshness slice before OR matching');
+    assert.ok(/runBoundedSgMatch\(ftsOrMatch\)/.test(fallbackBlock), 'Expected fresh bounded FTS fallback before broad OR');
+    assert.ok(/runBoundedSgMatch\(ftsOrMatch,\s*dataParams,\s*broadRecentSliceWhereClause\)/.test(fallbackBlock), 'Expected all-time bounded FTS retry before broad OR');
+    assert.ok(/AND\s+\$\{matchExpr\}[\s\S]*ORDER\s+BY\s+updated_at\s+DESC/.test(fallbackBlock), 'Expected FTS match inside the candidate CTE before freshness sorting');
+    assert.ok(/LIMIT\s+\$\{CANDIDATE_CAP\}/.test(fallbackBlock), 'Expected fallback to cap matched candidates before ranking');
     assert.ok(/ORDER\s+BY\s+updated_at\s+DESC/.test(fallbackBlock), 'Expected bounded SG slice to use the indexed freshness order');
     assert.ok(!/ORDER\s+BY\s+id\s+DESC/.test(fallbackBlock), 'Expected bounded SG fallback to avoid partition-wide id ordering');
-    assert.ok(/WITH\s+recent_candidates\s+AS\s+MATERIALIZED\s+\(/.test(src), 'Expected recent candidate slice to be materialized before FTS matching');
+    assert.ok(/WITH\s+recent_candidates\s+AS\s+MATERIALIZED\s+\(/.test(src), 'Expected matched candidates to be materialized before ranking');
+  });
+
+  it('BUY-61117 defaults keyword search to the RAM-fitting search_products tier', () => {
+    const src = readProductsSource();
+    assert.ok(
+      /process\.env\.SEARCH_USE_TIER\s*!==\s*'0'/.test(src),
+      'Expected SEARCH_USE_TIER to be an opt-out kill switch, not an opt-in gate'
+    );
+    assert.ok(
+      /searchMode\s*===\s*'keyword'/.test(src),
+      'Expected default tier cutover to be limited to keyword search so semantic/hybrid remain unchanged'
+    );
+    assert.ok(
+      /FROM\s+search_products\s+sp/.test(src),
+      'Expected default keyword path to use the RAM-fitting search_products tier'
+    );
   });
 });
