@@ -97,10 +97,30 @@ const DEFAULT_DEVELOPER_CTA = {
   href: "/developers",
 };
 
+
+
+// Derive comparison rows from live products so the table always matches the product cards above.
+// Falls back to the hardcoded editorial rows only when no live products are available.
+function buildComparisonRows(config: SeoLandingPageConfig, products: LandingProduct[]): { columns: string[]; rows: Record<string, string>[] } {
+  if (products.length === 0) {
+    // No live data — use static editorial rows (legacy behavior)
+    return { columns: config.comparisonColumns, rows: config.comparisonRows };
+  }
+  // Derive rows from live products (up to 5)
+  const columns = ["Model", "Price", "Merchant"];
+  const rows = products.slice(0, 5).map((p) => ({
+    Model: p.name,
+    Price: formatPrice(p.price, p.currency),
+    Merchant: p.merchant,
+  }));
+  return { columns, rows };
+}
+
 export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig }) {
   const shopperCta = config.shopperCta || DEFAULT_SHOPPER_CTA;
   const developerCta = config.developerCta || DEFAULT_DEVELOPER_CTA;
   const products = await getSeoLandingProducts(config);
+  const comparison = buildComparisonRows(config, products);
   const schema = buildSeoLandingSchema(config, products);
 
   return (
@@ -193,7 +213,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 <table className="min-w-full bg-white text-left text-sm text-slate-700">
                   <thead className="bg-slate-900 text-xs uppercase tracking-[0.18em] text-slate-200">
                     <tr>
-                      {config.comparisonColumns.map((column) => (
+                      {comparison.columns.map((column) => (
                         <th key={column} className="px-4 py-4 font-semibold">
                           {column}
                         </th>
@@ -201,9 +221,9 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                     </tr>
                   </thead>
                   <tbody>
-                    {config.comparisonRows.map((row, index) => (
-                      <tr key={`${row[config.comparisonColumns[0]]}-${index}`} className="border-t border-slate-100">
-                        {config.comparisonColumns.map((column) => (
+                    {comparison.rows.map((row, index) => (
+                      <tr key={`${row[comparison.columns[0]]}-${index}`} className="border-t border-slate-100">
+                        {comparison.columns.map((column) => (
                           <td key={column} className="px-4 py-4 align-top">
                             {row[column]}
                           </td>
