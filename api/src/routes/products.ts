@@ -114,6 +114,7 @@ async function tryTierSearch(
     WITH cand AS (
       SELECT id, search_vector FROM search_products sp
       WHERE ${match}${filterSql}
+      ORDER BY id DESC
       LIMIT 5000
     ), top AS (
       SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) AS rank
@@ -127,6 +128,13 @@ async function tryTierSearch(
 
   const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
   const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
+  const titleFallbackQuery = `
+    SELECT ${cols}, 0 AS _fts_rank
+    FROM search_products sp
+    LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
+    WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}
+    ORDER BY sp.id DESC
+    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
 
   let client: PoolClient;
   try { client = await servingReadDbConnect(); } catch { return false; }
@@ -138,6 +146,9 @@ async function tryTierSearch(
     let rows = (await client.query(mkQuery(andMatch), params)).rows;
     if (rows.length === 0 && lexemes.length > 1) {
       rows = (await client.query(mkQuery(orMatch), params)).rows;   // recall fallback
+    }
+    if (rows.length === 0) {
+      rows = (await client.query(titleFallbackQuery, params)).rows;
     }
     await client.query('COMMIT');
     client.release();
