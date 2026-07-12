@@ -17,59 +17,6 @@ const SEARCH_HISTORY_KEY = 'bw_search_history';
 const SEARCH_HISTORY_LIMIT = 8;
 const SUGGESTED_SEARCHES = ['wireless headphones', 'running shoes', 'espresso machine', 'gaming laptop'];
 
-type EditorialFallback = {
-  href: string;
-  title: string;
-  keywords: string[];
-};
-
-const EDITORIAL_FALLBACKS: EditorialFallback[] = [
-  { href: '/best-gaming-laptops-us', title: 'Best Gaming Laptops (US)', keywords: ['gaming laptop', 'gaming laptops', 'rog', 'zephyrus', 'legion', 'alienware', 'razer blade', 'predator', 'asus rog'] },
-  { href: '/laptop-singapore', title: 'Best Laptops in Singapore', keywords: ['laptop', 'macbook', 'thinkpad', 'xps', 'spectre', 'zenbook', 'swift'] },
-  { href: '/air-purifier-singapore', title: 'Best Air Purifiers in Singapore', keywords: ['air purifier', 'purifier', 'hepa', 'coway', 'levoit', 'blueair', 'sterra'] },
-  { href: '/best-robot-vacuums-2026', title: 'Best Robot Vacuums 2026 (US)', keywords: ['robot vacuum', 'roomba', 'roborock', 'deebot', 'shark vacuum', 'robot vac'] },
-  { href: '/best-robot-vacuums-singapore', title: 'Best Robot Vacuums in Singapore', keywords: ['robot vacuum singapore', 'roomba singapore'] },
-  { href: '/best-noise-canceling-headphones-us', title: 'Best Noise-Canceling Headphones (US)', keywords: ['wireless headphones', 'noise canceling', 'noise cancelling', 'headphones', 'airpods max', 'wh-1000', 'sony headphones', 'bose headphones'] },
-  { href: '/best-headphones-us', title: 'Best Headphones (US)', keywords: ['headphones', 'earbuds', 'airpods', 'galaxy buds'] },
-  { href: '/best-gaming-monitors-us', title: 'Best Gaming Monitors (US)', keywords: ['4k monitor', 'gaming monitor', 'monitor', 'ultrawide', 'oled monitor'] },
-  { href: '/best-monitors-us', title: 'Best Monitors (US)', keywords: ['monitor', 'display', '4k display'] },
-  { href: '/best-tvs-us', title: 'Best TVs (US)', keywords: ['tv', 'television', 'oled tv', 'qled', 'smart tv'] },
-  { href: '/best-earbuds-us', title: 'Best Earbuds (US)', keywords: ['earbuds', 'earphones', 'airpods pro', 'galaxy buds'] },
-  { href: '/best-smartwatches-us', title: 'Best Smartwatches (US)', keywords: ['smartwatch', 'smart watch', 'apple watch', 'garmin', 'fitbit'] },
-  { href: '/best-tablets-us', title: 'Best Tablets (US)', keywords: ['tablet', 'ipad', 'galaxy tab', 'surface pro'] },
-  { href: '/best-cameras-us', title: 'Best Cameras (US)', keywords: ['camera', 'dslr', 'mirrorless', 'canon', 'sony alpha', 'nikon'] },
-  { href: '/best-laptops-us', title: 'Best Laptops (US)', keywords: ['laptop', 'notebook', 'ultrabook', 'chromebook'] },
-  { href: '/best-speakers-us', title: 'Best Speakers (US)', keywords: ['speaker', 'bluetooth speaker', 'sonos', 'homepod'] },
-  { href: '/best-gaming-consoles-us', title: 'Best Gaming Consoles (US)', keywords: ['ps5', 'playstation', 'xbox', 'nintendo switch', 'gaming console'] },
-  { href: '/macbook-air-singapore', title: 'MacBook Air Singapore', keywords: ['macbook air', 'macbook singapore', 'm3 macbook'] },
-  { href: '/best-gaming-laptop-singapore', title: 'Best Gaming Laptops in Singapore', keywords: ['gaming laptop singapore'] },
-  { href: '/iphone-16-price-singapore', title: 'iPhone 16 Price Singapore', keywords: ['iphone 16', 'iphone singapore', 'iphone'] },
-  { href: '/airpods-singapore', title: 'AirPods Singapore', keywords: ['airpods singapore', 'airpods'] },
-];
-
-function findEditorialFallback(query: string, country: string): EditorialFallback | null {
-  const normalizedQuery = query.toLowerCase().trim();
-  if (normalizedQuery.length < 2) return null;
-  const isSG = country.toLowerCase() === 'sg';
-  let best: EditorialFallback | null = null;
-  let bestScore = 0;
-  for (const fallback of EDITORIAL_FALLBACKS) {
-    for (const keyword of fallback.keywords) {
-      const kw = keyword.toLowerCase();
-      if (normalizedQuery.includes(kw) || kw.includes(normalizedQuery)) {
-        let score = kw.length;
-        if (isSG && fallback.href.includes('singapore')) score += 100;
-        if (!isSG && !fallback.href.includes('singapore')) score += 50;
-        if (score > bestScore) {
-          bestScore = score;
-          best = fallback;
-        }
-      }
-    }
-  }
-  return best;
-}
-
 const COUNTRY_OPTIONS = [
   { value: 'us', label: 'United States', apiValue: 'US', currency: 'USD' },
   { value: 'sg', label: 'Singapore', apiValue: 'SG', currency: 'SGD' },
@@ -106,25 +53,7 @@ type SearchApiItem = {
   metadata?: Record<string, unknown> | null;
 };
 
-type SearchApiResponseMeta = {
-  total?: number;
-  limit?: number;
-  offset?: number;
-  response_time_ms?: number;
-  cached?: boolean;
-  degraded?: boolean;
-  has_more?: boolean;
-  hasMore?: boolean;
-  next_cursor?: string | null;
-  nextCursor?: string | null;
-  hint?: string;
-};
-
 type SearchApiResponse = {
-  // BUY-61770: canonical schema is { data, meta }
-  data?: SearchApiItem[];
-  meta?: SearchApiResponseMeta | null;
-  // Legacy / inline fallbacks (older non-meta shape)
   total?: number;
   limit?: number;
   offset?: number;
@@ -136,6 +65,7 @@ type SearchApiResponse = {
   items?: SearchApiItem[];
   results?: SearchApiItem[];
   products?: SearchApiItem[];
+  data?: SearchApiItem[];
   degraded?: boolean;
   hint?: string;
   timeout_ms?: number;
@@ -433,7 +363,6 @@ export default function SearchResultsClient({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeHistoryIndex, setActiveHistoryIndex] = useState(-1);
   const lastRequestKeyRef = useRef<string | null>(null);
-  const isProgrammaticSearchRef = useRef(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchFieldRef = useRef<HTMLLabelElement>(null);
 
@@ -449,37 +378,15 @@ export default function SearchResultsClient({
 
   const runSearch = useCallback((searchTerm: string) => {
     const normalizedQuery = normalizeSearchHistoryQuery(searchTerm);
-
-    isProgrammaticSearchRef.current = true;
     setQuery(normalizedQuery);
+    setDebouncedQuery(normalizedQuery);
     setHistoryOpen(false);
     setActiveHistoryIndex(-1);
-
-    const params = new URLSearchParams();
-    if (normalizedQuery) {
-      params.set('q', normalizedQuery);
-    }
-    params.set('country', country);
-
-    const nextUrl = normalizedQuery
-      ? `/search?${params.toString()}`
-      : '/search';
-
-    startTransition(() => {
-      router.push(nextUrl, { scroll: false });
-    });
-
-    // Sync debouncedQuery after the URL transition so the fetch effect runs once
-    // with the new query. The URL->state effect below will skip this cycle because
-    // isProgrammaticSearchRef is set.
-    window.setTimeout(() => {
-      setDebouncedQuery(normalizedQuery);
-    }, 0);
 
     if (normalizedQuery.length >= MIN_QUERY_LENGTH) {
       persistSearchHistory(normalizedQuery);
     }
-  }, [country, persistSearchHistory, router]);
+  }, [persistSearchHistory]);
 
   const removeHistoryEntry = useCallback((entryToRemove: string) => {
     setSearchHistory((currentHistory) => {
@@ -510,11 +417,6 @@ export default function SearchResultsClient({
   }, []);
 
   useEffect(() => {
-    if (isProgrammaticSearchRef.current) {
-      isProgrammaticSearchRef.current = false;
-      return;
-    }
-
     const nextQuery = (urlSearchParams.get('q') || '').trim();
     const nextCountry = normalizeCountry(urlSearchParams.get('country') || initialCountry);
 
@@ -624,14 +526,11 @@ export default function SearchResultsClient({
       }
 
       const data: SearchApiResponse = await response.json();
-      const meta = data.meta ?? null;
-      const rawItems = data.data || data.items || data.results || data.products || [];
-      const isDegraded = Boolean(meta?.degraded ?? data.degraded);
-      const hint = typeof meta?.hint === 'string' ? meta.hint : data.hint;
-      if (isDegraded) {
+      const rawItems = data.items || data.results || data.products || data.data || [];
+      if (data.degraded) {
         setDegraded(true);
-        if (typeof hint === 'string' && hint.trim().length > 0) {
-          setDegradedHint(hint);
+        if (typeof data.hint === 'string' && data.hint.trim().length > 0) {
+          setDegradedHint(data.hint);
         }
       } else {
         setDegraded(false);
@@ -652,10 +551,10 @@ export default function SearchResultsClient({
         mergedCount = nextItems.length;
         return nextItems;
       });
-      setTotal(typeof meta?.total === 'number' ? meta.total : typeof data.total === 'number' ? data.total : mergedCount);
-      setHasMore(Boolean(meta?.has_more ?? meta?.hasMore ?? data.has_more ?? data.hasMore ?? fetchedPageIsFull));
-      setNextCursor(meta?.next_cursor ?? meta?.nextCursor ?? data.next_cursor ?? data.nextCursor ?? null);
-      setOffset(typeof meta?.offset === 'number' ? meta.offset : typeof data.offset === 'number' ? data.offset : offsetValue ?? 0);
+      setTotal(typeof data.total === 'number' ? data.total : mergedCount);
+      setHasMore(Boolean(data.has_more ?? data.hasMore ?? fetchedPageIsFull));
+      setNextCursor(data.next_cursor ?? data.nextCursor ?? null);
+      setOffset(typeof data.offset === 'number' ? data.offset : offsetValue ?? 0);
     } catch (caughtError) {
       if (signal.aborted) {
         return;
@@ -689,19 +588,6 @@ export default function SearchResultsClient({
     return () => controller.abort();
   }, [fetchResults]);
 
-  const redirectedRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!degraded || products.length > 0 || loadingInitial || error) return;
-    if (debouncedQuery.trim().length < MIN_QUERY_LENGTH) return;
-    const fallback = findEditorialFallback(debouncedQuery, activeCountry.apiValue);
-    if (!fallback) return;
-    const redirectKey = `${debouncedQuery}:${activeCountry.apiValue}`;
-    if (redirectedRef.current === redirectKey) return;
-    redirectedRef.current = redirectKey;
-    router.push(fallback.href);
-  }, [degraded, products.length, loadingInitial, error, debouncedQuery, activeCountry.apiValue, router]);
-
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
       if (searchFieldRef.current && !searchFieldRef.current.contains(event.target as Node)) {
@@ -721,20 +607,8 @@ export default function SearchResultsClient({
 
   const showSearchPrompt = debouncedQuery.length < MIN_QUERY_LENGTH;
   const showDegradedState = !loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && products.length === 0 && degraded;
-
-  // Auto-redirect when search returns degraded results with zero products
-  useEffect(() => {
-    if (!loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && products.length === 0 && degraded) {
-      // Redirect to homepage with a clear message about the degraded state
-      router.push('/');
-    }
-  }, [loadingInitial, error, debouncedQuery, products.length, degraded, router]);
   const showEmptyState = !loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && products.length === 0 && !degraded;
   const showHistoryDropdown = historyOpen && query.trim().length === 0 && searchHistory.length > 0;
-  const editorialFallback = useMemo(
-    () => (degraded && products.length === 0 ? findEditorialFallback(debouncedQuery, activeCountry.apiValue) : null),
-    [degraded, products.length, debouncedQuery, activeCountry.apiValue],
-  );
   const reversedSearchHistory = useMemo(() => [...searchHistory].reverse(), [searchHistory]);
 
   return (
@@ -974,17 +848,9 @@ export default function SearchResultsClient({
                     Try a more specific query (add a brand, category, or model), pick a different country, or come back in a few minutes.
                   </p>
                   <div className="mt-5 flex flex-wrap gap-3">
-                    {editorialFallback ? (
-                      <Link
-                        href={editorialFallback.href}
-                        className="inline-flex min-h-[44px] items-center rounded-full bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-700"
-                      >
-                        View {editorialFallback.title}
-                      </Link>
-                    ) : null}
                     <Link
                       href="/"
-                      className="inline-flex min-h-[44px] items-center rounded-full border border-amber-300 bg-white px-5 py-2.5 text-sm font-semibold text-amber-800 transition-colors hover:bg-amber-100"
+                      className="inline-flex min-h-[44px] items-center rounded-full bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-700"
                     >
                       Browse homepage
                     </Link>
@@ -1008,19 +874,6 @@ export default function SearchResultsClient({
                   <p className="mt-3 max-w-2xl text-slate-600">
                     Try a broader term, switch countries, or start with one of these popular searches.
                   </p>
-                  {(() => {
-                    const emptyFallback = findEditorialFallback(debouncedQuery, activeCountry.apiValue);
-                    return emptyFallback ? (
-                      <div className="mt-5">
-                        <Link
-                          href={emptyFallback.href}
-                          className="inline-flex min-h-[44px] items-center rounded-full bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-700"
-                        >
-                          Browse {emptyFallback.title}
-                        </Link>
-                      </div>
-                    ) : null;
-                  })()}
                   <div className="mt-5 flex flex-wrap gap-2">
                     {SUGGESTED_SEARCHES.map((suggestion) => (
                       <button
