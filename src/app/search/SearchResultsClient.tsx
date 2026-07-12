@@ -433,6 +433,7 @@ export default function SearchResultsClient({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeHistoryIndex, setActiveHistoryIndex] = useState(-1);
   const lastRequestKeyRef = useRef<string | null>(null);
+  const isProgrammaticSearchRef = useRef(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchFieldRef = useRef<HTMLLabelElement>(null);
 
@@ -448,15 +449,37 @@ export default function SearchResultsClient({
 
   const runSearch = useCallback((searchTerm: string) => {
     const normalizedQuery = normalizeSearchHistoryQuery(searchTerm);
+
+    isProgrammaticSearchRef.current = true;
     setQuery(normalizedQuery);
-    setDebouncedQuery(normalizedQuery);
     setHistoryOpen(false);
     setActiveHistoryIndex(-1);
+
+    const params = new URLSearchParams();
+    if (normalizedQuery) {
+      params.set('q', normalizedQuery);
+    }
+    params.set('country', country);
+
+    const nextUrl = normalizedQuery
+      ? `/search?${params.toString()}`
+      : '/search';
+
+    startTransition(() => {
+      router.push(nextUrl, { scroll: false });
+    });
+
+    // Sync debouncedQuery after the URL transition so the fetch effect runs once
+    // with the new query. The URL->state effect below will skip this cycle because
+    // isProgrammaticSearchRef is set.
+    window.setTimeout(() => {
+      setDebouncedQuery(normalizedQuery);
+    }, 0);
 
     if (normalizedQuery.length >= MIN_QUERY_LENGTH) {
       persistSearchHistory(normalizedQuery);
     }
-  }, [persistSearchHistory]);
+  }, [country, persistSearchHistory, router]);
 
   const removeHistoryEntry = useCallback((entryToRemove: string) => {
     setSearchHistory((currentHistory) => {
@@ -487,6 +510,11 @@ export default function SearchResultsClient({
   }, []);
 
   useEffect(() => {
+    if (isProgrammaticSearchRef.current) {
+      isProgrammaticSearchRef.current = false;
+      return;
+    }
+
     const nextQuery = (urlSearchParams.get('q') || '').trim();
     const nextCountry = normalizeCountry(urlSearchParams.get('country') || initialCountry);
 
