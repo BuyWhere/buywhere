@@ -37,6 +37,7 @@ type SearchApiItem = {
   url?: string | null;
   buy_url?: string | null;
   affiliate_url?: string | null;
+  affiliate_redirect_url?: string | null;
   brand?: string | null;
   category?: string | null;
 };
@@ -161,7 +162,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     currency: priceCurrency || fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
     imageUrl: isUsableProductImage(imageUrl) ? imageUrl : null,
-    href: item.click_url || item.affiliate_url || item.buy_url || item.url || "#",
+    href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.buy_url || item.url || "#",
     brand: item.brand || null,
     category: item.category || null,
   };
