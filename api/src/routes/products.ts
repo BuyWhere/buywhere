@@ -866,6 +866,7 @@ router.get(
       await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
       await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
       await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
+      await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
 
       // AND-first-then-OR execution (non-SG relevance multi-word queries only; SG
       // queries are already bounded by the freshness guardrail, so their OR cost is
@@ -971,6 +972,19 @@ router.get(
           // terms (`dog food`, `wireless headphones`, `iphone 16 pro`). Keep OR
           // semantics for recall, but evaluate them over a bounded recent id slice
           // first so first-touch stays fast without re-enabling OR top-up.
+          // BUY-59847: non-SG broad probes (e.g. `wireless headphones`, `baby formula`,
+          // `dog food`, `nintendo switch`) had zero matches on the strict AND pass
+          // then dropped into the unbounded OR top-up below. The OR scan can churn
+          // the 4GB replica for the full 8s statement_timeout and return degraded
+          // 0-result pages. Reuse the GIN-bounded CTE path (same as SG) over the
+          // country/currency broad slice — bounded by CANDIDATE_CAP rows so the
+          // scan stays index-friendly — for any zero-AND multi-word non-SG query,
+          // before falling through to the unbounded OR top-up.
+          if (andRes.rows.length === 0) {
+            const recentSliceRes = await runBoundedSgMatch(ftsOrMatch);
+            if (recentSliceRes.rows.length > 0) return recentSliceRes;
+            return runBoundedSgMatch(ftsOrMatch, dataParams, broadRecentSliceWhereClause);
+          }
           if (andRes.rows.length === 0 && useSgFreshnessGuardrail) {
             const recentSliceRes = await runBoundedSgMatch(ftsOrMatch);
             if (recentSliceRes.rows.length > 0) return recentSliceRes;
