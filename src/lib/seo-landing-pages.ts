@@ -35,8 +35,10 @@ type SearchApiItem = {
   image_url?: string | null;
   image?: string | null;
   url?: string | null;
+  product_url?: string | null;
   buy_url?: string | null;
   affiliate_url?: string | null;
+  affiliate_redirect_url?: string | null;
   brand?: string | null;
   category?: string | null;
 };
@@ -135,6 +137,26 @@ function formatMerchantName(value?: string | null) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function normalizeExternalHref(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    if (!value) continue;
+
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === "#") continue;
+
+    try {
+      const url = new URL(trimmed);
+      if (url.protocol === "http:" || url.protocol === "https:") {
+        return url.toString();
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return "#";
+}
+
 function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPrice?: number): LandingProduct | null {
   const priceValue =
     item.price && typeof item.price === "object" && "amount" in item.price
@@ -167,7 +189,14 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     currency: priceCurrency || fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
     imageUrl: isUsableProductImage(imageUrl) ? imageUrl : null,
-    href: item.click_url || item.affiliate_url || item.buy_url || item.url || "#",
+    href: normalizeExternalHref(
+      item.affiliate_redirect_url,
+      item.click_url,
+      item.affiliate_url,
+      item.buy_url,
+      item.product_url,
+      item.url,
+    ),
     brand: item.brand || null,
     category: item.category || null,
   };

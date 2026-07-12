@@ -23,11 +23,13 @@ function formatPrice(price: number | null, currency: string) {
 }
 
 function ProductGridCard({ product }: { product: LandingProduct }) {
+  const isMerchantOffer = product.href.startsWith("http://") || product.href.startsWith("https://");
+
   return (
     <a
       href={product.href}
-      target="_blank"
-      rel="noopener noreferrer"
+      target={isMerchantOffer ? "_blank" : undefined}
+      rel={isMerchantOffer ? "noopener noreferrer" : undefined}
       className="group flex h-full flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.25),_rgba(248,250,252,0.92)_55%,_rgba(226,232,240,0.95))]">
@@ -73,7 +75,9 @@ function ProductGridCard({ product }: { product: LandingProduct }) {
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-600">Current price</p>
             <p className="text-2xl font-semibold text-slate-900">{formatPrice(product.price, product.currency)}</p>
           </div>
-          <span className="text-sm font-medium text-amber-700">View offer</span>
+          <span className="text-sm font-medium text-amber-700">
+            {isMerchantOffer ? "View offer" : "Compare prices"}
+          </span>
         </div>
       </div>
     </a>
