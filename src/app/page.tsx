@@ -395,7 +395,7 @@ export default function HomePage() {
                 View docs →
               </Link>
             </div>
-            <div className="flex-1 w-full">
+            <div className="flex-1 w-full min-w-0">
               <div className="bg-gray-800 rounded-xl overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-700">
                   <div className="w-3 h-3 rounded-full bg-red-500/70"></div>
