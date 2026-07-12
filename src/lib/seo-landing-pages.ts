@@ -91,6 +91,7 @@ export type SeoLandingPageConfig = {
   comparisonSectionTitle: string;
   comparisonColumns: string[];
   comparisonRows: ComparisonRow[];
+  comparisonSource?: "config" | "products";
   comparisonDisclaimer?: string;
   highlightSectionTitle: string;
   highlights: Highlight[];
@@ -550,16 +551,15 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     refreshedLabel: "Updated May 1, 2026",
     productSectionTitle: "Live laptop offers across Singapore",
     comparisonSectionTitle: "Popular laptop picks at a glance",
-    comparisonColumns: ["Model", "Price", "Weight", "Chip", "Best For"],
+    comparisonColumns: ["Model", "Price", "Merchant", "Brand", "Best For"],
+    comparisonSource: "products",
     comparisonRows: [
-      { Model: "MacBook Air 13 M3", Price: "S$1,499", Weight: "1.24kg", Chip: "Apple M3", "Best For": "Best ultraportable" },
-      { Model: "ASUS Zenbook 14 OLED", Price: "S$1,699", Weight: "1.28kg", Chip: "Intel Core Ultra 7", "Best For": "Best Windows all-rounder" },
-      { Model: "Lenovo Yoga 7i", Price: "S$1,549", Weight: "1.49kg", Chip: "Intel Core Ultra 7", "Best For": "Best 2-in-1" },
-      { Model: "Acer Swift Go 14", Price: "S$1,199", Weight: "1.32kg", Chip: "Intel Core Ultra 5", "Best For": "Best value" },
-      { Model: "Dell XPS 14", Price: "S$2,199", Weight: "1.68kg", Chip: "Intel Core Ultra 7", "Best For": "Best premium Windows" },
+      { Model: "MacBook Air 13 M3", Price: "S$1,499", Merchant: "Apple Store", Brand: "Apple", "Best For": "Visible live offer" },
+      { Model: "ASUS Zenbook 14 OLED", Price: "S$1,699", Merchant: "ASUS Singapore", Brand: "ASUS", "Best For": "Visible live offer" },
+      { Model: "Lenovo Yoga 7i", Price: "S$1,549", Merchant: "Lenovo", Brand: "Lenovo", "Best For": "Visible live offer" },
     ],
     highlightSectionTitle: "What SG buyers usually optimise for",
-    comparisonDisclaimer: "Reference prices for editorial comparison — live prices shown above may differ.",
+    comparisonDisclaimer: "Summary reflects the visible live product cards for this page snapshot; check each card for current seller details and availability.",
     highlights: [
       {
         title: "Portability matters most",

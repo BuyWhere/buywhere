@@ -80,6 +80,16 @@ function ProductGridCard({ product }: { product: LandingProduct }) {
   );
 }
 
+function buildProductComparisonRows(products: LandingProduct[]) {
+  return products.slice(0, 4).map((product) => ({
+    Model: product.name,
+    Price: formatPrice(product.price, product.currency),
+    Merchant: product.merchant,
+    Brand: product.brand || "See live listing",
+    "Best For": "Visible live offer",
+  }));
+}
+
 const DEFAULT_SHOPPER_CTA = {
   title: "Start comparing prices",
   body: "Search millions of products across Southeast Asia and the US — find the best price in seconds.",
@@ -98,6 +108,10 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
   const developerCta = config.developerCta || DEFAULT_DEVELOPER_CTA;
   const products = await getSeoLandingProducts(config);
   const schema = buildSeoLandingSchema(config, products);
+  const comparisonRows =
+    config.comparisonSource === "products" && products.length > 0
+      ? buildProductComparisonRows(products)
+      : config.comparisonRows;
 
   return (
     <div className="flex min-h-screen flex-col bg-white text-slate-900">
@@ -200,7 +214,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                     </tr>
                   </thead>
                   <tbody>
-                    {config.comparisonRows.map((row, index) => (
+                    {comparisonRows.map((row, index) => (
                       <tr key={`${row[config.comparisonColumns[0]]}-${index}`} className="border-t border-slate-100">
                         {config.comparisonColumns.map((column) => (
                           <td key={column} className="px-4 py-4 align-top">
