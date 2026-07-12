@@ -28,7 +28,7 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
 const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'sg-fresh-v4';
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-default-v1-buy-61977';
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
 // unavailable, semantic/hybrid requests fall back to the keyword path.
@@ -66,7 +66,8 @@ function shiftSqlPlaceholders(sql, offset) {
 // (quality-gated ~113M rows, ~4.7GB GIN that fits the replica cache -> no timeouts).
 // AND-first-then-OR for precision+recall. Returns true if it responded; returns false
 // on ANY error/replica issue so the caller falls through to the archive path unchanged
-// (hybrid = zero recall risk). Gated by SEARCH_USE_TIER=1 or ?_tier=1 (test override).
+// (hybrid = zero recall risk). Default-on after BUY-61117; opt out with
+// SEARCH_USE_TIER=0 or force with ?_tier=1 (test override).
 async function tryTierSearch(req, res, p) {
     const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
     if (lexemes.length === 0)
@@ -81,6 +82,9 @@ async function tryTierSearch(req, res, p) {
     const orIdx = i;
     params.push(tsOr);
     i++; // $2 = OR lexeme string
+    conds.push(`sp.currency = $${i}`);
+    params.push(p.currency);
+    i++;
     if (p.countryCode) {
         conds.push(`sp.country_code = $${i}`);
         params.push(p.countryCode);
@@ -151,6 +155,7 @@ async function tryTierSearch(req, res, p) {
     try {
         await client.query('BEGIN');
         await client.query(`SET LOCAL statement_timeout = '4000'`);
+        await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`); // fuzzy sampling breaks multi-word AND
         await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
         let rows = (await client.query(mkQuery(andMatch), params)).rows;
         if (rows.length === 0 && lexemes.length > 1) {
@@ -158,6 +163,9 @@ async function tryTierSearch(req, res, p) {
         }
         await client.query('COMMIT');
         client.release();
+        if (rows.length === 0) {
+            return false;
+        }
         if (res.headersSent)
             return true;
         const hasMore = rows.length > p.limit;
@@ -166,7 +174,11 @@ async function tryTierSearch(req, res, p) {
         const total = p.offset + rows.length;
         const responseBody = (0, response_1.buildSearchResponse)(products, total, p.limit, p.offset, Date.now() - p.requestStart, false);
         responseBody.source = 'search_products_tier';
-        config_1.redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => { });
+        // BUY-61977: never cache a degraded envelope — a 1-hour poisoned cache key
+        // (degraded:true, total:0) hides recovery and bricks the MCP tool matrix.
+        if (!responseBody.meta?.degraded) {
+            config_1.redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => { });
+        }
         res.set('X-Search-Tier', '1');
         res.json(responseBody);
         return true;
@@ -285,6 +297,13 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
         if (cached) {
             const parsed = JSON.parse(cached);
             parsed.pagination.response_time_ms = Date.now() - requestStart;
+            (0, instrumentation_1.recordProductViewsBulk)({
+                productIds: (parsed.data || parsed.products || parsed.results || [])
+                    .map((product) => product.id)
+                    .filter(Boolean),
+                source: 'products.list.cache',
+                req,
+            });
             res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
             res.set('X-Cache', 'HIT');
             return res.json(parsed);
@@ -369,9 +388,15 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             // Degraded 200, not 504: a fast honest partial answer keeps BuyWhere in the
             // agent's toolchain; a 504 gets the tool dropped from rotation.
             res.status(200).json({
-                products: [], results: [], total: 0, degraded: true,
-                hint: 'query exceeded the latency budget; add a brand, category, or price constraint, or retry shortly',
-                timeout_ms: SEARCH_HANDLER_TIMEOUT_MS,
+                data: [],
+                meta: {
+                    total: 0,
+                    limit: 20,
+                    offset: 0,
+                    response_time_ms: Date.now() - requestStart,
+                    cached: false,
+                    degraded: true,
+                },
             });
         }
     });
@@ -426,6 +451,15 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             const elapsed = Date.now() - requestStart;
             parsed.cached = true;
             parsed.response_time_ms = elapsed;
+            const cachedProducts = parsed.products || parsed.results || parsed.data || [];
+            (0, instrumentation_1.recordProductViewsBulk)({
+                productIds: cachedProducts
+                    .map((product) => product.id)
+                    .filter(Boolean),
+                source: 'products.search.cache',
+                queryHash: q ? (0, crypto_1.createHash)('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
+                req,
+            });
             res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
             res.set('X-Cache', 'HIT');
             return res.json(parsed);
@@ -443,9 +477,13 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // prices from upstream feeds). A meaningful price > $0 is a basic data quality
     // requirement for any product listing. Products with $0 prices are either
     // out-of-stock markers, missing price fields, or feed parsing errors.
-    // Search-tier cutover (feature-flagged). Tier-first; falls through to the archive
-    // path below on any error or replica issue (hybrid, zero recall risk).
-    if (q && (process.env.SEARCH_USE_TIER === '1' || req.query._tier === '1')) {
+    // BUY-61117: make the RAM-fitting search tier the default for keyword search.
+    // Hermes QA found the archive path still returns degraded:true,total=0 for
+    // common cold broad queries across SG+US. Tier-first preserves Richmond's
+    // single-table archive constraints because it falls through unchanged on any
+    // tier error, and SEARCH_USE_TIER=0 remains a runtime kill switch.
+    const useSearchTier = req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0');
+    if (q && searchMode === 'keyword' && useSearchTier) {
         const handled = await tryTierSearch(req, res, {
             q, countryCode, currency, limit, offset, minPrice, maxPrice,
             category, brand, domain, compact, requestStart, cacheKey,
@@ -815,18 +853,27 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         // SG-freshness fallback, unchanged.
         const execFtsQuery = async (baseQuery) => {
             if (useFtsRanking && ftsIsMultiWord) {
-                const runRecentSliceFallback = async (sliceWhereClause = recentSliceWhereClause) => {
-                    const recentSliceQuery = `
+                // BUY-61117: the previous bounded SG path materialized a 2000-row slice of
+                // ALL fresh SG products (no FTS in the CTE WHERE) then applied the FTS
+                // filter after materialization. Without a (country_code, updated_at)
+                // index, scanning 1.5M+ fresh SG rows took seconds per query, and the
+                // 10-query fallback ladder exceeded the handler timeout → degraded 0-result
+                // responses. Fix: include the FTS match IN the CTE WHERE so the GIN index
+                // (idx_products_search_country) bounds the scan to matching products only,
+                // then sort+limit the small result set. This mirrors the single-word
+                // dataQuery pattern that already works in <100ms for SG.
+                const runBoundedSgMatch = async (matchExpr, params = dataParams, sliceWhereClause = recentSliceWhereClause) => {
+                    const boundedQuery = `
               WITH recent_candidates AS MATERIALIZED (
-                SELECT id, search_vector
+                SELECT id, country_code, search_vector
                 FROM products
                 ${sliceWhereClause}
+                  AND ${matchExpr}
                 ORDER BY updated_at DESC
-                LIMIT ${RECENT_SLICE_CAP}
+                LIMIT ${CANDIDATE_CAP}
               ), top_ids AS (
                 SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
                 FROM recent_candidates
-                WHERE ${ftsOrMatch}
                 ORDER BY rank DESC, id DESC
                 LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
               )
@@ -836,63 +883,24 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
               LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
               ORDER BY top_ids.rank DESC
             `;
-                    return client.query(recentSliceQuery, dataParams);
+                    return client.query(boundedQuery, params);
                 };
                 if (useSgFreshnessGuardrail) {
-                    const runBoundedSgMatch = async (matchExpr, params = dataParams, sliceWhereClause = recentSliceWhereClause) => {
-                        const boundedQuery = `
-                WITH recent_candidates AS MATERIALIZED (
-                  SELECT id, country_code, search_vector
-                  FROM products
-                  ${sliceWhereClause}
-                  ORDER BY updated_at DESC
-                  LIMIT ${RECENT_SLICE_CAP}
-                ), top_ids AS (
-                  SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
-                  FROM recent_candidates
-                  WHERE ${matchExpr}
-                  ORDER BY rank DESC, id DESC
-                  LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
-                )
-                SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
-                FROM top_ids
-                JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
-                LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-                ORDER BY top_ids.rank DESC
-              `;
-                        return client.query(boundedQuery, params);
-                    };
-                    // BUY-60117: keep the entire SG multi-word fallback ladder bounded by
-                    // a recent id slice. The previous zero-AND guard still paid the strict
-                    // AND GIN scan first, so zero-hit probes could time out before reaching
-                    // BUY-60112's bounded OR slice.
-                    let boundedAndRes = await runBoundedSgMatch(ftsAndMatch);
-                    if (boundedAndRes.rows.length > 0)
-                        return boundedAndRes;
-                    boundedAndRes = await runBoundedSgMatch(ftsAndMatch, dataParams, broadRecentSliceWhereClause);
-                    if (boundedAndRes.rows.length > 0)
-                        return boundedAndRes;
-                    if (ftsLexemes.length >= 3) {
-                        const relaxedQueries = [...new Map(ftsLexemes
-                                .map((lexeme, dropIdx) => ({ lexeme, query: ftsLexemes.filter((__, idx) => idx !== dropIdx).join(' ') }))
-                                .sort((a, b) => a.lexeme.length - b.lexeme.length)
-                                .map((entry) => [entry.query, entry.query])).values()];
-                        for (const relaxedQuery of relaxedQueries) {
-                            const relaxedParamIdx = dataParams.length + 1;
-                            const relaxedMatch = `search_vector @@ websearch_to_tsquery('english', $${relaxedParamIdx}) AND $${ftsOrParamIdx}::text IS NOT NULL`;
-                            const relaxedParams = [...dataParams, relaxedQuery];
-                            let relaxedRes = await runBoundedSgMatch(relaxedMatch, relaxedParams);
-                            if (relaxedRes.rows.length > 0)
-                                return relaxedRes;
-                            relaxedRes = await runBoundedSgMatch(relaxedMatch, relaxedParams, broadRecentSliceWhereClause);
-                            if (relaxedRes.rows.length > 0)
-                                return relaxedRes;
-                        }
-                    }
-                    const recentSliceRes = await runRecentSliceFallback();
-                    if (recentSliceRes.rows.length > 0)
-                        return recentSliceRes;
-                    return runRecentSliceFallback(broadRecentSliceWhereClause);
+                    // BUY-61117: simplified 4-step ladder. AND match first (precise),
+                    // then OR match (recall). Each step tries fresh-48h first, then broad.
+                    // The GIN index bounds each query to matching products only, so each
+                    // step is fast (<100ms typical). If all 4 steps return 0 rows, the
+                    // outer 57014 catch fires the ILIKE timeout fallback as before.
+                    let boundedRes = await runBoundedSgMatch(ftsAndMatch);
+                    if (boundedRes.rows.length > 0)
+                        return boundedRes;
+                    boundedRes = await runBoundedSgMatch(ftsAndMatch, dataParams, broadRecentSliceWhereClause);
+                    if (boundedRes.rows.length > 0)
+                        return boundedRes;
+                    boundedRes = await runBoundedSgMatch(ftsOrMatch);
+                    if (boundedRes.rows.length > 0)
+                        return boundedRes;
+                    return runBoundedSgMatch(ftsOrMatch, dataParams, broadRecentSliceWhereClause);
                 }
                 const andQuery = baseQuery.split(ftsOrMatch).join(ftsAndMatch);
                 let andRes = await client.query(andQuery, dataParams);
@@ -935,10 +943,10 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                 // semantics for recall, but evaluate them over a bounded recent id slice
                 // first so first-touch stays fast without re-enabling OR top-up.
                 if (andRes.rows.length === 0 && useSgFreshnessGuardrail) {
-                    const recentSliceRes = await runRecentSliceFallback();
+                    const recentSliceRes = await runBoundedSgMatch(ftsOrMatch);
                     if (recentSliceRes.rows.length > 0)
                         return recentSliceRes;
-                    return runRecentSliceFallback(broadRecentSliceWhereClause);
+                    return runBoundedSgMatch(ftsOrMatch, dataParams, broadRecentSliceWhereClause);
                 }
                 // Strict AND matches rank first (precise). Sprint C: if AND under-fills
                 // the page, TOP UP from the broad OR match (dedup by id) so the page is
@@ -1142,9 +1150,15 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             client.release();
             if (!res.headersSent) {
                 res.status(200).json({
-                    products: [], results: [], total: 0, degraded: true,
-                    hint: 'broad query timed out; add a brand, category, or price constraint',
-                    timeout_ms: SEARCH_STATEMENT_TIMEOUT_MS,
+                    data: [],
+                    meta: {
+                        total: 0,
+                        limit: 20,
+                        offset: 0,
+                        response_time_ms: 0,
+                        cached: false,
+                        degraded: true,
+                    },
                 });
             }
             return;
@@ -1202,7 +1216,11 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     }
     const responseBody = (0, response_1.buildSearchResponse)(filteredProducts, total, limit, offset, responseTimeMs, hasMore ?? false);
     // Cache result in Redis (fire-and-forget)
-    config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
+    // BUY-61977: skip cache write for degraded envelopes — see tryTierSearch + deals for the
+    // full pattern. Without this, a single 10s US-search timeout poisons the cache for 1h.
+    if (!responseBody.meta?.degraded) {
+        config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
+    }
     // Extract categories from results for analytics
     const categories = extractCategories(products);
     // BUY-31298: pass behavioral context to queryLogMiddleware via res.locals so the
@@ -1252,13 +1270,22 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     const minDiscount = parseFloat(req.query.min_discount || '10');
     const limit = Math.min(parseInt(req.query.limit || '20'), 100);
     const offset = parseInt(req.query.offset || '0');
-    const cacheKey = `deals:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
+    // BUY-61977: versioned cache key — old `deals:` keys were poisoned by degraded envelopes
+    // before the cache-write guard landed. Bumping invalidates them in one deploy.
+    const cacheKey = `deals-buy-61977:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
     try {
         const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
         if (cached) {
             const parsed = JSON.parse(cached);
             parsed.cached = true;
             parsed.response_time_ms = Date.now() - start;
+            (0, instrumentation_1.recordProductViewsBulk)({
+                productIds: (parsed.products || parsed.results || parsed.data || [])
+                    .map((product) => product.id)
+                    .filter(Boolean),
+                source: 'products.deals.cache',
+                req,
+            });
             return res.json(parsed);
         }
     }
@@ -1271,12 +1298,15 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
         if (!res.headersSent) {
             try {
                 res.status(200).json({
-                    products: [],
-                    total: 0,
-                    degraded: true,
-                    error: 'deals_upstream_timeout',
-                    message: 'Deals query exceeded server-side timeout',
-                    response_time_ms: Date.now() - start
+                    data: [],
+                    meta: {
+                        total: 0,
+                        limit: 20,
+                        offset: 0,
+                        response_time_ms: Date.now() - start,
+                        cached: false,
+                        degraded: true,
+                    },
                 });
             }
             catch (_) { }
@@ -1381,12 +1411,13 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     finally {
         dealsClient.release();
     }
-    const responseBody = (0, response_1.buildSearchResponse)(deals, total, limit, offset, Date.now() - start, false);
-    if (degraded) {
-        // BUY-60309: mark degraded so callers can distinguish partial from full results
-        Object.assign(responseBody, { degraded: true });
+    const responseBody = (0, response_1.buildSearchResponse)(deals, total, limit, offset, Date.now() - start, false, degraded);
+    // BUY-61977: skip cache write when the deals query hit a 57014/57000 timeout — a 1-hour
+    // degraded envelope poisons every subsequent request for the same cache key and bricks
+    // the MCP `get_deals` tool even after the upstream recovers.
+    if (!degraded) {
+        config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
     }
-    config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
     // BUY-52474: log a product_view per deals card so /v1/products/deals drives
     // product_views growth alongside /search and /:id.
     (0, instrumentation_1.recordProductViewsBulk)({
@@ -1689,6 +1720,13 @@ router.get('/featured', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApi
             const parsed = JSON.parse(cached);
             parsed.cached = true;
             parsed.response_time_ms = Date.now() - start;
+            (0, instrumentation_1.recordProductViewsBulk)({
+                productIds: (parsed.products || parsed.results || parsed.data || [])
+                    .map((product) => product.id)
+                    .filter(Boolean),
+                source: 'products.featured.cache',
+                req,
+            });
             return res.json(parsed);
         }
     }

@@ -28,7 +28,7 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
 const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-default-v1';
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'tier-default-v1-buy-61977';
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -151,7 +151,11 @@ async function tryTierSearch(
     const total = p.offset + rows.length;
     const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false) as unknown as Record<string, unknown>;
     responseBody.source = 'search_products_tier';
-    redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
+    // BUY-61977: never cache a degraded envelope — a 1-hour poisoned cache key
+    // (degraded:true, total:0) hides recovery and bricks the MCP tool matrix.
+    if (!(responseBody as unknown as { meta?: { degraded?: boolean } }).meta?.degraded) {
+      redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
+    }
     res.set('X-Search-Tier', '1');
     res.json(responseBody);
     return true;
@@ -1263,7 +1267,11 @@ router.get(
     );
 
     // Cache result in Redis (fire-and-forget)
-    redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+    // BUY-61977: skip cache write for degraded envelopes — see tryTierSearch + deals for the
+    // full pattern. Without this, a single 10s US-search timeout poisons the cache for 1h.
+    if (!responseBody.meta?.degraded) {
+      redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+    }
 
     // Extract categories from results for analytics
     const categories = extractCategories(products);
@@ -1325,7 +1333,9 @@ router.get(
     const limit = Math.min(parseInt((req.query.limit as string) || '20'), 100);
     const offset = parseInt((req.query.offset as string) || '0');
 
-    const cacheKey = `deals:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
+    // BUY-61977: versioned cache key — old `deals:` keys were poisoned by degraded envelopes
+    // before the cache-write guard landed. Bumping invalidates them in one deploy.
+    const cacheKey = `deals-buy-61977:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
       if (cached) {
@@ -1476,7 +1486,12 @@ router.get(
     }
 
     const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false, degraded);
-    redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+    // BUY-61977: skip cache write when the deals query hit a 57014/57000 timeout — a 1-hour
+    // degraded envelope poisons every subsequent request for the same cache key and bricks
+    // the MCP `get_deals` tool even after the upstream recovers.
+    if (!degraded) {
+      redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+    }
 
     // BUY-52474: log a product_view per deals card so /v1/products/deals drives
     // product_views growth alongside /search and /:id.
