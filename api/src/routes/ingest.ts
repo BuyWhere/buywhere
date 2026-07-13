@@ -452,6 +452,21 @@ router.get('/health', async (req: Request, res: Response) => {
       });
       const zombieCount = parseInt(zombieResult.rows[0]?.cnt ?? '0', 10);
 
+      // Auto-cleanup zombie runs when called via internal monitoring (BUY-62007)
+      if (isInternal && zombieCount > 0) {
+        try {
+          await db.query(`SET statement_timeout = 10000`).then(() => db.query(
+            `UPDATE ingestion_runs
+               SET status = 'failed',
+                   error_message = 'Auto-cleaned: stuck in running state for >1 hour (zombie run)',
+                   finished_at = NOW()
+             WHERE status = 'running' AND started_at < NOW() - INTERVAL '1 hour'`
+          )).finally(() => {
+            db.query(`SET statement_timeout = 30000`).catch(() => {});
+          });
+        } catch { /* non-blocking cleanup */ }
+      }
+
       const sources = Object.entries(sourceMap).map(([source, s]) => ({
         source,
         last_success: s.last_success,

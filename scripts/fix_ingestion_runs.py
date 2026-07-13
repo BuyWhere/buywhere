@@ -9,6 +9,7 @@ This script identifies and fixes ingestion runs with missing or inconsistent sta
 """
 import asyncio
 import json
+import os
 import sys
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -26,7 +27,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-DB_URL = "postgresql+asyncpg://buywhere:buywhere@172.18.0.4:5432/buywhere"
+DB_URL = os.environ.get(
+    "DATABASE_URL",
+    "postgresql+asyncpg://buywhere:buywhere@172.18.0.4:5432/buywhere",
+).replace("postgresql://", "postgresql+asyncpg://")
 
 class IngestionRunFixer:
     def __init__(self):
