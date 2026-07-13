@@ -135,6 +135,13 @@ async function tryTierSearch(
     WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}
     ORDER BY sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+  const tokenTitleFallbackQuery = `
+    SELECT ${cols}, 0 AS _fts_rank
+    FROM search_products sp
+    LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
+    WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}
+    ORDER BY sp.id DESC
+    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
 
   let client: PoolClient;
   try { client = await servingReadDbConnect(); } catch { return false; }
@@ -151,6 +158,9 @@ async function tryTierSearch(
       }
       if (rows.length === 0) {
         rows = (await client.query(titleFallbackQuery, params)).rows;
+      }
+      if (rows.length === 0 && lexemes.length === 1) {
+        rows = (await client.query(tokenTitleFallbackQuery, params)).rows;
       }
     }
     await client.query('COMMIT');
