@@ -329,6 +329,57 @@ function SearchResultsSkeleton() {
     </div>
   );
 }
+function SearchProgressIndicator({ query }: { query: string }) {
+  const [elapsed, setElapsed] = useState(0);
+  const [phase, setPhase] = useState(0);
+
+  useEffect(() => {
+    const start = Date.now();
+    const timer = window.setInterval(() => {
+      setElapsed(Math.floor((Date.now() - start) / 1000));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const t1 = window.setTimeout(() => setPhase(1), 3000);
+    const t2 = window.setTimeout(() => setPhase(2), 7000);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, []);
+
+  const messages = [
+    'Searching catalog…',
+    'Querying retailers…',
+    'Still searching — this may take a moment',
+  ];
+
+  return (
+    <div className="space-y-3" role="status" aria-live="polite">
+      <div className="flex items-center gap-2">
+        <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+        <span className="text-sm font-medium text-slate-600">
+          {messages[phase]}
+        </span>
+        <span className="ml-auto text-xs tabular-nums text-slate-400">
+          {elapsed}s
+        </span>
+      </div>
+      <div className="h-1 w-full overflow-hidden rounded-full bg-slate-200">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all duration-1000 ease-linear"
+          style={{ width: `${Math.min((elapsed / 15) * 100, 95)}%` }}
+        />
+      </div>
+      <p className="text-xs text-slate-400">
+        Results for &ldquo;{query}&rdquo; — typically takes a few seconds
+      </p>
+    </div>
+  );
+}
+
 
 function SearchCard({ product }: { product: SearchCardProduct }) {
   return (
@@ -424,7 +475,7 @@ export default function SearchResultsClient({
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
-  const [loadingInitial, setLoadingInitial] = useState(false);
+  const [loadingInitial, setLoadingInitial] = useState(initialQuery.trim().length >= MIN_QUERY_LENGTH);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [degraded, setDegraded] = useState(false);
@@ -906,7 +957,9 @@ export default function SearchResultsClient({
                     {activeCountry.label}
                   </p>
                   <h2 className="mt-1 text-2xl font-semibold text-slate-950">
-                    {loadingInitial ? 'Searching catalog...' : `${total.toLocaleString()} results for “${debouncedQuery}”`}
+                    {loadingInitial
+                      ? null
+                      : `${total.toLocaleString()} results for “${debouncedQuery}”`}
                   </h2>
                 </div>
                 <Link
@@ -917,7 +970,12 @@ export default function SearchResultsClient({
                 </Link>
               </div>
 
-              {loadingInitial ? <SearchResultsSkeleton /> : null}
+              {loadingInitial ? (
+                    <div className="space-y-4">
+                      <SearchProgressIndicator query={debouncedQuery} />
+                      <SearchResultsSkeleton />
+                    </div>
+                  ) : null}
 
               {showDegradedState ? (
                 <div
