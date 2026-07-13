@@ -143,12 +143,15 @@ async function tryTierSearch(
     await client.query(`SET LOCAL statement_timeout = '4000'`);
     await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`); // fuzzy sampling breaks multi-word AND
     await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
-    let rows = (await client.query(mkQuery(andMatch), params)).rows;
-    if (rows.length === 0 && lexemes.length > 1) {
-      rows = (await client.query(mkQuery(orMatch), params)).rows;   // recall fallback
-    }
+    let rows = lexemes.length === 1 ? (await client.query(titleFallbackQuery, params)).rows : [];
     if (rows.length === 0) {
-      rows = (await client.query(titleFallbackQuery, params)).rows;
+      rows = (await client.query(mkQuery(andMatch), params)).rows;
+      if (rows.length === 0 && lexemes.length > 1) {
+        rows = (await client.query(mkQuery(orMatch), params)).rows;   // recall fallback
+      }
+      if (rows.length === 0) {
+        rows = (await client.query(titleFallbackQuery, params)).rows;
+      }
     }
     await client.query('COMMIT');
     client.release();
