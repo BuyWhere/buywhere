@@ -91,7 +91,7 @@ async function tryTierSearch(
   let i = 1;
   const qIdx = i; params.push(p.q); i++;                    // $1 = raw q (rank + AND match)
   const orIdx = i; params.push(tsOr); i++;                  // $2 = OR lexeme string
-  conds.push(`sp.currency = $${i}`); params.push(p.currency); i++;
+  if (p.minPrice != null || p.maxPrice != null) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; } // hotfix: currency restricts recall only when price-filtering
   if (p.countryCode) { conds.push(`sp.country_code = $${i}`); params.push(p.countryCode); i++; }
   if (p.minPrice != null && Number.isFinite(p.minPrice)) { conds.push(`sp.price >= $${i}`); params.push(p.minPrice); i++; }
   if (p.maxPrice != null && Number.isFinite(p.maxPrice)) { conds.push(`sp.price <= $${i}`); params.push(p.maxPrice); i++; }
@@ -519,9 +519,14 @@ router.get(
       if (handled) return;
     }
 
-    const baseConditions: string[] = ['currency = $1', 'is_active = true', 'price > 0'];
-    const baseParams: unknown[] = [currency];
-    let baseIdx = 2;
+    const baseConditions: string[] = ['is_active = true', 'price > 0'];
+    const baseParams: unknown[] = [];
+    let baseIdx = 1;
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      baseConditions.push(`currency = $${baseIdx}`);
+      baseParams.push(currency);
+      baseIdx++;
+    }
 
     // BUY-42589: SG retailer brand queries (harvey norman, courts, gaincity, etc.)
     // map to source= filters since the retailer name is in the source field, not
