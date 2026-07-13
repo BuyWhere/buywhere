@@ -114,6 +114,7 @@ function formatPrice(price: number | null, currency: string) {
 
 function hasUsableProductImage(value?: string | null) {
   if (!value) return false;
+  if (value.startsWith('data:')) return false;
 
   try {
     const imageUrl = new URL(value);
