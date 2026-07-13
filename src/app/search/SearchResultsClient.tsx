@@ -17,6 +17,59 @@ const SEARCH_HISTORY_KEY = 'bw_search_history';
 const SEARCH_HISTORY_LIMIT = 8;
 const SUGGESTED_SEARCHES = ['wireless headphones', 'running shoes', 'espresso machine', 'gaming laptop'];
 
+function SearchProgressIndicator({ query }: { query: string }) {
+  const [elapsedMs, setElapsedMs] = useState(0);
+
+  useEffect(() => {
+    const start = Date.now();
+    let frame: number;
+    const tick = () => {
+      setElapsedMs(Date.now() - start);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  const phaseLabel =
+    elapsedMs >= 7000
+      ? 'Still searching — this may take a moment'
+      : elapsedMs >= 3000
+        ? 'Querying retailers…'
+        : 'Searching catalog…';
+
+  const elapsedSeconds = Math.floor(elapsedMs / 1000);
+  const progressPercent = Math.min(95, (elapsedMs / 15000) * 95);
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      data-testid="search-progress-indicator"
+      className="rounded-[28px] border border-amber-200 bg-amber-50 p-6 shadow-sm"
+    >
+      <div className="flex items-center gap-3">
+        <div className="relative h-5 w-5">
+          <div className="absolute inset-0 animate-spin rounded-full border-2 border-amber-200 border-t-amber-600" />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-amber-900">{phaseLabel}</p>
+          <p className="mt-0.5 text-xs text-amber-700">
+            {elapsedSeconds > 0 && <>{elapsedSeconds}s elapsed · </>}
+            Searching for &ldquo;{query}&rdquo;
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-amber-200/60">
+        <div
+          className="h-full rounded-full bg-amber-500 transition-all duration-1000 ease-out"
+          style={{ width: `${progressPercent}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 const COUNTRY_OPTIONS = [
   { value: 'us', label: 'United States', apiValue: 'US', currency: 'USD' },
   { value: 'sg', label: 'Singapore', apiValue: 'SG', currency: 'SGD' },
@@ -354,7 +407,9 @@ export default function SearchResultsClient({
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
-  const [loadingInitial, setLoadingInitial] = useState(false);
+  const [loadingInitial, setLoadingInitial] = useState(
+    initialQuery.trim().length >= MIN_QUERY_LENGTH
+  );
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [degraded, setDegraded] = useState(false);
@@ -816,7 +871,7 @@ export default function SearchResultsClient({
                     {activeCountry.label}
                   </p>
                   <h2 className="mt-1 text-2xl font-semibold text-slate-950">
-                    {loadingInitial ? 'Searching catalog...' : `${total.toLocaleString()} results for “${debouncedQuery}”`}
+                    {loadingInitial ? 'Loading results…' : `${total.toLocaleString()} results for “${debouncedQuery}”`}
                   </h2>
                 </div>
                 <Link
@@ -826,6 +881,10 @@ export default function SearchResultsClient({
                   Back to homepage
                 </Link>
               </div>
+
+              {loadingInitial ? (
+                <SearchProgressIndicator query={debouncedQuery} />
+              ) : null}
 
               {loadingInitial ? <SearchResultsSkeleton /> : null}
 
