@@ -442,7 +442,7 @@ router.get(
     // country_code is the canonical param; `country` is kept as a backward-compat alias.
     // Default to SG when neither country nor region is specified (BUY-6598: prevent cross-region accessory pollution).
     const explicitCountry = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
-    const countryCode = explicitCountry || (region ? undefined : 'SG');
+    const countryCode = explicitCountry; // hotfix(search): drop silent SG hard-filter default that excluded ~87% untagged catalog
     const minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
     const maxPrice = req.query.max_price ? parseFloat(req.query.max_price as string) : undefined;
     // Infer default currency from country_code when not explicitly provided.
@@ -545,7 +545,7 @@ router.get(
       baseIdx++;
     }
     if (countryCode) {
-      baseConditions.push(`country_code = $${baseIdx}`);
+      baseConditions.push(`(country_code = $${baseIdx} OR country_code IS NULL)`);
       baseParams.push(countryCode);
       baseIdx++;
     }
