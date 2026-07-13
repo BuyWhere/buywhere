@@ -260,6 +260,45 @@ function SearchResultsSkeleton() {
   );
 }
 
+function SearchProgressIndicator({ startedAt }: { startedAt: number }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [startedAt]);
+
+  const phase =
+    elapsed < 3
+      ? { icon: '\uD83D\uDD0D', message: 'Searching catalog across retailers\u2026' }
+      : elapsed < 5
+        ? { icon: '\u23F3', message: 'Still searching \u2014 this may take a moment' }
+        : elapsed < 8
+          ? { icon: '\u231B', message: 'Almost there \u2014 compiling results' }
+          : { icon: '\uD83D\uDD0D', message: 'Still working \u2014 many retailers being queried' };
+
+  return (
+    <div className="flex flex-col items-center gap-3 py-6" role="status" aria-live="polite">
+      <div className="flex items-center gap-2 text-sm text-slate-500">
+        <span className="text-lg">{phase.icon}</span>
+        <span>{phase.message}</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <div className="h-1.5 w-32 overflow-hidden rounded-full bg-slate-200">
+          <div
+            className="h-full animate-pulse rounded-full bg-amber-500 transition-all duration-1000"
+            style={{ width: `${Math.min((elapsed / 12) * 100, 85)}%` }}
+          />
+        </div>
+        <span className="min-w-[2.5ch] text-xs tabular-nums text-slate-400">{elapsed}s</span>
+      </div>
+    </div>
+  );
+}
+
+
 function SearchCard({ product }: { product: SearchCardProduct }) {
   return (
     <a
@@ -355,6 +394,7 @@ export default function SearchResultsClient({
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [loadingInitial, setLoadingInitial] = useState(false);
+  const [searchStartTime, setSearchStartTime] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [degraded, setDegraded] = useState(false);
@@ -496,6 +536,7 @@ export default function SearchResultsClient({
 
     if (mode === 'replace') {
       setLoadingInitial(true);
+      setSearchStartTime(Date.now());
     } else {
       setLoadingMore(true);
     }
@@ -571,6 +612,7 @@ export default function SearchResultsClient({
     } finally {
       if (mode === 'replace') {
         setLoadingInitial(false);
+        setSearchStartTime(null);
       } else {
         setLoadingMore(false);
       }
@@ -816,7 +858,14 @@ export default function SearchResultsClient({
                     {activeCountry.label}
                   </p>
                   <h2 className="mt-1 text-2xl font-semibold text-slate-950">
-                    {loadingInitial ? 'Searching catalog...' : `${total.toLocaleString()} results for “${debouncedQuery}”`}
+                    {loadingInitial ? (
+                      <>
+                        Searching catalog...
+                        <span className="ml-2 animate-pulse text-lg leading-none">&bull;&bull;&bull;</span>
+                      </>
+                    ) : (
+                      `${total.toLocaleString()} results for “${debouncedQuery}”`
+                    )}
                   </h2>
                 </div>
                 <Link
@@ -827,7 +876,12 @@ export default function SearchResultsClient({
                 </Link>
               </div>
 
-              {loadingInitial ? <SearchResultsSkeleton /> : null}
+              {loadingInitial ? (
+                <>
+                  <SearchProgressIndicator startedAt={searchStartTime ?? Date.now()} />
+                  <SearchResultsSkeleton />
+                </>
+              ) : null}
 
               {showDegradedState ? (
                 <div
