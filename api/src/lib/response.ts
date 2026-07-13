@@ -76,10 +76,12 @@ export function buildSearchResponse(
   offset: number,
   responseTimeMs: number,
   cached: boolean,
+  degraded: boolean = false,
 ): SearchResponse {
   return {
     results: products,
     total,
+    meta: { degraded, cached },
     page: { limit, offset },
     response_time_ms: responseTimeMs,
     cached,
