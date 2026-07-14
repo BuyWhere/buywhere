@@ -1247,9 +1247,9 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
   },
   "macbook-air-singapore": {
     slug: "macbook-air-singapore",
-    title: "MacBook Air Singapore from S$1,299 — M3 & M4 Prices (2026)",
+    title: "Cheapest MacBook Air in Singapore (2026) — from S$1,299",
     description:
-      "MacBook Air in Singapore starts at S$1,299 during the 6.6 campaign (vs S$1,499 at Apple Store). Compare M3 and M4 prices across Apple, Shopee, Lazada, and authorised resellers.",
+      "Cheapest MacBook Air in Singapore from S$1,299 (M3) / S$1,499 (M4). Compare live M3/M4 prices at Apple Store, Shopee, Lazada, and authorised resellers.",
     heroEyebrow: "Singapore Laptop Guide",
     heroTitle: "Cheapest MacBook Air in Singapore",
     heroBody:
@@ -1259,7 +1259,7 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "MacBook Air",
-    refreshedLabel: "Updated May 4, 2026",
+    refreshedLabel: "Updated July 14, 2026",
     productSectionTitle: "Live MacBook Air offers across Singapore",
     comparisonSectionTitle: "MacBook Air models at a glance",
     comparisonColumns: ["Model", "Price", "Chip", "RAM", "Best For"],
