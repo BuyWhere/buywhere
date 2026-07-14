@@ -28,7 +28,7 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
 const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'idjoin-v4'; // bumped: invalidate pre-fix cached empties/degraded results after the ORDER BY updated_at removal
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'no-seo-preempt-v5'; // bumped: invalidate pre-fix cached empties/degraded results after the ORDER BY updated_at removal
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -1097,7 +1097,12 @@ router.get(
         }
       }
 
-      if (q && isSeoHeadQuery(q) && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
+      // BUY perf 2026-07-14: this SEO-head pre-empt ran a slow title-ILIKE seq scan (~8s)
+      // BEFORE the FTS path for EVERY >=2-word query (isSeoHeadQuery = "2+ words"), returning
+      // ILIKE junk ("coffee maker" -> "Coffee Cookie Stamp"). Now that the FTS candidate gather
+      // is fast (~150ms), skip the pre-empt so FTS serves relevant results. Re-enable for
+      // curated SEO landing rows only via SEO_HEAD_PREEMPT=1.
+      if (process.env.SEO_HEAD_PREEMPT === '1' && q && isSeoHeadQuery(q) && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
         const seoFallbackResult = await client.query(seoFallbackQuery, seoFallbackParamsWithPage);
         if (seoFallbackResult.rows.length > 0) {
           await client.query('COMMIT');
