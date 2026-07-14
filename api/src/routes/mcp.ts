@@ -31,7 +31,7 @@ function releaseClientSafely(client: any) {
 const TOOLS = [
   {
     name: 'search_products',
-    description: 'Search the BuyWhere product catalog by keyword. Returns products from e-commerce platforms across multiple regions (Singapore, US, etc.). Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields.',
+    description: "Search the BuyWhere product catalog by keyword. ALWAYS pass deliver_to as the ISO-3166 country of your END USER (e.g. deliver_to: 'SG') — results are then ranked deliverable-first and every product carries an availability label ('local' = sold from that country, 'unknown' = cross-border). Add include_unshippable: false to return only same-country products. Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -39,6 +39,8 @@ const TOOLS = [
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
+        deliver_to: { type: 'string', description: "REQUIRED for good results: ISO-3166 country of the END USER (where they want products delivered), e.g. 'SG', 'US'. Ranks local products first and labels each result's availability. Unlike country_code this never filters results out." },
+        include_unshippable: { type: 'boolean', description: 'Default true. Set false (with deliver_to) to return only products sold from the user\'s own country.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
         min_price: { type: 'number', description: 'Minimum price (in currency inferred from country_code, or SGD by default)' },
         max_price: { type: 'number', description: 'Maximum price (in currency inferred from country_code, or SGD by default)' },
@@ -195,7 +197,7 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 async function runTierSearch(p: {
   q: string; country: string; domain: string; category: string;
   minPrice: number | null; maxPrice: number | null; limit: number; offset: number;
-  compact: boolean; currency: string; t0: number;
+  compact: boolean; currency: string; t0: number; deliverTo?: string;
 }): Promise<Record<string, unknown> | null> {
   const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
   if (lexemes.length === 0) return null;
@@ -211,9 +213,12 @@ async function runTierSearch(p: {
   if (p.maxPrice != null && Number.isFinite(p.maxPrice)) { conds.push(`sp.price <= $${i}`); params.push(p.maxPrice); i++; }
   if (p.domain) { conds.push(`sp.source = $${i}`); params.push(p.domain); i++; }
   if (p.category) { conds.push(`lower(regexp_replace(coalesce(sp.category,''),'\\s+','-','g')) = lower($${i})`); params.push(p.category); i++; }
+  let dtIdx = 0;
+  if (p.deliverTo) { dtIdx = i; params.push(p.deliverTo); i++; } // rank-only: local-first, never filters
   const filterSql = conds.length ? ' AND ' + conds.join(' AND ') : '';
   const limitIdx = i; params.push(p.limit); i++;
   const offsetIdx = i; params.push(p.offset); i++;
+  const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
 
   const cols = `sp.id, sp.sku AS source, sp.source AS domain, sp.url, sp.title, sp.price, sp.currency,
     sp.image_url,
@@ -231,7 +236,7 @@ async function runTierSearch(p: {
     )
     SELECT ${cols}, top.rank AS _fts_rank
     FROM top JOIN search_products sp ON sp.id = top.id
-    ORDER BY top.rank DESC
+    ORDER BY ${orderPrefix}top.rank DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
 
   const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
@@ -253,6 +258,14 @@ async function runTierSearch(p: {
     const total = p.offset + rows.length;
     const resp = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.t0, false) as unknown as Record<string, unknown>;
     resp.source = 'search_products_tier';
+    const respItems = (resp.data as Array<Record<string, unknown>>) || [];
+    const respMeta = resp.meta as Record<string, unknown> | undefined;
+    if (p.deliverTo) {
+      for (const it of respItems) it.availability = it.country_code === p.deliverTo ? 'local' : 'unknown';
+      if (respMeta) respMeta.deliver_to = p.deliverTo;
+    } else if (p.q && respMeta) {
+      respMeta.hint = "Pass deliver_to=<ISO-3166 country of your end user> to rank deliverable products first.";
+    }
     return resp;
   } catch (e) {
     try { await client.query('ROLLBACK'); } catch (_) { /* ignore */ }
@@ -276,7 +289,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // and recent rows are predominantly US/null so SG filter finds nothing.
   const rawCountry = (((args.country_code as string) || (args.country as string)) || '').toUpperCase();
   const hasExplicitCountry = !!(args.country_code || args.country);
-  const country = rawCountry || (q && !region ? 'SG' : '');
+  // 2026-07-14: silent SG default removed (mirrors REST fix — it hard-filtered ~90% of the
+  // catalog for callers that never pass country). deliver_to is the soft rank+label param.
+  const country = rawCountry;
+  const deliverTo = ((args.deliver_to as string) || '').toUpperCase() || undefined;
+  const includeUnshippable = args.include_unshippable !== false;
   const category = (args.category as string) || '';
   const minPrice = args.min_price != null ? Number(args.min_price) : null;
   const maxPrice = args.max_price != null ? Number(args.max_price) : null;
@@ -285,7 +302,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const compact = args.compact === true;
   const currency = country ? (COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
 
-  const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
+  const cacheKey = `fts2:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
   try {
     const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
     if (cached) {
@@ -302,6 +319,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   if (q && !useVector && process.env.SEARCH_USE_TIER === '1') {
     const tierRes = await runTierSearch({
       q, country, domain, category, minPrice, maxPrice, limit, offset, compact, currency, t0,
+      deliverTo,
     }).catch((e) => { console.warn('[mcp tier] fell back to archive:', (e as Error)?.message); return null; });
     if (tierRes) {
       try { await redis.set(cacheKey, JSON.stringify(tierRes), 'EX', 3600); } catch (_) { /* non-fatal */ }

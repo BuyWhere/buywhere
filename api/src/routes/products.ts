@@ -28,7 +28,7 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
 const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'no-seo-preempt-v5'; // bumped: invalidate pre-fix cached empties/degraded results after the ORDER BY updated_at removal
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v6'; // bumped: invalidate pre-fix cached empties/degraded results after the ORDER BY updated_at removal
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -80,6 +80,7 @@ async function tryTierSearch(
     q: string; countryCode?: string; currency: string; limit: number; offset: number;
     minPrice?: number; maxPrice?: number; category?: string; brand?: string; domain?: string;
     compact: boolean; requestStart: number; cacheKey: string;
+    deliverTo?: string; includeUnshippable?: boolean;
   },
 ): Promise<boolean> {
   const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
@@ -101,9 +102,12 @@ async function tryTierSearch(
   // slug (lower, spaces->hyphens) and compare to the slug param, instead of the old
   // broken `category ILIKE '%pet-supplies%'` substring match.
   if (p.category) { conds.push(`lower(regexp_replace(coalesce(sp.category,''),'\\s+','-','g')) = lower($${i})`); params.push(p.category); i++; }
+  let dtIdx = 0;
+  if (p.deliverTo) { dtIdx = i; params.push(p.deliverTo); i++; } // rank-only: local-first ordering, never filters
   const filterSql = conds.length ? ' AND ' + conds.join(' AND ') : '';
   const limitIdx = i; params.push(p.limit + 1); i++;
   const offsetIdx = i; params.push(p.offset); i++;
+  const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
 
   const cols = `sp.id, sp.source AS domain, sp.url, al.destination_url AS affiliate_url,
     sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
@@ -123,7 +127,7 @@ async function tryTierSearch(
     SELECT ${cols}, top.rank AS _fts_rank
     FROM top JOIN search_products sp ON sp.id = top.id
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY top.rank DESC
+    ORDER BY ${orderPrefix}top.rank DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
 
   const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
@@ -133,14 +137,14 @@ async function tryTierSearch(
     FROM search_products sp
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}
-    ORDER BY sp.id DESC
+    ORDER BY ${orderPrefix}sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const tokenTitleFallbackQuery = `
     SELECT ${cols}, 0 AS _fts_rank
     FROM search_products sp
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}
-    ORDER BY sp.id DESC
+    ORDER BY ${orderPrefix}sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
 
   let client: PoolClient;
@@ -175,6 +179,7 @@ async function tryTierSearch(
     const total = p.offset + rows.length;
     const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false) as unknown as Record<string, unknown>;
     responseBody.source = 'search_products_tier';
+    annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
     redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
     res.set('X-Search-Tier', '1');
     res.json(responseBody);
@@ -220,6 +225,27 @@ function mergeRrfCandidateIds(ftsIds: string[], semanticIds: string[], limit: nu
 
 function isSeoHeadQuery(query: string): boolean {
   return query.trim().split(/\s+/).filter(Boolean).length >= 2;
+}
+
+// deliver_to soft contract (2026-07-14): annotate availability relative to the END
+// USER's country, optionally filter to local-only, and hint agents to pass deliver_to.
+// v1 labels (merchant-country == deliver_to -> 'local', else 'unknown') until
+// per-merchant ships-to enrichment lands. Never hides results unless the caller
+// explicitly sets include_unshippable=false.
+function annotateDeliverTo(body: Record<string, unknown>, deliverTo: string | undefined, includeUnshippable: boolean, q: string): void {
+  const items = (body.data as Array<Record<string, unknown>>) || [];
+  const meta = body.meta as Record<string, unknown> | undefined;
+  if (deliverTo) {
+    for (const it of items) it.availability = it.country_code === deliverTo ? 'local' : 'unknown';
+    if (!includeUnshippable) {
+      const kept = items.filter((it) => it.availability === 'local');
+      body.data = kept;
+      if (meta) meta.total = kept.length;
+    }
+    if (meta) meta.deliver_to = deliverTo;
+  } else if (q && meta) {
+    meta.hint = "Pass deliver_to=<ISO-3166 country of your end user, e.g. deliver_to=SG> to rank products deliverable to them first (adds an availability label per product). Add include_unshippable=false to return only same-country products.";
+  }
 }
 
 function isLaptopSearchQuery(query: string): boolean {
@@ -456,6 +482,10 @@ router.get(
     const compact = req.query.compact === 'true';
     const rawMode = (req.query.mode as string | undefined)?.toLowerCase();
     const searchMode = rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE;
+    // deliver_to soft contract (2026-07-14): the END USER's country. Ranks local-first
+    // and labels availability; never hard-filters (country_code remains the hard filter).
+    const deliverTo = ((req.query.deliver_to as string) || '').toUpperCase() || undefined;
+    const includeUnshippable = req.query.include_unshippable !== 'false';
 
     // BUY-42589: canonicalize SG retailer brand names (harvey norman, courts, gaincity, etc.)
     // to source= filters. The retailer name is in the source field, not in product titles,
@@ -471,7 +501,7 @@ router.get(
     const qNorm = q.toLowerCase().trim().split(/\s+/)
       .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
       || q.toLowerCase().trim();
-    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}`;
+    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
       if (cached) {
@@ -515,6 +545,7 @@ router.get(
       const handled = await tryTierSearch(req, res, {
         q, countryCode, currency, limit, offset, minPrice, maxPrice,
         category, brand, domain, compact, requestStart, cacheKey,
+        deliverTo, includeUnshippable,
       });
       if (handled) return;
     }
@@ -817,6 +848,7 @@ router.get(
       const responseBody = buildSearchResponse(
         fallbackProducts, total, limit, offset, responseTimeMs, hasMore
       );
+      annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
       redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
       res.set('X-Search-Fallback', source);
       res.json(responseBody);
@@ -1316,6 +1348,7 @@ router.get(
     const responseBody = buildSearchResponse(
       filteredProducts, total, limit, offset, responseTimeMs, hasMore ?? false
     );
+    annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
 
     // Cache result in Redis (fire-and-forget)
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
