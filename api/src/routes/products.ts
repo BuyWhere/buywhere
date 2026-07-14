@@ -28,7 +28,7 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
 const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'orderby-fix-v2'; // bumped: invalidate pre-fix cached empties/degraded results after the ORDER BY updated_at removal
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'and-bounded-v3'; // bumped: invalidate pre-fix cached empties/degraded results after the ORDER BY updated_at removal
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -964,8 +964,11 @@ router.get(
             return runBoundedSgMatch(ftsOrMatch, dataParams, broadRecentSliceWhereClause);
           }
 
-          const andQuery = baseQuery.split(ftsOrMatch).join(ftsAndMatch);
-          let andRes = await client.query(andQuery, dataParams);
+          // perf+relevance: gather via the BOUNDED id-only AND match (proven ~140ms cold,
+          // both-term precise), mirroring the SG path above. The old string-swapped unbounded
+          // andQuery fell through to OR-junk in prod (coffee maker -> 'Peacemaker' chair).
+          const andQuery = baseQuery.split(ftsOrMatch).join(ftsAndMatch); // retained for SG-widen refs below
+          let andRes = await runBoundedSgMatch(ftsAndMatch);
           // SG queries embed the freshness guardrail; if the strict AND match finds
           // nothing fresh, widen it past the freshness window before giving up on AND.
           if (useSgFreshnessGuardrail && andRes.rows.length === 0) {
