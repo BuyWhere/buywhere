@@ -204,7 +204,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
 
 function isUsableProductImage(imageUrl?: string | null) {
   if (!imageUrl) return false;
-  if (imageUrl.startsWith("data:image/svg+xml")) return true;
+  if (imageUrl.startsWith("data:image/svg+xml")) return false;
 
   try {
     const url = new URL(imageUrl);
@@ -232,7 +232,7 @@ function buildCategoryImage(product: LandingProduct) {
 
 function withFallbackImage(product: LandingProduct): LandingProduct {
   if (product.imageUrl) return product;
-  return { ...product, imageUrl: buildCategoryImage(product) };
+  return { ...product, imageUrl: null };
 }
 
 export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promise<LandingProduct[]> {
@@ -441,7 +441,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
                     name: product.brand,
                   }
                 : undefined,
-              image: product.imageUrl || undefined,
+              image: product.imageUrl && !product.imageUrl.startsWith("data:image/svg+xml") ? product.imageUrl : undefined,
               category: product.category || undefined,
               offers:
                 product.price !== null
