@@ -42,7 +42,7 @@ import { db } from '../config';
 const REPLICA_URL = process.env.REPLICA_DATABASE_URL || '';
 const MAX_LAG_MS = parseInt(process.env.REPLICA_MAX_LAG_MS || '2000');
 const PROBE_INTERVAL_MS = parseInt(process.env.REPLICA_PROBE_INTERVAL_MS || '5000');
-const REPLICA_POOL_MAX = parseInt(process.env.REPLICA_POOL_MAX || '20');
+const REPLICA_POOL_MAX = parseInt(process.env.REPLICA_POOL_MAX || '50'); // raised 20->50: absorb concurrent-search bursts (health-bot 395-req burst saturated 20-slot pool -> connect-timeout 500s 2026-07-14)
 // hotfix: search tolerates a small replication backlog. Byte-exact LSN match
 // never holds under continuous primary writes, so treat the replica as fresh
 // when the un-replayed WAL gap is within a bounded threshold (default 50MB).

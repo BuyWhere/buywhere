@@ -835,7 +835,9 @@ router.get(
           SELECT id, country_code, search_vector
           FROM products
           ${rankedWhereClause}
-          ORDER BY updated_at DESC
+          -- perf(search): no ORDER BY updated_at — sorting the full FTS match set
+          -- (67K–millions of rows) forced a heap scan of every match (nike cold 8.2s->0.14s,
+          -- espresso machine 3.7s->0.26s). LIMIT stops early; candidates ranked by ts_rank below.
           LIMIT ${CANDIDATE_CAP}
         ), top_ids AS (
           SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
@@ -928,7 +930,7 @@ router.get(
                 FROM products
                 ${sliceWhereClause}
                   AND ${matchExpr}
-                ORDER BY updated_at DESC
+                -- perf(search): no ORDER BY updated_at (same early-stop fix as recent_hits above)
                 LIMIT ${CANDIDATE_CAP}
               ), top_ids AS (
                 SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
