@@ -113,7 +113,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               <div className="mt-8 flex flex-wrap gap-3 text-sm text-slate-100">
                 <span className="rounded-full bg-white/10 px-3 py-1.5">{config.refreshedLabel}</span>
                 <span className="rounded-full bg-white/10 px-3 py-1.5">{config.country} market coverage</span>
-                <span className="rounded-full bg-white/10 px-3 py-1.5">Live BuyWhere search results</span>
+                {products.length > 0 && <span className="rounded-full bg-white/10 px-3 py-1.5">Live BuyWhere search results</span>}
               </div>
             </div>
 
@@ -139,61 +139,83 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
           </div>
         </section>
 
-        <section className="bg-slate-50 py-16">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">Live catalog snapshot</p>
-                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
+        {products.length > 0 ? (
+          <section className="bg-slate-50 py-16">
+            <div className="mx-auto max-w-6xl px-4 sm:px-6">
+              <div className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">Live catalog snapshot</p>
+                  <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
+                </div>
+                <Link href={shopperCta.href} className="text-sm font-semibold text-amber-700 hover:text-amber-800">
+                  Open full search
+                </Link>
               </div>
-              <Link href={shopperCta.href} className="text-sm font-semibold text-amber-700 hover:text-amber-800">
-                Open full search
+
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {products.map((product) => (
+                  <ProductGridCard key={product.id} product={product} />
+                ))}
+              </div>
+            </div>
+          </section>
+        ) : (
+          <section className="bg-slate-50 py-16">
+            <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">Search now</p>
+              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
+                Search for {config.searchQuery} to see live results
+              </h2>
+              <p className="mt-4 text-base leading-7 text-slate-600">
+                We are refreshing our catalog data. Search for {config.searchQuery} to see the latest prices and offers across US retailers.
+              </p>
+              <Link
+                href={shopperCta.href}
+                className="mt-8 inline-flex min-h-[44px] items-center rounded-full bg-amber-400 px-6 py-3 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-300"
+              >
+                {shopperCta.label}
               </Link>
             </div>
+          </section>
+        )}
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {products.map((product) => (
-                <ProductGridCard key={product.id} product={product} />
-              ))}
-            </div>
-          </div>
-        </section>
+        {products.length > 0 && (
+          <section className="py-16">
+            <div className="mx-auto max-w-6xl px-4 sm:px-6">
+              <div className="mb-8 max-w-3xl">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Editor summary</p>
+                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.comparisonSectionTitle}</h2>
+              </div>
 
-        <section className="py-16">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="mb-8 max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Editor summary</p>
-              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.comparisonSectionTitle}</h2>
-            </div>
-
-            <div className="overflow-hidden rounded-[28px] border border-slate-200 shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="min-w-full bg-white text-left text-sm text-slate-700">
-                  <thead className="bg-slate-900 text-xs uppercase tracking-[0.18em] text-slate-200">
-                    <tr>
-                      {config.comparisonColumns.map((column) => (
-                        <th key={column} className="px-4 py-4 font-semibold">
-                          {column}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {config.comparisonRows.map((row, index) => (
-                      <tr key={`${row[config.comparisonColumns[0]]}-${index}`} className="border-t border-slate-100">
+              <div className="overflow-hidden rounded-[28px] border border-slate-200 shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full bg-white text-left text-sm text-slate-700">
+                    <thead className="bg-slate-900 text-xs uppercase tracking-[0.18em] text-slate-200">
+                      <tr>
                         {config.comparisonColumns.map((column) => (
-                          <td key={column} className="px-4 py-4 align-top">
-                            {row[column]}
-                          </td>
+                          <th key={column} className="px-4 py-4 font-semibold">
+                            {column}
+                          </th>
                         ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {config.comparisonRows.map((row, index) => (
+                        <tr key={`${row[config.comparisonColumns[0]]}-${index}`} className="border-t border-slate-100">
+                          {config.comparisonColumns.map((column) => (
+                            <td key={column} className="px-4 py-4 align-top">
+                              {row[column]}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         <section className="bg-[linear-gradient(180deg,#fff7ed_0%,#ffffff_100%)] py-16">
           <div className="mx-auto grid max-w-6xl gap-10 px-4 sm:px-6 lg:grid-cols-[0.95fr_1.05fr]">

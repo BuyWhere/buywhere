@@ -84,7 +84,6 @@ export type SeoLandingPageConfig = {
   faqs: Faq[];
   shopperCta?: Cta;
   developerCta?: Cta;
-  fallbackProducts: LandingProduct[];
 };
 
 function formatMerchantName(value?: string | null) {
@@ -143,7 +142,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
 
     return items.map((item) => normalizeProduct(item, config.currency)).slice(0, 8);
   } catch {
-    return config.fallbackProducts;
+    return [];
   }
 }
 
@@ -345,13 +344,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "ap1", name: "Dyson Purifier Cool Gen1", price: 699, currency: "SGD", merchant: "Dyson Singapore", imageUrl: null, href: "/search?q=Dyson+Purifier+Cool+Gen1&country=sg", brand: "Dyson", category: "Air Purifiers" },
-      { id: "ap2", name: "Philips 3000i Series Air Purifier", price: 459, currency: "SGD", merchant: "Philips", imageUrl: null, href: "/search?q=Philips+3000i+air+purifier&country=sg", brand: "Philips", category: "Air Purifiers" },
-      { id: "ap3", name: "Xiaomi Smart Air Purifier 4", price: 249, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=Xiaomi+Smart+Air+Purifier+4&country=sg", brand: "Xiaomi", category: "Air Purifiers" },
-      { id: "ap4", name: "Sharp Plasmacluster FP-J80E", price: 399, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=Sharp+Plasmacluster+FP-J80E&country=sg", brand: "Sharp", category: "Air Purifiers" },
-      { id: "ap5", name: "Sterra Breeze Pro", price: 329, currency: "SGD", merchant: "Sterra", imageUrl: null, href: "/search?q=Sterra+Breeze+Pro&country=sg", brand: "Sterra", category: "Air Purifiers" },
-    ],
   },
   "laptop-singapore": {
     slug: "laptop-singapore",
@@ -430,13 +422,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "View developer docs",
     },
-    fallbackProducts: [
-      { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
-      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: null, href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
-      { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: null, href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
-      { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
-      { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: null, href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
-    ],
   },
   "best-gaming-laptops-us": {
     slug: "best-gaming-laptops-us",
@@ -516,14 +501,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "g1", name: "ASUS ROG Zephyrus G16", price: 1999, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=ASUS+ROG+Zephyrus+G16&country=us", brand: "ASUS", category: "Gaming Laptops" },
-      { id: "g2", name: "Lenovo Legion Pro 7i", price: 2299, currency: "USD", merchant: "Lenovo", imageUrl: null, href: "/search?q=Lenovo+Legion+Pro+7i&country=us", brand: "Lenovo", category: "Gaming Laptops" },
-      { id: "g3", name: "Alienware m16 R3", price: 2499, currency: "USD", merchant: "Dell", imageUrl: null, href: "/search?q=Alienware+m16+R3&country=us", brand: "Alienware", category: "Gaming Laptops" },
-      { id: "g4", name: "HP Omen Transcend 14", price: 1699, currency: "USD", merchant: "HP", imageUrl: null, href: "/search?q=HP+Omen+Transcend+14&country=us", brand: "HP", category: "Gaming Laptops" },
-      { id: "g5", name: "Acer Predator Helios Neo 16", price: 1499, currency: "USD", merchant: "Acer", imageUrl: null, href: "/search?q=Acer+Predator+Helios+Neo+16&country=us", brand: "Acer", category: "Gaming Laptops" },
-      { id: "g6", name: "ASUS TUF Gaming A15", price: 1199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=ASUS+TUF+Gaming+A15&country=us", brand: "ASUS", category: "Gaming Laptops" },
-    ],
   },
   "iphone-16-price-singapore": {
     slug: "iphone-16-price-singapore",
@@ -603,14 +580,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "View developer docs",
     },
-    fallbackProducts: [
-      { id: "i1", name: "Apple iPhone 16 128GB", price: 1239, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=iPhone%2016%20128GB&country=sg", brand: "Apple", category: "Smartphones" },
-      { id: "i2", name: "Apple iPhone 16 256GB", price: 1429, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=iPhone%2016%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
-      { id: "i3", name: "Apple iPhone 16 128GB", price: 1299, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=Apple%20iPhone%2016&country=sg", brand: "Apple", category: "Smartphones" },
-      { id: "i4", name: "Apple iPhone 16 256GB", price: 1459, currency: "SGD", merchant: "Amazon.sg", imageUrl: null, href: "/search?q=iPhone%2016%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
-      { id: "i5", name: "Apple iPhone 16 128GB", price: 1279, currency: "SGD", merchant: "Challenger", imageUrl: null, href: "/search?q=iPhone%2016%20128GB&country=sg", brand: "Apple", category: "Smartphones" },
-      { id: "i6", name: "Apple iPhone 16 128GB", price: 1279, currency: "SGD", merchant: "Courts", imageUrl: null, href: "/search?q=iPhone%2016%20128GB&country=sg", brand: "Apple", category: "Smartphones" },
-    ],
   },
   "best-robot-vacuums-2026": {
     slug: "best-robot-vacuums-2026",
@@ -690,14 +659,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "r1", name: "Roborock S8 MaxV Ultra", price: 1299, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=Roborock+S8+MaxV+Ultra&country=us", brand: "Roborock", category: "Robot Vacuums" },
-      { id: "r2", name: "iRobot Roomba Combo j9+", price: 999, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=Roomba+Combo+j9%2B&country=us", brand: "iRobot", category: "Robot Vacuums" },
-      { id: "r3", name: "Shark PowerDetect 2-in-1", price: 699, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=Shark+PowerDetect+2-in-1&country=us", brand: "Shark", category: "Robot Vacuums" },
-      { id: "r4", name: "Ecovacs Deebot X2 Omni", price: 1099, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=Ecovacs+Deebot+X2+Omni&country=us", brand: "Ecovacs", category: "Robot Vacuums" },
-      { id: "r5", name: "eufy X10 Pro Omni", price: 799, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=eufy+X10+Pro+Omni&country=us", brand: "eufy", category: "Robot Vacuums" },
-      { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
-    ],
   },
   "airpods-singapore": {
     slug: "airpods-singapore",
@@ -774,13 +735,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "ap1", name: "Apple AirPods Pro 2", price: 349, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=AirPods+Pro+2&country=sg", brand: "Apple", category: "Audio" },
-      { id: "ap2", name: "Apple AirPods 4", price: 199, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=AirPods+4&country=sg", brand: "Apple", category: "Audio" },
-      { id: "ap3", name: "Apple AirPods Max", price: 699, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=AirPods+Max&country=sg", brand: "Apple", category: "Audio" },
-      { id: "ap4", name: "Apple AirPods Pro 2", price: 339, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=AirPods+Pro+2&country=sg", brand: "Apple", category: "Audio" },
-      { id: "ap5", name: "Apple AirPods 4", price: 189, currency: "SGD", merchant: "Courts", imageUrl: null, href: "/search?q=AirPods+4&country=sg", brand: "Apple", category: "Audio" },
-    ],
   },
   "best-gaming-laptop-singapore": {
     slug: "best-gaming-laptop-singapore",
@@ -859,13 +813,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "g1", name: "ASUS ROG Zephyrus G16", price: 2899, currency: "SGD", merchant: "ASUS Singapore", imageUrl: null, href: "/search?q=ASUS+ROG+Zephyrus+G16&country=sg", brand: "ASUS", category: "Gaming Laptops" },
-      { id: "g2", name: "Lenovo Legion Pro 7i", price: 3299, currency: "SGD", merchant: "Lenovo", imageUrl: null, href: "/search?q=Lenovo+Legion+Pro+7i&country=sg", brand: "Lenovo", category: "Gaming Laptops" },
-      { id: "g3", name: "HP Omen Transcend 14", price: 2499, currency: "SGD", merchant: "HP", imageUrl: null, href: "/search?q=HP+Omen+Transcend+14&country=sg", brand: "HP", category: "Gaming Laptops" },
-      { id: "g4", name: "Acer Predator Helios Neo 16", price: 2199, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=Acer+Predator+Helios+Neo+16&country=sg", brand: "Acer", category: "Gaming Laptops" },
-      { id: "g5", name: "ASUS TUF Gaming A15", price: 1799, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=ASUS+TUF+Gaming+A15&country=sg", brand: "ASUS", category: "Gaming Laptops" },
-    ],
   },
   "macbook-air-singapore": {
     slug: "macbook-air-singapore",
@@ -942,13 +889,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "m1", name: "Apple MacBook Air 13 M4", price: 1599, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=MacBook+Air+13+M4&country=sg", brand: "Apple", category: "Laptops" },
-      { id: "m2", name: "Apple MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=MacBook+Air+13+M3&country=sg", brand: "Apple", category: "Laptops" },
-      { id: "m3", name: "Apple MacBook Air 15 M4", price: 1899, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=MacBook+Air+15+M4&country=sg", brand: "Apple", category: "Laptops" },
-      { id: "m4", name: "Apple MacBook Air 13 M3", price: 1399, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=MacBook+Air+13+M3&country=sg", brand: "Apple", category: "Laptops" },
-      { id: "m5", name: "Apple MacBook Air 13 M4", price: 1499, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=MacBook+Air+13+M4&country=sg", brand: "Apple", category: "Laptops" },
-    ],
   },
   "best-tvs-us": {
     slug: "best-tvs-us",
@@ -1025,13 +965,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "TVs Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=tvs+product+a&country=us", brand: "Brand A", category: "TVs" },
-      { id: "f2", name: "TVs Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=tvs+product+b&country=us", brand: "Brand B", category: "TVs" },
-      { id: "f3", name: "TVs Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=tvs+product+c&country=us", brand: "Brand C", category: "TVs" },
-      { id: "f4", name: "TVs Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=tvs+product+d&country=us", brand: "Brand D", category: "TVs" },
-      { id: "f5", name: "TVs Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=tvs+product+e&country=us", brand: "Brand E", category: "TVs" },
-    ],
   },
   "best-headphones-us": {
     slug: "best-headphones-us",
@@ -1108,13 +1041,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Headphones Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=headphones+product+a&country=us", brand: "Brand A", category: "Headphones" },
-      { id: "f2", name: "Headphones Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=headphones+product+b&country=us", brand: "Brand B", category: "Headphones" },
-      { id: "f3", name: "Headphones Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=headphones+product+c&country=us", brand: "Brand C", category: "Headphones" },
-      { id: "f4", name: "Headphones Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=headphones+product+d&country=us", brand: "Brand D", category: "Headphones" },
-      { id: "f5", name: "Headphones Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=headphones+product+e&country=us", brand: "Brand E", category: "Headphones" },
-    ],
   },
   "best-earbuds-us": {
     slug: "best-earbuds-us",
@@ -1191,13 +1117,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Earbuds Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=wireless+earbuds+product+a&country=us", brand: "Brand A", category: "Earbuds" },
-      { id: "f2", name: "Earbuds Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=wireless+earbuds+product+b&country=us", brand: "Brand B", category: "Earbuds" },
-      { id: "f3", name: "Earbuds Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=wireless+earbuds+product+c&country=us", brand: "Brand C", category: "Earbuds" },
-      { id: "f4", name: "Earbuds Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=wireless+earbuds+product+d&country=us", brand: "Brand D", category: "Earbuds" },
-      { id: "f5", name: "Earbuds Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=wireless+earbuds+product+e&country=us", brand: "Brand E", category: "Earbuds" },
-    ],
   },
   "best-smartwatches-us": {
     slug: "best-smartwatches-us",
@@ -1274,13 +1193,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Smartwatches Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=smartwatches+product+a&country=us", brand: "Brand A", category: "Smartwatches" },
-      { id: "f2", name: "Smartwatches Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=smartwatches+product+b&country=us", brand: "Brand B", category: "Smartwatches" },
-      { id: "f3", name: "Smartwatches Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=smartwatches+product+c&country=us", brand: "Brand C", category: "Smartwatches" },
-      { id: "f4", name: "Smartwatches Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=smartwatches+product+d&country=us", brand: "Brand D", category: "Smartwatches" },
-      { id: "f5", name: "Smartwatches Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=smartwatches+product+e&country=us", brand: "Brand E", category: "Smartwatches" },
-    ],
   },
   "best-tablets-us": {
     slug: "best-tablets-us",
@@ -1357,13 +1269,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Tablets Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=tablets+product+a&country=us", brand: "Brand A", category: "Tablets" },
-      { id: "f2", name: "Tablets Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=tablets+product+b&country=us", brand: "Brand B", category: "Tablets" },
-      { id: "f3", name: "Tablets Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=tablets+product+c&country=us", brand: "Brand C", category: "Tablets" },
-      { id: "f4", name: "Tablets Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=tablets+product+d&country=us", brand: "Brand D", category: "Tablets" },
-      { id: "f5", name: "Tablets Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=tablets+product+e&country=us", brand: "Brand E", category: "Tablets" },
-    ],
   },
   "best-cameras-us": {
     slug: "best-cameras-us",
@@ -1440,13 +1345,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Cameras Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cameras+product+a&country=us", brand: "Brand A", category: "Cameras" },
-      { id: "f2", name: "Cameras Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=cameras+product+b&country=us", brand: "Brand B", category: "Cameras" },
-      { id: "f3", name: "Cameras Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=cameras+product+c&country=us", brand: "Brand C", category: "Cameras" },
-      { id: "f4", name: "Cameras Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=cameras+product+d&country=us", brand: "Brand D", category: "Cameras" },
-      { id: "f5", name: "Cameras Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cameras+product+e&country=us", brand: "Brand E", category: "Cameras" },
-    ],
   },
   "best-laptops-us": {
     slug: "best-laptops-us",
@@ -1523,13 +1421,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Laptops Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=laptops+product+a&country=us", brand: "Brand A", category: "Laptops" },
-      { id: "f2", name: "Laptops Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=laptops+product+b&country=us", brand: "Brand B", category: "Laptops" },
-      { id: "f3", name: "Laptops Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=laptops+product+c&country=us", brand: "Brand C", category: "Laptops" },
-      { id: "f4", name: "Laptops Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=laptops+product+d&country=us", brand: "Brand D", category: "Laptops" },
-      { id: "f5", name: "Laptops Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=laptops+product+e&country=us", brand: "Brand E", category: "Laptops" },
-    ],
   },
   "best-monitors-us": {
     slug: "best-monitors-us",
@@ -1606,13 +1497,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Monitors Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=computer+monitors+product+a&country=us", brand: "Brand A", category: "Monitors" },
-      { id: "f2", name: "Monitors Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=computer+monitors+product+b&country=us", brand: "Brand B", category: "Monitors" },
-      { id: "f3", name: "Monitors Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=computer+monitors+product+c&country=us", brand: "Brand C", category: "Monitors" },
-      { id: "f4", name: "Monitors Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=computer+monitors+product+d&country=us", brand: "Brand D", category: "Monitors" },
-      { id: "f5", name: "Monitors Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=computer+monitors+product+e&country=us", brand: "Brand E", category: "Monitors" },
-    ],
   },
   "best-speakers-us": {
     slug: "best-speakers-us",
@@ -1689,13 +1573,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Speakers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=speakers+product+a&country=us", brand: "Brand A", category: "Speakers" },
-      { id: "f2", name: "Speakers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=speakers+product+b&country=us", brand: "Brand B", category: "Speakers" },
-      { id: "f3", name: "Speakers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=speakers+product+c&country=us", brand: "Brand C", category: "Speakers" },
-      { id: "f4", name: "Speakers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=speakers+product+d&country=us", brand: "Brand D", category: "Speakers" },
-      { id: "f5", name: "Speakers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=speakers+product+e&country=us", brand: "Brand E", category: "Speakers" },
-    ],
   },
   "best-gaming-consoles-us": {
     slug: "best-gaming-consoles-us",
@@ -1772,13 +1649,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Gaming Consoles Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=gaming+consoles+product+a&country=us", brand: "Brand A", category: "Gaming Consoles" },
-      { id: "f2", name: "Gaming Consoles Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=gaming+consoles+product+b&country=us", brand: "Brand B", category: "Gaming Consoles" },
-      { id: "f3", name: "Gaming Consoles Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=gaming+consoles+product+c&country=us", brand: "Brand C", category: "Gaming Consoles" },
-      { id: "f4", name: "Gaming Consoles Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=gaming+consoles+product+d&country=us", brand: "Brand D", category: "Gaming Consoles" },
-      { id: "f5", name: "Gaming Consoles Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=gaming+consoles+product+e&country=us", brand: "Brand E", category: "Gaming Consoles" },
-    ],
   },
   "best-mattresses-us": {
     slug: "best-mattresses-us",
@@ -1855,13 +1725,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Mattresses Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=mattresses+product+a&country=us", brand: "Brand A", category: "Mattresses" },
-      { id: "f2", name: "Mattresses Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=mattresses+product+b&country=us", brand: "Brand B", category: "Mattresses" },
-      { id: "f3", name: "Mattresses Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=mattresses+product+c&country=us", brand: "Brand C", category: "Mattresses" },
-      { id: "f4", name: "Mattresses Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=mattresses+product+d&country=us", brand: "Brand D", category: "Mattresses" },
-      { id: "f5", name: "Mattresses Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=mattresses+product+e&country=us", brand: "Brand E", category: "Mattresses" },
-    ],
   },
   "best-sofas-us": {
     slug: "best-sofas-us",
@@ -1938,13 +1801,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Sofas Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=sofas+product+a&country=us", brand: "Brand A", category: "Sofas" },
-      { id: "f2", name: "Sofas Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=sofas+product+b&country=us", brand: "Brand B", category: "Sofas" },
-      { id: "f3", name: "Sofas Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=sofas+product+c&country=us", brand: "Brand C", category: "Sofas" },
-      { id: "f4", name: "Sofas Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=sofas+product+d&country=us", brand: "Brand D", category: "Sofas" },
-      { id: "f5", name: "Sofas Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=sofas+product+e&country=us", brand: "Brand E", category: "Sofas" },
-    ],
   },
   "best-dining-tables-us": {
     slug: "best-dining-tables-us",
@@ -2021,13 +1877,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Dining Tables Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=dining+tables+product+a&country=us", brand: "Brand A", category: "Dining Tables" },
-      { id: "f2", name: "Dining Tables Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=dining+tables+product+b&country=us", brand: "Brand B", category: "Dining Tables" },
-      { id: "f3", name: "Dining Tables Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=dining+tables+product+c&country=us", brand: "Brand C", category: "Dining Tables" },
-      { id: "f4", name: "Dining Tables Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=dining+tables+product+d&country=us", brand: "Brand D", category: "Dining Tables" },
-      { id: "f5", name: "Dining Tables Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=dining+tables+product+e&country=us", brand: "Brand E", category: "Dining Tables" },
-    ],
   },
   "best-coffee-tables-us": {
     slug: "best-coffee-tables-us",
@@ -2104,13 +1953,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Coffee Tables Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=coffee+tables+product+a&country=us", brand: "Brand A", category: "Coffee Tables" },
-      { id: "f2", name: "Coffee Tables Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=coffee+tables+product+b&country=us", brand: "Brand B", category: "Coffee Tables" },
-      { id: "f3", name: "Coffee Tables Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=coffee+tables+product+c&country=us", brand: "Brand C", category: "Coffee Tables" },
-      { id: "f4", name: "Coffee Tables Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=coffee+tables+product+d&country=us", brand: "Brand D", category: "Coffee Tables" },
-      { id: "f5", name: "Coffee Tables Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=coffee+tables+product+e&country=us", brand: "Brand E", category: "Coffee Tables" },
-    ],
   },
   "best-tv-stands-us": {
     slug: "best-tv-stands-us",
@@ -2187,13 +2029,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "TV Stands Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=tv+stands+product+a&country=us", brand: "Brand A", category: "TV Stands" },
-      { id: "f2", name: "TV Stands Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=tv+stands+product+b&country=us", brand: "Brand B", category: "TV Stands" },
-      { id: "f3", name: "TV Stands Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=tv+stands+product+c&country=us", brand: "Brand C", category: "TV Stands" },
-      { id: "f4", name: "TV Stands Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=tv+stands+product+d&country=us", brand: "Brand D", category: "TV Stands" },
-      { id: "f5", name: "TV Stands Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=tv+stands+product+e&country=us", brand: "Brand E", category: "TV Stands" },
-    ],
   },
   "best-bookcases-us": {
     slug: "best-bookcases-us",
@@ -2270,13 +2105,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Bookcases Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=bookcases+product+a&country=us", brand: "Brand A", category: "Bookcases" },
-      { id: "f2", name: "Bookcases Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=bookcases+product+b&country=us", brand: "Brand B", category: "Bookcases" },
-      { id: "f3", name: "Bookcases Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=bookcases+product+c&country=us", brand: "Brand C", category: "Bookcases" },
-      { id: "f4", name: "Bookcases Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=bookcases+product+d&country=us", brand: "Brand D", category: "Bookcases" },
-      { id: "f5", name: "Bookcases Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=bookcases+product+e&country=us", brand: "Brand E", category: "Bookcases" },
-    ],
   },
   "best-dressers-us": {
     slug: "best-dressers-us",
@@ -2353,13 +2181,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Dressers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=dressers+product+a&country=us", brand: "Brand A", category: "Dressers" },
-      { id: "f2", name: "Dressers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=dressers+product+b&country=us", brand: "Brand B", category: "Dressers" },
-      { id: "f3", name: "Dressers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=dressers+product+c&country=us", brand: "Brand C", category: "Dressers" },
-      { id: "f4", name: "Dressers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=dressers+product+d&country=us", brand: "Brand D", category: "Dressers" },
-      { id: "f5", name: "Dressers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=dressers+product+e&country=us", brand: "Brand E", category: "Dressers" },
-    ],
   },
   "best-nightstands-us": {
     slug: "best-nightstands-us",
@@ -2436,13 +2257,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Nightstands Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=nightstands+product+a&country=us", brand: "Brand A", category: "Nightstands" },
-      { id: "f2", name: "Nightstands Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=nightstands+product+b&country=us", brand: "Brand B", category: "Nightstands" },
-      { id: "f3", name: "Nightstands Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=nightstands+product+c&country=us", brand: "Brand C", category: "Nightstands" },
-      { id: "f4", name: "Nightstands Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=nightstands+product+d&country=us", brand: "Brand D", category: "Nightstands" },
-      { id: "f5", name: "Nightstands Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=nightstands+product+e&country=us", brand: "Brand E", category: "Nightstands" },
-    ],
   },
   "best-outdoor-furniture-us": {
     slug: "best-outdoor-furniture-us",
@@ -2519,13 +2333,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Outdoor Furniture Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=outdoor+furniture+product+a&country=us", brand: "Brand A", category: "Outdoor Furniture" },
-      { id: "f2", name: "Outdoor Furniture Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=outdoor+furniture+product+b&country=us", brand: "Brand B", category: "Outdoor Furniture" },
-      { id: "f3", name: "Outdoor Furniture Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=outdoor+furniture+product+c&country=us", brand: "Brand C", category: "Outdoor Furniture" },
-      { id: "f4", name: "Outdoor Furniture Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=outdoor+furniture+product+d&country=us", brand: "Brand D", category: "Outdoor Furniture" },
-      { id: "f5", name: "Outdoor Furniture Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=outdoor+furniture+product+e&country=us", brand: "Brand E", category: "Outdoor Furniture" },
-    ],
   },
   "best-office-chairs-us": {
     slug: "best-office-chairs-us",
@@ -2602,13 +2409,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Office Chairs Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=office+chairs+product+a&country=us", brand: "Brand A", category: "Office Chairs" },
-      { id: "f2", name: "Office Chairs Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=office+chairs+product+b&country=us", brand: "Brand B", category: "Office Chairs" },
-      { id: "f3", name: "Office Chairs Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=office+chairs+product+c&country=us", brand: "Brand C", category: "Office Chairs" },
-      { id: "f4", name: "Office Chairs Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=office+chairs+product+d&country=us", brand: "Brand D", category: "Office Chairs" },
-      { id: "f5", name: "Office Chairs Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=office+chairs+product+e&country=us", brand: "Brand E", category: "Office Chairs" },
-    ],
   },
   "best-air-fryers-us": {
     slug: "best-air-fryers-us",
@@ -2685,13 +2485,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Air Fryers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=air+fryers+product+a&country=us", brand: "Brand A", category: "Air Fryers" },
-      { id: "f2", name: "Air Fryers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=air+fryers+product+b&country=us", brand: "Brand B", category: "Air Fryers" },
-      { id: "f3", name: "Air Fryers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=air+fryers+product+c&country=us", brand: "Brand C", category: "Air Fryers" },
-      { id: "f4", name: "Air Fryers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=air+fryers+product+d&country=us", brand: "Brand D", category: "Air Fryers" },
-      { id: "f5", name: "Air Fryers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=air+fryers+product+e&country=us", brand: "Brand E", category: "Air Fryers" },
-    ],
   },
   "best-instant-pots-us": {
     slug: "best-instant-pots-us",
@@ -2768,13 +2561,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Instant Pots Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=instant+pots+product+a&country=us", brand: "Brand A", category: "Instant Pots" },
-      { id: "f2", name: "Instant Pots Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=instant+pots+product+b&country=us", brand: "Brand B", category: "Instant Pots" },
-      { id: "f3", name: "Instant Pots Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=instant+pots+product+c&country=us", brand: "Brand C", category: "Instant Pots" },
-      { id: "f4", name: "Instant Pots Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=instant+pots+product+d&country=us", brand: "Brand D", category: "Instant Pots" },
-      { id: "f5", name: "Instant Pots Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=instant+pots+product+e&country=us", brand: "Brand E", category: "Instant Pots" },
-    ],
   },
   "best-coffee-makers-us": {
     slug: "best-coffee-makers-us",
@@ -2851,13 +2637,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Coffee Makers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=coffee+makers+product+a&country=us", brand: "Brand A", category: "Coffee Makers" },
-      { id: "f2", name: "Coffee Makers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=coffee+makers+product+b&country=us", brand: "Brand B", category: "Coffee Makers" },
-      { id: "f3", name: "Coffee Makers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=coffee+makers+product+c&country=us", brand: "Brand C", category: "Coffee Makers" },
-      { id: "f4", name: "Coffee Makers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=coffee+makers+product+d&country=us", brand: "Brand D", category: "Coffee Makers" },
-      { id: "f5", name: "Coffee Makers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=coffee+makers+product+e&country=us", brand: "Brand E", category: "Coffee Makers" },
-    ],
   },
   "best-espresso-machines-us": {
     slug: "best-espresso-machines-us",
@@ -2934,13 +2713,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Espresso Machines Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=espresso+machines+product+a&country=us", brand: "Brand A", category: "Espresso Machines" },
-      { id: "f2", name: "Espresso Machines Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=espresso+machines+product+b&country=us", brand: "Brand B", category: "Espresso Machines" },
-      { id: "f3", name: "Espresso Machines Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=espresso+machines+product+c&country=us", brand: "Brand C", category: "Espresso Machines" },
-      { id: "f4", name: "Espresso Machines Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=espresso+machines+product+d&country=us", brand: "Brand D", category: "Espresso Machines" },
-      { id: "f5", name: "Espresso Machines Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=espresso+machines+product+e&country=us", brand: "Brand E", category: "Espresso Machines" },
-    ],
   },
   "best-toasters-us": {
     slug: "best-toasters-us",
@@ -3017,13 +2789,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Toasters Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=toasters+product+a&country=us", brand: "Brand A", category: "Toasters" },
-      { id: "f2", name: "Toasters Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=toasters+product+b&country=us", brand: "Brand B", category: "Toasters" },
-      { id: "f3", name: "Toasters Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=toasters+product+c&country=us", brand: "Brand C", category: "Toasters" },
-      { id: "f4", name: "Toasters Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=toasters+product+d&country=us", brand: "Brand D", category: "Toasters" },
-      { id: "f5", name: "Toasters Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=toasters+product+e&country=us", brand: "Brand E", category: "Toasters" },
-    ],
   },
   "best-blenders-us": {
     slug: "best-blenders-us",
@@ -3100,13 +2865,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Blenders Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=blenders+product+a&country=us", brand: "Brand A", category: "Blenders" },
-      { id: "f2", name: "Blenders Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=blenders+product+b&country=us", brand: "Brand B", category: "Blenders" },
-      { id: "f3", name: "Blenders Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=blenders+product+c&country=us", brand: "Brand C", category: "Blenders" },
-      { id: "f4", name: "Blenders Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=blenders+product+d&country=us", brand: "Brand D", category: "Blenders" },
-      { id: "f5", name: "Blenders Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=blenders+product+e&country=us", brand: "Brand E", category: "Blenders" },
-    ],
   },
   "best-juicers-us": {
     slug: "best-juicers-us",
@@ -3183,13 +2941,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Juicers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=juicers+product+a&country=us", brand: "Brand A", category: "Juicers" },
-      { id: "f2", name: "Juicers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=juicers+product+b&country=us", brand: "Brand B", category: "Juicers" },
-      { id: "f3", name: "Juicers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=juicers+product+c&country=us", brand: "Brand C", category: "Juicers" },
-      { id: "f4", name: "Juicers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=juicers+product+d&country=us", brand: "Brand D", category: "Juicers" },
-      { id: "f5", name: "Juicers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=juicers+product+e&country=us", brand: "Brand E", category: "Juicers" },
-    ],
   },
   "best-electric-grills-us": {
     slug: "best-electric-grills-us",
@@ -3266,13 +3017,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Electric Grills Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=electric+grills+product+a&country=us", brand: "Brand A", category: "Electric Grills" },
-      { id: "f2", name: "Electric Grills Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=electric+grills+product+b&country=us", brand: "Brand B", category: "Electric Grills" },
-      { id: "f3", name: "Electric Grills Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=electric+grills+product+c&country=us", brand: "Brand C", category: "Electric Grills" },
-      { id: "f4", name: "Electric Grills Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=electric+grills+product+d&country=us", brand: "Brand D", category: "Electric Grills" },
-      { id: "f5", name: "Electric Grills Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=electric+grills+product+e&country=us", brand: "Brand E", category: "Electric Grills" },
-    ],
   },
   "best-slow-cookers-us": {
     slug: "best-slow-cookers-us",
@@ -3349,13 +3093,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Slow Cookers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=slow+cookers+product+a&country=us", brand: "Brand A", category: "Slow Cookers" },
-      { id: "f2", name: "Slow Cookers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=slow+cookers+product+b&country=us", brand: "Brand B", category: "Slow Cookers" },
-      { id: "f3", name: "Slow Cookers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=slow+cookers+product+c&country=us", brand: "Brand C", category: "Slow Cookers" },
-      { id: "f4", name: "Slow Cookers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=slow+cookers+product+d&country=us", brand: "Brand D", category: "Slow Cookers" },
-      { id: "f5", name: "Slow Cookers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=slow+cookers+product+e&country=us", brand: "Brand E", category: "Slow Cookers" },
-    ],
   },
   "best-rice-cookers-us": {
     slug: "best-rice-cookers-us",
@@ -3432,13 +3169,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Rice Cookers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=rice+cookers+product+a&country=us", brand: "Brand A", category: "Rice Cookers" },
-      { id: "f2", name: "Rice Cookers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=rice+cookers+product+b&country=us", brand: "Brand B", category: "Rice Cookers" },
-      { id: "f3", name: "Rice Cookers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=rice+cookers+product+c&country=us", brand: "Brand C", category: "Rice Cookers" },
-      { id: "f4", name: "Rice Cookers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=rice+cookers+product+d&country=us", brand: "Brand D", category: "Rice Cookers" },
-      { id: "f5", name: "Rice Cookers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=rice+cookers+product+e&country=us", brand: "Brand E", category: "Rice Cookers" },
-    ],
   },
   "best-microwaves-us": {
     slug: "best-microwaves-us",
@@ -3515,13 +3245,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Microwaves Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=microwaves+product+a&country=us", brand: "Brand A", category: "Microwaves" },
-      { id: "f2", name: "Microwaves Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=microwaves+product+b&country=us", brand: "Brand B", category: "Microwaves" },
-      { id: "f3", name: "Microwaves Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=microwaves+product+c&country=us", brand: "Brand C", category: "Microwaves" },
-      { id: "f4", name: "Microwaves Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=microwaves+product+d&country=us", brand: "Brand D", category: "Microwaves" },
-      { id: "f5", name: "Microwaves Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=microwaves+product+e&country=us", brand: "Brand E", category: "Microwaves" },
-    ],
   },
   "best-wall-ovens-us": {
     slug: "best-wall-ovens-us",
@@ -3598,13 +3321,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Wall Ovens Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=wall+ovens+product+a&country=us", brand: "Brand A", category: "Wall Ovens" },
-      { id: "f2", name: "Wall Ovens Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=wall+ovens+product+b&country=us", brand: "Brand B", category: "Wall Ovens" },
-      { id: "f3", name: "Wall Ovens Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=wall+ovens+product+c&country=us", brand: "Brand C", category: "Wall Ovens" },
-      { id: "f4", name: "Wall Ovens Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=wall+ovens+product+d&country=us", brand: "Brand D", category: "Wall Ovens" },
-      { id: "f5", name: "Wall Ovens Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=wall+ovens+product+e&country=us", brand: "Brand E", category: "Wall Ovens" },
-    ],
   },
   "best-cookware-sets-us": {
     slug: "best-cookware-sets-us",
@@ -3681,13 +3397,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Cookware Sets Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cookware+sets+product+a&country=us", brand: "Brand A", category: "Cookware Sets" },
-      { id: "f2", name: "Cookware Sets Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=cookware+sets+product+b&country=us", brand: "Brand B", category: "Cookware Sets" },
-      { id: "f3", name: "Cookware Sets Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=cookware+sets+product+c&country=us", brand: "Brand C", category: "Cookware Sets" },
-      { id: "f4", name: "Cookware Sets Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=cookware+sets+product+d&country=us", brand: "Brand D", category: "Cookware Sets" },
-      { id: "f5", name: "Cookware Sets Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cookware+sets+product+e&country=us", brand: "Brand E", category: "Cookware Sets" },
-    ],
   },
   "best-knife-sets-us": {
     slug: "best-knife-sets-us",
@@ -3764,13 +3473,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Knife Sets Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=knife+sets+product+a&country=us", brand: "Brand A", category: "Knife Sets" },
-      { id: "f2", name: "Knife Sets Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=knife+sets+product+b&country=us", brand: "Brand B", category: "Knife Sets" },
-      { id: "f3", name: "Knife Sets Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=knife+sets+product+c&country=us", brand: "Brand C", category: "Knife Sets" },
-      { id: "f4", name: "Knife Sets Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=knife+sets+product+d&country=us", brand: "Brand D", category: "Knife Sets" },
-      { id: "f5", name: "Knife Sets Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=knife+sets+product+e&country=us", brand: "Brand E", category: "Knife Sets" },
-    ],
   },
   "best-kitchen-utensils-us": {
     slug: "best-kitchen-utensils-us",
@@ -3847,13 +3549,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Kitchen Utensils Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=kitchen+utensils+product+a&country=us", brand: "Brand A", category: "Kitchen Utensils" },
-      { id: "f2", name: "Kitchen Utensils Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=kitchen+utensils+product+b&country=us", brand: "Brand B", category: "Kitchen Utensils" },
-      { id: "f3", name: "Kitchen Utensils Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=kitchen+utensils+product+c&country=us", brand: "Brand C", category: "Kitchen Utensils" },
-      { id: "f4", name: "Kitchen Utensils Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=kitchen+utensils+product+d&country=us", brand: "Brand D", category: "Kitchen Utensils" },
-      { id: "f5", name: "Kitchen Utensils Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=kitchen+utensils+product+e&country=us", brand: "Brand E", category: "Kitchen Utensils" },
-    ],
   },
   "best-air-purifiers-home-us": {
     slug: "best-air-purifiers-home-us",
@@ -3930,13 +3625,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Air Purifiers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=air+purifiers+product+a&country=us", brand: "Brand A", category: "Air Purifiers" },
-      { id: "f2", name: "Air Purifiers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=air+purifiers+product+b&country=us", brand: "Brand B", category: "Air Purifiers" },
-      { id: "f3", name: "Air Purifiers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=air+purifiers+product+c&country=us", brand: "Brand C", category: "Air Purifiers" },
-      { id: "f4", name: "Air Purifiers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=air+purifiers+product+d&country=us", brand: "Brand D", category: "Air Purifiers" },
-      { id: "f5", name: "Air Purifiers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=air+purifiers+product+e&country=us", brand: "Brand E", category: "Air Purifiers" },
-    ],
   },
   "best-humidifiers-us": {
     slug: "best-humidifiers-us",
@@ -4013,13 +3701,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Humidifiers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=humidifiers+product+a&country=us", brand: "Brand A", category: "Humidifiers" },
-      { id: "f2", name: "Humidifiers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=humidifiers+product+b&country=us", brand: "Brand B", category: "Humidifiers" },
-      { id: "f3", name: "Humidifiers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=humidifiers+product+c&country=us", brand: "Brand C", category: "Humidifiers" },
-      { id: "f4", name: "Humidifiers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=humidifiers+product+d&country=us", brand: "Brand D", category: "Humidifiers" },
-      { id: "f5", name: "Humidifiers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=humidifiers+product+e&country=us", brand: "Brand E", category: "Humidifiers" },
-    ],
   },
   "best-dehumidifiers-us": {
     slug: "best-dehumidifiers-us",
@@ -4096,13 +3777,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Dehumidifiers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=dehumidifiers+product+a&country=us", brand: "Brand A", category: "Dehumidifiers" },
-      { id: "f2", name: "Dehumidifiers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=dehumidifiers+product+b&country=us", brand: "Brand B", category: "Dehumidifiers" },
-      { id: "f3", name: "Dehumidifiers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=dehumidifiers+product+c&country=us", brand: "Brand C", category: "Dehumidifiers" },
-      { id: "f4", name: "Dehumidifiers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=dehumidifiers+product+d&country=us", brand: "Brand D", category: "Dehumidifiers" },
-      { id: "f5", name: "Dehumidifiers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=dehumidifiers+product+e&country=us", brand: "Brand E", category: "Dehumidifiers" },
-    ],
   },
   "best-space-heaters-us": {
     slug: "best-space-heaters-us",
@@ -4179,13 +3853,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Space Heaters Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=space+heaters+product+a&country=us", brand: "Brand A", category: "Space Heaters" },
-      { id: "f2", name: "Space Heaters Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=space+heaters+product+b&country=us", brand: "Brand B", category: "Space Heaters" },
-      { id: "f3", name: "Space Heaters Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=space+heaters+product+c&country=us", brand: "Brand C", category: "Space Heaters" },
-      { id: "f4", name: "Space Heaters Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=space+heaters+product+d&country=us", brand: "Brand D", category: "Space Heaters" },
-      { id: "f5", name: "Space Heaters Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=space+heaters+product+e&country=us", brand: "Brand E", category: "Space Heaters" },
-    ],
   },
   "best-ceiling-fans-us": {
     slug: "best-ceiling-fans-us",
@@ -4262,13 +3929,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Ceiling Fans Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=ceiling+fans+product+a&country=us", brand: "Brand A", category: "Ceiling Fans" },
-      { id: "f2", name: "Ceiling Fans Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=ceiling+fans+product+b&country=us", brand: "Brand B", category: "Ceiling Fans" },
-      { id: "f3", name: "Ceiling Fans Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=ceiling+fans+product+c&country=us", brand: "Brand C", category: "Ceiling Fans" },
-      { id: "f4", name: "Ceiling Fans Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=ceiling+fans+product+d&country=us", brand: "Brand D", category: "Ceiling Fans" },
-      { id: "f5", name: "Ceiling Fans Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=ceiling+fans+product+e&country=us", brand: "Brand E", category: "Ceiling Fans" },
-    ],
   },
   "best-vacuum-cleaners-us": {
     slug: "best-vacuum-cleaners-us",
@@ -4345,13 +4005,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Vacuum Cleaners Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=vacuum+cleaners+product+a&country=us", brand: "Brand A", category: "Vacuum Cleaners" },
-      { id: "f2", name: "Vacuum Cleaners Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=vacuum+cleaners+product+b&country=us", brand: "Brand B", category: "Vacuum Cleaners" },
-      { id: "f3", name: "Vacuum Cleaners Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=vacuum+cleaners+product+c&country=us", brand: "Brand C", category: "Vacuum Cleaners" },
-      { id: "f4", name: "Vacuum Cleaners Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=vacuum+cleaners+product+d&country=us", brand: "Brand D", category: "Vacuum Cleaners" },
-      { id: "f5", name: "Vacuum Cleaners Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=vacuum+cleaners+product+e&country=us", brand: "Brand E", category: "Vacuum Cleaners" },
-    ],
   },
   "best-stick-vacuums-us": {
     slug: "best-stick-vacuums-us",
@@ -4428,13 +4081,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Stick Vacuums Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=stick+vacuums+product+a&country=us", brand: "Brand A", category: "Stick Vacuums" },
-      { id: "f2", name: "Stick Vacuums Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=stick+vacuums+product+b&country=us", brand: "Brand B", category: "Stick Vacuums" },
-      { id: "f3", name: "Stick Vacuums Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=stick+vacuums+product+c&country=us", brand: "Brand C", category: "Stick Vacuums" },
-      { id: "f4", name: "Stick Vacuums Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=stick+vacuums+product+d&country=us", brand: "Brand D", category: "Stick Vacuums" },
-      { id: "f5", name: "Stick Vacuums Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=stick+vacuums+product+e&country=us", brand: "Brand E", category: "Stick Vacuums" },
-    ],
   },
   "best-carpet-cleaners-us": {
     slug: "best-carpet-cleaners-us",
@@ -4511,13 +4157,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Carpet Cleaners Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=carpet+cleaners+product+a&country=us", brand: "Brand A", category: "Carpet Cleaners" },
-      { id: "f2", name: "Carpet Cleaners Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=carpet+cleaners+product+b&country=us", brand: "Brand B", category: "Carpet Cleaners" },
-      { id: "f3", name: "Carpet Cleaners Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=carpet+cleaners+product+c&country=us", brand: "Brand C", category: "Carpet Cleaners" },
-      { id: "f4", name: "Carpet Cleaners Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=carpet+cleaners+product+d&country=us", brand: "Brand D", category: "Carpet Cleaners" },
-      { id: "f5", name: "Carpet Cleaners Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=carpet+cleaners+product+e&country=us", brand: "Brand E", category: "Carpet Cleaners" },
-    ],
   },
   "best-irons-us": {
     slug: "best-irons-us",
@@ -4594,13 +4233,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Steam Irons Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=steam+irons+product+a&country=us", brand: "Brand A", category: "Steam Irons" },
-      { id: "f2", name: "Steam Irons Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=steam+irons+product+b&country=us", brand: "Brand B", category: "Steam Irons" },
-      { id: "f3", name: "Steam Irons Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=steam+irons+product+c&country=us", brand: "Brand C", category: "Steam Irons" },
-      { id: "f4", name: "Steam Irons Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=steam+irons+product+d&country=us", brand: "Brand D", category: "Steam Irons" },
-      { id: "f5", name: "Steam Irons Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=steam+irons+product+e&country=us", brand: "Brand E", category: "Steam Irons" },
-    ],
   },
   "best-fans-us": {
     slug: "best-fans-us",
@@ -4677,13 +4309,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Fans Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=fans+product+a&country=us", brand: "Brand A", category: "Fans" },
-      { id: "f2", name: "Fans Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=fans+product+b&country=us", brand: "Brand B", category: "Fans" },
-      { id: "f3", name: "Fans Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=fans+product+c&country=us", brand: "Brand C", category: "Fans" },
-      { id: "f4", name: "Fans Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=fans+product+d&country=us", brand: "Brand D", category: "Fans" },
-      { id: "f5", name: "Fans Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=fans+product+e&country=us", brand: "Brand E", category: "Fans" },
-    ],
   },
   "best-lamps-us": {
     slug: "best-lamps-us",
@@ -4760,13 +4385,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Lamps Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=lamps+product+a&country=us", brand: "Brand A", category: "Lamps" },
-      { id: "f2", name: "Lamps Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=lamps+product+b&country=us", brand: "Brand B", category: "Lamps" },
-      { id: "f3", name: "Lamps Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=lamps+product+c&country=us", brand: "Brand C", category: "Lamps" },
-      { id: "f4", name: "Lamps Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=lamps+product+d&country=us", brand: "Brand D", category: "Lamps" },
-      { id: "f5", name: "Lamps Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=lamps+product+e&country=us", brand: "Brand E", category: "Lamps" },
-    ],
   },
   "best-mirrors-us": {
     slug: "best-mirrors-us",
@@ -4843,13 +4461,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Mirrors Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=mirrors+product+a&country=us", brand: "Brand A", category: "Mirrors" },
-      { id: "f2", name: "Mirrors Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=mirrors+product+b&country=us", brand: "Brand B", category: "Mirrors" },
-      { id: "f3", name: "Mirrors Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=mirrors+product+c&country=us", brand: "Brand C", category: "Mirrors" },
-      { id: "f4", name: "Mirrors Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=mirrors+product+d&country=us", brand: "Brand D", category: "Mirrors" },
-      { id: "f5", name: "Mirrors Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=mirrors+product+e&country=us", brand: "Brand E", category: "Mirrors" },
-    ],
   },
   "best-storage-bins-us": {
     slug: "best-storage-bins-us",
@@ -4926,13 +4537,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Storage Bins Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=storage+bins+product+a&country=us", brand: "Brand A", category: "Storage Bins" },
-      { id: "f2", name: "Storage Bins Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=storage+bins+product+b&country=us", brand: "Brand B", category: "Storage Bins" },
-      { id: "f3", name: "Storage Bins Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=storage+bins+product+c&country=us", brand: "Brand C", category: "Storage Bins" },
-      { id: "f4", name: "Storage Bins Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=storage+bins+product+d&country=us", brand: "Brand D", category: "Storage Bins" },
-      { id: "f5", name: "Storage Bins Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=storage+bins+product+e&country=us", brand: "Brand E", category: "Storage Bins" },
-    ],
   },
   "best-laundry-baskets-us": {
     slug: "best-laundry-baskets-us",
@@ -5009,13 +4613,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Laundry Baskets Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=laundry+baskets+product+a&country=us", brand: "Brand A", category: "Laundry Baskets" },
-      { id: "f2", name: "Laundry Baskets Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=laundry+baskets+product+b&country=us", brand: "Brand B", category: "Laundry Baskets" },
-      { id: "f3", name: "Laundry Baskets Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=laundry+baskets+product+c&country=us", brand: "Brand C", category: "Laundry Baskets" },
-      { id: "f4", name: "Laundry Baskets Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=laundry+baskets+product+d&country=us", brand: "Brand D", category: "Laundry Baskets" },
-      { id: "f5", name: "Laundry Baskets Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=laundry+baskets+product+e&country=us", brand: "Brand E", category: "Laundry Baskets" },
-    ],
   },
   "best-smart-home-us": {
     slug: "best-smart-home-us",
@@ -5092,13 +4689,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Smart Home Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=smart+home+product+a&country=us", brand: "Brand A", category: "Smart Home" },
-      { id: "f2", name: "Smart Home Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=smart+home+product+b&country=us", brand: "Brand B", category: "Smart Home" },
-      { id: "f3", name: "Smart Home Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=smart+home+product+c&country=us", brand: "Brand C", category: "Smart Home" },
-      { id: "f4", name: "Smart Home Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=smart+home+product+d&country=us", brand: "Brand D", category: "Smart Home" },
-      { id: "f5", name: "Smart Home Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=smart+home+product+e&country=us", brand: "Brand E", category: "Smart Home" },
-    ],
   },
   "best-french-door-refrigerators-us": {
     slug: "best-french-door-refrigerators-us",
@@ -5151,13 +4741,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "French Door Refrigerators Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+french+door+refrigerators&country=us", brand: "Brand A", category: "French Door Refrigerators" },
-      { id: "f2", name: "French Door Refrigerators Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+french+door+refrigerators&country=us", brand: "Brand B", category: "French Door Refrigerators" },
-      { id: "f3", name: "French Door Refrigerators Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+french+door+refrigerators&country=us", brand: "Brand C", category: "French Door Refrigerators" },
-      { id: "f4", name: "French Door Refrigerators Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+french+door+refrigerators&country=us", brand: "Brand D", category: "French Door Refrigerators" },
-      { id: "f5", name: "French Door Refrigerators Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+french+door+refrigerators&country=us", brand: "Brand E", category: "French Door Refrigerators" },
-    ],
   },
 
   "best-side-by-side-refrigerators-us": {
@@ -5211,13 +4794,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Side By Side Refrigerators Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+side+by+side+refrigerators&country=us", brand: "Brand A", category: "Side By Side Refrigerators" },
-      { id: "f2", name: "Side By Side Refrigerators Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+side+by+side+refrigerators&country=us", brand: "Brand B", category: "Side By Side Refrigerators" },
-      { id: "f3", name: "Side By Side Refrigerators Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+side+by+side+refrigerators&country=us", brand: "Brand C", category: "Side By Side Refrigerators" },
-      { id: "f4", name: "Side By Side Refrigerators Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+side+by+side+refrigerators&country=us", brand: "Brand D", category: "Side By Side Refrigerators" },
-      { id: "f5", name: "Side By Side Refrigerators Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+side+by+side+refrigerators&country=us", brand: "Brand E", category: "Side By Side Refrigerators" },
-    ],
   },
 
   "best-top-freezer-refrigerators-us": {
@@ -5271,13 +4847,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Top Freezer Refrigerators Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+top+freezer+refrigerators&country=us", brand: "Brand A", category: "Top Freezer Refrigerators" },
-      { id: "f2", name: "Top Freezer Refrigerators Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+top+freezer+refrigerators&country=us", brand: "Brand B", category: "Top Freezer Refrigerators" },
-      { id: "f3", name: "Top Freezer Refrigerators Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+top+freezer+refrigerators&country=us", brand: "Brand C", category: "Top Freezer Refrigerators" },
-      { id: "f4", name: "Top Freezer Refrigerators Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+top+freezer+refrigerators&country=us", brand: "Brand D", category: "Top Freezer Refrigerators" },
-      { id: "f5", name: "Top Freezer Refrigerators Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+top+freezer+refrigerators&country=us", brand: "Brand E", category: "Top Freezer Refrigerators" },
-    ],
   },
 
   "best-washing-machines-us": {
@@ -5331,13 +4900,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Washing Machines Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+washing+machines&country=us", brand: "Brand A", category: "Washing Machines" },
-      { id: "f2", name: "Washing Machines Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+washing+machines&country=us", brand: "Brand B", category: "Washing Machines" },
-      { id: "f3", name: "Washing Machines Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+washing+machines&country=us", brand: "Brand C", category: "Washing Machines" },
-      { id: "f4", name: "Washing Machines Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+washing+machines&country=us", brand: "Brand D", category: "Washing Machines" },
-      { id: "f5", name: "Washing Machines Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+washing+machines&country=us", brand: "Brand E", category: "Washing Machines" },
-    ],
   },
 
   "best-high-efficiency-washing-machines-us": {
@@ -5391,13 +4953,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "High Efficiency Washing Machines Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+high+efficiency+washing+machines&country=us", brand: "Brand A", category: "High Efficiency Washing Machines" },
-      { id: "f2", name: "High Efficiency Washing Machines Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+high+efficiency+washing+machines&country=us", brand: "Brand B", category: "High Efficiency Washing Machines" },
-      { id: "f3", name: "High Efficiency Washing Machines Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+high+efficiency+washing+machines&country=us", brand: "Brand C", category: "High Efficiency Washing Machines" },
-      { id: "f4", name: "High Efficiency Washing Machines Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+high+efficiency+washing+machines&country=us", brand: "Brand D", category: "High Efficiency Washing Machines" },
-      { id: "f5", name: "High Efficiency Washing Machines Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+high+efficiency+washing+machines&country=us", brand: "Brand E", category: "High Efficiency Washing Machines" },
-    ],
   },
 
   "best-compact-washing-machines-us": {
@@ -5451,13 +5006,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Compact Washing Machines Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+compact+washing+machines&country=us", brand: "Brand A", category: "Compact Washing Machines" },
-      { id: "f2", name: "Compact Washing Machines Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+compact+washing+machines&country=us", brand: "Brand B", category: "Compact Washing Machines" },
-      { id: "f3", name: "Compact Washing Machines Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+compact+washing+machines&country=us", brand: "Brand C", category: "Compact Washing Machines" },
-      { id: "f4", name: "Compact Washing Machines Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+compact+washing+machines&country=us", brand: "Brand D", category: "Compact Washing Machines" },
-      { id: "f5", name: "Compact Washing Machines Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+compact+washing+machines&country=us", brand: "Brand E", category: "Compact Washing Machines" },
-    ],
   },
 
   "best-clothes-dryers-us": {
@@ -5511,13 +5059,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Clothes Dryers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+clothes+dryers&country=us", brand: "Brand A", category: "Clothes Dryers" },
-      { id: "f2", name: "Clothes Dryers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+clothes+dryers&country=us", brand: "Brand B", category: "Clothes Dryers" },
-      { id: "f3", name: "Clothes Dryers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+clothes+dryers&country=us", brand: "Brand C", category: "Clothes Dryers" },
-      { id: "f4", name: "Clothes Dryers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+clothes+dryers&country=us", brand: "Brand D", category: "Clothes Dryers" },
-      { id: "f5", name: "Clothes Dryers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+clothes+dryers&country=us", brand: "Brand E", category: "Clothes Dryers" },
-    ],
   },
 
   "best-stackable-washer-dryer-sets-us": {
@@ -5571,13 +5112,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Stackable Washer Dryer Sets Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+stackable+washer+dryer+sets&country=us", brand: "Brand A", category: "Stackable Washer Dryer Sets" },
-      { id: "f2", name: "Stackable Washer Dryer Sets Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+stackable+washer+dryer+sets&country=us", brand: "Brand B", category: "Stackable Washer Dryer Sets" },
-      { id: "f3", name: "Stackable Washer Dryer Sets Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+stackable+washer+dryer+sets&country=us", brand: "Brand C", category: "Stackable Washer Dryer Sets" },
-      { id: "f4", name: "Stackable Washer Dryer Sets Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+stackable+washer+dryer+sets&country=us", brand: "Brand D", category: "Stackable Washer Dryer Sets" },
-      { id: "f5", name: "Stackable Washer Dryer Sets Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+stackable+washer+dryer+sets&country=us", brand: "Brand E", category: "Stackable Washer Dryer Sets" },
-    ],
   },
 
   "best-dishwashers-us": {
@@ -5631,13 +5165,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Dishwashers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+dishwashers&country=us", brand: "Brand A", category: "Dishwashers" },
-      { id: "f2", name: "Dishwashers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+dishwashers&country=us", brand: "Brand B", category: "Dishwashers" },
-      { id: "f3", name: "Dishwashers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+dishwashers&country=us", brand: "Brand C", category: "Dishwashers" },
-      { id: "f4", name: "Dishwashers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+dishwashers&country=us", brand: "Brand D", category: "Dishwashers" },
-      { id: "f5", name: "Dishwashers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+dishwashers&country=us", brand: "Brand E", category: "Dishwashers" },
-    ],
   },
 
   "best-compact-dishwashers-us": {
@@ -5691,13 +5218,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Compact Dishwashers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+compact+dishwashers&country=us", brand: "Brand A", category: "Compact Dishwashers" },
-      { id: "f2", name: "Compact Dishwashers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+compact+dishwashers&country=us", brand: "Brand B", category: "Compact Dishwashers" },
-      { id: "f3", name: "Compact Dishwashers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+compact+dishwashers&country=us", brand: "Brand C", category: "Compact Dishwashers" },
-      { id: "f4", name: "Compact Dishwashers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+compact+dishwashers&country=us", brand: "Brand D", category: "Compact Dishwashers" },
-      { id: "f5", name: "Compact Dishwashers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+compact+dishwashers&country=us", brand: "Brand E", category: "Compact Dishwashers" },
-    ],
   },
 
   "best-convection-microwaves-us": {
@@ -5751,13 +5271,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Convection Microwaves Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+convection+microwaves&country=us", brand: "Brand A", category: "Convection Microwaves" },
-      { id: "f2", name: "Convection Microwaves Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+convection+microwaves&country=us", brand: "Brand B", category: "Convection Microwaves" },
-      { id: "f3", name: "Convection Microwaves Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+convection+microwaves&country=us", brand: "Brand C", category: "Convection Microwaves" },
-      { id: "f4", name: "Convection Microwaves Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+convection+microwaves&country=us", brand: "Brand D", category: "Convection Microwaves" },
-      { id: "f5", name: "Convection Microwaves Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+convection+microwaves&country=us", brand: "Brand E", category: "Convection Microwaves" },
-    ],
   },
 
   "best-microwave-ovens-us": {
@@ -5811,13 +5324,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Microwave Ovens Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+microwave+ovens&country=us", brand: "Brand A", category: "Microwave Ovens" },
-      { id: "f2", name: "Microwave Ovens Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+microwave+ovens&country=us", brand: "Brand B", category: "Microwave Ovens" },
-      { id: "f3", name: "Microwave Ovens Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+microwave+ovens&country=us", brand: "Brand C", category: "Microwave Ovens" },
-      { id: "f4", name: "Microwave Ovens Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+microwave+ovens&country=us", brand: "Brand D", category: "Microwave Ovens" },
-      { id: "f5", name: "Microwave Ovens Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+microwave+ovens&country=us", brand: "Brand E", category: "Microwave Ovens" },
-    ],
   },
 
   "best-large-capacity-air-fryers-us": {
@@ -5871,13 +5377,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Large Capacity Air Fryers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+large+capacity+air+fryers&country=us", brand: "Brand A", category: "Large Capacity Air Fryers" },
-      { id: "f2", name: "Large Capacity Air Fryers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+large+capacity+air+fryers&country=us", brand: "Brand B", category: "Large Capacity Air Fryers" },
-      { id: "f3", name: "Large Capacity Air Fryers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+large+capacity+air+fryers&country=us", brand: "Brand C", category: "Large Capacity Air Fryers" },
-      { id: "f4", name: "Large Capacity Air Fryers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+large+capacity+air+fryers&country=us", brand: "Brand D", category: "Large Capacity Air Fryers" },
-      { id: "f5", name: "Large Capacity Air Fryers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+large+capacity+air+fryers&country=us", brand: "Brand E", category: "Large Capacity Air Fryers" },
-    ],
   },
 
   "best-single-serve-coffee-makers-us": {
@@ -5931,13 +5430,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Single Serve Coffee Makers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+single+serve+coffee+makers&country=us", brand: "Brand A", category: "Single Serve Coffee Makers" },
-      { id: "f2", name: "Single Serve Coffee Makers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+single+serve+coffee+makers&country=us", brand: "Brand B", category: "Single Serve Coffee Makers" },
-      { id: "f3", name: "Single Serve Coffee Makers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+single+serve+coffee+makers&country=us", brand: "Brand C", category: "Single Serve Coffee Makers" },
-      { id: "f4", name: "Single Serve Coffee Makers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+single+serve+coffee+makers&country=us", brand: "Brand D", category: "Single Serve Coffee Makers" },
-      { id: "f5", name: "Single Serve Coffee Makers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+single+serve+coffee+makers&country=us", brand: "Brand E", category: "Single Serve Coffee Makers" },
-    ],
   },
 
   "best-portable-espresso-machines-us": {
@@ -5991,13 +5483,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Portable Espresso Machines Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+portable+espresso+machines&country=us", brand: "Brand A", category: "Portable Espresso Machines" },
-      { id: "f2", name: "Portable Espresso Machines Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+portable+espresso+machines&country=us", brand: "Brand B", category: "Portable Espresso Machines" },
-      { id: "f3", name: "Portable Espresso Machines Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+portable+espresso+machines&country=us", brand: "Brand C", category: "Portable Espresso Machines" },
-      { id: "f4", name: "Portable Espresso Machines Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+portable+espresso+machines&country=us", brand: "Brand D", category: "Portable Espresso Machines" },
-      { id: "f5", name: "Portable Espresso Machines Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+portable+espresso+machines&country=us", brand: "Brand E", category: "Portable Espresso Machines" },
-    ],
   },
 
   "best-personal-blenders-us": {
@@ -6051,13 +5536,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Personal Blenders Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+personal+blenders&country=us", brand: "Brand A", category: "Personal Blenders" },
-      { id: "f2", name: "Personal Blenders Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+personal+blenders&country=us", brand: "Brand B", category: "Personal Blenders" },
-      { id: "f3", name: "Personal Blenders Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+personal+blenders&country=us", brand: "Brand C", category: "Personal Blenders" },
-      { id: "f4", name: "Personal Blenders Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+personal+blenders&country=us", brand: "Brand D", category: "Personal Blenders" },
-      { id: "f5", name: "Personal Blenders Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+personal+blenders&country=us", brand: "Brand E", category: "Personal Blenders" },
-    ],
   },
 
   "best-convection-toaster-ovens-us": {
@@ -6111,13 +5589,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Convection Toaster Ovens Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+convection+toaster+ovens&country=us", brand: "Brand A", category: "Convection Toaster Ovens" },
-      { id: "f2", name: "Convection Toaster Ovens Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+convection+toaster+ovens&country=us", brand: "Brand B", category: "Convection Toaster Ovens" },
-      { id: "f3", name: "Convection Toaster Ovens Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+convection+toaster+ovens&country=us", brand: "Brand C", category: "Convection Toaster Ovens" },
-      { id: "f4", name: "Convection Toaster Ovens Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+convection+toaster+ovens&country=us", brand: "Brand D", category: "Convection Toaster Ovens" },
-      { id: "f5", name: "Convection Toaster Ovens Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+convection+toaster+ovens&country=us", brand: "Brand E", category: "Convection Toaster Ovens" },
-    ],
   },
 
   "best-stand-mixers-us": {
@@ -6171,13 +5642,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Stand Mixers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+stand+mixers&country=us", brand: "Brand A", category: "Stand Mixers" },
-      { id: "f2", name: "Stand Mixers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+stand+mixers&country=us", brand: "Brand B", category: "Stand Mixers" },
-      { id: "f3", name: "Stand Mixers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+stand+mixers&country=us", brand: "Brand C", category: "Stand Mixers" },
-      { id: "f4", name: "Stand Mixers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+stand+mixers&country=us", brand: "Brand D", category: "Stand Mixers" },
-      { id: "f5", name: "Stand Mixers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+stand+mixers&country=us", brand: "Brand E", category: "Stand Mixers" },
-    ],
   },
 
   "best-hand-mixers-us": {
@@ -6231,13 +5695,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Hand Mixers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+hand+mixers&country=us", brand: "Brand A", category: "Hand Mixers" },
-      { id: "f2", name: "Hand Mixers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+hand+mixers&country=us", brand: "Brand B", category: "Hand Mixers" },
-      { id: "f3", name: "Hand Mixers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+hand+mixers&country=us", brand: "Brand C", category: "Hand Mixers" },
-      { id: "f4", name: "Hand Mixers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+hand+mixers&country=us", brand: "Brand D", category: "Hand Mixers" },
-      { id: "f5", name: "Hand Mixers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+hand+mixers&country=us", brand: "Brand E", category: "Hand Mixers" },
-    ],
   },
 
   "best-pressure-cookers-us": {
@@ -6291,13 +5748,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Pressure Cookers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+pressure+cookers&country=us", brand: "Brand A", category: "Pressure Cookers" },
-      { id: "f2", name: "Pressure Cookers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+pressure+cookers&country=us", brand: "Brand B", category: "Pressure Cookers" },
-      { id: "f3", name: "Pressure Cookers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+pressure+cookers&country=us", brand: "Brand C", category: "Pressure Cookers" },
-      { id: "f4", name: "Pressure Cookers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+pressure+cookers&country=us", brand: "Brand D", category: "Pressure Cookers" },
-      { id: "f5", name: "Pressure Cookers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+pressure+cookers&country=us", brand: "Brand E", category: "Pressure Cookers" },
-    ],
   },
 
   "best-electric-kettles-us": {
@@ -6351,13 +5801,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Electric Kettles Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+electric+kettles&country=us", brand: "Brand A", category: "Electric Kettles" },
-      { id: "f2", name: "Electric Kettles Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+electric+kettles&country=us", brand: "Brand B", category: "Electric Kettles" },
-      { id: "f3", name: "Electric Kettles Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+electric+kettles&country=us", brand: "Brand C", category: "Electric Kettles" },
-      { id: "f4", name: "Electric Kettles Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+electric+kettles&country=us", brand: "Brand D", category: "Electric Kettles" },
-      { id: "f5", name: "Electric Kettles Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+electric+kettles&country=us", brand: "Brand E", category: "Electric Kettles" },
-    ],
   },
 
   "best-food-processors-us": {
@@ -6411,13 +5854,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Food Processors Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+food+processors&country=us", brand: "Brand A", category: "Food Processors" },
-      { id: "f2", name: "Food Processors Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+food+processors&country=us", brand: "Brand B", category: "Food Processors" },
-      { id: "f3", name: "Food Processors Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+food+processors&country=us", brand: "Brand C", category: "Food Processors" },
-      { id: "f4", name: "Food Processors Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+food+processors&country=us", brand: "Brand D", category: "Food Processors" },
-      { id: "f5", name: "Food Processors Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+food+processors&country=us", brand: "Brand E", category: "Food Processors" },
-    ],
   },
 
   "best-immersion-blenders-us": {
@@ -6471,13 +5907,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Immersion Blenders Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+immersion+blenders&country=us", brand: "Brand A", category: "Immersion Blenders" },
-      { id: "f2", name: "Immersion Blenders Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+immersion+blenders&country=us", brand: "Brand B", category: "Immersion Blenders" },
-      { id: "f3", name: "Immersion Blenders Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+immersion+blenders&country=us", brand: "Brand C", category: "Immersion Blenders" },
-      { id: "f4", name: "Immersion Blenders Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+immersion+blenders&country=us", brand: "Brand D", category: "Immersion Blenders" },
-      { id: "f5", name: "Immersion Blenders Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+immersion+blenders&country=us", brand: "Brand E", category: "Immersion Blenders" },
-    ],
   },
 
   "best-smart-air-purifiers-us": {
@@ -6531,13 +5960,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Smart Air Purifiers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+smart+air+purifiers&country=us", brand: "Brand A", category: "Smart Air Purifiers" },
-      { id: "f2", name: "Smart Air Purifiers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+smart+air+purifiers&country=us", brand: "Brand B", category: "Smart Air Purifiers" },
-      { id: "f3", name: "Smart Air Purifiers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+smart+air+purifiers&country=us", brand: "Brand C", category: "Smart Air Purifiers" },
-      { id: "f4", name: "Smart Air Purifiers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+smart+air+purifiers&country=us", brand: "Brand D", category: "Smart Air Purifiers" },
-      { id: "f5", name: "Smart Air Purifiers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+smart+air+purifiers&country=us", brand: "Brand E", category: "Smart Air Purifiers" },
-    ],
   },
 
   "best-robot-vacuums-us": {
@@ -6591,13 +6013,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Robot Vacuums Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+robot+vacuums&country=us", brand: "Brand A", category: "Robot Vacuums" },
-      { id: "f2", name: "Robot Vacuums Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+robot+vacuums&country=us", brand: "Brand B", category: "Robot Vacuums" },
-      { id: "f3", name: "Robot Vacuums Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+robot+vacuums&country=us", brand: "Brand C", category: "Robot Vacuums" },
-      { id: "f4", name: "Robot Vacuums Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+robot+vacuums&country=us", brand: "Brand D", category: "Robot Vacuums" },
-      { id: "f5", name: "Robot Vacuums Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+robot+vacuums&country=us", brand: "Brand E", category: "Robot Vacuums" },
-    ],
   },
 
   "best-car-vacuum-cleaners-us": {
@@ -6651,13 +6066,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Car Vacuum Cleaners Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+car+vacuum+cleaners&country=us", brand: "Brand A", category: "Car Vacuum Cleaners" },
-      { id: "f2", name: "Car Vacuum Cleaners Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+car+vacuum+cleaners&country=us", brand: "Brand B", category: "Car Vacuum Cleaners" },
-      { id: "f3", name: "Car Vacuum Cleaners Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+car+vacuum+cleaners&country=us", brand: "Brand C", category: "Car Vacuum Cleaners" },
-      { id: "f4", name: "Car Vacuum Cleaners Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+car+vacuum+cleaners&country=us", brand: "Brand D", category: "Car Vacuum Cleaners" },
-      { id: "f5", name: "Car Vacuum Cleaners Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+car+vacuum+cleaners&country=us", brand: "Brand E", category: "Car Vacuum Cleaners" },
-    ],
   },
 
   "best-steam-generators-us": {
@@ -6711,13 +6119,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Steam Generators Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+steam+generators&country=us", brand: "Brand A", category: "Steam Generators" },
-      { id: "f2", name: "Steam Generators Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+steam+generators&country=us", brand: "Brand B", category: "Steam Generators" },
-      { id: "f3", name: "Steam Generators Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+steam+generators&country=us", brand: "Brand C", category: "Steam Generators" },
-      { id: "f4", name: "Steam Generators Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+steam+generators&country=us", brand: "Brand D", category: "Steam Generators" },
-      { id: "f5", name: "Steam Generators Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+steam+generators&country=us", brand: "Brand E", category: "Steam Generators" },
-    ],
   },
 
   "best-electric-fireplaces-us": {
@@ -6771,13 +6172,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Electric Fireplaces Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+electric+fireplaces&country=us", brand: "Brand A", category: "Electric Fireplaces" },
-      { id: "f2", name: "Electric Fireplaces Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+electric+fireplaces&country=us", brand: "Brand B", category: "Electric Fireplaces" },
-      { id: "f3", name: "Electric Fireplaces Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+electric+fireplaces&country=us", brand: "Brand C", category: "Electric Fireplaces" },
-      { id: "f4", name: "Electric Fireplaces Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+electric+fireplaces&country=us", brand: "Brand D", category: "Electric Fireplaces" },
-      { id: "f5", name: "Electric Fireplaces Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+electric+fireplaces&country=us", brand: "Brand E", category: "Electric Fireplaces" },
-    ],
   },
 
   "best-water-purifiers-us": {
@@ -6831,13 +6225,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Water Purifiers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+water+purifiers&country=us", brand: "Brand A", category: "Water Purifiers" },
-      { id: "f2", name: "Water Purifiers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+water+purifiers&country=us", brand: "Brand B", category: "Water Purifiers" },
-      { id: "f3", name: "Water Purifiers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+water+purifiers&country=us", brand: "Brand C", category: "Water Purifiers" },
-      { id: "f4", name: "Water Purifiers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+water+purifiers&country=us", brand: "Brand D", category: "Water Purifiers" },
-      { id: "f5", name: "Water Purifiers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+water+purifiers&country=us", brand: "Brand E", category: "Water Purifiers" },
-    ],
   },
 
   "best-water-softeners-us": {
@@ -6891,13 +6278,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Water Softeners Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+water+softeners&country=us", brand: "Brand A", category: "Water Softeners" },
-      { id: "f2", name: "Water Softeners Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+water+softeners&country=us", brand: "Brand B", category: "Water Softeners" },
-      { id: "f3", name: "Water Softeners Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+water+softeners&country=us", brand: "Brand C", category: "Water Softeners" },
-      { id: "f4", name: "Water Softeners Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+water+softeners&country=us", brand: "Brand D", category: "Water Softeners" },
-      { id: "f5", name: "Water Softeners Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+water+softeners&country=us", brand: "Brand E", category: "Water Softeners" },
-    ],
   },
 
   "best-wine-coolers-us": {
@@ -6951,13 +6331,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Wine Coolers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+wine+coolers&country=us", brand: "Brand A", category: "Wine Coolers" },
-      { id: "f2", name: "Wine Coolers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+wine+coolers&country=us", brand: "Brand B", category: "Wine Coolers" },
-      { id: "f3", name: "Wine Coolers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+wine+coolers&country=us", brand: "Brand C", category: "Wine Coolers" },
-      { id: "f4", name: "Wine Coolers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+wine+coolers&country=us", brand: "Brand D", category: "Wine Coolers" },
-      { id: "f5", name: "Wine Coolers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+wine+coolers&country=us", brand: "Brand E", category: "Wine Coolers" },
-    ],
   },
 
   "best-slice-toasters-us": {
@@ -7011,13 +6384,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Slice Toasters Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+slice+toasters&country=us", brand: "Brand A", category: "Slice Toasters" },
-      { id: "f2", name: "Slice Toasters Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+slice+toasters&country=us", brand: "Brand B", category: "Slice Toasters" },
-      { id: "f3", name: "Slice Toasters Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+slice+toasters&country=us", brand: "Brand C", category: "Slice Toasters" },
-      { id: "f4", name: "Slice Toasters Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+slice+toasters&country=us", brand: "Brand D", category: "Slice Toasters" },
-      { id: "f5", name: "Slice Toasters Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+slice+toasters&country=us", brand: "Brand E", category: "Slice Toasters" },
-    ],
   },
 
   "best-pressure-washing-machines-us": {
@@ -7071,13 +6437,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Pressure Washing Machines Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+pressure+washing+machines&country=us", brand: "Brand A", category: "Pressure Washing Machines" },
-      { id: "f2", name: "Pressure Washing Machines Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+pressure+washing+machines&country=us", brand: "Brand B", category: "Pressure Washing Machines" },
-      { id: "f3", name: "Pressure Washing Machines Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+pressure+washing+machines&country=us", brand: "Brand C", category: "Pressure Washing Machines" },
-      { id: "f4", name: "Pressure Washing Machines Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+pressure+washing+machines&country=us", brand: "Brand D", category: "Pressure Washing Machines" },
-      { id: "f5", name: "Pressure Washing Machines Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+pressure+washing+machines&country=us", brand: "Brand E", category: "Pressure Washing Machines" },
-    ],
   },
 
   "best-window-ac-us": {
@@ -7131,13 +6490,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Window Ac Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+window+ac&country=us", brand: "Brand A", category: "Window Ac" },
-      { id: "f2", name: "Window Ac Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+window+ac&country=us", brand: "Brand B", category: "Window Ac" },
-      { id: "f3", name: "Window Ac Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+window+ac&country=us", brand: "Brand C", category: "Window Ac" },
-      { id: "f4", name: "Window Ac Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+window+ac&country=us", brand: "Brand D", category: "Window Ac" },
-      { id: "f5", name: "Window Ac Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+window+ac&country=us", brand: "Brand E", category: "Window Ac" },
-    ],
   },
 
   "best-portable-ac-us": {
@@ -7191,13 +6543,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Portable Ac Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+portable+ac&country=us", brand: "Brand A", category: "Portable Ac" },
-      { id: "f2", name: "Portable Ac Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+portable+ac&country=us", brand: "Brand B", category: "Portable Ac" },
-      { id: "f3", name: "Portable Ac Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+portable+ac&country=us", brand: "Brand C", category: "Portable Ac" },
-      { id: "f4", name: "Portable Ac Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+portable+ac&country=us", brand: "Brand D", category: "Portable Ac" },
-      { id: "f5", name: "Portable Ac Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+portable+ac&country=us", brand: "Brand E", category: "Portable Ac" },
-    ],
   },
 
   "best-dehumidifiers-for-basements-us": {
@@ -7251,13 +6596,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Dehumidifiers For Basements Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+dehumidifiers+for+basements&country=us", brand: "Brand A", category: "Dehumidifiers For Basements" },
-      { id: "f2", name: "Dehumidifiers For Basements Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+dehumidifiers+for+basements&country=us", brand: "Brand B", category: "Dehumidifiers For Basements" },
-      { id: "f3", name: "Dehumidifiers For Basements Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+dehumidifiers+for+basements&country=us", brand: "Brand C", category: "Dehumidifiers For Basements" },
-      { id: "f4", name: "Dehumidifiers For Basements Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+dehumidifiers+for+basements&country=us", brand: "Brand D", category: "Dehumidifiers For Basements" },
-      { id: "f5", name: "Dehumidifiers For Basements Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+dehumidifiers+for+basements&country=us", brand: "Brand E", category: "Dehumidifiers For Basements" },
-    ],
   },
 
   "best-whole-house-humidifiers-us": {
@@ -7311,13 +6649,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Whole House Humidifiers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+whole+house+humidifiers&country=us", brand: "Brand A", category: "Whole House Humidifiers" },
-      { id: "f2", name: "Whole House Humidifiers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+whole+house+humidifiers&country=us", brand: "Brand B", category: "Whole House Humidifiers" },
-      { id: "f3", name: "Whole House Humidifiers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+whole+house+humidifiers&country=us", brand: "Brand C", category: "Whole House Humidifiers" },
-      { id: "f4", name: "Whole House Humidifiers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+whole+house+humidifiers&country=us", brand: "Brand D", category: "Whole House Humidifiers" },
-      { id: "f5", name: "Whole House Humidifiers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+whole+house+humidifiers&country=us", brand: "Brand E", category: "Whole House Humidifiers" },
-    ],
   },
 
   "best-air-purifiers-for-allergies-us": {
@@ -7371,13 +6702,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Air Purifiers For Allergies Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+air+purifiers+for+allergies&country=us", brand: "Brand A", category: "Air Purifiers For Allergies" },
-      { id: "f2", name: "Air Purifiers For Allergies Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+air+purifiers+for+allergies&country=us", brand: "Brand B", category: "Air Purifiers For Allergies" },
-      { id: "f3", name: "Air Purifiers For Allergies Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+air+purifiers+for+allergies&country=us", brand: "Brand C", category: "Air Purifiers For Allergies" },
-      { id: "f4", name: "Air Purifiers For Allergies Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+air+purifiers+for+allergies&country=us", brand: "Brand D", category: "Air Purifiers For Allergies" },
-      { id: "f5", name: "Air Purifiers For Allergies Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+air+purifiers+for+allergies&country=us", brand: "Brand E", category: "Air Purifiers For Allergies" },
-    ],
   },
 
   "best-refrigerators-with-ice-makers-us": {
@@ -7431,13 +6755,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Refrigerators With Ice Makers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+refrigerators+with+ice+makers&country=us", brand: "Brand A", category: "Refrigerators With Ice Makers" },
-      { id: "f2", name: "Refrigerators With Ice Makers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+refrigerators+with+ice+makers&country=us", brand: "Brand B", category: "Refrigerators With Ice Makers" },
-      { id: "f3", name: "Refrigerators With Ice Makers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+refrigerators+with+ice+makers&country=us", brand: "Brand C", category: "Refrigerators With Ice Makers" },
-      { id: "f4", name: "Refrigerators With Ice Makers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+refrigerators+with+ice+makers&country=us", brand: "Brand D", category: "Refrigerators With Ice Makers" },
-      { id: "f5", name: "Refrigerators With Ice Makers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+refrigerators+with+ice+makers&country=us", brand: "Brand E", category: "Refrigerators With Ice Makers" },
-    ],
   },
 
   "best-commercial-stand-mixers-us": {
@@ -7491,13 +6808,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Commercial Stand Mixers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+commercial+stand+mixers&country=us", brand: "Brand A", category: "Commercial Stand Mixers" },
-      { id: "f2", name: "Commercial Stand Mixers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+commercial+stand+mixers&country=us", brand: "Brand B", category: "Commercial Stand Mixers" },
-      { id: "f3", name: "Commercial Stand Mixers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+commercial+stand+mixers&country=us", brand: "Brand C", category: "Commercial Stand Mixers" },
-      { id: "f4", name: "Commercial Stand Mixers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+commercial+stand+mixers&country=us", brand: "Brand D", category: "Commercial Stand Mixers" },
-      { id: "f5", name: "Commercial Stand Mixers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+commercial+stand+mixers&country=us", brand: "Brand E", category: "Commercial Stand Mixers" },
-    ],
   },
 
   "best-cold-press-juicers-us": {
@@ -7551,13 +6861,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Cold Press Juicers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+cold+press+juicers&country=us", brand: "Brand A", category: "Cold Press Juicers" },
-      { id: "f2", name: "Cold Press Juicers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+cold+press+juicers&country=us", brand: "Brand B", category: "Cold Press Juicers" },
-      { id: "f3", name: "Cold Press Juicers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+cold+press+juicers&country=us", brand: "Brand C", category: "Cold Press Juicers" },
-      { id: "f4", name: "Cold Press Juicers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+cold+press+juicers&country=us", brand: "Brand D", category: "Cold Press Juicers" },
-      { id: "f5", name: "Cold Press Juicers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+cold+press+juicers&country=us", brand: "Brand E", category: "Cold Press Juicers" },
-    ],
   },
 
   "best-multi-cookers-us": {
@@ -7611,13 +6914,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Multi Cookers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+multi+cookers&country=us", brand: "Brand A", category: "Multi Cookers" },
-      { id: "f2", name: "Multi Cookers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+multi+cookers&country=us", brand: "Brand B", category: "Multi Cookers" },
-      { id: "f3", name: "Multi Cookers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+multi+cookers&country=us", brand: "Brand C", category: "Multi Cookers" },
-      { id: "f4", name: "Multi Cookers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+multi+cookers&country=us", brand: "Brand D", category: "Multi Cookers" },
-      { id: "f5", name: "Multi Cookers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+multi+cookers&country=us", brand: "Brand E", category: "Multi Cookers" },
-    ],
   },
 
   "best-bread-makers-us": {
@@ -7671,13 +6967,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Bread Makers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+bread+makers&country=us", brand: "Brand A", category: "Bread Makers" },
-      { id: "f2", name: "Bread Makers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+bread+makers&country=us", brand: "Brand B", category: "Bread Makers" },
-      { id: "f3", name: "Bread Makers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+bread+makers&country=us", brand: "Brand C", category: "Bread Makers" },
-      { id: "f4", name: "Bread Makers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+bread+makers&country=us", brand: "Brand D", category: "Bread Makers" },
-      { id: "f5", name: "Bread Makers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+bread+makers&country=us", brand: "Brand E", category: "Bread Makers" },
-    ],
   },
 
   "best-yogurt-makers-us": {
@@ -7731,13 +7020,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Yogurt Makers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+yogurt+makers&country=us", brand: "Brand A", category: "Yogurt Makers" },
-      { id: "f2", name: "Yogurt Makers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+yogurt+makers&country=us", brand: "Brand B", category: "Yogurt Makers" },
-      { id: "f3", name: "Yogurt Makers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+yogurt+makers&country=us", brand: "Brand C", category: "Yogurt Makers" },
-      { id: "f4", name: "Yogurt Makers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+yogurt+makers&country=us", brand: "Brand D", category: "Yogurt Makers" },
-      { id: "f5", name: "Yogurt Makers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+yogurt+makers&country=us", brand: "Brand E", category: "Yogurt Makers" },
-    ],
   },
 
   "best-sous-vide-us": {
@@ -7791,13 +7073,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Sous Vide Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+sous+vide&country=us", brand: "Brand A", category: "Sous Vide" },
-      { id: "f2", name: "Sous Vide Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+sous+vide&country=us", brand: "Brand B", category: "Sous Vide" },
-      { id: "f3", name: "Sous Vide Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+sous+vide&country=us", brand: "Brand C", category: "Sous Vide" },
-      { id: "f4", name: "Sous Vide Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+sous+vide&country=us", brand: "Brand D", category: "Sous Vide" },
-      { id: "f5", name: "Sous Vide Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+sous+vide&country=us", brand: "Brand E", category: "Sous Vide" },
-    ],
   },
 
   "best-food-dehydrators-us": {
@@ -7851,13 +7126,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Food Dehydrators Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+food+dehydrators&country=us", brand: "Brand A", category: "Food Dehydrators" },
-      { id: "f2", name: "Food Dehydrators Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+food+dehydrators&country=us", brand: "Brand B", category: "Food Dehydrators" },
-      { id: "f3", name: "Food Dehydrators Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+food+dehydrators&country=us", brand: "Brand C", category: "Food Dehydrators" },
-      { id: "f4", name: "Food Dehydrators Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+food+dehydrators&country=us", brand: "Brand D", category: "Food Dehydrators" },
-      { id: "f5", name: "Food Dehydrators Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+food+dehydrators&country=us", brand: "Brand E", category: "Food Dehydrators" },
-    ],
   },
 
   "best-popcorn-makers-us": {
@@ -7911,13 +7179,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Popcorn Makers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+popcorn+makers&country=us", brand: "Brand A", category: "Popcorn Makers" },
-      { id: "f2", name: "Popcorn Makers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+popcorn+makers&country=us", brand: "Brand B", category: "Popcorn Makers" },
-      { id: "f3", name: "Popcorn Makers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+popcorn+makers&country=us", brand: "Brand C", category: "Popcorn Makers" },
-      { id: "f4", name: "Popcorn Makers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+popcorn+makers&country=us", brand: "Brand D", category: "Popcorn Makers" },
-      { id: "f5", name: "Popcorn Makers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+popcorn+makers&country=us", brand: "Brand E", category: "Popcorn Makers" },
-    ],
   },
 
   "best-electric-griddles-us": {
@@ -7971,13 +7232,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Electric Griddles Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+electric+griddles&country=us", brand: "Brand A", category: "Electric Griddles" },
-      { id: "f2", name: "Electric Griddles Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+electric+griddles&country=us", brand: "Brand B", category: "Electric Griddles" },
-      { id: "f3", name: "Electric Griddles Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+electric+griddles&country=us", brand: "Brand C", category: "Electric Griddles" },
-      { id: "f4", name: "Electric Griddles Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+electric+griddles&country=us", brand: "Brand D", category: "Electric Griddles" },
-      { id: "f5", name: "Electric Griddles Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+electric+griddles&country=us", brand: "Brand E", category: "Electric Griddles" },
-    ],
   },
 
   "best-waffle-makers-us": {
@@ -8031,13 +7285,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Waffle Makers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+waffle+makers&country=us", brand: "Brand A", category: "Waffle Makers" },
-      { id: "f2", name: "Waffle Makers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+waffle+makers&country=us", brand: "Brand B", category: "Waffle Makers" },
-      { id: "f3", name: "Waffle Makers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+waffle+makers&country=us", brand: "Brand C", category: "Waffle Makers" },
-      { id: "f4", name: "Waffle Makers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+waffle+makers&country=us", brand: "Brand D", category: "Waffle Makers" },
-      { id: "f5", name: "Waffle Makers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+waffle+makers&country=us", brand: "Brand E", category: "Waffle Makers" },
-    ],
   },
 
   "best-contact-grills-us": {
@@ -8091,13 +7338,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Contact Grills Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+contact+grills&country=us", brand: "Brand A", category: "Contact Grills" },
-      { id: "f2", name: "Contact Grills Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+contact+grills&country=us", brand: "Brand B", category: "Contact Grills" },
-      { id: "f3", name: "Contact Grills Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+contact+grills&country=us", brand: "Brand C", category: "Contact Grills" },
-      { id: "f4", name: "Contact Grills Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+contact+grills&country=us", brand: "Brand D", category: "Contact Grills" },
-      { id: "f5", name: "Contact Grills Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+contact+grills&country=us", brand: "Brand E", category: "Contact Grills" },
-    ],
   },
   "best-business-laptops-us": {
     slug: "best-business-laptops-us",
@@ -8150,13 +7390,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Business Laptops Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+business+laptops&country=us", brand: "Brand A", category: "Business Laptops" },
-      { id: "f2", name: "Business Laptops Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+business+laptops&country=us", brand: "Brand B", category: "Business Laptops" },
-      { id: "f3", name: "Business Laptops Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+business+laptops&country=us", brand: "Brand C", category: "Business Laptops" },
-      { id: "f4", name: "Business Laptops Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+business+laptops&country=us", brand: "Brand D", category: "Business Laptops" },
-      { id: "f5", name: "Business Laptops Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+business+laptops&country=us", brand: "Brand E", category: "Business Laptops" },
-    ],
   },
 
   "best-budget-laptops-us": {
@@ -8210,13 +7443,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Budget Laptops Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+budget+laptops&country=us", brand: "Brand A", category: "Budget Laptops" },
-      { id: "f2", name: "Budget Laptops Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+budget+laptops&country=us", brand: "Brand B", category: "Budget Laptops" },
-      { id: "f3", name: "Budget Laptops Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+budget+laptops&country=us", brand: "Brand C", category: "Budget Laptops" },
-      { id: "f4", name: "Budget Laptops Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+budget+laptops&country=us", brand: "Brand D", category: "Budget Laptops" },
-      { id: "f5", name: "Budget Laptops Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+budget+laptops&country=us", brand: "Brand E", category: "Budget Laptops" },
-    ],
   },
 
   "best-ultrabooks-us": {
@@ -8270,13 +7496,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Ultrabooks Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+ultrabooks&country=us", brand: "Brand A", category: "Ultrabooks" },
-      { id: "f2", name: "Ultrabooks Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+ultrabooks&country=us", brand: "Brand B", category: "Ultrabooks" },
-      { id: "f3", name: "Ultrabooks Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+ultrabooks&country=us", brand: "Brand C", category: "Ultrabooks" },
-      { id: "f4", name: "Ultrabooks Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+ultrabooks&country=us", brand: "Brand D", category: "Ultrabooks" },
-      { id: "f5", name: "Ultrabooks Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+ultrabooks&country=us", brand: "Brand E", category: "Ultrabooks" },
-    ],
   },
 
   "best-macbooks-us": {
@@ -8330,13 +7549,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "MacBooks Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+macbooks&country=us", brand: "Brand A", category: "MacBooks" },
-      { id: "f2", name: "MacBooks Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+macbooks&country=us", brand: "Brand B", category: "MacBooks" },
-      { id: "f3", name: "MacBooks Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+macbooks&country=us", brand: "Brand C", category: "MacBooks" },
-      { id: "f4", name: "MacBooks Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+macbooks&country=us", brand: "Brand D", category: "MacBooks" },
-      { id: "f5", name: "MacBooks Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+macbooks&country=us", brand: "Brand E", category: "MacBooks" },
-    ],
   },
 
   "best-iphones-us": {
@@ -8390,13 +7602,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "iPhones Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+iphones&country=us", brand: "Brand A", category: "iPhones" },
-      { id: "f2", name: "iPhones Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+iphones&country=us", brand: "Brand B", category: "iPhones" },
-      { id: "f3", name: "iPhones Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+iphones&country=us", brand: "Brand C", category: "iPhones" },
-      { id: "f4", name: "iPhones Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+iphones&country=us", brand: "Brand D", category: "iPhones" },
-      { id: "f5", name: "iPhones Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+iphones&country=us", brand: "Brand E", category: "iPhones" },
-    ],
   },
 
   "best-samsung-phones-us": {
@@ -8450,13 +7655,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Samsung Phones Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+samsung+phones&country=us", brand: "Brand A", category: "Samsung Phones" },
-      { id: "f2", name: "Samsung Phones Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+samsung+phones&country=us", brand: "Brand B", category: "Samsung Phones" },
-      { id: "f3", name: "Samsung Phones Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+samsung+phones&country=us", brand: "Brand C", category: "Samsung Phones" },
-      { id: "f4", name: "Samsung Phones Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+samsung+phones&country=us", brand: "Brand D", category: "Samsung Phones" },
-      { id: "f5", name: "Samsung Phones Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+samsung+phones&country=us", brand: "Brand E", category: "Samsung Phones" },
-    ],
   },
 
   "best-google-phones-us": {
@@ -8510,13 +7708,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Google Phones Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+google+phones&country=us", brand: "Brand A", category: "Google Phones" },
-      { id: "f2", name: "Google Phones Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+google+phones&country=us", brand: "Brand B", category: "Google Phones" },
-      { id: "f3", name: "Google Phones Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+google+phones&country=us", brand: "Brand C", category: "Google Phones" },
-      { id: "f4", name: "Google Phones Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+google+phones&country=us", brand: "Brand D", category: "Google Phones" },
-      { id: "f5", name: "Google Phones Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+google+phones&country=us", brand: "Brand E", category: "Google Phones" },
-    ],
   },
 
   "best-budget-phones-us": {
@@ -8570,13 +7761,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Budget Phones Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+budget+phones&country=us", brand: "Brand A", category: "Budget Phones" },
-      { id: "f2", name: "Budget Phones Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+budget+phones&country=us", brand: "Brand B", category: "Budget Phones" },
-      { id: "f3", name: "Budget Phones Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+budget+phones&country=us", brand: "Brand C", category: "Budget Phones" },
-      { id: "f4", name: "Budget Phones Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+budget+phones&country=us", brand: "Brand D", category: "Budget Phones" },
-      { id: "f5", name: "Budget Phones Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+budget+phones&country=us", brand: "Brand E", category: "Budget Phones" },
-    ],
   },
 
   "best-ipads-us": {
@@ -8630,13 +7814,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "iPads Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+ipads&country=us", brand: "Brand A", category: "iPads" },
-      { id: "f2", name: "iPads Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+ipads&country=us", brand: "Brand B", category: "iPads" },
-      { id: "f3", name: "iPads Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+ipads&country=us", brand: "Brand C", category: "iPads" },
-      { id: "f4", name: "iPads Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+ipads&country=us", brand: "Brand D", category: "iPads" },
-      { id: "f5", name: "iPads Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+ipads&country=us", brand: "Brand E", category: "iPads" },
-    ],
   },
 
   "best-android-tablets-us": {
@@ -8690,13 +7867,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Android Tablets Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+android+tablets&country=us", brand: "Brand A", category: "Android Tablets" },
-      { id: "f2", name: "Android Tablets Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+android+tablets&country=us", brand: "Brand B", category: "Android Tablets" },
-      { id: "f3", name: "Android Tablets Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+android+tablets&country=us", brand: "Brand C", category: "Android Tablets" },
-      { id: "f4", name: "Android Tablets Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+android+tablets&country=us", brand: "Brand D", category: "Android Tablets" },
-      { id: "f5", name: "Android Tablets Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+android+tablets&country=us", brand: "Brand E", category: "Android Tablets" },
-    ],
   },
 
   "best-drawing-tablets-us": {
@@ -8750,13 +7920,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Drawing Tablets Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+drawing+tablets&country=us", brand: "Brand A", category: "Drawing Tablets" },
-      { id: "f2", name: "Drawing Tablets Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+drawing+tablets&country=us", brand: "Brand B", category: "Drawing Tablets" },
-      { id: "f3", name: "Drawing Tablets Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+drawing+tablets&country=us", brand: "Brand C", category: "Drawing Tablets" },
-      { id: "f4", name: "Drawing Tablets Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+drawing+tablets&country=us", brand: "Brand D", category: "Drawing Tablets" },
-      { id: "f5", name: "Drawing Tablets Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+drawing+tablets&country=us", brand: "Brand E", category: "Drawing Tablets" },
-    ],
   },
 
   "best-oled-tvs-us": {
@@ -8810,13 +7973,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "OLED TVs Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+oled+tvs&country=us", brand: "Brand A", category: "OLED TVs" },
-      { id: "f2", name: "OLED TVs Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+oled+tvs&country=us", brand: "Brand B", category: "OLED TVs" },
-      { id: "f3", name: "OLED TVs Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+oled+tvs&country=us", brand: "Brand C", category: "OLED TVs" },
-      { id: "f4", name: "OLED TVs Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+oled+tvs&country=us", brand: "Brand D", category: "OLED TVs" },
-      { id: "f5", name: "OLED TVs Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+oled+tvs&country=us", brand: "Brand E", category: "OLED TVs" },
-    ],
   },
 
   "best-qled-tvs-us": {
@@ -8870,13 +8026,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "QLED TVs Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+qled+tvs&country=us", brand: "Brand A", category: "QLED TVs" },
-      { id: "f2", name: "QLED TVs Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+qled+tvs&country=us", brand: "Brand B", category: "QLED TVs" },
-      { id: "f3", name: "QLED TVs Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+qled+tvs&country=us", brand: "Brand C", category: "QLED TVs" },
-      { id: "f4", name: "QLED TVs Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+qled+tvs&country=us", brand: "Brand D", category: "QLED TVs" },
-      { id: "f5", name: "QLED TVs Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+qled+tvs&country=us", brand: "Brand E", category: "QLED TVs" },
-    ],
   },
 
   "best-budget-tvs-us": {
@@ -8930,13 +8079,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Budget TVs Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+budget+tvs&country=us", brand: "Brand A", category: "Budget TVs" },
-      { id: "f2", name: "Budget TVs Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+budget+tvs&country=us", brand: "Brand B", category: "Budget TVs" },
-      { id: "f3", name: "Budget TVs Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+budget+tvs&country=us", brand: "Brand C", category: "Budget TVs" },
-      { id: "f4", name: "Budget TVs Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+budget+tvs&country=us", brand: "Brand D", category: "Budget TVs" },
-      { id: "f5", name: "Budget TVs Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+budget+tvs&country=us", brand: "Brand E", category: "Budget TVs" },
-    ],
   },
 
   "best-gaming-monitors-us": {
@@ -8990,13 +8132,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Gaming Monitors Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+gaming+monitors&country=us", brand: "Brand A", category: "Gaming Monitors" },
-      { id: "f2", name: "Gaming Monitors Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+gaming+monitors&country=us", brand: "Brand B", category: "Gaming Monitors" },
-      { id: "f3", name: "Gaming Monitors Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+gaming+monitors&country=us", brand: "Brand C", category: "Gaming Monitors" },
-      { id: "f4", name: "Gaming Monitors Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+gaming+monitors&country=us", brand: "Brand D", category: "Gaming Monitors" },
-      { id: "f5", name: "Gaming Monitors Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+gaming+monitors&country=us", brand: "Brand E", category: "Gaming Monitors" },
-    ],
   },
 
   "best-4k-monitors-us": {
@@ -9050,13 +8185,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "4K Monitors Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+4k+monitors&country=us", brand: "Brand A", category: "4K Monitors" },
-      { id: "f2", name: "4K Monitors Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+4k+monitors&country=us", brand: "Brand B", category: "4K Monitors" },
-      { id: "f3", name: "4K Monitors Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+4k+monitors&country=us", brand: "Brand C", category: "4K Monitors" },
-      { id: "f4", name: "4K Monitors Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+4k+monitors&country=us", brand: "Brand D", category: "4K Monitors" },
-      { id: "f5", name: "4K Monitors Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+4k+monitors&country=us", brand: "Brand E", category: "4K Monitors" },
-    ],
   },
 
   "best-ultrawide-monitors-us": {
@@ -9110,13 +8238,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Ultrawide Monitors Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+ultrawide+monitors&country=us", brand: "Brand A", category: "Ultrawide Monitors" },
-      { id: "f2", name: "Ultrawide Monitors Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+ultrawide+monitors&country=us", brand: "Brand B", category: "Ultrawide Monitors" },
-      { id: "f3", name: "Ultrawide Monitors Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+ultrawide+monitors&country=us", brand: "Brand C", category: "Ultrawide Monitors" },
-      { id: "f4", name: "Ultrawide Monitors Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+ultrawide+monitors&country=us", brand: "Brand D", category: "Ultrawide Monitors" },
-      { id: "f5", name: "Ultrawide Monitors Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+ultrawide+monitors&country=us", brand: "Brand E", category: "Ultrawide Monitors" },
-    ],
   },
 
   "best-noise-canceling-headphones-us": {
@@ -9170,13 +8291,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Noise-Canceling Headphones Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+noise+canceling+headphones&country=us", brand: "Brand A", category: "Noise-Canceling Headphones" },
-      { id: "f2", name: "Noise-Canceling Headphones Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+noise+canceling+headphones&country=us", brand: "Brand B", category: "Noise-Canceling Headphones" },
-      { id: "f3", name: "Noise-Canceling Headphones Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+noise+canceling+headphones&country=us", brand: "Brand C", category: "Noise-Canceling Headphones" },
-      { id: "f4", name: "Noise-Canceling Headphones Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+noise+canceling+headphones&country=us", brand: "Brand D", category: "Noise-Canceling Headphones" },
-      { id: "f5", name: "Noise-Canceling Headphones Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+noise+canceling+headphones&country=us", brand: "Brand E", category: "Noise-Canceling Headphones" },
-    ],
   },
 
   "best-wireless-earbuds-us": {
@@ -9230,13 +8344,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Wireless Earbuds Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+wireless+earbuds&country=us", brand: "Brand A", category: "Wireless Earbuds" },
-      { id: "f2", name: "Wireless Earbuds Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+wireless+earbuds&country=us", brand: "Brand B", category: "Wireless Earbuds" },
-      { id: "f3", name: "Wireless Earbuds Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+wireless+earbuds&country=us", brand: "Brand C", category: "Wireless Earbuds" },
-      { id: "f4", name: "Wireless Earbuds Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+wireless+earbuds&country=us", brand: "Brand D", category: "Wireless Earbuds" },
-      { id: "f5", name: "Wireless Earbuds Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+wireless+earbuds&country=us", brand: "Brand E", category: "Wireless Earbuds" },
-    ],
   },
 
   "best-budget-earbuds-us": {
@@ -9290,13 +8397,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Budget Earbuds Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+budget+earbuds&country=us", brand: "Brand A", category: "Budget Earbuds" },
-      { id: "f2", name: "Budget Earbuds Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+budget+earbuds&country=us", brand: "Brand B", category: "Budget Earbuds" },
-      { id: "f3", name: "Budget Earbuds Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+budget+earbuds&country=us", brand: "Brand C", category: "Budget Earbuds" },
-      { id: "f4", name: "Budget Earbuds Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+budget+earbuds&country=us", brand: "Brand D", category: "Budget Earbuds" },
-      { id: "f5", name: "Budget Earbuds Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+budget+earbuds&country=us", brand: "Brand E", category: "Budget Earbuds" },
-    ],
   },
 
   "best-fitness-trackers-us": {
@@ -9350,13 +8450,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Fitness Trackers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+fitness+trackers&country=us", brand: "Brand A", category: "Fitness Trackers" },
-      { id: "f2", name: "Fitness Trackers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+fitness+trackers&country=us", brand: "Brand B", category: "Fitness Trackers" },
-      { id: "f3", name: "Fitness Trackers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+fitness+trackers&country=us", brand: "Brand C", category: "Fitness Trackers" },
-      { id: "f4", name: "Fitness Trackers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+fitness+trackers&country=us", brand: "Brand D", category: "Fitness Trackers" },
-      { id: "f5", name: "Fitness Trackers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+fitness+trackers&country=us", brand: "Brand E", category: "Fitness Trackers" },
-    ],
   },
 
   "best-dslr-cameras-us": {
@@ -9410,13 +8503,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "DSLR Cameras Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+dslr+cameras&country=us", brand: "Brand A", category: "DSLR Cameras" },
-      { id: "f2", name: "DSLR Cameras Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+dslr+cameras&country=us", brand: "Brand B", category: "DSLR Cameras" },
-      { id: "f3", name: "DSLR Cameras Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+dslr+cameras&country=us", brand: "Brand C", category: "DSLR Cameras" },
-      { id: "f4", name: "DSLR Cameras Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+dslr+cameras&country=us", brand: "Brand D", category: "DSLR Cameras" },
-      { id: "f5", name: "DSLR Cameras Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+dslr+cameras&country=us", brand: "Brand E", category: "DSLR Cameras" },
-    ],
   },
 
   "best-mirrorless-cameras-us": {
@@ -9470,13 +8556,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Mirrorless Cameras Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+mirrorless+cameras&country=us", brand: "Brand A", category: "Mirrorless Cameras" },
-      { id: "f2", name: "Mirrorless Cameras Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+mirrorless+cameras&country=us", brand: "Brand B", category: "Mirrorless Cameras" },
-      { id: "f3", name: "Mirrorless Cameras Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+mirrorless+cameras&country=us", brand: "Brand C", category: "Mirrorless Cameras" },
-      { id: "f4", name: "Mirrorless Cameras Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+mirrorless+cameras&country=us", brand: "Brand D", category: "Mirrorless Cameras" },
-      { id: "f5", name: "Mirrorless Cameras Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+mirrorless+cameras&country=us", brand: "Brand E", category: "Mirrorless Cameras" },
-    ],
   },
 
   "best-point-and-shoot-cameras-us": {
@@ -9530,13 +8609,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Point-and-Shoot Cameras Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+point+and+shoot+cameras&country=us", brand: "Brand A", category: "Point-and-Shoot Cameras" },
-      { id: "f2", name: "Point-and-Shoot Cameras Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+point+and+shoot+cameras&country=us", brand: "Brand B", category: "Point-and-Shoot Cameras" },
-      { id: "f3", name: "Point-and-Shoot Cameras Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+point+and+shoot+cameras&country=us", brand: "Brand C", category: "Point-and-Shoot Cameras" },
-      { id: "f4", name: "Point-and-Shoot Cameras Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+point+and+shoot+cameras&country=us", brand: "Brand D", category: "Point-and-Shoot Cameras" },
-      { id: "f5", name: "Point-and-Shoot Cameras Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+point+and+shoot+cameras&country=us", brand: "Brand E", category: "Point-and-Shoot Cameras" },
-    ],
   },
 
   "best-vr-headsets-us": {
@@ -9590,13 +8662,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "VR Headsets Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+vr+headsets&country=us", brand: "Brand A", category: "VR Headsets" },
-      { id: "f2", name: "VR Headsets Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+vr+headsets&country=us", brand: "Brand B", category: "VR Headsets" },
-      { id: "f3", name: "VR Headsets Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+vr+headsets&country=us", brand: "Brand C", category: "VR Headsets" },
-      { id: "f4", name: "VR Headsets Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+vr+headsets&country=us", brand: "Brand D", category: "VR Headsets" },
-      { id: "f5", name: "VR Headsets Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+vr+headsets&country=us", brand: "Brand E", category: "VR Headsets" },
-    ],
   },
 
   "best-drones-us": {
@@ -9650,13 +8715,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Drones Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+drones&country=us", brand: "Brand A", category: "Drones" },
-      { id: "f2", name: "Drones Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+drones&country=us", brand: "Brand B", category: "Drones" },
-      { id: "f3", name: "Drones Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+drones&country=us", brand: "Brand C", category: "Drones" },
-      { id: "f4", name: "Drones Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+drones&country=us", brand: "Brand D", category: "Drones" },
-      { id: "f5", name: "Drones Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+drones&country=us", brand: "Brand E", category: "Drones" },
-    ],
   },
 
   "best-bluetooth-speakers-us": {
@@ -9710,13 +8768,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Bluetooth Speakers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+bluetooth+speakers&country=us", brand: "Brand A", category: "Bluetooth Speakers" },
-      { id: "f2", name: "Bluetooth Speakers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+bluetooth+speakers&country=us", brand: "Brand B", category: "Bluetooth Speakers" },
-      { id: "f3", name: "Bluetooth Speakers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+bluetooth+speakers&country=us", brand: "Brand C", category: "Bluetooth Speakers" },
-      { id: "f4", name: "Bluetooth Speakers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+bluetooth+speakers&country=us", brand: "Brand D", category: "Bluetooth Speakers" },
-      { id: "f5", name: "Bluetooth Speakers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+bluetooth+speakers&country=us", brand: "Brand E", category: "Bluetooth Speakers" },
-    ],
   },
 
   "best-smart-speakers-us": {
@@ -9770,13 +8821,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Smart Speakers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+smart+speakers&country=us", brand: "Brand A", category: "Smart Speakers" },
-      { id: "f2", name: "Smart Speakers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+smart+speakers&country=us", brand: "Brand B", category: "Smart Speakers" },
-      { id: "f3", name: "Smart Speakers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+smart+speakers&country=us", brand: "Brand C", category: "Smart Speakers" },
-      { id: "f4", name: "Smart Speakers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+smart+speakers&country=us", brand: "Brand D", category: "Smart Speakers" },
-      { id: "f5", name: "Smart Speakers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+smart+speakers&country=us", brand: "Brand E", category: "Smart Speakers" },
-    ],
   },
 
   "best-soundbars-us": {
@@ -9830,13 +8874,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Soundbars Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+soundbars&country=us", brand: "Brand A", category: "Soundbars" },
-      { id: "f2", name: "Soundbars Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+soundbars&country=us", brand: "Brand B", category: "Soundbars" },
-      { id: "f3", name: "Soundbars Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+soundbars&country=us", brand: "Brand C", category: "Soundbars" },
-      { id: "f4", name: "Soundbars Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+soundbars&country=us", brand: "Brand D", category: "Soundbars" },
-      { id: "f5", name: "Soundbars Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+soundbars&country=us", brand: "Brand E", category: "Soundbars" },
-    ],
   },
 
   "best-mechanical-keyboards-us": {
@@ -9890,13 +8927,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Mechanical Keyboards Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+mechanical+keyboards&country=us", brand: "Brand A", category: "Mechanical Keyboards" },
-      { id: "f2", name: "Mechanical Keyboards Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+mechanical+keyboards&country=us", brand: "Brand B", category: "Mechanical Keyboards" },
-      { id: "f3", name: "Mechanical Keyboards Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+mechanical+keyboards&country=us", brand: "Brand C", category: "Mechanical Keyboards" },
-      { id: "f4", name: "Mechanical Keyboards Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+mechanical+keyboards&country=us", brand: "Brand D", category: "Mechanical Keyboards" },
-      { id: "f5", name: "Mechanical Keyboards Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+mechanical+keyboards&country=us", brand: "Brand E", category: "Mechanical Keyboards" },
-    ],
   },
 
   "best-wireless-keyboards-us": {
@@ -9950,13 +8980,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Wireless Keyboards Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+wireless+keyboards&country=us", brand: "Brand A", category: "Wireless Keyboards" },
-      { id: "f2", name: "Wireless Keyboards Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+wireless+keyboards&country=us", brand: "Brand B", category: "Wireless Keyboards" },
-      { id: "f3", name: "Wireless Keyboards Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+wireless+keyboards&country=us", brand: "Brand C", category: "Wireless Keyboards" },
-      { id: "f4", name: "Wireless Keyboards Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+wireless+keyboards&country=us", brand: "Brand D", category: "Wireless Keyboards" },
-      { id: "f5", name: "Wireless Keyboards Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+wireless+keyboards&country=us", brand: "Brand E", category: "Wireless Keyboards" },
-    ],
   },
 
   "best-gaming-mice-us": {
@@ -10010,13 +9033,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Gaming Mice Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+gaming+mice&country=us", brand: "Brand A", category: "Gaming Mice" },
-      { id: "f2", name: "Gaming Mice Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+gaming+mice&country=us", brand: "Brand B", category: "Gaming Mice" },
-      { id: "f3", name: "Gaming Mice Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+gaming+mice&country=us", brand: "Brand C", category: "Gaming Mice" },
-      { id: "f4", name: "Gaming Mice Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+gaming+mice&country=us", brand: "Brand D", category: "Gaming Mice" },
-      { id: "f5", name: "Gaming Mice Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+gaming+mice&country=us", brand: "Brand E", category: "Gaming Mice" },
-    ],
   },
 
   "best-ergonomic-mice-us": {
@@ -10070,13 +9086,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Ergonomic Mice Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+ergonomic+mice&country=us", brand: "Brand A", category: "Ergonomic Mice" },
-      { id: "f2", name: "Ergonomic Mice Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+ergonomic+mice&country=us", brand: "Brand B", category: "Ergonomic Mice" },
-      { id: "f3", name: "Ergonomic Mice Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+ergonomic+mice&country=us", brand: "Brand C", category: "Ergonomic Mice" },
-      { id: "f4", name: "Ergonomic Mice Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+ergonomic+mice&country=us", brand: "Brand D", category: "Ergonomic Mice" },
-      { id: "f5", name: "Ergonomic Mice Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+ergonomic+mice&country=us", brand: "Brand E", category: "Ergonomic Mice" },
-    ],
   },
 
   "best-webcams-us": {
@@ -10130,13 +9139,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Webcams Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+webcams&country=us", brand: "Brand A", category: "Webcams" },
-      { id: "f2", name: "Webcams Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+webcams&country=us", brand: "Brand B", category: "Webcams" },
-      { id: "f3", name: "Webcams Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+webcams&country=us", brand: "Brand C", category: "Webcams" },
-      { id: "f4", name: "Webcams Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+webcams&country=us", brand: "Brand D", category: "Webcams" },
-      { id: "f5", name: "Webcams Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+webcams&country=us", brand: "Brand E", category: "Webcams" },
-    ],
   },
 
   "best-microphones-us": {
@@ -10190,13 +9192,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Microphones Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+microphones&country=us", brand: "Brand A", category: "Microphones" },
-      { id: "f2", name: "Microphones Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+microphones&country=us", brand: "Brand B", category: "Microphones" },
-      { id: "f3", name: "Microphones Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+microphones&country=us", brand: "Brand C", category: "Microphones" },
-      { id: "f4", name: "Microphones Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+microphones&country=us", brand: "Brand D", category: "Microphones" },
-      { id: "f5", name: "Microphones Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+microphones&country=us", brand: "Brand E", category: "Microphones" },
-    ],
   },
 
   "best-printers-us": {
@@ -10250,13 +9245,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Printers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+printers&country=us", brand: "Brand A", category: "Printers" },
-      { id: "f2", name: "Printers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+printers&country=us", brand: "Brand B", category: "Printers" },
-      { id: "f3", name: "Printers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+printers&country=us", brand: "Brand C", category: "Printers" },
-      { id: "f4", name: "Printers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+printers&country=us", brand: "Brand D", category: "Printers" },
-      { id: "f5", name: "Printers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+printers&country=us", brand: "Brand E", category: "Printers" },
-    ],
   },
 
   "best-wifi-routers-us": {
@@ -10310,13 +9298,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "WiFi Routers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+wifi+routers&country=us", brand: "Brand A", category: "WiFi Routers" },
-      { id: "f2", name: "WiFi Routers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+wifi+routers&country=us", brand: "Brand B", category: "WiFi Routers" },
-      { id: "f3", name: "WiFi Routers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+wifi+routers&country=us", brand: "Brand C", category: "WiFi Routers" },
-      { id: "f4", name: "WiFi Routers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+wifi+routers&country=us", brand: "Brand D", category: "WiFi Routers" },
-      { id: "f5", name: "WiFi Routers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+wifi+routers&country=us", brand: "Brand E", category: "WiFi Routers" },
-    ],
   },
 
   "best-mesh-routers-us": {
@@ -10370,13 +9351,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Mesh WiFi Systems Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+mesh+routers&country=us", brand: "Brand A", category: "Mesh WiFi Systems" },
-      { id: "f2", name: "Mesh WiFi Systems Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+mesh+routers&country=us", brand: "Brand B", category: "Mesh WiFi Systems" },
-      { id: "f3", name: "Mesh WiFi Systems Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+mesh+routers&country=us", brand: "Brand C", category: "Mesh WiFi Systems" },
-      { id: "f4", name: "Mesh WiFi Systems Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+mesh+routers&country=us", brand: "Brand D", category: "Mesh WiFi Systems" },
-      { id: "f5", name: "Mesh WiFi Systems Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+mesh+routers&country=us", brand: "Brand E", category: "Mesh WiFi Systems" },
-    ],
   },
 
   "best-nas-us": {
@@ -10430,13 +9404,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "NAS Storage Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+nas&country=us", brand: "Brand A", category: "NAS Storage" },
-      { id: "f2", name: "NAS Storage Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+nas&country=us", brand: "Brand B", category: "NAS Storage" },
-      { id: "f3", name: "NAS Storage Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+nas&country=us", brand: "Brand C", category: "NAS Storage" },
-      { id: "f4", name: "NAS Storage Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+nas&country=us", brand: "Brand D", category: "NAS Storage" },
-      { id: "f5", name: "NAS Storage Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+nas&country=us", brand: "Brand E", category: "NAS Storage" },
-    ],
   },
 
   "best-power-banks-us": {
@@ -10490,13 +9457,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Power Banks Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+power+banks&country=us", brand: "Brand A", category: "Power Banks" },
-      { id: "f2", name: "Power Banks Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+power+banks&country=us", brand: "Brand B", category: "Power Banks" },
-      { id: "f3", name: "Power Banks Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+power+banks&country=us", brand: "Brand C", category: "Power Banks" },
-      { id: "f4", name: "Power Banks Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+power+banks&country=us", brand: "Brand D", category: "Power Banks" },
-      { id: "f5", name: "Power Banks Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+power+banks&country=us", brand: "Brand E", category: "Power Banks" },
-    ],
   },
 
   "best-usb-c-hubs-us": {
@@ -10550,13 +9510,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "USB-C Hubs Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=bestb+c+hubs&country=us", brand: "Brand A", category: "USB-C Hubs" },
-      { id: "f2", name: "USB-C Hubs Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=bestb+c+hubs&country=us", brand: "Brand B", category: "USB-C Hubs" },
-      { id: "f3", name: "USB-C Hubs Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=bestb+c+hubs&country=us", brand: "Brand C", category: "USB-C Hubs" },
-      { id: "f4", name: "USB-C Hubs Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=bestb+c+hubs&country=us", brand: "Brand D", category: "USB-C Hubs" },
-      { id: "f5", name: "USB-C Hubs Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=bestb+c+hubs&country=us", brand: "Brand E", category: "USB-C Hubs" },
-    ],
   },
 
   "best-streaming-devices-us": {
@@ -10610,13 +9563,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Streaming Devices Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+streaming+devices&country=us", brand: "Brand A", category: "Streaming Devices" },
-      { id: "f2", name: "Streaming Devices Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+streaming+devices&country=us", brand: "Brand B", category: "Streaming Devices" },
-      { id: "f3", name: "Streaming Devices Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+streaming+devices&country=us", brand: "Brand C", category: "Streaming Devices" },
-      { id: "f4", name: "Streaming Devices Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+streaming+devices&country=us", brand: "Brand D", category: "Streaming Devices" },
-      { id: "f5", name: "Streaming Devices Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+streaming+devices&country=us", brand: "Brand E", category: "Streaming Devices" },
-    ],
   },
 
   "best-e-readers-us": {
@@ -10670,13 +9616,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "E-Readers Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+e+readers&country=us", brand: "Brand A", category: "E-Readers" },
-      { id: "f2", name: "E-Readers Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+e+readers&country=us", brand: "Brand B", category: "E-Readers" },
-      { id: "f3", name: "E-Readers Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+e+readers&country=us", brand: "Brand C", category: "E-Readers" },
-      { id: "f4", name: "E-Readers Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+e+readers&country=us", brand: "Brand D", category: "E-Readers" },
-      { id: "f5", name: "E-Readers Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+e+readers&country=us", brand: "Brand E", category: "E-Readers" },
-    ],
   },
 
   "best-portable-projectors-us": {
@@ -10730,13 +9669,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Portable Projectors Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+portable+projectors&country=us", brand: "Brand A", category: "Portable Projectors" },
-      { id: "f2", name: "Portable Projectors Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+portable+projectors&country=us", brand: "Brand B", category: "Portable Projectors" },
-      { id: "f3", name: "Portable Projectors Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+portable+projectors&country=us", brand: "Brand C", category: "Portable Projectors" },
-      { id: "f4", name: "Portable Projectors Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+portable+projectors&country=us", brand: "Brand D", category: "Portable Projectors" },
-      { id: "f5", name: "Portable Projectors Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+portable+projectors&country=us", brand: "Brand E", category: "Portable Projectors" },
-    ],
   },
 
   "cheapest-iphone-us": {
@@ -10791,13 +9723,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "iPhone Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+iphone&country=us", brand: "Brand A", category: "iPhone" },
-      { id: "f2", name: "iPhone Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=cheapest+iphone&country=us", brand: "Brand B", category: "iPhone" },
-      { id: "f3", name: "iPhone Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=cheapest+iphone&country=us", brand: "Brand C", category: "iPhone" },
-      { id: "f4", name: "iPhone Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=cheapest+iphone&country=us", brand: "Brand D", category: "iPhone" },
-      { id: "f5", name: "iPhone Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+iphone&country=us", brand: "Brand E", category: "iPhone" },
-    ],
   },
 
   "cheapest-laptop-us": {
@@ -10852,13 +9777,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Laptops Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+laptop&country=us", brand: "Brand A", category: "Laptops" },
-      { id: "f2", name: "Laptops Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=cheapest+laptop&country=us", brand: "Brand B", category: "Laptops" },
-      { id: "f3", name: "Laptops Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=cheapest+laptop&country=us", brand: "Brand C", category: "Laptops" },
-      { id: "f4", name: "Laptops Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=cheapest+laptop&country=us", brand: "Brand D", category: "Laptops" },
-      { id: "f5", name: "Laptops Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+laptop&country=us", brand: "Brand E", category: "Laptops" },
-    ],
   },
 
   "cheapest-tv-us": {
@@ -10913,13 +9831,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "TVs Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+tv&country=us", brand: "Brand A", category: "TVs" },
-      { id: "f2", name: "TVs Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=cheapest+tv&country=us", brand: "Brand B", category: "TVs" },
-      { id: "f3", name: "TVs Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=cheapest+tv&country=us", brand: "Brand C", category: "TVs" },
-      { id: "f4", name: "TVs Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=cheapest+tv&country=us", brand: "Brand D", category: "TVs" },
-      { id: "f5", name: "TVs Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+tv&country=us", brand: "Brand E", category: "TVs" },
-    ],
   },
 
   "cheapest-ps5-us": {
@@ -10974,13 +9885,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "PS5 Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+ps5&country=us", brand: "Brand A", category: "PS5" },
-      { id: "f2", name: "PS5 Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=cheapest+ps5&country=us", brand: "Brand B", category: "PS5" },
-      { id: "f3", name: "PS5 Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=cheapest+ps5&country=us", brand: "Brand C", category: "PS5" },
-      { id: "f4", name: "PS5 Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=cheapest+ps5&country=us", brand: "Brand D", category: "PS5" },
-      { id: "f5", name: "PS5 Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+ps5&country=us", brand: "Brand E", category: "PS5" },
-    ],
   },
 
   "cheapest-airpods-us": {
@@ -11035,13 +9939,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "AirPods Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+airpods&country=us", brand: "Brand A", category: "AirPods" },
-      { id: "f2", name: "AirPods Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=cheapest+airpods&country=us", brand: "Brand B", category: "AirPods" },
-      { id: "f3", name: "AirPods Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=cheapest+airpods&country=us", brand: "Brand C", category: "AirPods" },
-      { id: "f4", name: "AirPods Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=cheapest+airpods&country=us", brand: "Brand D", category: "AirPods" },
-      { id: "f5", name: "AirPods Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+airpods&country=us", brand: "Brand E", category: "AirPods" },
-    ],
   },
 
   "cheapest-macbook-us": {
@@ -11096,13 +9993,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "MacBook Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+macbook&country=us", brand: "Brand A", category: "MacBook" },
-      { id: "f2", name: "MacBook Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=cheapest+macbook&country=us", brand: "Brand B", category: "MacBook" },
-      { id: "f3", name: "MacBook Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=cheapest+macbook&country=us", brand: "Brand C", category: "MacBook" },
-      { id: "f4", name: "MacBook Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=cheapest+macbook&country=us", brand: "Brand D", category: "MacBook" },
-      { id: "f5", name: "MacBook Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+macbook&country=us", brand: "Brand E", category: "MacBook" },
-    ],
   },
 
   "cheapest-samsung-tv-us": {
@@ -11157,13 +10047,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Samsung TV Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+samsung+tv&country=us", brand: "Brand A", category: "Samsung TV" },
-      { id: "f2", name: "Samsung TV Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=cheapest+samsung+tv&country=us", brand: "Brand B", category: "Samsung TV" },
-      { id: "f3", name: "Samsung TV Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=cheapest+samsung+tv&country=us", brand: "Brand C", category: "Samsung TV" },
-      { id: "f4", name: "Samsung TV Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=cheapest+samsung+tv&country=us", brand: "Brand D", category: "Samsung TV" },
-      { id: "f5", name: "Samsung TV Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+samsung+tv&country=us", brand: "Brand E", category: "Samsung TV" },
-    ],
   },
 
   "cheapest-ipad-us": {
@@ -11218,13 +10101,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "iPad Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+ipad&country=us", brand: "Brand A", category: "iPad" },
-      { id: "f2", name: "iPad Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=cheapest+ipad&country=us", brand: "Brand B", category: "iPad" },
-      { id: "f3", name: "iPad Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=cheapest+ipad&country=us", brand: "Brand C", category: "iPad" },
-      { id: "f4", name: "iPad Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=cheapest+ipad&country=us", brand: "Brand D", category: "iPad" },
-      { id: "f5", name: "iPad Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+ipad&country=us", brand: "Brand E", category: "iPad" },
-    ],
   },
 
   "cheapest-dyson-us": {
@@ -11279,13 +10155,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Dyson Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+dyson&country=us", brand: "Brand A", category: "Dyson" },
-      { id: "f2", name: "Dyson Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=cheapest+dyson&country=us", brand: "Brand B", category: "Dyson" },
-      { id: "f3", name: "Dyson Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=cheapest+dyson&country=us", brand: "Brand C", category: "Dyson" },
-      { id: "f4", name: "Dyson Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=cheapest+dyson&country=us", brand: "Brand D", category: "Dyson" },
-      { id: "f5", name: "Dyson Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+dyson&country=us", brand: "Brand E", category: "Dyson" },
-    ],
   },
 
   "cheapest-switch-us": {
@@ -11340,13 +10209,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Nintendo Switch Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+switch&country=us", brand: "Brand A", category: "Nintendo Switch" },
-      { id: "f2", name: "Nintendo Switch Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=cheapest+switch&country=us", brand: "Brand B", category: "Nintendo Switch" },
-      { id: "f3", name: "Nintendo Switch Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=cheapest+switch&country=us", brand: "Brand C", category: "Nintendo Switch" },
-      { id: "f4", name: "Nintendo Switch Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=cheapest+switch&country=us", brand: "Brand D", category: "Nintendo Switch" },
-      { id: "f5", name: "Nintendo Switch Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=cheapest+switch&country=us", brand: "Brand E", category: "Nintendo Switch" },
-    ],
   },
 
   "laptop-us": {
@@ -11400,13 +10262,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Laptop Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=laptop&country=us", brand: "Brand A", category: "Laptop" },
-      { id: "f2", name: "Laptop Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=laptop&country=us", brand: "Brand B", category: "Laptop" },
-      { id: "f3", name: "Laptop Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=laptop&country=us", brand: "Brand C", category: "Laptop" },
-      { id: "f4", name: "Laptop Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=laptop&country=us", brand: "Brand D", category: "Laptop" },
-      { id: "f5", name: "Laptop Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=laptop&country=us", brand: "Brand E", category: "Laptop" },
-    ],
   },
 
   "air-purifier-us": {
@@ -11460,13 +10315,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Air Purifier Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=air+purifier&country=us", brand: "Brand A", category: "Air Purifier" },
-      { id: "f2", name: "Air Purifier Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=air+purifier&country=us", brand: "Brand B", category: "Air Purifier" },
-      { id: "f3", name: "Air Purifier Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=air+purifier&country=us", brand: "Brand C", category: "Air Purifier" },
-      { id: "f4", name: "Air Purifier Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=air+purifier&country=us", brand: "Brand D", category: "Air Purifier" },
-      { id: "f5", name: "Air Purifier Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=air+purifier&country=us", brand: "Brand E", category: "Air Purifier" },
-    ],
   },
 
   "iphone-us": {
@@ -11520,13 +10368,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "iPhone Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=iphone&country=us", brand: "Brand A", category: "iPhone" },
-      { id: "f2", name: "iPhone Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=iphone&country=us", brand: "Brand B", category: "iPhone" },
-      { id: "f3", name: "iPhone Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=iphone&country=us", brand: "Brand C", category: "iPhone" },
-      { id: "f4", name: "iPhone Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=iphone&country=us", brand: "Brand D", category: "iPhone" },
-      { id: "f5", name: "iPhone Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=iphone&country=us", brand: "Brand E", category: "iPhone" },
-    ],
   },
 
   "gaming-us": {
@@ -11580,13 +10421,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Gaming Console Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=gaming&country=us", brand: "Brand A", category: "Gaming Console" },
-      { id: "f2", name: "Gaming Console Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=gaming&country=us", brand: "Brand B", category: "Gaming Console" },
-      { id: "f3", name: "Gaming Console Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=gaming&country=us", brand: "Brand C", category: "Gaming Console" },
-      { id: "f4", name: "Gaming Console Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=gaming&country=us", brand: "Brand D", category: "Gaming Console" },
-      { id: "f5", name: "Gaming Console Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=gaming&country=us", brand: "Brand E", category: "Gaming Console" },
-    ],
   },
 
   "smartphone-us": {
@@ -11640,13 +10474,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       href: "/developers",
       label: "Explore the API",
     },
-    fallbackProducts: [
-      { id: "f1", name: "Smartphone Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=smartphone&country=us", brand: "Brand A", category: "Smartphone" },
-      { id: "f2", name: "Smartphone Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=smartphone&country=us", brand: "Brand B", category: "Smartphone" },
-      { id: "f3", name: "Smartphone Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=smartphone&country=us", brand: "Brand C", category: "Smartphone" },
-      { id: "f4", name: "Smartphone Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=smartphone&country=us", brand: "Brand D", category: "Smartphone" },
-      { id: "f5", name: "Smartphone Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=smartphone&country=us", brand: "Brand E", category: "Smartphone" },
-    ],
   },
 
 };
