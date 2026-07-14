@@ -204,7 +204,24 @@ router.get(
         FROM products
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ${whereClause}
-        ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC, updated_at DESC
+        ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) * CASE
+          WHEN lower(title) LIKE '%laptop%'
+            AND lower(title) NOT LIKE '%sleeve%'
+            AND lower(title) NOT LIKE '%case%'
+            AND lower(title) NOT LIKE '%bag%'
+            AND lower(title) NOT LIKE '%stand%'
+            AND lower(title) NOT LIKE '%pad%'
+            AND lower(title) NOT LIKE '%cooler%'
+            AND lower(title) NOT LIKE '%adapter%'
+            AND lower(title) NOT LIKE '%dock%'
+            AND lower(title) NOT LIKE '%hub%'
+            AND lower(title) NOT LIKE '%lock%'
+            AND lower(title) NOT LIKE '%briefcase%'
+            AND lower(title) NOT LIKE '%charger%'
+            AND lower(title) NOT LIKE '%table%'
+          THEN 2.0
+          ELSE 1.0
+        END DESC, updated_at DESC
         LIMIT $${idx} OFFSET $${idx + 1}
       `;
     } else if (useFtsRanking) {
@@ -224,7 +241,24 @@ router.get(
           ${whereClause}
           LIMIT ${CANDIDATE_LIMIT}
         ) _candidates
-        ORDER BY rank DESC
+        ORDER BY rank * CASE
+      WHEN lower(title) LIKE '%laptop%'
+        AND lower(title) NOT LIKE '%sleeve%'
+        AND lower(title) NOT LIKE '%case%'
+        AND lower(title) NOT LIKE '%bag%'
+        AND lower(title) NOT LIKE '%stand%'
+        AND lower(title) NOT LIKE '%pad%'
+        AND lower(title) NOT LIKE '%cooler%'
+        AND lower(title) NOT LIKE '%adapter%'
+        AND lower(title) NOT LIKE '%dock%'
+        AND lower(title) NOT LIKE '%hub%'
+        AND lower(title) NOT LIKE '%lock%'
+        AND lower(title) NOT LIKE '%briefcase%'
+        AND lower(title) NOT LIKE '%charger%'
+        AND lower(title) NOT LIKE '%table%'
+      THEN 2.0
+      ELSE 1.0
+    END DESC
         LIMIT $${idx} OFFSET $${idx + 1}
       `;
     } else {
