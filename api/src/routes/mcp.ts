@@ -1523,6 +1523,24 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
         res.locals.mcpToolName = toolName;
         const result = await dispatchTool(toolName, toolArgs);
+        // deliver_to labels at the single dispatch point so EVERY search path
+        // (tier, archive, hybrid/vector, cache) carries availability labels.
+        if (toolName === 'search_products' && result && typeof result === 'object') {
+          const dt = ((toolArgs.deliver_to as string) || '').toUpperCase();
+          const r = result as Record<string, unknown>;
+          const items = (r.data || r.results || []) as Array<Record<string, unknown>>;
+          if (dt) {
+            for (const it of items) it.availability = it.country_code === dt ? 'local' : 'unknown';
+            const meta = r.meta as Record<string, unknown> | undefined;
+            if (meta) meta.deliver_to = dt;
+            else r.deliver_to = dt;
+          } else if (toolArgs.q && items.length > 0) {
+            const meta = r.meta as Record<string, unknown> | undefined;
+            const hint = "Pass deliver_to=<ISO-3166 country of your end user> to rank deliverable products first.";
+            if (meta) meta.hint = hint;
+            else r.hint = hint;
+          }
+        }
         return res.json(jsonrpcOk(id, {
           content: [{ type: 'text', text: JSON.stringify(result) }],
         }));
