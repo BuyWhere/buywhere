@@ -4,6 +4,7 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import {
   buildSeoLandingSchema,
+  buildComparisonFromProducts,
   getSeoLandingProducts,
   type LandingProduct,
   type SeoLandingPageConfig,
@@ -88,6 +89,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
   const developerCta = config.developerCta || DEFAULT_DEVELOPER_CTA;
   const products = await getSeoLandingProducts(config);
   const schema = buildSeoLandingSchema(config, products);
+  const { comparisonColumns, comparisonRows } = buildComparisonFromProducts(products);
 
   return (
     <div className="flex min-h-screen flex-col bg-white text-slate-900">
@@ -179,7 +181,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
           </section>
         )}
 
-        {products.length > 0 && (
+        {comparisonRows.length > 0 && (
           <section className="py-16">
             <div className="mx-auto max-w-6xl px-4 sm:px-6">
               <div className="mb-8 max-w-3xl">
@@ -192,7 +194,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                   <table className="min-w-full bg-white text-left text-sm text-slate-700">
                     <thead className="bg-slate-900 text-xs uppercase tracking-[0.18em] text-slate-200">
                       <tr>
-                        {config.comparisonColumns.map((column) => (
+                        {comparisonColumns.map((column) => (
                           <th key={column} className="px-4 py-4 font-semibold">
                             {column}
                           </th>
@@ -200,9 +202,9 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                       </tr>
                     </thead>
                     <tbody>
-                      {config.comparisonRows.map((row, index) => (
-                        <tr key={`${row[config.comparisonColumns[0]]}-${index}`} className="border-t border-slate-100">
-                          {config.comparisonColumns.map((column) => (
+                      {comparisonRows.map((row, index) => (
+                        <tr key={`${row[comparisonColumns[0]]}-${index}`} className="border-t border-slate-100">
+                          {comparisonColumns.map((column) => (
                             <td key={column} className="px-4 py-4 align-top">
                               {row[column]}
                             </td>

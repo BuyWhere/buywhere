@@ -93,6 +93,58 @@ function formatMerchantName(value?: string | null) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+
+/**
+ * Returns true when a product looks like a generic placeholder rather than
+ * a real catalog entry (e.g. "Product A / Brand A").
+ */
+export function isPlaceholderProduct(product: LandingProduct): boolean {
+  const name = (product.name || "").trim();
+  const brand = (product.brand || "").trim();
+
+  // Match patterns like "Product A", "Laptop Product B", "Brand A" etc.
+  const PLACEHOLDER_RE = /^(?:Laptop\s+)?Product\s+[A-Z]$/i;
+  const BRAND_PLACEHOLDER_RE = /^(?:Brand|Seller)\s+[A-Z]$/i;
+
+  if (PLACEHOLDER_RE.test(name)) return true;
+  if (BRAND_PLACEHOLDER_RE.test(name)) return true;
+  if (BRAND_PLACEHOLDER_RE.test(brand)) return true;
+
+  // Names that are just a generic noun + single letter ("Laptop A", "TV B")
+  if (/^[A-Z][a-z]+\s+[A-Z]$/.test(name) && product.price !== null && product.price <= 0) return true;
+
+  return false;
+}
+
+/**
+ * Builds comparison rows dynamically from real API products.
+ * Returns empty columns/rows when no usable products exist.
+ */
+export function buildComparisonFromProducts(products: LandingProduct[]): {
+  comparisonColumns: string[];
+  comparisonRows: ComparisonRow[];
+} {
+  const real = products.filter((p) => !isPlaceholderProduct(p));
+  if (real.length === 0) {
+    return { comparisonColumns: [], comparisonRows: [] };
+  }
+
+  const columns = ["Product", "Price", "Merchant"];
+  const rows: ComparisonRow[] = real.slice(0, 5).map((p) => ({
+    Product: p.name,
+    Price: p.price !== null
+      ? new Intl.NumberFormat(p.currency === "SGD" ? "en-SG" : "en-US", {
+          style: "currency",
+          currency: p.currency,
+          maximumFractionDigits: 0,
+        }).format(p.price)
+      : "---",
+    Merchant: p.merchant,
+  }));
+
+  return { comparisonColumns: columns, comparisonRows: rows };
+}
+
 function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): LandingProduct {
   const numericPrice =
     typeof item.price === "number"
@@ -140,7 +192,9 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       throw new Error("Search response was empty");
     }
 
-    return items.map((item) => normalizeProduct(item, config.currency)).slice(0, 8);
+    const all = items.map((item) => normalizeProduct(item, config.currency));
+    const real = all.filter((p) => !isPlaceholderProduct(p));
+    return (real.length > 0 ? real : []).slice(0, 8);
   } catch {
     return [];
   }
