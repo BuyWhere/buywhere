@@ -49,7 +49,7 @@ function releaseClientSafely(client: any) {
 const TOOLS = [
   {
     name: 'search_products',
-    description: 'Search the BuyWhere product catalog by keyword. Returns products from e-commerce platforms across multiple regions (Singapore, US, etc.). Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields.',
+    description: "Search the BuyWhere product catalog by keyword. ALWAYS pass deliver_to as the ISO-3166 country of your END USER (e.g. deliver_to: 'SG') — results are then ranked deliverable-first and every product carries an availability label ('local' = sold from that country, 'unknown' = cross-border). Add include_unshippable: false to return only same-country products. Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -57,6 +57,8 @@ const TOOLS = [
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
+        deliver_to: { type: 'string', description: "REQUIRED for good results: ISO-3166 country of the END USER (where they want products delivered), e.g. 'SG', 'US'. Ranks local products first and labels each result's availability. Unlike country_code this never filters results out." },
+        include_unshippable: { type: 'boolean', description: 'Default true. Set false (with deliver_to) to return only products sold from the user country.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
         min_price: { type: 'number', description: 'Minimum price (in currency inferred from country_code, or SGD by default)' },
         max_price: { type: 'number', description: 'Maximum price (in currency inferred from country_code, or SGD by default)' },
@@ -219,7 +221,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // and recent rows are predominantly US/null so SG filter finds nothing.
   const rawCountry = (((args.country_code as string) || (args.country as string)) || '').toUpperCase();
   const hasExplicitCountry = !!(args.country_code || args.country);
-  const country = rawCountry || (q && !region ? 'SG' : '');
+  // 2026-07-14: silent SG default removed (recall killer). deliver_to = soft rank+label param.
+  const country = rawCountry;
+  const deliverTo = ((args.deliver_to as string) || '').toUpperCase() || undefined;
   const category = (args.category as string) || '';
   const minPrice = args.min_price != null ? Number(args.min_price) : null;
   const maxPrice = args.max_price != null ? Number(args.max_price) : null;
