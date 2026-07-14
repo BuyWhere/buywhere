@@ -118,7 +118,10 @@ async function tryTierSearch(
     WITH cand AS (
       SELECT id, search_vector FROM search_products sp
       WHERE ${match}${filterSql}${extraFilter}
-      ORDER BY id DESC
+      -- perf: no ORDER BY — sorting forces enumeration of the FULL match set before
+      -- LIMIT (broad OR fallbacks time out at the 4s tier cap; same anti-pattern as
+      -- the archive fix in 9e3ad8e, measured 60x there). LIMIT stops early; ts_rank
+      -- below ranks the bounded candidate set.
       LIMIT 5000
     ), top AS (
       SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) AS rank
