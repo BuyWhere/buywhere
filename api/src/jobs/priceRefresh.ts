@@ -125,13 +125,19 @@ export async function runPriceRefresh(): Promise<RefreshSummary> {
       }
     }
 
-    // Update captured_at for each product regardless of scraper result
+    // Update retailer_prices.captured_at + products.updated_at for each product (BUY-59843)
     for (const { product_id, slug } of items) {
       try {
         await db.query(
           `UPDATE retailer_prices
            SET captured_at = NOW()
            WHERE product_id = $1`,
+          [product_id]
+        );
+        await db.query(
+          `UPDATE products
+           SET updated_at = NOW()
+           WHERE id = $1::bigint`,
           [product_id]
         );
         results.push({
@@ -143,7 +149,7 @@ export async function runPriceRefresh(): Promise<RefreshSummary> {
           error: scraperError && SCRAPER_URL ? scraperError : undefined,
           scraper_triggered,
         });
-        console.log(`[price-refresh] ✓ captured_at updated for ${slug} (${product_id})`);
+        console.log(`[price-refresh] ✓ retailer_prices.captured_at + products.updated_at set for ${slug} (${product_id})`);
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
         results.push({ product_id, platform, sku: product_id, slug, success: false, error, scraper_triggered });

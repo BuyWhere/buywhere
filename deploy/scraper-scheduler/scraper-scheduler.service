@@ -1,0 +1,21 @@
+[Unit]
+Description=BuyWhere Scraper Scheduler - keeps product data fresh
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=paperclip
+WorkingDirectory=/opt/buywhere
+ExecStart=/usr/bin/python3 /opt/buywhere/scripts/scraper_scheduler.py
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+Environment=NODE_ENV=production
+Environment=BUYWHERE_API_URL=http://localhost:3000
+Environment=BUYWHERE_API_KEY=
+Environment=SCRAPER_DATA_DIR=/opt/buywhere/data
+
+[Install]
+WantedBy=multi-user.target

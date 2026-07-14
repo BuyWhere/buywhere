@@ -1,0 +1,11 @@
+[Unit]
+Description=Run BuyWhere scraper scheduler daily at 02:00 UTC
+Requires=scraper-scheduler.service
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=1800
+
+[Install]
+WantedBy=timers.target
