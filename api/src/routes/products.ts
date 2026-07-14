@@ -890,7 +890,26 @@ router.get(
           -- espresso machine 3.7s->0.26s). LIMIT stops early; candidates ranked by ts_rank below.
           LIMIT ${CANDIDATE_CAP}
         ), top_ids AS (
-          SELECT rh.id, rh.country_code, ts_rank(rhp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+          SELECT rh.id, rh.country_code,
+                 ts_rank(rhp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
+                 CASE
+                   WHEN lower(rhp.title) LIKE '%laptop%'
+                     AND lower(rhp.title) NOT LIKE '%sleeve%'
+                     AND lower(rhp.title) NOT LIKE '%case%'
+                     AND lower(rhp.title) NOT LIKE '%bag%'
+                     AND lower(rhp.title) NOT LIKE '%stand%'
+                     AND lower(rhp.title) NOT LIKE '%pad%'
+                     AND lower(rhp.title) NOT LIKE '%cooler%'
+                     AND lower(rhp.title) NOT LIKE '%adapter%'
+                     AND lower(rhp.title) NOT LIKE '%dock%'
+                     AND lower(rhp.title) NOT LIKE '%hub%'
+                     AND lower(rhp.title) NOT LIKE '%lock%'
+                     AND lower(rhp.title) NOT LIKE '%briefcase%'
+                     AND lower(rhp.title) NOT LIKE '%charger%'
+                     AND lower(rhp.title) NOT LIKE '%table%'
+                   THEN 2.0
+                   ELSE 1.0
+                 END AS rank
           FROM recent_hits rh
           JOIN products rhp ON rhp.id = rh.id
           ORDER BY rank DESC, rh.id DESC
