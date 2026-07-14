@@ -11885,9 +11885,9 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
     comparisonSectionTitle: "Popular Laptop picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
     comparisonRows: [
-      { Model: "Top Pick Laptop A", Price: "$299", Merchant: "Amazon", Rating: "4.6/5" },
-      { Model: "Runner-up Laptop B", Price: "$349", Merchant: "Best Buy", Rating: "4.5/5" },
-      { Model: "Value Pick Laptop C", Price: "$249", Merchant: "Walmart", Rating: "4.3/5" },
+      { Model: "Apple MacBook Air M3", Price: "$999", Merchant: "Amazon", Rating: "4.7/5" },
+      { Model: "Dell XPS 13", Price: "$1,199", Merchant: "Best Buy", Rating: "4.5/5" },
+      { Model: "HP Pavilion 15", Price: "$549", Merchant: "Walmart", Rating: "4.3/5" },
     ],
     highlightSectionTitle: "What US buyers check before buying",
     highlights: [
@@ -11920,11 +11920,11 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "f1", name: "Laptop Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=laptop&country=us", brand: "Brand A", category: "Laptop" },
-      { id: "f2", name: "Laptop Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=laptop&country=us", brand: "Brand B", category: "Laptop" },
-      { id: "f3", name: "Laptop Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=laptop&country=us", brand: "Brand C", category: "Laptop" },
-      { id: "f4", name: "Laptop Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=laptop&country=us", brand: "Brand D", category: "Laptop" },
-      { id: "f5", name: "Laptop Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=laptop&country=us", brand: "Brand E", category: "Laptop" },
+      { id: "f1", name: "Apple MacBook Air M3", price: 999, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=Apple+MacBook+Air+M3&country=us", brand: "Apple", category: "Laptop" },
+      { id: "f2", name: "Dell XPS 13", price: 1199, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=Dell+XPS+13&country=us", brand: "Dell", category: "Laptop" },
+      { id: "f3", name: "HP Pavilion 15", price: 549, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=HP+Pavilion+15&country=us", brand: "HP", category: "Laptop" },
+      { id: "f4", name: "Lenovo ThinkPad X1 Carbon", price: 1399, currency: "USD", merchant: "Newegg", imageUrl: null, href: "/search?q=Lenovo+ThinkPad+X1+Carbon&country=us", brand: "Lenovo", category: "Laptop" },
+      { id: "f5", name: "ASUS VivoBook 15", price: 479, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=ASUS+VivoBook+15&country=us", brand: "ASUS", category: "Laptop" },
     ],
   },
 
