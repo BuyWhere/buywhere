@@ -28,7 +28,7 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
 const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'and-bounded-v3'; // bumped: invalidate pre-fix cached empties/degraded results after the ORDER BY updated_at removal
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'idjoin-v4'; // bumped: invalidate pre-fix cached empties/degraded results after the ORDER BY updated_at removal
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -842,12 +842,12 @@ router.get(
         ), top_ids AS (
           SELECT rh.id, rh.country_code, ts_rank(rhp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
           FROM recent_hits rh
-          JOIN products rhp ON rhp.id = rh.id AND rhp.country_code = rh.country_code
+          JOIN products rhp ON rhp.id = rh.id
           ORDER BY rank DESC, rh.id DESC
         )
         SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
         FROM top_ids
-        JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
+        JOIN products ON products.id = top_ids.id
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY top_ids.rank DESC
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
@@ -936,13 +936,13 @@ router.get(
               ), top_ids AS (
                 SELECT rc.id, rc.country_code, ts_rank(rcp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
                 FROM recent_candidates rc
-                JOIN products rcp ON rcp.id = rc.id AND rcp.country_code = rc.country_code
+                JOIN products rcp ON rcp.id = rc.id
                 ORDER BY rank DESC, rc.id DESC
                 LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
               )
               SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
               FROM top_ids
-              JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
+              JOIN products ON products.id = top_ids.id
               LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
               ORDER BY top_ids.rank DESC
             `;
@@ -2340,7 +2340,7 @@ export async function warmSearchCache(): Promise<void> {
         )
         SELECT ${joinedColumns}
         FROM top_ids
-        JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
+        JOIN products ON products.id = top_ids.id
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY products.updated_at DESC
         LIMIT $${idx} OFFSET $${idx + 1}
