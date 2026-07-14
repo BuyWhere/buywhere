@@ -226,11 +226,11 @@ async function runTierSearch(p: {
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata,
     sp.updated_at, sp.region, sp.country_code, sp.in_stock`;
 
-  const mkQuery = (match: string) => `
+  const mkQuery = (match: string, extraFilter = '') => `
     WITH top AS (
       SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) AS rank
       FROM search_products sp
-      WHERE ${match}${filterSql}
+      WHERE ${match}${filterSql}${extraFilter}
       ORDER BY rank DESC
       LIMIT 200
     )
@@ -252,6 +252,16 @@ async function runTierSearch(p: {
     let rows = (await client.query(mkQuery(andMatch), params)).rows;
     if (rows.length === 0 && lexemes.length > 1) {
       rows = (await client.query(mkQuery(orMatch), params)).rows;
+    }
+    // deliver_to local-first pass — see products.ts tryTierSearch for rationale.
+    if (dtIdx && rows.length > 0) {
+      try {
+        const localRows = (await client.query(mkQuery(andMatch, ` AND sp.country_code = $${dtIdx}`), params)).rows;
+        if (localRows.length > 0) {
+          const localIds = new Set(localRows.map((r) => String((r as Record<string, unknown>).id)));
+          rows = [...localRows, ...rows.filter((r) => !localIds.has(String((r as Record<string, unknown>).id)))].slice(0, p.limit);
+        }
+      } catch { /* best-effort */ }
     }
     await client.query('COMMIT');
     const products = (rows as Record<string, unknown>[]).map((r) => buildProduct(r, p.currency, p.compact));

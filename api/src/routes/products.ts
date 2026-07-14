@@ -114,10 +114,10 @@ async function tryTierSearch(
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
 
-  const mkQuery = (match: string) => `
+  const mkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
       SELECT id, search_vector FROM search_products sp
-      WHERE ${match}${filterSql}
+      WHERE ${match}${filterSql}${extraFilter}
       ORDER BY id DESC
       LIMIT 5000
     ), top AS (
@@ -166,6 +166,20 @@ async function tryTierSearch(
       if (rows.length === 0 && lexemes.length === 1) {
         rows = (await client.query(tokenTitleFallbackQuery, params)).rows;
       }
+    }
+    // deliver_to local-first pass (2026-07-14): the cand CTE gathers the NEWEST 5000
+    // matches by id, a window that churns under ~4.5M-rows/day ingest and often
+    // contains zero rows from the user's country. Run a targeted pass over the
+    // composite GIN (country_code, search_vector) and prepend those rows so
+    // local products always lead the page when they exist.
+    if (dtIdx && rows.length > 0) {
+      try {
+        const localRows = (await client.query(mkQuery(andMatch, ` AND sp.country_code = $${dtIdx}`), params)).rows;
+        if (localRows.length > 0) {
+          const localIds = new Set(localRows.map((r) => String((r as Record<string, unknown>).id)));
+          rows = [...localRows, ...rows.filter((r) => !localIds.has(String((r as Record<string, unknown>).id)))].slice(0, p.limit + 1);
+        }
+      } catch { /* local pass is best-effort — global rows already in hand */ }
     }
     await client.query('COMMIT');
     client.release();
