@@ -62,10 +62,10 @@ type SearchApiResponse = {
   cursor?: string | null;
   next_cursor?: string | null;
   nextCursor?: string | null;
+  data?: SearchApiItem[];
   items?: SearchApiItem[];
   results?: SearchApiItem[];
   products?: SearchApiItem[];
-  data?: SearchApiItem[];
   degraded?: boolean;
   hint?: string;
   timeout_ms?: number;
@@ -567,7 +567,7 @@ export default function SearchResultsClient({
       }
 
       const data: SearchApiResponse = await response.json();
-      const rawItems = data.items || data.results || data.products || data.data || [];
+      const rawItems = data.data || data.items || data.results || data.products || [];
       if (data.degraded) {
         setDegraded(true);
         if (typeof data.hint === 'string' && data.hint.trim().length > 0) {
