@@ -173,13 +173,14 @@ async function tryTierSearch(
     // composite GIN (country_code, search_vector) and prepend those rows so
     // local products always lead the page when they exist.
     if (dtIdx && rows.length > 0) {
+      await client.query('SAVEPOINT localpass'); // a failed local pass must not poison the tx (COMMIT would fail -> archive fallback)
       try {
         const localRows = (await client.query(mkQuery(andMatch, ` AND sp.country_code = $${dtIdx}`), params)).rows;
         if (localRows.length > 0) {
           const localIds = new Set(localRows.map((r) => String((r as Record<string, unknown>).id)));
           rows = [...localRows, ...rows.filter((r) => !localIds.has(String((r as Record<string, unknown>).id)))].slice(0, p.limit + 1);
         }
-      } catch { /* local pass is best-effort — global rows already in hand */ }
+      } catch { await client.query('ROLLBACK TO SAVEPOINT localpass').catch(() => {}); /* local pass is best-effort — global rows already in hand */ }
     }
     await client.query('COMMIT');
     client.release();

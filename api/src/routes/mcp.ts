@@ -255,13 +255,14 @@ async function runTierSearch(p: {
     }
     // deliver_to local-first pass — see products.ts tryTierSearch for rationale.
     if (dtIdx && rows.length > 0) {
+      await client.query('SAVEPOINT localpass'); // a failed local pass must not poison the tx (COMMIT would fail -> archive fallback)
       try {
         const localRows = (await client.query(mkQuery(andMatch, ` AND sp.country_code = $${dtIdx}`), params)).rows;
         if (localRows.length > 0) {
           const localIds = new Set(localRows.map((r) => String((r as Record<string, unknown>).id)));
           rows = [...localRows, ...rows.filter((r) => !localIds.has(String((r as Record<string, unknown>).id)))].slice(0, p.limit);
         }
-      } catch { /* best-effort */ }
+      } catch { await client.query('ROLLBACK TO SAVEPOINT localpass').catch(() => {}); /* best-effort */ }
     }
     await client.query('COMMIT');
     const products = (rows as Record<string, unknown>[]).map((r) => buildProduct(r, p.currency, p.compact));
