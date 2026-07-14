@@ -832,7 +832,7 @@ router.get(
       const rankedWhereClause = useSgFreshnessGuardrail ? freshWhereClause : whereClause;
       dataQuery = `
         WITH recent_hits AS MATERIALIZED (
-          SELECT id, country_code, search_vector
+          SELECT id, country_code
           FROM products
           ${rankedWhereClause}
           -- perf(search): no ORDER BY updated_at — sorting the full FTS match set
@@ -840,9 +840,10 @@ router.get(
           -- espresso machine 3.7s->0.26s). LIMIT stops early; candidates ranked by ts_rank below.
           LIMIT ${CANDIDATE_CAP}
         ), top_ids AS (
-          SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
-          FROM recent_hits
-          ORDER BY rank DESC, id DESC
+          SELECT rh.id, rh.country_code, ts_rank(rhp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+          FROM recent_hits rh
+          JOIN products rhp ON rhp.id = rh.id AND rhp.country_code = rh.country_code
+          ORDER BY rank DESC, rh.id DESC
         )
         SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
         FROM top_ids
@@ -926,16 +927,17 @@ router.get(
           ): Promise<{ rows: Array<Record<string, unknown>> }> => {
             const boundedQuery = `
               WITH recent_candidates AS MATERIALIZED (
-                SELECT id, country_code, search_vector
+                SELECT id, country_code
                 FROM products
                 ${sliceWhereClause}
                   AND ${matchExpr}
                 -- perf(search): no ORDER BY updated_at (same early-stop fix as recent_hits above)
                 LIMIT ${CANDIDATE_CAP}
               ), top_ids AS (
-                SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
-                FROM recent_candidates
-                ORDER BY rank DESC, id DESC
+                SELECT rc.id, rc.country_code, ts_rank(rcp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+                FROM recent_candidates rc
+                JOIN products rcp ON rcp.id = rc.id AND rcp.country_code = rc.country_code
+                ORDER BY rank DESC, rc.id DESC
                 LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
               )
               SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
