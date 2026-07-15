@@ -67,20 +67,26 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<unknown>) {
 
 // BUY-62624: dedupe product rows by id. A LEFT JOIN on affiliate_links can fan out
 // one row per matching affiliate link (same product, multiple tracking URLs), which
-// renders identical product cards. Keep the first occurrence (highest-ranked/first in
-// the ordered result set) and drop the rest. Applied to every search result path.
+// renders identical product cards. Also collapse rows with the same title from the
+// same merchant: these are the same SKU listed as separate products (different id)
+// and would render duplicate cards. Keep the first occurrence (highest-ranked) and
+// drop the rest. Applied to every search result path.
 function dedupeProductRows(rows: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
   const seen = new Set<string>();
+  const seenTitleMerchant = new Set<string>();
   const out: Array<Record<string, unknown>> = [];
   for (const row of rows) {
     const id = String(row.id);
     if (seen.has(id)) continue;
     seen.add(id);
+    // Same title + same merchant ≈ same product SKU — collapse duplicates.
+    const titleKey = `${String(row.title ?? '')}::${String(row.domain ?? row.source ?? '')}`;
+    if (seenTitleMerchant.has(titleKey)) continue;
+    seenTitleMerchant.add(titleKey);
     out.push(row);
   }
   return out;
 }
-
 function shiftSqlPlaceholders(sql: string, offset: number): string {
   return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
 }

@@ -13,6 +13,7 @@ const queryLog_1 = require("../middleware/queryLog");
 const response_1 = require("../lib/response");
 const compare_query_1 = require("../lib/compare-query");
 const queryPreprocessor_1 = require("../lib/queryPreprocessor");
+const shipsTo_1 = require("../lib/shipsTo");
 const instrumentation_1 = require("../lib/instrumentation");
 const embedProducts_1 = require("../jobs/embedProducts");
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
@@ -58,6 +59,30 @@ function asyncHandler(fn) {
             }
         });
     };
+}
+// BUY-62624: dedupe product rows by id. A LEFT JOIN on affiliate_links can fan out
+// one row per matching affiliate link (same product, multiple tracking URLs), which
+// renders identical product cards. Also collapse rows with the same title from the
+// same merchant: these are the same SKU listed as separate products (different id)
+// and would render duplicate cards. Keep the first occurrence (highest-ranked) and
+// drop the rest. Applied to every search result path.
+function dedupeProductRows(rows) {
+    const seen = new Set();
+    const seenTitleMerchant = new Set();
+    const out = [];
+    for (const row of rows) {
+        const id = String(row.id);
+        if (seen.has(id))
+            continue;
+        seen.add(id);
+        // Same title + same merchant ≈ same product SKU — collapse duplicates.
+        const titleKey = `${String(row.title ?? '')}::${String(row.domain ?? row.source ?? '')}`;
+        if (seenTitleMerchant.has(titleKey))
+            continue;
+        seenTitleMerchant.add(titleKey);
+        out.push(row);
+    }
+    return out;
 }
 function shiftSqlPlaceholders(sql, offset) {
     return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
@@ -289,10 +314,19 @@ function annotateDeliverTo(body, deliverTo, includeUnshippable, q) {
     const items = body.data || [];
     const meta = body.meta;
     if (deliverTo) {
-        for (const it of items)
-            it.availability = it.country_code === deliverTo ? 'local' : 'unknown';
+        for (const it of items) {
+            if (it.country_code === deliverTo) {
+                it.availability = 'local';
+                continue;
+            }
+            // ships-to upgrade (2026-07-15): merchant-level scope from merchant_shipping.
+            const scope = (0, shipsTo_1.shipScopeForUrl)(it.url);
+            it.availability = scope === 'worldwide' ? 'ships_to_you'
+                : scope === 'domestic' ? 'unavailable'
+                    : 'unknown';
+        }
         if (!includeUnshippable) {
-            const kept = items.filter((it) => it.availability === 'local');
+            const kept = items.filter((it) => it.availability === 'local' || it.availability === 'ships_to_you');
             body.data = kept;
             if (meta)
                 meta.total = kept.length;
@@ -841,9 +875,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         requestedRows,
     ];
     const sendFallbackProducts = async (rows, source) => {
-        dataResult = { rows };
-        total = rows.length;
-        hasMore = rows.length > limit;
+        dataResult = { rows: dedupeProductRows(rows) };
+        total = dataResult.rows.length;
+        hasMore = dataResult.rows.length > limit;
         if (hasMore)
             dataResult.rows = dataResult.rows.slice(0, limit);
         const responseTimeMs = Date.now() - requestStart;
@@ -1309,6 +1343,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         throw err;
     }
     client.release();
+    // BUY-62624: collapse affiliate_links fan-out duplicates before pagination
+    // math so hasMore reflects distinct results.
+    dataResult.rows = dedupeProductRows(dataResult.rows);
     if (typeof hasMore === 'undefined') {
         hasMore = dataResult.rows.length > limit;
         if (hasMore)
