@@ -116,6 +116,41 @@ function buildComparisonRows(config: SeoLandingPageConfig, products: LandingProd
   return { columns, rows };
 }
 
+function buildRefreshedLabel(config: SeoLandingPageConfig, products: LandingProduct[]): string {
+  // If the config provides a static label, keep it for editorial pages that
+  // explicitly set a review/revision date.
+  if (config.refreshedLabel) {
+    return config.refreshedLabel;
+  }
+
+  // Otherwise, reflect the freshness of the live products on the page.
+  const latest = products
+    .map((p) => p.updatedAt)
+    .filter(Boolean)
+    .sort()
+    .pop();
+
+  if (latest) {
+    const date = new Date(latest);
+    const formatted = date.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+    return `Updated ${formatted}`;
+  }
+
+  // No live products with a timestamp — use the build/date of render.
+  return `Updated ${new Date().toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  })}`;
+}
+
+
 export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig }) {
   const shopperCta = config.shopperCta || DEFAULT_SHOPPER_CTA;
   const developerCta = config.developerCta || DEFAULT_DEVELOPER_CTA;
@@ -145,7 +180,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 {config.heroBody}
               </p>
               <div className="mt-8 flex flex-wrap gap-3 text-sm text-slate-100">
-                <span className="rounded-full bg-white/10 px-3 py-1.5">{config.refreshedLabel}</span>
+                <span className="rounded-full bg-white/10 px-3 py-1.5">{buildRefreshedLabel(config, products)}</span>
                 <span className="rounded-full bg-white/10 px-3 py-1.5">{config.country} market coverage</span>
                 <span className="rounded-full bg-white/10 px-3 py-1.5">Live BuyWhere search results</span>
               </div>
