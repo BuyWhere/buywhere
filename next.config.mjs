@@ -21,6 +21,7 @@ const nextConfig = {
       { protocol: 'https', hostname: 'cdn.shopify.com' },
       { protocol: 'https', hostname: 'm.media-amazon.com' },
       { protocol: 'https', hostname: 'hnsgsfp.imgix.net' },
+      { protocol: 'https', hostname: 'elescat.store' },
       { protocol: 'https', hostname: 'media.nedigital.sg' },
       { protocol: 'https', hostname: 'sg-live.slatic.net' },
       { protocol: 'https', hostname: 'static1.fortytwo.sg' },
