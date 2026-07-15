@@ -305,9 +305,9 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
       href={product.href}
       target="_blank"
       rel="noopener noreferrer"
-      className="group relative flex h-full flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
+      className="group relative flex h-full min-h-0 flex-col rounded-[22px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
-      <div className="relative aspect-[4/3] overflow-hidden border-b border-slate-100 bg-slate-100">
+      <div className="relative aspect-[16/10] border-b border-slate-100 bg-slate-100">
         <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))] text-sm font-semibold text-slate-600">
           Product image
         </div>
@@ -332,7 +332,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 bg-white p-4">
+      <div className="flex flex-1 flex-col gap-2.5 bg-white p-3.5">
         <div className="flex min-h-7 items-start justify-between gap-2">
           <MerchantBadge merchant={product.merchant} className="shrink-0" />
           <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
@@ -343,7 +343,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
 
         <div className="space-y-1.5">
           <h2
-            className="line-clamp-3 text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
+            className="line-clamp-2 text-[15px] font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
           >
             {product.name}
           </h2>
@@ -353,12 +353,12 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
           </div>
         </div>
 
-        <div className="mt-auto space-y-3 border-t border-slate-100 pt-3">
+        <div className="mt-auto space-y-2.5 border-t border-slate-100 pt-2.5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Current price</p>
-            <p className="mt-0.5 text-2xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
+            <p className="mt-0.5 text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
           </div>
-          <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
+          <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
             View Deal
             <ExternalLink className="h-4 w-4" />
           </span>
@@ -644,6 +644,7 @@ export default function SearchResultsClient({
   const showEmptyState = !loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && products.length === 0 && !degraded;
   const showHistoryDropdown = historyOpen && query.trim().length === 0 && searchHistory.length > 0;
   const reversedSearchHistory = useMemo(() => [...searchHistory].reverse(), [searchHistory]);
+  const hasActiveSearch = debouncedQuery.length >= MIN_QUERY_LENGTH;
 
   return (
     <div className="flex min-h-screen flex-col bg-[linear-gradient(180deg,_#fff7ed_0%,_#ffffff_28%,_#f8fafc_100%)]">
@@ -651,18 +652,18 @@ export default function SearchResultsClient({
 
       <main id="main-content" className="flex-1">
         <section className="border-b border-amber-100 bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.22),_rgba(255,247,237,0.85)_38%,_rgba(255,255,255,1)_80%)]">
-          <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+          <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${hasActiveSearch ? 'py-5 lg:py-6' : 'py-10 lg:py-14'}`}>
             <div className="max-w-3xl">
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">Product search</p>
-              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
+              <h1 className={`${hasActiveSearch ? 'mt-2 text-3xl sm:text-4xl' : 'mt-3 text-4xl sm:text-5xl'} font-semibold tracking-tight text-slate-950`}>
                 {query.trim() ? `Search results for "${query.trim()}"` : "Find live catalog results without leaving BuyWhere"}
               </h1>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
+              <p className={`${hasActiveSearch ? 'sr-only' : 'mt-4'} max-w-2xl text-base leading-7 text-slate-600 sm:text-lg`}>
                 Search BuyWhere&apos;s product index by query and country, then jump directly to retailer listings.
               </p>
             </div>
 
-            <div className="mt-8 rounded-[32px] border border-white/80 bg-white/80 p-4 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)] backdrop-blur md:p-6">
+            <div className={`${hasActiveSearch ? 'mt-5 rounded-[28px] p-3 md:p-4' : 'mt-8 rounded-[32px] p-4 md:p-6'} border border-white/80 bg-white/80 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)] backdrop-blur`}>
               {isNavigating && showSearchPrompt ? <SearchInputSkeleton /> : null}
 
               <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
