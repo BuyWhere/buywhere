@@ -250,6 +250,34 @@ function buildProductDetailUrl(product: LandingProduct, country: string): string
   return `/products/${region}/${slug}/${product.id}`;
 }
 
+export function getSeoLandingFallbackProduct(
+  region: string,
+  productId: string,
+  slug?: string,
+): LandingProduct | null {
+  const normalizedRegion = region.toUpperCase();
+
+  for (const config of Object.values(seoLandingPages)) {
+    if (config.country !== normalizedRegion) continue;
+
+    for (const product of config.fallbackProducts) {
+      if (product.id !== productId) continue;
+
+      const detailUrl = buildProductDetailUrl(product, config.country);
+      if (slug && detailUrl !== `/products/${region.toLowerCase()}/${slug}/${productId}`) {
+        continue;
+      }
+
+      return {
+        ...withFallbackImage(product),
+        productUrl: detailUrl,
+      };
+    }
+  }
+
+  return null;
+}
+
 export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promise<LandingProduct[]> {
   const fallback = config.fallbackProducts;
 
