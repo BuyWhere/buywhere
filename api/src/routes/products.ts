@@ -64,6 +64,23 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<unknown>) {
   };
 }
 
+
+// BUY-62624: dedupe product rows by id. A LEFT JOIN on affiliate_links can fan out
+// one row per matching affiliate link (same product, multiple tracking URLs), which
+// renders identical product cards. Keep the first occurrence (highest-ranked/first in
+// the ordered result set) and drop the rest. Applied to every search result path.
+function dedupeProductRows(rows: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  const seen = new Set<string>();
+  const out: Array<Record<string, unknown>> = [];
+  for (const row of rows) {
+    const id = String(row.id);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(row);
+  }
+  return out;
+}
+
 function shiftSqlPlaceholders(sql: string, offset: number): string {
   return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
 }
@@ -862,9 +879,9 @@ router.get(
       rows: Array<Record<string, unknown>>,
       source: string,
     ): Promise<void> => {
-      dataResult = { rows };
-      total = rows.length;
-      hasMore = rows.length > limit;
+      dataResult = { rows: dedupeProductRows(rows) };
+      total = dataResult.rows.length;
+      hasMore = dataResult.rows.length > limit;
       if (hasMore) dataResult.rows = dataResult.rows.slice(0, limit);
 
       const responseTimeMs = Date.now() - requestStart;
@@ -1348,6 +1365,10 @@ router.get(
       throw err;
     }
     client.release();
+
+    // BUY-62624: collapse affiliate_links fan-out duplicates before pagination
+    // math so hasMore reflects distinct results.
+    dataResult.rows = dedupeProductRows(dataResult.rows);
 
     if (typeof hasMore === 'undefined') {
       hasMore = dataResult.rows.length > limit;
