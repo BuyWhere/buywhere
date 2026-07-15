@@ -41,8 +41,8 @@ type SearchApiItem = {
   affiliate_url?: string | null;
   affiliate_redirect_url?: string | null;
   brand?: string | null;
-  category?: string | null;
   updated_at?: string | null;
+  category?: string | null;
 };
 
 type SearchApiResponseMeta = {
@@ -11720,16 +11720,13 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Laptop",
-    backupQueries: ["Dell laptop", "HP laptop", "Lenovo laptop", "ASUS laptop", "MacBook"],
-    minPrice: 100,
-    requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "thinkpad", "xps", "vivobook", "gram", "envy", "spectre", "inspiron", "surface", "macbook pro", "macbook air"],
     productSectionTitle: "Live Laptop offers across the US",
     comparisonSectionTitle: "Popular Laptop picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
     comparisonRows: [
-      { Product: "MSI Katana 15 Gaming Laptop", Price: "$1,545", Merchant: "Amazon", Rating: "4.6/5" },
-      { Product: "Gigabyte G6 MF Gaming Laptop", Price: "$920", Merchant: "Best Buy", Rating: "4.5/5" },
-      { Product: "HP 15 FD0133WM Laptop", Price: "$440", Merchant: "Walmart", Rating: "4.3/5" },
+      { Model: "Apple MacBook Air M3", Price: "$999", Merchant: "Amazon", Rating: "4.7/5" },
+      { Model: "Dell XPS 13", Price: "$1,199", Merchant: "Best Buy", Rating: "4.5/5" },
+      { Model: "HP Pavilion 15", Price: "$549", Merchant: "Walmart", Rating: "4.3/5" },
     ],
     highlightSectionTitle: "What US buyers check before buying",
     highlights: [
@@ -11762,11 +11759,11 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "f1", name: "MSI Katana 15 B14WGK Gaming Laptop", price: 1545, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=MSI+Katana+15+B14WGK+Gaming+Laptop&country=us", brand: "MSI", category: "Laptop" },
-      { id: "f2", name: "Gigabyte G6 MF Gaming Laptop", price: 920, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=Gigabyte+G6+MF+Gaming+Laptop&country=us", brand: "Gigabyte", category: "Laptop" },
-      { id: "f3", name: "HP 15 FD0133WM Laptop", price: 440, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=HP+15+FD0133WM+Laptop&country=us", brand: "HP", category: "Laptop" },
-      { id: "f4", name: "Lenovo E16 Business Laptop", price: 1090, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=Lenovo+E16+Business+Laptop&country=us", brand: "Lenovo", category: "Laptop" },
-      { id: "f5", name: "Dell Inspiron 15 Laptop", price: 699, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=Dell+Inspiron+15+Laptop&country=us", brand: "Dell", category: "Laptop" },
+      { id: "f1", name: "Apple MacBook Air M3", price: 999, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=Apple+MacBook+Air+M3&country=us", brand: "Apple", category: "Laptop" },
+      { id: "f2", name: "Dell XPS 13", price: 1199, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=Dell+XPS+13&country=us", brand: "Dell", category: "Laptop" },
+      { id: "f3", name: "HP Pavilion 15", price: 549, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=HP+Pavilion+15&country=us", brand: "HP", category: "Laptop" },
+      { id: "f4", name: "Lenovo ThinkPad X1 Carbon", price: 1399, currency: "USD", merchant: "Newegg", imageUrl: null, href: "/search?q=Lenovo+ThinkPad+X1+Carbon&country=us", brand: "Lenovo", category: "Laptop" },
+      { id: "f5", name: "ASUS VivoBook 15", price: 479, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=ASUS+VivoBook+15&country=us", brand: "ASUS", category: "Laptop" },
     ],
   },
 
