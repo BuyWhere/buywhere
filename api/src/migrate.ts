@@ -480,6 +480,19 @@ export async function runMigrations() {
   // Idempotent; drops any stale ON ONLY constraint/index and creates a proper
   // partitioned unique index that works with ON CONFLICT on the partitioned table.
   try {
+    // 2026-07-15: skip the 3-col build when the valid 2-col unique already exists.
+    // products is NOT partitioned (relkind='r'); the (sku,source) unique index is
+    // valid and the ingest schema guard (BUY-56338) discovers + uses it as the
+    // ON CONFLICT target. The 3-col CONCURRENT build can never finish on the live
+    // archive (ops watchdogs cancel >30min CIC by design), so attempting it here
+    // just failed with a lock timeout on every deploy.
+    const twoCol = await db.query(
+      `SELECT 1 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+        WHERE i.indrelid = 'products'::regclass AND c.relname = 'products_sku_source_unique'
+          AND i.indisunique AND i.indisvalid`);
+    if (twoCol.rows.length > 0) {
+      console.log('[migration] products (sku, source) UNIQUE index valid — skipping 3-col build (BUY-56217 superseded 2026-07-15).');
+    } else {
     console.log('[migration] Ensuring products partitioned UNIQUE index (sku, source, country_code) (BUY-56217)...');
     const uqClient = await db.connect();
     try {
@@ -505,6 +518,7 @@ export async function runMigrations() {
     if (uqVerify.rowCount === 0) {
       throw new Error('Unique index products_sku_source_country_unique not found after CREATE — manual intervention required');
     }
+    } // end else (3-col build only when 2-col unique absent)
   } catch (err: any) {
     console.error(`[migration] FATAL: products UNIQUE index failed (BUY-56217): ${err.message?.slice(0, 200)}`);
     // Re-throw so the failure is visible in startup logs; the schema guard

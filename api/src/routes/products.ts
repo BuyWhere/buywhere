@@ -11,6 +11,7 @@ import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
+import { shipScopeForUrl } from '../lib/shipsTo';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
 import { embedQuery } from '../jobs/embedProducts';
 
@@ -254,9 +255,16 @@ function annotateDeliverTo(body: Record<string, unknown>, deliverTo: string | un
   const items = (body.data as Array<Record<string, unknown>>) || [];
   const meta = body.meta as Record<string, unknown> | undefined;
   if (deliverTo) {
-    for (const it of items) it.availability = it.country_code === deliverTo ? 'local' : 'unknown';
+    for (const it of items) {
+      if (it.country_code === deliverTo) { it.availability = 'local'; continue; }
+      // ships-to upgrade (2026-07-15): merchant-level scope from merchant_shipping.
+      const scope = shipScopeForUrl(it.url);
+      it.availability = scope === 'worldwide' ? 'ships_to_you'
+        : scope === 'domestic' ? 'unavailable'
+        : 'unknown';
+    }
     if (!includeUnshippable) {
-      const kept = items.filter((it) => it.availability === 'local');
+      const kept = items.filter((it) => it.availability === 'local' || it.availability === 'ships_to_you');
       body.data = kept;
       if (meta) meta.total = kept.length;
     }

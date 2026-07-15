@@ -4,6 +4,7 @@ import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
+import { shipScopeForUrl } from '../lib/shipsTo';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
@@ -1530,7 +1531,11 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
           const r = result as Record<string, unknown>;
           const items = (r.data || r.results || []) as Array<Record<string, unknown>>;
           if (dt) {
-            for (const it of items) it.availability = it.country_code === dt ? 'local' : 'unknown';
+            for (const it of items) {
+              if (it.country_code === dt) { it.availability = 'local'; continue; }
+              const scope = shipScopeForUrl(it.url);
+              it.availability = scope === 'worldwide' ? 'ships_to_you' : scope === 'domestic' ? 'unavailable' : 'unknown';
+            }
             const meta = r.meta as Record<string, unknown> | undefined;
             if (meta) meta.deliver_to = dt;
             else r.deliver_to = dt;
