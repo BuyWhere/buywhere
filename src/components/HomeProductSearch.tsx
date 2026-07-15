@@ -10,10 +10,27 @@ const countryOptions = [
   { value: 'sg', label: 'Singapore' },
 ] as const;
 
+type CountryValue = (typeof countryOptions)[number]['value'];
+
+function inferCountryFromQuery(query: string): CountryValue | null {
+  const normalizedQuery = query.toLowerCase();
+
+  if (/\b(singapore|sg)\b/.test(normalizedQuery)) {
+    return 'sg';
+  }
+
+  if (/\b(us|usa|united states|america)\b/.test(normalizedQuery)) {
+    return 'us';
+  }
+
+  return null;
+}
+
 export function HomeProductSearch() {
   const router = useRouter();
   const [query, setQuery] = useState('');
-  const [country, setCountry] = useState<(typeof countryOptions)[number]['value']>('us');
+  const [country, setCountry] = useState<CountryValue>('us');
+  const [countryTouched, setCountryTouched] = useState(false);
   const [error, setError] = useState('');
   const errorId = useId();
 
@@ -26,7 +43,8 @@ export function HomeProductSearch() {
     }
 
     setError('');
-    router.push(`/search?q=${encodeURIComponent(nextQuery)}&country=${country}`);
+    const searchCountry = countryTouched ? country : inferCountryFromQuery(nextQuery) ?? country;
+    router.push(`/search?q=${encodeURIComponent(nextQuery)}&country=${searchCountry}`);
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -67,7 +85,10 @@ export function HomeProductSearch() {
 
           <select
             value={country}
-            onChange={(event) => setCountry(event.target.value as (typeof countryOptions)[number]['value'])}
+            onChange={(event) => {
+              setCountry(event.target.value as CountryValue);
+              setCountryTouched(true);
+            }}
             className="h-[66px] rounded-xl border-2 border-white/20 bg-white/10 px-4 text-base font-medium text-white transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20"
             aria-label="Search country"
           >

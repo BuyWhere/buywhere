@@ -157,6 +157,28 @@ function normalizeCountry(value?: string): CountryValue {
   return value?.toLowerCase() === 'sg' ? 'sg' : 'us';
 }
 
+function inferCountryFromQuery(query: string): CountryValue | null {
+  const normalizedQuery = query.toLowerCase();
+
+  if (/\b(singapore|sg)\b/.test(normalizedQuery)) {
+    return 'sg';
+  }
+
+  if (/\b(us|usa|united states|america)\b/.test(normalizedQuery)) {
+    return 'us';
+  }
+
+  return null;
+}
+
+function getInitialCountry(query: string, country?: string): CountryValue {
+  if (country) {
+    return normalizeCountry(country);
+  }
+
+  return inferCountryFromQuery(query) ?? 'us';
+}
+
 function getCountryOption(value: CountryValue) {
   return COUNTRY_OPTIONS.find((option) => option.value === value) ?? COUNTRY_OPTIONS[0];
 }
@@ -467,8 +489,9 @@ export default function SearchResultsClient({
   const searchParamsString = searchParams?.toString() ?? '';
   const urlSearchParams = useMemo(() => new URLSearchParams(searchParamsString), [searchParamsString]);
   const [isNavigating, startTransition] = useTransition();
+  const initialCountryValue = useMemo(() => getInitialCountry(initialQuery, initialCountry), [initialCountry, initialQuery]);
   const [query, setQuery] = useState(initialQuery);
-  const [country, setCountry] = useState<CountryValue>(normalizeCountry(initialCountry));
+  const [country, setCountry] = useState<CountryValue>(initialCountryValue);
   const [debouncedQuery, setDebouncedQuery] = useState(initialQuery.trim());
   const [products, setProducts] = useState<SearchCardProduct[]>([]);
   const [total, setTotal] = useState(0);
@@ -539,7 +562,7 @@ export default function SearchResultsClient({
 
   useEffect(() => {
     const nextQuery = (urlSearchParams.get('q') || '').trim();
-    const nextCountry = normalizeCountry(urlSearchParams.get('country') || initialCountry);
+    const nextCountry = getInitialCountry(nextQuery, urlSearchParams.get('country') || initialCountry);
 
     if (nextQuery !== query) {
       setQuery(nextQuery);

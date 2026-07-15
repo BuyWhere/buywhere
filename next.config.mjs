@@ -29,6 +29,7 @@ const nextConfig = {
       { protocol: 'https', hostname: 'www.courts.com.sg' },
       { protocol: 'https', hostname: 'www.gaincity.com' },
       { protocol: 'https', hostname: 'cdn.bestdenki.com.sg' },
+      { protocol: 'https', hostname: 'elescat.store' },
     ],
   },
   async redirects() {

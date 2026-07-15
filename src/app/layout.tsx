@@ -126,7 +126,7 @@ export default function RootLayout({
           />
         )}
       </head>
-      <body role="document" className={`${inter.variable} font-sans antialiased bg-white text-gray-900`}>
+      <body role="document" className={`${inter.variable} font-sans antialiased bg-white text-gray-900 overflow-x-hidden`}>
         <SkipLinks />
         <SentryErrorBoundary>
           <PosthogProvider>
