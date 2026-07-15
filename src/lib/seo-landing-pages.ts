@@ -17,6 +17,7 @@ export type LandingProduct = {
   merchant: string;
   imageUrl: string | null;
   href: string;
+  productUrl?: string | null;
   brand: string | null;
   category: string | null;
 };
@@ -238,6 +239,17 @@ function withFallbackImage(product: LandingProduct): LandingProduct {
   return { ...product, imageUrl: buildCategoryImage(product) };
 }
 
+
+function buildProductDetailUrl(product: LandingProduct, country: string): string {
+  const region = country.toLowerCase();
+  const slug = (product.name || "product")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return `/products/${region}/${slug}/${product.id}`;
+}
+
 export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promise<LandingProduct[]> {
   const fallback = config.fallbackProducts;
 
@@ -309,7 +321,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   }
 
   if (collected.length >= 4) {
-    return collected.slice(0, 8);
+    return collected.slice(0, 8).map((p) => ({ ...p, productUrl: buildProductDetailUrl(p, config.country) }));
   }
 
   // If we got some (but fewer than 4) real products, top up with fallbacks so
@@ -322,13 +334,13 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         collected.push(withFallbackImage(fb));
       }
     }
-    return collected.slice(0, 8);
+    return collected.slice(0, 8).map((p) => ({ ...p, productUrl: buildProductDetailUrl(p, config.country) }));
   }
 
   // No real products from any query — show curated fallback products (with real
   // names, prices, merchants, and deep-link search hrefs) rather than an empty
   // page. These are honest editorial picks, not empty skeleton cards.
-  return fallback.slice(0, 8).map(withFallbackImage);
+  return fallback.slice(0, 8).map(withFallbackImage).map((p) => ({ ...p, productUrl: buildProductDetailUrl(p, config.country) }));
 }
 
 export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata {
