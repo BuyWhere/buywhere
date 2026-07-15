@@ -98,15 +98,15 @@ export function HomeProductSearch() {
               </option>
             ))}
           </select>
-        </div>
 
-        <div className="flex justify-center sm:justify-stretch">
-          <button
-            type="submit"
-            className="inline-flex h-[66px] w-full items-center justify-center rounded-lg bg-white px-5 text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 sm:w-auto sm:px-6"
-          >
-            Search catalog
-          </button>
+          <div className="sm:col-start-3 sm:row-start-1">
+            <button
+              type="submit"
+              className="inline-flex h-[66px] w-full items-center justify-center rounded-lg bg-white px-5 text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 sm:w-auto sm:px-6"
+            >
+              Search catalog
+            </button>
+          </div>
         </div>
 
         <div className="min-h-5" aria-live="polite">
