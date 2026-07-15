@@ -305,10 +305,10 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
       href={product.href}
       target="_blank"
       rel="noopener noreferrer"
-      className="group relative flex h-full flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
+      className="group relative flex h-full flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
-      <div className="relative h-36 overflow-hidden border-b border-slate-100 bg-slate-100 sm:h-40">
-        <div className="absolute inset-0 flex items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))] text-sm font-semibold text-slate-600">
+      <div className="relative aspect-[4/3] border-b border-slate-100 bg-slate-100">
+        <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))] text-sm font-semibold text-slate-600">
           Product image
         </div>
         {product.imageUrl ? (
@@ -322,7 +322,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
             onError={(event) => {
               event.currentTarget.style.display = 'none';
             }}
-            className="relative z-10 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            className="relative z-10 h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (
           <div className="relative z-10 flex h-full items-center justify-center text-4xl text-slate-600">◎</div>
@@ -346,9 +346,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
             className="text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
             style={{
               display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              maxHeight: '2.75rem',
+              WebkitLineClamp: 3,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
             }}
