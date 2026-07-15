@@ -250,6 +250,7 @@ function buildProductDetailUrl(product: LandingProduct, country: string): string
   return `/products/${region}/${slug}/${product.id}`;
 }
 
+<<<<<<< HEAD
 export function getSeoLandingFallbackProduct(
   region: string,
   productId: string,
@@ -278,6 +279,7 @@ export function getSeoLandingFallbackProduct(
   return null;
 }
 
+=======
 export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promise<LandingProduct[]> {
   const fallback = config.fallbackProducts;
 
