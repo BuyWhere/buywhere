@@ -59,7 +59,7 @@ export function HomeProductSearch() {
         className="flex flex-col gap-3"
         noValidate
       >
-        <div className="grid gap-3 grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
           <div className="relative">
             <Search
               className="pointer-events-none absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-indigo-100"
@@ -100,10 +100,10 @@ export function HomeProductSearch() {
           </select>
         </div>
 
-        <div className="flex justify-center">
+        <div className="flex justify-center sm:justify-stretch">
           <button
             type="submit"
-            className="inline-flex h-11 items-center justify-center rounded-lg bg-white px-5 text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700"
+            className="inline-flex h-[66px] w-full items-center justify-center rounded-lg bg-white px-5 text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 sm:w-auto sm:px-6"
           >
             Search catalog
           </button>
