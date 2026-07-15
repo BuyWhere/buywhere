@@ -174,6 +174,8 @@ const TOOLS = [
   },
 ];
 
+const TOOL_NAMES = new Set(TOOLS.map(tool => tool.name));
+
 let _hasDiscountPct: boolean | undefined;
 
 async function probeDiscountPctColumn(): Promise<boolean> {
@@ -1552,6 +1554,11 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
       }
 
       default:
+        if (TOOL_NAMES.has(method)) {
+          res.locals.mcpToolName = method;
+          const result = await dispatchTool(method, args);
+          return res.json(jsonrpcOk(id, result));
+        }
         return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
     }
   } catch (err: unknown) {
