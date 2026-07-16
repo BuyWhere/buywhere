@@ -173,6 +173,17 @@ const SEARCH_FALLBACKS: SearchFallback[] = [
   },
 ];
 
+function slugifyProductName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-');
+}
+
 function pickSearchFallback(query: string, countryCode: string) {
   const normalizedQuery = query.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   if (!normalizedQuery) return null;
@@ -194,22 +205,27 @@ function isDegradedZero(data: UpstreamSearchResponse | null) {
 
 function buildFallbackResponse(data: UpstreamSearchResponse | null, fallback: SearchFallback) {
   const fallbackUrl = `/${fallback.slug}`;
-  const items: SearchFallbackItem[] = fallback.products.map((product, index) => ({
-    id: `fallback-${fallback.slug}-${index + 1}`,
-    title: product.name,
-    name: product.name,
-    price: { amount: product.price, currency: fallback.currency },
-    price_amount: product.price,
-    price_currency: fallback.currency,
-    currency: fallback.currency,
-    merchant: product.merchant,
-    merchant_name: product.merchant,
-    source: 'editorial_fallback',
-    url: fallbackUrl,
-    click_url: fallbackUrl,
-    brand: product.brand,
-    category: fallback.category,
-  }));
+  const countryPrefix = fallback.country === 'SG' ? 'sg' : 'us';
+  const items: SearchFallbackItem[] = fallback.products.map((product, index) => {
+    const productSlug = slugifyProductName(product.name);
+    const productUrl = `/products/${countryPrefix}/${productSlug}`;
+    return {
+      id: `fallback-${fallback.slug}-${index + 1}`,
+      title: product.name,
+      name: product.name,
+      price: { amount: product.price, currency: fallback.currency },
+      price_amount: product.price,
+      price_currency: fallback.currency,
+      currency: fallback.currency,
+      merchant: product.merchant,
+      merchant_name: product.merchant,
+      source: 'editorial_fallback',
+      url: productUrl,
+      click_url: productUrl,
+      brand: product.brand,
+      category: fallback.category,
+    };
+  });
 
   return {
     ...data,
@@ -233,6 +249,28 @@ function buildFallbackResponse(data: UpstreamSearchResponse | null, fallback: Se
     },
     hint: `Live search is degraded, so we are showing curated ${fallback.label.toLowerCase()} picks with a populated BuyWhere guide.`,
   };
+}
+
+function normalizeUpstreamItems(items: Record<string, unknown>[], countryCode: string): Record<string, unknown>[] {
+  if (items.length <= 1) return items;
+
+  const countryPrefix = countryCode.toUpperCase() === 'SG' ? 'sg' : 'us';
+  const urls = items.map((item) => item.url || item.click_url).filter(Boolean);
+  const allSameUrl = urls.length > 1 && new Set(urls).size === 1;
+
+  if (!allSameUrl) return items;
+
+  return items.map((item) => {
+    const name = (typeof item.name === 'string' && item.name) || (typeof item.title === 'string' && item.title) || '';
+    if (!name) return item;
+    const productSlug = slugifyProductName(name);
+    const productUrl = `/products/${countryPrefix}/${productSlug}`;
+    return {
+      ...item,
+      url: productUrl,
+      click_url: productUrl,
+    };
+  });
 }
 
 export async function GET(request: NextRequest) {
@@ -282,6 +320,15 @@ export async function GET(request: NextRequest) {
 
     if (fallback) {
       return NextResponse.json(buildFallbackResponse(data, fallback));
+    }
+
+    const itemKey = data?.items ? 'items' : data?.results ? 'results' : data?.products ? 'products' : data?.data ? 'data' : null;
+    if (itemKey && Array.isArray(data[itemKey]) && data[itemKey].length > 0) {
+      data[itemKey] = normalizeUpstreamItems(data[itemKey], countryCode);
+      if (itemKey !== 'data' && data.data) data.data = data[itemKey];
+      if (itemKey !== 'items' && data.items) data.items = data[itemKey];
+      if (itemKey !== 'results' && data.results) data.results = data[itemKey];
+      if (itemKey !== 'products' && data.products) data.products = data[itemKey];
     }
 
     return NextResponse.json(data);
