@@ -53,13 +53,13 @@ export function HomeProductSearch() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto mb-10">
+    <div className="max-w-5xl mx-auto mb-10">
       <form
         onSubmit={handleSubmit}
         className="grid gap-3"
         noValidate
       >
-        <div className="grid gap-3 lg:grid-cols-[minmax(24rem,1fr)_180px_auto]">
+        <div className="grid gap-3 md:grid-cols-[1fr_140px_auto]">
           <div className="relative min-w-0">
             <Search
               className="pointer-events-none absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-indigo-900"
@@ -101,7 +101,7 @@ export function HomeProductSearch() {
 
           <button
             type="submit"
-            className="inline-flex h-[66px] items-center justify-center rounded-xl bg-white px-6 text-base font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 md:col-start-3 md:row-start-1"
+            className="inline-flex h-[66px] items-center justify-center rounded-xl bg-white px-6 text-base font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700"
           >
             Search catalog
           </button>
