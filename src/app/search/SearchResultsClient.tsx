@@ -305,9 +305,9 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
       href={product.href}
       target="_blank"
       rel="noopener noreferrer"
-      className="group relative flex h-full min-h-0 flex-col rounded-[22px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
+      className="group relative flex h-full flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
-      <div className="relative aspect-[16/10] border-b border-slate-100 bg-slate-100">
+      <div className="relative aspect-[4/3] border-b border-slate-100 bg-slate-100">
         <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))] text-sm font-semibold text-slate-600">
           Product image
         </div>
@@ -343,7 +343,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
 
         <div className="space-y-1.5">
           <h2
-            className="line-clamp-2 text-[15px] font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
+            className="line-clamp-3 text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
           >
             {product.name}
           </h2>
