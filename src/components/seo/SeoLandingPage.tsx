@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { ProductGridImage } from "@/components/seo/ProductGridImage";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
@@ -32,28 +32,12 @@ function ProductGridCard({ product }: { product: LandingProduct }) {
       className="group flex h-full flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.25),_rgba(248,250,252,0.92)_55%,_rgba(226,232,240,0.95))]">
-        {product.imageUrl?.startsWith("data:image/svg+xml") ? (
-          <Image
-            src={product.imageUrl}
-            alt={product.name}
-            fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 25vw"
-            unoptimized
-            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-          />
-        ) : product.imageUrl ? (
-          <Image
-            src={product.imageUrl}
-            alt={product.name}
-            fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 25vw"
-            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-center text-sm font-semibold uppercase tracking-[0.3em] text-slate-600">
-            {product.brand || product.merchant}
-          </div>
-        )}
+        <ProductGridImage
+          src={product.imageUrl || ""}
+          alt={product.name}
+          brand={product.brand}
+          merchant={product.merchant}
+        />
       </div>
 
       <div className="flex flex-1 flex-col gap-4 p-5">
