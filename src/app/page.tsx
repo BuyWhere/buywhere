@@ -286,8 +286,8 @@ export default function HomePage() {
       <section role="region" aria-label="Content section" className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 md:py-24">
           <div className="max-w-3xl mx-auto text-center mb-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/25 px-3 py-1 text-sm font-bold text-white shadow-sm mb-6">
-              <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+            <div className="inline-flex items-center gap-2 rounded-full border border-white bg-white px-3 py-1 text-sm font-bold text-indigo-900 shadow-sm mb-6">
+              <span className="w-2 h-2 bg-green-600 rounded-full"></span>
               Search millions of products across Singapore &amp; the US
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
@@ -308,7 +308,7 @@ export default function HomePage() {
               </Link>
               <Link
                 href="/developers"
-                className="inline-flex items-center justify-center rounded-xl border border-white/70 bg-white/25 px-6 py-3 font-bold text-white transition-colors hover:bg-white/35"
+                className="inline-flex items-center justify-center rounded-xl border border-white bg-white px-6 py-3 font-bold text-indigo-900 transition-colors hover:bg-indigo-50"
               >
                 Developers: Get API access
               </Link>

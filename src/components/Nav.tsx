@@ -84,7 +84,7 @@ export default function Nav() {
         </Link>
 
         {/* Desktop nav */}
-        <nav id="main-navigation" className="hidden lg:flex items-center gap-6 text-sm font-medium text-gray-600" aria-label="Main navigation">
+        <nav id="main-navigation" className="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600" aria-label="Main navigation">
           <DevDropdown />
           <Link href="/challenge" className="hover:text-indigo-600 transition-colors">Challenge</Link>
           <Link href="/merchants" className="hover:text-indigo-600 transition-colors">Merchants</Link>
@@ -102,7 +102,7 @@ export default function Nav() {
 
         {/* Mobile hamburger — always rendered so SSR and CSR match. CSS hides on lg+ screens. */}
         <button
-          className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
+          className="md:hidden p-2 rounded-lg hover:bg-gray-100"
           onClick={() => setOpen(!open)}
           aria-label={open ? "Close menu" : "Open menu"}
           aria-expanded={open}
@@ -122,7 +122,7 @@ export default function Nav() {
       {open && (
         <nav
           id="mobile-nav"
-          className="lg:hidden border-t border-gray-100 bg-white px-4 pb-4 flex flex-col gap-1 text-sm font-medium text-gray-700"
+          className="md:hidden border-t border-gray-100 bg-white px-4 pb-4 flex flex-col gap-1 text-sm font-medium text-gray-700"
           aria-label="Mobile navigation"
         >
           {/* Developer section */}
