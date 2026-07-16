@@ -286,14 +286,14 @@ export default function HomePage() {
       <section role="region" aria-label="Content section" className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 md:py-24">
           <div className="max-w-3xl mx-auto text-center mb-4">
-            <div className="inline-flex items-center gap-2 bg-white/10 text-white/90 text-sm font-medium px-3 py-1 rounded-full mb-6">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/25 px-3 py-1 text-sm font-bold text-white shadow-sm mb-6">
               <span className="w-2 h-2 bg-green-400 rounded-full"></span>
               Search millions of products across Singapore &amp; the US
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
               Find the best prices across every store.
             </h1>
-            <p className="text-xl text-indigo-200 mb-8 leading-relaxed">
+            <p className="text-xl font-semibold text-white mb-8 leading-relaxed">
               Compare products from Lazada, Shopee, Amazon, FairPrice, Carousell, and more — all in one search.
             </p>
           </div>
@@ -308,12 +308,12 @@ export default function HomePage() {
               </Link>
               <Link
                 href="/developers"
-                className="inline-flex items-center justify-center px-6 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-colors border border-white/20"
+                className="inline-flex items-center justify-center rounded-xl border border-white/70 bg-white/25 px-6 py-3 font-bold text-white transition-colors hover:bg-white/35"
               >
                 Developers: Get API access
               </Link>
             </div>
-            <p className="text-sm text-indigo-100/80">
+            <p className="text-sm font-semibold text-white">
               Powered by structured product data from 7+ merchants across Singapore and Southeast Asia.
             </p>
           </div>
@@ -396,14 +396,14 @@ export default function HomePage() {
               </Link>
             </div>
             <div className="flex-1 w-full min-w-0">
-              <div className="bg-gray-800 rounded-xl overflow-hidden">
+              <div className="bg-gray-800 rounded-xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-offset-2 focus:ring-offset-gray-900" tabIndex={0} aria-label="Scrollable Python search example" role="region">
                 <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-700">
                   <div className="w-3 h-3 rounded-full bg-red-500/70"></div>
                   <div className="w-3 h-3 rounded-full bg-yellow-500/70"></div>
                   <div className="w-3 h-3 rounded-full bg-green-500/70"></div>
                   <span className="ml-2 text-xs text-gray-300 font-mono">search.py</span>
                 </div>
-                <pre className="p-4 text-sm text-gray-300 font-mono overflow-x-auto leading-relaxed">
+                <pre tabIndex={0} className="p-4 text-sm text-gray-200 font-mono overflow-x-auto leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-inset">
                   <code>{codeSnippet}</code>
                 </pre>
               </div>
