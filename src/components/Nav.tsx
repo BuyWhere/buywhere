@@ -78,7 +78,8 @@ export default function Nav() {
         <Link href="/" className="flex items-center gap-2 font-bold text-lg text-indigo-600" aria-label="BuyWhere Home">
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <rect width="28" height="28" rx="6" fill="#4f46e5" />
-            <path d="M7 10h14M7 14h10M7 18h12" stroke="white" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="12.5" cy="12.5" r="4.5" stroke="white" strokeWidth="2" />
+            <path d="M16 16l4.5 4.5" stroke="white" strokeWidth="2" strokeLinecap="round" />
           </svg>
           <span>BuyWhere</span>
         </Link>
