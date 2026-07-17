@@ -9,6 +9,35 @@ const API_BASE_URL = (
 
 const API_KEY = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || '';
 const ALLOWED_PARAMS = new Set(['q', 'country', 'country_code', 'limit', 'cursor', 'offset']);
+const ACCESSORY_KEYWORDS = [
+  'adapter',
+  'battery',
+  'cable',
+  'case',
+  'charger',
+  'charging',
+  'cover',
+  'ear pad',
+  'ear pads',
+  'ear cushion',
+  'ear cushions',
+  'earcup',
+  'earcups',
+  'foam',
+  'holder',
+  'mount',
+  'pad',
+  'pads',
+  'part',
+  'parts',
+  'protector',
+  'replacement',
+  'sleeve',
+  'stand',
+  'strap',
+  'usb',
+];
+const QUERY_STOP_WORDS = new Set(['a', 'an', 'and', 'best', 'for', 'in', 'of', 'the', 'to', 'with']);
 
 type SearchFallbackItem = {
   id: string;
@@ -273,6 +302,73 @@ function normalizeUpstreamItems(items: Record<string, unknown>[], countryCode: s
   });
 }
 
+function normalizeText(value: unknown) {
+  return typeof value === 'string' ? value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() : '';
+}
+
+function coreQueryWords(query: string) {
+  return normalizeText(query)
+    .split(/\s+/)
+    .filter((word) => word.length > 1 && !QUERY_STOP_WORDS.has(word));
+}
+
+function itemSearchText(item: Record<string, unknown>) {
+  return [item.name, item.title, item.brand, item.category].map(normalizeText).filter(Boolean).join(' ');
+}
+
+function isAccessoryItem(item: Record<string, unknown>, queryWords: string[]) {
+  const searchText = itemSearchText(item);
+  if (!searchText) return false;
+
+  const hasAccessoryKeyword = ACCESSORY_KEYWORDS.some((keyword) => searchText.includes(keyword));
+  if (!hasAccessoryKeyword) return false;
+  if (queryWords.length === 0) return true;
+
+  const matchedQueryWords = queryWords.filter((word) => searchText.includes(word)).length;
+  return matchedQueryWords / queryWords.length < 0.5;
+}
+
+function dedupeKey(item: Record<string, unknown>) {
+  const name = normalizeText(item.name || item.title);
+  const brand = normalizeText(item.brand);
+  if (!name) return '';
+
+  return `${brand}:${name}`
+    .replace(/\b(new|sale|deal|official|authentic|original)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .slice(0, 80);
+}
+
+function deduplicateItems(items: Record<string, unknown>[]) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = dedupeKey(item);
+    if (!key) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function rankAndClassifyItems(items: Record<string, unknown>[], query: string) {
+  const queryWords = coreQueryWords(query);
+  const dedupedItems = deduplicateItems(items);
+  const primaryItems: Record<string, unknown>[] = [];
+  const accessoryItems: Record<string, unknown>[] = [];
+
+  dedupedItems.forEach((item) => {
+    const isAccessory = isAccessoryItem(item, queryWords);
+    const classifiedItem = { ...item, isAccessory, product_type: isAccessory ? 'accessory' : item.product_type };
+    if (isAccessory) {
+      accessoryItems.push(classifiedItem);
+    } else {
+      primaryItems.push(classifiedItem);
+    }
+  });
+
+  return [...primaryItems, ...accessoryItems];
+}
+
 export async function GET(request: NextRequest) {
   if (!API_KEY) {
     return NextResponse.json(
@@ -324,7 +420,7 @@ export async function GET(request: NextRequest) {
 
     const itemKey = data?.items ? 'items' : data?.results ? 'results' : data?.products ? 'products' : data?.data ? 'data' : null;
     if (itemKey && Array.isArray(data[itemKey]) && data[itemKey].length > 0) {
-      data[itemKey] = normalizeUpstreamItems(data[itemKey], countryCode);
+      data[itemKey] = rankAndClassifyItems(normalizeUpstreamItems(data[itemKey], countryCode), query);
       if (itemKey !== 'data' && data.data) data.data = data[itemKey];
       if (itemKey !== 'items' && data.items) data.items = data[itemKey];
       if (itemKey !== 'results' && data.results) data.results = data[itemKey];
