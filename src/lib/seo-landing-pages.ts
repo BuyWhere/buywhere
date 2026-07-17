@@ -2,11 +2,16 @@ import type { Metadata } from "next";
 import { toSiteUrl } from "@/lib/site-url";
 
 const BASE_URL = "https://buywhere.ai";
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  process.env.NEXT_PUBLIC_BUYWHERE_API_URL ||
-  "https://api.buywhere.ai";
-const API_KEY = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
+// Origin used to call BuyWhere's own Next.js route handlers from a server
+// component during SSR. The /api/products/search route resolves the backend API
+// key and degraded/fallback logic centrally, so routing catalog lookups through
+// it avoids depending on BUYWHERE_API_KEY being present in the SSR environment
+// (which previously caused every SEO landing page to silently fall back to
+// static editorial products because the direct external-API call 401'd).
+const INTERNAL_ORIGIN =
+  process.env.BUYWHERE_INTERNAL_ORIGIN ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  BASE_URL;
 
 export type LandingProduct = {
   id: string;
@@ -161,6 +166,17 @@ function normalizeExternalHref(...values: Array<string | null | undefined>) {
 }
 
 function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPrice?: number): LandingProduct | null {
+  // Currency guard: only keep products priced in the page's currency. The
+  // upstream catalog frequently returns wrong-region rows (e.g. INR/PHP/GBP
+  // "laptop" listings for an SG page) that would otherwise displace honest
+  // fallbacks with irrelevant foreign-currency cards.
+  const rawCurrency =
+    item.price && typeof item.price === "object" && "currency" in item.price
+      ? item.price.currency
+      : item.price_currency ?? item.currency;
+  if (rawCurrency && rawCurrency.toUpperCase() !== fallbackCurrency.toUpperCase()) {
+    return null;
+  }
   const priceValue =
     item.price && typeof item.price === "object" && "amount" in item.price
       ? item.price.amount
@@ -342,11 +358,14 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         limit: "8",
       });
 
-      const response = await fetch(`${API_BASE_URL}/v1/products/search?${params.toString()}`, {
-        headers: {
-          Accept: "application/json",
-          ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
-        },
+      // Route through BuyWhere's own /api/products/search route handler rather
+      // than the external product API. The route handler injects the backend
+      // API key and centralizes degraded/fallback handling, so SSR no longer
+      // depends on BUYWHERE_API_KEY being present in the server-component
+      // environment (the previous direct external call 401'd silently, which
+      // is why every SEO page fell back to static editorial products).
+      const response = await fetch(`${INTERNAL_ORIGIN}/api/products/search?${params.toString()}`, {
+        headers: { Accept: "application/json" },
         next: { revalidate: 60 * 15 },
         signal: AbortSignal.timeout(8000),
       });
