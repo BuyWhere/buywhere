@@ -326,6 +326,8 @@ router.get(
   checkRateLimit,
   queryLogMiddleware('products.list'),
   asyncHandler(async (req: Request, res: Response) => {
+    res.locals.cacheHit = false;
+
     // Backward compatibility: early public docs and clients used
     // `/v1/products?query=...` for search. Treat that as the canonical
     // bounded search route instead of falling through to the unsearched list
@@ -380,6 +382,7 @@ router.get(
         });
         res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
         res.set('X-Cache', 'HIT');
+        res.locals.cacheHit = true;
         return res.json(parsed);
       }
     } catch (_) {
@@ -536,6 +539,7 @@ router.get(
     const { cleanedQuery, canonicalSources } = preprocessSearchQuery(rawQuery, minPrice, maxPrice);
     const q = cleanedQuery || rawQuery;
 
+    res.locals.cacheHit = false;
     // Sprint C (1.4): normalize the q component of the cache key — lowercase,
     // sorted, punctuation-stripped token set — so "Running Shoes", "running shoe s"
     // orderings and casings share one cache entry (AND/OR matching is order-
@@ -563,11 +567,14 @@ router.get(
         });
         res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
         res.set('X-Cache', 'HIT');
+        res.locals.cacheHit = true;
         return res.json(parsed);
       }
     } catch (_) {
       // Redis miss or error — fall through to DB
     }
+
+    res.locals.cacheHit = false;
 
     // BUY-33987: only active products are surfaced to API consumers; the partial
     // GIN index `products_*_search_vector_idx WHERE is_active = true` lets the
@@ -584,6 +591,7 @@ router.get(
     // single-table archive constraints because it falls through unchanged on any
     // tier error, and SEARCH_USE_TIER=0 remains a runtime kill switch.
     const useSearchTier = req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0');
+    res.locals.cacheHit = false;
     if (q && searchMode === 'keyword' && useSearchTier) {
       const handled = await tryTierSearch(req, res, {
         q, countryCode, currency, limit, offset, minPrice, maxPrice,
@@ -1472,6 +1480,7 @@ router.get(
   checkRateLimit,
   queryLogMiddleware('products.deals'),
   asyncHandler(async (req: Request, res: Response) => {
+    res.locals.cacheHit = false;
     const start = Date.now();
     const currency = (req.query.currency as string) || 'SGD';
     const countryCode = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
@@ -1493,6 +1502,7 @@ router.get(
           source: 'products.deals.cache',
           req,
         });
+        res.locals.cacheHit = true;
         return res.json(parsed);
       }
     } catch (_) {}
@@ -1640,6 +1650,7 @@ router.get(
       req,
     });
 
+    res.locals.cacheHit = false;
     res.json(responseBody);
   })
 );
@@ -2011,6 +2022,7 @@ router.get(
   checkRateLimit,
   queryLogMiddleware('products.featured'),
   asyncHandler(async (req: Request, res: Response) => {
+    res.locals.cacheHit = false;
     const start = Date.now();
     const rawCountry = (req.query.country_code as string | undefined) || (req.query.country as string | undefined);
     const countryCode = rawCountry?.toUpperCase() || 'SG';
@@ -2033,6 +2045,7 @@ router.get(
           source: 'products.featured.cache',
           req,
         });
+        res.locals.cacheHit = true;
         return res.json(parsed);
       }
     } catch (_) {}
@@ -2056,6 +2069,7 @@ router.get(
     const responseBody = buildSearchResponse(products, products.length, limit, offset, Date.now() - start, false);
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => {});
     res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
+    res.locals.cacheHit = false;
     res.json(responseBody);
   })
 );

@@ -249,6 +249,7 @@ CREATE TABLE IF NOT EXISTS query_log (
   status_code INTEGER NOT NULL DEFAULT 200,
   ip_address INET,
   user_agent TEXT,
+  cache_hit BOOLEAN,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
