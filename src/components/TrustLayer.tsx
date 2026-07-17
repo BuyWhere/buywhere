@@ -25,9 +25,9 @@ const trustIndicators = [
         <polyline points="12,6 12,12 16,14" />
       </svg>
     ),
-    label: 'Avg. Latency',
-    value: '120ms',
-    badge: 'P50',
+    label: 'Search Latency',
+    value: '<250ms',
+    badge: 'P50 · cache hits <10ms',
     badgeColor: 'bg-slate-100 text-slate-700',
   },
 ];

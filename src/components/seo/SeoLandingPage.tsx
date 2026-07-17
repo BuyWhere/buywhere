@@ -84,7 +84,7 @@ function ProductGridCard({ product }: { product: LandingProduct }) {
 
 const DEFAULT_SHOPPER_CTA = {
   title: "Start comparing prices",
-  body: "Search millions of products across Southeast Asia and the US — find the best price in seconds.",
+  body: "Search 288 million products from 158,000+ stores worldwide — find the best deliverable price in seconds.",
   label: "Search products",
   href: "/",
 };

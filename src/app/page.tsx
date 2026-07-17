@@ -16,7 +16,7 @@ const audiences = [
   {
     icon: "🤖",
     title: "AI Agent Developers",
-    desc: "Query a structured, normalized product catalog from your agent. One API, one schema, cross-market product discovery for Singapore and Southeast Asia.",
+    desc: "One API, one schema, 288M+ products. Pass deliver_to with your user's country and get deliverable-first results with availability labels — local, ships_to_you, or unavailable — on every product.",
     cta: "Read the docs",
     ctaHref: "/developers",
   },
@@ -42,8 +42,8 @@ const valueProps = [
     desc: "Product, merchant, and catalog data is normalized so LLM-powered agents can search, rank, compare, and recommend with less prompt overhead and fewer brittle parsing failures.",
   },
   {
-    title: "Commerce-ready regional coverage",
-    desc: "Start with region-aware coverage across Singapore and Southeast Asia so your agent can answer market-specific shopping and availability questions without rebuilding the stack for each geography.",
+    title: "Location-aware by design",
+    desc: "Tell BuyWhere where your user is (deliver_to=SG, US, ...) and results rank deliverable-first, each labeled local, ships_to_you, or unavailable — backed by verified shipping policies for 28,000+ stores. No more recommending products your user can't receive.",
   },
   {
     title: "Why not scraping, Amazon APIs, or Google Shopping?",
@@ -123,7 +123,7 @@ const webApplicationSchema = {
   "@id": "https://buywhere.ai/#webapp",
   name: "BuyWhere API",
   description:
-    "Product catalog API and MCP server for AI agents. Search, compare, and discover products across Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, and Carousell — 7 merchants in Singapore and the United States.",
+    "Product catalog API and MCP server for AI agents. 288M+ products from 158,000+ stores worldwide — normalized, deduplicated, location-aware. deliver_to ranking, availability labels, sub-250ms search.",
   applicationCategory: "BusinessApplication",
   operatingSystem: "Any",
   url: "https://buywhere.ai",
@@ -142,7 +142,7 @@ const webApplicationSchema = {
     availability: "https://schema.org/InStock",
   },
   keywords:
-    "MCP, Model Context Protocol, AI agent, product catalog, price comparison API, shopping agent, product search API, commerce API, Singapore, Lazada, Shopee, Amazon, Southeast Asia",
+    "MCP, Model Context Protocol, AI agent, product catalog, product search API, commerce API, agentic commerce, deliver_to, availability API, shopping agent, LangChain shopping tool, OpenAI function calling commerce",
   softwareVersion: "1.0",
   browserRequirements: "Supports all modern browsers and MCP-compatible AI clients",
 };
@@ -224,7 +224,7 @@ const jsonLd = {
       url: "https://buywhere.ai",
       name: "BuyWhere",
       description:
-        "MCP server and product catalog API for AI agents. Search, compare, and discover products across Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, and Carousell.",
+        "MCP server and product catalog API for AI agents. 288M+ products from 158,000+ stores worldwide, with location-aware deliver_to ranking and availability labels.",
       publisher: { "@id": "https://buywhere.ai/#organization" },
       inLanguage: "en",
       potentialAction: {
@@ -249,7 +249,7 @@ const jsonLd = {
       description:
         "Model Context Protocol server for AI agents — search and compare products across Singapore, Southeast Asia, and US markets.",
       keywords:
-        "MCP, Model Context Protocol, AI agent, product catalog, price comparison API, shopping agent, product search API, commerce API, Singapore, Lazada, Shopee, Amazon, Southeast Asia",
+        "MCP, Model Context Protocol, AI agent, product catalog, product search API, commerce API, agentic commerce, deliver_to, availability API, shopping agent, LangChain shopping tool, OpenAI function calling commerce",
       offers: {
         "@type": "Offer",
         price: "0",
@@ -288,13 +288,13 @@ export default function HomePage() {
           <div className="max-w-3xl mx-auto text-center mb-4">
             <div className="inline-flex items-center gap-2 rounded-full border border-white bg-white px-3 py-1 text-sm font-bold text-indigo-900 shadow-sm mb-6">
               <span className="w-2 h-2 bg-green-600 rounded-full"></span>
-              Search millions of products across Singapore &amp; the US
+              288 million products. 158,000+ stores. One API.
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
               Find the best prices across every store.
             </h1>
             <p className="text-xl font-semibold text-white mb-8 leading-relaxed">
-              Compare products from Lazada, Shopee, Amazon, FairPrice, Carousell, and more — all in one search.
+              One search across 158,000+ storefronts worldwide — deepest coverage in the US and Singapore, with thousands of new stores added every week.
             </p>
           </div>
           <HomeProductSearch />
@@ -314,7 +314,7 @@ export default function HomePage() {
               </Link>
             </div>
             <p className="text-sm font-semibold text-white">
-              Powered by structured product data from 7+ merchants across Singapore and Southeast Asia.
+              288M+ structured products from 158,000+ merchant catalogs — normalized, deduplicated, and location-aware.
             </p>
           </div>
         </div>
@@ -447,7 +447,7 @@ export default function HomePage() {
                Platform APIs surface their own inventory first. Amazon APIs return Amazon products. Shopee returns Shopee products. Google Shopping returns shopping results, not a normalized product layer. For an AI agent trying to find the best match across the market, those are distribution channels — not the cross-merchant system of record.
              </p>
              <p className="text-gray-600 leading-relaxed mb-8">
-               BuyWhere has no inventory to sell and no platform to favour. We index products across Singapore and Southeast Asia into a single, structured API so AI agents can call one normalized, cross-merchant product layer instead of reconciling one platform&rsquo;s version of the market.
+               BuyWhere has no inventory to sell and no platform to favour. We index 288 million products from 158,000+ independent storefronts worldwide into a single, structured API — with MCP tools, an A2A agent card, LangChain and OpenAI-tools SDKs, and an agent-optimized compact mode — so AI agents call one normalized, cross-merchant product layer instead of reconciling one platform&rsquo;s version of the market.
              </p>
              <Link
                href="/about"
