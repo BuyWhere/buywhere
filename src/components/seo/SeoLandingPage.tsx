@@ -61,7 +61,6 @@ function ProductGridCard({ product }: { product: LandingProduct }) {
           </div>
           {isMerchantOffer ? (
             <span
-              onClick={(e) => e.preventDefault()}
               className="inline-flex items-center rounded-full bg-amber-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-amber-600"
             >
               <a
