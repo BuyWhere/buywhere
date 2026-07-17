@@ -10,6 +10,7 @@ import { startP95Runner } from './jobs/p95Runner';
 import { startP95ProbeScheduler, stopP95ProbeScheduler } from './jobs/p95ProbeScheduler';
 import { startDiskSpaceRunner } from './jobs/diskSpaceRunner';
 import { startFxRefreshScheduler } from './jobs/fxRefreshRunner';
+import { startLinkHealthChecker, stopLinkHealthChecker } from './jobs/linkHealthChecker';
 
 // Initialize Sentry before anything else so all errors are captured
 initSentry();
@@ -40,6 +41,9 @@ async function start() {
 
   // BUY-54078 / BUY-52476: refresh fx_rates every 6 hours (frankfurter + open.er-api fallback).
   startFxRefreshScheduler();
+
+  // BUY-63045: schedule link-health checks for outbound redirect destinations
+  startLinkHealthChecker();
 
   // Refresh category materialized views + Redis caches every 5 min so counts stay
   // current as products are ingested, and the Redis TTL (600s) never expires cold.
@@ -79,6 +83,7 @@ const shutdown = async () => {
   console.log('Shutting down...');
   await shutdownPostHog();
   stopP95ProbeScheduler();
+  stopLinkHealthChecker();
   if (server) server.close(() => process.exit(0));
   else process.exit(0);
 };
