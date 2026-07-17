@@ -149,7 +149,7 @@ const webApplicationSchema = {
 
 const codeSnippet = `import requests
 
-API_KEY = "bw_beta_your_key_here"
+API_KEY = "bw_live_your_key_here"
 
 response = requests.get(
     "https://api.buywhere.ai/v1/products/search",
