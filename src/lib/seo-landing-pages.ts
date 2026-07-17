@@ -246,8 +246,7 @@ function hasUsableLiveCard(product: LandingProduct) {
       product.name !== "Untitled product" &&
       !hasSyntheticCatalogCopy(product) &&
       product.price !== null &&
-      product.href !== "#" &&
-      product.imageUrl,
+      product.href !== "#",
   );
 }
 
@@ -260,8 +259,7 @@ function isTrustedFallbackProduct(product: LandingProduct) {
     product.name &&
       !hasSyntheticCatalogCopy(product) &&
       product.price !== null &&
-      product.href !== "#" &&
-      product.imageUrl,
+      product.href !== "#",
   );
 }
 
