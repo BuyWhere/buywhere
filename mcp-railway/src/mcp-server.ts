@@ -134,6 +134,14 @@ async function warmupMcpCaches() {
     }
 
 
+    // BUY-63030: invalidate stale category-cache entries on every boot so the
+    // corrected meta.unavailable logic (rows.every zero-count → true) takes effect
+    // for callers instead of returning the cached unavailable:false payload.
+    for (const country of ['SG', 'US', 'VN', 'TH', 'MY', 'GB', 'PH', 'ID', 'IN', 'AU']) {
+      const cacheKey = `categories_mcp:top100:${country}`;
+      await redis.del(cacheKey).catch((e) => console.warn(`[mcp-warmup] cache delete ${country} skipped:`, e.message));
+    }
+
     for (const country of ['SG', 'US', 'VN', 'TH', 'MY']) {
       const cacheKey = `categories_mcp:top100:${country}`;
       const existingCache = await redis.get(cacheKey).catch(() => null);
