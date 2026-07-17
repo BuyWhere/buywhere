@@ -269,7 +269,7 @@ function withLiveProductDetailUrl(product: LandingProduct, country: string): Lan
 }
 
 function withFallbackSearchUrl(product: LandingProduct): LandingProduct {
-  return { ...product, productUrl: product.href };
+  return { ...product, productUrl: toSiteUrl(product.href) };
 }
 
 
