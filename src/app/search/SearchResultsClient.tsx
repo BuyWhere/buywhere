@@ -372,6 +372,8 @@ export default function SearchResultsClient({
   initialQuery = '',
   initialCountry = 'us',
 }: SearchResultsClientProps) {
+  const initialSearchQuery = initialQuery.trim();
+  const hasInitialSearchQuery = initialSearchQuery.length >= MIN_QUERY_LENGTH;
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchParamsString = searchParams?.toString() ?? '';
@@ -379,13 +381,13 @@ export default function SearchResultsClient({
   const [isNavigating, startTransition] = useTransition();
   const [query, setQuery] = useState(initialQuery);
   const [country, setCountry] = useState<CountryValue>(normalizeCountry(initialCountry));
-  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery.trim());
+  const [debouncedQuery, setDebouncedQuery] = useState(initialSearchQuery);
   const [products, setProducts] = useState<SearchCardProduct[]>([]);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
-  const [loadingInitial, setLoadingInitial] = useState(false);
+  const [loadingInitial, setLoadingInitial] = useState(hasInitialSearchQuery);
   const [searchStartTime, setSearchStartTime] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
