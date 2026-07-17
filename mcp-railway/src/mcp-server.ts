@@ -45,6 +45,19 @@ app.use((_req, res) => {
 });
 
 async function warmupMcpCaches() {
+  // BUY-63030: invalidate stale category-cache entries BEFORE touching the DB so
+  // even if the warmup queries below fail, callers stop seeing cached
+  // unavailable:false payloads from the previous build.
+  try {
+    for (const country of ['SG', 'US', 'VN', 'TH', 'MY', 'GB', 'PH', 'ID', 'IN', 'AU']) {
+      const cacheKey = `categories_mcp:top100:${country}`;
+      await redis.del(cacheKey).catch((e) => console.warn(`[mcp-warmup] cache delete ${country} skipped:`, e.message));
+    }
+    console.log('[mcp-warmup] Cleared stale categories_mcp:top100:* cache entries');
+  } catch (e) {
+    console.warn('[mcp-warmup] cache clear failed:', (e as Error).message);
+  }
+
   // BUY-22324: Ensure discount_pct is a GENERATED STORED column (not a plain column).
   const client = await db.connect();
   try {
