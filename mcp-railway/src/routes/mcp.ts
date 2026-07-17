@@ -731,7 +731,14 @@ async function handleListCategories(args: Record<string, unknown>) {
     const cached = await redis.get(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
-      return { ...parsed, meta: { ...parsed.meta, cached: true, response_time_ms: Date.now() - t0 } };
+      // BUY-63030: always recompute unavailable from cached rows so pre-fix
+      // cache payloads (unavailable:false for zero-count fallbacks) get corrected.
+      const rows: Array<{ product_count: number }> = parsed.data;
+      const recomputedUnavailable = rows.length > 0 && rows.every((r) => Number(r.product_count) === 0);
+      return {
+        data: parsed.data,
+        meta: { ...parsed.meta, cached: true, unavailable: recomputedUnavailable, response_time_ms: Date.now() - t0 },
+      };
     }
   } catch (_) {}
 
