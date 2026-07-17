@@ -710,6 +710,17 @@ export async function runMigrations() {
     console.warn(`[migration] products_source_no_legacy_google_shopping constraint failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
+  // BUY-62708: ensure query_log.cache_hit exists independently of the MIGRATION block
+  // (added to CREATE TABLE inside MIGRATION, but live DBs created before BUY-62708 ran
+  // never received the ALTER because migrate.ts does not execute /migrations/*.sql
+  // standalone files; this preflight closes that gap idempotently).
+  try {
+    await db.query('ALTER TABLE query_log ADD COLUMN IF NOT EXISTS cache_hit boolean');
+    console.log('[migration] query_log.cache_hit column ensured (BUY-62708).');
+  } catch (err: any) {
+    console.warn(`[migration] query_log.cache_hit preflight failed (non-fatal): ${err.message?.slice(0, 200)}`);
+  }
+
   // Separately ensure merchants tables exist — not blocked by failures above.
   try {
     await db.query(MERCHANTS_MIGRATION);
