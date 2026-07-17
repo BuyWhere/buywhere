@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { db, redis, vectorDb } from '../config';
+import { db, redis, vectorDb, catalogDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -13,7 +13,7 @@ async function acquireMcpClient() {
   let timer: NodeJS.Timeout | undefined;
   try {
     return await Promise.race([
-      db.connect(),
+      catalogDb.connect(),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error('mcp_db_pool_acquire_timeout')), MCP_DB_ACQUIRE_TIMEOUT_MS);
       }),
@@ -197,7 +197,7 @@ let _hasDiscountPct: boolean | undefined;
 
 async function probeDiscountPctColumn(): Promise<boolean> {
   try {
-    const probe = await db.query(
+    const probe = await catalogDb.query(
       `SELECT is_generated FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`
     );
     return probe.rows.length > 0 && probe.rows[0].is_generated === 'ALWAYS';
@@ -286,7 +286,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // blocking the entire 12s statement_timeout. The DB itself is fast (70-130ms) so
   // any 8-12s MCP latency is pool-acquisition contention, not query execution.
   const searchClient = await Promise.race([
-    db.connect(),
+    catalogDb.connect(),
     new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('db.connect timeout after 2000ms')), 2000)
     ),
@@ -475,7 +475,7 @@ async function handleGetProduct(args: Record<string, unknown>) {
 
   let result;
   try {
-    result = await db.query(
+    result = await catalogDb.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price, currency, image_url, brand, category_path,
               avg_rating AS rating, review_count, metadata, updated_at, region, country_code
@@ -509,7 +509,7 @@ async function handleCompareProducts(args: Record<string, unknown>) {
   const placeholders = validIds.map((_, i) => `$${i + 1}`).join(',');
   let result;
   try {
-    result = await db.query(
+    result = await catalogDb.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price, currency, image_url, brand, category_path,
               avg_rating AS rating, review_count, metadata, updated_at, region, country_code
@@ -531,7 +531,7 @@ async function getRegionalProductSample(
   t0: number,
 ) {
   try {
-    const result = await db.query(
+    const result = await catalogDb.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price, NULL::numeric AS original_price, currency, image_url,
               metadata, updated_at, region, country_code, 0::numeric AS discount_pct
@@ -843,7 +843,7 @@ async function handleListCategories(args: Record<string, unknown>) {
         response_time_ms: 0,
         cached: false,
       };
-      meta.unavailable = false;
+      meta.unavailable = rows.every((row) => Number(row.product_count) === 0);
       const data = { data: rows, meta };
       redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
       return data;
