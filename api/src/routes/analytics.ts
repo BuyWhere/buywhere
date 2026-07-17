@@ -70,7 +70,7 @@ router.get('/overview', requireApiKey, async (req: Request, res: Response) => {
   // Compute overall cache_hit_pct across the window (only from days that have data)
   const daysWithCacheData = rows.filter((r) => r.cache_hit_pct !== null);
   const overallCacheHitPct = daysWithCacheData.length > 0
-    ? +(daysWithCacheData.reduce((sum, r) => sum + r.cache_hit_pct, 0) / daysWithCacheData.length).toFixed(1)
+    ? +(daysWithCacheData.reduce((sum, r) => sum + (r.cache_hit_pct ?? 0), 0) / daysWithCacheData.length).toFixed(1)
     : null;
   (totals as Record<string, unknown>).cache_hit_pct = overallCacheHitPct;
 
