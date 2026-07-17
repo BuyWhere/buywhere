@@ -299,7 +299,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // ── SEARCH TIER fast-path (gated by SEARCH_USE_TIER). Keyword search only; the
   // vector/hybrid path is unchanged. On any error, fall through to the archive
   // path below (hybrid — zero recall risk).
-  if (q && !useVector && process.env.SEARCH_USE_TIER === '1') {
+  if (q && !useVector && process.env.SEARCH_USE_TIER !== '0') {
     const tierRes = await runTierSearch({
       q, country, domain, category, minPrice, maxPrice, limit, offset, compact, currency, t0,
     }).catch((e) => { console.warn('[mcp tier] fell back to archive:', (e as Error)?.message); return null; });
@@ -850,51 +850,51 @@ async function handleListCategories(args: Record<string, unknown>) {
 
 async function handleFindBestPrice(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const productName = (args.product_name as string) || '';
-  if (!productName) throw { code: -32602, message: 'product_name is required' };
+  const productName = (args.product_name as string) || "";
+  if (!productName) throw { code: -32602, message: "product_name is required" };
 
-  const country = (((args.country_code as string) || (args.country as string)) || 'SG').toUpperCase();
-  const region = (args.region as string) || '';
-  const category = (args.category as string) || '';
+  const country = (((args.country_code as string) || (args.country as string)) || "SG").toUpperCase();
+  const region = (args.region as string) || "";
+  const category = (args.category as string) || "";
   const limit = 10;
 
-  const CANDIDATE_POOL = Math.max(limit * 50, 500);
-
-  // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
-  // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
-  // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
-  // BUY-57258: add connect timeout so pool exhaustion fails fast; reduce statement_timeout
-  // to 5s to prevent cascading connection starvation during contention.
+  // BUY-62458: use FTS+GIN bounded scan instead of ORDER BY updated_at LIMIT 50000.
+  // The old pattern scanned/sorted all active products by updated_at, which timed out
+  // on cold cache (12s statement_timeout on "iphone 15 pro"). The GIN index on
+  // search_vector bounds the scan to only matching rows, then we pick the cheapest.
   const bestPriceClient = await db.connect().catch((err) => {
-    console.warn('[find_best_price] db.connect failed:', err.message);
-    throw { code: -32603, message: 'Database connection timeout' };
+    console.warn("[find_best_price] db.connect failed:", err.message);
+    throw { code: -32603, message: "Database connection timeout" };
   });
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 12000');
-    // BUY-60056: fetch a bounded FTS candidate set first, then apply the
-    // requested country filter in the outer query. This avoids the slow
-    // country+FTS plan that timed out for US, while preserving region metadata.
-    const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
-    const titlePattern = `%${productName}%`;
+    await bestPriceClient.query("SET statement_timeout = 12000");
+    await bestPriceClient.query("SET work_mem = '64MB'");
+    const requestedCountry = country || (region.toLowerCase() === "us" ? "US" : "SG");
+    const ftsTokens = productName.replace(/[^\p{L}\p{N} ]/gu, "").trim();
+    // FTS match via GIN index, bounded to 2000 candidate rows, then price-sort on the small set.
     result = await bestPriceClient.query(
-      `SELECT * FROM (
-         SELECT id, title, price, currency, source AS domain, url, image_url,
-                country_code, updated_at
+      "SELECT id, title, price, currency, source AS domain, url, image_url,
+              country_code, updated_at
+       FROM (
+         SELECT id, title, price, currency, source, url, image_url,
+                country_code, updated_at,
+                ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
          FROM products
          WHERE is_active = true AND price > 0
-         ORDER BY updated_at DESC
-         LIMIT $1
-       ) _candidates
-       WHERE country_code = $2
-         AND title ILIKE $3
+           AND search_vector @@ plainto_tsquery('english', $1)
+           AND country_code = $2
+         ORDER BY rank DESC
+         LIMIT 2000
+       ) _fts_matches
        ORDER BY price ASC, updated_at DESC
-       LIMIT $4`,
-      [50000, requestedCountry, titlePattern, limit]
+       LIMIT $3",
+      [ftsTokens, requestedCountry, limit]
     );
     if (result.rows.length === 0) {
+      // ILIKE fallback for terms that the FTS parser strips (model numbers, short codes)
       result = await bestPriceClient.query(
-        `SELECT * FROM (
+        "SELECT * FROM (
            SELECT id, title, price, currency, source AS domain, url, image_url,
                   country_code, updated_at
            FROM products
@@ -903,13 +903,13 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
            LIMIT $1
          ) _candidates
          WHERE country_code = $2
+           AND title ILIKE $3
          ORDER BY price ASC, updated_at DESC
-         LIMIT $3`,
-        [50000, requestedCountry, limit]
+         LIMIT $4",
+        [20000, requestedCountry, "%" + productName + "%", limit]
       );
     }
   } finally {
-    // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);
   }
 
