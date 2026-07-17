@@ -4,7 +4,6 @@ import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
-import { shipScopeForUrl } from '../lib/shipsTo';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
@@ -32,7 +31,7 @@ function releaseClientSafely(client: any) {
 const TOOLS = [
   {
     name: 'search_products',
-    description: "Search the BuyWhere product catalog by keyword. ALWAYS pass deliver_to as the ISO-3166 country of your END USER (e.g. deliver_to: 'SG') — results are then ranked deliverable-first and every product carries an availability label ('local' = sold from that country, 'unknown' = cross-border). Add include_unshippable: false to return only same-country products. Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields.",
+    description: 'Search the BuyWhere product catalog by keyword. Returns products from e-commerce platforms across multiple regions (Singapore, US, etc.). Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -40,8 +39,6 @@ const TOOLS = [
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
-        deliver_to: { type: 'string', description: "REQUIRED for good results: ISO-3166 country of the END USER (where they want products delivered), e.g. 'SG', 'US'. Ranks local products first and labels each result's availability. Unlike country_code this never filters results out." },
-        include_unshippable: { type: 'boolean', description: 'Default true. Set false (with deliver_to) to return only products sold from the user\'s own country.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
         min_price: { type: 'number', description: 'Minimum price (in currency inferred from country_code, or SGD by default)' },
         max_price: { type: 'number', description: 'Maximum price (in currency inferred from country_code, or SGD by default)' },
@@ -174,8 +171,6 @@ const TOOLS = [
   },
 ];
 
-const TOOL_NAMES = new Set(TOOLS.map(tool => tool.name));
-
 let _hasDiscountPct: boolean | undefined;
 
 async function probeDiscountPctColumn(): Promise<boolean> {
@@ -200,7 +195,7 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 async function runTierSearch(p: {
   q: string; country: string; domain: string; category: string;
   minPrice: number | null; maxPrice: number | null; limit: number; offset: number;
-  compact: boolean; currency: string; t0: number; deliverTo?: string;
+  compact: boolean; currency: string; t0: number;
 }): Promise<Record<string, unknown> | null> {
   const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
   if (lexemes.length === 0) return null;
@@ -216,12 +211,9 @@ async function runTierSearch(p: {
   if (p.maxPrice != null && Number.isFinite(p.maxPrice)) { conds.push(`sp.price <= $${i}`); params.push(p.maxPrice); i++; }
   if (p.domain) { conds.push(`sp.source = $${i}`); params.push(p.domain); i++; }
   if (p.category) { conds.push(`lower(regexp_replace(coalesce(sp.category,''),'\\s+','-','g')) = lower($${i})`); params.push(p.category); i++; }
-  let dtIdx = 0;
-  if (p.deliverTo) { dtIdx = i; params.push(p.deliverTo); i++; } // rank-only: local-first, never filters
   const filterSql = conds.length ? ' AND ' + conds.join(' AND ') : '';
   const limitIdx = i; params.push(p.limit); i++;
   const offsetIdx = i; params.push(p.offset); i++;
-  const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
 
   const cols = `sp.id, sp.sku AS source, sp.source AS domain, sp.url, sp.title, sp.price, sp.currency,
     sp.image_url,
@@ -229,17 +221,17 @@ async function runTierSearch(p: {
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata,
     sp.updated_at, sp.region, sp.country_code, sp.in_stock`;
 
-  const mkQuery = (match: string, extraFilter = '') => `
+  const mkQuery = (match: string) => `
     WITH top AS (
       SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) AS rank
       FROM search_products sp
-      WHERE ${match}${filterSql}${extraFilter}
+      WHERE ${match}${filterSql}
       ORDER BY rank DESC
       LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
     FROM top JOIN search_products sp ON sp.id = top.id
-    ORDER BY ${orderPrefix}top.rank DESC
+    ORDER BY top.rank DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
 
   const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
@@ -256,30 +248,11 @@ async function runTierSearch(p: {
     if (rows.length === 0 && lexemes.length > 1) {
       rows = (await client.query(mkQuery(orMatch), params)).rows;
     }
-    // deliver_to local-first pass — see products.ts tryTierSearch for rationale.
-    if (dtIdx && rows.length > 0) {
-      await client.query('SAVEPOINT localpass'); // a failed local pass must not poison the tx (COMMIT would fail -> archive fallback)
-      try {
-        const localRows = (await client.query(mkQuery(andMatch, ` AND sp.country_code = $${dtIdx}`), params)).rows;
-        if (localRows.length > 0) {
-          const localIds = new Set(localRows.map((r) => String((r as Record<string, unknown>).id)));
-          rows = [...localRows, ...rows.filter((r) => !localIds.has(String((r as Record<string, unknown>).id)))].slice(0, p.limit);
-        }
-      } catch { await client.query('ROLLBACK TO SAVEPOINT localpass').catch(() => {}); /* best-effort */ }
-    }
     await client.query('COMMIT');
     const products = (rows as Record<string, unknown>[]).map((r) => buildProduct(r, p.currency, p.compact));
     const total = p.offset + rows.length;
     const resp = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.t0, false) as unknown as Record<string, unknown>;
     resp.source = 'search_products_tier';
-    const respItems = (resp.data as Array<Record<string, unknown>>) || [];
-    const respMeta = resp.meta as Record<string, unknown> | undefined;
-    if (p.deliverTo) {
-      for (const it of respItems) it.availability = it.country_code === p.deliverTo ? 'local' : 'unknown';
-      if (respMeta) respMeta.deliver_to = p.deliverTo;
-    } else if (p.q && respMeta) {
-      respMeta.hint = "Pass deliver_to=<ISO-3166 country of your end user> to rank deliverable products first.";
-    }
     return resp;
   } catch (e) {
     try { await client.query('ROLLBACK'); } catch (_) { /* ignore */ }
@@ -303,11 +276,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // and recent rows are predominantly US/null so SG filter finds nothing.
   const rawCountry = (((args.country_code as string) || (args.country as string)) || '').toUpperCase();
   const hasExplicitCountry = !!(args.country_code || args.country);
-  // 2026-07-14: silent SG default removed (mirrors REST fix — it hard-filtered ~90% of the
-  // catalog for callers that never pass country). deliver_to is the soft rank+label param.
-  const country = rawCountry;
-  const deliverTo = ((args.deliver_to as string) || '').toUpperCase() || undefined;
-  const includeUnshippable = args.include_unshippable !== false;
+  const country = rawCountry || (q && !region ? 'SG' : '');
   const category = (args.category as string) || '';
   const minPrice = args.min_price != null ? Number(args.min_price) : null;
   const maxPrice = args.max_price != null ? Number(args.max_price) : null;
@@ -316,7 +285,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const compact = args.compact === true;
   const currency = country ? (COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
 
-  const cacheKey = `fts2:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
+  const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
   try {
     const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
     if (cached) {
@@ -333,7 +302,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   if (q && !useVector && process.env.SEARCH_USE_TIER === '1') {
     const tierRes = await runTierSearch({
       q, country, domain, category, minPrice, maxPrice, limit, offset, compact, currency, t0,
-      deliverTo,
     }).catch((e) => { console.warn('[mcp tier] fell back to archive:', (e as Error)?.message); return null; });
     if (tierRes) {
       try { await redis.set(cacheKey, JSON.stringify(tierRes), 'EX', 3600); } catch (_) { /* non-fatal */ }
@@ -392,7 +360,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
     // complete within 12s via GIN index; anything longer signals plan regression or
     // pool exhaustion. Failing fast prevents cascading connection starvation.
-    await searchClient.query('SET statement_timeout = 12000');
+    await searchClient.query('SET statement_timeout = 18000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
     const COUNT_CAP = 1001;
     if (q) {
@@ -488,15 +456,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             params
           );
           rows = result.rows;
-          // BUY-62788: bounded total so meta.total is never undefined here.
-          const embCountParams = [...params.slice(0, params.length - 3), CANDIDATE_LIMIT];
-          const embCount = await searchClient.query(
-            `SELECT COUNT(*)::bigint AS n FROM (
-               SELECT 1 FROM products ${where} LIMIT $${embCountParams.length}
-             ) _c`,
-            embCountParams
-          );
-          total = parseInt(embCount.rows[0]?.n ?? '0', 10);
         }
       } else {
         // Keyword (FTS) path — BUY-31962 subquery pattern
@@ -514,61 +473,40 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           params
         );
         rows = result.rows;
-        // BUY-62788: bounded total so meta.total is never undefined (or the
-        // global reltuples). Stop counting at CANDIDATE_LIMIT to avoid a full
-        // GIN/posting-list scan on the ~288M-row table.
-        const ftsCountParams = [...params.slice(0, params.length - 3), CANDIDATE_LIMIT];
-        const ftsCount = await searchClient.query(
-          `SELECT COUNT(*)::bigint AS n FROM (
-             SELECT 1 FROM products ${where} LIMIT $${ftsCountParams.length}
-           ) _c`,
-          ftsCountParams
-        );
-        total = parseInt(ftsCount.rows[0]?.n ?? '0', 10);
       }
     } else {
-      // No FTS — browse mode. Push is_active + country_code + region into SQL
-      // (BUY-62788) so the page and total reflect the filtered set, instead of
-      // fetching recent global rows and filtering in-app (which returned 0 rows
-      // for country filters while total showed the global reltuples ~288M).
-      const browseCond: string[] = ['is_active = true'];
-      const browseParams: unknown[] = [];
-      if (country) {
-        browseParams.push(country.toUpperCase());
-        browseCond.push(`country_code = $${browseParams.length}`);
-      }
-      if (region) {
-        browseParams.push(region.toLowerCase());
-        browseCond.push(`lower(region) = $${browseParams.length}`);
-      }
-      const browseWhere = `WHERE ${browseCond.join(' AND ')}`;
+      // No FTS — browse mode. Use reltuples for approximate total and fetch
+      // recent products via idx_products_updated_at (3ms for 500 rows).
+      // If user explicitly passed country_code/region, overfetch and filter
+      // in-application (no composite index on country_code+updated_at).
+      const approxResult = await searchClient.query(
+        `SELECT reltuples::bigint AS estimate FROM pg_class WHERE relname = 'products'`
+      );
+      total = parseInt(approxResult.rows[0]?.estimate ?? '0', 10);
 
-      const pageParams = [...browseParams, limit, offset];
+      const needsFilter = !!(country || region);
+      const fetchLimit = needsFilter ? Math.min((limit + offset) * 20, 5000) : limit + offset;
       const rawResult = await searchClient.query(
         `SELECT id, sku AS source, source AS domain, url, title,
                 price, currency, image_url, metadata, updated_at,
                 region, country_code
-         FROM products ${browseWhere}
+         FROM products
          ORDER BY updated_at DESC
-         LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}`,
-        pageParams
+         LIMIT $1`,
+        [fetchLimit]
       );
-      rows = rawResult.rows as Record<string, unknown>[];
-
-      // Bounded count on the filtered set. With a country/region filter this is
-      // cheap (country_code / is_active indexes); with no filter we cap it so we
-      // never run an exact count(*) over the whole ~288M-row table (constraint
-      // BUY-59936 #6). BUY-62788: replaces the global reltuples estimate that
-      // made empty country-filtered pages look like a 288M-row "fabricated cache".
-      const COUNT_CEIL = 100000;
-      const countParams = [...browseParams, COUNT_CEIL];
-      const countRes = await searchClient.query(
-        `SELECT COUNT(*)::bigint AS n FROM (
-           SELECT 1 FROM products ${browseWhere} LIMIT $${countParams.length}
-         ) _c`,
-        countParams
-      );
-      total = parseInt(countRes.rows[0]?.n ?? '0', 10);
+      if (needsFilter) {
+        let filtered = rawResult.rows as Record<string, unknown>[];
+        if (country) {
+          filtered = filtered.filter(r => (r.country_code as string || '').toUpperCase() === country);
+        }
+        if (region) {
+          filtered = filtered.filter(r => (r.region as string || '').toLowerCase() === region.toLowerCase());
+        }
+        rows = filtered.slice(offset, offset + limit);
+      } else {
+        rows = (rawResult.rows as unknown[]).slice(offset, offset + limit);
+      }
     }
   } finally {
     // BUY-56185: always use safe release to discard connections poisoned by statement_timeout
@@ -728,7 +666,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // recent active window via the updated_at path, then filter/order the small
     // candidate set. Acceptance needs non-empty regional deals under 5s, not an
     // exact global count.
-    await dealsClient.query('SET statement_timeout = 4500');
+    await dealsClient.query('SET statement_timeout = 20000');
     const candidateLimit = Math.max((limit + offset) * 200, 5000);
     const candidateParams = [candidateLimit, ...params, limit, offset];
     const filterConditions = conditions.map((condition) =>
@@ -797,7 +735,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     (result as { unavailable?: boolean }).unavailable = true;
   }
 
-  redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
+  redis.set(cacheKey, JSON.stringify(result), 'EX', 300).catch(() => {});
 
   return result;
 }
@@ -933,7 +871,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   });
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 4500');
+    await bestPriceClient.query('SET statement_timeout = 12000');
     // BUY-60056: fetch a bounded FTS candidate set first, then apply the
     // requested country filter in the outer query. This avoids the slow
     // country+FTS plan that timed out for US, while preserving region metadata.
@@ -1556,39 +1494,12 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
         res.locals.mcpToolName = toolName;
         const result = await dispatchTool(toolName, toolArgs);
-        // deliver_to labels at the single dispatch point so EVERY search path
-        // (tier, archive, hybrid/vector, cache) carries availability labels.
-        if (toolName === 'search_products' && result && typeof result === 'object') {
-          const dt = ((toolArgs.deliver_to as string) || '').toUpperCase();
-          const r = result as Record<string, unknown>;
-          const items = (r.data || r.results || []) as Array<Record<string, unknown>>;
-          if (dt) {
-            for (const it of items) {
-              if (it.country_code === dt) { it.availability = 'local'; continue; }
-              const scope = shipScopeForUrl(it.url);
-              it.availability = scope === 'worldwide' ? 'ships_to_you' : scope === 'domestic' ? 'unavailable' : 'unknown';
-            }
-            const meta = r.meta as Record<string, unknown> | undefined;
-            if (meta) meta.deliver_to = dt;
-            else r.deliver_to = dt;
-          } else if (toolArgs.q && items.length > 0) {
-            const meta = r.meta as Record<string, unknown> | undefined;
-            const hint = "Pass deliver_to=<ISO-3166 country of your end user> to rank deliverable products first.";
-            if (meta) meta.hint = hint;
-            else r.hint = hint;
-          }
-        }
         return res.json(jsonrpcOk(id, {
           content: [{ type: 'text', text: JSON.stringify(result) }],
         }));
       }
 
       default:
-        if (TOOL_NAMES.has(method)) {
-          res.locals.mcpToolName = method;
-          const result = await dispatchTool(method, args);
-          return res.json(jsonrpcOk(id, result));
-        }
         return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
     }
   } catch (err: unknown) {

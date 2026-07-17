@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { db, redis, vectorDb, catalogDb } from '../config';
+import { db, redis, vectorDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -13,7 +13,7 @@ async function acquireMcpClient() {
   let timer: NodeJS.Timeout | undefined;
   try {
     return await Promise.race([
-      catalogDb.connect(),
+      db.connect(),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error('mcp_db_pool_acquire_timeout')), MCP_DB_ACQUIRE_TIMEOUT_MS);
       }),
@@ -49,7 +49,7 @@ function releaseClientSafely(client: any) {
 const TOOLS = [
   {
     name: 'search_products',
-    description: "Search the BuyWhere product catalog by keyword. ALWAYS pass deliver_to as the ISO-3166 country of your END USER (e.g. deliver_to: 'SG') — results are then ranked deliverable-first and every product carries an availability label ('local' = sold from that country, 'unknown' = cross-border). Add include_unshippable: false to return only same-country products. Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields.",
+    description: 'Search the BuyWhere product catalog by keyword. Returns products from e-commerce platforms across multiple regions (Singapore, US, etc.). Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -57,8 +57,6 @@ const TOOLS = [
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
-        deliver_to: { type: 'string', description: "REQUIRED for good results: ISO-3166 country of the END USER (where they want products delivered), e.g. 'SG', 'US'. Ranks local products first and labels each result's availability. Unlike country_code this never filters results out." },
-        include_unshippable: { type: 'boolean', description: 'Default true. Set false (with deliver_to) to return only products sold from the user country.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
         min_price: { type: 'number', description: 'Minimum price (in currency inferred from country_code, or SGD by default)' },
         max_price: { type: 'number', description: 'Maximum price (in currency inferred from country_code, or SGD by default)' },
@@ -191,13 +189,11 @@ const TOOLS = [
   },
 ];
 
-const TOOL_NAMES = new Set(TOOLS.map(tool => tool.name));
-
 let _hasDiscountPct: boolean | undefined;
 
 async function probeDiscountPctColumn(): Promise<boolean> {
   try {
-    const probe = await catalogDb.query(
+    const probe = await db.query(
       `SELECT is_generated FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`
     );
     return probe.rows.length > 0 && probe.rows[0].is_generated === 'ALWAYS';
@@ -223,9 +219,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // and recent rows are predominantly US/null so SG filter finds nothing.
   const rawCountry = (((args.country_code as string) || (args.country as string)) || '').toUpperCase();
   const hasExplicitCountry = !!(args.country_code || args.country);
-  // 2026-07-14: silent SG default removed (recall killer). deliver_to = soft rank+label param.
-  const country = rawCountry;
-  const deliverTo = ((args.deliver_to as string) || '').toUpperCase() || undefined;
+  const country = rawCountry || (q && !region ? 'SG' : '');
   const category = (args.category as string) || '';
   const minPrice = args.min_price != null ? Number(args.min_price) : null;
   const maxPrice = args.max_price != null ? Number(args.max_price) : null;
@@ -286,7 +280,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // blocking the entire 12s statement_timeout. The DB itself is fast (70-130ms) so
   // any 8-12s MCP latency is pool-acquisition contention, not query execution.
   const searchClient = await Promise.race([
-    catalogDb.connect(),
+    db.connect(),
     new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('db.connect timeout after 2000ms')), 2000)
     ),
@@ -297,7 +291,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
     // complete within 12s via GIN index; anything longer signals plan regression or
     // pool exhaustion. Failing fast prevents cascading connection starvation.
-    await searchClient.query('SET statement_timeout = 12000');
+    await searchClient.query('SET statement_timeout = 18000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
     const COUNT_CAP = 1001;
     if (q) {
@@ -475,7 +469,7 @@ async function handleGetProduct(args: Record<string, unknown>) {
 
   let result;
   try {
-    result = await catalogDb.query(
+    result = await db.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price, currency, image_url, brand, category_path,
               avg_rating AS rating, review_count, metadata, updated_at, region, country_code
@@ -509,7 +503,7 @@ async function handleCompareProducts(args: Record<string, unknown>) {
   const placeholders = validIds.map((_, i) => `$${i + 1}`).join(',');
   let result;
   try {
-    result = await catalogDb.query(
+    result = await db.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price, currency, image_url, brand, category_path,
               avg_rating AS rating, review_count, metadata, updated_at, region, country_code
@@ -531,7 +525,7 @@ async function getRegionalProductSample(
   t0: number,
 ) {
   try {
-    const result = await catalogDb.query(
+    const result = await db.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price, NULL::numeric AS original_price, currency, image_url,
               metadata, updated_at, region, country_code, 0::numeric AS discount_pct
@@ -625,7 +619,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
   try {
-    await dealsClient.query('SET statement_timeout = 4500');
+    await dealsClient.query('SET statement_timeout = 20000');
     const candidateLimit = Math.max((limit + offset) * 200, 5000);
     const candidateParams = [candidateLimit, ...params, limit, offset];
     const filterConditions = conditions.map((condition) =>
@@ -693,7 +687,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     (result as { unavailable?: boolean }).unavailable = true;
   }
 
-  redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
+  redis.set(cacheKey, JSON.stringify(result), 'EX', 300).catch(() => {});
 
   return result;
 }
@@ -908,7 +902,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const bestPriceClient = await acquireMcpClient();
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 10000');
+    await bestPriceClient.query('SET statement_timeout = 12000');
     result = await bestPriceClient.query(
       `SELECT * FROM (
          SELECT id, title, price, currency, source AS domain, url, image_url,
@@ -1493,11 +1487,6 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
       }
 
       default:
-        if (TOOL_NAMES.has(method)) {
-          res.locals.mcpToolName = method;
-          const result = await dispatchTool(method, args);
-          return res.json(jsonrpcOk(id, result));
-        }
         return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
     }
   } catch (err: unknown) {
