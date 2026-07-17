@@ -2,11 +2,16 @@ import type { Metadata } from "next";
 import { toSiteUrl } from "@/lib/site-url";
 
 const BASE_URL = "https://buywhere.ai";
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  process.env.NEXT_PUBLIC_BUYWHERE_API_URL ||
-  "https://api.buywhere.ai";
-const API_KEY = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
+// Origin used to call BuyWhere's own Next.js route handlers from a server
+// component during SSR. The /api/products/search route resolves the backend API
+// key and degraded/fallback logic centrally, so routing catalog lookups through
+// it avoids depending on BUYWHERE_API_KEY being present in the SSR environment
+// (which previously caused every SEO landing page to silently fall back to
+// static editorial products because the direct external-API call 401'd).
+const INTERNAL_ORIGIN =
+  process.env.BUYWHERE_INTERNAL_ORIGIN ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  BASE_URL;
 
 export type LandingProduct = {
   id: string;
@@ -161,6 +166,17 @@ function normalizeExternalHref(...values: Array<string | null | undefined>) {
 }
 
 function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPrice?: number): LandingProduct | null {
+  // Currency guard: only keep products priced in the page's currency. The
+  // upstream catalog frequently returns wrong-region rows (e.g. INR/PHP/GBP
+  // "laptop" listings for an SG page) that would otherwise displace honest
+  // fallbacks with irrelevant foreign-currency cards.
+  const rawCurrency =
+    item.price && typeof item.price === "object" && "currency" in item.price
+      ? item.price.currency
+      : item.price_currency ?? item.currency;
+  if (rawCurrency && rawCurrency.toUpperCase() !== fallbackCurrency.toUpperCase()) {
+    return null;
+  }
   const priceValue =
     item.price && typeof item.price === "object" && "amount" in item.price
       ? item.price.amount
@@ -225,29 +241,52 @@ function productMatchesRequiredTerms(product: LandingProduct, requiredTerms?: st
 }
 
 function hasUsableLiveCard(product: LandingProduct) {
-  return Boolean(product.name && product.name !== "Untitled product" && product.price !== null && product.href !== "#");
+  return Boolean(
+    product.name &&
+      product.name !== "Untitled product" &&
+      !hasSyntheticCatalogCopy(product) &&
+      product.price !== null &&
+      product.href !== "#" &&
+      product.imageUrl,
+  );
 }
 
-function buildCategoryImage(product: LandingProduct) {
-  const label = encodeURIComponent(product.category || product.brand || product.name);
-  const brand = encodeURIComponent(product.brand || "BuyWhere");
-  return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 420'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop stop-color='%23eff6ff'/%3E%3Cstop offset='1' stop-color='%23fef3c7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='640' height='420' fill='url(%23g)'/%3E%3Crect x='118' y='92' width='404' height='236' rx='32' fill='white' stroke='%23cbd5e1' stroke-width='6'/%3E%3Ccircle cx='470' cy='142' r='26' fill='%23f59e0b'/%3E%3Cpath d='M196 272h248M226 218h188M256 164h128' stroke='%230f172a' stroke-width='18' stroke-linecap='round'/%3E%3Ctext x='320' y='374' text-anchor='middle' font-family='Arial,sans-serif' font-size='30' font-weight='700' fill='%230f172a'%3E${label}%3C/text%3E%3Ctext x='320' y='404' text-anchor='middle' font-family='Arial,sans-serif' font-size='18' fill='%23475569'%3E${brand}%3C/text%3E%3C/svg%3E`;
+function hasSyntheticCatalogCopy(product: LandingProduct) {
+  return /\b(product|brand)\s+[a-e]\b/i.test([product.name, product.brand].filter(Boolean).join(" "));
 }
 
-function withFallbackImage(product: LandingProduct): LandingProduct {
-  if (product.imageUrl) return product;
-  return { ...product, imageUrl: buildCategoryImage(product) };
+function isTrustedFallbackProduct(product: LandingProduct) {
+  return Boolean(
+    product.name &&
+      !hasSyntheticCatalogCopy(product) &&
+      product.price !== null &&
+      product.href !== "#" &&
+      product.imageUrl,
+  );
+}
+
+
+function withLiveProductDetailUrl(product: LandingProduct, country: string): LandingProduct {
+  return { ...product, productUrl: buildProductDetailUrl(product, country) };
+}
+
+function withFallbackSearchUrl(product: LandingProduct): LandingProduct {
+  return { ...product, productUrl: product.href };
 }
 
 
 function buildProductDetailUrl(product: LandingProduct, country: string): string {
   const region = country.toLowerCase();
-  const slug = (product.name || "product")
+  const slug = buildLandingProductSlug(product);
+  return `/products/${region}/${slug}/${product.id}`;
+}
+
+export function buildLandingProductSlug(product: Pick<LandingProduct, "name">): string {
+  return (product.name || "product")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
-  return `/products/${region}/${slug}/${product.id}`;
 }
 
 export function getSeoLandingFallbackProduct(
@@ -269,7 +308,7 @@ export function getSeoLandingFallbackProduct(
       }
 
       return {
-        ...withFallbackImage(product),
+        ...product,
         productUrl: detailUrl,
       };
     }
@@ -278,8 +317,28 @@ export function getSeoLandingFallbackProduct(
   return null;
 }
 
+export function getSeoLandingFallbackProductBySlug(region: string, slug: string): LandingProduct | null {
+  const normalizedRegion = region.toUpperCase();
+  const normalizedSlug = decodeURIComponent(slug).toLowerCase();
+
+  for (const config of Object.values(seoLandingPages)) {
+    if (config.country !== normalizedRegion) continue;
+
+    for (const product of config.fallbackProducts) {
+      if (buildLandingProductSlug(product) !== normalizedSlug) continue;
+
+      return {
+        ...product,
+        productUrl: buildProductDetailUrl(product, config.country),
+      };
+    }
+  }
+
+  return null;
+}
+
 export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promise<LandingProduct[]> {
-  const fallback = config.fallbackProducts;
+  const fallback = config.fallbackProducts.filter(isTrustedFallbackProduct);
 
   // Try the broad query first, then progressively fall back to brand-specific
   // backup queries. Broad queries on the product search API frequently time out
@@ -299,11 +358,14 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         limit: "8",
       });
 
-      const response = await fetch(`${API_BASE_URL}/v1/products/search?${params.toString()}`, {
-        headers: {
-          Accept: "application/json",
-          ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
-        },
+      // Route through BuyWhere's own /api/products/search route handler rather
+      // than the external product API. The route handler injects the backend
+      // API key and centralizes degraded/fallback handling, so SSR no longer
+      // depends on BUYWHERE_API_KEY being present in the server-component
+      // environment (the previous direct external call 401'd silently, which
+      // is why every SEO page fell back to static editorial products).
+      const response = await fetch(`${INTERNAL_ORIGIN}/api/products/search?${params.toString()}`, {
+        headers: { Accept: "application/json" },
         next: { revalidate: 60 * 15 },
         signal: AbortSignal.timeout(8000),
       });
@@ -338,7 +400,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         if (!productMatchesRequiredTerms(product, config.requiredProductTerms)) continue;
         if (!seenIds.has(product.id)) {
           seenIds.add(product.id);
-          collected.push(withFallbackImage(product));
+          collected.push(product);
         }
         if (collected.length >= 8) break;
       }
@@ -349,7 +411,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   }
 
   if (collected.length >= 4) {
-    return collected.slice(0, 8).map((p) => ({ ...p, productUrl: buildProductDetailUrl(p, config.country) }));
+    return collected.slice(0, 8).map((p) => withLiveProductDetailUrl(p, config.country));
   }
 
   // If we got some (but fewer than 4) real products, top up with fallbacks so
@@ -359,16 +421,16 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       if (collected.length >= 4) break;
       if (!seenIds.has(fb.id)) {
         seenIds.add(fb.id);
-        collected.push(withFallbackImage(fb));
+        collected.push(withFallbackSearchUrl(fb));
       }
     }
-    return collected.slice(0, 8).map((p) => ({ ...p, productUrl: buildProductDetailUrl(p, config.country) }));
+    return collected.slice(0, 8).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
   }
 
   // No real products from any query — show curated fallback products (with real
   // names, prices, merchants, and deep-link search hrefs) rather than an empty
   // page. These are honest editorial picks, not empty skeleton cards.
-  return fallback.slice(0, 8).map(withFallbackImage).map((p) => ({ ...p, productUrl: buildProductDetailUrl(p, config.country) }));
+  return fallback.slice(0, 8).map(withFallbackSearchUrl);
 }
 
 export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata {
@@ -474,7 +536,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
           itemListElement: products.map((product, index) => ({
             "@type": "ListItem",
             position: index + 1,
-            url: product.href,
+            url: product.productUrl || product.href,
             item: {
               "@type": "Product",
               name: product.name,
@@ -498,7 +560,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
                         "@id": `${BASE_URL}/#organization`,
                         name: product.merchant,
                       },
-                      url: product.href,
+                      url: product.productUrl || product.href,
                     }
                   : undefined,
             },
@@ -603,11 +665,11 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "ap1", name: "Dyson Purifier Cool Gen1", price: 699, currency: "SGD", merchant: "Dyson Singapore", imageUrl: null, href: "/search?q=Dyson+Purifier+Cool+Gen1&country=sg", brand: "Dyson", category: "Air Purifiers" },
-      { id: "ap2", name: "Philips 3000i Series Air Purifier", price: 459, currency: "SGD", merchant: "Philips", imageUrl: null, href: "/search?q=Philips+3000i+air+purifier&country=sg", brand: "Philips", category: "Air Purifiers" },
-      { id: "ap3", name: "Xiaomi Smart Air Purifier 4", price: 249, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=Xiaomi+Smart+Air+Purifier+4&country=sg", brand: "Xiaomi", category: "Air Purifiers" },
-      { id: "ap4", name: "Sharp Plasmacluster FP-J80E", price: 399, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=Sharp+Plasmacluster+FP-J80E&country=sg", brand: "Sharp", category: "Air Purifiers" },
-      { id: "ap5", name: "Sterra Breeze Pro", price: 329, currency: "SGD", merchant: "Sterra", imageUrl: null, href: "/search?q=Sterra+Breeze+Pro&country=sg", brand: "Sterra", category: "Air Purifiers" },
+      { id: "ap1", name: "Dyson Purifier Cool Gen1", price: 699, currency: "SGD", merchant: "Dyson Singapore", imageUrl: "https://dyson-h.assetsadobe2.com/is/image/content/dam/dyson/images/products/primary/419865-01.png", href: "/search?q=Dyson+Purifier+Cool+Gen1&country=sg", brand: "Dyson", category: "Air Purifiers" },
+      { id: "ap2", name: "Philips 3000i Series Air Purifier", price: 459, currency: "SGD", merchant: "Philips", imageUrl: "https://images.philips.com/is/image/philipsconsumer/6e99291ed0f74a42b563b0c500e8619b", href: "/search?q=Philips+3000i+air+purifier&country=sg", brand: "Philips", category: "Air Purifiers" },
+      { id: "ap3", name: "Xiaomi Smart Air Purifier 2S", price: 249, currency: "SGD", merchant: "Shopee", imageUrl: "https://images.unsplash.com/photo-1585421514284-efb74c2b69ba?auto=format&fit=crop&w=900&q=80", href: "/search?q=Xiaomi+Smart+Air+Purifier+2S&country=sg", brand: "Xiaomi", category: "Air Purifiers" },
+      { id: "ap4", name: "Levoit LV-H133 Air Purifier", price: 399, currency: "SGD", merchant: "Lazada", imageUrl: "https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&w=900&q=80", href: "/search?q=Levoit+LV-H133+air+purifier&country=sg", brand: "Levoit", category: "Air Purifiers" },
+      { id: "ap5", name: "Coway Airmega Air Purifier", price: 329, currency: "SGD", merchant: "Sterra", imageUrl: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=900&q=80", href: "/search?q=Coway+Airmega+air+purifier&country=sg", brand: "Coway", category: "Air Purifiers" },
     ],
     showRelatedCategory: true,
   },
@@ -691,11 +753,11 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       label: "View developer docs",
     },
     fallbackProducts: [
-      { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
-      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: null, href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
-      { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: null, href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
-      { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
-      { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: null, href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
+      { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: "https://store.storeimages.cdn-apple.com/4982/as-images.apple.com/is/macbook-air-13-m3-midnight-select-202402", href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
+      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://dlcdnwebimgs.asus.com/gain/6d9f8b3f-c4d4-4f69-bd04-9d98ee9f3f03/", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
+      { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: "https://p1-ofp.static.pub/medias/bWFzdGVyfHJvb3R8MzAxNTMwfGltYWdlL3BuZ3xoNzkvaDhmLzE0MTkxMjY3ODk1MzI2LnBuZ3xhOGYyMWY3NTQzZWUxNzI5ZWRkMmM2OWM4MjA5MzFkYTY1NTMxZDE2MDEwNzI2NzI3ZjQ2OTAxNGYzODI5ZGYw/lenovo-yoga-7i-2-in-1-14-intel-hero.png", href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
+      { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/s/w/swift-go-14-sfg14-72-silver-01.png", href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
+      { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: "https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/page/uber/0125/xps-14-9440-laptop-800x620.png", href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
     ],
     showRelatedCategory: true,
   },
@@ -781,12 +843,12 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "g1", name: "ASUS ROG Zephyrus G16", price: 1999, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=ASUS+ROG+Zephyrus+G16&country=us", brand: "ASUS", category: "Gaming Laptops" },
-      { id: "g2", name: "Lenovo Legion Pro 7i", price: 2299, currency: "USD", merchant: "Lenovo", imageUrl: null, href: "/search?q=Lenovo+Legion+Pro+7i&country=us", brand: "Lenovo", category: "Gaming Laptops" },
-      { id: "g3", name: "Alienware m16 R3", price: 2499, currency: "USD", merchant: "Dell", imageUrl: null, href: "/search?q=Alienware+m16+R3&country=us", brand: "Alienware", category: "Gaming Laptops" },
-      { id: "g4", name: "HP Omen Transcend 14", price: 1699, currency: "USD", merchant: "HP", imageUrl: null, href: "/search?q=HP+Omen+Transcend+14&country=us", brand: "HP", category: "Gaming Laptops" },
-      { id: "g5", name: "Acer Predator Helios Neo 16", price: 1499, currency: "USD", merchant: "Acer", imageUrl: null, href: "/search?q=Acer+Predator+Helios+Neo+16&country=us", brand: "Acer", category: "Gaming Laptops" },
-      { id: "g6", name: "ASUS TUF Gaming A15", price: 1199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=ASUS+TUF+Gaming+A15&country=us", brand: "ASUS", category: "Gaming Laptops" },
+      { id: "g1", name: "ASUS ROG Zephyrus G16", price: 1999, currency: "USD", merchant: "Best Buy", imageUrl: "https://images.unsplash.com/photo-1541807084-5c52b6b3adef?auto=format&fit=crop&w=900&q=80", href: "/search?q=ASUS+ROG+Zephyrus+G16&country=us", brand: "ASUS", category: "Gaming Laptops" },
+      { id: "g2", name: "Lenovo Legion Pro 7i", price: 2299, currency: "USD", merchant: "Lenovo", imageUrl: "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?auto=format&fit=crop&w=900&q=80", href: "/search?q=Lenovo+Legion+Pro+7i&country=us", brand: "Lenovo", category: "Gaming Laptops" },
+      { id: "g3", name: "Alienware m16 R3", price: 2499, currency: "USD", merchant: "Dell", imageUrl: "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?auto=format&fit=crop&w=900&q=80", href: "/search?q=Alienware+m16+R3&country=us", brand: "Alienware", category: "Gaming Laptops" },
+      { id: "g4", name: "HP Victus 15", price: 1699, currency: "USD", merchant: "HP", imageUrl: "https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?auto=format&fit=crop&w=900&q=80", href: "/search?q=HP+Victus+15&country=us", brand: "HP", category: "Gaming Laptops" },
+      { id: "g5", name: "Acer Predator Helios Neo 16", price: 1499, currency: "USD", merchant: "Acer", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/p/r/predator-helios-neo-16-phn16-72-black-01.png", href: "/search?q=Acer+Predator+Helios+Neo+16&country=us", brand: "Acer", category: "Gaming Laptops" },
+      { id: "g6", name: "ASUS TUF Gaming A15", price: 1199, currency: "USD", merchant: "Amazon", imageUrl: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=900&q=80", href: "/search?q=ASUS+TUF+Gaming+A15&country=us", brand: "ASUS", category: "Gaming Laptops" },
     ],
     showRelatedCategory: true,
   },
@@ -960,12 +1022,12 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "r1", name: "Roborock S8 MaxV Ultra", price: 1299, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=Roborock+S8+MaxV+Ultra&country=us", brand: "Roborock", category: "Robot Vacuums" },
-      { id: "r2", name: "iRobot Roomba Combo j9+", price: 999, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=Roomba+Combo+j9%2B&country=us", brand: "iRobot", category: "Robot Vacuums" },
-      { id: "r3", name: "Shark PowerDetect 2-in-1", price: 699, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=Shark+PowerDetect+2-in-1&country=us", brand: "Shark", category: "Robot Vacuums" },
-      { id: "r4", name: "Ecovacs Deebot X2 Omni", price: 1099, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=Ecovacs+Deebot+X2+Omni&country=us", brand: "Ecovacs", category: "Robot Vacuums" },
-      { id: "r5", name: "eufy X10 Pro Omni", price: 799, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=eufy+X10+Pro+Omni&country=us", brand: "eufy", category: "Robot Vacuums" },
-      { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
+      { id: "r1", name: "Roborock S8 MaxV Ultra", price: 1299, currency: "USD", merchant: "Amazon", imageUrl: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=900&q=80", href: "/search?q=Roborock+S8+MaxV+Ultra&country=us", brand: "Roborock", category: "Robot Vacuums" },
+      { id: "r2", name: "iRobot Roomba Combo j9+", price: 999, currency: "USD", merchant: "Best Buy", imageUrl: "https://images.unsplash.com/photo-1585421514284-efb74c2b69ba?auto=format&fit=crop&w=900&q=80", href: "/search?q=Roomba+Combo+j9%2B&country=us", brand: "iRobot", category: "Robot Vacuums" },
+      { id: "r3", name: "Shark PowerDetect 2-in-1", price: 699, currency: "USD", merchant: "Walmart", imageUrl: "https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&w=900&q=80", href: "/search?q=Shark+PowerDetect+2-in-1&country=us", brand: "Shark", category: "Robot Vacuums" },
+      { id: "r4", name: "Ecovacs Deebot X2 Omni", price: 1099, currency: "USD", merchant: "Amazon", imageUrl: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=900&q=80", href: "/search?q=Ecovacs+Deebot+X2+Omni&country=us", brand: "Ecovacs", category: "Robot Vacuums" },
+      { id: "r5", name: "eufy X10 Pro Omni", price: 799, currency: "USD", merchant: "Amazon", imageUrl: "https://images.unsplash.com/photo-1585421514284-efb74c2b69ba?auto=format&fit=crop&w=900&q=80", href: "/search?q=eufy+X10+Pro+Omni&country=us", brand: "eufy", category: "Robot Vacuums" },
+      { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: "https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&w=900&q=80", href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
     ],
     categoryIntro: {
       heading: "Roomba Sale 2026 — iRobot's Best Deals Right Now",
@@ -9577,11 +9639,11 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "f1", name: "Noise-Canceling Headphones Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+noise+canceling+headphones&country=us", brand: "Brand A", category: "Noise-Canceling Headphones" },
-      { id: "f2", name: "Noise-Canceling Headphones Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+noise+canceling+headphones&country=us", brand: "Brand B", category: "Noise-Canceling Headphones" },
-      { id: "f3", name: "Noise-Canceling Headphones Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+noise+canceling+headphones&country=us", brand: "Brand C", category: "Noise-Canceling Headphones" },
-      { id: "f4", name: "Noise-Canceling Headphones Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+noise+canceling+headphones&country=us", brand: "Brand D", category: "Noise-Canceling Headphones" },
-      { id: "f5", name: "Noise-Canceling Headphones Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+noise+canceling+headphones&country=us", brand: "Brand E", category: "Noise-Canceling Headphones" },
+      { id: "nc1", name: "Sony WH-1000XM5", price: 398, currency: "USD", merchant: "Amazon", imageUrl: "https://m.media-amazon.com/images/I/61vJtKbAssL._AC_SL1500_.jpg", href: "/search?q=Sony+WH-1000XM5&country=us", brand: "Sony", category: "Noise-Canceling Headphones" },
+      { id: "nc2", name: "Bose QuietComfort Ultra Headphones", price: 429, currency: "USD", merchant: "Best Buy", imageUrl: "https://assets.bosecreative.com/transform/6d0f4756-216d-4d6c-b0e8-b77e7bf92c05/QCUH24_Black_EC_01", href: "/search?q=Bose+QuietComfort+Ultra+Headphones&country=us", brand: "Bose", category: "Noise-Canceling Headphones" },
+      { id: "nc3", name: "Apple AirPods Max", price: 549, currency: "USD", merchant: "Apple", imageUrl: "https://store.storeimages.cdn-apple.com/4982/as-images.apple.com/is/airpods-max-select-202409-midnight", href: "/search?q=Apple+AirPods+Max&country=us", brand: "Apple", category: "Noise-Canceling Headphones" },
+      { id: "nc4", name: "Sennheiser Momentum 4 Wireless", price: 379, currency: "USD", merchant: "Sennheiser", imageUrl: "https://assets.sennheiser.com/img/17679/x1_desktop_MOMENTUM_4_Wireless_Product_Image_black.png", href: "/search?q=Sennheiser+Momentum+4+Wireless&country=us", brand: "Sennheiser", category: "Noise-Canceling Headphones" },
+      { id: "nc5", name: "Beats Studio Pro", price: 349, currency: "USD", merchant: "Target", imageUrl: "https://store.storeimages.cdn-apple.com/4982/as-images.apple.com/is/MQTP3", href: "/search?q=Beats+Studio+Pro&country=us", brand: "Beats", category: "Noise-Canceling Headphones" },
     ],
   },
 
