@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { db, redis, vectorDb } from '../config';
+import { db, redis, vectorDb, catalogDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -13,9 +13,9 @@ async function acquireMcpClient() {
   let timer: NodeJS.Timeout | undefined;
   try {
     return await Promise.race([
-      db.connect(),
+      catalogDb.connect(),
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error('mcp_db_pool_acquire_timeout')), MCP_DB_ACQUIRE_TIMEOUT_MS);
+        timer = setTimeout(() => reject(new Error('mcp_catalog_db_pool_acquire_timeout')), MCP_DB_ACQUIRE_TIMEOUT_MS);
       }),
     ]);
   } finally {
@@ -193,7 +193,7 @@ let _hasDiscountPct: boolean | undefined;
 
 async function probeDiscountPctColumn(): Promise<boolean> {
   try {
-    const probe = await db.query(
+    const probe = await catalogDb.query(
       `SELECT is_generated FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`
     );
     return probe.rows.length > 0 && probe.rows[0].is_generated === 'ALWAYS';
@@ -280,9 +280,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // blocking the entire 12s statement_timeout. The DB itself is fast (70-130ms) so
   // any 8-12s MCP latency is pool-acquisition contention, not query execution.
   const searchClient = await Promise.race([
-    db.connect(),
+    catalogDb.connect(),
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('db.connect timeout after 2000ms')), 2000)
+      setTimeout(() => reject(new Error('catalog_db.connect timeout after 2000ms')), 2000)
     ),
   ]).catch(() => {
     throw { code: -32603, message: 'Database connection timeout' };
@@ -291,7 +291,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
     // complete within 12s via GIN index; anything longer signals plan regression or
     // pool exhaustion. Failing fast prevents cascading connection starvation.
-    await searchClient.query('SET statement_timeout = 12000');
+    await searchClient.query('SET statement_timeout = 18000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
     const COUNT_CAP = 1001;
     if (q) {
@@ -469,7 +469,7 @@ async function handleGetProduct(args: Record<string, unknown>) {
 
   let result;
   try {
-    result = await db.query(
+    result = await catalogDb.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price, currency, image_url, brand, category_path,
               avg_rating AS rating, review_count, metadata, updated_at, region, country_code
@@ -503,7 +503,7 @@ async function handleCompareProducts(args: Record<string, unknown>) {
   const placeholders = validIds.map((_, i) => `$${i + 1}`).join(',');
   let result;
   try {
-    result = await db.query(
+    result = await catalogDb.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price, currency, image_url, brand, category_path,
               avg_rating AS rating, review_count, metadata, updated_at, region, country_code
@@ -525,7 +525,7 @@ async function getRegionalProductSample(
   t0: number,
 ) {
   try {
-    const result = await db.query(
+    const result = await catalogDb.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price, NULL::numeric AS original_price, currency, image_url,
               metadata, updated_at, region, country_code, 0::numeric AS discount_pct
@@ -619,7 +619,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
   try {
-    await dealsClient.query('SET statement_timeout = 4500');
+    await dealsClient.query('SET statement_timeout = 20000');
     const candidateLimit = Math.max((limit + offset) * 200, 5000);
     const candidateParams = [candidateLimit, ...params, limit, offset];
     const filterConditions = conditions.map((condition) =>
@@ -687,7 +687,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     (result as { unavailable?: boolean }).unavailable = true;
   }
 
-  redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
+  redis.set(cacheKey, JSON.stringify(result), 'EX', 300).catch(() => {});
 
   return result;
 }
@@ -725,7 +725,14 @@ async function handleListCategories(args: Record<string, unknown>) {
     const cached = await redis.get(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
-      return { ...parsed, meta: { ...parsed.meta, cached: true, response_time_ms: Date.now() - t0 } };
+      // BUY-63030: always recompute unavailable from cached rows so pre-fix
+      // cache payloads (unavailable:false for zero-count fallbacks) get corrected.
+      const rows: Array<{ product_count: number }> = parsed.data;
+      const recomputedUnavailable = rows.length > 0 && rows.every((r) => Number(r.product_count) === 0);
+      return {
+        data: parsed.data,
+        meta: { ...parsed.meta, cached: true, unavailable: recomputedUnavailable, response_time_ms: Date.now() - t0 },
+      };
     }
   } catch (_) {}
 
@@ -837,7 +844,7 @@ async function handleListCategories(args: Record<string, unknown>) {
         response_time_ms: 0,
         cached: false,
       };
-      meta.unavailable = false;
+      meta.unavailable = rows.every((row) => Number(row.product_count) === 0);
       const data = { data: rows, meta };
       redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
       return data;
@@ -895,7 +902,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const bestPriceClient = await acquireMcpClient();
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 10000');
+    await bestPriceClient.query('SET statement_timeout = 12000');
     result = await bestPriceClient.query(
       `SELECT * FROM (
          SELECT id, title, price, currency, source AS domain, url, image_url,
@@ -932,6 +939,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     meta: { total: data.length, country, response_time_ms: Date.now() - t0 },
   };
 }
+
+// BUY-63030: catalog reads (search_products, get_product, compare_products,
+// get_deals, list_categories, find_best_price, probeDiscountPctColumn) now
+// route through catalogDb so we serve the canonical ~127M catalog instead of
+// the primary maglev DB. Ingestion/auth/health stays on primary db.
 
 // BUY-31929: MCP tool to ingest products — delegates to the same logic as
 // POST /v1/ingest/products but via JSON-RPC tool call.
@@ -1245,7 +1257,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   // Step 3: fetch product details from main DB
   const nearIds = nearResult.rows.map(r => r.product_id);
   const ph = nearIds.map((_, i) => `$${i + 1}`).join(',');
-  const detailResult = await db.query(
+  const detailResult = await catalogDb.query(
     `SELECT id, title, price, currency, source AS domain, url, image_url
      FROM products WHERE id IN (${ph}) AND is_active = true`,
     nearIds
