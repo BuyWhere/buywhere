@@ -132,6 +132,12 @@ const ACTIVE_BLOG_SLUGS = new Set([
   "home-appliance-deals-singapore-2026",
   "iphone-16-vs-iphone-17-upgrade-worth-it-2026",
   "openai-agents-sdk-buywhere-mcp-tutorial",
+  "the-mcp-server-discovery-gap",
+  "building-production-mcp-servers",
+  "five-mcp-servers-that-earn-context-window",
+  "mcp-for-ecommerce",
+  "buywhere-mcp-goes-live",
+  "mcp-server-ecosystem-2026",
 ]);
 
 function normalizePathname(pathname: string): string {
