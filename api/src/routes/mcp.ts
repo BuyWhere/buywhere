@@ -874,7 +874,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     const ftsTokens = productName.replace(/[^\p{L}\p{N} ]/gu, "").trim();
     // FTS match via GIN index, bounded to 2000 candidate rows, then price-sort on the small set.
     result = await bestPriceClient.query(
-      "SELECT id, title, price, currency, source AS domain, url, image_url,
+      `SELECT id, title, price, currency, source AS domain, url, image_url,
               country_code, updated_at
        FROM (
          SELECT id, title, price, currency, source, url, image_url,
@@ -888,13 +888,13 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          LIMIT 2000
        ) _fts_matches
        ORDER BY price ASC, updated_at DESC
-       LIMIT $3",
+       LIMIT $3`,
       [ftsTokens, requestedCountry, limit]
     );
     if (result.rows.length === 0) {
       // ILIKE fallback for terms that the FTS parser strips (model numbers, short codes)
       result = await bestPriceClient.query(
-        "SELECT * FROM (
+        `SELECT * FROM (
            SELECT id, title, price, currency, source AS domain, url, image_url,
                   country_code, updated_at
            FROM products
@@ -905,7 +905,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          WHERE country_code = $2
            AND title ILIKE $3
          ORDER BY price ASC, updated_at DESC
-         LIMIT $4",
+         LIMIT $4`,
         [20000, requestedCountry, "%" + productName + "%", limit]
       );
     }
