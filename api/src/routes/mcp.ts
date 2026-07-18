@@ -265,7 +265,13 @@ async function runTierSearch(p: {
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
   const q = (args.q as string) || '';
-  const mode = (args.mode as string) || 'hybrid';
+  // 2026-07-18: default flipped hybrid -> keyword. The vector store holds 512-dim
+  // embeddings while query-side embedding now produces a different dimension
+  // ("different vector dimensions 512 and 1024"), so EVERY default hybrid call
+  // returned Internal error. Keyword serves from the fast tier; explicit
+  // mode:'hybrid' remains available and will work again once embeddings are
+  // reconciled (see board issue filed 2026-07-18).
+  const mode = (args.mode as string) || 'keyword';
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
   const domain = (args.domain as string) || '';
