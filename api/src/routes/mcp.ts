@@ -31,7 +31,7 @@ function releaseClientSafely(client: any) {
 const TOOLS = [
   {
     name: 'search_products',
-    description: 'Search the BuyWhere product catalog by keyword. Returns products from e-commerce platforms across multiple regions (Singapore, US, etc.). Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields.',
+    description: "Search the BuyWhere product catalog: 288M+ products from 158,000+ stores worldwide. ALWAYS pass deliver_to as the ISO-3166 country of your END USER (e.g. deliver_to: 'SG') — results then rank deliverable-first and every product carries an availability label ('local' = sold from that country, 'unknown' = cross-border). Add include_unshippable: false for only same-country results. Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd.",
     inputSchema: {
       type: 'object',
       properties: {
