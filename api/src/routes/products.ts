@@ -172,7 +172,11 @@ async function tryTierSearch(
   try { client = await servingReadDbConnect(); } catch { return false; }
   try {
     await client.query('BEGIN');
-    await client.query(`SET LOCAL statement_timeout = '4000'`);
+    // 6500 (was 4000, 2026-07-18): measured cold tier queries complete in 4.5-6.7s;
+    // at 4s they timed out and fell to the archive path which then burned to the 10s
+    // handler cap (cache-miss p50 was 4-7s for real agents). 6.5s converts that band
+    // into tier successes while leaving headroom inside the 10s handler budget.
+    await client.query(`SET LOCAL statement_timeout = '6500'`);
     await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`); // fuzzy sampling breaks multi-word AND
     await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
     let rows = lexemes.length === 1 ? (await client.query(titleFallbackQuery, params)).rows : [];
