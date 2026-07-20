@@ -268,8 +268,17 @@ function withLiveProductDetailUrl(product: LandingProduct, country: string): Lan
   return { ...product, productUrl: buildProductDetailUrl(product, country) };
 }
 
-function withFallbackSearchUrl(product: LandingProduct): LandingProduct {
-  return { ...product, productUrl: toSiteUrl(product.href) };
+// Fallback editorial products don't carry a real outbound merchant URL, so their
+// card CTA must not loop back to /search?q=... (which recreates the "View offer
+// loops internally" bug from BUY-61931). Point the card at the internal product
+// detail page instead: /products/{region}/{slug}/{id} resolves these curated IDs
+// via getSeoLandingFallbackProduct, so it never 404s. The fallback href (e.g.
+// "/search?q=...") is intentionally NOT promoted to productUrl — it stays
+// relative, so ProductGridCard's isMerchantOffer check stays false and renders
+// an honest "View details" label rather than a fake "Buy at {merchant}" button
+// with no real merchant destination.
+function withFallbackDetailUrl(product: LandingProduct, country: string): LandingProduct {
+  return { ...product, productUrl: buildProductDetailUrl(product, country) };
 }
 
 
@@ -419,7 +428,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       if (collected.length >= 4) break;
       if (!seenIds.has(fb.id)) {
         seenIds.add(fb.id);
-        collected.push(withFallbackSearchUrl(fb));
+        collected.push(withFallbackDetailUrl(fb, config.country));
       }
     }
     return collected.slice(0, 8).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
@@ -428,7 +437,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   // No real products from any query — show curated fallback products (with real
   // names, prices, merchants, and deep-link search hrefs) rather than an empty
   // page. These are honest editorial picks, not empty skeleton cards.
-  return fallback.slice(0, 8).map(withFallbackSearchUrl);
+  return fallback.slice(0, 8).map((fb) => withFallbackDetailUrl(fb, config.country));
 }
 
 export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata {
