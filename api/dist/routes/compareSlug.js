@@ -8,6 +8,22 @@ const CACHE_TTL_SECONDS = 300; // 5 min
 function slugifyCategory(value) {
     return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
+const COMPARE_CATEGORY_ALIASES = {
+    electronics: [
+        'Electronics', 'Laptops', 'Desktops', 'Computer Accessories', 'Computer Components',
+        'Headphones', 'Speakers', 'Microphones', 'Cell Phones', 'Tablets', 'Phone Accessories',
+        'Televisions', 'Streaming Devices', 'Wearable Technology', 'Video Games', 'PC Gaming',
+    ],
+    fashion: ['Fashion', 'Clothing', 'Shoes', 'Bags', 'Accessories'],
+    'home-living': ['Home & Living', 'Home', 'Kitchen', 'Home Appliances', 'Furniture', 'Home Decor'],
+    beauty: ['Beauty', 'Beauty & Personal Care', 'Skincare', 'Makeup'],
+    'sports-outdoors': ['Sports & Outdoors', 'Sports', 'Outdoors', 'Fitness'],
+    'health-wellness': ['Health & Wellness', 'Health', 'Wellness', 'Vitamins', 'Supplements'],
+    'toys-games': ['Toys & Games', 'Toys', 'Games', 'Video Games'],
+    'food-beverages': ['Food & Beverages', 'Food', 'Beverages', 'Grocery', 'Groceries'],
+    automotive: ['Automotive', 'Car Accessories', 'Auto Parts'],
+    'pet-supplies': ['Pet Supplies', 'Pets', 'Pet Food'],
+};
 // Slug validation: kebab-case ASCII, ≤70 chars
 function isValidSlug(slug) {
     return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug) && slug.length <= 70;
@@ -110,11 +126,15 @@ function formatPrice(price) {
 async function handleCategoryCompareFallback(slug, req, res) {
     const normalizedSlug = slugifyCategory(slug);
     const currency = (req.query.country === 'US' || req.query.region === 'us') ? 'USD' : 'SGD';
+    const aliasNames = COMPARE_CATEGORY_ALIASES[normalizedSlug] || [];
     // Look up the category_path[1] name for this slug
     const slugResult = await config_1.db.query(`SELECT DISTINCT category_path[1] AS name FROM products
      WHERE currency = $1 AND category_path IS NOT NULL
-       AND LOWER(REGEXP_REPLACE(category_path[1], '[^a-zA-Z0-9]+', '-', 'g')) = $2
-     LIMIT 1`, [currency, normalizedSlug]).catch(() => null);
+       AND (
+         LOWER(REGEXP_REPLACE(category_path[1], '[^a-zA-Z0-9]+', '-', 'g')) = $2
+         OR category_path[1] = ANY($3::text[])
+       )
+     LIMIT 1`, [currency, normalizedSlug, aliasNames]).catch(() => null);
     if (!slugResult || slugResult.rows.length === 0) {
         return false;
     }
@@ -124,9 +144,9 @@ async function handleCategoryCompareFallback(slug, req, res) {
     const productsResult = await config_1.db.query(`SELECT id, title, brand, image_url, price, currency, url, source, is_active,
             updated_at, sku, mpn
      FROM products
-     WHERE currency = $1 AND category_path[1] = $2
+     WHERE currency = $1 AND category_path[1] = ANY($2::text[])
      ORDER BY updated_at DESC
-     LIMIT $3 OFFSET $4`, [currency, categoryName, limit, offset]).catch(() => null);
+     LIMIT $3 OFFSET $4`, [currency, [categoryName, ...aliasNames], limit, offset]).catch(() => null);
     if (!productsResult || productsResult.rows.length === 0) {
         return false;
     }

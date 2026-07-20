@@ -9,6 +9,23 @@ function slugifyCategory(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
+const COMPARE_CATEGORY_ALIASES: Record<string, string[]> = {
+  electronics: [
+    'Electronics', 'Laptops', 'Desktops', 'Computer Accessories', 'Computer Components',
+    'Headphones', 'Speakers', 'Microphones', 'Cell Phones', 'Tablets', 'Phone Accessories',
+    'Televisions', 'Streaming Devices', 'Wearable Technology', 'Video Games', 'PC Gaming',
+  ],
+  fashion: ['Fashion', 'Clothing', 'Shoes', 'Bags', 'Accessories'],
+  'home-living': ['Home & Living', 'Home', 'Kitchen', 'Home Appliances', 'Furniture', 'Home Decor'],
+  beauty: ['Beauty', 'Beauty & Personal Care', 'Skincare', 'Makeup'],
+  'sports-outdoors': ['Sports & Outdoors', 'Sports', 'Outdoors', 'Fitness'],
+  'health-wellness': ['Health & Wellness', 'Health', 'Wellness', 'Vitamins', 'Supplements'],
+  'toys-games': ['Toys & Games', 'Toys', 'Games', 'Video Games'],
+  'food-beverages': ['Food & Beverages', 'Food', 'Beverages', 'Grocery', 'Groceries'],
+  automotive: ['Automotive', 'Car Accessories', 'Auto Parts'],
+  'pet-supplies': ['Pet Supplies', 'Pets', 'Pet Food'],
+};
+
 // Slug validation: kebab-case ASCII, ≤70 chars
 function isValidSlug(slug: string): boolean {
   return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug) && slug.length <= 70;
@@ -107,14 +124,18 @@ function formatPrice(price: number): string {
 async function handleCategoryCompareFallback(slug: string, req: Request, res: Response): Promise<boolean> {
   const normalizedSlug = slugifyCategory(slug);
   const currency = (req.query.country === 'US' || req.query.region === 'us') ? 'USD' : 'SGD';
+  const aliasNames = COMPARE_CATEGORY_ALIASES[normalizedSlug] || [];
 
   // Look up the category_path[1] name for this slug
   const slugResult = await db.query<{ name: string }>(
     `SELECT DISTINCT category_path[1] AS name FROM products
      WHERE currency = $1 AND category_path IS NOT NULL
-       AND LOWER(REGEXP_REPLACE(category_path[1], '[^a-zA-Z0-9]+', '-', 'g')) = $2
+       AND (
+         LOWER(REGEXP_REPLACE(category_path[1], '[^a-zA-Z0-9]+', '-', 'g')) = $2
+         OR category_path[1] = ANY($3::text[])
+       )
      LIMIT 1`,
-    [currency, normalizedSlug]
+    [currency, normalizedSlug, aliasNames]
   ).catch(() => null);
 
   if (!slugResult || slugResult.rows.length === 0) {
@@ -133,10 +154,10 @@ async function handleCategoryCompareFallback(slug: string, req: Request, res: Re
     `SELECT id, title, brand, image_url, price, currency, url, source, is_active,
             updated_at, sku, mpn
      FROM products
-     WHERE currency = $1 AND category_path[1] = $2
+     WHERE currency = $1 AND category_path[1] = ANY($2::text[])
      ORDER BY updated_at DESC
      LIMIT $3 OFFSET $4`,
-    [currency, categoryName, limit, offset]
+    [currency, [categoryName, ...aliasNames], limit, offset]
   ).catch(() => null);
 
   if (!productsResult || productsResult.rows.length === 0) {
