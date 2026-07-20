@@ -490,6 +490,94 @@ export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata 
 export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: LandingProduct[]) {
   const canonical = toSiteUrl(config.canonicalPath);
 
+  // Deduplicate products by name so each distinct product becomes a top-level
+  // Product node with an AggregateOffer summarising every merchant listing it.
+  // Falls back to the page's curated fallbackProducts when live search is empty.
+  const schemaProducts = (products && products.length > 0 ? products : config.fallbackProducts) || [];
+  const productGroups = Array.from(
+    schemaProducts
+      .filter((p) => p && p.name)
+      .reduce<Map<string, LandingProduct[]>>((acc, p) => {
+        const key = p.name.trim().toLowerCase();
+        const list = acc.get(key);
+        if (list) {
+          list.push(p);
+        } else {
+          acc.set(key, [p]);
+        }
+        return acc;
+      }, new Map())
+      .values()
+  );
+
+  const productNodes = productGroups.map((group) => {
+    const reference = group[0];
+    const priced = group.filter((p) => p.price !== null && p.price !== undefined);
+    const prices = priced.map((p) => Number(p.price)).filter((n) => Number.isFinite(n));
+    const lowPrice = prices.length > 0 ? Math.min(...prices) : null;
+    const currency = reference.currency || config.currency;
+
+    return {
+      "@type": "Product",
+      "@id": `${canonical}#product-${reference.id}`,
+      name: reference.name,
+      brand: reference.brand
+        ? {
+            "@type": "Brand",
+            name: reference.brand,
+          }
+        : undefined,
+      category: reference.category || undefined,
+      image: reference.imageUrl || undefined,
+      description: `${reference.name} price comparison across ${group.length} ${
+        group.length === 1 ? "retailer" : "retailers"
+      } on BuyWhere.`,
+      offers:
+        prices.length > 0
+          ? {
+              "@type": "AggregateOffer",
+              priceCurrency: currency,
+              offerCount: group.length,
+              lowPrice,
+              availability: "https://schema.org/InStock",
+              sellers: group.map((p) => ({
+                "@type": "Organization",
+                name: p.merchant,
+              })),
+            }
+          : {
+              "@type": "AggregateOffer",
+              priceCurrency: currency,
+              offerCount: group.length,
+              availability: "https://schema.org/InStock",
+            },
+    };
+  });
+
+  const articleNode = {
+    "@type": "Article",
+    "@id": `${canonical}#article`,
+    headline: config.heroTitle,
+    description: config.description,
+    image: `${BASE_URL}/og-image.png`,
+    inLanguage: config.locale.replace("_", "-"),
+    mainEntityOfPage: canonical,
+    about: {
+      "@type": "Thing",
+      name: config.searchQuery,
+    },
+    author: {
+      "@type": "Organization",
+      "@id": `${BASE_URL}/#organization`,
+      name: "BuyWhere",
+    },
+    publisher: {
+      "@type": "Organization",
+      "@id": `${BASE_URL}/#organization`,
+      name: "BuyWhere",
+    },
+  };
+
   return {
     "@context": "https://schema.org",
     "@graph": [
@@ -565,6 +653,8 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
           })),
         },
       },
+      articleNode,
+      ...productNodes,
       {
         "@type": "FAQPage",
         "@id": `${canonical}#faq`,
@@ -852,9 +942,9 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
   },
   "iphone-16-price-singapore": {
     slug: "iphone-16-price-singapore",
-    title: "Cheapest iPhone 16 in Singapore 2026 | Compare Prices Across Apple, Shopee, Lazada",
+    title: "Cheapest iPhone 16 in Singapore 2026 | Price Compare",
     description:
-      "Find the cheapest iPhone 16 in Singapore with live BuyWhere results, retailer benchmarks, and quick guidance across Apple Store, Shopee, Lazada, Amazon.sg, Challenger, and Courts.",
+      "Compare the cheapest iPhone 16 prices in Singapore across Apple, Shopee, Lazada, Amazon.sg, Challenger and Courts with live results.",
     heroEyebrow: "Singapore Price Tracker",
     heroTitle: "Cheapest iPhone 16 in Singapore",
     heroBody:
@@ -915,6 +1005,16 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
         answer:
           "If you do not need the phone immediately, waiting for 9.9, 11.11, or 12.12 usually gives you a better chance of seeing the lowest price.",
       },
+      {
+        question: "Where is the safest place to buy an iPhone 16 in Singapore?",
+        answer:
+          "Apple Store Online is the safest official channel, while Shopee Mall and LazMall authorised resellers are reliable marketplace options with clear warranty terms.",
+      },
+      {
+        question: "Does the Singapore iPhone 16 warranty work overseas?",
+        answer:
+          "Apple's iPhone warranty is region-specific. A unit bought in Singapore is serviceable at Apple Authorised Service Providers in Singapore; check coverage before buying for use abroad.",
+      },
     ],
     shopperCta: {
       title: "Compare iPhone 16 prices in Singapore",
@@ -935,6 +1035,9 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       { id: "i4", name: "Apple iPhone 16 256GB", price: 1459, currency: "SGD", merchant: "Amazon.sg", imageUrl: null, href: "/search?q=iPhone%2016%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
       { id: "i5", name: "Apple iPhone 16 128GB", price: 1279, currency: "SGD", merchant: "Challenger", imageUrl: null, href: "/search?q=iPhone%2016%20128GB&country=sg", brand: "Apple", category: "Smartphones" },
       { id: "i6", name: "Apple iPhone 16 128GB", price: 1279, currency: "SGD", merchant: "Courts", imageUrl: null, href: "/search?q=iPhone%2016%20128GB&country=sg", brand: "Apple", category: "Smartphones" },
+      { id: "i7", name: "Apple iPhone 16 Pro 256GB", price: 1649, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=iPhone%2016%20Pro%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
+      { id: "i8", name: "Apple iPhone 16 Pro 256GB", price: 1599, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=iPhone%2016%20Pro%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
+      { id: "i9", name: "Apple iPhone 16 512GB", price: 1799, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=iPhone%2016%20512GB&country=sg", brand: "Apple", category: "Smartphones" },
     ],
     showRelatedCategory: true,
   },
