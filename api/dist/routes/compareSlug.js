@@ -5,6 +5,9 @@ const config_1 = require("../config");
 const posthog_1 = require("../analytics/posthog");
 const router = (0, express_1.Router)();
 const CACHE_TTL_SECONDS = 300; // 5 min
+function slugifyCategory(value) {
+    return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
 // Slug validation: kebab-case ASCII, ≤70 chars
 function isValidSlug(slug) {
     return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug) && slug.length <= 70;
@@ -100,6 +103,64 @@ function retailerMeta(source) {
 function formatPrice(price) {
     return `S$${price.toFixed(2)}`;
 }
+/**
+ * When a slug is not a comparison_page, try to resolve it as a category.
+ * Returns true if a response was sent, false if category also not found.
+ */
+async function handleCategoryCompareFallback(slug, req, res) {
+    const normalizedSlug = slugifyCategory(slug);
+    const currency = (req.query.country === 'US' || req.query.region === 'us') ? 'USD' : 'SGD';
+    // Look up the category_path[1] name for this slug
+    const slugResult = await config_1.db.query(`SELECT DISTINCT category_path[1] AS name FROM products
+     WHERE currency = $1 AND category_path IS NOT NULL
+       AND LOWER(REGEXP_REPLACE(category_path[1], '[^a-zA-Z0-9]+', '-', 'g')) = $2
+     LIMIT 1`, [currency, normalizedSlug]).catch(() => null);
+    if (!slugResult || slugResult.rows.length === 0) {
+        return false;
+    }
+    const categoryName = slugResult.rows[0].name;
+    const limit = Math.min(parseInt(req.query.limit || '50'), 100);
+    const offset = parseInt(req.query.offset || '0');
+    const productsResult = await config_1.db.query(`SELECT id, title, brand, image_url, price, currency, url, source, is_active,
+            updated_at, sku, mpn
+     FROM products
+     WHERE currency = $1 AND category_path[1] = $2
+     ORDER BY updated_at DESC
+     LIMIT $3 OFFSET $4`, [currency, categoryName, limit, offset]).catch(() => null);
+    if (!productsResult || productsResult.rows.length === 0) {
+        return false;
+    }
+    // Group products by SKU / title — each unique product row becomes a product entry
+    // with its prices[] array containing this one merchant listing
+    const products = productsResult.rows.map((row) => ({
+        id: row.id,
+        name: row.title,
+        brand: row.brand || '',
+        sku: row.sku || `SKU-${row.id.slice(0, 8)}`,
+        prices: [{
+                merchant: row.source,
+                price: row.price || '0',
+                url: row.url,
+                in_stock: row.is_active !== false,
+                rating: 0,
+                last_updated: row.updated_at,
+            }],
+    }));
+    const payload = {
+        slug: normalizedSlug,
+        category: categoryName,
+        products,
+        meta: {
+            limit,
+            offset,
+            total: products.length,
+        },
+    };
+    res.set('Cache-Control', `public, max-age=${CACHE_TTL_SECONDS}`);
+    res.set('X-Cache', 'CATEGORY-FALLBACK');
+    res.json(payload);
+    return true;
+}
 // GET /v1/compare/:slug — public comparison page payload
 // 5-min Redis cache; 404 on draft/archived/missing
 router.get('/:slug', async (req, res) => {
@@ -129,6 +190,10 @@ router.get('/:slug', async (req, res) => {
      FROM comparison_pages
      WHERE slug = $1 AND status = 'published'`, [slug]).catch(() => null);
     if (!pageResult || pageResult.rows.length === 0) {
+        // Not a comparison page slug — try resolving as a category
+        const catRes = await handleCategoryCompareFallback(slug, req, res);
+        if (catRes)
+            return;
         res.status(404).json({ error: 'Not found' });
         return;
     }
