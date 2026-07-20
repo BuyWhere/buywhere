@@ -22,7 +22,7 @@ export function HeroSearch({ apiUrl = 'https://api.buywhere.ai' }: HeroSearchPro
   return (
     <div className="mt-8 max-w-xl">
       <Autocomplete
-        placeholder="Search products, brands, or categories..."
+        placeholder="Search products..."
         onSelect={handleSelect}
         onSearch={handleSearch}
         apiUrl={apiUrl}
