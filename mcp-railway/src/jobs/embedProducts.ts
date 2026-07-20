@@ -114,6 +114,40 @@ export async function runEmbedBatch(
   const t0 = Date.now();
   let processed = 0, skipped = 0, errors = 0;
 
+  // BUY-60368: the LEFT JOIN to product_embeddings was removed because that
+  // table only exists in vectorDb, not sourceDb (catalog replica). The embed
+  // hash-gate comparison now happens after loading candidates.
+  //
+  // BUY-60378: the flat SELECT hit a ~3 min full-scan on the 154M-row
+  // products table, causing 57014 (query_canceled) on the replica.
+  //
+  // BUY-60378 v2 (this commit): pivot the order key to `updated_at DESC`
+  // (no NULLS LAST), which uses the EXISTING and VALID `idx_products_updated_at`
+  // (~3.4 GB btree). Without the missing `idx_products_is_active_price`
+  // covering index, `ORDER BY price DESC` planner falls back to a Seq Scan
+  // (~37M cost, ~3 min wall clock); `updated_at DESC` flips to an Index Scan
+  // (cost ~91) and the CTE/SELECT finishes in well under the 60s
+  // statement_timeout on the replica.
+  const overscan = Math.max(batchLimit * 2, 64);
+  const { rows: candidateIds } = await sourceDb.query<{ id: string }>(
+    `WITH active_ids AS (
+       SELECT id
+       FROM products
+       WHERE is_active = true
+         AND price IS NOT NULL
+       ORDER BY updated_at DESC
+       LIMIT $1
+     )
+     SELECT id FROM active_ids`,
+    [overscan]
+  );
+
+  if (candidateIds.length === 0) {
+    console.log('[embed] Nothing to embed this run');
+    return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0 };
+  }
+
+  const ids = candidateIds.map(c => c.id);
   const { rows: products } = await sourceDb.query<{
     id: string;
     title: string;
@@ -121,20 +155,13 @@ export async function runEmbedBatch(
   }>(
     `SELECT p.id, p.title, p.description
      FROM products p
-     LEFT JOIN product_embeddings pe ON pe.product_id = p.id
-     WHERE p.is_active = true
-       AND (
-         pe.product_id IS NULL
-         OR pe.text_hash != md5(p.title || ' ' || coalesce(p.description, ''))
-       )
-     ORDER BY p.price DESC NULLS LAST
-     LIMIT $1`,
-    [batchLimit]
+     WHERE p.id = ANY($1::text[])`,
+    [ids]
   );
 
   if (products.length === 0) {
     console.log('[embed] Nothing to embed this run');
-    return { processed: 0, skipped: 0, errors: 0, duration_ms: Date.now() - t0 };
+    return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0 };
   }
 
   console.log(`[embed] ${products.length} products to embed in batches of ${BATCH_SIZE}`);

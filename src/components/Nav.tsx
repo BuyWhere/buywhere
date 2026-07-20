@@ -70,12 +70,7 @@ function DevDropdown() {
 
 export default function Nav() {
   const [open, setOpen] = useState(false);
-  const [isClient, setIsClient] = useState(false);
   const [devOpen, setDevOpen] = useState(false);
-
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100">
@@ -105,28 +100,26 @@ export default function Nav() {
           </div>
         </nav>
 
-        {/* Mobile hamburger */}
-        {isClient && (
-          <button
-            className="md:hidden p-2 rounded-lg hover:bg-gray-100"
-            onClick={() => setOpen(!open)}
-            aria-label={open ? "Close menu" : "Open menu"}
-            aria-expanded={open}
-            aria-controls="mobile-nav"
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              {open ? (
-                <path d="M4 4l12 12M16 4L4 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              ) : (
-                <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              )}
-            </svg>
-          </button>
-        )}
+        {/* Mobile hamburger — always rendered so SSR and CSR match. CSS hides on lg+ screens. */}
+        <button
+          className="md:hidden p-2 rounded-lg hover:bg-gray-100"
+          onClick={() => setOpen(!open)}
+          aria-label={open ? "Close menu" : "Open menu"}
+          aria-expanded={open}
+          aria-controls="mobile-nav"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            {open ? (
+              <path d="M4 4l12 12M16 4L4 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            ) : (
+              <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            )}
+          </svg>
+        </button>
       </div>
 
       {/* Mobile menu */}
-      {isClient && open && (
+      {open && (
         <nav
           id="mobile-nav"
           className="md:hidden border-t border-gray-100 bg-white px-4 pb-4 flex flex-col gap-1 text-sm font-medium text-gray-700"

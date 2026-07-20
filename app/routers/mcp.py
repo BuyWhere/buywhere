@@ -87,9 +87,9 @@ def get_mcp_server() -> Server:
                     Tool(
                         name="find_best_price",
                         description=(
-                            "Find the single cheapest listing for a product across all Singapore "
-                            "e-commerce platforms. Returns the platform, price, and affiliate URL "
-                            "for the lowest available price."
+                            "Find the single cheapest listing for a product. Specify country_code "
+                            "to scope results to a single market and avoid cross-market scans "
+                            "(strongly recommended for performance)."
                         ),
                         inputSchema={
                             "type": "object",
@@ -101,6 +101,10 @@ def get_mcp_server() -> Server:
                                 "category": {
                                     "type": "string",
                                     "description": "Optional category to narrow the search.",
+                                },
+                                "country_code": {
+                                    "type": "string",
+                                    "description": "ISO-2 country code (SG, US, MY, TH, VN, PH). Scopes the scan to one partition for fast responses.",
                                 },
                             },
                             "required": ["product_name"],
@@ -146,7 +150,20 @@ def get_mcp_server() -> Server:
                         ),
                         inputSchema={
                             "type": "object",
-                            "properties": {},
+                            "properties": {
+                                "country_code": {
+                                    "type": "string",
+                                    "description": "ISO country code (SG, US, MY, TH, VN, GB, IN, AU). Defaults to SG.",
+                                },
+                                "country": {
+                                    "type": "string",
+                                    "description": "Alias for country_code.",
+                                },
+                                "region": {
+                                    "type": "string",
+                                    "description": "Alias for country_code/market (us→US, sg→SG, my→MY, gb→GB, in→IN, au→AU).",
+                                },
+                            },
                             "required": [],
                         },
                     ),
@@ -240,6 +257,8 @@ async def _handle_find_best_price(args: dict[str, Any]) -> CallToolResult:
     params = {"q": product_name}
     if args.get("category"):
         params["category"] = args["category"]
+    if args.get("country_code"):
+        params["country_code"] = str(args["country_code"]).upper()
 
     try:
         p = await _api_get("/v1/products/best-price", params)
@@ -307,8 +326,36 @@ async def _handle_get_deals(args: dict[str, Any]) -> CallToolResult:
 
 
 async def _handle_list_categories(args: dict[str, Any]) -> CallToolResult:
+    # BUY-60069: propagate region/country_code so the upstream categories endpoint
+    # can scope counts to the requested market instead of always defaulting to SG.
+    REGION_TO_COUNTRY: dict[str, str] = {
+        "sg": "SG",
+        "us": "US",
+        "my": "MY",
+        "th": "TH",
+        "vn": "VN",
+        "gb": "GB",
+        "uk": "GB",
+        "in": "IN",
+        "au": "AU",
+        "sea": "SG",
+    }
+
+    def normalize_country(value: Any) -> str:
+        raw = str(value or "").strip()
+        if not raw:
+            return ""
+        return REGION_TO_COUNTRY.get(raw.lower()) or raw.upper()
+
+    params: dict[str, Any] = {}
+    country = normalize_country(
+        args.get("country_code") or args.get("country") or args.get("region")
+    ) or "SG"
+    if country:
+        params["country_code"] = country
+
     try:
-        data = await _api_get("/v1/categories")
+        data = await _api_get("/v1/categories", params)
     except Exception as exc:
         logger.exception("list_categories API error")
         return CallToolResult(

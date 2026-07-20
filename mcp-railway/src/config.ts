@@ -24,6 +24,11 @@ export const db = new Pool({
 // Replica DB pool for read-heavy operations (e.g., embedding pipeline).
 // Explicitly gated by REPLICA_DATABASE_URL so callers can enforce replica-only
 // reads instead of silently falling back to the primary.
+//
+// BUY-60378: set statement_timeout on replicaDb so queries fail deterministically
+// (57014) instead of waiting for the Railway proxy idle-client teardown (~3 min).
+const replicaStatementTimeout = parseInt(process.env.REPLICA_STATEMENT_TIMEOUT || '60000');
+
 export const replicaDb: Pool | null = process.env.REPLICA_DATABASE_URL
   ? new Pool({
       connectionString: process.env.REPLICA_DATABASE_URL,
@@ -32,6 +37,12 @@ export const replicaDb: Pool | null = process.env.REPLICA_DATABASE_URL
       connectionTimeoutMillis: 5000,
     })
   : null;
+
+if (replicaDb) {
+  replicaDb.on('connect', (client) => {
+    client.query(`SET statement_timeout = ${replicaStatementTimeout}`).catch(() => {});
+  });
+}
 
 const pgStatementTimeout = parseInt(process.env.PG_STATEMENT_TIMEOUT || '30000');
 const pgLockTimeout = parseInt(process.env.PG_LOCK_TIMEOUT || '2000');

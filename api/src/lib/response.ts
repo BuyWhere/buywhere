@@ -11,6 +11,19 @@ export const COUNTRY_CURRENCY: Record<string, string> = {
   SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
 };
 
+function normalizeImageUrl(imageUrl: unknown): string | null {
+  if (typeof imageUrl !== 'string' || imageUrl.trim() === '') return null;
+
+  try {
+    const parsed = new URL(imageUrl);
+    if (parsed.hostname.toLowerCase() === 'source.unsplash.com') return null;
+  } catch {
+    return imageUrl;
+  }
+
+  return imageUrl;
+}
+
 export function buildProduct(
   row: Record<string, unknown>,
   defaultCurrency: string,
@@ -18,6 +31,18 @@ export function buildProduct(
 ): CanonicalProduct {
   const currency = (row.currency as string) || defaultCurrency;
   const amount = row.price != null ? parseFloat(row.price as string) : null;
+
+  // BUY-60385: Sanitize anomalous prices from upstream affiliate/feed partners.
+  // Validation catches two categories of data-quality failures observed in production:
+  //   1. $0.00 prices — out-of-stock marker, missing price field, or parsing error
+  //   2. Prices over $10,000 — feed corruption, currency conversion unit errors
+  // Legitimate high-end products (luxury watches, high-end appliances, jewelry)
+  // stay under $10k. When a price fails validation the amount is nullified so
+  // the FE displays nothing instead of a deceptive value.
+  const PRICE_MAX = 10_000;
+  const sanitizedAmount = (amount != null && amount > 0 && amount <= PRICE_MAX)
+    ? amount
+    : null;
 
   const affiliateUrl = resolvePrecomputedAffiliateUrl(row.affiliate_url);
   const productId = String(row.id);
@@ -34,20 +59,28 @@ export function buildProduct(
   const affiliateRedirectUrl = destinationUrl
     ? buildAffiliateRedirectUrl({ productId, source: 'product_card' })
     : null;
+  const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
 
   const base: CanonicalProduct = {
     id: productId,
     title: row.title as string,
-    price: { amount, currency },
+    price: { amount: sanitizedAmount, currency },
     merchant,
     url: destinationUrl,
-    image_url: (row.image_url as string) || null,
+    image_url: normalizeImageUrl(row.image_url),
     region: (row.region as string) || null,
     country_code: (row.country_code as string) || null,
     updated_at: (row.updated_at as string) || null,
+    // CAT-08: expose stock status as a top-level boolean when known.
+    ...(row.in_stock != null && { in_stock: row.in_stock as boolean }),
     ...(affiliateUrl != null && { affiliate_url: affiliateUrl }),
     ...(clickUrl != null && { click_url: clickUrl }),
     ...(affiliateRedirectUrl != null && { affiliate_redirect_url: affiliateRedirectUrl }),
+    has_affiliate_tracking: hasAffiliateTracking,
+    is_affiliate: hasAffiliateTracking,
+    ...(hasAffiliateTracking && {
+      affiliate_disclosure: 'BuyWhere may earn a commission from purchases made through tracked product links.',
+    }),
   };
 
   if (compact) {
@@ -99,12 +132,17 @@ export function buildSearchResponse(
   offset: number,
   responseTimeMs: number,
   cached: boolean,
+  degraded?: boolean,
 ): SearchResponse {
   return {
-    results: products,
-    total,
-    page: { limit, offset },
-    response_time_ms: responseTimeMs,
-    cached,
+    data: products,
+    meta: {
+      total,
+      limit,
+      offset,
+      response_time_ms: responseTimeMs,
+      cached,
+      ...(degraded != null && { degraded }),
+    },
   };
 }

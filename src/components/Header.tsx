@@ -2,17 +2,25 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import AuthNavControls from "@/components/AuthNavControls";
 import { useTheme } from "@/lib/use-theme";
 
 export default function Header() {
   const [open, setOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const pathname = usePathname();
+  const isHome = pathname === "/";
 
   return (
     <header tabIndex={-1} role="banner" aria-label="Site header" className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100 dark:bg-gray-900/90 dark:border-gray-800">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg text-indigo-600 dark:text-indigo-400" aria-label="BuyWhere Home" aria-current="page">
+        <Link
+          href="/"
+          className="flex items-center gap-2 font-bold text-lg text-indigo-600 dark:text-indigo-400"
+          aria-label="BuyWhere Home"
+          aria-current={isHome ? "page" : undefined}
+        >
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <rect width="28" height="28" rx="6" fill="#4f46e5" />
             <path d="M7 10h14M7 14h10M7 18h12" stroke="white" strokeWidth="2" strokeLinecap="round" />
@@ -21,16 +29,12 @@ export default function Header() {
         </Link>
 
         <span className="sr-only">Use Tab to navigate links, Enter to activate</span>
-        <nav id="main-navigation" role="navigation" tabIndex={0} className="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600 dark:text-gray-300" aria-label="Main navigation">
+        <nav id="main-navigation" role="navigation" tabIndex={0} className="hidden md:flex items-center gap-5 text-sm font-medium text-gray-600 dark:text-gray-300" aria-label="Main navigation">
           <Link href="/compare" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Compare</Link>
           <Link href="/blog" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Blog</Link>
-          <Link href="/quickstart" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Quickstart</Link>
-          <Link href="/challenge" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Challenge</Link>
           <Link href="/merchants" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Merchants</Link>
-          <Link href="/partners" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Partners</Link>
           <Link href="/pricing" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Pricing</Link>
           <Link href="/about" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">About</Link>
-          <Link href="/developers" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Developers</Link>
           <AuthNavControls />
           <button
             onClick={toggleTheme}
@@ -53,7 +57,7 @@ export default function Header() {
         <div className="flex items-center gap-2">
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors md:hidden"
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors lg:hidden"
             aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
           >
             {theme === 'light' ? (

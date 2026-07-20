@@ -27,6 +27,10 @@ const DEFAULT_ALLOWED_DOMAINS = [
   'harvey-norman.com.sg',
   'challenger.sg',
   'qoo10.sg',
+  'coldstorage.com.sg',
+  'fairprice.com.sg',
+  'guardian.com.sg',
+  'watsons.com.sg',
 ];
 
 const allowedDomains: Set<string> = new Set(
@@ -106,7 +110,7 @@ router.get('/click', async (req: Request, res: Response) => {
       `INSERT INTO clicks
          (tracking_id, product_id, platform, destination_url, api_key_id, user_agent, referrer, merchant_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [uuidv4(), productId, 'api', url, apiKey, req.headers['user-agent'] || null, referrer, merchantId]
+      [uuidv4(), productId, 'api', url, null, req.headers['user-agent'] || null, referrer, merchantId]
     );
   } catch (err) {
     // Log but don't block the redirect

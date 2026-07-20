@@ -248,8 +248,16 @@ async function handleSearchProducts(args) {
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     let rows;
     let total;
-    // Use a dedicated client with extended timeout — FTS on 14M rows can exceed the 10s pool default.
-    const searchClient = await config_1.db.connect();
+    // BUY-57370: catch pool exhaustion fast — under concurrent load (e.g. Tune
+    // automated testing), the 50-connection pool can saturate when US-partition
+    // queries hold connections for 5-12s. Without .catch(), the raw pg PoolError
+    // (string code like '57P01') escapes to the outer handler which checks
+    // typeof code === 'number' — fails for string codes — and returns the
+    // opaque -32603 "Internal error" that Tune detected.
+    const searchClient = await config_1.db.connect().catch((err) => {
+        console.warn('[search_products] db.connect failed:', err.message);
+        throw { code: -32603, message: 'Database connection timeout — pool may be exhausted' };
+    });
     try {
         // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
         // complete within 12s via GIN index; anything longer signals plan regression or
@@ -562,7 +570,10 @@ async function handleListCategories(args) {
     }
     // 3. No in-flight query — start one and register it so concurrent callers coalesce
     const queryPromise = (async () => {
-        const client = await config_1.db.connect();
+        const client = await config_1.db.connect().catch((err) => {
+            console.warn('[list_categories] db.connect failed:', err.message);
+            throw { code: -32603, message: 'Database connection timeout — pool may be exhausted' };
+        });
         try {
             await client.query('SET statement_timeout = 8000');
             const tableCheck = await client.query(`SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`);
@@ -637,10 +648,15 @@ async function handleFindBestPrice(args) {
     // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
     // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
     // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
-    const bestPriceClient = await config_1.db.connect();
+    // BUY-57258: add connect timeout so pool exhaustion fails fast; reduce statement_timeout
+    // to 5s to prevent cascading connection starvation during contention.
+    const bestPriceClient = await config_1.db.connect().catch((err) => {
+        console.warn('[find_best_price] db.connect failed:', err.message);
+        throw { code: -32603, message: 'Database connection timeout' };
+    });
     let result;
     try {
-        await bestPriceClient.query('SET statement_timeout = 10000');
+        await bestPriceClient.query('SET statement_timeout = 5000');
         result = await bestPriceClient.query(`SELECT * FROM (
          SELECT id, title, price, currency, source AS domain, url, image_url,
                 country_code, updated_at
@@ -1159,11 +1175,20 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
     }
     catch (err) {
         const e = err;
+        // BUY-57370: handle both numeric tool-error codes (e.g. -32603) and
+        // PostgreSQL string error codes (e.g. '57014' for statement_timeout).
+        // Without this, PG errors (string codes) always fall through to -32603,
+        // masking the real cause from monitoring/Tune.
         if (typeof e.code === 'number' && e.message) {
             const envelopeCode = e.code === -32001 ? errors_1.ErrorCode.NOT_FOUND
                 : e.code === -32602 ? errors_1.ErrorCode.INVALID_PARAMETER
                     : errors_1.ErrorCode.INTERNAL_ERROR;
             return res.json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
+        }
+        if (typeof e.code === 'string' && e.message) {
+            // PostgreSQL error — log the real code for diagnostics, return -32603 for MCP compat
+            console.error(`[mcp] pg error (code=${e.code}):`, e.message);
+            return res.json(jsonrpcErr(id, -32603, `Internal error: ${e.message.slice(0, 120)}`, undefined, errors_1.ErrorCode.INTERNAL_ERROR));
         }
         console.error('[mcp] error:', err);
         return res.json(jsonrpcErr(id, -32603, 'Internal error', undefined, errors_1.ErrorCode.INTERNAL_ERROR));

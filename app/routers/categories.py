@@ -21,18 +21,22 @@ router = APIRouter(prefix="/v1/categories", tags=["categories"])
 @limiter.limit("1000/minute")
 async def list_categories(
     request: Request,
+    country_code: str | None = None,
     db: AsyncSession = Depends(get_db),
     api_key: ApiKey = Depends(get_current_api_key),
 ) -> CategoryResponse:
     request.state.api_key = api_key
 
-    # Get category counts for active products
-    result = await db.execute(
+    # BUY-60069: scope category counts to the requested market when provided.
+    stmt = (
         select(Product.category, func.count(Product.id).label("count"))
         .where(Product.is_active == True, Product.category.isnot(None))
-        .group_by(Product.category)
-        .order_by(func.count(Product.id).desc())
     )
+    if country_code:
+        stmt = stmt.where(Product.country_code == country_code.upper())
+    stmt = stmt.group_by(Product.category).order_by(func.count(Product.id).desc())
+
+    result = await db.execute(stmt)
     rows = result.all()
 
     nodes = [

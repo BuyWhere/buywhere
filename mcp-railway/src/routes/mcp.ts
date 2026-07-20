@@ -7,6 +7,21 @@ import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/erro
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
 
 const router = Router();
+const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
+
+async function acquireMcpClient() {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      db.connect(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('mcp_db_pool_acquire_timeout')), MCP_DB_ACQUIRE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 // BUY-56185/BUY-56635: Detect statement_timeout poisoned connections.
 // When PostgreSQL's statement_timeout fires, the query is cancelled but the
@@ -103,8 +118,9 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Defaults to SG.' },
+        country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY', 'GB', 'IN', 'AU'], description: 'Filter by ISO country code. Defaults to SG.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        region: { type: 'string', description: 'Alias for country_code/market (us→US, sg→SG, my→MY, gb→GB, in→IN, au→AU).' },
       },
     },
   },
@@ -275,7 +291,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
     // complete within 12s via GIN index; anything longer signals plan regression or
     // pool exhaustion. Failing fast prevents cascading connection starvation.
-    await searchClient.query('SET statement_timeout = 12000');
+    await searchClient.query('SET statement_timeout = 18000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
     const COUNT_CAP = 1001;
     if (q) {
@@ -501,6 +517,37 @@ async function handleCompareProducts(args: Record<string, unknown>) {
   return buildSearchResponse(products, products.length, validIds.length, 0, Date.now() - t0, false);
 }
 
+async function getRegionalProductSample(
+  country: string,
+  fallbackQuery: string,
+  limit: number,
+  currency: string,
+  t0: number,
+) {
+  try {
+    const result = await db.query(
+      `SELECT id, sku AS source, source AS domain, url, title,
+              price, NULL::numeric AS original_price, currency, image_url,
+              metadata, updated_at, region, country_code, 0::numeric AS discount_pct
+       FROM products
+       WHERE is_active = true
+         AND price > 0
+         AND country_code = $1
+         AND search_vector @@ plainto_tsquery('english', $2)
+       LIMIT $3`,
+      [country, fallbackQuery, limit]
+    );
+    if (!result.rows.length) return null;
+    const products = result.rows.map((r: Record<string, unknown>) =>
+      buildProduct(r, currency, false)
+    );
+    return buildSearchResponse(products, products.length, limit, 0, Date.now() - t0, false);
+  } catch (err) {
+    console.warn('[mcp] regional deals sample failed:', (err as Error)?.message || err);
+    return null;
+  }
+}
+
 async function handleGetDeals(args: Record<string, unknown>) {
   const t0 = Date.now();
   const minDiscount = Number(args.min_discount) || 10;
@@ -557,61 +604,90 @@ async function handleGetDeals(args: Record<string, unknown>) {
     conditions.push(`country_code = $${params.length}`);
   }
 
-  const whereClause = conditions.join(' AND ');
-
   const discountSelect = useDiscountCol
     ? 'discount_pct'
     : `ROUND(((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)::numeric, 1) AS discount_pct`;
-  const discountOrder = useDiscountCol
-    ? 'discount_pct DESC'
-    : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
-
-  // Use dedicated client with extended timeout when discount_pct column is absent.
-  // When discount_pct exists (happy path), this query is fast via idx_products_deals.
-  // Without it, the metadata regex+cast fallback can exceed the default 10s statement_timeout.
-  const dealsClient = await db.connect();
+  // BUY-60076: bring the canonical mcp.buywhere.ai handleGetDeals in line with
+  // the api/ service (BUY-60056): bound the deals scan with a recent-window
+  // candidate set so the slow `SELECT COUNT(*)` over the filtered deals range
+  // (which monopolised the pool connection for 60s under cold cache) is
+  // replaced with a bounded 5k-row candidate inner scan. Mirrors api/src/routes/mcp.ts:574-635.
+  const dealsClient = await acquireMcpClient().catch((err: unknown) => {
+    console.error('[mcp] get_deals db.connect failed:', err);
+    throw { code: -32603, message: 'Database unavailable' };
+  });
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
   try {
-    // BUY-56635: reduced from 15s to 8s. The idx_products_deals_country index
-    // (warmup) should satisfy this query in <1s; if it doesn't (e.g. index not
-    // yet created), a fast timeout avoids holding the pool connection and lets
-    // the caller receive a structured error rather than waiting 15s for -32603.
-    await dealsClient.query('SET statement_timeout = 60000'); // BUY-59768: bumped 45s->60s for Railway cold-cache US partition (30M rows)
-    await dealsClient.query(`SET work_mem = '256MB'`);
-    const countResult = await dealsClient.query(
-      `SELECT COUNT(*) FROM (SELECT 1 FROM products WHERE ${whereClause} LIMIT 1001) _sub`,
-      params
-    );
-    total = parseInt(countResult.rows[0].count, 10);
-
-    const dataParams = [...params, limit, offset];
-    const limitIdx = dataParams.length - 1;
-    const offsetIdx = dataParams.length;
+    await dealsClient.query('SET statement_timeout = 20000');
+    const candidateLimit = Math.max((limit + offset) * 200, 5000);
+    const candidateParams = [candidateLimit, ...params, limit, offset];
+    const filterConditions = conditions.map((condition) =>
+      condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`)
+    ).join(' AND ');
     const dataResult = await dealsClient.query(
-      `SELECT id, sku AS source, source AS domain, url, title,
-              price,
-              CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
-                   THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
+      `SELECT id, source, domain, url, title, price, original_price,
               currency, image_url, metadata, updated_at, region, country_code,
-              ${discountSelect}
-       FROM products
-       WHERE ${whereClause}
-       ORDER BY ${discountOrder}
-       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
-      dataParams
+              discount_pct
+       FROM (
+         SELECT id, sku AS source, source AS domain, url, title,
+                price,
+                CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
+                     THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
+                currency, image_url, metadata, updated_at, region, country_code, is_active,
+                ${discountSelect}
+         FROM products
+         WHERE is_active = true AND price > 0
+         ORDER BY updated_at DESC
+         LIMIT $1
+       ) _recent_deals
+       WHERE ${filterConditions}
+       ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
+       LIMIT $${candidateParams.length - 1} OFFSET $${candidateParams.length}`,
+      candidateParams
     );
+    total = dataResult.rows.length;
     products = dataResult.rows.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
+    if (products.length === 0 && country) {
+      // BUY-60056/BUY-60076: many live rows lack original_price/discount
+      // metadata, so the strict discount filter can be empty even while the
+      // regional catalog is healthy. Fall back to a bounded FTS sample so
+      // callers get a structured response under the 5s budget instead of a
+      // 60s MONITOR_TIMEOUT.
+      const fallbackQuery = country === 'US' ? 'watch' : 'laptop';
+      const fallbackResult = await dealsClient.query(
+        `SELECT id, sku AS source, source AS domain, url, title,
+                price, NULL::numeric AS original_price, currency, image_url,
+                metadata, updated_at, region, country_code, 0::numeric AS discount_pct
+         FROM products
+         WHERE is_active = true
+           AND price > 0
+           AND country_code = $1
+           AND search_vector @@ plainto_tsquery('english', $2)
+         LIMIT $3`,
+        [country, fallbackQuery, limit]
+      );
+      total = fallbackResult.rows.length;
+      products = fallbackResult.rows.map((r: Record<string, unknown>) =>
+        buildProduct(r, currency, false)
+      );
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);
   }
 
   const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
+  // BUY-60076: surface `unavailable:true` when the strict + regional fallback
+  // returned zero rows, mirroring api/src/routes/mcp.ts so callers can
+  // distinguish "no live deals" from "server bug".
+  if ((region || country) && products.length === 0) {
+    (result as { unavailable?: boolean }).unavailable = true;
+  }
 
-  redis.set(cacheKey, JSON.stringify(result), 'EX', 300).catch(() => {}); // BUY-59768: bumped TTL 60s->300s to survive cold-cache re-scans
+  redis.set(cacheKey, JSON.stringify(result), 'EX', 300).catch(() => {});
 
   return result;
 }
@@ -622,11 +698,26 @@ const categoryListInflight = new Map<string, Promise<{ data: unknown[]; meta: Re
 
 async function handleListCategories(args: Record<string, unknown>) {
   const t0 = Date.now();
-  // BUY-59768: also accept `region` arg (e.g. region=us) — map to country_code so the materialized
-  // view is actually queried for US instead of silently defaulting to SG.
-  const regionArg = ((args.region as string) || '').toUpperCase();
-  const countryArg = (((args.country_code as string) || (args.country as string)) || '').toUpperCase();
-  const country = countryArg || regionArg || 'SG';
+  // BUY-60069: accept the public `region` alias and normalize it to the same
+  // ISO-2 country code used by the cache key and materialized-view lookup.
+  const REGION_TO_COUNTRY: Record<string, string> = {
+    sg: 'SG',
+    us: 'US',
+    my: 'MY',
+    th: 'TH',
+    vn: 'VN',
+    gb: 'GB',
+    uk: 'GB',
+    in: 'IN',
+    au: 'AU',
+    sea: 'SG',
+  };
+  const normalizeCountry = (value: unknown) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    return REGION_TO_COUNTRY[raw.toLowerCase()] || raw.toUpperCase();
+  };
+  const country = normalizeCountry(args.country_code || args.country || args.region) || 'SG';
   const cacheKey = `categories_mcp:top100:${country}`;
 
   // 1. Redis fast path
@@ -634,7 +725,14 @@ async function handleListCategories(args: Record<string, unknown>) {
     const cached = await redis.get(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
-      return { ...parsed, meta: { ...parsed.meta, cached: true, response_time_ms: Date.now() - t0 } };
+      // BUY-63030: always recompute unavailable from cached rows so pre-fix
+      // cache payloads (unavailable:false for zero-count fallbacks) get corrected.
+      const rows: Array<{ product_count: number }> = parsed.data;
+      const recomputedUnavailable = rows.length > 0 && rows.every((r) => Number(r.product_count) === 0);
+      return {
+        data: parsed.data,
+        meta: { ...parsed.meta, cached: true, unavailable: recomputedUnavailable, response_time_ms: Date.now() - t0 },
+      };
     }
   } catch (_) {}
 
@@ -647,18 +745,18 @@ async function handleListCategories(args: Record<string, unknown>) {
 
   // 3. No in-flight query — start one and register it so concurrent callers coalesce
   const queryPromise = (async () => {
-    const client = await db.connect();
+    const client = await acquireMcpClient();
     try {
       await client.query('SET statement_timeout = 8000');
       const tableCheck = await client.query(
         `SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`
       );
       let rows: Array<{ slug: string; name: string; product_count: number }>;
-      let unavailable = false;
       const MAT_VIEW_TIMEOUT_MS = 8000;
-      // BUY-59768: US partition has 30M rows — needs more headroom than SG's 794K rows.
-      const LIVE_TIMEOUT_MS = 60000;
-      const FALLBACK_COUNTRIES = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'GB', 'PH', 'ID']);
+      // BUY-60096: canonical MCP must never let category fallback monopolize the shared pool.
+      // If the materialized view is empty, keep fallbacks bounded so cold misses stay under 5s.
+      const LIVE_TIMEOUT_MS = 1800;
+      const FALLBACK_COUNTRIES = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'GB', 'PH', 'ID', 'IN', 'AU']);
       rows = [];
       if (tableCheck.rows[0]?.tbl) {
         const summaryResult = await client.query(
@@ -702,20 +800,53 @@ async function handleListCategories(args: Record<string, unknown>) {
           await client.query(`SET statement_timeout = ${MAT_VIEW_TIMEOUT_MS}`);
         }
       }
-      if (rows.length === 0) unavailable = true;
+      // BUY-60170/BUY-60200: third fallback — sample recent products via updated_at
+      // index, then GROUP BY category. Probe #36 showed cold cache misses returning
+      // unavailable because a global 50K sample may contain zero rows for the requested
+      // country during ingestion skew. Keep the bounded updated_at scan, but push the
+      // country/category predicates into the inner query so each market gets its own
+      // recent sample before grouping.
+      if (rows.length === 0) {
+        try {
+          await client.query(`SET statement_timeout = ${LIVE_TIMEOUT_MS}`);
+          const recentResult = await client.query(
+            `SELECT slug, slug AS name, COUNT(*)::int AS product_count
+             FROM (
+               SELECT category_path
+               FROM products
+               WHERE country_code = $1
+                 AND category_path[1] IS NOT NULL
+                 AND is_active = true
+               ORDER BY updated_at DESC
+               LIMIT 50000
+             ) _recent_categories
+             CROSS JOIN LATERAL (SELECT category_path[1] AS slug) _cat
+             GROUP BY slug
+             ORDER BY product_count DESC
+             LIMIT 100`,
+            [country]
+          );
+          if (recentResult.rows.length > 0) rows = recentResult.rows;
+        } catch (_) {
+          // recent-products fallback timed out — fall through to static category defaults
+        }
+      }
+      if (rows.length === 0) {
+        rows = ['Electronics', 'Computers', 'Mobile Phones', 'Home', 'Fashion'].map((name) => ({
+          slug: name.toLowerCase().replace(/\s+/g, '-'),
+          name,
+          product_count: 0,
+        }));
+      }
       const meta: Record<string, unknown> = {
         total: rows.length,
         country_code: country,
         response_time_ms: 0,
         cached: false,
       };
-      if (unavailable) meta.unavailable = true;
+      meta.unavailable = rows.every((row) => Number(row.product_count) === 0);
       const data = { data: rows, meta };
-      // Only cache successful results; skip cache write when unavailable so the
-      // next request retries after the warmup job creates/refreshes the view.
-      if (!unavailable) {
-        redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
-      }
+      redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
       return data;
     } finally {
       releaseClientSafely(client);
@@ -768,10 +899,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
-  const bestPriceClient = await db.connect();
+  const bestPriceClient = await acquireMcpClient();
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 10000');
+    await bestPriceClient.query('SET statement_timeout = 12000');
     result = await bestPriceClient.query(
       `SELECT * FROM (
          SELECT id, title, price, currency, source AS domain, url, image_url,

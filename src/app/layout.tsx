@@ -82,7 +82,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://plausible.io" />
         <link rel="preconnect" href="https://images.unsplash.com" />
         <link rel="preconnect" href="https://picsum.photos" />
-        <Script id="plausible-config" strategy="afterInteractive">{`
+        <Script id="plausible-config" strategy="lazyOnload">{`
           window.plausible=window.plausible||function(){(window.plausible.q=window.plausible.q||[]).push(arguments)};
           window.plausible.init=window.plausible.init||function(i){window.plausible.o=i||{}};
           window.plausible.init();
@@ -90,12 +90,12 @@ export default function RootLayout({
         <Script
           async
           src="https://plausible.io/js/pa-M_CbMUmDsm0yzuqLBDXQO.js"
-          strategy="afterInteractive"
+          strategy="lazyOnload"
         />
         {clarityProjectId && (
           <>
             <link rel="dns-prefetch" href="https://www.clarity.ms" />
-            <Script id="ms-clarity" strategy="afterInteractive">{`
+            <Script id="ms-clarity" strategy="lazyOnload">{`
               (function(c,l,a,r,i,t,y){
                 c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
                 t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
@@ -106,7 +106,7 @@ export default function RootLayout({
         )}
         {process.env.NEXT_PUBLIC_GTM_ID && (
           <>
-            <Script id="gtm-head" strategy="afterInteractive">{`
+            <Script id="gtm-head" strategy="lazyOnload">{`
               window.dataLayer = window.dataLayer || [];
               window.gtag = window.gtag || function(){window.dataLayer.push(arguments)};
               window.gtag('js', new Date());
@@ -114,7 +114,7 @@ export default function RootLayout({
             <Script
               async
               src={`https://www.googletagmanager.com/gtm.js?id=${process.env.NEXT_PUBLIC_GTM_ID}`}
-              strategy="afterInteractive"
+              strategy="lazyOnload"
             />
           </>
         )}
@@ -122,7 +122,7 @@ export default function RootLayout({
           <Script
             async
             src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID}`}
-            strategy="afterInteractive"
+            strategy="lazyOnload"
           />
         )}
       </head>

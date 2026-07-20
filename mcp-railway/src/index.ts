@@ -24,11 +24,27 @@ async function start() {
     console.error('Migration failed during startup (continuing):', err);
   }
 
-  // Pre-warm caches after migrations
-  loadAffiliateConfigs().catch(() => {});
-  warmupMcpCaches().catch((err) => console.warn('[mcp-warmup] failed:', err?.message));
-  // BUY-31302: seed Redis with top search queries so cold cache is always <5ms
-  warmSearchCache().catch((err) => console.warn('[cache-warm] failed:', err?.message));
+  // BUY-60170: increased advisory timeout from 15s to 15min so the initial
+  // matview population (CREATE MATERIALIZED VIEW on ~127M rows, ~10min) completes
+  // before the advisory promise settles. The server still starts listening immediately;
+  // warmup is intentionally non-blocking. After the initial population, the periodic
+  // 5-min refresh completes in seconds via REFRESH CONCURRENTLY + delta scan.
+  const warmupStart = Date.now();
+  const ADVISORY_WARMUP_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+  void Promise.race([
+    Promise.allSettled([
+      warmupMcpCaches(),
+      warmSearchCache(),
+      loadAffiliateConfigs(),
+    ]),
+    new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), ADVISORY_WARMUP_TIMEOUT_MS)),
+  ]).then((results) => {
+    const failed = results === 'timeout'
+      ? 0
+      : results.filter((result) => result.status === 'rejected').length;
+    const warmupMs = Date.now() - warmupStart;
+    console.log(`[startup] advisory warmup settled in ${warmupMs}ms (failed=${failed})`);
+  }).catch((err) => console.warn('[startup] advisory warmup failed:', err?.message));
 
   // BUY-32082: start P95 latency computation job (every 5 min)
   startP95Runner();

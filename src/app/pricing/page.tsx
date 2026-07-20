@@ -4,7 +4,6 @@ import { buildSoftwareApplicationSchema } from "@/lib/page-schema";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
-import type { Metadata } from "next";
 import { buildPageMetadata } from "@/lib/page-metadata";
 export const metadata = buildPageMetadata({
   title: "Pricing — BuyWhere Product Catalog API",
@@ -18,7 +17,7 @@ const tiers = [
     name: "Free",
     price: "$0",
     period: "/mo",
-    description: "Get started with the BuyWhere API at no cost.",
+    description: "Get started with the BuyWhere API at no cost — no credit card required.",
     requests: "100 req/day",
     rateLimit: "10 req/min",
     bulk: false,
@@ -44,7 +43,7 @@ const tiers = [
     support: "Standard",
     trial: "7-day free trial" as string | null,
     cta: "Start Free Trial",
-    ctaHref: "#starter-checkout",
+    ctaHref: "/checkout?plan=pro",
     highlighted: true,
     variant: "primary" as const,
   },
@@ -61,7 +60,7 @@ const tiers = [
     support: "Priority SLA",
     trial: null as string | null,
     cta: "Get Pro",
-    ctaHref: "#pro-checkout",
+    ctaHref: "/checkout?plan=scale",
     highlighted: false,
     variant: "dark" as const,
   },
@@ -126,7 +125,7 @@ export default function PricingPage() {
       <section className="py-16 border-b border-gray-100 text-center">
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Simple, transparent pricing</h1>
-          <p className="text-lg text-gray-500">Start free. Scale as you grow. No hidden fees.</p>
+          <p className="text-lg text-gray-500">Start free — no credit card required. Scale as you grow. No hidden fees.</p>
         </div>
       </section>
 
@@ -243,13 +242,15 @@ export default function PricingPage() {
                   {tiers.map((tier) => (
                     <th
                       key={tier.name}
+                      scope="col"
                       className={`text-center py-4 px-6 text-sm font-semibold ${
                         tier.highlighted ? "text-indigo-600" : "text-gray-900"
                       }`}
                     >
-                      {tier.name}
+                      <span className="sr-only">{tier.name}</span>
+                      <span aria-hidden="true" className="block">{tier.name}</span>
                       {tier.highlighted && (
-                        <span className="ml-2 text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                        <span aria-hidden="true" className="mt-1 inline-flex text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
                           Popular
                         </span>
                       )}

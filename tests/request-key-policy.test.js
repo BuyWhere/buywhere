@@ -7,7 +7,7 @@
  * without requiring a running Next.js server.
  */
 
-const { createHash, randomBytes } = require("crypto");
+const { randomBytes } = require("crypto");
 const { readFileSync, writeFileSync, existsSync, unlinkSync } = require("fs");
 const os = require("os");
 const path = require("path");
@@ -31,8 +31,12 @@ function makeIpRateLimiter() {
   };
 }
 
-function generateKey() {
-  return "bw_beta_" + randomBytes(20).toString("hex");
+function isApiIssuedKey(key) {
+  return /^bw_[a-f0-9]{32}$/i.test(key);
+}
+
+function issueApiKeyStub() {
+  return "bw_" + randomBytes(16).toString("hex");
 }
 
 function makeKeyStore(file) {
@@ -41,7 +45,9 @@ function makeKeyStore(file) {
     try { return JSON.parse(readFileSync(file, "utf-8")); } catch { return []; }
   }
   function findByEmail(email) {
-    return loadKeys().find((r) => r.email.toLowerCase() === email.toLowerCase());
+    return loadKeys().slice().reverse().find(
+      (r) => r.email.toLowerCase() === email.toLowerCase() && isApiIssuedKey(r.key)
+    );
   }
   function saveKey(entry) {
     const keys = loadKeys();
@@ -100,7 +106,7 @@ console.log("\n3. Duplicate email returns existing key");
   const tmpFile = path.join(os.tmpdir(), `bw-test-${randomBytes(4).toString("hex")}.json`);
   try {
     const store = makeKeyStore(tmpFile);
-    const firstKey = generateKey();
+    const firstKey = issueApiKeyStub();
     store.saveKey({ name: "Alice", email: "alice@example.com", useCase: "test", key: firstKey, created_at: new Date().toISOString(), usage_count: 0 });
 
     const existing = store.findByEmail("alice@example.com");
@@ -129,7 +135,7 @@ console.log("\n4. New email gets a new key");
     const existing = store.findByEmail("new@example.com");
     assert(existing === undefined, "no existing key for new email");
 
-    const newKey = generateKey();
+    const newKey = issueApiKeyStub();
     store.saveKey({ name: "Bob", email: "new@example.com", useCase: "", key: newKey, created_at: new Date().toISOString(), usage_count: 0 });
     const found = store.findByEmail("new@example.com");
     assert(found !== undefined && found.key === newKey, "newly saved key is retrievable");
@@ -141,9 +147,28 @@ console.log("\n4. New email gets a new key");
 // 5. Key format
 console.log("\n5. Key format");
 {
-  const key = generateKey();
-  assert(key.startsWith("bw_beta_"), "key has bw_beta_ prefix");
-  assert(key.length === 8 + 40, `key length is 48 chars (got ${key.length})`);
+  const key = issueApiKeyStub();
+  assert(isApiIssuedKey(key), "key has API-issued bw_<32 hex> format");
+  assert(!isApiIssuedKey("bw_beta_" + randomBytes(20).toString("hex")), "legacy bw_beta keys are rejected");
+}
+
+// 6. Legacy cache entries are ignored
+console.log("\n6. Legacy cache entries are ignored");
+{
+  const tmpFile = path.join(os.tmpdir(), `bw-test-${randomBytes(4).toString("hex")}.json`);
+  try {
+    const store = makeKeyStore(tmpFile);
+    const legacyKey = "bw_beta_" + randomBytes(20).toString("hex");
+    const apiIssuedKey = issueApiKeyStub();
+    store.saveKey({ name: "Carol", email: "carol@example.com", useCase: "legacy", key: legacyKey, created_at: new Date().toISOString(), usage_count: 0 });
+
+    assert(store.findByEmail("carol@example.com") === undefined, "legacy bw_beta cache row is not reused");
+
+    store.saveKey({ name: "Carol", email: "carol@example.com", useCase: "api", key: apiIssuedKey, created_at: new Date().toISOString(), usage_count: 0 });
+    assert(store.findByEmail("carol@example.com").key === apiIssuedKey, "API-issued key is reused after legacy row");
+  } finally {
+    try { unlinkSync(tmpFile); } catch {}
+  }
 }
 
 // ── Summary ────────────────────────────────────────────────────────────────

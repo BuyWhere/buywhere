@@ -4,6 +4,7 @@
 import express from 'express';
 import cors from 'cors';
 import mcpRouter from './routes/mcp';
+import wellknownRouter from './routes/wellknown';
 import { db, redis } from './config';
 import { shutdownPostHog } from './analytics/posthog';
 
@@ -32,6 +33,7 @@ app.get('/health', async (_req, res) => {
   }
 });
 
+app.use('/.well-known', wellknownRouter);
 app.use('/mcp', mcpRouter);
 
 // JSON-RPC root alias — allow POST / as shorthand for POST /mcp
@@ -43,6 +45,19 @@ app.use((_req, res) => {
 });
 
 async function warmupMcpCaches() {
+  // BUY-63030: invalidate stale category-cache entries BEFORE touching the DB so
+  // even if the warmup queries below fail, callers stop seeing cached
+  // unavailable:false payloads from the previous build.
+  try {
+    for (const country of ['SG', 'US', 'VN', 'TH', 'MY', 'GB', 'PH', 'ID', 'IN', 'AU']) {
+      const cacheKey = `categories_mcp:top100:${country}`;
+      await redis.del(cacheKey).catch((e) => console.warn(`[mcp-warmup] cache delete ${country} skipped:`, e.message));
+    }
+    console.log('[mcp-warmup] Cleared stale categories_mcp:top100:* cache entries');
+  } catch (e) {
+    console.warn('[mcp-warmup] cache clear failed:', (e as Error).message);
+  }
+
   // BUY-22324: Ensure discount_pct is a GENERATED STORED column (not a plain column).
   const client = await db.connect();
   try {
@@ -88,6 +103,24 @@ async function warmupMcpCaches() {
     `).catch(e => console.warn('[mcp-warmup] deals index skipped:', e.message));
     console.log('[mcp-warmup] discount_pct column and index verified.');
 
+    // BUY-21057: MATERIALIZED VIEW so pg_cron/pgAgent can refresh on a schedule,
+    // eliminating the 68s GROUP BY on 14M rows that caused INTERNAL_ERROR timeouts.
+    await client.query(`
+      CREATE MATERIALIZED VIEW IF NOT EXISTS mcp_category_summary AS
+        SELECT category_path[1] AS slug,
+               category_path[1] AS name,
+               COUNT(*)         AS product_count
+        FROM products
+        WHERE category_path[1] IS NOT NULL
+        GROUP BY category_path[1]
+        ORDER BY product_count DESC
+    `);
+    // Unique index required for REFRESH MATERIALIZED VIEW CONCURRENTLY (non-blocking reads during refresh)
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS mcp_category_summary_slug_idx
+        ON mcp_category_summary (slug)
+    `);
+
     await client.query(`
       CREATE MATERIALIZED VIEW IF NOT EXISTS mcp_category_summary_by_country AS
         SELECT country_code,
@@ -95,17 +128,24 @@ async function warmupMcpCaches() {
                category_path[1] AS name,
                COUNT(*)         AS product_count
         FROM products
-        WHERE country_code IS NOT NULL
-          AND category_path[1] IS NOT NULL
+        WHERE category_path[1] IS NOT NULL
         GROUP BY country_code, category_path[1]
         ORDER BY country_code, product_count DESC
     `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS mcp_category_summary_by_country_pk_idx
+        ON mcp_category_summary_by_country (country_code, slug)
+    `);
 
+    // BUY-60397: Use CONCURRENTLY so reads are never blocked during refresh.
+    // Unique index must exist on each view for CONCURRENTLY to work.
     const summaryCount = await client.query(`SELECT COUNT(*) AS cnt FROM mcp_category_summary_by_country`);
     const summaryHasData = parseInt(summaryCount.rows[0].cnt, 10) > 0;
     if (summaryHasData) {
-      await client.query(`REFRESH MATERIALIZED VIEW mcp_category_summary_by_country`);
+      await client.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary`);
+      await client.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary_by_country`);
     }
+
 
     for (const country of ['SG', 'US', 'VN', 'TH', 'MY']) {
       const cacheKey = `categories_mcp:top100:${country}`;

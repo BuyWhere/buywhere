@@ -4,18 +4,17 @@
 // because on broad US queries (laptop+US = 70k+ matches) the CTE materialised all rows
 // before LIMIT and stalled the cache warm-up, leaving the live endpoint cold.
 //
-// BUY-32228 then put ts_rank BACK in the live /v1/products/search CTE after measuring
-// that `ORDER BY id DESC` + outer `ORDER BY products.updated_at DESC` on the partitioned
-// products table forced a Merge Append across all 4.1M rows (1447ms cold / 8s+ under
-// load, hitting the BUY-31228 statement_timeout). ts_rank gives the planner a Bitmap
-// Heap Scan on the FTS GIN index → 200 pkey lookups via Nested Loop (41ms for the same
-// query).
+// BUY-59923 bounded the live /v1/products/search CTE after measuring that sorting all
+// FTS hits by ts_rank for high-cardinality SG brand terms (`iphone 16 pro`, `dyson
+// airwrap`) still hit the 15s handler timeout. The live path now selects a small,
+// partition-pruned recent_hits slice by indexed freshness first, then ranks only that bounded slice.
 //
 // Net rule:
 //   - warmSearchCache CTE and any other search CTE that is NOT the live /v1/products/search
 //     useFtsRanking branch must NOT use ts_rank in ORDER BY.
-//   - live /v1/products/search useFtsRanking branch MUST use ts_rank in ORDER BY and
-//     must NOT regress to the slow `id DESC` + outer `products.updated_at DESC` pattern.
+//   - live /v1/products/search useFtsRanking branch MUST rank a bounded recent_hits
+//     slice and must NOT regress to either all-hit ts_rank sorting or the slow
+//     `id DESC` + outer `products.updated_at DESC` pattern.
 //
 // Run in CI and as a pre-deploy gate.
 
@@ -98,21 +97,32 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
     const src = readProductsSource();
     const block = extractUseFtsRankingBlock(src);
     assert.ok(
-      /SELECT\s+id,\s*ts_rank\(\s*search_vector\s*,\s*plainto_tsquery\(\s*'english'\s*,\s*\$+\{?ftsParamIdx\}?\s*\)\s*\)\s+AS\s+rank/i.test(block),
+      /SELECT\s+id,\s*(?:country_code,\s*)?ts_rank\(\s*search_vector\s*,\s*plainto_tsquery\(\s*'english'\s*,\s*\$+\{?ftsParamIdx\}?\s*\)\s*\)\s+AS\s+rank/i.test(block),
       'Expected the live CTE to project `id, ts_rank(search_vector, plainto_tsquery(..., ${ftsParamIdx})) AS rank` — '
         + 'removing ts_rank forces a 1.4s+ Merge Append on the partitioned products table (BUY-32228).'
     );
   });
 
-  it('live useFtsRanking branch CTE ORDER BYs on rank DESC (not id DESC)', () => {
+  it('live useFtsRanking branch bounds FTS hits before ranking', () => {
     const src = readProductsSource();
     const block = extractUseFtsRankingBlock(src);
-    const cte = block.match(/WITH\s+top_ids\s+AS\s*\(([\s\S]*?)\)\s*(?:SELECT|;)/i);
-    assert.ok(cte, 'Expected a `WITH top_ids AS (...)` CTE in the useFtsRanking branch');
+    const recentHits = block.match(/WITH\s+recent_hits\s+AS\s+(?:MATERIALIZED\s+)?\(([\s\S]*?)\),\s*top_ids\s+AS/i);
+    assert.ok(recentHits, 'Expected a `WITH recent_hits AS [MATERIALIZED] (...)` CTE before top_ids');
+    assert.ok(
+      /ORDER\s+BY\s+updated_at\s+DESC/i.test(recentHits[1]) && /LIMIT\s+\$?\{?CANDIDATE_CAP\}?/i.test(recentHits[1]),
+      'Expected recent_hits to `ORDER BY updated_at DESC LIMIT ${CANDIDATE_CAP}` before ranking so ts_rank only sorts an indexed bounded slice.'
+    );
+  });
+
+  it('live useFtsRanking branch ranks only recent_hits by rank DESC', () => {
+    const src = readProductsSource();
+    const block = extractUseFtsRankingBlock(src);
+    const cte = block.match(/top_ids\s+AS\s*\(([\s\S]*?)\)\s*SELECT/i);
+    assert.ok(cte, 'Expected a `top_ids AS (...)` CTE in the useFtsRanking branch');
+    assert.ok(/FROM\s+recent_hits/i.test(cte[1]), 'Expected top_ids to read from bounded recent_hits');
     assert.ok(
       /ORDER\s+BY\s+rank\s+DESC/i.test(cte[1]),
-      'Expected the live CTE to `ORDER BY rank DESC` so the LIMIT can short-circuit via the FTS index. '
-        + 'Switching to `ORDER BY id DESC` reintroduces the 8s timeout (BUY-32228).'
+      'Expected top_ids to `ORDER BY rank DESC` after recent_hits bounded the candidate set.'
     );
   });
 
@@ -130,8 +140,8 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
   it('live useFtsRanking branch does NOT regress to id DESC + outer products.updated_at DESC', () => {
     const src = readProductsSource();
     const block = extractUseFtsRankingBlock(src);
-    const cte = block.match(/WITH\s+top_ids\s+AS\s*\(([\s\S]*?)\)/i);
-    assert.ok(cte, 'Expected a `WITH top_ids AS (...)` CTE');
+    const cte = block.match(/top_ids\s+AS\s*\(([\s\S]*?)\)\s*SELECT/i);
+    assert.ok(cte, 'Expected a `top_ids AS (...)` CTE');
     const cteHasIdDesc = /ORDER\s+BY\s+id\s+DESC/i.test(cte[1]);
     const outerHasProductsUpdatedAt = /ORDER\s+BY\s+products\.updated_at\s+DESC/i.test(block);
     assert.ok(
@@ -148,6 +158,52 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
       /SET\s+LOCAL\s+statement_timeout/i.test(src),
       'Expected the 8s statement_timeout guard (BUY-31228) to still be applied — '
         + 'it is the runtime safety net for the live /search handler.'
+    );
+  });
+
+  it('BUY-60052 tries bounded N-1 AND relaxations before broad OR fallback', () => {
+    const src = readProductsSource();
+    const fallbackStart = src.indexOf('zero-AND -> broad-OR fallback');
+    const broadOrStart = src.indexOf('let r = await client.query(baseQuery, dataParams);', fallbackStart);
+    assert.ok(fallbackStart >= 0, 'Expected BUY-60052 zero-AND fallback comment');
+    assert.ok(broadOrStart > fallbackStart, 'Expected broad OR baseQuery fallback after BUY-60052 block');
+    const fallbackBlock = src.slice(fallbackStart, broadOrStart);
+    assert.ok(/ftsLexemes\.length\s*>=\s*3/.test(fallbackBlock), 'Expected N-1 fallback to be limited to 3+ token queries');
+    assert.ok(/websearch_to_tsquery\('english',\s*\$\$\{relaxedParamIdx\}\)/.test(fallbackBlock), 'Expected relaxed passes to keep AND semantics');
+    assert.ok(/return\s+relaxedRes/.test(fallbackBlock), 'Expected successful relaxed pass to return before broad OR fallback');
+  });
+
+  it('BUY-61117 keeps zero-AND SG broad queries bounded by FTS before sorting', () => {
+    const src = readProductsSource();
+    const fallbackStart = src.indexOf('BUY-60112: the remaining zero-AND SG path');
+    const broadOrStart = src.indexOf('let r = await client.query(baseQuery, dataParams);', fallbackStart);
+    assert.ok(fallbackStart >= 0, 'Expected BUY-60112 zero-AND SG fallback comment');
+    assert.ok(broadOrStart > fallbackStart, 'Expected broad OR baseQuery fallback after BUY-60112 block');
+    const boundedSliceStart = src.lastIndexOf('const runBoundedSgMatch', fallbackStart);
+    const fallbackBlock = src.slice(boundedSliceStart, broadOrStart);
+    assert.ok(/andRes\.rows\.length\s*===\s*0\s*&&\s*useSgFreshnessGuardrail/.test(fallbackBlock), 'Expected fallback to be limited to zero-AND SG relevance searches');
+    assert.ok(/runBoundedSgMatch\(ftsOrMatch\)/.test(fallbackBlock), 'Expected fresh bounded FTS fallback before broad OR');
+    assert.ok(/runBoundedSgMatch\(ftsOrMatch,\s*dataParams,\s*broadRecentSliceWhereClause\)/.test(fallbackBlock), 'Expected all-time bounded FTS retry before broad OR');
+    assert.ok(/AND\s+\$\{matchExpr\}[\s\S]*ORDER\s+BY\s+updated_at\s+DESC/.test(fallbackBlock), 'Expected FTS match inside the candidate CTE before freshness sorting');
+    assert.ok(/LIMIT\s+\$\{CANDIDATE_CAP\}/.test(fallbackBlock), 'Expected fallback to cap matched candidates before ranking');
+    assert.ok(/ORDER\s+BY\s+updated_at\s+DESC/.test(fallbackBlock), 'Expected bounded SG slice to use the indexed freshness order');
+    assert.ok(!/ORDER\s+BY\s+id\s+DESC/.test(fallbackBlock), 'Expected bounded SG fallback to avoid partition-wide id ordering');
+    assert.ok(/WITH\s+recent_candidates\s+AS\s+MATERIALIZED\s+\(/.test(src), 'Expected matched candidates to be materialized before ranking');
+  });
+
+  it('BUY-61117 defaults keyword search to the RAM-fitting search_products tier', () => {
+    const src = readProductsSource();
+    assert.ok(
+      /process\.env\.SEARCH_USE_TIER\s*!==\s*'0'/.test(src),
+      'Expected SEARCH_USE_TIER to be an opt-out kill switch, not an opt-in gate'
+    );
+    assert.ok(
+      /searchMode\s*===\s*'keyword'/.test(src),
+      'Expected default tier cutover to be limited to keyword search so semantic/hybrid remain unchanged'
+    );
+    assert.ok(
+      /FROM\s+search_products\s+sp/.test(src),
+      'Expected default keyword path to use the RAM-fitting search_products tier'
     );
   });
 });

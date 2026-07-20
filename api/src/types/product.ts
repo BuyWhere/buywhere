@@ -18,6 +18,7 @@ export interface CanonicalProduct {
   image_url: string | null;
   region: string | null;
   country_code: string | null;
+  in_stock?: boolean;
   updated_at: string | null;
   // Compact-mode only (agent-optimized extras):
   canonical_id?: string;
@@ -37,12 +38,23 @@ export interface CanonicalProduct {
   // product has a destination URL to track.
   click_url?: string | null;
   affiliate_redirect_url?: string | null;
+  // Explicit machine-readable affiliate disclosure fields for agents/API clients.
+  has_affiliate_tracking: boolean;
+  is_affiliate: boolean;
+  affiliate_disclosure?: string;
+}
+
+export interface SearchMeta {
+  total: number;
+  limit: number;
+  offset: number;
+  response_time_ms: number;
+  cached: boolean;
+  // BUY-60309: degraded flag when deals query timed out or was cancelled
+  degraded?: boolean;
 }
 
 export interface SearchResponse {
-  results: CanonicalProduct[];
-  total: number;
-  page: { limit: number; offset: number };
-  response_time_ms: number;
-  cached: boolean;
+  data: CanonicalProduct[];
+  meta: SearchMeta;
 }

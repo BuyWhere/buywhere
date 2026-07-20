@@ -43,6 +43,17 @@ def hash_key(raw_key: str) -> str:
     return hashlib.sha256(raw_key.encode()).hexdigest()
 
 
+def api_key_lookup_values(raw_key: str) -> list[str]:
+    values = [raw_key]
+    if raw_key.startswith("bw_beta_"):
+        values.append(f"bw_{raw_key[len('bw_beta_'):]}")
+    return list(dict.fromkeys(values))
+
+
+def api_key_lookup_hashes(raw_key: str) -> list[str]:
+    return [hash_key(value) for value in api_key_lookup_values(raw_key)]
+
+
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
@@ -168,9 +179,9 @@ async def get_current_api_key(
         )
         api_key = result.scalar_one_or_none()
     else:
-        key_hash = hash_key(token)
+        key_hashes = api_key_lookup_hashes(token)
         result = await db.execute(
-            select(ApiKey).where(ApiKey.key_hash == key_hash, ApiKey.is_active == True)
+            select(ApiKey).where(ApiKey.key_hash.in_(key_hashes), ApiKey.is_active == True)
         )
         api_key = result.scalar_one_or_none()
 
@@ -183,13 +194,16 @@ async def get_current_api_key(
             )
             candidates = result.scalars().all()
             for candidate in candidates:
-                token_bytes = token.encode("utf-8")
-                if len(token_bytes) > 72:
-                    token_to_verify = hashlib.sha256(token_bytes).digest()
-                else:
-                    token_to_verify = token_bytes
-                if _verify_key_bcrypt(token_to_verify, candidate.key_hash):
-                    api_key = candidate
+                for lookup_value in api_key_lookup_values(token):
+                    token_bytes = lookup_value.encode("utf-8")
+                    if len(token_bytes) > 72:
+                        token_to_verify = hashlib.sha256(token_bytes).digest()
+                    else:
+                        token_to_verify = token_bytes
+                    if _verify_key_bcrypt(token_to_verify, candidate.key_hash):
+                        api_key = candidate
+                        break
+                if api_key is not None:
                     break
 
     if not api_key:
@@ -317,9 +331,9 @@ async def resolve_api_key_from_token(token: str, db: AsyncSession) -> Optional[A
     if paperclip_key is not None:
         return paperclip_key
 
-    key_hash = hash_key(token)
+    key_hashes = api_key_lookup_hashes(token)
     result = await db.execute(
-        select(ApiKey).where(ApiKey.key_hash == key_hash, ApiKey.is_active == True)
+        select(ApiKey).where(ApiKey.key_hash.in_(key_hashes), ApiKey.is_active == True)
     )
     api_key = result.scalar_one_or_none()
 
@@ -334,12 +348,13 @@ async def resolve_api_key_from_token(token: str, db: AsyncSession) -> Optional[A
     )
     candidates = result.scalars().all()
     for candidate in candidates:
-        if len(token) > 72:
-            token_to_verify = hashlib.sha256(token.encode()).digest()
-        else:
-            token_to_verify = token.encode()
-        if _verify_key_bcrypt(token_to_verify, candidate.key_hash):
-            return candidate
+        for lookup_value in api_key_lookup_values(token):
+            if len(lookup_value) > 72:
+                token_to_verify = hashlib.sha256(lookup_value.encode()).digest()
+            else:
+                token_to_verify = lookup_value.encode()
+            if _verify_key_bcrypt(token_to_verify, candidate.key_hash):
+                return candidate
 
     return None
 

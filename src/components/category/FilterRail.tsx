@@ -74,7 +74,7 @@ function CheckboxFilter({
           <span className="flex-1 text-sm text-gray-600 group-hover:text-gray-900">
             {option.value}
           </span>
-          <span className="text-xs text-gray-400">({option.count})</span>
+          <span className="text-xs text-gray-600">({option.count})</span>
         </label>
       ))}
     </div>

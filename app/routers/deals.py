@@ -122,51 +122,36 @@ async def get_deals(
     """Return products currently priced below their original price by at least min_discount_pct%."""
     request.state.api_key = api_key
 
-    threshold = 1.0 - (min_discount_pct / 100.0)
+    threshold_pct = min_discount_pct
 
-    # Query products where metadata.original_price exists (simple filter, no CAST).
-    # Discount calculation and sorting done in Python to avoid replica timeout.
+    # BUY-59774 fix: use the generated discount_pct column which is covered by the
+    # existing idx_products_partitioned_deals_partial index (partial on discount_pct
+    # IS NOT NULL). This avoids the full-seqscan + JSONB-key-exists-check on all
+    # 28M US rows that caused statement_timeout on /v1/deals.
     base_query = (
         select(Product)
         .where(Product.is_active == True)
-        .where(text("metadata->>'original_price' IS NOT NULL"))
+        .where(text("discount_pct IS NOT NULL"))
+        .where(text("discount_pct >= :min_pct").bindparams(min_pct=threshold_pct))
     )
 
     if category:
         base_query = base_query.where(Product.category.ilike(f"%{category}%"))
 
-    # Sort by price to make Python filtering more predictable
-    base_query = base_query.order_by(Product.price.desc())
+    # Sort by discount depth (largest discount first)
+    base_query = base_query.order_by(text("discount_pct DESC"))
 
-    # Get candidates and filter/sort in Python (avoid expensive CAST on replica)
-    result = await db.execute(base_query)
-    all_candidates = result.scalars().all()
-    
-    # Filter by discount threshold and calculate discount pct in Python
-    qualified_items = []
-    for p in all_candidates:
-        meta = p.metadata_ or {}
-        raw_orig = meta.get("original_price") if isinstance(meta, dict) else None
-        if raw_orig is not None:
-            try:
-                original_price = Decimal(str(raw_orig))
-                if original_price > 0 and p.price < original_price:
-                    discount_pct = float((original_price - p.price) / original_price * 100)
-                    if discount_pct >= min_discount_pct:
-                        qualified_items.append((discount_pct, p))
-            except Exception:
-                pass
-    
-    # Sort by discount (highest first)
-    qualified_items.sort(key=lambda x: x[0], reverse=True)
-    
-    # Apply pagination
-    total = len(qualified_items)
-    paginated = [p for _, p in qualified_items[offset:offset + limit]]
+    # Total count using the indexed discount_pct filter
+    from sqlalchemy import func
+    count_q = select(func.count()).select_from(base_query.subquery())
+    total = (await db.execute(count_q)).scalar_one()
+
+    result = await db.execute(base_query.limit(limit).offset(offset))
+    products = result.scalars().all()
 
     return DealsResponse(
         total=total,
         limit=limit,
         offset=offset,
-        items=[_to_deal_item(p) for p in paginated],
+        items=[_to_deal_item(p) for p in products],
     )
