@@ -70,7 +70,7 @@ export function ProductGridCard({ product }: { product: LandingProduct }) {
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center rounded-full bg-amber-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-amber-600"
+              className="inline-flex items-center rounded-full bg-amber-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-amber-800"
             >
               Buy at {product.merchant}
             </a>
