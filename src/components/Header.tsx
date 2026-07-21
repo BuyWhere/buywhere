@@ -29,7 +29,7 @@ export default function Header() {
         </Link>
 
         <span className="sr-only">Use Tab to navigate links, Enter to activate</span>
-        <nav id="main-navigation" role="navigation" tabIndex={0} className="hidden md:flex items-center gap-5 text-sm font-medium text-gray-600 dark:text-gray-300" aria-label="Main navigation">
+        <nav id="main-navigation" role="navigation" tabIndex={0} className="hidden lg:flex items-center gap-5 text-sm font-medium text-gray-600 dark:text-gray-300" aria-label="Main navigation">
           <Link href="/compare" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Compare</Link>
           <Link href="/blog" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Blog</Link>
           <Link href="/merchants" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Merchants</Link>
@@ -72,7 +72,7 @@ export default function Header() {
             )}
           </button>
           <button
-            className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
             onClick={() => setOpen(!open)}
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
@@ -90,7 +90,7 @@ export default function Header() {
       </div>
 
       {open && (
-        <nav id="mobile-nav" role="navigation" tabIndex={0} className="md:hidden border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 pb-4 flex flex-col gap-3 text-sm font-medium text-gray-700 dark:text-gray-300" aria-label="Mobile navigation">
+        <nav id="mobile-nav" role="navigation" tabIndex={0} className="lg:hidden border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 pb-4 flex flex-col gap-3 text-sm font-medium text-gray-700 dark:text-gray-300" aria-label="Mobile navigation">
           <Link href="/compare" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Compare</Link>
           <Link href="/blog" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Blog</Link>
           <Link href="/quickstart" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600 dark:hover:text-indigo-400">Quickstart</Link>
