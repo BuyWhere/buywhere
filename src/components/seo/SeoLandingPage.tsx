@@ -79,13 +79,10 @@ function buildRefreshedLabel(config: SeoLandingPageConfig, products: LandingProd
     return `Updated ${formatted}`;
   }
 
-  // No live products with a timestamp — use the build/date of render.
-  return `Updated ${new Date().toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  })}`;
+  // No live products with a timestamp — use a stable, deterministic label.
+  // Relying on new Date() here produces different text on the server and client,
+  // which triggers React hydration mismatches (Minified React error #418/#422).
+  return "Live prices updated regularly";
 }
 
 
