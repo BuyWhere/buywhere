@@ -35,8 +35,6 @@ const DEFAULT_DEVELOPER_CTA = {
   href: "/developers",
 };
 
-
-
 // Derive comparison rows from live products so the table always matches the product cards above.
 // Falls back to the hardcoded editorial rows only when no live products are available.
 function buildComparisonRows(config: SeoLandingPageConfig, products: LandingProduct[]): { columns: string[]; rows: Record<string, string>[] } {
@@ -79,15 +77,8 @@ function buildRefreshedLabel(config: SeoLandingPageConfig, products: LandingProd
     return `Updated ${formatted}`;
   }
 
-  // No live products with a timestamp — use the build/date of render.
-  return `Updated ${new Date().toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  })}`;
+  return "Live prices updated regularly";
 }
-
 
 export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig }) {
   const shopperCta = config.shopperCta || DEFAULT_SHOPPER_CTA;

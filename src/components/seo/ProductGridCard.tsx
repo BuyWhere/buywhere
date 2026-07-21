@@ -20,8 +20,21 @@ export function ProductGridCard({ product }: { product: LandingProduct }) {
   const isMerchantOffer =
     product.href.startsWith("http://") || product.href.startsWith("https://");
   const detailUrl =
-    product.productUrl ||
-    `/search?q=${encodeURIComponent(product.name)}`;
+    product.productUrl || `/search?q=${encodeURIComponent(product.name)}`;
+
+  function handleMerchantClick(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    window.open(product.href, "_blank", "noopener,noreferrer");
+  }
+
+  function handleMerchantKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      e.stopPropagation();
+      window.open(product.href, "_blank", "noopener,noreferrer");
+    }
+  }
 
   return (
     <Link
@@ -65,15 +78,15 @@ export function ProductGridCard({ product }: { product: LandingProduct }) {
             </p>
           </div>
           {isMerchantOffer ? (
-            <a
-              href={product.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center rounded-full bg-amber-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-amber-800"
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={handleMerchantClick}
+              onKeyDown={handleMerchantKeyDown}
+              className="inline-flex cursor-pointer items-center rounded-full bg-amber-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-amber-800"
             >
               Buy at {product.merchant}
-            </a>
+            </span>
           ) : (
             <span className="text-sm font-medium text-amber-700">
               View details
