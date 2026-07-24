@@ -612,18 +612,15 @@ async function handleGetDeals(args: Record<string, unknown>) {
     conditions.push(`country_code = $${params.length}`);
   }
 
-  const marketConditions = conditions.filter((condition) =>
-    !condition.includes('discount_pct')
-      && !condition.includes("metadata->>'original_price'")
-      && !condition.includes('NULLIF')
-  );
 
   const discountSelect = useDiscountCol
     ? 'discount_pct'
     : `ROUND(((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)::numeric, 1) AS discount_pct`;
-  // BUY-64112: sample within the requested market first, then apply the strict
-  // discount filter. This keeps the query bounded without returning keyword
-  // fallback rows with discount_pct=0.
+  const discountOrder = useDiscountCol
+    ? 'discount_pct DESC'
+    : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
+  // BUY-64112: use the strict discount predicate directly so the planner can
+  // use the production discount/country index and never return fallback rows.
   const dealsClient = await acquireMcpClient().catch((err: unknown) => {
     console.error('[mcp] get_deals db.connect failed:', err);
     throw { code: -32603, message: 'Database unavailable' };
@@ -631,35 +628,23 @@ async function handleGetDeals(args: Record<string, unknown>) {
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
   try {
-    await dealsClient.query('SET statement_timeout = 20000');
-    const candidateLimit = Math.max((limit + offset) * 200, 5000);
-    const candidateParams = [candidateLimit, ...params, limit, offset];
-    const marketWhere = marketConditions.map((condition) =>
-      condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`)
-    ).join(' AND ');
-    const filterConditions = conditions.map((condition) =>
-      condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`)
-    ).join(' AND ');
+    await dealsClient.query('SET statement_timeout = 10000');
     const dataResult = await dealsClient.query(
       `SELECT id, source, domain, url, title, price, original_price,
               currency, image_url, metadata, updated_at, region, country_code,
               discount_pct
        FROM (
-         SELECT id, sku AS source, source AS domain, url, title,
-                price,
+         SELECT id, sku AS source, source AS domain, url, title, price,
                 CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
-                     THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
-                currency, image_url, metadata, updated_at, region, country_code, is_active,
+                  THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
+                currency, image_url, metadata, updated_at, region, country_code,
                 ${discountSelect}
          FROM products
-         WHERE ${marketWhere}
-         ORDER BY updated_at DESC
-         LIMIT $1
-       ) _recent_deals
-       WHERE ${filterConditions}
-       ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
-       LIMIT $${candidateParams.length - 1} OFFSET $${candidateParams.length}`,
-      candidateParams
+         WHERE ${conditions.join(' AND ')}
+       ) _deals
+       ORDER BY ${discountOrder}, updated_at DESC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
     );
     total = dataResult.rows.length;
     products = dataResult.rows.map((r: Record<string, unknown>) =>
