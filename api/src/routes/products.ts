@@ -1578,6 +1578,12 @@ router.get(
       dealIdx++;
     }
 
+    const marketConditions = dealConditions.filter((condition) =>
+      !condition.includes('discount_pct')
+        && !condition.includes("metadata->>'original_price'")
+        && !condition.includes('NULLIF')
+    );
+
     const discountSelect = useDiscountCol
       ? 'discount_pct'
       : `ROUND(((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)::numeric, 1) AS discount_pct`;
@@ -1603,6 +1609,9 @@ router.get(
       // Filtering discount_pct before the LIMIT misses newly backfilled deals when
       // the planner chooses a slow full-table path and times out.
       const candidateParams: unknown[] = [DEALS_SAMPLE_CAP, ...dealParams, limit, offset];
+      const marketWhere = marketConditions
+        .map((condition) => condition.replace(/\$(\d+)/g, (_match, idx) => `$${Number(idx) + 1}`))
+        .join(' AND ');
       const filterConditions = dealConditions
         .map((condition) => condition.replace(/\$(\d+)/g, (_match, idx) => `$${Number(idx) + 1}`))
         .join(' AND ');
@@ -1618,7 +1627,7 @@ router.get(
                   category_path, category, merchant_id, avg_rating, review_count,
                   ${discountSelect}
            FROM products
-           WHERE is_active = true AND price > 0
+           WHERE is_active = true AND ${marketWhere}
            ORDER BY updated_at DESC
            LIMIT $1
          ) _recent_deals
