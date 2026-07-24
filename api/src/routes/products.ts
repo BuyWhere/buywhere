@@ -1558,7 +1558,7 @@ router.get(
         (router as any)._hasDiscountPct = probe.rows.length > 0
           && (probe.rows[0].is_generated === 'ALWAYS' || probe.rows[0].has_positive_discounts === true);
       } catch {
-        (router as any)._hasDiscountPct = false;
+        (router as any)._hasDiscountPct = true;
       }
     }
     useDiscountCol = (router as any)._hasDiscountPct;

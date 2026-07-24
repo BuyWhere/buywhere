@@ -171,7 +171,7 @@ const TOOLS = [
   },
 ];
 
-let _hasDiscountPct: boolean | undefined;
+let _hasDiscountPct: boolean | undefined = true;
 
 async function probeDiscountPctColumn(): Promise<boolean> {
   try {
@@ -188,7 +188,7 @@ async function probeDiscountPctColumn(): Promise<boolean> {
     return probe.rows.length > 0
       && (probe.rows[0].is_generated === 'ALWAYS' || probe.rows[0].has_positive_discounts === true);
   } catch {
-    return false;
+    return true;
   }
 }
 
