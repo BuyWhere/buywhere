@@ -1,6 +1,6 @@
 ---
 slug: "compare-headphones-singapore-2026"
-title: "Sony WH-1000XM5 Price Singapore (2026) — From S$349"
+title: "Sony WH-1000XM5 Price Singapore (2026) — S$349 Cheapest"
 description: "Cheapest Sony WH-1000XM5 in Singapore is S$349 on Shopee SG; Lazada S$359, Amazon S$369. Compare 2026 prices."
 author: "BuyWhere Team"
 publishedAt: "2026-06-19"
