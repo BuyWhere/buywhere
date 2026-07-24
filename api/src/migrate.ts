@@ -684,6 +684,12 @@ export async function runMigrations() {
     console.warn(`[migration] Index dedup step failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
+  // BUY-64112: repair stale deal indexes before the legacy generated-column gate
+  // below. Production has a populated plain discount_pct column; even if converting
+  // it to GENERATED is deferred/fails, strict get_deals must still use the column
+  // index path instead of seq-scanning the live products table.
+  await ensureStrictDealsIndexes();
+
   // BUY-22324: discount_pct GENERATED STORED column — must detect and fix a plain
   // (non-generated) column left by a prior migration failure.
   // Uses guarded CASE with regex to prevent dirty original_price from failing inserts.
@@ -747,12 +753,6 @@ export async function runMigrations() {
   } catch (err: any) {
     throw new Error(`[migration] FATAL: discount_pct GENERATED column failed: ${err.message}`);
   }
-
-  // BUY-64112: repair stale deal indexes left behind by the older metadata-based
-  // deals query. CREATE INDEX IF NOT EXISTS does not replace an index with the
-  // same name but a different definition, so the strict discount_pct query can
-  // otherwise seq-scan the live products table and time out.
-  await ensureStrictDealsIndexes();
 
   // BUY-30968: Ensure api_keys columns added in BUY-29220/BUY-30073 are present even
   // when the main MIGRATION block fails before reaching those ALTER TABLE statements.
