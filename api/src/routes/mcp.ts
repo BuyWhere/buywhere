@@ -176,9 +176,17 @@ let _hasDiscountPct: boolean | undefined;
 async function probeDiscountPctColumn(): Promise<boolean> {
   try {
     const probe = await db.query(
-      `SELECT is_generated FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`
+      `SELECT c.is_generated, EXISTS (
+         SELECT 1 FROM products
+         WHERE is_active = true AND price > 0 AND discount_pct > 0
+         LIMIT 1
+       ) AS has_positive_discounts
+       FROM information_schema.columns c
+       WHERE c.table_name = 'products' AND c.column_name = 'discount_pct'
+       LIMIT 1`
     );
-    return probe.rows.length > 0 && probe.rows[0].is_generated === 'ALWAYS';
+    return probe.rows.length > 0
+      && (probe.rows[0].is_generated === 'ALWAYS' || probe.rows[0].has_positive_discounts === true);
   } catch {
     return false;
   }
