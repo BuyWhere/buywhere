@@ -675,6 +675,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   });
   try {
     // BUY-64112: use the strict discount predicate directly so the planner can
+    // match the embedded API route and
     // use the production discount/country index and never return fallback rows.
     await dealsClient.query('SET statement_timeout = 10000');
     const dataResult = await dealsClient.query(
