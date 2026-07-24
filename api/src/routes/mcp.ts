@@ -605,7 +605,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
 
-  const cacheKey = `deals_mcp:${currency}:${minDiscount}:${region}:${country}:${limit}:${offset}`;
+  const cacheKey = `deals_mcp:buy64112-strict:${currency}:${minDiscount}:${region}:${country}:${limit}:${offset}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -647,7 +647,11 @@ async function handleGetDeals(args: Record<string, unknown>) {
     conditions.push(`country_code = $${params.length}`);
   }
 
-  const whereClause = conditions.join(' AND ');
+  const marketConditions = conditions.filter((condition) =>
+    !condition.includes('discount_pct')
+      && !condition.includes("metadata->>'original_price'")
+      && !condition.includes('NULLIF')
+  );
 
   const discountSelect = useDiscountCol
     ? 'discount_pct'
@@ -667,14 +671,15 @@ async function handleGetDeals(args: Record<string, unknown>) {
     throw { code: -32603, message: 'Database unavailable' };
   });
   try {
-    // BUY-60056: avoid the slow COUNT + full filtered discount sort that can
-    // monopolize a pool connection for the caller's whole 30s window. Sample a
-    // recent active window via the updated_at path, then filter/order the small
-    // candidate set. Acceptance needs non-empty regional deals under 5s, not an
-    // exact global count.
+    // BUY-64112: sample within the requested market first, then apply the strict
+    // discount filter. This keeps the query bounded without returning keyword
+    // fallback rows with discount_pct=0.
     await dealsClient.query('SET statement_timeout = 20000');
     const candidateLimit = Math.max((limit + offset) * 200, 5000);
     const candidateParams = [candidateLimit, ...params, limit, offset];
+    const marketWhere = marketConditions.map((condition) =>
+      condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`)
+    ).join(' AND ');
     const filterConditions = conditions.map((condition) =>
       condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`)
     ).join(' AND ');
@@ -690,12 +695,12 @@ async function handleGetDeals(args: Record<string, unknown>) {
                 currency, image_url, metadata, updated_at, region, country_code, is_active,
                 ${discountSelect}
          FROM products
-         WHERE is_active = true AND price > 0
+         WHERE ${marketWhere}
          ORDER BY updated_at DESC
          LIMIT $1
        ) _recent_deals
        WHERE ${filterConditions}
-       ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
+       ORDER BY ${discountOrder}, updated_at DESC
        LIMIT $${candidateParams.length - 1} OFFSET $${candidateParams.length}`,
       candidateParams
     );
@@ -703,31 +708,6 @@ async function handleGetDeals(args: Record<string, unknown>) {
     products = dataResult.rows.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
-    if (products.length === 0 && effectiveCountry) {
-      // BUY-60056: many live rows lack original_price/discount metadata, so the
-      // strict discount filter can be empty even while the regional catalog is
-      // healthy. Return a bounded recent regional sample instead of a timeout or
-      // empty response; callers still get product/country metadata under 5s.
-      // BUY-60068: extend the fallback to fire whenever a region-derived country
-      // exists, not only when country_code is explicitly passed.
-      const fallbackQuery = effectiveCountry === 'US' ? 'watch' : 'laptop';
-      const fallbackResult = await dealsClient.query(
-        `SELECT id, sku AS source, source AS domain, url, title,
-                price, NULL::numeric AS original_price, currency, image_url,
-                metadata, updated_at, region, country_code, 0::numeric AS discount_pct
-         FROM products
-         WHERE is_active = true
-           AND price > 0
-           AND country_code = $1
-           AND search_vector @@ plainto_tsquery('english', $2)
-         LIMIT $3`,
-        [effectiveCountry, fallbackQuery, limit]
-      );
-      total = fallbackResult.rows.length;
-      products = fallbackResult.rows.map((r: Record<string, unknown>) =>
-        buildProduct(r, currency, false)
-      );
-    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);

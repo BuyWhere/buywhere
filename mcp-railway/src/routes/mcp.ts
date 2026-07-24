@@ -562,7 +562,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
 
-  const cacheKey = `deals_mcp:${currency}:${minDiscount}:${region}:${country}:${limit}:${offset}`;
+  const cacheKey = `deals_mcp:buy64112-strict:${currency}:${minDiscount}:${region}:${country}:${limit}:${offset}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -604,14 +604,18 @@ async function handleGetDeals(args: Record<string, unknown>) {
     conditions.push(`country_code = $${params.length}`);
   }
 
+  const marketConditions = conditions.filter((condition) =>
+    !condition.includes('discount_pct')
+      && !condition.includes("metadata->>'original_price'")
+      && !condition.includes('NULLIF')
+  );
+
   const discountSelect = useDiscountCol
     ? 'discount_pct'
     : `ROUND(((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)::numeric, 1) AS discount_pct`;
-  // BUY-60076: bring the canonical mcp.buywhere.ai handleGetDeals in line with
-  // the api/ service (BUY-60056): bound the deals scan with a recent-window
-  // candidate set so the slow `SELECT COUNT(*)` over the filtered deals range
-  // (which monopolised the pool connection for 60s under cold cache) is
-  // replaced with a bounded 5k-row candidate inner scan. Mirrors api/src/routes/mcp.ts:574-635.
+  // BUY-64112: sample within the requested market first, then apply the strict
+  // discount filter. This keeps the query bounded without returning keyword
+  // fallback rows with discount_pct=0.
   const dealsClient = await acquireMcpClient().catch((err: unknown) => {
     console.error('[mcp] get_deals db.connect failed:', err);
     throw { code: -32603, message: 'Database unavailable' };
@@ -622,6 +626,9 @@ async function handleGetDeals(args: Record<string, unknown>) {
     await dealsClient.query('SET statement_timeout = 20000');
     const candidateLimit = Math.max((limit + offset) * 200, 5000);
     const candidateParams = [candidateLimit, ...params, limit, offset];
+    const marketWhere = marketConditions.map((condition) =>
+      condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`)
+    ).join(' AND ');
     const filterConditions = conditions.map((condition) =>
       condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`)
     ).join(' AND ');
@@ -637,7 +644,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
                 currency, image_url, metadata, updated_at, region, country_code, is_active,
                 ${discountSelect}
          FROM products
-         WHERE is_active = true AND price > 0
+         WHERE ${marketWhere}
          ORDER BY updated_at DESC
          LIMIT $1
        ) _recent_deals
@@ -650,30 +657,6 @@ async function handleGetDeals(args: Record<string, unknown>) {
     products = dataResult.rows.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
-    if (products.length === 0 && country) {
-      // BUY-60056/BUY-60076: many live rows lack original_price/discount
-      // metadata, so the strict discount filter can be empty even while the
-      // regional catalog is healthy. Fall back to a bounded FTS sample so
-      // callers get a structured response under the 5s budget instead of a
-      // 60s MONITOR_TIMEOUT.
-      const fallbackQuery = country === 'US' ? 'watch' : 'laptop';
-      const fallbackResult = await dealsClient.query(
-        `SELECT id, sku AS source, source AS domain, url, title,
-                price, NULL::numeric AS original_price, currency, image_url,
-                metadata, updated_at, region, country_code, 0::numeric AS discount_pct
-         FROM products
-         WHERE is_active = true
-           AND price > 0
-           AND country_code = $1
-           AND search_vector @@ plainto_tsquery('english', $2)
-         LIMIT $3`,
-        [country, fallbackQuery, limit]
-      );
-      total = fallbackResult.rows.length;
-      products = fallbackResult.rows.map((r: Record<string, unknown>) =>
-        buildProduct(r, currency, false)
-      );
-    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);
