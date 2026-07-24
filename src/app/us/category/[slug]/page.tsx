@@ -4,6 +4,59 @@ import { CategoryBrowseClient, CategoryPageConfig } from "@/components/category"
 import { US_CATEGORY_META } from "@/lib/taxonomy";
 import { toSiteUrl } from "@/lib/site-url";
 
+function generateMockProducts(category: string) {
+  const brands = ["Apple", "Samsung", "Sony", "LG", "Dell", "HP", "Nike", "Adidas", "ZARA", "H&M"];
+  const products = [];
+  const imageIds = [
+    "1594938298603-c8148c4dae35",
+    "1434389677669-e08b4cda3a00",
+    "1551488831-00ddcb6c6bd3",
+    "1591047139829-d91aecb6caea",
+    "1551028719-00167b16eac5",
+    "1515886657613-9f3515b0c78f",
+    "1604176354204-9268737828e4",
+    "1548624313-0396c75e4b1a",
+  ];
+
+  for (let i = 0; i < 48; i++) {
+    const brand = brands[Math.floor(Math.random() * brands.length)];
+    const basePrice = Math.floor(Math.random() * 500) + 20;
+    const hasDiscount = Math.random() > 0.7;
+    const originalPrice = hasDiscount ? Math.floor(basePrice * (1 + Math.random() * 0.5)) : undefined;
+    const discountPct = hasDiscount ? Math.floor((originalPrice! - basePrice) / originalPrice! * 100) : undefined;
+
+    products.push({
+      id: i + 1,
+      name: `${brand} ${category.charAt(0).toUpperCase() + category.slice(1)} Product ${i + 1}`,
+      brand,
+      price: basePrice,
+      originalPrice,
+      discountPct,
+      imageUrl: `https://images.unsplash.com/photo-${imageIds[i % imageIds.length]}?w=400&h=500&fit=crop`,
+      url: "#",
+      rating: Math.random() * 2 + 3,
+      reviewCount: Math.floor(Math.random() * 500) + 10,
+      inStock: Math.random() > 0.1,
+      badge: Math.random() > 0.9 ? (Math.random() > 0.5 ? "New" : "Sale") : undefined,
+      colors: [
+        { name: "Black", hex: "#1a1a2e" },
+        { name: "White", hex: "#ffffff" },
+        { name: "Navy", hex: "#1e3a5f" },
+        { name: "Red", hex: "#dc3545" },
+      ].slice(0, Math.floor(Math.random() * 4) + 1),
+      sizes: [
+        { code: "XS", available: Math.random() > 0.2 },
+        { code: "S", available: Math.random() > 0.1 },
+        { code: "M", available: true },
+        { code: "L", available: true },
+        { code: "XL", available: Math.random() > 0.3 },
+        { code: "XXL", available: Math.random() > 0.5 },
+      ],
+    });
+  }
+
+  return products;
+}
 
 function generateFacets() {
   return {
@@ -70,9 +123,9 @@ function getCategoryConfig(slug: string): CategoryPageConfig | null {
       { id: "audio", name: "Audio", productCount: 98 },
       { id: "wearables", name: "Wearables", productCount: 67 },
     ],
-    products: [],
+    products: generateMockProducts(slug),
     facets: generateFacets(),
-    totalProducts: 0,
+    totalProducts: 1234,
   };
 }
 

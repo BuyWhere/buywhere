@@ -233,7 +233,7 @@ export function ApiPlayground() {
                 value={apiKey}
                 onChange={(event) => setApiKey(event.target.value)}
                 className="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#00d4c8] focus:bg-white focus:ring-4 focus:ring-[#dffaf7]"
-                placeholder="bw_live_..."
+                placeholder="bw_beta_..."
                 type="password"
               />
             </label>

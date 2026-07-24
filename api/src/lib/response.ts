@@ -11,19 +11,6 @@ export const COUNTRY_CURRENCY: Record<string, string> = {
   SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
 };
 
-function normalizeImageUrl(imageUrl: unknown): string | null {
-  if (typeof imageUrl !== 'string' || imageUrl.trim() === '') return null;
-
-  try {
-    const parsed = new URL(imageUrl);
-    if (parsed.hostname.toLowerCase() === 'source.unsplash.com') return null;
-  } catch {
-    return imageUrl;
-  }
-
-  return imageUrl;
-}
-
 export function buildProduct(
   row: Record<string, unknown>,
   defaultCurrency: string,
@@ -59,7 +46,6 @@ export function buildProduct(
   const affiliateRedirectUrl = destinationUrl
     ? buildAffiliateRedirectUrl({ productId, source: 'product_card' })
     : null;
-  const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
 
   const base: CanonicalProduct = {
     id: productId,
@@ -67,20 +53,13 @@ export function buildProduct(
     price: { amount: sanitizedAmount, currency },
     merchant,
     url: destinationUrl,
-    image_url: normalizeImageUrl(row.image_url),
+    image_url: (row.image_url as string) || null,
     region: (row.region as string) || null,
     country_code: (row.country_code as string) || null,
     updated_at: (row.updated_at as string) || null,
-    // CAT-08: expose stock status as a top-level boolean when known.
-    ...(row.in_stock != null && { in_stock: row.in_stock as boolean }),
     ...(affiliateUrl != null && { affiliate_url: affiliateUrl }),
     ...(clickUrl != null && { click_url: clickUrl }),
     ...(affiliateRedirectUrl != null && { affiliate_redirect_url: affiliateRedirectUrl }),
-    has_affiliate_tracking: hasAffiliateTracking,
-    is_affiliate: hasAffiliateTracking,
-    ...(hasAffiliateTracking && {
-      affiliate_disclosure: 'BuyWhere may earn a commission from purchases made through tracked product links.',
-    }),
   };
 
   if (compact) {
@@ -132,17 +111,12 @@ export function buildSearchResponse(
   offset: number,
   responseTimeMs: number,
   cached: boolean,
-  degraded?: boolean,
 ): SearchResponse {
   return {
-    data: products,
-    meta: {
-      total,
-      limit,
-      offset,
-      response_time_ms: responseTimeMs,
-      cached,
-      ...(degraded != null && { degraded }),
-    },
+    results: products,
+    total,
+    page: { limit, offset },
+    response_time_ms: responseTimeMs,
+    cached,
   };
 }

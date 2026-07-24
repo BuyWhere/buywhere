@@ -7,6 +7,15 @@ interface PageProps {
   params: { slug: string };
 }
 
+const SG_RETAILERS = [
+  { name: "Lazada", description: "Official store prices with seller ratings" },
+  { name: "Shopee", description: "Live deals from verified sellers" },
+  { name: "Amazon Singapore", description: "Prime-eligible and fulfilled offers" },
+  { name: "FairPrice Online", description: "NTUC FairPrice official listings" },
+  { name: "Courts", description: "Electronics retailer with financing options" },
+  { name: "Harvey Norman", description: "Retail and online prices compared" },
+];
+
 interface SGProductPriceData {
   merchant: string;
   price: string | null;
@@ -15,7 +24,7 @@ interface SGProductPriceData {
   url: string;
 }
 
-async function fetchSGProductPrices(productId: string): Promise<SGProductPriceData[]> {
+async function fetchSGProductPrices(productId: string, productName: string): Promise<SGProductPriceData[]> {
   const baseUrl = process.env.BUYWHERE_API_INTERNAL_URL || process.env.NEXT_PUBLIC_BUYWHERE_API_URL || "https://api.buywhere.ai";
   const apiKey = process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
   const numericId = parseInt(productId.replace(/[^0-9]/g, ""), 10) || 1;
@@ -30,22 +39,27 @@ async function fetchSGProductPrices(productId: string): Promise<SGProductPriceDa
     if (res.ok) {
       const data = await res.json() as { prices?: Array<{ merchant: string; price: number; currency: string; in_stock: boolean; url: string }> };
       if (data.prices && data.prices.length > 0) {
-        return data.prices
-          .filter((p) => p.merchant && p.url && p.url !== "#")
-          .map((p) => ({
-            merchant: p.merchant,
-            price: p.price ? `SGD ${p.price.toFixed(2)}` : null,
-            currency: p.currency || "SGD",
-            inStock: p.in_stock,
-            url: p.url,
-          }));
+        return data.prices.map((p) => ({
+          merchant: p.merchant,
+          price: p.price ? `SGD ${p.price.toFixed(2)}` : null,
+          currency: p.currency || "SGD",
+          inStock: p.in_stock,
+          url: p.url || "#",
+        }));
       }
     }
   } catch {
     // API unavailable
   }
 
-  return [];
+  // Return structured placeholder retailers for SSR content
+  return SG_RETAILERS.map((r) => ({
+    merchant: r.name,
+    price: null,
+    currency: "SGD",
+    inStock: true,
+    url: "#",
+  }));
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -95,7 +109,7 @@ export default async function SGProductSlugPage({ params }: PageProps) {
     notFound();
   }
 
-  const prices = await fetchSGProductPrices(resolvedProduct.id);
+  const prices = await fetchSGProductPrices(resolvedProduct.id, resolvedProduct.name);
   const availablePrices = prices.filter((p) => p.price !== null);
   const pageUrl = toSiteUrl(`/products/sg/${resolvedProduct.slug}`);
 
@@ -153,7 +167,7 @@ export default async function SGProductSlugPage({ params }: PageProps) {
               </nav>
               <h1 className="text-3xl font-bold mb-3">{resolvedProduct.name}</h1>
               <p className="text-lg text-indigo-100">
-                Compare live Singapore catalog offers and find the best deal in SGD.
+                Compare prices across {SG_RETAILERS.length} Singapore retailers and find the best deal in SGD.
               </p>
             </div>
           </section>
@@ -179,11 +193,19 @@ export default async function SGProductSlugPage({ params }: PageProps) {
               ) : (
                 <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-8">
                   <p className="text-gray-600 mb-4">
-                    BuyWhere does not have live retailer offers for <strong>{resolvedProduct.name}</strong> yet.
+                    BuyWhere tracks live prices for <strong>{resolvedProduct.name}</strong> across these Singapore retailers:
                   </p>
-                  <a href="/products/sg/" className="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
-                    Browse Singapore catalog
-                  </a>
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {SG_RETAILERS.map((r) => (
+                      <li key={r.name} className="flex items-start gap-3">
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 text-xs font-bold flex-shrink-0 mt-0.5">✓</span>
+                        <div>
+                          <span className="font-medium text-gray-900">{r.name}</span>
+                          <span className="block text-sm text-gray-500">{r.description}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
 

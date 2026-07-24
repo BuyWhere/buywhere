@@ -5,26 +5,6 @@ import { trackComparePageView, trackCompareRetailerClick } from '../analytics/po
 const router = Router();
 
 const CACHE_TTL_SECONDS = 300; // 5 min
-function slugifyCategory(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-}
-
-const COMPARE_CATEGORY_ALIASES: Record<string, string[]> = {
-  electronics: [
-    'Electronics', 'Laptops', 'Desktops', 'Computer Accessories', 'Computer Components',
-    'Headphones', 'Speakers', 'Microphones', 'Cell Phones', 'Tablets', 'Phone Accessories',
-    'Televisions', 'Streaming Devices', 'Wearable Technology', 'Video Games', 'PC Gaming',
-  ],
-  fashion: ['Fashion', 'Clothing', 'Shoes', 'Bags', 'Accessories'],
-  'home-living': ['Home & Living', 'Home', 'Kitchen', 'Home Appliances', 'Furniture', 'Home Decor'],
-  beauty: ['Beauty', 'Beauty & Personal Care', 'Skincare', 'Makeup'],
-  'sports-outdoors': ['Sports & Outdoors', 'Sports', 'Outdoors', 'Fitness'],
-  'health-wellness': ['Health & Wellness', 'Health', 'Wellness', 'Vitamins', 'Supplements'],
-  'toys-games': ['Toys & Games', 'Toys', 'Games', 'Video Games'],
-  'food-beverages': ['Food & Beverages', 'Food', 'Beverages', 'Grocery', 'Groceries'],
-  automotive: ['Automotive', 'Car Accessories', 'Auto Parts'],
-  'pet-supplies': ['Pet Supplies', 'Pets', 'Pet Food'],
-};
 
 // Slug validation: kebab-case ASCII, ≤70 chars
 function isValidSlug(slug: string): boolean {
@@ -117,87 +97,6 @@ function formatPrice(price: number): string {
   return `S$${price.toFixed(2)}`;
 }
 
-/**
- * When a slug is not a comparison_page, try to resolve it as a category.
- * Returns true if a response was sent, false if category also not found.
- */
-async function handleCategoryCompareFallback(slug: string, req: Request, res: Response): Promise<boolean> {
-  const normalizedSlug = slugifyCategory(slug);
-  const currency = (req.query.country === 'US' || req.query.region === 'us') ? 'USD' : 'SGD';
-  const aliasNames = COMPARE_CATEGORY_ALIASES[normalizedSlug] || [];
-
-  // Look up the category_path[1] name for this slug
-  const slugResult = await db.query<{ name: string }>(
-    `SELECT DISTINCT category_path[1] AS name FROM products
-     WHERE currency = $1 AND category_path IS NOT NULL
-       AND (
-         LOWER(REGEXP_REPLACE(category_path[1], '[^a-zA-Z0-9]+', '-', 'g')) = $2
-         OR category_path[1] = ANY($3::text[])
-       )
-     LIMIT 1`,
-    [currency, normalizedSlug, aliasNames]
-  ).catch(() => null);
-
-  if (!slugResult || slugResult.rows.length === 0) {
-    return false;
-  }
-
-  const categoryName = slugResult.rows[0].name;
-  const limit = Math.min(parseInt((req.query.limit as string) || '50'), 100);
-  const offset = parseInt((req.query.offset as string) || '0');
-
-  const productsResult = await db.query<{
-    id: string; title: string; brand: string | null; image_url: string | null;
-    price: string | null; currency: string; url: string; source: string;
-    is_active: boolean | null; updated_at: string; sku: string | null; mpn: string | null;
-  }>(
-    `SELECT id, title, brand, image_url, price, currency, url, source, is_active,
-            updated_at, sku, mpn
-     FROM products
-     WHERE currency = $1 AND category_path[1] = ANY($2::text[])
-     ORDER BY updated_at DESC
-     LIMIT $3 OFFSET $4`,
-    [currency, [categoryName, ...aliasNames], limit, offset]
-  ).catch(() => null);
-
-  if (!productsResult || productsResult.rows.length === 0) {
-    return false;
-  }
-
-  // Group products by SKU / title — each unique product row becomes a product entry
-  // with its prices[] array containing this one merchant listing
-  const products = productsResult.rows.map((row) => ({
-    id: row.id,
-    name: row.title,
-    brand: row.brand || '',
-    sku: row.sku || `SKU-${row.id.slice(0, 8)}`,
-    prices: [{
-      merchant: row.source,
-      price: row.price || '0',
-      url: row.url,
-      in_stock: row.is_active !== false,
-      rating: 0,
-      last_updated: row.updated_at,
-    }],
-  }));
-
-  const payload = {
-    slug: normalizedSlug,
-    category: categoryName,
-    products,
-    meta: {
-      limit,
-      offset,
-      total: products.length,
-    },
-  };
-
-  res.set('Cache-Control', `public, max-age=${CACHE_TTL_SECONDS}`);
-  res.set('X-Cache', 'CATEGORY-FALLBACK');
-  res.json(payload);
-  return true;
-}
-
 // GET /v1/compare/:slug — public comparison page payload
 // 5-min Redis cache; 404 on draft/archived/missing
 router.get('/:slug', async (req: Request, res: Response) => {
@@ -239,9 +138,6 @@ router.get('/:slug', async (req: Request, res: Response) => {
   ).catch(() => null);
 
   if (!pageResult || pageResult.rows.length === 0) {
-    // Not a comparison page slug — try resolving as a category
-    const catRes = await handleCategoryCompareFallback(slug, req, res);
-    if (catRes) return;
     res.status(404).json({ error: 'Not found' });
     return;
   }

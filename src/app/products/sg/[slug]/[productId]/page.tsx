@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getSeoLandingFallbackProduct } from "@/lib/seo-landing-pages";
 
 interface ProductDetail {
   id: string | number;
@@ -15,21 +14,6 @@ interface ProductDetail {
   merchant_id?: string;
   merchant_name?: string;
   data_updated_at?: string;
-}
-
-function landingProductToDetail(product: ReturnType<typeof getSeoLandingFallbackProduct>): ProductDetail | null {
-  if (!product) return null;
-
-  return {
-    id: product.id,
-    name: product.name,
-    description: `${product.name} is available from ${product.merchant}. Compare current pricing and merchant options on BuyWhere.`,
-    price: product.price ?? undefined,
-    image_url: product.imageUrl,
-    category: product.category ?? undefined,
-    brand: product.brand ?? undefined,
-    merchant_name: product.merchant,
-  };
 }
 
 async function getProduct(
@@ -60,7 +44,7 @@ async function getProduct(
     }
   } catch {}
 
-  return landingProductToDetail(getSeoLandingFallbackProduct("sg", productId, merchantSlug));
+  return null;
 }
 
 interface PageProps {

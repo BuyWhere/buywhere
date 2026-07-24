@@ -21,61 +21,14 @@ function buildAwinUrl(advertiserId: string, destination: string, clickRef: strin
 }
 
 const DEFAULT_ALLOWED_DOMAINS = [
-  // Singapore retailers
   'lazada.sg',
   'shopee.sg',
   'bestdenki.com.sg',
   'amazon.sg',
   'courts.com.sg',
   'harvey-norman.com.sg',
-  'harveynorman.com.sg',
   'challenger.sg',
   'qoo10.sg',
-  'carousell.sg',
-  'popular.com.sg',
-  'guardian.com.sg',
-  'coldstorage.com.sg',
-  'fairprice.com.sg',
-  'watsons.com.sg',
-  'polypet.com.sg',
-  'pupsik.sg',
-  'robinsons.com.sg',
-  // Global / US retailers (country=us revenue path — BUY-60383/BUY-60606)
-  'amazon.com',
-  'amazon.co.uk',
-  'amazon.com.au',
-  'amazon.ca',
-  'amazon.de',
-  'amazon.fr',
-  'amazon.co.jp',
-  'bestbuy.com',
-  'walmart.com',
-  'target.com',
-  'ebay.com',
-  'ebay.sg',
-  'costco.com',
-  'bhphotovideo.com',
-  'adorama.com',
-  'newegg.com',
-  'homedepot.com',
-  'lowes.com',
-  'macys.com',
-  'nordstrom.com',
-  'apple.com',
-  'microsoft.com',
-  'dell.com',
-  'hp.com',
-  'lenovo.com',
-  'samsung.com',
-  'sony.com',
-  'bjs.com',
-  'samsclub.com',
-  // Affiliate tracking / redirect domains (deeplinks served from affiliate_links)
-  'awstrack.me',
-  'awin1.com',
-  'impact.com',
-  'go.skimresources.com',
-  'go.redirectingat.com',
 ];
 
 const allowedDomains: Set<string> = new Set(
@@ -85,26 +38,11 @@ const allowedDomains: Set<string> = new Set(
   ).filter(Boolean)
 );
 
-// BUY-60383/BUY-60606: destinationUrl is always resolved from our own DB
-// (affiliate_links or products table — admin-curated, not user input), so the
-// guard only blocks dangerous schemes (open-redirect / XSS via javascript: /
-// data:). Any valid http(s) merchant URL is permitted.
-// Set AFFILIATE_STRICT_ALLOWLIST=1 to re-enable exact-domain matching against
-// AFFILIATE_ALLOWED_DOMAINS if an operator ever needs to lock down outbound
-// redirects to a fixed merchant set.
-const strictAllowlist = process.env.AFFILIATE_STRICT_ALLOWLIST === '1';
-
 function isAllowedDestination(url: string): boolean {
   try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
-    if (!strictAllowlist) return true;
-    const bare = parsed.hostname.replace(/^www\./, '');
-    if (allowedDomains.has(bare)) return true;
-    for (const root of allowedDomains) {
-      if (bare.endsWith('.' + root)) return true;
-    }
-    return false;
+    const { hostname } = new URL(url);
+    const bare = hostname.replace(/^www\./, '');
+    return allowedDomains.has(bare);
   } catch {
     return false;
   }

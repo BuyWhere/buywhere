@@ -840,31 +840,6 @@ export async function runMigrations() {
     console.warn(`[migration] P95 monitoring schema failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
-  // BUY-63045: link-health tracking — probe outbound redirect destinations and
-  // record HTTP status so the redirect route can suppress known-dead URLs.
-  try {
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS link_health (
-        id              BIGSERIAL   PRIMARY KEY,
-        destination_url TEXT        NOT NULL,
-        http_status     INTEGER,
-        is_alive        BOOLEAN     NOT NULL DEFAULT true,
-        error_message   TEXT,
-        checked_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_link_health_url
-        ON link_health (destination_url);
-
-      CREATE INDEX IF NOT EXISTS idx_link_health_alive
-        ON link_health (is_alive, checked_at DESC)
-        WHERE is_alive = false;
-    `);
-    console.log('[migration] link_health table ensured (BUY-63045).');
-  } catch (err: any) {
-    console.warn(`[migration] link_health table creation failed (non-fatal): ${err.message?.slice(0, 200)}`);
-  }
-
   console.log('Migrations complete.');
 }
 

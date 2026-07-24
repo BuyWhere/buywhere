@@ -211,7 +211,7 @@ export const CompareProductsGrid = memo(function CompareProductsGrid({
                 </th>
               ))}
               {selectCount < products.length && (
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                   +{products.length - selectCount} more
                 </th>
               )}
@@ -236,7 +236,7 @@ export const CompareProductsGrid = memo(function CompareProductsGrid({
                         />
                       </div>
                     ) : (
-                      <div className="flex h-24 w-24 items-center justify-center rounded-xl bg-slate-100 text-3xl text-slate-500">
+                      <div className="flex h-24 w-24 items-center justify-center rounded-xl bg-slate-100 text-3xl text-slate-400">
                         ◎
                       </div>
                     )}
@@ -290,7 +290,7 @@ export const CompareProductsGrid = memo(function CompareProductsGrid({
                         currency={product.currency}
                       />
                     ) : (
-                      <span className="text-sm text-slate-500">—</span>
+                      <span className="text-sm text-slate-400">—</span>
                     )}
                   </div>
                 </td>
@@ -327,7 +327,7 @@ export const CompareProductsGrid = memo(function CompareProductsGrid({
                         className="w-32"
                       />
                     ) : (
-                      <span className="text-xs text-slate-500">No history</span>
+                      <span className="text-xs text-slate-400">No history</span>
                     )}
                   </div>
                 </td>
@@ -400,7 +400,7 @@ export const CompareProductsGrid = memo(function CompareProductsGrid({
                           prices: [{ merchant: product.merchant, price: product.price !== null ? formatPrice(product.price, product.currency) : null, url: product.href }],
                           lowestPrice: product.price !== null ? formatPrice(product.price, product.currency) : null,
                         })}
-                        className={`text-xs ${isInCompare(product.id) ? 'text-amber-600' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`text-xs ${isInCompare(product.id) ? 'text-amber-600' : 'text-slate-400 hover:text-slate-600'}`}
                       >
                         {isInCompare(product.id) ? '✓ In compare' : '+ Add to compare'}
                       </button>

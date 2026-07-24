@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getSeoLandingFallbackProduct } from "@/lib/seo-landing-pages";
 
 interface ProductDetail {
   id: string | number;
@@ -17,22 +16,7 @@ interface ProductDetail {
   data_updated_at?: string;
 }
 
-function landingProductToDetail(product: ReturnType<typeof getSeoLandingFallbackProduct>): ProductDetail | null {
-  if (!product) return null;
-
-  return {
-    id: product.id,
-    name: product.name,
-    description: `${product.name} is available from ${product.merchant}. Compare current pricing and merchant options on BuyWhere.`,
-    price: product.price ?? undefined,
-    image_url: product.imageUrl,
-    category: product.category ?? undefined,
-    brand: product.brand ?? undefined,
-    merchant_name: product.merchant,
-  };
-}
-
-async function getProduct(productId: string, merchantSlug: string): Promise<ProductDetail | null> {
+async function getProduct(productId: string): Promise<ProductDetail | null> {
   const baseUrl =
     process.env.BUYWHERE_API_INTERNAL_URL ||
     process.env.NEXT_PUBLIC_BUYWHERE_API_URL ||
@@ -57,7 +41,7 @@ async function getProduct(productId: string, merchantSlug: string): Promise<Prod
     }
   } catch {}
 
-  return landingProductToDetail(getSeoLandingFallbackProduct("us", productId, merchantSlug));
+  return null;
 }
 
 interface PageProps {
@@ -67,7 +51,7 @@ interface PageProps {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug: merchantSlug, productId } = params;
 
-  const product = await getProduct(productId, merchantSlug);
+  const product = await getProduct(productId);
   if (!product) {
     return { title: "Product Not Found" };
   }
@@ -101,7 +85,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function USProductDetailPage({ params }: PageProps) {
   const { slug: merchantSlug, productId } = params;
 
-  const product = await getProduct(productId, merchantSlug);
+  const product = await getProduct(productId);
   if (!product) {
     notFound();
   }

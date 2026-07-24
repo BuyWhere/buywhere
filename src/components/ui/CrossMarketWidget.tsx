@@ -78,7 +78,7 @@ export function CrossMarketWidget({ productName, currentMarket = 'US' }: CrossMa
 
           if (!res.ok) return null;
           const data = await res.json();
-          return data.data?.[0] || data.items?.[0] || null;
+          return data.items?.[0] || null;
         });
 
         const results = await Promise.all(fetchPromises);

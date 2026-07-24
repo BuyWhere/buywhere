@@ -6,7 +6,7 @@ const DISCOVERY_CACHE_CONTROL = 'public, max-age=86400, s-maxage=86400';
 
 const AI_AGENT_DESCRIPTOR = {
   name: 'BuyWhere',
-  description: 'Agent-native product catalog API — 288M+ products, 158,000+ stores worldwide, location-aware deliver_to ranking',
+  description: 'Cross-border product price comparison API — SG, US, and SEA markets',
   version: '1.0',
   protocols: {
     mcp: 'https://api.buywhere.ai/mcp/sse',
@@ -41,7 +41,7 @@ const A2A_AGENT_CARD = {
     {
       id: 'product_search',
       name: 'Product Search',
-      description: 'Search 288M+ products worldwide by keyword, category, price range — pass deliver_to (user country) for deliverable-first ranking with availability labels',
+      description: 'Search Singapore product catalog by keyword, category, price range',
       tags: ['ecommerce', 'search', 'products'],
       examples: ['Find wireless earbuds under $200 in Singapore'],
     },
@@ -55,7 +55,7 @@ const A2A_AGENT_CARD = {
     {
       id: 'deal_finder',
       name: 'Deal Finder',
-      description: 'Find best deals and discounts across 158,000+ merchants worldwide',
+      description: 'Find best deals and discounts across Singapore merchants',
       tags: ['ecommerce', 'deals', 'discounts'],
       examples: ['Show me the best laptop deals today'],
     },
@@ -81,7 +81,7 @@ router.get('/ai-plugin.json', (_req: Request, res: Response) => {
     schema_version: 'v1',
     name_for_human: 'BuyWhere Product Catalog',
     name_for_model: 'buywhere_catalog',
-    description_for_human: 'Product catalog for AI agents: 288M+ products from 158,000+ storefronts worldwide, normalized into one schema. Location-aware: pass deliver_to and every result carries an availability label (local | ships_to_you | unavailable).',
+    description_for_human: 'Cross-border product catalog for AI agents. Search 1.5M+ products across Shopee, Lazada, Amazon, Walmart, and 20+ retailers in Singapore, US, and Southeast Asia.',
     description_for_model:
       'Use this plugin to search the BuyWhere product catalog for AI agents. Search by keyword, filter by merchant/retailer, price range, country, and currency (SGD, USD, VND, THB, MYR). Compare prices across merchants, find deals, and browse categories. Register for a free API key at https://api.buywhere.ai/v1/auth/register.',
     auth: {
@@ -103,7 +103,7 @@ router.get('/ai-plugin.json', (_req: Request, res: Response) => {
 router.get('/mcp.json', (_req: Request, res: Response) => {
   res.json({
     name: 'BuyWhere Product Catalog',
-    description: "Structured product catalog API for AI agents — 288M+ products, 158,000+ stores worldwide, deliver_to availability labels, MCP + REST + SDKs.",
+    description: "Structured product catalog and price comparison API for AI agents. Real-time pricing from Singapore's major e-commerce platforms.",
     version: '0.1.0',
     mcp_endpoint: 'https://api.buywhere.ai/mcp',
     documentation: 'https://api.buywhere.ai/docs/guides/mcp',

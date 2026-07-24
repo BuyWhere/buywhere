@@ -44,6 +44,9 @@ API_INGEST_URL = "https://api.buywhere.ai/v1/ingest"
 # Uses centralized proxy_config to ensure correct zone credentials
 BRIGHTDATA_PROXY = os.environ.get("BRIGHTDATA_RESIDENTIAL_PROXY") or proxy_url(Zone.RESIDENTIAL_PROXY1)
 
+# Proxy provider selection: "brightdata" (default tunnel proxy) or "scraperapi" (request router)
+PROXY_PROVIDER = os.environ.get("PROXY_PROVIDER", "brightdata").lower()
+
 # Carousell SG categories to scrape
 CATEGORIES = [
     {"slug": "electronics-phones", "name": "Mobile Phones"},
@@ -329,6 +332,7 @@ class CarousellSGScraper:
         categories: Optional[list[str]] = None,
         page_limit: int = 5,
         proxy: Optional[str] = None,
+        proxy_provider: Optional[str] = None,
     ) -> None:
         self.api_key = api_key
         self.api_base = api_base.rstrip("/")
@@ -339,6 +343,7 @@ class CarousellSGScraper:
         self.output_dir = output_dir
         self.categories = categories or [c["slug"] for c in CATEGORIES]
         self.page_limit = max(1, page_limit)
+        self.proxy_provider = (proxy_provider or PROXY_PROVIDER).lower()
         self.proxy = proxy or BRIGHTDATA_PROXY
         self.seen_skus: set[str] = set()
         self.seen_listing_ids: set[str] = set()
@@ -357,11 +362,13 @@ class CarousellSGScraper:
             max_connections=self.concurrency * 2,
             max_keepalive_connections=self.concurrency,
         )
-        proxy_url = self.proxy if self.proxy.lower() != "none" else None
+        # ScraperAPI is a request router, not a tunnel proxy
+        proxy_url = None if self.proxy_provider == "scraperapi" else (self.proxy if self.proxy.lower() != "none" else None)
         self.client = httpx.AsyncClient(
             http2=False, limits=limits, follow_redirects=True, proxies=proxy_url,
             headers={"User-Agent": USER_AGENT}, verify=False
         )
+        _log(f"proxy provider: {self.proxy_provider}")
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
@@ -374,11 +381,11 @@ class CarousellSGScraper:
                 return c["name"]
         return slug.replace("-", " ").title()
 
-    async def _fetch_page(self, url: str, attempt: int = 1) -> Optional[str]:
+    async def _fetch_page_brightdata(self, url: str) -> Optional[str]:
+        """Fetch via BrightData tunnel proxy (already configured on httpx client)."""
         assert self.client is not None
         for attempt in range(3):
             try:
-                # Direct request through Brightdata residential proxy
                 resp = await self.client.get(url, timeout=REQUEST_TIMEOUT_S)
                 if resp.status_code == 200 and len(resp.text) > 500:
                     return resp.text
@@ -387,6 +394,29 @@ class CarousellSGScraper:
                 _log(f"  fetch error {attempt + 1} for {url}: {e}")
             await asyncio.sleep(2 + attempt * 2)
         return None
+
+    async def _fetch_page_scraperapi(self, url: str) -> Optional[str]:
+        """Fetch via ScraperAPI request router."""
+        assert self.client is not None
+        api_key = os.environ.get("SCRAPERAPI_KEY", "")
+        if not api_key:
+            _log("  SCRAPERAPI_KEY not set; cannot use scraperapi provider")
+            return None
+        try:
+            kwargs = _fetch_with_scraperapi_kwargs(url, session=1)
+            kwargs["params"]["api_key"] = api_key
+            resp = await self.client.get(**kwargs)
+            if resp.status_code == 200 and len(resp.text) > 500:
+                return resp.text
+            _log(f"  scraperapi fetch status={resp.status_code} for {url}: {resp.text[:200]}")
+        except Exception as e:
+            _log(f"  scraperapi fetch error for {url}: {e}")
+        return None
+
+    async def _fetch_page(self, url: str, attempt: int = 1) -> Optional[str]:
+        if self.proxy_provider == "scraperapi":
+            return await self._fetch_page_scraperapi(url)
+        return await self._fetch_page_brightdata(url)
 
     async def _collect_listing_urls_from_page(self, html: str) -> list[str]:
         """Extract detail page paths from a listing card page."""
@@ -544,6 +574,7 @@ class CarousellSGScraper:
             "concurrency": self.concurrency,
             "batch_size": self.batch_size,
             "page_limit": self.page_limit,
+            "proxy_provider": self.proxy_provider,
             "output_file": str(self.output_file),
         }
         _write_summary(self.summary_file, summary)
@@ -563,6 +594,12 @@ async def main() -> None:
     parser.add_argument("--page-limit", type=int, default=5, help="Max pages per category")
     parser.add_argument("--categories", nargs="+", default=None, help="Category slugs to crawl")
     parser.add_argument("--proxy", default=None, help="Proxy URL (defaults to BRIGHTDATA_RESIDENTIAL_PROXY env var)")
+    parser.add_argument(
+        "--proxy-provider",
+        choices=["brightdata", "scraperapi"],
+        default=os.environ.get("PROXY_PROVIDER", "brightdata"),
+        help="Proxy provider to use (default: brightdata)",
+    )
     args = parser.parse_args()
 
     api_key = args.api_key or os.environ.get("BUYWHERE_API_KEY")
@@ -583,6 +620,7 @@ async def main() -> None:
         categories=args.categories,
         page_limit=args.page_limit,
         proxy=args.proxy,
+        proxy_provider=args.proxy_provider,
     ) as scraper:
         summary = await scraper.run()
     print(json.dumps(summary, indent=2))

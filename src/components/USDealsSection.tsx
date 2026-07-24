@@ -151,7 +151,7 @@ function DealOfTheDay({ deal }: { deal: DealProduct }) {
             </span>
             {deal.original_price && (
               <>
-                <span className="text-lg text-gray-500 line-through">
+                <span className="text-lg text-gray-400 line-through">
                   ${deal.original_price.toFixed(2)}
                 </span>
                 <span className="text-green-600 font-semibold">
@@ -217,11 +217,11 @@ function PriceDropFeed({ drops }: { drops: PriceDrop[] }) {
               {drop.title}
             </span>
             <span className="text-sm">
-              <span className="text-gray-500 line-through">${drop.oldPrice.toFixed(2)}</span>
+              <span className="text-gray-400 line-through">${drop.oldPrice.toFixed(2)}</span>
               <span className="text-green-600 font-bold mx-1">→${drop.newPrice.toFixed(2)}</span>
               <span className="text-green-600 text-xs">(-${(drop.oldPrice - drop.newPrice).toFixed(2)})</span>
             </span>
-            <span className="text-xs text-gray-600">{formatTimeAgo(drop.timestamp)}</span>
+            <span className="text-xs text-gray-400">{formatTimeAgo(drop.timestamp)}</span>
           </a>
         ))}
       </div>
@@ -292,13 +292,13 @@ function DealCard({ deal, priority = false }: { deal: DealProduct; priority?: bo
             ${deal.price.toFixed(2)}
           </span>
           {deal.original_price && deal.original_price > deal.price && (
-            <span className="text-sm text-gray-500 line-through">
+            <span className="text-sm text-gray-400 line-through">
               ${deal.original_price.toFixed(2)}
             </span>
           )}
         </div>
         {deal.ends_at && (
-          <p className="text-xs text-gray-600">
+          <p className="text-xs text-gray-400">
             Ends {new Date(deal.ends_at).toLocaleDateString()}
           </p>
         )}
@@ -427,7 +427,7 @@ export function USDealsSection() {
                 LIVE DEALS
               </span>
               {lastUpdated && (
-                <span className="text-xs text-gray-600">
+                <span className="text-xs text-gray-400">
                   Updated {lastUpdated.toLocaleTimeString()}
                 </span>
               )}
@@ -496,7 +496,7 @@ export function USDealsSection() {
         )}
 
         <div className="mt-8 text-center">
-          <p className="text-xs text-gray-600">
+          <p className="text-xs text-gray-400">
             Auto-refreshes every 15 minutes · Prices and availability may vary
           </p>
         </div>

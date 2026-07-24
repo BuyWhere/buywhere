@@ -301,7 +301,7 @@ export function getCompareSitemapEntries(): SitemapUrlEntry[] {
 }
 
 export async function getProductSitemapEntries(): Promise<SitemapUrlEntry[]> {
-  const products = await getUSProducts();
+  const products = await getUSProducts({ allowMockFallback: false });
 
   return products.map((product: USProductForSitemap) => ({
     url: toSiteUrl(`/products/us/${product.slug}`),
@@ -312,7 +312,7 @@ export async function getProductSitemapEntries(): Promise<SitemapUrlEntry[]> {
 }
 
 export async function getProductSitemapChunkCount(): Promise<number> {
-  const products = await getUSProducts();
+  const products = await getUSProducts({ allowMockFallback: false });
   return Math.max(1, Math.ceil(products.length / MAX_URLS_PER_SITEMAP));
 }
 
@@ -323,7 +323,7 @@ export async function getProductSitemapChunk(page: number): Promise<SitemapUrlEn
 }
 
 export async function getSGProductSitemapEntries(): Promise<SitemapUrlEntry[]> {
-  const products = await getSGProducts();
+  const products = await getSGProducts({ allowMockFallback: false });
 
   return products.map((product: SGProductForSitemap) => ({
     url: toSiteUrl(`/products/sg/${product.slug}`),
@@ -334,7 +334,7 @@ export async function getSGProductSitemapEntries(): Promise<SitemapUrlEntry[]> {
 }
 
 export async function getSGProductSitemapChunkCount(): Promise<number> {
-  const products = await getSGProducts();
+  const products = await getSGProducts({ allowMockFallback: false });
   return Math.max(1, Math.ceil(products.length / MAX_URLS_PER_SITEMAP));
 }
 

@@ -48,7 +48,7 @@ export function RelatedCategoryBlock({ slug }: { slug: string }) {
   return (
     <section className="border-t border-slate-200 bg-slate-50 py-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 mb-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 mb-5">
           Explore more
         </p>
 
@@ -71,7 +71,7 @@ export function RelatedCategoryBlock({ slug }: { slug: string }) {
 
           {/* Sibling marketing pages */}
           <div className="flex flex-col gap-2">
-            <p className="text-xs font-medium uppercase tracking-[0.15em] text-slate-600 mb-1">
+            <p className="text-xs font-medium uppercase tracking-[0.15em] text-slate-400 mb-1">
               Related guides
             </p>
             <div className="flex flex-wrap gap-2">

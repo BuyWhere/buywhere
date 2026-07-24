@@ -74,7 +74,7 @@ export default function NewsletterBanner() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={status === "loading" || status === "success"}
-              className="flex-1 sm:w-56 rounded-md border border-indigo-200 bg-white px-3 py-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+              className="flex-1 sm:w-56 rounded-md border border-indigo-200 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
             />
             <button
               type="submit"

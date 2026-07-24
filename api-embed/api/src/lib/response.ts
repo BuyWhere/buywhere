@@ -2,18 +2,6 @@ import { CanonicalProduct, ComparisonAttribute, SearchResponse } from '../types/
 import { resolvePrecomputedAffiliateUrl } from './affiliateWrapper';
 import { buildAffiliateRedirectUrl, buildClickUrl } from './instrumentation';
 
-// BUY-63045: in-memory cache of known-dead destination URLs, refreshed by linkHealthChecker.
-// Products whose destination_url is in this set are filtered from search results.
-const deadUrls = new Set<string>();
-
-export function markDeadUrl(url: string): void { deadUrls.add(url); }
-export function clearDeadUrl(url: string): void { deadUrls.delete(url); }
-export function isDeadUrl(url: string): boolean { return deadUrls.has(url); }
-export function filterDeadProducts(products: CanonicalProduct[]): CanonicalProduct[] {
-  if (deadUrls.size === 0) return products;
-  return products.filter((p) => !p.url || !deadUrls.has(p.url));
-}
-
 import { getCachedFxRates } from './fxRatesLoader';
 export const CURRENCY_RATES: Record<string, number> = {
   USD: 1, SGD: 0.74, VND: 0.000039, THB: 0.028, MYR: 0.22, GBP: 0.79,
@@ -112,10 +100,8 @@ export function buildSearchResponse(
   responseTimeMs: number,
   cached: boolean,
 ): SearchResponse {
-  // BUY-63045: filter out products whose destination URLs are known-dead
-  const filtered = filterDeadProducts(products);
   return {
-    results: filtered,
+    results: products,
     total,
     page: { limit, offset },
     response_time_ms: responseTimeMs,

@@ -40,7 +40,7 @@ export function PopularComparisons({ variant = "hero" }: PopularComparisonsProps
     return (
       <section className="border-t border-gray-100 bg-white py-12">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 mb-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 mb-5">
             Popular comparisons
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">

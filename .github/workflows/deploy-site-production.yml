@@ -20,6 +20,8 @@ name: Deploy site to production
 # Required secret: RAILWAY_TOKEN (same project token used by deploy-railway.yml).
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       skip_e2e:

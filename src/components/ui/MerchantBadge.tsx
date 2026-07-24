@@ -21,7 +21,7 @@ const MERCHANT_CONFIG: Record<string, MerchantConfig> = {
 };
 
 export function getMerchantConfig(merchant: string): MerchantConfig {
-  return MERCHANT_CONFIG[merchant] || { icon: '🏬', bgColor: 'bg-gray-100', textColor: 'text-gray-700', verified: false };
+  return MERCHANT_CONFIG[merchant] || { icon: '🏬', bgColor: 'bg-gray-100', textColor: 'text-gray-600', verified: false };
 }
 
 export interface MerchantBadgeProps {
@@ -41,7 +41,7 @@ export function MerchantBadge({ merchant, className = '', showVerified = true }:
       aria-label={`${merchant}${isVerified ? ' - Verified retailer' : ''}`}
     >
       <span className="text-sm flex-shrink-0">{config.icon}</span>
-      <span className={`text-xs font-medium ${config.textColor || 'text-gray-700'}`}>
+      <span className={`text-xs font-medium ${config.textColor || 'text-gray-600'}`}>
         {merchant}
       </span>
       {isVerified && (

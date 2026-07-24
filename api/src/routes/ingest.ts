@@ -369,19 +369,6 @@ function buildCategoryPathLiteral(paths?: string[]): string {
 const HEALTH_CACHE_TTL_MS = parseInt(process.env.HEALTH_CACHE_TTL_MS || '30000', 10);
 let healthCache: { data: object; ts: number } | null = null;
 
-async function cleanupZombieIngestionRuns(): Promise<number> {
-  const result = await db.query(`SET statement_timeout = 3000`).then(() => db.query(
-    `UPDATE ingestion_runs
-        SET status = 'failed',
-            error_message = 'Auto-cleaned: run stuck in running status for >1h (ingest health cleanup)',
-            finished_at = started_at + INTERVAL '1 hour'
-      WHERE status = 'running' AND started_at < NOW() - INTERVAL '1 hour'`
-  )).finally(() => {
-    db.query(`SET statement_timeout = 30000`).catch(() => {});
-  });
-  return result.rowCount || 0;
-}
-
 // GET /v1/ingest/health — ingestion pipeline health check.
 //
 // Auth: requires a valid API key via Authorization: Bearer or X-API-Key header.
@@ -456,9 +443,7 @@ router.get('/health', async (req: Request, res: Response) => {
         recentProducts24h = parseInt(freshnessResult.rows[0]?.cnt ?? '0', 10);
       } catch { /* skip on timeout */ }
 
-      // Zombie runs: stuck in 'running' > 1 hour. Clean first so this endpoint
-      // reports the effective post-cleanup state, matching the cron healthcheck.
-      const zombieRunsCleaned = await cleanupZombieIngestionRuns();
+      // Zombie runs: stuck in 'running' > 1 hour
       const zombieResult = await db.query(`SET statement_timeout = 3000`).then(() => db.query(
         `SELECT COUNT(*) AS cnt FROM ingestion_runs
           WHERE status = 'running' AND started_at < NOW() - INTERVAL '1 hour'`
@@ -485,7 +470,6 @@ router.get('/health', async (req: Request, res: Response) => {
         sources,
         recent_products_24h: recentProducts24h,
         zombie_runs: zombieCount,
-        zombie_runs_cleaned: zombieRunsCleaned,
         ts: now.toISOString(),
         internal: isInternal,
       };
@@ -591,30 +575,15 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const conflictCols = (schemaGuard.conflictColumns && schemaGuard.conflictColumns.length > 0)
-      ? schemaGuard.conflictColumns
-      : (['sku', 'source', 'country_code'] as ('sku' | 'source' | 'country_code')[]);
-
-    const productKey = (p: Pick<IngestProductItem, 'sku' | 'country_code'>) => {
-      const parts = [p.sku, source];
-      if (conflictCols.includes('country_code')) parts.push(p.country_code || '');
-      return parts.join('\u0000');
-    };
-
-    const rowKey = (r: { sku: string; source: string; country_code?: string | null }) => {
-      const parts = [r.sku, r.source];
-      if (conflictCols.includes('country_code')) parts.push(r.country_code || '');
-      return parts.join('\u0000');
-    };
-
-    // Deduplicate by the active products conflict target. PostgreSQL rejects
-    // ON CONFLICT DO UPDATE when the same row would be affected twice in one
-    // command, and this catalog can use either a 2-column or 3-column target.
+    // Deduplicate by (sku, source, country_code) — PostgreSQL rejects ON CONFLICT DO UPDATE
+    // when the same row would be affected twice in a single command. The unique constraint
+    // on products is (sku, source, country_code) (see products_partitioned_sku_source_unique),
+    // so the in-batch dedup key must match.
     {
       const seen = new Set<string>();
       const unique: IngestProductItem[] = [];
       for (const p of validProducts) {
-        const key = productKey(p);
+        const key = `${p.sku} ${source} ${p.country_code || ''}`;
         if (seen.has(key)) continue;
         seen.add(key);
         unique.push(p);
@@ -623,7 +592,7 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
         const dupes = validProducts.length - unique.length;
         validProducts.length = 0;
         validProducts.push(...unique);
-        console.warn(`[ingest] Deduped ${dupes} duplicate (${conflictCols.join(',')}) tuple(s) from ${source} batch`);
+        console.warn(`[ingest] Deduped ${dupes} duplicate (sku,source,country_code) tuple(s) from ${source} batch`);
       }
     }
 
@@ -641,29 +610,23 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
       console.warn('[ingest] Failed to create ingestion run record:', (e as Error).message);
     }
 
-    // Match the actual conflict target from the schema guard. The production
-    // catalog may use either (sku, source) or (sku, source, country_code); using
-    // the wrong precheck key over-reports updates as new rows in ingestion_runs.
+    // The unique constraint is (sku, source, country_code), so the pre-existing check
+    // must match — a (sku, source) hit in another country is a different row.
     const existingSkus = new Set<string>();
     const skuToId = new Map<string, number>();
     if (validProducts.length > 0) {
-      const tupleColumns = conflictCols.join(', ');
-      const tuples = validProducts.map((p) => {
-        const valuesForKey = conflictCols.map((col) => {
-          const value = col === 'sku' ? p.sku : col === 'source' ? source : p.country_code || '';
-          return `'${value.replace(/'/g, "''")}'`;
-        });
-        return `(${valuesForKey.join(',')})`;
-      }).join(',');
+      const tuples = validProducts
+        .map((p) => `('${p.sku.replace(/'/g, "''")}','${source.replace(/'/g, "''")}','${(p.country_code || '').replace(/'/g, "''")}')`)
+        .join(',');
       const existingResult = await withDbRetry(
         () => db.query(
           `SELECT id, sku, source, country_code FROM products
-             WHERE (${tupleColumns}) IN (${tuples})`,
+             WHERE (sku, source, country_code) IN (${tuples})`,
         ),
-        `select existing SKUs (${tupleColumns})`
+        'select existing SKUs (sku, source, country_code)'
       );
       for (const r of existingResult.rows as { id: number; sku: string; source: string; country_code: string }[]) {
-        const key = rowKey(r);
+        const key = `${r.sku} ${r.source} ${r.country_code}`;
         existingSkus.add(key);
         skuToId.set(key, r.id);
       }
@@ -720,6 +683,9 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
       // ['sku', 'source'] (2-col). We previously hardcoded 3-col, which broke ingest
       // when the DB only had the 2-col index — the guard would pass but the INSERT
       // would fail with "no unique or exclusion constraint matching the ON CONFLICT".
+      const conflictCols = (schemaGuard.conflictColumns && schemaGuard.conflictColumns.length > 0)
+        ? schemaGuard.conflictColumns
+        : (['sku', 'source', 'country_code'] as ('sku' | 'source' | 'country_code')[]);
       const conflictTarget = `(${conflictCols.join(', ')})`;
 
       await withDbRetry(
@@ -750,7 +716,7 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
       );
 
       for (const p of validProducts) {
-        const key = productKey(p);
+        const key = `${p.sku} ${source} ${p.country_code || ''}`;
         if (existingSkus.has(key)) {
           rowsUpdated++;
         } else {
@@ -790,22 +756,19 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
     const finalResult = await withDbRetry(
       () => db.query(
       `SELECT id, sku, source, country_code FROM products
-         WHERE (${conflictCols.join(', ')}) IN (${validProducts
-           .map((p) => `(${conflictCols.map((col) => {
-             const value = col === 'sku' ? p.sku : col === 'source' ? source : p.country_code || '';
-             return `'${value.replace(/'/g, "''")}'`;
-           }).join(',')})`)
+         WHERE (sku, source, country_code) IN (${validProducts
+           .map((p) => `('${p.sku.replace(/'/g, "''")}','${source.replace(/'/g, "''")}','${(p.country_code || '').replace(/'/g, "''")}')`)
            .join(',')})`,
       ),
       'select final product ids'
     );
     // skuToId was populated by the pre-existing check above; refresh with final IDs
     for (const r of finalResult.rows as { id: number; sku: string; source: string; country_code: string }[]) {
-      skuToId.set(rowKey(r), r.id);
+      skuToId.set(`${r.sku} ${r.source} ${r.country_code}`, r.id);
     }
 
     for (const p of validProducts) {
-      const productId = skuToId.get(productKey(p));
+      const productId = skuToId.get(`${p.sku} ${source} ${p.country_code || ''}`);
       if (productId) {
         const base = priceHistoryValues.length + 1;
         priceHistoryValues.push(productId, p.price, p.currency || 'SGD', source);

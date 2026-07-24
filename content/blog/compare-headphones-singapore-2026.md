@@ -1,10 +1,10 @@
 ---
 slug: "compare-headphones-singapore-2026"
-title: "Sony WH-1000XM5 Price Singapore (2026) — S$349 Cheapest"
-description: "Cheapest Sony WH-1000XM5 in Singapore is S$349 on Shopee SG; Lazada S$359, Amazon S$369. Compare 2026 prices."
+title: "Best Wireless Headphones in Singapore 2026 — Sony, Apple, Bose Price Comparison"
+description: "Compare Sony WH-1000XM5, Apple AirPods Max, Bose QuietComfort Ultra, Samsung Galaxy Buds3 Pro, and Sennheiser Momentum 4 prices across all major Singapore merchants — real prices for 2026."
 author: "BuyWhere Team"
 publishedAt: "2026-06-19"
-lastUpdatedAt: "2026-07-10"
+lastUpdatedAt: "2026-06-13"
 tags: ["headphones", "singapore", "pricing", "comparison", "audio"]
 jsonLd: >
   {
@@ -12,10 +12,10 @@ jsonLd: >
     "@graph": [
       {
         "@type": "Article",
-        "headline": "Sony WH-1000XM5 Price Singapore (2026) — From S$349",
-        "description": "Cheapest Sony WH-1000XM5 in Singapore is S$349 on Shopee SG; Lazada S$359, Amazon S$369. Compare 2026 prices.",
+        "headline": "Best Wireless Headphones in Singapore 2026 — Sony, Apple, Bose Price Comparison",
+        "description": "Compare Sony WH-1000XM5, Apple AirPods Max, Bose QuietComfort Ultra, Samsung Galaxy Buds3 Pro, and Sennheiser Momentum 4 prices across all major Singapore merchants — real prices for 2026.",
         "datePublished": "2026-06-19",
-        "dateModified": "2026-07-10",
+        "dateModified": "2026-06-19",
         "author": { "@type": "Organization", "name": "BuyWhere Team", "url": "https://buywhere.ai" },
         "publisher": {
           "@type": "Organization",
@@ -78,7 +78,7 @@ jsonLd: >
   }
 ---
 
-# Sony WH-1000XM5 Price Singapore (2026) — From S$349
+# Best Wireless Headphones in Singapore 2026 — Sony, Apple, Bose Price Comparison
 
 The top wireless headphones in Singapore — Sony WH-1000XM5, Apple AirPods Max, and Bose QuietComfort Ultra — are available from 15+ merchants with significant price variation. BuyWhere tracks real-time pricing across all Singapore merchants, showing price differences of SGD 50–150 between the cheapest and most expensive retailers for the same product.
 

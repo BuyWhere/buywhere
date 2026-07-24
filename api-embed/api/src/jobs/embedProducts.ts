@@ -199,25 +199,36 @@ export async function runEmbedBatch(
   // "highest-value first". After 18 days of zero embeddings this is a
   // defensible recovery order.
   const overscan = Math.max(batchLimit * 2, 64);
+  const { rows: candidateIds } = await sourceDb.query<{ id: string }>(
+    `WITH active_ids AS (
+       SELECT id
+       FROM products
+       WHERE is_active = true
+         AND price IS NOT NULL
+       ORDER BY updated_at DESC
+       LIMIT $1
+     )
+     SELECT id FROM active_ids`,
+    [overscan]
+  );
+
+  if (candidateIds.length === 0) {
+    console.log('[embed] Nothing to embed this run');
+    return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0 };
+  }
+
+  const ids = candidateIds.map(c => c.id);
   const { rows: candidates } = await sourceDb.query<{
     id: string;
     title: string;
     description: string | null;
     price: number | null;
   }>(
-    `SELECT id, title, description, price
-     FROM products
-     WHERE is_active = true
-       AND price IS NOT NULL
-     ORDER BY updated_at DESC
-     LIMIT $1`,
-    [overscan]
+    `SELECT p.id, p.title, p.description, p.price
+     FROM products p
+     WHERE p.id = ANY($1::text[])`,
+    [ids]
   );
-
-  if (candidates.length === 0) {
-    console.log('[embed] Nothing to embed this run');
-    return { processed: 0, skipped, errors: 0, duration_ms: Date.now() - t0 };
-  }
 
   // Hash-gate filter (mirrors the original LEFT JOIN semantics):
   //   - product not in vectorDb           → embed

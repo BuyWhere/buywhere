@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getSeoLandingFallbackProduct, type LandingProduct } from "@/lib/seo-landing-pages";
 
 // Static us/sg directories take priority over this [region] catch-all.
 // This page handles product detail pages for all other regions: my, th, id, ph, vn.
@@ -25,19 +24,6 @@ interface ProductDetail {
   merchant_id?: string;
   merchant_name?: string;
   data_updated_at?: string;
-}
-
-function landingProductToDetail(product: LandingProduct): ProductDetail {
-  return {
-    id: product.id,
-    name: product.name,
-    description: `${product.name} is available from ${product.merchant}. Compare current pricing and merchant options on BuyWhere.`,
-    price: product.price ?? undefined,
-    image_url: product.imageUrl,
-    category: product.category ?? undefined,
-    brand: product.brand ?? undefined,
-    merchant_name: product.merchant,
-  };
 }
 
 async function getProduct(productId: string): Promise<ProductDetail | null> {
@@ -80,13 +66,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return { title: "Product Not Found" };
   }
 
-  const apiProduct = await getProduct(productId);
-  const fallbackProduct = apiProduct ? null : getSeoLandingFallbackProduct(region, productId, merchantSlug);
-  if (!apiProduct && !fallbackProduct) {
+  const product = await getProduct(productId);
+  if (!product) {
     return { title: "Product Not Found" };
   }
 
-  const product = apiProduct ?? landingProductToDetail(fallbackProduct!);
   const productName = product.name ?? product.title ?? `Product ${productId}`;
   const merchantName =
     product.merchant_name ??
@@ -117,11 +101,9 @@ export default async function RegionProductDetailPage({ params }: PageProps) {
   const regionConfig = REGION_CONFIG[region];
   if (!regionConfig) notFound();
 
-  const apiProduct = await getProduct(productId);
-  const fallbackProduct = apiProduct ? null : getSeoLandingFallbackProduct(region, productId, merchantSlug);
-  if (!apiProduct && !fallbackProduct) notFound();
+  const product = await getProduct(productId);
+  if (!product) notFound();
 
-  const product = apiProduct ?? landingProductToDetail(fallbackProduct!);
   const productName = product.name ?? product.title ?? `Product ${productId}`;
   const merchantName =
     product.merchant_name ??

@@ -110,8 +110,8 @@ export function queryLogMiddleware(endpoint: string) {
         `INSERT INTO query_log
           (api_key_id, agent_name, agent_framework, sdk_language, is_agent,
            endpoint, query_text, result_count, response_time_ms,
-           status_code, ip_address, user_agent, cache_hit)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+           status_code, ip_address, user_agent)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
         [
           apiKeyRecord?.id ?? null,
           apiKeyRecord?.agentName ?? null,
@@ -125,7 +125,6 @@ export function queryLogMiddleware(endpoint: string) {
           res.statusCode,
           req.ip || null,
           (req.headers['user-agent'] || '').slice(0, 500),
-          res.locals.cacheHit ?? null,
         ]
       ).catch(() => {
         // Fire-and-forget — don't crash on log failure

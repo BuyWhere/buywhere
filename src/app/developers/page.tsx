@@ -10,7 +10,7 @@ import { buildPageMetadata } from "@/lib/page-metadata";
 export const metadata = buildPageMetadata({
   title: "Developer Portal — BuyWhere MCP & API for AI Agents",
   description:
-    "BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff spanning 158,000+ storefronts worldwide, with deliver_to ranking so agents only surface products their user can receive.",
+    "BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff starting in Singapore, expanding across Southeast Asia.",
   path: "/developers",
 });
 
@@ -20,14 +20,14 @@ const mcpConfig = `{
       "command": "npx",
       "args": ["-y", "@buywhere/mcp-server"],
       "env": {
-        "BUYWHERE_API_KEY": "bw_live_your_key_here"
+        "BUYWHERE_API_KEY": "bw_beta_your_key_here"
       }
     }
   }
 }`;
 
 const curlExample = `curl -sS "https://api.buywhere.ai/v1/products/search?q=wireless+headphones&limit=5" \\
-  -H "Authorization: Bearer bw_live_your_key_here"`;
+  -H "Authorization: Bearer bw_beta_your_key_here"`;
 
 const organizationSchema = {
   "@context": "https://schema.org",
@@ -206,7 +206,7 @@ export default function DevelopersPage() {
             Launch your shopping agent with one clear setup path.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-slate-300">
-            BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff spanning 158,000+ storefronts worldwide, with deliver_to ranking so agents only surface products their user can receive.
+            BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff starting in Singapore, expanding across Southeast Asia.
           </p>
           <p className="mt-4 max-w-2xl text-base leading-7 text-slate-400">
             Start with one API request, then add the published MCP package when you want BuyWhere tools inside Claude Desktop, Cursor, or another MCP client.
@@ -232,9 +232,9 @@ export default function DevelopersPage() {
       <section className="bg-indigo-950 text-indigo-100 py-4">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 text-sm font-medium text-center">
-            <span>288M+ products</span>
+            <span>3.7M+ products</span>
             <span className="hidden sm:block text-indigo-600">·</span>
-            <span>158,000+ stores</span>
+            <span>7 SG retailers</span>
             <span className="hidden sm:block text-indigo-600">·</span>
             <span>Real-time pricing</span>
           </div>

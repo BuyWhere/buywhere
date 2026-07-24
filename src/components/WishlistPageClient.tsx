@@ -76,7 +76,7 @@ function WishlistCard({ item, onRemove }: { item: WishlistProduct; onRemove: (id
       <div className="flex flex-1 flex-col p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">{item.brand || item.merchant}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{item.brand || item.merchant}</p>
             <h2 className="mt-2 text-lg font-semibold leading-tight text-slate-900">{item.name}</h2>
           </div>
           <button
@@ -90,11 +90,11 @@ function WishlistCard({ item, onRemove }: { item: WishlistProduct; onRemove: (id
         <div className="mt-5 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="flex items-end justify-between gap-3">
             <div>
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-600">Current price</p>
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Current price</p>
               <p className="text-2xl font-semibold text-slate-900">{formatPrice(item.currentPrice)}</p>
             </div>
             <div className="text-right">
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-600">Saved at</p>
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Saved at</p>
               <p className="text-sm font-semibold text-slate-600">{formatPrice(item.priceAtSave)}</p>
             </div>
           </div>

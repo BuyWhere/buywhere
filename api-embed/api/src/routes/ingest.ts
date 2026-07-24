@@ -369,19 +369,6 @@ function buildCategoryPathLiteral(paths?: string[]): string {
 const HEALTH_CACHE_TTL_MS = parseInt(process.env.HEALTH_CACHE_TTL_MS || '30000', 10);
 let healthCache: { data: object; ts: number } | null = null;
 
-async function cleanupZombieIngestionRuns(): Promise<number> {
-  const result = await db.query(`SET statement_timeout = 3000`).then(() => db.query(
-    `UPDATE ingestion_runs
-        SET status = 'failed',
-            error_message = 'Auto-cleaned: run stuck in running status for >1h (ingest health cleanup)',
-            finished_at = started_at + INTERVAL '1 hour'
-      WHERE status = 'running' AND started_at < NOW() - INTERVAL '1 hour'`
-  )).finally(() => {
-    db.query(`SET statement_timeout = 30000`).catch(() => {});
-  });
-  return result.rowCount || 0;
-}
-
 // GET /v1/ingest/health — ingestion pipeline health check.
 //
 // Auth: requires a valid API key via Authorization: Bearer or X-API-Key header.
@@ -456,9 +443,7 @@ router.get('/health', async (req: Request, res: Response) => {
         recentProducts24h = parseInt(freshnessResult.rows[0]?.cnt ?? '0', 10);
       } catch { /* skip on timeout */ }
 
-      // Zombie runs: stuck in 'running' > 1 hour. Clean first so this endpoint
-      // reports the effective post-cleanup state, matching the cron healthcheck.
-      const zombieRunsCleaned = await cleanupZombieIngestionRuns();
+      // Zombie runs: stuck in 'running' > 1 hour
       const zombieResult = await db.query(`SET statement_timeout = 3000`).then(() => db.query(
         `SELECT COUNT(*) AS cnt FROM ingestion_runs
           WHERE status = 'running' AND started_at < NOW() - INTERVAL '1 hour'`
@@ -485,7 +470,6 @@ router.get('/health', async (req: Request, res: Response) => {
         sources,
         recent_products_24h: recentProducts24h,
         zombie_runs: zombieCount,
-        zombie_runs_cleaned: zombieRunsCleaned,
         ts: now.toISOString(),
         internal: isInternal,
       };

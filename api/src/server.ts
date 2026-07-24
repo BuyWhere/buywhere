@@ -96,7 +96,7 @@ export function createApp() {
           dbHealthColumns = [];
         }
       }
-      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.set('Cache-Control', 'public, max-age=10');
       res.json({ status: 'ok', columns: dbHealthColumns || [], avg_rating_test: 'pass', ts: new Date().toISOString() });
     } catch (err: unknown) {
       res.status(500).json({ status: 'error', error: (err as Error).message || String(err), ts: new Date().toISOString() });

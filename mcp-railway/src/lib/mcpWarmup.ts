@@ -89,12 +89,11 @@ export async function warmupMcpCaches(): Promise<void> {
     } else if (colInfo.rows[0].is_generated === 'NEVER') {
       console.warn('[mcp-warmup] plain discount_pct column detected; skipping destructive startup DDL. Run a migration off the request service.');
     }
-    // BUY-64112: keep this shape aligned with api/src/migrate.ts so the strict
-    // discount_pct deals query can use the same index after startup warmup.
+    // BUY-58273: correct shape — must match the production index definition exactly.
     await queryWithWarmupBudget(client, `
       CREATE INDEX IF NOT EXISTS idx_products_deals_discount_pct
-        ON products (currency, discount_pct DESC)
-        WHERE discount_pct IS NOT NULL AND price > 0
+        ON products (discount_pct)
+        WHERE discount_pct > 0
     `);
     // BUY-56635: country-aware deals index. The plain (currency, discount_pct DESC)
     // index is not used when the MCP deals query also filters by country_code;

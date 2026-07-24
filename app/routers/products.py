@@ -1585,12 +1585,18 @@ async def get_product_deals(
     request.state.api_key = api_key
 
     discount_threshold = min_discount_pct if min_discount_pct is not None else 10.0
+    threshold = 1.0 - (discount_threshold / 100.0)
 
     base_query = (
         select(Product)
         .where(Product.is_active == True)
-        .where(text("discount_pct IS NOT NULL"))
-        .where(text("discount_pct >= :min_pct").bindparams(min_pct=discount_threshold))
+        .where(text("metadata->>'original_price' IS NOT NULL"))
+        .where(text("CAST(metadata->>'original_price' AS NUMERIC) > 0"))
+        .where(
+            text(
+                "price < :threshold * CAST(metadata->>'original_price' AS NUMERIC)"
+            ).bindparams(threshold=threshold)
+        )
     )
 
     if category:
@@ -1599,14 +1605,28 @@ async def get_product_deals(
     if platform:
         base_query = base_query.where(Product.source == platform)
 
-    # Sort by discount depth (largest discount first)
-    base_query = base_query.order_by(text("discount_pct DESC"))
+    base_query = base_query.order_by(
+        text(
+            "(CAST(metadata->>'original_price' AS NUMERIC) - price) "
+            "/ NULLIF(CAST(metadata->>'original_price' AS NUMERIC), 0) DESC"
+        )
+    )
 
     count_q = select(func.count()).select_from(base_query.subquery())
     total = (await db.execute(count_q)).scalar_one()
 
     result = await db.execute(base_query.limit(limit).offset(offset))
     products = result.scalars().all()
+
+    product_ids = [p.id for p in products]
+    click_counts = {}
+    if product_ids:
+        click_result = await db.execute(
+            select(Click.product_id, func.count(Click.id))
+            .where(Click.product_id.in_(product_ids))
+            .group_by(Click.product_id)
+        )
+        click_counts = {row[0]: row[1] for row in click_result.all()}
 
     from app.routers.deals import _to_deal_item
     return DealsResponseBase(

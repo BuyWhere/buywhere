@@ -10,27 +10,10 @@ const countryOptions = [
   { value: 'sg', label: 'Singapore' },
 ] as const;
 
-type CountryValue = (typeof countryOptions)[number]['value'];
-
-function inferCountryFromQuery(query: string): CountryValue | null {
-  const normalizedQuery = query.toLowerCase();
-
-  if (/\b(singapore|sg)\b/.test(normalizedQuery)) {
-    return 'sg';
-  }
-
-  if (/\b(us|usa|united states|america)\b/.test(normalizedQuery)) {
-    return 'us';
-  }
-
-  return null;
-}
-
 export function HomeProductSearch() {
   const router = useRouter();
   const [query, setQuery] = useState('');
-  const [country, setCountry] = useState<CountryValue>('us');
-  const [countryTouched, setCountryTouched] = useState(false);
+  const [country, setCountry] = useState<(typeof countryOptions)[number]['value']>('us');
   const [error, setError] = useState('');
   const errorId = useId();
 
@@ -43,8 +26,7 @@ export function HomeProductSearch() {
     }
 
     setError('');
-    const searchCountry = countryTouched ? country : inferCountryFromQuery(nextQuery) ?? country;
-    router.push(`/search?q=${encodeURIComponent(nextQuery)}&country=${searchCountry}`);
+    router.push(`/search?q=${encodeURIComponent(nextQuery)}&country=${country}`);
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -56,11 +38,11 @@ export function HomeProductSearch() {
     <div className="max-w-3xl mx-auto mb-10">
       <form
         onSubmit={handleSubmit}
-        className="grid gap-3"
+        className="flex flex-col gap-3"
         noValidate
       >
-        <div className="flex flex-col gap-3 md:flex-row md:items-stretch md:gap-3">
-          <div className="relative min-w-0 flex-1">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
+          <div className="relative">
             <Search
               className="pointer-events-none absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-indigo-100"
               aria-hidden="true"
@@ -74,7 +56,7 @@ export function HomeProductSearch() {
                   setError('');
                 }
               }}
-              placeholder="Search products..."
+              placeholder="Search products (e.g. wireless headphones)..."
               className="w-full rounded-xl border-2 border-white/20 bg-white/10 py-5 pl-14 pr-4 text-lg text-white placeholder-indigo-200 transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20"
               aria-label="Search products"
               aria-invalid={Boolean(error)}
@@ -85,11 +67,8 @@ export function HomeProductSearch() {
 
           <select
             value={country}
-            onChange={(event) => {
-              setCountry(event.target.value as CountryValue);
-              setCountryTouched(true);
-            }}
-            className="h-[66px] w-full shrink-0 rounded-xl border-2 border-white/20 bg-white/10 px-4 text-base font-medium text-white transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20 md:w-36"
+            onChange={(event) => setCountry(event.target.value as (typeof countryOptions)[number]['value'])}
+            className="h-[66px] rounded-xl border-2 border-white/20 bg-white/10 px-4 text-base font-medium text-white transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20"
             aria-label="Search country"
           >
             {countryOptions.map((option) => (
@@ -98,10 +77,12 @@ export function HomeProductSearch() {
               </option>
             ))}
           </select>
+        </div>
 
+        <div className="flex justify-center">
           <button
             type="submit"
-            className="inline-flex h-[66px] shrink-0 items-center justify-center whitespace-nowrap rounded-xl bg-white px-5 text-base font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 md:w-auto md:min-w-[10rem]"
+            className="inline-flex h-11 items-center justify-center rounded-lg bg-white px-5 text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700"
           >
             Search catalog
           </button>
