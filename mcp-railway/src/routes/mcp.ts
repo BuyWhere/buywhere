@@ -593,6 +593,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     `is_active = true`,
   ];
   if (useDiscountCol) {
+    conditions.push(`discount_pct IS NOT NULL`);
     conditions.push(`discount_pct >= $2`);
   } else {
     // Guard: only consider rows where original_price is a valid numeric string.

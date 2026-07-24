@@ -1564,6 +1564,7 @@ router.get(
     useDiscountCol = (router as any)._hasDiscountPct;
 
     if (useDiscountCol) {
+      dealConditions.push(`discount_pct IS NOT NULL`);
       dealConditions.push(`discount_pct >= $${dealIdx}`);
     } else {
       dealConditions.push(`(metadata->>'original_price')::numeric > price`);
