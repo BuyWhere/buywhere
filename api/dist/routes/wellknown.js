@@ -7,7 +7,7 @@ const router = (0, express_1.Router)();
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=86400, s-maxage=86400';
 const AI_AGENT_DESCRIPTOR = {
     name: 'BuyWhere',
-    description: 'Cross-border product price comparison API — SG, US, and SEA markets',
+    description: 'Agent-native product catalog API — 288M+ products, 158,000+ stores worldwide, location-aware deliver_to ranking',
     version: '1.0',
     protocols: {
         mcp: 'https://api.buywhere.ai/mcp/sse',
@@ -41,7 +41,7 @@ const A2A_AGENT_CARD = {
         {
             id: 'product_search',
             name: 'Product Search',
-            description: 'Search Singapore product catalog by keyword, category, price range',
+            description: 'Search 288M+ products worldwide by keyword, category, price range — pass deliver_to (user country) for deliverable-first ranking with availability labels',
             tags: ['ecommerce', 'search', 'products'],
             examples: ['Find wireless earbuds under $200 in Singapore'],
         },
@@ -55,7 +55,7 @@ const A2A_AGENT_CARD = {
         {
             id: 'deal_finder',
             name: 'Deal Finder',
-            description: 'Find best deals and discounts across Singapore merchants',
+            description: 'Find best deals and discounts across 158,000+ merchants worldwide',
             tags: ['ecommerce', 'deals', 'discounts'],
             examples: ['Show me the best laptop deals today'],
         },
@@ -80,7 +80,7 @@ router.get('/ai-plugin.json', (_req, res) => {
         schema_version: 'v1',
         name_for_human: 'BuyWhere Product Catalog',
         name_for_model: 'buywhere_catalog',
-        description_for_human: 'Cross-border product catalog for AI agents. Search 1.5M+ products across Shopee, Lazada, Amazon, Walmart, and 20+ retailers in Singapore, US, and Southeast Asia.',
+        description_for_human: 'Product catalog for AI agents: 288M+ products from 158,000+ storefronts worldwide, normalized into one schema. Location-aware: pass deliver_to and every result carries an availability label (local | ships_to_you | unavailable).',
         description_for_model: 'Use this plugin to search the BuyWhere product catalog for AI agents. Search by keyword, filter by merchant/retailer, price range, country, and currency (SGD, USD, VND, THB, MYR). Compare prices across merchants, find deals, and browse categories. Register for a free API key at https://api.buywhere.ai/v1/auth/register.',
         auth: {
             type: 'user_http',
@@ -100,11 +100,11 @@ router.get('/ai-plugin.json', (_req, res) => {
 router.get('/mcp.json', (_req, res) => {
     res.json({
         name: 'BuyWhere Product Catalog',
-        description: "Structured product catalog and price comparison API for AI agents. Real-time pricing from Singapore's major e-commerce platforms.",
+        description: "Structured product catalog API for AI agents — 288M+ products, 158,000+ stores worldwide, deliver_to availability labels, MCP + REST + SDKs.",
         version: '0.1.0',
         mcp_endpoint: 'https://api.buywhere.ai/mcp',
         documentation: 'https://api.buywhere.ai/docs/guides/mcp',
-        capabilities: ['search_products', 'get_product', 'compare_products', 'get_deals', 'list_categories', 'find_best_price', 'resolve_product_query'],
+        capabilities: ['search_products', 'get_product', 'compare_products', 'get_deals', 'list_categories', 'find_best_price'],
         coverage: 'Singapore',
         data_freshness: 'real-time',
     });
@@ -295,6 +295,24 @@ function sendOpenApiSpec(res) {
                     },
                 },
             },
+            '/compare/{category}': {
+                get: {
+                    summary: 'Get category-scoped comparison payload',
+                    operationId: 'getCategoryComparison',
+                    parameters: [
+                        { name: 'category', in: 'path', required: true, schema: { type: 'string', enum: ['electronics', 'fashion', 'home-living', 'beauty', 'sports-outdoors', 'health-wellness', 'toys-games', 'food-beverages', 'automotive', 'pet-supplies'] }, description: 'Category slug used by BuyWhere compare pages' },
+                        { name: 'region', in: 'query', schema: { type: 'string', default: 'sea' }, description: '`sea` maps to Singapore unless country/country_code is set' },
+                        { name: 'country', in: 'query', schema: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, description: 'ISO country code filter. Alias of country_code.' },
+                        { name: 'country_code', in: 'query', schema: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, description: 'ISO country code filter.' },
+                        { name: 'limit', in: 'query', schema: { type: 'integer', default: 50, maximum: 100 } },
+                        { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
+                    ],
+                    responses: {
+                        '200': { description: 'Category-scoped comparison payload with products and merchant prices' },
+                        '404': { description: 'Category not found' },
+                    },
+                },
+            },
             '/products/{id}': {
                 get: {
                     summary: 'Get a product by ID',
@@ -392,7 +410,6 @@ router.get('/mcp/server-card.json', (_req, res) => {
             { name: 'get_deals', description: 'Get discounted products sorted by discount percentage across all merchants. Returns original price, current price, and discount percentage.', inputSchema: { type: 'object', properties: { min_discount: { type: 'number', default: 10 }, country_code: { type: 'string' }, country: { type: 'string' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 } } } },
             { name: 'list_categories', description: 'List top-level product categories available in the BuyWhere catalog with slugs, names, and product counts.', inputSchema: { type: 'object', properties: { country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, country: { type: 'string' } } } },
             { name: 'find_best_price', description: 'Find the single cheapest listing for a product across all merchants. Use when a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X". Returns the best deal across Shopee, Lazada, Amazon, and all other BuyWhere merchants.', inputSchema: { type: 'object', properties: { product_name: { type: 'string', description: 'Product name to find best price for (e.g. "iphone 15 pro 256gb", "samsung galaxy s24")' }, category: { type: 'string', description: 'Category to filter by (e.g. "electronics", "fashion")' }, country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG)' }, region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter — use "us" for United States or "sea" for Southeast Asia' } } } },
-            { name: 'resolve_product_query', description: 'Resolve a natural language product query into structured catalog results. Classifies query intent, extracts price constraints, and routes to deals, categories, best-price lookup, or comparison-ready search results. Best for AI agents that need to understand user shopping intent.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, region: { type: 'string' }, domain: { type: 'string' }, min_price: { type: 'number' }, max_price: { type: 'number' }, limit: { type: 'integer', default: 20 }, offset: { type: 'integer', default: 0 }, compact: { type: 'boolean', default: false } } } },
         ],
         authentication: {
             required: true,

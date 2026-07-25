@@ -113,8 +113,21 @@ function retailerMeta(source: string): { name: string; domain: string; region: '
   return { name: source, domain: source, region: 'SG' };
 }
 
-function formatPrice(price: number): string {
-  return `S$${price.toFixed(2)}`;
+function formatPrice(price: number, currency = 'SGD'): string {
+  const prefix = currency === 'USD' ? 'US$' : currency === 'SGD' ? 'S$' : `${currency} `;
+  return `${prefix}${price.toFixed(2)}`;
+}
+
+function requestedCountry(req: Request): string {
+  const raw = (req.query.country_code || req.query.country || req.query.region || 'SG') as string;
+  const value = String(raw).trim().toUpperCase();
+  if (value === 'SEA') return 'SG';
+  return value || 'SG';
+}
+
+function currencyForCountry(country: string): string {
+  const map: Record<string, string> = { SG: 'SGD', US: 'USD', VN: 'VND', TH: 'THB', MY: 'MYR' };
+  return map[country] || 'SGD';
 }
 
 /**
@@ -123,19 +136,26 @@ function formatPrice(price: number): string {
  */
 async function handleCategoryCompareFallback(slug: string, req: Request, res: Response): Promise<boolean> {
   const normalizedSlug = slugifyCategory(slug);
-  const currency = (req.query.country === 'US' || req.query.region === 'us') ? 'USD' : 'SGD';
+  const country = requestedCountry(req);
+  const currency = currencyForCountry(country);
   const aliasNames = COMPARE_CATEGORY_ALIASES[normalizedSlug] || [];
+  const categoryNames = [normalizedSlug, ...aliasNames];
 
-  // Look up the category_path[1] name for this slug
+  // Look up the matching category name at any category_path depth. Some ingests
+  // put broad categories at category_path[1], while others nest them deeper.
   const slugResult = await db.query<{ name: string }>(
-    `SELECT DISTINCT category_path[1] AS name FROM products
-     WHERE currency = $1 AND category_path IS NOT NULL
+    `SELECT DISTINCT cp.name
+     FROM products p
+     CROSS JOIN LATERAL unnest(p.category_path) AS cp(name)
+     WHERE p.currency = $1
+       AND p.country_code = $2
+       AND p.category_path IS NOT NULL
        AND (
-         LOWER(REGEXP_REPLACE(category_path[1], '[^a-zA-Z0-9]+', '-', 'g')) = $2
-         OR category_path[1] = ANY($3::text[])
+         LOWER(REGEXP_REPLACE(cp.name, '[^a-zA-Z0-9]+', '-', 'g')) = $3
+         OR cp.name = ANY($4::text[])
        )
      LIMIT 1`,
-    [currency, normalizedSlug, aliasNames]
+    [currency, country, normalizedSlug, categoryNames]
   ).catch(() => null);
 
   if (!slugResult || slugResult.rows.length === 0) {
@@ -154,10 +174,13 @@ async function handleCategoryCompareFallback(slug: string, req: Request, res: Re
     `SELECT id, title, brand, image_url, price, currency, url, source, is_active,
             updated_at, sku, mpn
      FROM products
-     WHERE currency = $1 AND category_path[1] = ANY($2::text[])
+     WHERE currency = $1
+       AND country_code = $2
+       AND category_path && $3::text[]
+       AND url IS NOT NULL
      ORDER BY updated_at DESC
-     LIMIT $3 OFFSET $4`,
-    [currency, [categoryName, ...aliasNames], limit, offset]
+     LIMIT $4 OFFSET $5`,
+    [currency, country, [categoryName, ...aliasNames], limit, offset]
   ).catch(() => null);
 
   if (!productsResult || productsResult.rows.length === 0) {
@@ -174,6 +197,8 @@ async function handleCategoryCompareFallback(slug: string, req: Request, res: Re
     prices: [{
       merchant: row.source,
       price: row.price || '0',
+      price_formatted: row.price ? formatPrice(parseFloat(row.price), row.currency) : 'N/A',
+      currency: row.currency,
       url: row.url,
       in_stock: row.is_active !== false,
       rating: 0,
@@ -184,6 +209,8 @@ async function handleCategoryCompareFallback(slug: string, req: Request, res: Re
   const payload = {
     slug: normalizedSlug,
     category: categoryName,
+    country_code: country,
+    currency,
     products,
     meta: {
       limit,
