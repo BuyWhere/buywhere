@@ -84,7 +84,7 @@ export function Autocomplete({
       }
 
       const data = await res.json();
-      const items = data.items || [];
+      const items = data.data || data.items || [];
       setSuggestions(items);
       setIsOpen(true);
       setSelectedIndex(-1);

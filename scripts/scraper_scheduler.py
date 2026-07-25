@@ -108,38 +108,6 @@ def _log(msg: str) -> None:
     print(f"[scraper_scheduler] {msg}", flush=True)
 
 
-# Proxy-related env vars to forward from the parent scheduler process to the
-# scraper subprocess. Without this, the scraper loses BRIGHTDATA_RESIDENTIAL_*
-# credentials and falls back to empty-password proxy URLs (407 Invalid Auth).
-PROXY_ENV_KEYS = [
-    "SCRAPERAPI_KEY",
-    "BUYWHERE_API_KEY",
-    "PROXY_PROVIDER",
-    "BRIGHTDATA_RESIDENTIAL_PROXY",
-    "BRIGHTDATA_RESIDENTIAL_USERNAME",
-    "BRIGHTDATA_RESIDENTIAL_PASSWORD",
-    "BRIGHTDATA_RESIDENTIAL_HOST",
-    "BRIGHTDATA_RESIDENTIAL_PORT",
-    "BRIGHTDATA_DATACENTER_USERNAME",
-    "BRIGHTDATA_DATACENTER_PASSWORD",
-    "BRIGHTDATA_DATACENTER_HOST",
-    "BRIGHTDATA_DATACENTER_PORT",
-    "BRIGHTDATA_USERNAME",
-    "BRIGHTDATA_PASSWORD",
-    "BRIGHTDATA_PROXY_HOST",
-    "BRIGHTDATA_PROXY_PORT",
-]
-
-
-def _build_proxy_env() -> dict[str, str]:
-    env: dict[str, str] = {}
-    for key in PROXY_ENV_KEYS:
-        val = os.environ.get(key)
-        if val:
-            env[key] = val
-    return env
-
-
 def _get_state_file(platform: str) -> Path:
     d = OUTPUT_BASE / SCRAPER_MODULE_MAP[platform]["output_dir"]
     d.mkdir(parents=True, exist_ok=True)
@@ -204,9 +172,6 @@ def _build_python_cmd(platform: str, args: argparse.Namespace) -> list[str]:
     if args.page_size or "page_size" in info:
         cmd += ["--page-size", str(args.page_size or info.get("page_size", 126))]
 
-    if getattr(args, "proxy_provider", None):
-        cmd += ["--proxy-provider", args.proxy_provider]
-
     output_dir = OUTPUT_BASE / info["output_dir"]
     cmd += ["--output-dir", str(output_dir)]
 
@@ -262,16 +227,18 @@ async def _run_continuous(platform: str, args: argparse.Namespace) -> None:
         _log(f"  cmd: {' '.join(cmd)}")
         _log(f"  log: {log_file}")
 
-        env = _build_proxy_env()
-        provider = os.environ.get("PROXY_PROVIDER", "brightdata").lower()
-        if provider == "scraperapi" and not env.get("SCRAPERAPI_KEY"):
-            _log("ERROR: PROXY_PROVIDER=scraperapi requires SCRAPERAPI_KEY")
+        env = {
+            "SCRAPERAPI_KEY": os.environ.get("SCRAPERAPI_KEY", ""),
+            "BUYWHERE_API_KEY": os.environ.get("BUYWHERE_API_KEY", ""),
+        }
+        if not env["SCRAPERAPI_KEY"]:
+            _log("ERROR: SCRAPERAPI_KEY is not set; cannot run scraper")
             state = _read_state(platform)
             state["last_status"] = "error_no_scraperapi_key"
             _write_state(platform, state)
             return
-        if not env.get("SCRAPERAPI_KEY"):
-            _log("WARNING: SCRAPERAPI_KEY not set; scraper may fail unless brightdata credentials are available")
+
+        env = {k: v for k, v in env.items() if v}
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -353,9 +320,6 @@ def main() -> None:
     parser.add_argument("--page-size", type=int, default=0)
     parser.add_argument("--categories", nargs="+", default=None,
                         help="Override category list.")
-    parser.add_argument("--proxy-provider", default=None,
-                        choices=["brightdata", "scraperapi"],
-                        help="Proxy provider forwarded to the scraper subprocess")
     args = parser.parse_args()
 
     if args.continuous:
@@ -363,11 +327,14 @@ def main() -> None:
     else:
         cmd = _build_python_cmd(args.platform, args)
         _log(f"Single run: {' '.join(cmd)}")
-        env = _build_proxy_env()
-        provider = (args.proxy_provider or os.environ.get("PROXY_PROVIDER", "brightdata")).lower()
-        if provider == "scraperapi" and not env.get("SCRAPERAPI_KEY"):
-            _log("ERROR: --proxy-provider scraperapi requires SCRAPERAPI_KEY")
+        env = {
+            "SCRAPERAPI_KEY": os.environ.get("SCRAPERAPI_KEY", ""),
+            "BUYWHERE_API_KEY": os.environ.get("BUYWHERE_API_KEY", ""),
+        }
+        if not env["SCRAPERAPI_KEY"]:
+            _log("ERROR: SCRAPERAPI_KEY is required")
             sys.exit(1)
+        env = {k: v for k, v in env.items() if v}
         result = subprocess.run(cmd, cwd=str(BUYWHERE_API_DIR), env=env)
         sys.exit(result.returncode)
 

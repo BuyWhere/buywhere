@@ -33,7 +33,7 @@ jobs:
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
             -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$RAILWAY_SERVICE_ID\\\", environmentId: \\\"$RAILWAY_ENVIRONMENT_ID\\\", commitSha: \\\"$GITHUB_SHA\\\") }\"}")
-          DID=$(echo "$RESP" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['serviceInstanceDeployV2'])")
+          DID=$(echo "$RESP" | python3 -c "import json,sys; resp=json.load(sys.stdin); errors=resp.get('errors') or []; deploy_id=(resp.get('data') or {}).get('serviceInstanceDeployV2'); [print('::error::Railway GraphQL errors: '+json.dumps(errors), file=sys.stderr) for _ in [0] if errors]; (print(deploy_id) if deploy_id else (print('::error::Railway serviceInstanceDeployV2 returned no deployment id', file=sys.stderr), sys.exit(1)))")
           echo "deployment: $DID"
           for i in $(seq 1 25); do
             S=$(curl -sf "$GQL" -H "Authorization: Bearer $RAILWAY_TOKEN" \

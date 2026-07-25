@@ -38,6 +38,21 @@ const DEFAULT_SEARCH_MODE = 'keyword';
 const VECTOR_CANDIDATE_CAP = 1000;
 const HYBRID_RRF_K = 60;
 
+function productIdsFromResponse(body: unknown): Array<string | number> {
+  if (!body || typeof body !== 'object') return [];
+  const record = body as Record<string, unknown>;
+  const items = Array.isArray(record.results)
+    ? record.results
+    : Array.isArray(record.products)
+      ? record.products
+      : Array.isArray(record.data)
+        ? record.data
+        : [];
+  return items
+    .map((item) => (item && typeof item === 'object' ? (item as Record<string, unknown>).id : null))
+    .filter((id): id is string | number => typeof id === 'string' || typeof id === 'number');
+}
+
 // BUY-34291: cap per-query work_mem to 4MB (down from 64MB default) so concurrent
 // search requests don't compete for shared_buffers. Without this, the planner's
 // Bitmap Heap Scan on the partial GIN index uses up to 64MB per query, and
@@ -278,7 +293,7 @@ router.get(
     // country_code is the canonical param; `country` is kept as a backward-compat alias.
     // Default to SG when neither country nor region is specified (BUY-6598: prevent cross-region accessory pollution).
     const explicitCountry = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
-    const countryCode = explicitCountry || (region ? undefined : 'SG');
+    const countryCode = explicitCountry; // hotfix(search): drop silent SG hard-filter default that excluded ~87% untagged catalog
     const minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
     const maxPrice = req.query.max_price ? parseFloat(req.query.max_price as string) : undefined;
     // Infer default currency from country_code when not explicitly provided.
@@ -315,6 +330,12 @@ router.get(
         const elapsed = Date.now() - requestStart;
         parsed.cached = true;
         parsed.response_time_ms = elapsed;
+        recordProductViewsBulk({
+          productIds: productIdsFromResponse(parsed),
+          source: 'products.search',
+          queryHash: q ? createHash('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
+          req,
+        });
         res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
         res.set('X-Cache', 'HIT');
         return res.json(parsed);
@@ -354,7 +375,7 @@ router.get(
       baseIdx++;
     }
     if (countryCode) {
-      baseConditions.push(`country_code = $${baseIdx}`);
+      baseConditions.push(`(country_code = $${baseIdx} OR country_code IS NULL)`);
       baseParams.push(countryCode);
       baseIdx++;
     }
@@ -1063,7 +1084,7 @@ router.get(
     // queryHash so dedup-keyed views from the same search query collapse
     // into a single row per (product, query, second). Fire-and-forget.
     recordProductViewsBulk({
-      productIds: products.map((p) => p.id),
+      productIds: productIdsFromResponse(responseBody),
       source: 'products.search',
       queryHash: q ? createHash('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
       req,
@@ -1103,6 +1124,11 @@ router.get(
         const parsed = JSON.parse(cached);
         parsed.cached = true;
         parsed.response_time_ms = Date.now() - start;
+        recordProductViewsBulk({
+          productIds: productIdsFromResponse(parsed),
+          source: 'products.featured',
+          req,
+        });
         return res.json(parsed);
       }
     } catch (_) {}
@@ -1614,6 +1640,11 @@ router.get(
 
     const products = result.rows.map((row: Record<string, unknown>) => buildProduct(row, currency, compact));
     const responseBody = buildSearchResponse(products, products.length, limit, offset, Date.now() - start, false);
+    recordProductViewsBulk({
+      productIds: productIdsFromResponse(responseBody),
+      source: 'products.featured',
+      req,
+    });
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => {});
     res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
     res.json(responseBody);

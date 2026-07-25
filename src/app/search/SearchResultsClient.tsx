@@ -62,8 +62,13 @@ type SearchApiResponse = {
   cursor?: string | null;
   next_cursor?: string | null;
   nextCursor?: string | null;
+  data?: SearchApiItem[];
   items?: SearchApiItem[];
   results?: SearchApiItem[];
+  products?: SearchApiItem[];
+  degraded?: boolean;
+  hint?: string;
+  timeout_ms?: number;
 };
 
 export type SearchCardProduct = {
@@ -255,16 +260,55 @@ function SearchResultsSkeleton() {
   );
 }
 
+function SearchProgressIndicator({ startedAt }: { startedAt: number }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [startedAt]);
+
+  const phase =
+    elapsed < 3
+      ? { icon: '\uD83D\uDD0D', message: 'Searching catalog across retailers\u2026' }
+      : elapsed < 5
+        ? { icon: '\u23F3', message: 'Still searching \u2014 this may take a moment' }
+        : elapsed < 8
+          ? { icon: '\u231B', message: 'Almost there \u2014 compiling results' }
+          : { icon: '\uD83D\uDD0D', message: 'Still working \u2014 many retailers being queried' };
+
+  return (
+    <div className="flex flex-col items-center gap-3 py-6" role="status" aria-live="polite">
+      <div className="flex items-center gap-2 text-sm text-slate-500">
+        <span className="text-lg">{phase.icon}</span>
+        <span>{phase.message}</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <div className="h-1.5 w-32 overflow-hidden rounded-full bg-slate-200">
+          <div
+            className="h-full animate-pulse rounded-full bg-amber-500 transition-all duration-1000"
+            style={{ width: `${Math.min((elapsed / 12) * 100, 85)}%` }}
+          />
+        </div>
+        <span className="min-w-[2.5ch] text-xs tabular-nums text-slate-400">{elapsed}s</span>
+      </div>
+    </div>
+  );
+}
+
+
 function SearchCard({ product }: { product: SearchCardProduct }) {
   return (
     <a
       href={product.href}
       target="_blank"
       rel="noopener noreferrer"
-      className="group relative flex h-full flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
+      className="group relative flex h-full flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
-      <div className="relative h-36 overflow-hidden border-b border-slate-100 bg-slate-100 sm:h-40">
-        <div className="absolute inset-0 flex items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))] text-sm font-semibold text-slate-400">
+      <div className="relative aspect-[4/3] border-b border-slate-100 bg-slate-100">
+        <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))] text-sm font-semibold text-slate-600">
           Product image
         </div>
         {product.imageUrl ? (
@@ -278,17 +322,17 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
             onError={(event) => {
               event.currentTarget.style.display = 'none';
             }}
-            className="relative z-10 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            className="relative z-10 h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="relative z-10 flex h-full items-center justify-center text-4xl text-slate-400">◎</div>
+          <div className="relative z-10 flex h-full items-center justify-center text-4xl text-slate-600">◎</div>
         )}
         <div className="absolute right-2 top-2">
           <CompareSelectButton product={product} className="h-9 w-9" />
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 bg-white p-4">
+      <div className="flex flex-1 flex-col gap-2.5 bg-white p-3.5">
         <div className="flex min-h-7 items-start justify-between gap-2">
           <MerchantBadge merchant={product.merchant} className="shrink-0" />
           <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
@@ -299,15 +343,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
 
         <div className="space-y-1.5">
           <h2
-            className="text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
-            style={{
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              maxHeight: '2.75rem',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
+            className="line-clamp-3 text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
           >
             {product.name}
           </h2>
@@ -317,12 +353,12 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
           </div>
         </div>
 
-        <div className="mt-auto space-y-3 border-t border-slate-100 pt-3">
+        <div className="mt-auto space-y-2.5 border-t border-slate-100 pt-2.5">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Current price</p>
-            <p className="mt-0.5 text-2xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Current price</p>
+            <p className="mt-0.5 text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
           </div>
-          <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
+          <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
             View Deal
             <ExternalLink className="h-4 w-4" />
           </span>
@@ -336,6 +372,8 @@ export default function SearchResultsClient({
   initialQuery = '',
   initialCountry = 'us',
 }: SearchResultsClientProps) {
+  const initialSearchQuery = initialQuery.trim();
+  const hasInitialSearchQuery = initialSearchQuery.length >= MIN_QUERY_LENGTH;
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchParamsString = searchParams?.toString() ?? '';
@@ -343,15 +381,18 @@ export default function SearchResultsClient({
   const [isNavigating, startTransition] = useTransition();
   const [query, setQuery] = useState(initialQuery);
   const [country, setCountry] = useState<CountryValue>(normalizeCountry(initialCountry));
-  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery.trim());
+  const [debouncedQuery, setDebouncedQuery] = useState(initialSearchQuery);
   const [products, setProducts] = useState<SearchCardProduct[]>([]);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
-  const [loadingInitial, setLoadingInitial] = useState(false);
+  const [loadingInitial, setLoadingInitial] = useState(hasInitialSearchQuery);
+  const [searchStartTime, setSearchStartTime] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [degraded, setDegraded] = useState(false);
+  const [degradedHint, setDegradedHint] = useState<string | null>(null);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeHistoryIndex, setActiveHistoryIndex] = useState(-1);
@@ -489,6 +530,7 @@ export default function SearchResultsClient({
 
     if (mode === 'replace') {
       setLoadingInitial(true);
+      setSearchStartTime(Date.now());
     } else {
       setLoadingMore(true);
     }
@@ -519,7 +561,16 @@ export default function SearchResultsClient({
       }
 
       const data: SearchApiResponse = await response.json();
-      const rawItems = data.items || data.results || [];
+      const rawItems = data.data || data.items || data.results || data.products || [];
+      if (data.degraded) {
+        setDegraded(true);
+        if (typeof data.hint === 'string' && data.hint.trim().length > 0) {
+          setDegradedHint(data.hint);
+        }
+      } else {
+        setDegraded(false);
+        setDegradedHint(null);
+      }
       const normalizedItems = sortProductsByImageQuality(
         rawItems.map((item) => normalizeProduct(item, activeCountry.currency))
       ).slice(0, PAGE_SIZE);
@@ -555,6 +606,7 @@ export default function SearchResultsClient({
     } finally {
       if (mode === 'replace') {
         setLoadingInitial(false);
+        setSearchStartTime(null);
       } else {
         setLoadingMore(false);
       }
@@ -590,9 +642,11 @@ export default function SearchResultsClient({
   }, [historyOpen, query, searchHistory.length]);
 
   const showSearchPrompt = debouncedQuery.length < MIN_QUERY_LENGTH;
-  const showEmptyState = !loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && products.length === 0;
+  const showDegradedState = !loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && products.length === 0 && degraded;
+  const showEmptyState = !loadingInitial && !error && debouncedQuery.length >= MIN_QUERY_LENGTH && products.length === 0 && !degraded;
   const showHistoryDropdown = historyOpen && query.trim().length === 0 && searchHistory.length > 0;
   const reversedSearchHistory = useMemo(() => [...searchHistory].reverse(), [searchHistory]);
+  const hasActiveSearch = debouncedQuery.length >= MIN_QUERY_LENGTH;
 
   return (
     <div className="flex min-h-screen flex-col bg-[linear-gradient(180deg,_#fff7ed_0%,_#ffffff_28%,_#f8fafc_100%)]">
@@ -600,24 +654,24 @@ export default function SearchResultsClient({
 
       <main id="main-content" className="flex-1">
         <section className="border-b border-amber-100 bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.22),_rgba(255,247,237,0.85)_38%,_rgba(255,255,255,1)_80%)]">
-          <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+          <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${hasActiveSearch ? 'py-5 lg:py-6' : 'py-10 lg:py-14'}`}>
             <div className="max-w-3xl">
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">Product search</p>
-              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-                Find live catalog results without leaving BuyWhere
+              <h1 className={`${hasActiveSearch ? 'mt-2 text-3xl sm:text-4xl' : 'mt-3 text-4xl sm:text-5xl'} font-semibold tracking-tight text-slate-950`}>
+                {query.trim() ? `Search results for "${query.trim()}"` : "Find live catalog results without leaving BuyWhere"}
               </h1>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
+              <p className={`${hasActiveSearch ? 'sr-only' : 'mt-4'} max-w-2xl text-base leading-7 text-slate-600 sm:text-lg`}>
                 Search BuyWhere&apos;s product index by query and country, then jump directly to retailer listings.
               </p>
             </div>
 
-            <div className="mt-8 rounded-[32px] border border-white/80 bg-white/80 p-4 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)] backdrop-blur md:p-6">
+            <div className={`${hasActiveSearch ? 'mt-5 rounded-[28px] p-3 md:p-4' : 'mt-8 rounded-[32px] p-4 md:p-6'} border border-white/80 bg-white/80 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)] backdrop-blur`}>
               {isNavigating && showSearchPrompt ? <SearchInputSkeleton /> : null}
 
               <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
                 <label ref={searchFieldRef} className="relative block">
                   <span className="mb-2 block text-sm font-medium text-slate-700">Search query</span>
-                  <Search className="pointer-events-none absolute left-4 top-[3.2rem] h-5 w-5 text-slate-400" aria-hidden="true" />
+                  <Search className="pointer-events-none absolute left-4 top-[3.2rem] h-5 w-5 text-slate-600" aria-hidden="true" />
                   <input
                     ref={searchInputRef}
                     type="search"
@@ -690,7 +744,7 @@ export default function SearchResultsClient({
                       role="listbox"
                       className="absolute left-0 right-0 top-[calc(100%+0.75rem)] z-20 overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_20px_60px_-32px_rgba(15,23,42,0.45)]"
                     >
-                      <div className="border-b border-slate-100 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      <div className="border-b border-slate-100 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
                         Recent searches
                       </div>
                       <ul className="py-2">
@@ -711,12 +765,12 @@ export default function SearchResultsClient({
                               onMouseDown={(event) => event.preventDefault()}
                               onClick={() => runSearch(entry)}
                             >
-                              <Search className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                              <Search className="h-4 w-4 shrink-0 text-slate-600" aria-hidden="true" />
                               <span className="truncate text-sm font-medium text-slate-900">{entry}</span>
                             </button>
                             <button
                               type="button"
-                              className="rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                              className="rounded-full p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-700"
                               onMouseDown={(event) => event.preventDefault()}
                               onClick={() => removeHistoryEntry(entry)}
                               aria-label={`Delete ${entry} from search history`}
@@ -777,7 +831,7 @@ export default function SearchResultsClient({
         <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
           {showSearchPrompt ? (
             <div className="rounded-[28px] border border-dashed border-slate-300 bg-white/90 p-8 text-center shadow-sm">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Start browsing</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-600">Start browsing</p>
               <h2 className="mt-3 text-2xl font-semibold text-slate-900">Enter at least 2 characters to see results</h2>
               <p className="mt-3 text-slate-600">Try a product type, brand, or category and switch countries as needed.</p>
             </div>
@@ -799,7 +853,14 @@ export default function SearchResultsClient({
                     {activeCountry.label}
                   </p>
                   <h2 className="mt-1 text-2xl font-semibold text-slate-950">
-                    {loadingInitial ? 'Searching catalog...' : `${total.toLocaleString()} results for “${debouncedQuery}”`}
+                    {loadingInitial ? (
+                      <>
+                        Searching catalog...
+                        <span className="ml-2 animate-pulse text-lg leading-none">&bull;&bull;&bull;</span>
+                      </>
+                    ) : (
+                      `${total.toLocaleString()} results for “${debouncedQuery}”`
+                    )}
                   </h2>
                 </div>
                 <Link
@@ -810,11 +871,52 @@ export default function SearchResultsClient({
                 </Link>
               </div>
 
-              {loadingInitial ? <SearchResultsSkeleton /> : null}
+              {loadingInitial ? (
+                <>
+                  <SearchProgressIndicator startedAt={searchStartTime ?? Date.now()} />
+                  <SearchResultsSkeleton />
+                </>
+              ) : null}
+
+              {showDegradedState ? (
+                <div
+                  role="status"
+                  data-testid="search-degraded-banner"
+                  className="rounded-[28px] border border-amber-300 bg-amber-50 p-8 shadow-sm"
+                >
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Catalog update in progress</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+                    Live results for “{debouncedQuery}” are temporarily unavailable
+                  </h2>
+                  <p className="mt-3 max-w-2xl text-slate-700">
+                    {degradedHint
+                      ? degradedHint
+                      : 'Our catalog is being refreshed right now. Real product results will return once the update finishes.'}
+                  </p>
+                  <p className="mt-3 max-w-2xl text-sm text-slate-600">
+                    Try a more specific query (add a brand, category, or model), pick a different country, or come back in a few minutes.
+                  </p>
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <Link
+                      href="/"
+                      className="inline-flex min-h-[44px] items-center rounded-full bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-700"
+                    >
+                      Browse homepage
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => runSearch(debouncedQuery)}
+                      className="inline-flex min-h-[44px] items-center rounded-full border border-amber-300 bg-white px-5 py-2.5 text-sm font-semibold text-amber-800 transition-colors hover:bg-amber-100"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                </div>
+              ) : null}
 
               {showEmptyState ? (
-                <div className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm">
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">No matches</p>
+                <div className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm" data-testid="search-no-matches">
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">No matches</p>
                   <h2 className="mt-2 text-2xl font-semibold text-slate-900">
                     No products found for “{debouncedQuery}”
                   </h2>

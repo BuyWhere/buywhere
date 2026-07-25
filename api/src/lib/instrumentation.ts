@@ -63,12 +63,12 @@ export function callerIdFromRequest(req: { apiKeyRecord?: { id?: string }; ip?: 
 // ---------------------------------------------------------------------------
 // Fire-and-forget INSERT into product_views.
 // ---------------------------------------------------------------------------
-export function recordProductView(opts: {
+export async function recordProductView(opts: {
   productId: string | number;
   source: string;            // 'products.get' | 'products.search' | 'products.list' | 'products.deals'
   queryHash?: string | null; // sha256 of search query (null for direct product fetch)
   req?: { apiKeyRecord?: { id?: string }; ip?: string; socket?: { remoteAddress?: string } };
-}): void {
+}): Promise<void> {
   const productId = String(opts.productId);
   const callerId = opts.req ? callerIdFromRequest(opts.req) : 'server';
   if (!shouldInsert('product_views', productId, callerId)) return;
@@ -85,12 +85,12 @@ export function recordProductView(opts: {
 // Bulk variant for /v1/products/search — one INSERT per product, fire-and-forget.
 // Caller must invoke this AFTER res.json has been queued to keep P95 unaffected;
 // here we still fire-and-forget so even an early call won't block the response.
-export function recordProductViewsBulk(opts: {
+export async function recordProductViewsBulk(opts: {
   productIds: Array<string | number>;
   source: string;
   queryHash?: string | null;
   req?: { apiKeyRecord?: { id?: string }; ip?: string; socket?: { remoteAddress?: string } };
-}): void {
+}): Promise<void> {
   const callerId = opts.req ? callerIdFromRequest(opts.req) : 'server';
   const queryHash = opts.queryHash ?? null;
   const seen = new Set<string>();
@@ -99,12 +99,15 @@ export function recordProductViewsBulk(opts: {
     if (seen.has(id)) continue;
     seen.add(id);
     if (!shouldInsert('product_views', id, callerId)) continue;
-    db.query(
-      `INSERT INTO product_views (product_id, source, query_hash) VALUES ($1, $2, $3)`,
-      [id, opts.source, queryHash]
-    ).catch((err: Error) => {
-      console.warn(`[instrumentation] product_views bulk insert failed for ${id}: ${err.message}`);
-    });
+    console.log('[instrumentation] recording product_view id=' + id + ' source=' + opts.source + ' caller=' + callerId);
+    try {
+      await db.query(
+        `INSERT INTO product_views (product_id, source, query_hash) VALUES ($1, $2, $3)`,
+        [id, opts.source, queryHash]
+      );
+    } catch (err: any) {
+      console.warn('[instrumentation] product_views bulk insert failed for ' + id + ': ' + (err?.message || err));
+    }
   }
 }
 

@@ -2,20 +2,27 @@ import type { Metadata } from "next";
 import { toSiteUrl } from "@/lib/site-url";
 
 const BASE_URL = "https://buywhere.ai";
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  process.env.NEXT_PUBLIC_BUYWHERE_API_URL ||
-  "https://api.buywhere.ai";
-const API_KEY = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
+// Origin used to call BuyWhere's own Next.js route handlers from a server
+// component during SSR. The /api/products/search route resolves the backend API
+// key and degraded/fallback logic centrally, so routing catalog lookups through
+// it avoids depending on BUYWHERE_API_KEY being present in the SSR environment
+// (which previously caused every SEO landing page to silently fall back to
+// static editorial products because the direct external-API call 401'd).
+const INTERNAL_ORIGIN =
+  process.env.BUYWHERE_INTERNAL_ORIGIN ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  BASE_URL;
 
 export type LandingProduct = {
   id: string;
+  updatedAt?: string | null;
   name: string;
   price: number | null;
   currency: string;
   merchant: string;
   imageUrl: string | null;
   href: string;
+  productUrl?: string | null;
   brand: string | null;
   category: string | null;
 };
@@ -35,13 +42,24 @@ type SearchApiItem = {
   image_url?: string | null;
   image?: string | null;
   url?: string | null;
+  product_url?: string | null;
   buy_url?: string | null;
   affiliate_url?: string | null;
+  affiliate_redirect_url?: string | null;
   brand?: string | null;
+  updated_at?: string | null;
   category?: string | null;
 };
 
+type SearchApiResponseMeta = {
+  total?: number;
+  degraded?: boolean;
+  hint?: string;
+};
+
 type SearchApiResponse = {
+  data?: SearchApiItem[];
+  meta?: SearchApiResponseMeta | null;
   degraded?: boolean;
   total?: number;
   hint?: string;
@@ -84,7 +102,9 @@ export type SeoLandingPageConfig = {
   backupQueries?: string[];
   /** Minimum price in local currency to filter out irrelevant products (e.g. accessories, clothing matched by brand name) */
   minPrice?: number;
-  refreshedLabel: string;
+  /** Terms that must appear in live search products to avoid unrelated broad-query matches */
+  requiredProductTerms?: string[];
+  refreshedLabel?: string;
   productSectionTitle: string;
   comparisonSectionTitle: string;
   comparisonColumns: string[];
@@ -98,6 +118,12 @@ export type SeoLandingPageConfig = {
   shopperCta?: Cta;
   developerCta?: Cta;
   fallbackProducts: LandingProduct[];
+  /**
+   * Optional cross-locale alternates for hreflang. Keys are hreflang codes (e.g. "en-US", "en-SG"),
+   * values are canonical paths (e.g. "/airpods-singapore"). "x-default" is rendered when provided.
+   * When this is omitted, the page emits an x-default self-reference only.
+   */
+  hreflangAlternates?: { [hreflang: string]: string };
   /** Category-specific intro paragraph shown before the comparison section */
   categoryIntro?: {
     heading: string;
@@ -119,7 +145,38 @@ function formatMerchantName(value?: string | null) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function normalizeExternalHref(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    if (!value) continue;
+
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === "#") continue;
+
+    try {
+      const url = new URL(trimmed);
+      if (url.protocol === "http:" || url.protocol === "https:") {
+        return url.toString();
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return "#";
+}
+
 function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPrice?: number): LandingProduct | null {
+  // Currency guard: only keep products priced in the page's currency. The
+  // upstream catalog frequently returns wrong-region rows (e.g. INR/PHP/GBP
+  // "laptop" listings for an SG page) that would otherwise displace honest
+  // fallbacks with irrelevant foreign-currency cards.
+  const rawCurrency =
+    item.price && typeof item.price === "object" && "currency" in item.price
+      ? item.price.currency
+      : item.price_currency ?? item.currency;
+  if (rawCurrency && rawCurrency.toUpperCase() !== fallbackCurrency.toUpperCase()) {
+    return null;
+  }
   const priceValue =
     item.price && typeof item.price === "object" && "amount" in item.price
       ? item.price.amount
@@ -142,21 +199,153 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     return null;
   }
 
+  const imageUrl = item.image_url || item.image || null;
+
   return {
     id: String(item.id),
     name: item.name || item.title || "Untitled product",
     price: Number.isFinite(numericPrice) ? numericPrice : null,
     currency: priceCurrency || fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
-    imageUrl: item.image_url || item.image || null,
-    href: item.click_url || item.affiliate_url || item.buy_url || item.url || "#",
+    imageUrl: isUsableProductImage(imageUrl) ? imageUrl : null,
+    href: normalizeExternalHref(
+      item.affiliate_redirect_url,
+      item.click_url,
+      item.affiliate_url,
+      item.buy_url,
+      item.product_url,
+      item.url,
+    ),
     brand: item.brand || null,
     category: item.category || null,
+    updatedAt: item.updated_at || null,
   };
 }
 
+function isUsableProductImage(imageUrl?: string | null) {
+  if (!imageUrl) return false;
+  if (imageUrl.startsWith("data:image/svg+xml")) return true;
+
+  try {
+    const url = new URL(imageUrl);
+    return url.hostname !== "source.unsplash.com";
+  } catch {
+    return false;
+  }
+}
+
+function productMatchesRequiredTerms(product: LandingProduct, requiredTerms?: string[]) {
+  if (!requiredTerms || requiredTerms.length === 0) return true;
+  const haystack = [product.name, product.brand, product.category].filter(Boolean).join(" ").toLowerCase();
+  return requiredTerms.some((term) => haystack.includes(term.toLowerCase()));
+}
+
+function hasUsableLiveCard(product: LandingProduct) {
+  return Boolean(
+    product.name &&
+      product.name !== "Untitled product" &&
+      !hasSyntheticCatalogCopy(product) &&
+      product.price !== null &&
+      product.href !== "#",
+  );
+}
+
+function hasSyntheticCatalogCopy(product: LandingProduct) {
+  return /\b(product|brand)\s+[a-e]\b/i.test([product.name, product.brand].filter(Boolean).join(" "));
+}
+
+function isTrustedFallbackProduct(product: LandingProduct) {
+  return Boolean(
+    product.name &&
+      !hasSyntheticCatalogCopy(product) &&
+      product.price !== null &&
+      product.href !== "#",
+  );
+}
+
+
+function withLiveProductDetailUrl(product: LandingProduct, country: string): LandingProduct {
+  return { ...product, productUrl: buildProductDetailUrl(product, country) };
+}
+
+// Fallback editorial products don't carry a real outbound merchant URL, so their
+// card CTA must not loop back to /search?q=... (which recreates the "View offer
+// loops internally" bug from BUY-61931). Point the card at the internal product
+// detail page instead: /products/{region}/{slug}/{id} resolves these curated IDs
+// via getSeoLandingFallbackProduct, so it never 404s. The fallback href (e.g.
+// "/search?q=...") is intentionally NOT promoted to productUrl — it stays
+// relative, so ProductGridCard's isMerchantOffer check stays false and renders
+// an honest "View details" label rather than a fake "Buy at {merchant}" button
+// with no real merchant destination.
+function withFallbackDetailUrl(product: LandingProduct, country: string): LandingProduct {
+  return { ...product, productUrl: buildProductDetailUrl(product, country) };
+}
+
+
+function buildProductDetailUrl(product: LandingProduct, country: string): string {
+  const region = country.toLowerCase();
+  const slug = buildLandingProductSlug(product);
+  return `/products/${region}/${slug}/${product.id}`;
+}
+
+export function buildLandingProductSlug(product: Pick<LandingProduct, "name">): string {
+  return (product.name || "product")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+export function getSeoLandingFallbackProduct(
+  region: string,
+  productId: string,
+  slug?: string,
+): LandingProduct | null {
+  const normalizedRegion = region.toUpperCase();
+
+  for (const config of Object.values(seoLandingPages)) {
+    if (config.country !== normalizedRegion) continue;
+
+    for (const product of config.fallbackProducts) {
+      if (product.id !== productId) continue;
+
+      const detailUrl = buildProductDetailUrl(product, config.country);
+      if (slug && detailUrl !== `/products/${region.toLowerCase()}/${slug}/${productId}`) {
+        continue;
+      }
+
+      return {
+        ...product,
+        productUrl: detailUrl,
+      };
+    }
+  }
+
+  return null;
+}
+
+export function getSeoLandingFallbackProductBySlug(region: string, slug: string): LandingProduct | null {
+  const normalizedRegion = region.toUpperCase();
+  const normalizedSlug = decodeURIComponent(slug).toLowerCase();
+
+  for (const config of Object.values(seoLandingPages)) {
+    if (config.country !== normalizedRegion) continue;
+
+    for (const product of config.fallbackProducts) {
+      if (buildLandingProductSlug(product) !== normalizedSlug) continue;
+
+      return {
+        ...product,
+        productUrl: buildProductDetailUrl(product, config.country),
+      };
+    }
+  }
+
+  return null;
+}
+
 export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promise<LandingProduct[]> {
-  const fallback = config.fallbackProducts;
+  const fallback = config.fallbackProducts.filter(isTrustedFallbackProduct);
 
   // Try the broad query first, then progressively fall back to brand-specific
   // backup queries. Broad queries on the product search API frequently time out
@@ -176,13 +365,16 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         limit: "8",
       });
 
-      const response = await fetch(`${API_BASE_URL}/v1/products/search?${params.toString()}`, {
-        headers: {
-          Accept: "application/json",
-          ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
-        },
+      // Route through BuyWhere's own /api/products/search route handler rather
+      // than the external product API. The route handler injects the backend
+      // API key and centralizes degraded/fallback handling, so SSR no longer
+      // depends on BUYWHERE_API_KEY being present in the server-component
+      // environment (the previous direct external call 401'd silently, which
+      // is why every SEO page fell back to static editorial products).
+      const response = await fetch(`${INTERNAL_ORIGIN}/api/products/search?${params.toString()}`, {
+        headers: { Accept: "application/json" },
         next: { revalidate: 60 * 15 },
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(8000),
       });
 
       if (!response.ok) {
@@ -191,16 +383,19 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       }
 
       const data = (await response.json()) as SearchApiResponse;
+      const meta = data.meta ?? null;
+      const isDegraded = Boolean(meta?.degraded ?? data.degraded);
+      const total = typeof meta?.total === "number" ? meta.total : data.total;
 
       // Degraded/timeout response — try the next backup query
-      if (data.degraded || data.total === 0) {
+      if (isDegraded || total === 0) {
         console.warn(
-          `[seo] degraded API response for ${config.slug} (q="${query}"): degraded=${data.degraded}, total=${data.total}`
+          `[seo] degraded API response for ${config.slug} (q="${query}"): degraded=${isDegraded}, total=${total}`
         );
         continue;
       }
 
-      const items = data.items || data.results || [];
+      const items = data.data || data.items || data.results || [];
       if (!Array.isArray(items) || items.length === 0) {
         continue;
       }
@@ -208,7 +403,9 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       for (const item of items) {
         const product = normalizeProduct(item, config.currency, config.minPrice);
         if (!product) continue;
-        if (!seenIds.has(product.id) && product.name !== "Untitled product") {
+        if (!hasUsableLiveCard(product)) continue;
+        if (!productMatchesRequiredTerms(product, config.requiredProductTerms)) continue;
+        if (!seenIds.has(product.id)) {
           seenIds.add(product.id);
           collected.push(product);
         }
@@ -221,7 +418,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   }
 
   if (collected.length >= 4) {
-    return collected.slice(0, 8);
+    return collected.slice(0, 8).map((p) => withLiveProductDetailUrl(p, config.country));
   }
 
   // If we got some (but fewer than 4) real products, top up with fallbacks so
@@ -231,26 +428,48 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       if (collected.length >= 4) break;
       if (!seenIds.has(fb.id)) {
         seenIds.add(fb.id);
-        collected.push(fb);
+        collected.push(withFallbackDetailUrl(fb, config.country));
       }
     }
-    return collected.slice(0, 8);
+    return collected.slice(0, 8).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
   }
 
   // No real products from any query — show curated fallback products (with real
   // names, prices, merchants, and deep-link search hrefs) rather than an empty
   // page. These are honest editorial picks, not empty skeleton cards.
-  return fallback.slice(0, 8);
+  return fallback.slice(0, 8).map((fb) => withFallbackDetailUrl(fb, config.country));
 }
 
 export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata {
   const canonical = toSiteUrl(config.canonicalPath);
+
+  // Build hreflang language alternates: each provided locale -> its canonical path URL.
+  // x-default always points at this page unless explicitly overridden.
+  const languages: Record<string, string> = {
+    "x-default": canonical,
+    [config.locale.replace("_", "-")]: canonical,
+  };
+  if (config.hreflangAlternates) {
+    for (const [code, path] of Object.entries(config.hreflangAlternates)) {
+      languages[code] = toSiteUrl(path);
+    }
+  }
+
+  const ogLocaleAlternate =
+    config.country === "US" ? "en_SG" : "en_US";
 
   return {
     title: config.title,
     description: config.description,
     alternates: {
       canonical,
+      languages,
+    },
+    other: {
+      "geo.region": config.country === "US" ? "US" : "SG",
+      "geo.placename": config.country === "US" ? "United States" : "Singapore",
+      "content-language": config.locale.replace("_", "-"),
+      "og:locale:alternate": ogLocaleAlternate,
     },
     openGraph: {
       title: config.title,
@@ -324,7 +543,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
           itemListElement: products.map((product, index) => ({
             "@type": "ListItem",
             position: index + 1,
-            url: product.href,
+            url: product.productUrl || product.href,
             item: {
               "@type": "Product",
               name: product.name,
@@ -348,7 +567,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
                         "@id": `${BASE_URL}/#organization`,
                         name: product.merchant,
                       },
-                      url: product.href,
+                      url: product.productUrl || product.href,
                     }
                   : undefined,
             },
@@ -389,7 +608,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     searchQuery: "air purifier",
     backupQueries: ["Coway air purifier", "Levoit air purifier", "Blueair air purifier", "Xiaomi air purifier"],
     minPrice: 50,
-    refreshedLabel: "Updated May 1, 2026",
+    requiredProductTerms: ["air purifier", "purifier", "hepa", "dyson", "philips", "xiaomi", "sharp", "sterra", "coway", "levoit", "blueair"],
     productSectionTitle: "Live air purifier offers across Singapore",
     comparisonSectionTitle: "Popular air purifier picks at a glance",
     comparisonColumns: ["Model", "Price", "Coverage", "Filter", "Best For"],
@@ -453,11 +672,11 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "ap1", name: "Dyson Purifier Cool Gen1", price: 699, currency: "SGD", merchant: "Dyson Singapore", imageUrl: null, href: "/search?q=Dyson+Purifier+Cool+Gen1&country=sg", brand: "Dyson", category: "Air Purifiers" },
-      { id: "ap2", name: "Philips 3000i Series Air Purifier", price: 459, currency: "SGD", merchant: "Philips", imageUrl: null, href: "/search?q=Philips+3000i+air+purifier&country=sg", brand: "Philips", category: "Air Purifiers" },
-      { id: "ap3", name: "Xiaomi Smart Air Purifier 4", price: 249, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=Xiaomi+Smart+Air+Purifier+4&country=sg", brand: "Xiaomi", category: "Air Purifiers" },
-      { id: "ap4", name: "Sharp Plasmacluster FP-J80E", price: 399, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=Sharp+Plasmacluster+FP-J80E&country=sg", brand: "Sharp", category: "Air Purifiers" },
-      { id: "ap5", name: "Sterra Breeze Pro", price: 329, currency: "SGD", merchant: "Sterra", imageUrl: null, href: "/search?q=Sterra+Breeze+Pro&country=sg", brand: "Sterra", category: "Air Purifiers" },
+      { id: "ap1", name: "Dyson Purifier Cool Gen1", price: 699, currency: "SGD", merchant: "Dyson Singapore", imageUrl: "https://dyson-h.assetsadobe2.com/is/image/content/dam/dyson/images/products/primary/419865-01.png", href: "/search?q=Dyson+Purifier+Cool+Gen1&country=sg", brand: "Dyson", category: "Air Purifiers" },
+      { id: "ap2", name: "Philips 3000i Series Air Purifier", price: 459, currency: "SGD", merchant: "Philips", imageUrl: "https://images.philips.com/is/image/philipsconsumer/6e99291ed0f74a42b563b0c500e8619b", href: "/search?q=Philips+3000i+air+purifier&country=sg", brand: "Philips", category: "Air Purifiers" },
+      { id: "ap3", name: "Xiaomi Smart Air Purifier 4", price: 249, currency: "SGD", merchant: "Shopee", imageUrl: "https://i02.appmifile.com/660_operator_sg/30/03/2022/4cb6f826b029e73d053fdf856fe885e9.png", href: "/search?q=Xiaomi+Smart+Air+Purifier+4&country=sg", brand: "Xiaomi", category: "Air Purifiers" },
+      { id: "ap4", name: "Sharp Plasmacluster FP-J80E", price: 399, currency: "SGD", merchant: "Lazada", imageUrl: "https://sg.sharp/sites/default/files/uploads/2021-05/FP-J80E-H.png", href: "/search?q=Sharp+Plasmacluster+FP-J80E&country=sg", brand: "Sharp", category: "Air Purifiers" },
+      { id: "ap5", name: "Sterra Breeze Pro", price: 329, currency: "SGD", merchant: "Sterra", imageUrl: "https://sterra.sg/cdn/shop/files/Sterra_Breeze_Pro_Product.png", href: "/search?q=Sterra+Breeze+Pro&country=sg", brand: "Sterra", category: "Air Purifiers" },
     ],
     showRelatedCategory: true,
   },
@@ -477,7 +696,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     searchQuery: "laptop",
     backupQueries: ["MacBook laptop", "ASUS laptop", "Lenovo laptop", "Dell laptop"],
     minPrice: 300,
-    refreshedLabel: "Updated May 1, 2026",
+    requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
     productSectionTitle: "Live laptop offers across Singapore",
     comparisonSectionTitle: "Popular laptop picks at a glance",
     comparisonColumns: ["Model", "Price", "Weight", "Chip", "Best For"],
@@ -541,11 +760,11 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       label: "View developer docs",
     },
     fallbackProducts: [
-      { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
-      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: null, href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
-      { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: null, href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
-      { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
-      { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: null, href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
+      { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: "https://store.storeimages.cdn-apple.com/4982/as-images.apple.com/is/macbook-air-13-m3-midnight-select-202402", href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
+      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://dlcdnwebimgs.asus.com/gain/6d9f8b3f-c4d4-4f69-bd04-9d98ee9f3f03/", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
+      { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: "https://p1-ofp.static.pub/medias/bWFzdGVyfHJvb3R8MzAxNTMwfGltYWdlL3BuZ3xoNzkvaDhmLzE0MTkxMjY3ODk1MzI2LnBuZ3xhOGYyMWY3NTQzZWUxNzI5ZWRkMmM2OWM4MjA5MzFkYTY1NTMxZDE2MDEwNzI2NzI3ZjQ2OTAxNGYzODI5ZGYw/lenovo-yoga-7i-2-in-1-14-intel-hero.png", href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
+      { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/s/w/swift-go-14-sfg14-72-silver-01.png", href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
+      { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: "https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/page/uber/0125/xps-14-9440-laptop-800x620.png", href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
     ],
     showRelatedCategory: true,
   },
@@ -563,9 +782,10 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "gaming laptop",
-    backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator laptop", "gaming laptop NVIDIA RTX"],
+backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator laptop", "gaming laptop NVIDIA RTX"],
     minPrice: 300,
-    refreshedLabel: "Refreshed June 26, 2026",
+    requiredProductTerms: ["gaming laptop", "laptop", "rog", "legion", "alienware", "omen", "predator", "tuf", "msi", "nvidia rtx"],
+    hreflangAlternates: { "en-SG": "/best-gaming-laptop-singapore" },
     productSectionTitle: "Live gaming laptop deals across US retailers",
     comparisonSectionTitle: "Top gaming laptop picks at a glance",
     comparisonColumns: ["Model", "Price", "GPU", "CPU", "Display", "Best For"],
@@ -630,12 +850,12 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "g1", name: "ASUS ROG Zephyrus G16", price: 1999, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=ASUS+ROG+Zephyrus+G16&country=us", brand: "ASUS", category: "Gaming Laptops" },
-      { id: "g2", name: "Lenovo Legion Pro 7i", price: 2299, currency: "USD", merchant: "Lenovo", imageUrl: null, href: "/search?q=Lenovo+Legion+Pro+7i&country=us", brand: "Lenovo", category: "Gaming Laptops" },
-      { id: "g3", name: "Alienware m16 R3", price: 2499, currency: "USD", merchant: "Dell", imageUrl: null, href: "/search?q=Alienware+m16+R3&country=us", brand: "Alienware", category: "Gaming Laptops" },
-      { id: "g4", name: "HP Omen Transcend 14", price: 1699, currency: "USD", merchant: "HP", imageUrl: null, href: "/search?q=HP+Omen+Transcend+14&country=us", brand: "HP", category: "Gaming Laptops" },
-      { id: "g5", name: "Acer Predator Helios Neo 16", price: 1499, currency: "USD", merchant: "Acer", imageUrl: null, href: "/search?q=Acer+Predator+Helios+Neo+16&country=us", brand: "Acer", category: "Gaming Laptops" },
-      { id: "g6", name: "ASUS TUF Gaming A15", price: 1199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=ASUS+TUF+Gaming+A15&country=us", brand: "ASUS", category: "Gaming Laptops" },
+      { id: "g1", name: "ASUS ROG Zephyrus G16", price: 1999, currency: "USD", merchant: "Best Buy", imageUrl: "https://dlcdnwebimgs.asus.com/gain/70b05f13-cd55-4487-887a-8225f23ba395/", href: "/search?q=ASUS+ROG+Zephyrus+G16&country=us", brand: "ASUS", category: "Gaming Laptops" },
+      { id: "g2", name: "Lenovo Legion Pro 7i", price: 2299, currency: "USD", merchant: "Lenovo", imageUrl: "https://p1-ofp.static.pub/medias/bWFzdGVyfHJvb3R8Mzc2NTYyfGltYWdlL3BuZ3xoNWYvaGNhLzE0MTk2NzgzNjQ0MTkwLnBuZ3wxODhhZjI5ZjMzN2UyMWI1ZTcyZThjMGYwNTcyOTM1YTllYmQ0ZDU3Y2E4Y2QwMGY1YmNhODQ1MTVkZTRhZGEw/lenovo-legion-pro-7i-16-intel-hero.png", href: "/search?q=Lenovo+Legion+Pro+7i&country=us", brand: "Lenovo", category: "Gaming Laptops" },
+      { id: "g3", name: "Alienware m16 R3", price: 2499, currency: "USD", merchant: "Dell", imageUrl: "https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/dell-client-products/notebooks/alienware-notebooks/alienware-m16-r2/media-gallery/laptop-aw-m16r2-nt-bk-gallery-1.psd", href: "/search?q=Alienware+m16+R3&country=us", brand: "Alienware", category: "Gaming Laptops" },
+      { id: "g4", name: "HP Omen Transcend 14", price: 1699, currency: "USD", merchant: "HP", imageUrl: "https://ssl-product-images.www8-hp.com/digmedialib/prodimg/lowres/c08855874.png", href: "/search?q=HP+Omen+Transcend+14&country=us", brand: "HP", category: "Gaming Laptops" },
+      { id: "g5", name: "Acer Predator Helios Neo 16", price: 1499, currency: "USD", merchant: "Acer", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/p/r/predator-helios-neo-16-phn16-72-black-01.png", href: "/search?q=Acer+Predator+Helios+Neo+16&country=us", brand: "Acer", category: "Gaming Laptops" },
+      { id: "g6", name: "ASUS TUF Gaming A15", price: 1199, currency: "USD", merchant: "Amazon", imageUrl: "https://dlcdnwebimgs.asus.com/gain/d77fe2b2-2307-4ba0-904e-df5d15cc48b5/", href: "/search?q=ASUS+TUF+Gaming+A15&country=us", brand: "ASUS", category: "Gaming Laptops" },
     ],
     showRelatedCategory: true,
   },
@@ -654,7 +874,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     locale: "en_SG",
     searchQuery: "iPhone 16",
     backupQueries: ["iPhone 16 Pro", "iPhone 15", "iPhone 14", "Apple iPhone"],
-    refreshedLabel: "Updated April 26, 2026",
     productSectionTitle: "Live iPhone 16 offers across Singapore",
     comparisonSectionTitle: "Retailer price benchmarks",
     comparisonColumns: ["Merchant", "128GB", "256GB", "Delivery", "Notes"],
@@ -742,9 +961,10 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "robot vacuum",
-    backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
+backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
     minPrice: 50,
-    refreshedLabel: "Refreshed April 26, 2026",
+    requiredProductTerms: ["robot vacuum", "vacuum", "roomba", "roborock", "deebot", "eufy", "shark", "irobot"],
+    hreflangAlternates: { "en-SG": "/best-robot-vacuums-singapore" },
     productSectionTitle: "Live robot vacuum deals across the US",
     comparisonSectionTitle: "Top robot vacuum & Roomba picks at a glance",
     comparisonColumns: ["Model", "Price", "Suction", "Mop", "Self-Emptying", "Best For"],
@@ -809,12 +1029,12 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "r1", name: "Roborock S8 MaxV Ultra", price: 1299, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=Roborock+S8+MaxV+Ultra&country=us", brand: "Roborock", category: "Robot Vacuums" },
-      { id: "r2", name: "iRobot Roomba Combo j9+", price: 999, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=Roomba+Combo+j9%2B&country=us", brand: "iRobot", category: "Robot Vacuums" },
-      { id: "r3", name: "Shark PowerDetect 2-in-1", price: 699, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=Shark+PowerDetect+2-in-1&country=us", brand: "Shark", category: "Robot Vacuums" },
-      { id: "r4", name: "Ecovacs Deebot X2 Omni", price: 1099, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=Ecovacs+Deebot+X2+Omni&country=us", brand: "Ecovacs", category: "Robot Vacuums" },
-      { id: "r5", name: "eufy X10 Pro Omni", price: 799, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=eufy+X10+Pro+Omni&country=us", brand: "eufy", category: "Robot Vacuums" },
-      { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
+      { id: "r1", name: "Roborock S8 MaxV Ultra", price: 1299, currency: "USD", merchant: "Amazon", imageUrl: "https://image.roborock.com/product/s8-maxv-ultra/gallery/1.jpg", href: "/search?q=Roborock+S8+MaxV+Ultra&country=us", brand: "Roborock", category: "Robot Vacuums" },
+      { id: "r2", name: "iRobot Roomba Combo j9+", price: 999, currency: "USD", merchant: "Best Buy", imageUrl: "https://www.irobot.com/dw/image/v2/BFXP_PRD/on/demandware.static/-/Sites-master-catalog/default/dw8f32c4ab/images/large/C975020_1.jpg", href: "/search?q=Roomba+Combo+j9%2B&country=us", brand: "iRobot", category: "Robot Vacuums" },
+      { id: "r3", name: "Shark PowerDetect 2-in-1", price: 699, currency: "USD", merchant: "Walmart", imageUrl: "https://res.cloudinary.com/sharkninja-na/image/upload/f_auto,q_auto/v1/SharkNinja-NA/Shark/Products/RV2820ZE/RV2820ZE_01.jpg", href: "/search?q=Shark+PowerDetect+2-in-1&country=us", brand: "Shark", category: "Robot Vacuums" },
+      { id: "r4", name: "Ecovacs Deebot X2 Omni", price: 1099, currency: "USD", merchant: "Amazon", imageUrl: "https://www.ecovacs.com/media/wysiwyg/us/deebot-x2-omni/DEEBOT-X2-OMNI-black.png", href: "/search?q=Ecovacs+Deebot+X2+Omni&country=us", brand: "Ecovacs", category: "Robot Vacuums" },
+      { id: "r5", name: "eufy X10 Pro Omni", price: 799, currency: "USD", merchant: "Amazon", imageUrl: "https://cdn.shopify.com/s/files/1/0508/1815/4652/files/x10-pro-omni.png", href: "/search?q=eufy+X10+Pro+Omni&country=us", brand: "eufy", category: "Robot Vacuums" },
+      { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: "https://image.roborock.com/product/q5-pro-plus/gallery/1.jpg", href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
     ],
     categoryIntro: {
       heading: "Roomba Sale 2026 — iRobot's Best Deals Right Now",
@@ -833,6 +1053,94 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     ],
     showRelatedCategory: true,
   },
+  "best-robot-vacuums-singapore": {
+    slug: "best-robot-vacuums-singapore",
+    title: "Best Robot Vacuum & Roborock Deals in Singapore 2026 — Compare Prices Across Shopee, Lazada, Challenger",
+    description:
+      "Compare live robot vacuum and Roborock sale prices across Shopee, Lazada, Challenger, Harvey Norman, and Best Denki in Singapore 2026, with buying advice and the best deals refreshed weekly.",
+    heroEyebrow: "Singapore Home Guide",
+    heroTitle: "Best Robot Vacuum & Roborock Deals in Singapore 2026",
+    heroBody:
+      "Looking for the best robot vacuum sale in Singapore for 2026? Roborock, Dreame, Xiaomi, and Ecovacs models regularly drop 20-40% during 5.5, 6.6, 9.9, and 11.11 mega campaigns. This page tracks live robot vacuum and Roborock deals across Shopee Mall, LazMall, Challenger, Harvey Norman, and Best Denki so you never miss a discount.",
+    canonicalPath: "/best-robot-vacuums-singapore",
+    country: "SG",
+    currency: "SGD",
+    locale: "en_SG",
+    searchQuery: "robot vacuum",
+    hreflangAlternates: { "en-US": "/best-robot-vacuums-2026" },
+    productSectionTitle: "Live robot vacuum deals across Singapore",
+    comparisonSectionTitle: "Top robot vacuum & Roborock picks at a glance",
+    comparisonColumns: ["Model", "Price", "Suction", "Mop", "Self-Emptying", "Best For"],
+    comparisonRows: [
+      { Model: "Roborock S8 MaxV Ultra", Price: "S$1,899", Suction: "10,000 Pa", Mop: "Yes", "Self-Emptying": "Yes", "Best For": "Best overall" },
+      { Model: "Dreame L20 Ultra", Price: "S$1,499", Suction: "7,000 Pa", Mop: "Yes", "Self-Emptying": "Yes", "Best For": "Best mid-range flagship" },
+      { Model: "Roborock Q Revo MaxV", Price: "S$1,199", Suction: "6,000 Pa", Mop: "Yes", "Self-Emptying": "Yes", "Best For": "Best value premium" },
+      { Model: "Ecovacs Deebot X2 Omni", Price: "S$1,599", Suction: "8,000 Pa", Mop: "Yes", "Self-Emptying": "Yes", "Best For": "Best navigation" },
+      { Model: "Xiaomi Robot Vacuum X10+", Price: "S$799", Suction: "4,000 Pa", Mop: "Yes", "Self-Emptying": "Yes", "Best For": "Best value mid-range" },
+      { Model: "Roborock Q5 Pro+", Price: "S$649", Suction: "5,500 Pa", Mop: "No", "Self-Emptying": "Yes", "Best For": "Best under S$700" },
+    ],
+    highlightSectionTitle: "What separates the best picks for SG buyers",
+    highlights: [
+      {
+        title: "Roborock S8 MaxV Ultra",
+        body: "The safest premium recommendation if you want strong suction, dependable mopping, and a dock that minimizes manual maintenance. Look for Shopee Mall authorised listings with local warranty.",
+      },
+      {
+        title: "Dreame L20 Ultra",
+        body: "Often priced S$200-S$400 below the Roborock flagship during 9.9 and 11.11. Comparable mopping performance for SG apartments with mostly hard floors.",
+      },
+      {
+        title: "Roborock Q5 Pro+",
+        body: "The practical buy for SG HDB shoppers who care more about vacuuming value than mopping features or luxury docks.",
+      },
+    ],
+    adviceSectionTitle: "How to choose a robot vacuum in Singapore",
+    advicePoints: [
+      "If your home is mostly tile or vinyl (typical SG HDB), a vacuum-and-mop combo usually saves more time than a vacuum-only model.",
+      "For pet owners, prioritise tangle-free brushrolls and self-emptying docks over headline mopping features.",
+      "Buy from Shopee Mall, LazMall, Challenger, Harvey Norman, or Best Denki for clearer local warranty support than parallel-import listings.",
+      "Best SG discount windows: 5.5 (May), 6.6 (June), 7.7, 8.8, 9.9 (Sep), 10.10, 11.11 (Nov), 12.12 mega campaigns.",
+    ],
+    faqSectionTitle: "Robot vacuum Singapore FAQ",
+    faqs: [
+      {
+        question: "What is the best robot vacuum in Singapore right now?",
+        answer:
+          "For most SG buyers, the Roborock S8 MaxV Ultra is the best robot vacuum in Singapore because it combines strong cleaning, dependable navigation, effective mopping, and one of the best all-in-one docks available locally.",
+      },
+      {
+        question: "Are robot vacuums worth it in Singapore?",
+        answer:
+          "Yes. Singapore's mostly hard floors make robot vacuums especially effective for daily maintenance. The main value is time saved and consistent upkeep in air-conditioned HDB or condo spaces.",
+      },
+      {
+        question: "Where is the cheapest place to buy a robot vacuum in Singapore?",
+        answer:
+          "Shopee Mall and LazMall during 5.5, 9.9, and 11.11 campaigns often have the lowest prices. Challenger, Harvey Norman, and Best Denki are better for in-store pickup and local warranty support.",
+      },
+    ],
+    shopperCta: {
+      title: "Compare robot vacuum prices in Singapore",
+      body: "Find Roborock, Dreame, Xiaomi, and Ecovacs deals across Shopee, Lazada, Challenger, and Harvey Norman in one search view.",
+      href: "/search?q=robot+vacuum&country=sg",
+      label: "Shop robot vacuums",
+    },
+    developerCta: {
+      title: "Build robot vacuum price trackers",
+      body: "Use BuyWhere APIs to monitor robot vacuum pricing, availability, and mega-campaign deal swings across SG retailers.",
+      href: "/developers",
+      label: "Explore the API",
+    },
+    fallbackProducts: [
+      { id: "r1", name: "Roborock S8 MaxV Ultra", price: 1899, currency: "SGD", merchant: "Shopee Mall", imageUrl: null, href: "/search?q=Roborock+S8+MaxV+Ultra&country=sg", brand: "Roborock", category: "Robot Vacuums" },
+      { id: "r2", name: "Dreame L20 Ultra", price: 1499, currency: "SGD", merchant: "LazMall", imageUrl: null, href: "/search?q=Dreame+L20+Ultra&country=sg", brand: "Dreame", category: "Robot Vacuums" },
+      { id: "r3", name: "Ecovacs Deebot X2 Omni", price: 1599, currency: "SGD", merchant: "Challenger", imageUrl: null, href: "/search?q=Ecovacs+Deebot+X2+Omni&country=sg", brand: "Ecovacs", category: "Robot Vacuums" },
+      { id: "r4", name: "Roborock Q Revo MaxV", price: 1199, currency: "SGD", merchant: "Shopee Mall", imageUrl: null, href: "/search?q=Roborock+Q+Revo+MaxV&country=sg", brand: "Roborock", category: "Robot Vacuums" },
+      { id: "r5", name: "Xiaomi Robot Vacuum X10+", price: 799, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=Xiaomi+Robot+Vacuum+X10%2B&country=sg", brand: "Xiaomi", category: "Robot Vacuums" },
+      { id: "r6", name: "Roborock Q5 Pro+", price: 649, currency: "SGD", merchant: "Harvey Norman", imageUrl: null, href: "/search?q=Roborock+Q5+Pro%2B&country=sg", brand: "Roborock", category: "Robot Vacuums" },
+    ],
+    showRelatedCategory: true,
+  },
   "airpods-singapore": {
     slug: "airpods-singapore",
     title: "Apple AirPods Prices in Singapore (2026) — AirPods 4, Pro 2, AirPods Max Compared",
@@ -847,7 +1155,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "AirPods",
-    refreshedLabel: "Updated June 27, 2026",
     productSectionTitle: "Live AirPods offers across Singapore",
     comparisonSectionTitle: "Popular AirPods picks at a glance",
     comparisonColumns: ["Model", "Price", "Battery", "ANC", "Best For"],
@@ -971,7 +1278,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "gaming laptop",
-    refreshedLabel: "Updated June 26, 2026",
+    hreflangAlternates: { "en-US": "/best-gaming-laptops-us" },
     productSectionTitle: "Live gaming laptop deals across Singapore",
     comparisonSectionTitle: "Top gaming laptop picks at a glance",
     comparisonColumns: ["Model", "Price", "GPU", "CPU", "Best For"],
@@ -1044,9 +1351,9 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
   },
   "macbook-air-singapore": {
     slug: "macbook-air-singapore",
-    title: "MacBook Air Singapore from S$1,299 — M3 & M4 Prices (2026)",
+    title: "Cheapest MacBook Air in Singapore (2026) — from S$1,299",
     description:
-      "MacBook Air in Singapore starts at S$1,299 during the 6.6 campaign (vs S$1,499 at Apple Store). Compare M3 and M4 prices across Apple, Shopee, Lazada, and authorised resellers.",
+      "Cheapest MacBook Air in Singapore from S$1,299 (M3) / S$1,499 (M4). Compare live M3/M4 prices at Apple Store, Shopee, Lazada, and authorised resellers.",
     heroEyebrow: "Singapore Laptop Guide",
     heroTitle: "Cheapest MacBook Air in Singapore",
     heroBody:
@@ -1056,7 +1363,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "MacBook Air",
-    refreshedLabel: "Updated May 4, 2026",
     productSectionTitle: "Live MacBook Air offers across Singapore",
     comparisonSectionTitle: "MacBook Air models at a glance",
     comparisonColumns: ["Model", "Price", "Chip", "RAM", "Best For"],
@@ -1139,7 +1445,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "TVs",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live TVs offers across the US",
     comparisonSectionTitle: "Popular TVs picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -1222,7 +1527,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Headphones",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Headphones offers across the US",
     comparisonSectionTitle: "Popular Headphones picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -1305,7 +1609,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Wireless Earbuds",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Wireless Earbuds offers across the US",
     comparisonSectionTitle: "Popular Wireless Earbuds picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -1388,7 +1691,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Smartwatches",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Smartwatches offers across the US",
     comparisonSectionTitle: "Popular Smartwatches picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -1471,7 +1773,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Tablets",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Tablets offers across the US",
     comparisonSectionTitle: "Popular Tablets picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -1554,7 +1855,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Cameras",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Cameras offers across the US",
     comparisonSectionTitle: "Popular Cameras picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -1637,7 +1937,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Laptops",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Laptops offers across the US",
     comparisonSectionTitle: "Popular Laptops picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -1720,7 +2019,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Computer Monitors",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Computer Monitors offers across the US",
     comparisonSectionTitle: "Popular Computer Monitors picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -1803,7 +2101,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Speakers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Speakers offers across the US",
     comparisonSectionTitle: "Popular Speakers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -1886,7 +2183,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Gaming Consoles",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Gaming Consoles offers across the US",
     comparisonSectionTitle: "Popular Gaming Consoles picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -1969,7 +2265,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Mattresses",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Mattresses offers across the US",
     comparisonSectionTitle: "Popular Mattresses picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -2052,7 +2347,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Sofas",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Sofas offers across the US",
     comparisonSectionTitle: "Popular Sofas picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -2135,7 +2429,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Dining Tables",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Dining Tables offers across the US",
     comparisonSectionTitle: "Popular Dining Tables picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -2218,7 +2511,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Coffee Tables",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Coffee Tables offers across the US",
     comparisonSectionTitle: "Popular Coffee Tables picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -2301,7 +2593,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "TV Stands",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live TV Stands offers across the US",
     comparisonSectionTitle: "Popular TV Stands picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -2384,7 +2675,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Bookcases",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Bookcases offers across the US",
     comparisonSectionTitle: "Popular Bookcases picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -2467,7 +2757,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Dressers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Dressers offers across the US",
     comparisonSectionTitle: "Popular Dressers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -2550,7 +2839,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Nightstands",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Nightstands offers across the US",
     comparisonSectionTitle: "Popular Nightstands picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -2633,7 +2921,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Outdoor Furniture",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Outdoor Furniture offers across the US",
     comparisonSectionTitle: "Popular Outdoor Furniture picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -2716,7 +3003,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Office Chairs",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Office Chairs offers across the US",
     comparisonSectionTitle: "Popular Office Chairs picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -2799,7 +3085,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Air Fryers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Air Fryers offers across the US",
     comparisonSectionTitle: "Popular Air Fryers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -2882,7 +3167,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Instant Pots",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Instant Pots offers across the US",
     comparisonSectionTitle: "Popular Instant Pots picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -2965,7 +3249,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Coffee Makers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Coffee Makers offers across the US",
     comparisonSectionTitle: "Popular Coffee Makers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -3048,7 +3331,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Espresso Machines",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Espresso Machines offers across the US",
     comparisonSectionTitle: "Popular Espresso Machines picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -3131,7 +3413,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Toasters",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Toasters offers across the US",
     comparisonSectionTitle: "Popular Toasters picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -3214,7 +3495,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Blenders",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Blenders offers across the US",
     comparisonSectionTitle: "Popular Blenders picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -3297,7 +3577,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Juicers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Juicers offers across the US",
     comparisonSectionTitle: "Popular Juicers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -3380,7 +3659,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Electric Grills",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Electric Grills offers across the US",
     comparisonSectionTitle: "Popular Electric Grills picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -3463,7 +3741,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Slow Cookers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Slow Cookers offers across the US",
     comparisonSectionTitle: "Popular Slow Cookers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -3546,7 +3823,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Rice Cookers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Rice Cookers offers across the US",
     comparisonSectionTitle: "Popular Rice Cookers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -3629,7 +3905,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Microwaves",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Microwaves offers across the US",
     comparisonSectionTitle: "Popular Microwaves picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -3712,7 +3987,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Wall Ovens",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Wall Ovens offers across the US",
     comparisonSectionTitle: "Popular Wall Ovens picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -3795,7 +4069,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Cookware Sets",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Cookware Sets offers across the US",
     comparisonSectionTitle: "Popular Cookware Sets picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -3878,7 +4151,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Knife Sets",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Knife Sets offers across the US",
     comparisonSectionTitle: "Popular Knife Sets picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -3961,7 +4233,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Kitchen Utensils",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Kitchen Utensils offers across the US",
     comparisonSectionTitle: "Popular Kitchen Utensils picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -4044,7 +4315,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Air Purifiers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Air Purifiers offers across the US",
     comparisonSectionTitle: "Popular Air Purifiers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -4127,7 +4397,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Humidifiers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Humidifiers offers across the US",
     comparisonSectionTitle: "Popular Humidifiers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -4210,7 +4479,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Dehumidifiers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Dehumidifiers offers across the US",
     comparisonSectionTitle: "Popular Dehumidifiers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -4293,7 +4561,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Space Heaters",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Space Heaters offers across the US",
     comparisonSectionTitle: "Popular Space Heaters picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -4376,7 +4643,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Ceiling Fans",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Ceiling Fans offers across the US",
     comparisonSectionTitle: "Popular Ceiling Fans picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -4459,7 +4725,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Vacuum Cleaners",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Vacuum Cleaners offers across the US",
     comparisonSectionTitle: "Popular Vacuum Cleaners picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -4542,7 +4807,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Stick Vacuums",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Stick Vacuums offers across the US",
     comparisonSectionTitle: "Popular Stick Vacuums picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -4625,7 +4889,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Carpet Cleaners",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Carpet Cleaners offers across the US",
     comparisonSectionTitle: "Popular Carpet Cleaners picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -4708,7 +4971,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Steam Irons",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Steam Irons offers across the US",
     comparisonSectionTitle: "Popular Steam Irons picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -4791,7 +5053,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Fans",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Fans offers across the US",
     comparisonSectionTitle: "Popular Fans picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -4874,7 +5135,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Lamps",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Lamps offers across the US",
     comparisonSectionTitle: "Popular Lamps picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -4957,7 +5217,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Mirrors",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Mirrors offers across the US",
     comparisonSectionTitle: "Popular Mirrors picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -5040,7 +5299,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Storage Bins",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Storage Bins offers across the US",
     comparisonSectionTitle: "Popular Storage Bins picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -5123,7 +5381,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "Laundry Baskets",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Laundry Baskets offers across the US",
     comparisonSectionTitle: "Popular Laundry Baskets picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -5206,7 +5463,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "smart home",
-    refreshedLabel: "Updated June 27, 2026",
     productSectionTitle: "Live smart home offers across the US",
     comparisonSectionTitle: "Popular smart home picks at a glance",
     comparisonColumns: ["Device", "Price", "Ecosystem", "Best For"],
@@ -5331,7 +5587,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "French Door Refrigerators",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live French Door Refrigerators offers across the US",
     comparisonSectionTitle: "Popular French Door Refrigerators picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -5391,7 +5646,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Side By Side Refrigerators",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Side By Side Refrigerators offers across the US",
     comparisonSectionTitle: "Popular Side By Side Refrigerators picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -5451,7 +5705,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Top Freezer Refrigerators",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Top Freezer Refrigerators offers across the US",
     comparisonSectionTitle: "Popular Top Freezer Refrigerators picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -5511,7 +5764,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Washing Machines",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Washing Machines offers across the US",
     comparisonSectionTitle: "Popular Washing Machines picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -5571,7 +5823,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "High Efficiency Washing Machines",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live High Efficiency Washing Machines offers across the US",
     comparisonSectionTitle: "Popular High Efficiency Washing Machines picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -5631,7 +5882,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Compact Washing Machines",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Compact Washing Machines offers across the US",
     comparisonSectionTitle: "Popular Compact Washing Machines picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -5691,7 +5941,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Clothes Dryers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Clothes Dryers offers across the US",
     comparisonSectionTitle: "Popular Clothes Dryers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -5751,7 +6000,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Stackable Washer Dryer Sets",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Stackable Washer Dryer Sets offers across the US",
     comparisonSectionTitle: "Popular Stackable Washer Dryer Sets picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -5811,7 +6059,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Dishwashers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Dishwashers offers across the US",
     comparisonSectionTitle: "Popular Dishwashers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -5871,7 +6118,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Compact Dishwashers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Compact Dishwashers offers across the US",
     comparisonSectionTitle: "Popular Compact Dishwashers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -5931,7 +6177,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Convection Microwaves",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Convection Microwaves offers across the US",
     comparisonSectionTitle: "Popular Convection Microwaves picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -5991,7 +6236,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Microwave Ovens",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Microwave Ovens offers across the US",
     comparisonSectionTitle: "Popular Microwave Ovens picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -6051,7 +6295,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Large Capacity Air Fryers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Large Capacity Air Fryers offers across the US",
     comparisonSectionTitle: "Popular Large Capacity Air Fryers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -6111,7 +6354,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Single Serve Coffee Makers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Single Serve Coffee Makers offers across the US",
     comparisonSectionTitle: "Popular Single Serve Coffee Makers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -6171,7 +6413,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Portable Espresso Machines",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Portable Espresso Machines offers across the US",
     comparisonSectionTitle: "Popular Portable Espresso Machines picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -6231,7 +6472,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Personal Blenders",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Personal Blenders offers across the US",
     comparisonSectionTitle: "Popular Personal Blenders picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -6291,7 +6531,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Convection Toaster Ovens",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Convection Toaster Ovens offers across the US",
     comparisonSectionTitle: "Popular Convection Toaster Ovens picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -6351,7 +6590,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Stand Mixers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Stand Mixers offers across the US",
     comparisonSectionTitle: "Popular Stand Mixers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -6411,7 +6649,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Hand Mixers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Hand Mixers offers across the US",
     comparisonSectionTitle: "Popular Hand Mixers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -6471,7 +6708,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Pressure Cookers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Pressure Cookers offers across the US",
     comparisonSectionTitle: "Popular Pressure Cookers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -6531,7 +6767,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Electric Kettles",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Electric Kettles offers across the US",
     comparisonSectionTitle: "Popular Electric Kettles picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -6591,7 +6826,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Food Processors",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Food Processors offers across the US",
     comparisonSectionTitle: "Popular Food Processors picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -6651,7 +6885,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Immersion Blenders",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Immersion Blenders offers across the US",
     comparisonSectionTitle: "Popular Immersion Blenders picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -6711,7 +6944,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Smart Air Purifiers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Smart Air Purifiers offers across the US",
     comparisonSectionTitle: "Popular Smart Air Purifiers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -6771,7 +7003,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Robot Vacuums",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Robot Vacuums offers across the US",
     comparisonSectionTitle: "Popular Robot Vacuums picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -6831,7 +7062,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Car Vacuum Cleaners",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Car Vacuum Cleaners offers across the US",
     comparisonSectionTitle: "Popular Car Vacuum Cleaners picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -6891,7 +7121,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Steam Generators",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Steam Generators offers across the US",
     comparisonSectionTitle: "Popular Steam Generators picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -6951,7 +7180,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Electric Fireplaces",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Electric Fireplaces offers across the US",
     comparisonSectionTitle: "Popular Electric Fireplaces picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -7011,7 +7239,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Water Purifiers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Water Purifiers offers across the US",
     comparisonSectionTitle: "Popular Water Purifiers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -7071,7 +7298,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Water Softeners",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Water Softeners offers across the US",
     comparisonSectionTitle: "Popular Water Softeners picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -7131,7 +7357,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Wine Coolers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Wine Coolers offers across the US",
     comparisonSectionTitle: "Popular Wine Coolers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -7191,7 +7416,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Slice Toasters",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Slice Toasters offers across the US",
     comparisonSectionTitle: "Popular Slice Toasters picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -7251,7 +7475,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Pressure Washing Machines",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Pressure Washing Machines offers across the US",
     comparisonSectionTitle: "Popular Pressure Washing Machines picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -7311,7 +7534,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Window Ac",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Window Ac offers across the US",
     comparisonSectionTitle: "Popular Window Ac picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -7371,7 +7593,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Portable Ac",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Portable Ac offers across the US",
     comparisonSectionTitle: "Popular Portable Ac picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -7431,7 +7652,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Dehumidifiers For Basements",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Dehumidifiers For Basements offers across the US",
     comparisonSectionTitle: "Popular Dehumidifiers For Basements picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -7491,7 +7711,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Whole House Humidifiers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Whole House Humidifiers offers across the US",
     comparisonSectionTitle: "Popular Whole House Humidifiers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -7551,7 +7770,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Air Purifiers For Allergies",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Air Purifiers For Allergies offers across the US",
     comparisonSectionTitle: "Popular Air Purifiers For Allergies picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -7611,7 +7829,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Refrigerators With Ice Makers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Refrigerators With Ice Makers offers across the US",
     comparisonSectionTitle: "Popular Refrigerators With Ice Makers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -7671,7 +7888,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Commercial Stand Mixers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Commercial Stand Mixers offers across the US",
     comparisonSectionTitle: "Popular Commercial Stand Mixers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -7731,7 +7947,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Cold Press Juicers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Cold Press Juicers offers across the US",
     comparisonSectionTitle: "Popular Cold Press Juicers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -7791,7 +8006,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Multi Cookers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Multi Cookers offers across the US",
     comparisonSectionTitle: "Popular Multi Cookers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -7851,7 +8065,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Bread Makers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Bread Makers offers across the US",
     comparisonSectionTitle: "Popular Bread Makers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -7911,7 +8124,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Yogurt Makers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Yogurt Makers offers across the US",
     comparisonSectionTitle: "Popular Yogurt Makers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -7971,7 +8183,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Sous Vide",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Sous Vide offers across the US",
     comparisonSectionTitle: "Popular Sous Vide picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -8031,7 +8242,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Food Dehydrators",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Food Dehydrators offers across the US",
     comparisonSectionTitle: "Popular Food Dehydrators picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -8091,7 +8301,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Popcorn Makers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Popcorn Makers offers across the US",
     comparisonSectionTitle: "Popular Popcorn Makers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -8151,7 +8360,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Electric Griddles",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Electric Griddles offers across the US",
     comparisonSectionTitle: "Popular Electric Griddles picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -8211,7 +8419,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Waffle Makers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Waffle Makers offers across the US",
     comparisonSectionTitle: "Popular Waffle Makers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -8271,7 +8478,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Contact Grills",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Contact Grills offers across the US",
     comparisonSectionTitle: "Popular Contact Grills picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -8330,7 +8536,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Business Laptops",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Business Laptops offers across the US",
     comparisonSectionTitle: "Popular Business Laptops picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -8390,7 +8595,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Budget Laptops",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Budget Laptops offers across the US",
     comparisonSectionTitle: "Popular Budget Laptops picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -8450,7 +8654,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Ultrabooks",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Ultrabooks offers across the US",
     comparisonSectionTitle: "Popular Ultrabooks picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -8510,7 +8713,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "MacBooks",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live MacBooks offers across the US",
     comparisonSectionTitle: "Popular MacBooks picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -8570,7 +8772,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "iPhones",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live iPhones offers across the US",
     comparisonSectionTitle: "Popular iPhones picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -8630,7 +8831,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Samsung Phones",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Samsung Phones offers across the US",
     comparisonSectionTitle: "Popular Samsung Phones picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -8690,7 +8890,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Google Phones",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Google Phones offers across the US",
     comparisonSectionTitle: "Popular Google Phones picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -8750,7 +8949,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Budget Phones",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Budget Phones offers across the US",
     comparisonSectionTitle: "Popular Budget Phones picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -8810,7 +9008,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "iPads",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live iPads offers across the US",
     comparisonSectionTitle: "Popular iPads picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -8870,7 +9067,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Android tablet",
-    refreshedLabel: "Updated June 26, 2026",
     productSectionTitle: "Live Android tablet deals across the US",
     comparisonSectionTitle: "Best Android tablets 2026 — side-by-side",
     comparisonColumns: ["Model", "Screen", "Storage", "Price", "Where to Buy"],
@@ -8942,7 +9138,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Drawing Tablets",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Drawing Tablets offers across the US",
     comparisonSectionTitle: "Popular Drawing Tablets picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -9002,7 +9197,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "OLED TVs",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live OLED TVs offers across the US",
     comparisonSectionTitle: "Popular OLED TVs picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -9062,7 +9256,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "QLED TV",
-    refreshedLabel: "Updated June 27, 2026",
     productSectionTitle: "Live QLED TV deals across the US",
     comparisonSectionTitle: "Best QLED TVs 2026 — side-by-side",
     comparisonColumns: ["Model", "Screen Size", "Price", "Peak Brightness", "Where to Buy"],
@@ -9148,7 +9341,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "4K TV",
-    refreshedLabel: "Updated June 26, 2026",
     productSectionTitle: "Live cheap TV deals across the US",
     comparisonSectionTitle: "Best budget TVs under $500 — side-by-side",
     comparisonColumns: ["Model", "Screen Size", "Price", "Where to Buy"],
@@ -9238,7 +9430,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Gaming Monitors",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Gaming Monitors offers across the US",
     comparisonSectionTitle: "Popular Gaming Monitors picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -9298,7 +9489,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "4K Monitors",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live 4K Monitors offers across the US",
     comparisonSectionTitle: "Popular 4K Monitors picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -9358,7 +9548,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Ultrawide Monitors",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Ultrawide Monitors offers across the US",
     comparisonSectionTitle: "Popular Ultrawide Monitors picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -9418,7 +9607,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Noise-Canceling Headphones",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Noise-Canceling Headphones offers across the US",
     comparisonSectionTitle: "Popular Noise-Canceling Headphones picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -9458,11 +9646,11 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "f1", name: "Noise-Canceling Headphones Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+noise+canceling+headphones&country=us", brand: "Brand A", category: "Noise-Canceling Headphones" },
-      { id: "f2", name: "Noise-Canceling Headphones Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=best+noise+canceling+headphones&country=us", brand: "Brand B", category: "Noise-Canceling Headphones" },
-      { id: "f3", name: "Noise-Canceling Headphones Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=best+noise+canceling+headphones&country=us", brand: "Brand C", category: "Noise-Canceling Headphones" },
-      { id: "f4", name: "Noise-Canceling Headphones Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=best+noise+canceling+headphones&country=us", brand: "Brand D", category: "Noise-Canceling Headphones" },
-      { id: "f5", name: "Noise-Canceling Headphones Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=best+noise+canceling+headphones&country=us", brand: "Brand E", category: "Noise-Canceling Headphones" },
+      { id: "nc1", name: "Sony WH-1000XM5", price: 398, currency: "USD", merchant: "Amazon", imageUrl: "https://m.media-amazon.com/images/I/61vJtKbAssL._AC_SL1500_.jpg", href: "/search?q=Sony+WH-1000XM5&country=us", brand: "Sony", category: "Noise-Canceling Headphones" },
+      { id: "nc2", name: "Bose QuietComfort Ultra Headphones", price: 429, currency: "USD", merchant: "Best Buy", imageUrl: "https://assets.bosecreative.com/transform/6d0f4756-216d-4d6c-b0e8-b77e7bf92c05/QCUH24_Black_EC_01", href: "/search?q=Bose+QuietComfort+Ultra+Headphones&country=us", brand: "Bose", category: "Noise-Canceling Headphones" },
+      { id: "nc3", name: "Apple AirPods Max", price: 549, currency: "USD", merchant: "Apple", imageUrl: "https://store.storeimages.cdn-apple.com/4982/as-images.apple.com/is/airpods-max-select-202409-midnight", href: "/search?q=Apple+AirPods+Max&country=us", brand: "Apple", category: "Noise-Canceling Headphones" },
+      { id: "nc4", name: "Sennheiser Momentum 4 Wireless", price: 379, currency: "USD", merchant: "Sennheiser", imageUrl: "https://assets.sennheiser.com/img/17679/x1_desktop_MOMENTUM_4_Wireless_Product_Image_black.png", href: "/search?q=Sennheiser+Momentum+4+Wireless&country=us", brand: "Sennheiser", category: "Noise-Canceling Headphones" },
+      { id: "nc5", name: "Beats Studio Pro", price: 349, currency: "USD", merchant: "Target", imageUrl: "https://store.storeimages.cdn-apple.com/4982/as-images.apple.com/is/MQTP3", href: "/search?q=Beats+Studio+Pro&country=us", brand: "Beats", category: "Noise-Canceling Headphones" },
     ],
   },
 
@@ -9478,7 +9666,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Wireless Earbuds",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Wireless Earbuds offers across the US",
     comparisonSectionTitle: "Popular Wireless Earbuds picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -9538,7 +9725,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Budget Earbuds",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Budget Earbuds offers across the US",
     comparisonSectionTitle: "Popular Budget Earbuds picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -9598,7 +9784,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Fitness Trackers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Fitness Trackers offers across the US",
     comparisonSectionTitle: "Popular Fitness Trackers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -9658,7 +9843,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "DSLR Cameras",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live DSLR Cameras offers across the US",
     comparisonSectionTitle: "Popular DSLR Cameras picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -9718,7 +9902,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Mirrorless Cameras",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Mirrorless Cameras offers across the US",
     comparisonSectionTitle: "Popular Mirrorless Cameras picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -9778,7 +9961,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Point-and-Shoot Cameras",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Point-and-Shoot Cameras offers across the US",
     comparisonSectionTitle: "Popular Point-and-Shoot Cameras picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -9838,7 +10020,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "VR Headsets",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live VR Headsets offers across the US",
     comparisonSectionTitle: "Popular VR Headsets picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -9898,7 +10079,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Drones",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Drones offers across the US",
     comparisonSectionTitle: "Popular Drones picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -9958,7 +10138,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Bluetooth speaker",
-    refreshedLabel: "Updated June 26, 2026",
     productSectionTitle: "Live Bluetooth speaker deals across the US",
     comparisonSectionTitle: "Best Bluetooth speakers 2026 — side-by-side",
     comparisonColumns: ["Model", "Battery", "IP Rating", "Price", "Where to Buy"],
@@ -10047,7 +10226,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Smart Speakers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Smart Speakers offers across the US",
     comparisonSectionTitle: "Popular Smart Speakers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -10107,7 +10285,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Soundbars",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Soundbars offers across the US",
     comparisonSectionTitle: "Popular Soundbars picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -10167,7 +10344,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Mechanical Keyboards",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Mechanical Keyboards offers across the US",
     comparisonSectionTitle: "Popular Mechanical Keyboards picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -10227,7 +10403,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Wireless Keyboards",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Wireless Keyboards offers across the US",
     comparisonSectionTitle: "Popular Wireless Keyboards picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -10287,7 +10462,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Gaming Mice",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Gaming Mice offers across the US",
     comparisonSectionTitle: "Popular Gaming Mice picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -10347,7 +10521,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Ergonomic Mice",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Ergonomic Mice offers across the US",
     comparisonSectionTitle: "Popular Ergonomic Mice picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -10407,7 +10580,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Webcams",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Webcams offers across the US",
     comparisonSectionTitle: "Popular Webcams picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -10467,7 +10639,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Microphones",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Microphones offers across the US",
     comparisonSectionTitle: "Popular Microphones picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -10527,7 +10698,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Printers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Printers offers across the US",
     comparisonSectionTitle: "Popular Printers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -10587,7 +10757,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "WiFi Routers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live WiFi Routers offers across the US",
     comparisonSectionTitle: "Popular WiFi Routers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -10647,7 +10816,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Mesh WiFi Systems",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Mesh WiFi Systems offers across the US",
     comparisonSectionTitle: "Popular Mesh WiFi Systems picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -10707,7 +10875,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "NAS Storage",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live NAS Storage offers across the US",
     comparisonSectionTitle: "Popular NAS Storage picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -10767,7 +10934,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Power Banks",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Power Banks offers across the US",
     comparisonSectionTitle: "Popular Power Banks picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -10827,7 +10993,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "USB-C Hubs",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live USB-C Hubs offers across the US",
     comparisonSectionTitle: "Popular USB-C Hubs picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -10887,7 +11052,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Streaming Devices",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Streaming Devices offers across the US",
     comparisonSectionTitle: "Popular Streaming Devices picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -10947,7 +11111,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "E-Readers",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live E-Readers offers across the US",
     comparisonSectionTitle: "Popular E-Readers picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -11007,7 +11170,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Portable Projectors",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Portable Projectors offers across the US",
     comparisonSectionTitle: "Popular Portable Projectors picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -11067,7 +11229,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "iPhone",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live iPhone prices across the US",
     comparisonSectionTitle: "Where to buy iPhone cheapest",
     comparisonColumns: ["Retailer", "Price", "Shipping", "Availability"],
@@ -11128,7 +11289,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Laptops",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Laptops prices across the US",
     comparisonSectionTitle: "Where to buy Laptops cheapest",
     comparisonColumns: ["Retailer", "Price", "Shipping", "Availability"],
@@ -11189,7 +11349,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "TVs",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live TVs prices across the US",
     comparisonSectionTitle: "Where to buy TVs cheapest",
     comparisonColumns: ["Retailer", "Price", "Shipping", "Availability"],
@@ -11250,7 +11409,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "PS5",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live PS5 prices across the US",
     comparisonSectionTitle: "Where to buy PS5 cheapest",
     comparisonColumns: ["Retailer", "Price", "Shipping", "Availability"],
@@ -11311,7 +11469,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "AirPods",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live AirPods prices across the US",
     comparisonSectionTitle: "Where to buy AirPods cheapest",
     comparisonColumns: ["Retailer", "Price", "Shipping", "Availability"],
@@ -11372,7 +11529,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "MacBook",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live MacBook prices across the US",
     comparisonSectionTitle: "Where to buy MacBook cheapest",
     comparisonColumns: ["Retailer", "Price", "Shipping", "Availability"],
@@ -11433,7 +11589,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Samsung TV",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Samsung TV prices across the US",
     comparisonSectionTitle: "Where to buy Samsung TV cheapest",
     comparisonColumns: ["Retailer", "Price", "Shipping", "Availability"],
@@ -11494,7 +11649,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "iPad",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live iPad prices across the US",
     comparisonSectionTitle: "Where to buy iPad cheapest",
     comparisonColumns: ["Retailer", "Price", "Shipping", "Availability"],
@@ -11555,7 +11709,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Dyson",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Dyson prices across the US",
     comparisonSectionTitle: "Where to buy Dyson cheapest",
     comparisonColumns: ["Retailer", "Price", "Shipping", "Availability"],
@@ -11616,7 +11769,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Nintendo Switch",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Nintendo Switch prices across the US",
     comparisonSectionTitle: "Where to buy Nintendo Switch cheapest",
     comparisonColumns: ["Retailer", "Price", "Shipping", "Availability"],
@@ -11677,14 +11829,13 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Laptop",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Laptop offers across the US",
     comparisonSectionTitle: "Popular Laptop picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
     comparisonRows: [
-      { Model: "Top Pick Laptop A", Price: "$299", Merchant: "Amazon", Rating: "4.6/5" },
-      { Model: "Runner-up Laptop B", Price: "$349", Merchant: "Best Buy", Rating: "4.5/5" },
-      { Model: "Value Pick Laptop C", Price: "$249", Merchant: "Walmart", Rating: "4.3/5" },
+      { Model: "Apple MacBook Air M3", Price: "$999", Merchant: "Amazon", Rating: "4.7/5" },
+      { Model: "Dell XPS 13", Price: "$1,199", Merchant: "Best Buy", Rating: "4.5/5" },
+      { Model: "HP Pavilion 15", Price: "$549", Merchant: "Walmart", Rating: "4.3/5" },
     ],
     highlightSectionTitle: "What US buyers check before buying",
     highlights: [
@@ -11717,11 +11868,11 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "f1", name: "Laptop Product A", price: 199, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=laptop&country=us", brand: "Brand A", category: "Laptop" },
-      { id: "f2", name: "Laptop Product B", price: 249, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=laptop&country=us", brand: "Brand B", category: "Laptop" },
-      { id: "f3", name: "Laptop Product C", price: 149, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=laptop&country=us", brand: "Brand C", category: "Laptop" },
-      { id: "f4", name: "Laptop Product D", price: 299, currency: "USD", merchant: "Target", imageUrl: null, href: "/search?q=laptop&country=us", brand: "Brand D", category: "Laptop" },
-      { id: "f5", name: "Laptop Product E", price: 179, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=laptop&country=us", brand: "Brand E", category: "Laptop" },
+      { id: "f1", name: "Apple MacBook Air M3", price: 999, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=Apple+MacBook+Air+M3&country=us", brand: "Apple", category: "Laptop" },
+      { id: "f2", name: "Dell XPS 13", price: 1199, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/search?q=Dell+XPS+13&country=us", brand: "Dell", category: "Laptop" },
+      { id: "f3", name: "HP Pavilion 15", price: 549, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/search?q=HP+Pavilion+15&country=us", brand: "HP", category: "Laptop" },
+      { id: "f4", name: "Lenovo ThinkPad X1 Carbon", price: 1399, currency: "USD", merchant: "Newegg", imageUrl: null, href: "/search?q=Lenovo+ThinkPad+X1+Carbon&country=us", brand: "Lenovo", category: "Laptop" },
+      { id: "f5", name: "ASUS VivoBook 15", price: 479, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/search?q=ASUS+VivoBook+15&country=us", brand: "ASUS", category: "Laptop" },
     ],
   },
 
@@ -11737,7 +11888,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Air Purifier",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Air Purifier offers across the US",
     comparisonSectionTitle: "Popular Air Purifier picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -11797,7 +11947,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "iPhone",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live iPhone offers across the US",
     comparisonSectionTitle: "Popular iPhone picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -11858,7 +12007,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     locale: "en_US" as const,
     searchQuery: "Gaming Console",
     backupQueries: ["PlayStation", "Xbox", "Nintendo Switch", "Steam Deck"],
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Gaming Console offers across the US",
     comparisonSectionTitle: "Popular Gaming Console picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
@@ -11918,7 +12066,6 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Smartphone",
-    refreshedLabel: "Updated May 7, 2026",
     productSectionTitle: "Live Smartphone offers across the US",
     comparisonSectionTitle: "Popular Smartphone picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],

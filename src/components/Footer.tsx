@@ -2,12 +2,7 @@ import Link from "next/link";
 import NewsletterBanner from "@/components/NewsletterBanner";
 import { AffiliateDisclosure } from "@/components/ui/AffiliateDisclosure";
 
-// Hoist the copyright year to a module-level constant so the server-rendered
-// HTML never recomputes it during render. Computing `new Date().getFullYear()`
-// inside the JSX evaluates on both server and client; if the server and client
-// clocks cross a year boundary between SSR and hydration, React throws
-// Minified error #418/#422 (hydration mismatch). BUY-60203.
-const COPYRIGHT_YEAR = new Date().getFullYear();
+const COPYRIGHT_YEAR = 2026;
 
 export default function Footer() {
   return (
@@ -70,7 +65,7 @@ export default function Footer() {
           <div className="mb-4">
             <AffiliateDisclosure variant="inline" />
           </div>
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-2 text-sm text-gray-400">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-2 text-sm text-gray-500">
             <span tabIndex={0} aria-label={`Copyright ${COPYRIGHT_YEAR} BuyWhere Pte. Ltd. All rights reserved.`}>© {COPYRIGHT_YEAR} BuyWhere Pte. Ltd. All rights reserved.</span>
           </div>
         </div>

@@ -1,12 +1,18 @@
 # BuyWhere
 
-BuyWhere is an agent-native product catalog and price comparison API for AI agents and LLM applications. We provide real-time pricing, availability, and product data from major e-commerce platforms across Southeast Asia and the United States.
+BuyWhere is an agent-native product catalog API for AI agents and LLM applications: 288M+ structured products from 158,000+ independent storefronts worldwide, normalized into one schema, with location-aware ranking so agents only recommend products their user can actually receive.
 
 ## Catalog Coverage
-- **9.08M+ active products** (verified live at GET /v1/catalog/stats)
-- **14,501+ merchants** across Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, Carousell, and more
-- 2 countries: Singapore (SG) and United States (US)
-- Currencies: SGD, USD
+- **288M+ products** across **158,000+ merchant storefronts** (verified live at GET /v1/catalog/stats)
+- Deepest coverage: United States and Singapore; growing coverage across UK, EU, SEA, and AU — thousands of new stores added weekly
+- **Location-aware search**: pass `deliver_to=<ISO country>` (your END USER's country) and results rank deliverable-first, each carrying an `availability` label: `local` | `ships_to_you` | `unavailable` | `unknown` — backed by verified shipping policies for 28,000+ stores
+- Agent-optimized responses: `compact=true` returns structured_specs, comparison_attributes, and normalized_price_usd
+- Performance: P50 search latency under 250ms; cached lookups under 10ms; 99.9% uptime
+
+## Quick Start for Agents
+1. Get a free API key: POST https://api.buywhere.ai/v1/auth/register
+2. Search with your user's location: GET /v1/products/search?q=coffee+maker&deliver_to=SG
+3. Every product returns an availability label — filter with include_unshippable=false for only-deliverable results
 
 ## REST API Endpoints
 

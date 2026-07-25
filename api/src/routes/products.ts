@@ -11,6 +11,7 @@ import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
+import { shipScopeForUrl } from '../lib/shipsTo';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
 import { embedQuery } from '../jobs/embedProducts';
 
@@ -28,7 +29,7 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
 const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'sg-fresh-v4';
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v6'; // bumped: invalidate pre-fix cached empties/degraded results after the ORDER BY updated_at removal
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -63,8 +64,172 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<unknown>) {
   };
 }
 
+
+// BUY-62624: dedupe product rows by id. A LEFT JOIN on affiliate_links can fan out
+// one row per matching affiliate link (same product, multiple tracking URLs), which
+// renders identical product cards. Keep the first occurrence (highest-ranked/first in
+// the ordered result set) and drop the rest. Applied to every search result path.
+function dedupeProductRows(rows: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  const seen = new Set<string>();
+  const out: Array<Record<string, unknown>> = [];
+  for (const row of rows) {
+    const id = String(row.id);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(row);
+  }
+  return out;
+}
+
 function shiftSqlPlaceholders(sql: string, offset: number): string {
   return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
+}
+
+// ── Search-tier path (Phase 3). Serves from the RAM-fitting `search_products` tier
+// (quality-gated ~113M rows, ~4.7GB GIN that fits the replica cache -> no timeouts).
+// AND-first-then-OR for precision+recall. Returns true if it responded; returns false
+// on ANY error/replica issue so the caller falls through to the archive path unchanged
+// (hybrid = zero recall risk). Default-on after BUY-61117; opt out with
+// SEARCH_USE_TIER=0 or force with ?_tier=1 (test override).
+async function tryTierSearch(
+  req: Request,
+  res: Response,
+  p: {
+    q: string; countryCode?: string; currency: string; limit: number; offset: number;
+    minPrice?: number; maxPrice?: number; category?: string; brand?: string; domain?: string;
+    compact: boolean; requestStart: number; cacheKey: string;
+    deliverTo?: string; includeUnshippable?: boolean;
+  },
+): Promise<boolean> {
+  const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
+  if (lexemes.length === 0) return false;
+  const tsOr = lexemes.join(' | ');
+
+  const conds: string[] = [];
+  const params: unknown[] = [];
+  let i = 1;
+  const qIdx = i; params.push(p.q); i++;                    // $1 = raw q (rank + AND match)
+  const orIdx = i; params.push(tsOr); i++;                  // $2 = OR lexeme string
+  if (p.minPrice != null || p.maxPrice != null) { conds.push(`sp.currency = $${i}`); params.push(p.currency); i++; } // hotfix: currency restricts recall only when price-filtering
+  if (p.countryCode) { conds.push(`sp.country_code = $${i}`); params.push(p.countryCode); i++; }
+  if (p.minPrice != null && Number.isFinite(p.minPrice)) { conds.push(`sp.price >= $${i}`); params.push(p.minPrice); i++; }
+  if (p.maxPrice != null && Number.isFinite(p.maxPrice)) { conds.push(`sp.price <= $${i}`); params.push(p.maxPrice); i++; }
+  if (p.brand) { conds.push(`sp.brand ILIKE $${i}`); params.push(`%${p.brand}%`); i++; }
+  if (p.domain) { conds.push(`sp.source = $${i}`); params.push(p.domain); i++; }
+  // DEF-02: category filter that actually works — normalize the stored category to a
+  // slug (lower, spaces->hyphens) and compare to the slug param, instead of the old
+  // broken `category ILIKE '%pet-supplies%'` substring match.
+  if (p.category) { conds.push(`lower(regexp_replace(coalesce(sp.category,''),'\\s+','-','g')) = lower($${i})`); params.push(p.category); i++; }
+  let dtIdx = 0;
+  if (p.deliverTo) { dtIdx = i; params.push(p.deliverTo); i++; } // rank-only: local-first ordering, never filters
+  const filterSql = conds.length ? ' AND ' + conds.join(' AND ') : '';
+  const limitIdx = i; params.push(p.limit + 1); i++;
+  const offsetIdx = i; params.push(p.offset); i++;
+  const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
+
+  const cols = `sp.id, sp.source AS domain, sp.url, al.destination_url AS affiliate_url,
+    sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
+    jsonb_build_object('brand', sp.brand, 'category', sp.category,
+      'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
+
+  const mkQuery = (match: string, extraFilter = '') => `
+    WITH cand AS (
+      SELECT id, search_vector FROM search_products sp
+      WHERE ${match}${filterSql}${extraFilter}
+      -- perf: no ORDER BY — sorting forces enumeration of the FULL match set before
+      -- LIMIT (broad OR fallbacks time out at the 4s tier cap; same anti-pattern as
+      -- the archive fix in 9e3ad8e, measured 60x there). LIMIT stops early; ts_rank
+      -- below ranks the bounded candidate set.
+      LIMIT 5000
+    ), top AS (
+      SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) AS rank
+      FROM cand ORDER BY rank DESC LIMIT 200
+    )
+    SELECT ${cols}, top.rank AS _fts_rank
+    FROM top JOIN search_products sp ON sp.id = top.id
+    LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
+    ORDER BY ${orderPrefix}top.rank DESC
+    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+
+  const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
+  const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
+  const titleFallbackQuery = `
+    SELECT ${cols}, 0 AS _fts_rank
+    FROM search_products sp
+    LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
+    WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}
+    ORDER BY ${orderPrefix}sp.id DESC
+    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+  const tokenTitleFallbackQuery = `
+    SELECT ${cols}, 0 AS _fts_rank
+    FROM search_products sp
+    LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
+    WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}
+    ORDER BY ${orderPrefix}sp.id DESC
+    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+
+  let client: PoolClient;
+  try { client = await servingReadDbConnect(); } catch { return false; }
+  try {
+    await client.query('BEGIN');
+    // 6500 (was 4000, 2026-07-18): measured cold tier queries complete in 4.5-6.7s;
+    // at 4s they timed out and fell to the archive path which then burned to the 10s
+    // handler cap (cache-miss p50 was 4-7s for real agents). 6.5s converts that band
+    // into tier successes while leaving headroom inside the 10s handler budget.
+    await client.query(`SET LOCAL statement_timeout = '6500'`);
+    await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`); // fuzzy sampling breaks multi-word AND
+    await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
+    let rows = lexemes.length === 1 ? (await client.query(titleFallbackQuery, params)).rows : [];
+    if (rows.length === 0) {
+      rows = (await client.query(mkQuery(andMatch), params)).rows;
+      if (rows.length === 0 && lexemes.length > 1) {
+        rows = (await client.query(mkQuery(orMatch), params)).rows;   // recall fallback
+      }
+      if (rows.length === 0) {
+        rows = (await client.query(titleFallbackQuery, params)).rows;
+      }
+      if (rows.length === 0 && lexemes.length === 1) {
+        rows = (await client.query(tokenTitleFallbackQuery, params)).rows;
+      }
+    }
+    // deliver_to local-first pass (2026-07-14): the cand CTE gathers the NEWEST 5000
+    // matches by id, a window that churns under ~4.5M-rows/day ingest and often
+    // contains zero rows from the user's country. Run a targeted pass over the
+    // composite GIN (country_code, search_vector) and prepend those rows so
+    // local products always lead the page when they exist.
+    if (dtIdx && rows.length > 0) {
+      await client.query('SAVEPOINT localpass'); // a failed local pass must not poison the tx (COMMIT would fail -> archive fallback)
+      try {
+        const localRows = (await client.query(mkQuery(andMatch, ` AND sp.country_code = $${dtIdx}`), params)).rows;
+        if (localRows.length > 0) {
+          const localIds = new Set(localRows.map((r) => String((r as Record<string, unknown>).id)));
+          rows = [...localRows, ...rows.filter((r) => !localIds.has(String((r as Record<string, unknown>).id)))].slice(0, p.limit + 1);
+        }
+      } catch { await client.query('ROLLBACK TO SAVEPOINT localpass').catch(() => {}); /* local pass is best-effort — global rows already in hand */ }
+    }
+    await client.query('COMMIT');
+    client.release();
+    if (rows.length === 0) {
+      return false;
+    }
+    if (res.headersSent) return true;
+    const hasMore = rows.length > p.limit;
+    const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
+    const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
+    const total = p.offset + rows.length;
+    const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false) as unknown as Record<string, unknown>;
+    responseBody.source = 'search_products_tier';
+    annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
+    redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
+    res.set('X-Search-Tier', '1');
+    res.json(responseBody);
+    return true;
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+    try { client.release(); } catch { /* ignore */ }
+    console.warn('[tier] fell back to archive:', (e as Error)?.message);
+    return false;
+  }
 }
 
 async function getCachedQueryEmbedding(query: string, geminiKey: string): Promise<string | null> {
@@ -102,6 +267,46 @@ function isSeoHeadQuery(query: string): boolean {
   return query.trim().split(/\s+/).filter(Boolean).length >= 2;
 }
 
+// deliver_to soft contract (2026-07-14): annotate availability relative to the END
+// USER's country, optionally filter to local-only, and hint agents to pass deliver_to.
+// v1 labels (merchant-country == deliver_to -> 'local', else 'unknown') until
+// per-merchant ships-to enrichment lands. Never hides results unless the caller
+// explicitly sets include_unshippable=false.
+function annotateDeliverTo(body: Record<string, unknown>, deliverTo: string | undefined, includeUnshippable: boolean, q: string): void {
+  const items = (body.data as Array<Record<string, unknown>>) || [];
+  const meta = body.meta as Record<string, unknown> | undefined;
+  if (deliverTo) {
+    for (const it of items) {
+      if (it.country_code === deliverTo) { it.availability = 'local'; continue; }
+      // ships-to upgrade (2026-07-15): merchant-level scope from merchant_shipping.
+      const scope = shipScopeForUrl(it.url);
+      it.availability = scope === 'worldwide' ? 'ships_to_you'
+        : scope === 'domestic' ? 'unavailable'
+        : 'unknown';
+    }
+    if (!includeUnshippable) {
+      const kept = items.filter((it) => it.availability === 'local' || it.availability === 'ships_to_you');
+      body.data = kept;
+      if (meta) meta.total = kept.length;
+    }
+    if (meta) meta.deliver_to = deliverTo;
+  } else if (q && meta) {
+    meta.hint = "Pass deliver_to=<ISO-3166 country of your end user, e.g. deliver_to=SG> to rank products deliverable to them first (adds an availability label per product). Add include_unshippable=false to return only same-country products.";
+  }
+}
+
+function isLaptopSearchQuery(query: string): boolean {
+  return /\b(laptop|notebook|macbook)\b/i.test(query);
+}
+
+function buildSearchTokens(query: string): string[] {
+  return query.toLowerCase()
+    .split(/\s+/)
+    .map((token) => token.replace(/[^\p{L}\p{N}]/gu, ''))
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
 const router = Router();
 
 // GET /v1/products
@@ -125,6 +330,27 @@ router.get(
   checkRateLimit,
   queryLogMiddleware('products.list'),
   asyncHandler(async (req: Request, res: Response) => {
+    res.locals.cacheHit = false;
+
+    // Backward compatibility: early public docs and clients used
+    // `/v1/products?query=...` for search. Treat that as the canonical
+    // bounded search route instead of falling through to the unsearched list
+    // query, which is intentionally optimized for paginated browsing.
+    const legacyQuery = req.query.query as string | undefined;
+    if (legacyQuery && !req.query.q) {
+      const searchParams = new URLSearchParams();
+      for (const [key, value] of Object.entries(req.query)) {
+        if (value === undefined) continue;
+        const targetKey = key === 'query' ? 'q' : key;
+        if (Array.isArray(value)) {
+          for (const item of value) searchParams.append(targetKey, String(item));
+        } else {
+          searchParams.set(targetKey, String(value));
+        }
+      }
+      return res.redirect(307, `/v1/products/search?${searchParams.toString()}`);
+    }
+
     const requestStart = Date.now();
 
     // Pagination — contract defaults: page=1, limit=20, max 100
@@ -151,8 +377,16 @@ router.get(
       if (cached) {
         const parsed = JSON.parse(cached);
         parsed.pagination.response_time_ms = Date.now() - requestStart;
+        recordProductViewsBulk({
+          productIds: (parsed.data || parsed.products || parsed.results || [])
+            .map((product: { id?: string | number }) => product.id)
+            .filter(Boolean),
+          source: 'products.list.cache',
+          req,
+        });
         res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
         res.set('X-Cache', 'HIT');
+        res.locals.cacheHit = true;
         return res.json(parsed);
       }
     } catch (_) {
@@ -256,14 +490,20 @@ router.get(
         // Degraded 200, not 504: a fast honest partial answer keeps BuyWhere in the
         // agent's toolchain; a 504 gets the tool dropped from rotation.
         res.status(200).json({
-          products: [], results: [], total: 0, degraded: true,
-          hint: 'query exceeded the latency budget; add a brand, category, or price constraint, or retry shortly',
-          timeout_ms: SEARCH_HANDLER_TIMEOUT_MS,
+          data: [],
+          meta: {
+            total: 0,
+            limit: 20,
+            offset: 0,
+            response_time_ms: Date.now() - requestStart,
+            cached: false,
+            degraded: true,
+          },
         });
       }
     });
     const requestStart = Date.now();
-    const rawQuery = (req.query.q as string) || '';
+    const rawQuery = ((req.query.q || req.query.query) as string) || '';
     const domain = req.query.domain as string | undefined;
     const region = req.query.region as string | undefined;
     const category = req.query.category as string | undefined;
@@ -278,7 +518,7 @@ router.get(
     // country_code is the canonical param; `country` is kept as a backward-compat alias.
     // Default to SG when neither country nor region is specified (BUY-6598: prevent cross-region accessory pollution).
     const explicitCountry = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
-    const countryCode = explicitCountry || (region ? undefined : 'SG');
+    const countryCode = explicitCountry; // hotfix(search): drop silent SG hard-filter default that excluded ~87% untagged catalog
     const minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
     const maxPrice = req.query.max_price ? parseFloat(req.query.max_price as string) : undefined;
     // Infer default currency from country_code when not explicitly provided.
@@ -292,6 +532,10 @@ router.get(
     const compact = req.query.compact === 'true';
     const rawMode = (req.query.mode as string | undefined)?.toLowerCase();
     const searchMode = rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE;
+    // deliver_to soft contract (2026-07-14): the END USER's country. Ranks local-first
+    // and labels availability; never hard-filters (country_code remains the hard filter).
+    const deliverTo = ((req.query.deliver_to as string) || '').toUpperCase() || undefined;
+    const includeUnshippable = req.query.include_unshippable !== 'false';
 
     // BUY-42589: canonicalize SG retailer brand names (harvey norman, courts, gaincity, etc.)
     // to source= filters. The retailer name is in the source field, not in product titles,
@@ -299,6 +543,7 @@ router.get(
     const { cleanedQuery, canonicalSources } = preprocessSearchQuery(rawQuery, minPrice, maxPrice);
     const q = cleanedQuery || rawQuery;
 
+    res.locals.cacheHit = false;
     // Sprint C (1.4): normalize the q component of the cache key — lowercase,
     // sorted, punctuation-stripped token set — so "Running Shoes", "running shoe s"
     // orderings and casings share one cache entry (AND/OR matching is order-
@@ -307,7 +552,7 @@ router.get(
     const qNorm = q.toLowerCase().trim().split(/\s+/)
       .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
       || q.toLowerCase().trim();
-    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}`;
+    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
       if (cached) {
@@ -315,13 +560,25 @@ router.get(
         const elapsed = Date.now() - requestStart;
         parsed.cached = true;
         parsed.response_time_ms = elapsed;
+        const cachedProducts = parsed.products || parsed.results || parsed.data || [];
+        recordProductViewsBulk({
+          productIds: cachedProducts
+            .map((product: { id?: string | number }) => product.id)
+            .filter(Boolean),
+          source: 'products.search.cache',
+          queryHash: q ? createHash('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
+          req,
+        });
         res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
         res.set('X-Cache', 'HIT');
+        res.locals.cacheHit = true;
         return res.json(parsed);
       }
     } catch (_) {
       // Redis miss or error — fall through to DB
     }
+
+    res.locals.cacheHit = false;
 
     // BUY-33987: only active products are surfaced to API consumers; the partial
     // GIN index `products_*_search_vector_idx WHERE is_active = true` lets the
@@ -332,9 +589,30 @@ router.get(
     // prices from upstream feeds). A meaningful price > $0 is a basic data quality
     // requirement for any product listing. Products with $0 prices are either
     // out-of-stock markers, missing price fields, or feed parsing errors.
-    const baseConditions: string[] = ['currency = $1', 'is_active = true', 'price > 0'];
-    const baseParams: unknown[] = [currency];
-    let baseIdx = 2;
+    // BUY-61117: make the RAM-fitting search tier the default for keyword search.
+    // Hermes QA found the archive path still returns degraded:true,total=0 for
+    // common cold broad queries across SG+US. Tier-first preserves Richmond's
+    // single-table archive constraints because it falls through unchanged on any
+    // tier error, and SEARCH_USE_TIER=0 remains a runtime kill switch.
+    const useSearchTier = req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0');
+    res.locals.cacheHit = false;
+    if (q && searchMode === 'keyword' && useSearchTier) {
+      const handled = await tryTierSearch(req, res, {
+        q, countryCode, currency, limit, offset, minPrice, maxPrice,
+        category, brand, domain, compact, requestStart, cacheKey,
+        deliverTo, includeUnshippable,
+      });
+      if (handled) return;
+    }
+
+    const baseConditions: string[] = ['is_active = true', 'price > 0'];
+    const baseParams: unknown[] = [];
+    let baseIdx = 1;
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      baseConditions.push(`currency = $${baseIdx}`);
+      baseParams.push(currency);
+      baseIdx++;
+    }
 
     // BUY-42589: SG retailer brand queries (harvey norman, courts, gaincity, etc.)
     // map to source= filters since the retailer name is in the source field, not
@@ -358,7 +636,7 @@ router.get(
       baseIdx++;
     }
     if (countryCode) {
-      baseConditions.push(`country_code = $${baseIdx}`);
+      baseConditions.push(`(country_code = $${baseIdx} OR country_code IS NULL)`);
       baseParams.push(countryCode);
       baseIdx++;
     }
@@ -513,9 +791,12 @@ router.get(
     const offsetParamIdx = searchParams.length + 2;
     const dataParams = [...searchParams, requestedRows, offset];
     // BUY-60112/60117: 5000 was too small — only 23/12062 "dog food" SG products
+    // BUY-60123 v2: 50000 is too large — bounded CTE times out at 8s on prod with 1.5M fresh SG products in 48h.
+    // Reducing to 2000 keeps the scan in <50ms on the index (products_sg_updated_at_idx). Recall is acceptable
+    // because the bounded slice is a fallback — any results beat a degraded 8s timeout.
     // landed in the top-5000-by-id slice. 50k captures 125+ and stays ~50ms on the
     // replica ( MATERIALIZED CTE forces sequential scan of 50k rows, ~50ms cold).
-    const RECENT_SLICE_CAP = 50000;
+    const RECENT_SLICE_CAP = 2000;
 
     const seoFallbackTerms = q.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
     const seoFallbackConditions = baseConditions;
@@ -552,6 +833,40 @@ router.get(
       offset,
     ];
 
+    const laptopSearchTerms = buildSearchTokens(q);
+    const isLaptopSearch = q ? isLaptopSearchQuery(q) : false;
+    const laptopPositiveTerms = laptopSearchTerms.filter((term) => !['laptop', 'notebook'].includes(term));
+    const laptopTermStartIdx = baseIdx;
+    const laptopTermConditions = laptopPositiveTerms.map((_, i) => `products.title ILIKE $${laptopTermStartIdx + i}`);
+    const laptopLimitParamIdx = laptopTermStartIdx + laptopPositiveTerms.length;
+    const laptopOffsetParamIdx = laptopLimitParamIdx + 1;
+    const laptopFallbackWhereClause = `WHERE ${[
+      ...baseConditions,
+      `(products.title ILIKE '%laptop%' OR products.title ILIKE '%notebook%' OR products.title ILIKE '%macbook%' OR products.category ILIKE '%laptop%' OR array_to_string(products.category_path, ' ') ILIKE '%laptop%')`,
+      ...(laptopTermConditions.length ? laptopTermConditions : []),
+    ].join(' AND ')}`;
+    const laptopAccessoryDemotionSql = `
+      CASE
+        WHEN products.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors)\\M'
+          OR products.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers)\\M'
+          OR array_to_string(products.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers)\\M'
+        THEN 1 ELSE 0
+      END`;
+    const laptopFallbackQuery = `
+      SELECT ${joinedColumns}, ${laptopAccessoryDemotionSql} AS _accessory_rank
+      FROM products
+      LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+      ${laptopFallbackWhereClause}
+      ORDER BY _accessory_rank ASC, products.updated_at DESC, products.id DESC
+      LIMIT $${laptopLimitParamIdx} OFFSET $${laptopOffsetParamIdx}
+    `;
+    const laptopFallbackParams = [
+      ...baseParams,
+      ...laptopPositiveTerms.map((term) => `%${term}%`),
+      requestedRows,
+      offset,
+    ];
+
     const generalFallbackTermConditions = seoFallbackTerms.map((_, i) => `products.title ILIKE $${baseIdx + i}`);
     const generalFallbackLimitParamIdx = baseIdx + seoFallbackTerms.length;
     const generalFallbackWhereClause = `WHERE ${[
@@ -576,9 +891,9 @@ router.get(
       rows: Array<Record<string, unknown>>,
       source: string,
     ): Promise<void> => {
-      dataResult = { rows };
-      total = rows.length;
-      hasMore = rows.length > limit;
+      dataResult = { rows: dedupeProductRows(rows) };
+      total = dataResult.rows.length;
+      hasMore = dataResult.rows.length > limit;
       if (hasMore) dataResult.rows = dataResult.rows.slice(0, limit);
 
       const responseTimeMs = Date.now() - requestStart;
@@ -588,6 +903,7 @@ router.get(
       const responseBody = buildSearchResponse(
         fallbackProducts, total, limit, offset, responseTimeMs, hasMore
       );
+      annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
       redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
       res.set('X-Search-Fallback', source);
       res.json(responseBody);
@@ -603,15 +919,37 @@ router.get(
       const rankedWhereClause = useSgFreshnessGuardrail ? freshWhereClause : whereClause;
       dataQuery = `
         WITH recent_hits AS MATERIALIZED (
-          SELECT id, country_code, search_vector
+          SELECT id, country_code
           FROM products
           ${rankedWhereClause}
-          ORDER BY id DESC
+          -- perf(search): no ORDER BY updated_at — sorting the full FTS match set
+          -- (67K–millions of rows) forced a heap scan of every match (nike cold 8.2s->0.14s,
+          -- espresso machine 3.7s->0.26s). LIMIT stops early; candidates ranked by ts_rank below.
           LIMIT ${CANDIDATE_CAP}
         ), top_ids AS (
-          SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
-          FROM recent_hits
-          ORDER BY rank DESC, id DESC
+          SELECT rh.id, rh.country_code,
+                 ts_rank(rhp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
+                 CASE
+                   WHEN lower(rhp.title) LIKE '%laptop%'
+                     AND lower(rhp.title) NOT LIKE '%sleeve%'
+                     AND lower(rhp.title) NOT LIKE '%case%'
+                     AND lower(rhp.title) NOT LIKE '%bag%'
+                     AND lower(rhp.title) NOT LIKE '%stand%'
+                     AND lower(rhp.title) NOT LIKE '%pad%'
+                     AND lower(rhp.title) NOT LIKE '%cooler%'
+                     AND lower(rhp.title) NOT LIKE '%adapter%'
+                     AND lower(rhp.title) NOT LIKE '%dock%'
+                     AND lower(rhp.title) NOT LIKE '%hub%'
+                     AND lower(rhp.title) NOT LIKE '%lock%'
+                     AND lower(rhp.title) NOT LIKE '%briefcase%'
+                     AND lower(rhp.title) NOT LIKE '%charger%'
+                     AND lower(rhp.title) NOT LIKE '%table%'
+                   THEN 2.0
+                   ELSE 1.0
+                 END AS rank
+          FROM recent_hits rh
+          JOIN products rhp ON rhp.id = rh.id
+          ORDER BY rank DESC, rh.id DESC
         )
         SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
         FROM top_ids
@@ -666,6 +1004,7 @@ router.get(
       await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
       await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
       await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
+      await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
 
       // AND-first-then-OR execution (non-SG relevance multi-word queries only; SG
       // queries are already bounded by the freshness guardrail, so their OR cost is
@@ -678,19 +1017,33 @@ router.get(
       // SG-freshness fallback, unchanged.
       const execFtsQuery = async (baseQuery: string): Promise<{ rows: Array<Record<string, unknown>> }> => {
         if (useFtsRanking && ftsIsMultiWord) {
-          const runRecentSliceFallback = async (sliceWhereClause = recentSliceWhereClause): Promise<{ rows: Array<Record<string, unknown>> }> => {
-            const recentSliceQuery = `
+          // BUY-61117: the previous bounded SG path materialized a 2000-row slice of
+          // ALL fresh SG products (no FTS in the CTE WHERE) then applied the FTS
+          // filter after materialization. Without a (country_code, updated_at)
+          // index, scanning 1.5M+ fresh SG rows took seconds per query, and the
+          // 10-query fallback ladder exceeded the handler timeout → degraded 0-result
+          // responses. Fix: include the FTS match IN the CTE WHERE so the GIN index
+          // (idx_products_search_country) bounds the scan to matching products only,
+          // then sort+limit the small result set. This mirrors the single-word
+          // dataQuery pattern that already works in <100ms for SG.
+          const runBoundedSgMatch = async (
+            matchExpr: string,
+            params = dataParams,
+            sliceWhereClause = recentSliceWhereClause,
+          ): Promise<{ rows: Array<Record<string, unknown>> }> => {
+            const boundedQuery = `
               WITH recent_candidates AS MATERIALIZED (
-                SELECT id, search_vector
+                SELECT id, country_code
                 FROM products
                 ${sliceWhereClause}
-                ORDER BY id DESC
-                LIMIT ${RECENT_SLICE_CAP}
+                  AND ${matchExpr}
+                -- perf(search): no ORDER BY updated_at (same early-stop fix as recent_hits above)
+                LIMIT ${CANDIDATE_CAP}
               ), top_ids AS (
-                SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
-                FROM recent_candidates
-                WHERE ${ftsOrMatch}
-                ORDER BY rank DESC, id DESC
+                SELECT rc.id, rc.country_code, ts_rank(rcp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+                FROM recent_candidates rc
+                JOIN products rcp ON rcp.id = rc.id
+                ORDER BY rank DESC, rc.id DESC
                 LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
               )
               SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
@@ -699,71 +1052,29 @@ router.get(
               LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
               ORDER BY top_ids.rank DESC
             `;
-            return client.query(recentSliceQuery, dataParams);
+            return client.query(boundedQuery, params);
           };
           if (useSgFreshnessGuardrail) {
-            const runBoundedSgMatch = async (
-              matchExpr: string,
-              params = dataParams,
-              sliceWhereClause = recentSliceWhereClause,
-            ): Promise<{ rows: Array<Record<string, unknown>> }> => {
-              const boundedQuery = `
-                WITH recent_candidates AS MATERIALIZED (
-                  SELECT id, country_code, search_vector
-                  FROM products
-                  ${sliceWhereClause}
-                  ORDER BY id DESC
-                  LIMIT ${RECENT_SLICE_CAP}
-                ), top_ids AS (
-                  SELECT id, country_code, ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
-                  FROM recent_candidates
-                  WHERE ${matchExpr}
-                  ORDER BY rank DESC, id DESC
-                  LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
-                )
-                SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
-                FROM top_ids
-                JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
-                LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-                ORDER BY top_ids.rank DESC
-              `;
-              return client.query(boundedQuery, params);
-            };
+            // BUY-61117: simplified 4-step ladder. AND match first (precise),
+            // then OR match (recall). Each step tries fresh-48h first, then broad.
+            // The GIN index bounds each query to matching products only, so each
+            // step is fast (<100ms typical). If all 4 steps return 0 rows, the
+            // outer 57014 catch fires the ILIKE timeout fallback as before.
+            let boundedRes = await runBoundedSgMatch(ftsAndMatch);
+            if (boundedRes.rows.length > 0) return boundedRes;
+            boundedRes = await runBoundedSgMatch(ftsAndMatch, dataParams, broadRecentSliceWhereClause);
+            if (boundedRes.rows.length > 0) return boundedRes;
 
-            // BUY-60117: keep the entire SG multi-word fallback ladder bounded by
-            // a recent id slice. The previous zero-AND guard still paid the strict
-            // AND GIN scan first, so zero-hit probes could time out before reaching
-            // BUY-60112's bounded OR slice.
-            let boundedAndRes = await runBoundedSgMatch(ftsAndMatch);
-            if (boundedAndRes.rows.length > 0) return boundedAndRes;
-            boundedAndRes = await runBoundedSgMatch(ftsAndMatch, dataParams, broadRecentSliceWhereClause);
-            if (boundedAndRes.rows.length > 0) return boundedAndRes;
-
-            if (ftsLexemes.length >= 3) {
-              const relaxedQueries = [...new Map(
-                ftsLexemes
-                  .map((lexeme, dropIdx) => ({ lexeme, query: ftsLexemes.filter((__, idx) => idx !== dropIdx).join(' ') }))
-                  .sort((a, b) => a.lexeme.length - b.lexeme.length)
-                  .map((entry) => [entry.query, entry.query])
-              ).values()];
-              for (const relaxedQuery of relaxedQueries) {
-                const relaxedParamIdx = dataParams.length + 1;
-                const relaxedMatch = `search_vector @@ websearch_to_tsquery('english', $${relaxedParamIdx}) AND $${ftsOrParamIdx}::text IS NOT NULL`;
-                const relaxedParams = [...dataParams, relaxedQuery];
-                let relaxedRes = await runBoundedSgMatch(relaxedMatch, relaxedParams);
-                if (relaxedRes.rows.length > 0) return relaxedRes;
-                relaxedRes = await runBoundedSgMatch(relaxedMatch, relaxedParams, broadRecentSliceWhereClause);
-                if (relaxedRes.rows.length > 0) return relaxedRes;
-              }
-            }
-
-            const recentSliceRes = await runRecentSliceFallback();
-            if (recentSliceRes.rows.length > 0) return recentSliceRes;
-            return runRecentSliceFallback(broadRecentSliceWhereClause);
+            boundedRes = await runBoundedSgMatch(ftsOrMatch);
+            if (boundedRes.rows.length > 0) return boundedRes;
+            return runBoundedSgMatch(ftsOrMatch, dataParams, broadRecentSliceWhereClause);
           }
 
-          const andQuery = baseQuery.split(ftsOrMatch).join(ftsAndMatch);
-          let andRes = await client.query(andQuery, dataParams);
+          // perf+relevance: gather via the BOUNDED id-only AND match (proven ~140ms cold,
+          // both-term precise), mirroring the SG path above. The old string-swapped unbounded
+          // andQuery fell through to OR-junk in prod (coffee maker -> 'Peacemaker' chair).
+          const andQuery = baseQuery.split(ftsOrMatch).join(ftsAndMatch); // retained for SG-widen refs below
+          let andRes = await runBoundedSgMatch(ftsAndMatch);
           // SG queries embed the freshness guardrail; if the strict AND match finds
           // nothing fresh, widen it past the freshness window before giving up on AND.
           if (useSgFreshnessGuardrail && andRes.rows.length === 0) {
@@ -803,10 +1114,23 @@ router.get(
           // terms (`dog food`, `wireless headphones`, `iphone 16 pro`). Keep OR
           // semantics for recall, but evaluate them over a bounded recent id slice
           // first so first-touch stays fast without re-enabling OR top-up.
-          if (andRes.rows.length === 0 && useSgFreshnessGuardrail) {
-            const recentSliceRes = await runRecentSliceFallback();
+          // BUY-59847: non-SG broad probes (e.g. `wireless headphones`, `baby formula`,
+          // `dog food`, `nintendo switch`) had zero matches on the strict AND pass
+          // then dropped into the unbounded OR top-up below. The OR scan can churn
+          // the 4GB replica for the full 8s statement_timeout and return degraded
+          // 0-result pages. Reuse the GIN-bounded CTE path (same as SG) over the
+          // country/currency broad slice — bounded by CANDIDATE_CAP rows so the
+          // scan stays index-friendly — for any zero-AND multi-word non-SG query,
+          // before falling through to the unbounded OR top-up.
+          if (andRes.rows.length === 0) {
+            const recentSliceRes = await runBoundedSgMatch(ftsOrMatch);
             if (recentSliceRes.rows.length > 0) return recentSliceRes;
-            return runRecentSliceFallback(broadRecentSliceWhereClause);
+            return runBoundedSgMatch(ftsOrMatch, dataParams, broadRecentSliceWhereClause);
+          }
+          if (andRes.rows.length === 0 && useSgFreshnessGuardrail) {
+            const recentSliceRes = await runBoundedSgMatch(ftsOrMatch);
+            if (recentSliceRes.rows.length > 0) return recentSliceRes;
+            return runBoundedSgMatch(ftsOrMatch, dataParams, broadRecentSliceWhereClause);
           }
           // Strict AND matches rank first (precise). Sprint C: if AND under-fills
           // the page, TOP UP from the broad OR match (dedup by id) so the page is
@@ -865,7 +1189,26 @@ router.get(
       // when broad multi-token FTS is too expensive. Read those rows first via a
       // tightly bounded source/country/currency predicate so `/api/products/search`
       // returns real product cards instead of the degraded empty timeout response.
-      if (q && isSeoHeadQuery(q) && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
+      // BUY-59982 / BUY-60623: laptop category queries are high-cardinality in FTS
+      // and can burn the full request budget before any fallback runs. They also
+      // matched accessory SKUs (skins/decals/sleeves) too strongly. Use a bounded
+      // product-intent path first, with accessories demoted behind actual laptops.
+      if (isLaptopSearch && countryCode === 'US' && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
+        const laptopFallbackResult = await client.query(laptopFallbackQuery, laptopFallbackParams);
+        if (laptopFallbackResult.rows.length > 0) {
+          await client.query('COMMIT');
+          client.release();
+          await sendFallbackProducts(laptopFallbackResult.rows, 'laptop_product_intent');
+          return;
+        }
+      }
+
+      // BUY perf 2026-07-14: this SEO-head pre-empt ran a slow title-ILIKE seq scan (~8s)
+      // BEFORE the FTS path for EVERY >=2-word query (isSeoHeadQuery = "2+ words"), returning
+      // ILIKE junk ("coffee maker" -> "Coffee Cookie Stamp"). Now that the FTS candidate gather
+      // is fast (~150ms), skip the pre-empt so FTS serves relevant results. Re-enable for
+      // curated SEO landing rows only via SEO_HEAD_PREEMPT=1.
+      if (process.env.SEO_HEAD_PREEMPT === '1' && q && isSeoHeadQuery(q) && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
         const seoFallbackResult = await client.query(seoFallbackQuery, seoFallbackParamsWithPage);
         if (seoFallbackResult.rows.length > 0) {
           await client.query('COMMIT');
@@ -1007,9 +1350,15 @@ router.get(
         client.release();
         if (!res.headersSent) {
           res.status(200).json({
-            products: [], results: [], total: 0, degraded: true,
-            hint: 'broad query timed out; add a brand, category, or price constraint',
-            timeout_ms: SEARCH_STATEMENT_TIMEOUT_MS,
+            data: [],
+            meta: {
+              total: 0,
+              limit: 20,
+              offset: 0,
+              response_time_ms: 0,
+              cached: false,
+              degraded: true,
+            },
           });
         }
         return;
@@ -1028,6 +1377,10 @@ router.get(
       throw err;
     }
     client.release();
+
+    // BUY-62624: collapse affiliate_links fan-out duplicates before pagination
+    // math so hasMore reflects distinct results.
+    dataResult.rows = dedupeProductRows(dataResult.rows);
 
     if (typeof hasMore === 'undefined') {
       hasMore = dataResult.rows.length > limit;
@@ -1053,6 +1406,8 @@ router.get(
         'rating', 'title', 'country_code', 'region',
         'canonical_id', 'normalized_price_usd', 'structured_specs',
         'comparison_attributes', 'metadata', 'original_price', 'discount_pct',
+        'affiliate_url', 'click_url', 'affiliate_redirect_url',
+        'has_affiliate_tracking', 'is_affiliate', 'affiliate_disclosure',
       ]);
       const requested = fields.filter(f => VALID_FIELDS.has(f));
       if (requested.length > 0) {
@@ -1071,6 +1426,7 @@ router.get(
     const responseBody = buildSearchResponse(
       filteredProducts, total, limit, offset, responseTimeMs, hasMore ?? false
     );
+    annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
 
     // Cache result in Redis (fire-and-forget)
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
@@ -1128,6 +1484,7 @@ router.get(
   checkRateLimit,
   queryLogMiddleware('products.deals'),
   asyncHandler(async (req: Request, res: Response) => {
+    res.locals.cacheHit = false;
     const start = Date.now();
     const currency = (req.query.currency as string) || 'SGD';
     const countryCode = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
@@ -1142,6 +1499,14 @@ router.get(
         const parsed = JSON.parse(cached);
         parsed.cached = true;
         parsed.response_time_ms = Date.now() - start;
+        recordProductViewsBulk({
+          productIds: (parsed.products || parsed.results || parsed.data || [])
+            .map((product: { id?: string | number }) => product.id)
+            .filter(Boolean),
+          source: 'products.deals.cache',
+          req,
+        });
+        res.locals.cacheHit = true;
         return res.json(parsed);
       }
     } catch (_) {}
@@ -1154,40 +1519,52 @@ router.get(
       if (!res.headersSent) {
         try {
           res.status(200).json({
-            products: [],
-            total: 0,
-            degraded: true,
-            error: 'deals_upstream_timeout',
-            message: 'Deals query exceeded server-side timeout',
-            response_time_ms: Date.now() - start
+            data: [],
+            meta: {
+              total: 0,
+              limit: 20,
+              offset: 0,
+              response_time_ms: Date.now() - start,
+              cached: false,
+              degraded: true,
+            },
           });
         } catch (_) {}
       }
     });
 
-    // Deals: prefer discount_pct generated column (BUY-14332), fall back to inline
-    // computation if the column doesn't exist yet (migration may not have run).
+    // Deals: prefer a populated discount_pct column (BUY-14332/BUY-64109), fall
+    // back to inline computation only if the column is absent or empty.
     const dealConditions: string[] = ['currency = $1', 'price > 0'];
     const dealParams: unknown[] = [currency];
     let dealIdx = 2;
     let useDiscountCol = true;
 
-    // Probe whether discount_pct column exists as GENERATED (cached per-process)
-    // BUY-22324: must verify is_generated = 'ALWAYS'; a plain column is 100% NULL
-    // and produces wrong results (get_deals returns total: 0).
+    // Probe whether discount_pct is usable (cached per-process). BUY-64109: the
+    // production table has a populated plain numeric discount_pct column, so
+    // requiring is_generated = 'ALWAYS' incorrectly forced the metadata fallback.
     if (typeof (router as any)._hasDiscountPct === 'undefined') {
       try {
         const probe = await db.query(
-          `SELECT is_generated FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`
+          `SELECT c.is_generated, EXISTS (
+             SELECT 1 FROM products
+             WHERE is_active = true AND price > 0 AND discount_pct > 0
+             LIMIT 1
+           ) AS has_positive_discounts
+           FROM information_schema.columns c
+           WHERE c.table_name = 'products' AND c.column_name = 'discount_pct'
+           LIMIT 1`
         );
-        (router as any)._hasDiscountPct = probe.rows.length > 0 && probe.rows[0].is_generated === 'ALWAYS';
+        (router as any)._hasDiscountPct = probe.rows.length > 0
+          && (probe.rows[0].is_generated === 'ALWAYS' || probe.rows[0].has_positive_discounts === true);
       } catch {
-        (router as any)._hasDiscountPct = false;
+        (router as any)._hasDiscountPct = true;
       }
     }
     useDiscountCol = (router as any)._hasDiscountPct;
 
     if (useDiscountCol) {
+      dealConditions.push(`discount_pct IS NOT NULL`);
       dealConditions.push(`discount_pct >= $${dealIdx}`);
     } else {
       dealConditions.push(`(metadata->>'original_price')::numeric > price`);
@@ -1202,7 +1579,11 @@ router.get(
       dealIdx++;
     }
 
-    const dealWhere = dealConditions.join(' AND ');
+    const marketConditions = dealConditions.filter((condition) =>
+      !condition.includes('discount_pct')
+        && !condition.includes("metadata->>'original_price'")
+        && !condition.includes('NULLIF')
+    );
 
     const discountSelect = useDiscountCol
       ? 'discount_pct'
@@ -1225,20 +1606,36 @@ router.get(
       await dealsClient.query(`SET work_mem = '${SEARCH_WORK_MEM}'`);
       await dealsClient.query(`SET statement_timeout = ${DEALS_QUERY_TIMEOUT_MS}`);
 
-      // BUY-60309: bounded sampling - sample recent active candidates, filter, order, paginate
-      // This replaces the unbounded COUNT + ORDER BY over the full table
+      // BUY-64109: first take a bounded recent active slice, then filter/order it.
+      // Filtering discount_pct before the LIMIT misses newly backfilled deals when
+      // the planner chooses a slow full-table path and times out.
+      const candidateParams: unknown[] = [DEALS_SAMPLE_CAP, ...dealParams, limit, offset];
+      const marketWhere = marketConditions
+        .map((condition) => condition.replace(/\$(\d+)/g, (_match, idx) => `$${Number(idx) + 1}`))
+        .join(' AND ');
+      const filterConditions = dealConditions
+        .map((condition) => condition.replace(/\$(\d+)/g, (_match, idx) => `$${Number(idx) + 1}`))
+        .join(' AND ');
       const sampleResult = await dealsClient.query(
-        `SELECT id, sku AS source_id, source AS domain, url,
-                title, price, (metadata->>'original_price')::numeric AS original_price,
-                currency, image_url, metadata, updated_at,
-                region, country_code, created_at, description, brand, mpn, gtin,
-                category_path, category, merchant_id, avg_rating, review_count,
-                ${discountSelect}
-         FROM products
-         WHERE ${dealWhere}
+        `SELECT *
+         FROM (
+           SELECT id, sku AS source_id, source AS domain, url,
+                  title, price,
+                  CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
+                       THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
+                  currency, image_url, metadata, updated_at,
+                  region, country_code, created_at, description, brand, mpn, gtin,
+                  category_path, category, merchant_id, avg_rating, review_count,
+                  ${discountSelect}
+           FROM products
+           WHERE is_active = true AND ${marketWhere}
+           ORDER BY updated_at DESC
+           LIMIT $1
+         ) _recent_deals
+         WHERE ${filterConditions}
          ORDER BY updated_at DESC
-         LIMIT ${DEALS_SAMPLE_CAP}`,
-        dealParams
+         LIMIT $${candidateParams.length - 1} OFFSET $${candidateParams.length}`,
+        candidateParams
       );
 
       // Filter and order the bounded sample in memory (fast, no DB timeout risk)
@@ -1275,11 +1672,7 @@ router.get(
       dealsClient.release();
     }
 
-    const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false);
-    if (degraded) {
-      // BUY-60309: mark degraded so callers can distinguish partial from full results
-      Object.assign(responseBody, { degraded: true });
-    }
+    const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false, degraded);
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
 
     // BUY-52474: log a product_view per deals card so /v1/products/deals drives
@@ -1290,6 +1683,7 @@ router.get(
       req,
     });
 
+    res.locals.cacheHit = false;
     res.json(responseBody);
   })
 );
@@ -1661,6 +2055,7 @@ router.get(
   checkRateLimit,
   queryLogMiddleware('products.featured'),
   asyncHandler(async (req: Request, res: Response) => {
+    res.locals.cacheHit = false;
     const start = Date.now();
     const rawCountry = (req.query.country_code as string | undefined) || (req.query.country as string | undefined);
     const countryCode = rawCountry?.toUpperCase() || 'SG';
@@ -1676,6 +2071,14 @@ router.get(
         const parsed = JSON.parse(cached);
         parsed.cached = true;
         parsed.response_time_ms = Date.now() - start;
+        recordProductViewsBulk({
+          productIds: (parsed.products || parsed.results || parsed.data || [])
+            .map((product: { id?: string | number }) => product.id)
+            .filter(Boolean),
+          source: 'products.featured.cache',
+          req,
+        });
+        res.locals.cacheHit = true;
         return res.json(parsed);
       }
     } catch (_) {}
@@ -1699,6 +2102,7 @@ router.get(
     const responseBody = buildSearchResponse(products, products.length, limit, offset, Date.now() - start, false);
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => {});
     res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
+    res.locals.cacheHit = false;
     res.json(responseBody);
   })
 );

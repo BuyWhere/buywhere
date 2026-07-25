@@ -19,6 +19,8 @@ import { getFreshnessTier } from "@/lib/freshness";
 import type { DataFreshness } from "@/lib/freshness";
 import { buildCompareIndexMetadata } from "@/lib/seo-category-metadata";
 import { toSiteUrl } from "@/lib/site-url";
+import { inferCategoryFromQuery, filterOffersByCategory } from "@/lib/compare-category-filter";
+
 
 export const metadata = buildCompareIndexMetadata();
 
@@ -79,6 +81,8 @@ async function fetchJson(url: string) {
 }
 
 async function fetchOffersByQuery(query: string, country?: string): Promise<ComparisonOffer[]> {
+  const inferredCategory = inferCategoryFromQuery(query);
+
   const params = new URLSearchParams({
     q: query,
     limit: "8",
@@ -88,18 +92,33 @@ async function fetchOffersByQuery(query: string, country?: string): Promise<Comp
     params.set("country_code", country);
   }
 
-  const data = await fetchJson(`${API_BASE_URL}/v1/products/search?${params.toString()}`);
-  const rawItems = Array.isArray(data?.products)
-    ? data.products
-    : Array.isArray(data?.items)
-      ? data.items
-      : Array.isArray(data?.results)
-        ? data.results
-        : [];
+  if (inferredCategory) {
+    params.set("category", inferredCategory);
+  }
 
-  return sortComparisonOffers(
+  const data = await fetchJson(`${API_BASE_URL}/v1/products/search?${params.toString()}`);
+  const rawItems = Array.isArray(data?.data)
+    ? data.data
+    : Array.isArray(data?.products)
+      ? data.products
+      : Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data?.results)
+          ? data.results
+          : [];
+
+  const allOffers = sortComparisonOffers(
     rawItems.map((item: Record<string, unknown>) => normalizeComparisonOffer(item)).filter(hasRetailerHref),
   );
+
+  if (inferredCategory && allOffers.length > 0) {
+    const { filtered, keptCount } = filterOffersByCategory(allOffers, inferredCategory);
+    if (keptCount > 0) {
+      return filtered;
+    }
+  }
+
+  return allOffers;
 }
 
 async function fetchOffersByIds(ids: string[]): Promise<ComparisonOffer[]> {
