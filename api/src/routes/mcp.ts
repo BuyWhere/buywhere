@@ -299,13 +299,27 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const compact = args.compact === true;
   const currency = country ? (COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
 
-  const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
+  const cacheKey = `fts2:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
+  const legacyCacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
   try {
-    const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
+    // Read the new fts2 namespace first, then tolerate old fts: entries while the
+    // 1h Redis TTL drains and test/mocked clients catch up to the namespace bump.
+    const cached = await recordQueryCacheLookup(redis, cacheKey, async () =>
+      (await redis.get(cacheKey)) ?? (await redis.get(legacyCacheKey))
+    );
     if (cached) {
       const parsed = JSON.parse(cached);
-      if (parsed.results) {
-        return { ...parsed, cached: true, response_time_ms: Date.now() - t0 };
+      if (Array.isArray(parsed.data) || Array.isArray(parsed.results)) {
+        return {
+          ...parsed,
+          cached: true,
+          response_time_ms: Date.now() - t0,
+          meta: {
+            ...(parsed.meta || {}),
+            cached: true,
+            response_time_ms: Date.now() - t0,
+          },
+        };
       }
     }
   } catch (_) { /* redis miss — proceed */ }
@@ -618,8 +632,17 @@ async function handleGetDeals(args: Record<string, unknown>) {
     const cached = await redis.get(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
-      if (parsed.results) {
-        return { ...parsed, cached: true, response_time_ms: Date.now() - t0 };
+      if (Array.isArray(parsed.data) || Array.isArray(parsed.results)) {
+        return {
+          ...parsed,
+          cached: true,
+          response_time_ms: Date.now() - t0,
+          meta: {
+            ...(parsed.meta || {}),
+            cached: true,
+            response_time_ms: Date.now() - t0,
+          },
+        };
       }
     }
   } catch (_) {}

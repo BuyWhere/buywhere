@@ -303,6 +303,24 @@ export function sendOpenApiSpec(res: Response) {
           },
         },
       },
+      '/compare/{category}': {
+        get: {
+          summary: 'Get category-scoped comparison payload',
+          operationId: 'getCategoryComparison',
+          parameters: [
+            { name: 'category', in: 'path', required: true, schema: { type: 'string', enum: ['electronics', 'fashion', 'home-living', 'beauty', 'sports-outdoors', 'health-wellness', 'toys-games', 'food-beverages', 'automotive', 'pet-supplies'] }, description: 'Category slug used by BuyWhere compare pages' },
+            { name: 'region', in: 'query', schema: { type: 'string', default: 'sea' }, description: '`sea` maps to Singapore unless country/country_code is set' },
+            { name: 'country', in: 'query', schema: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, description: 'ISO country code filter. Alias of country_code.' },
+            { name: 'country_code', in: 'query', schema: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'] }, description: 'ISO country code filter.' },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 50, maximum: 100 } },
+            { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
+          ],
+          responses: {
+            '200': { description: 'Category-scoped comparison payload with products and merchant prices' },
+            '404': { description: 'Category not found' },
+          },
+        },
+      },
       '/products/{id}': {
         get: {
           summary: 'Get a product by ID',
