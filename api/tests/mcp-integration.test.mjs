@@ -580,11 +580,12 @@ describe('MCP JSON-RPC — error handling', () => {
 describe('MCP JSON-RPC — caching behavior', () => {
   it('returns cached search results with cached=true', async () => {
     const cachedResponse = {
-      data: [makeProduct('cached-1', { title: 'Cached Item', price: 42 })],
-      meta: { total: 1, limit: 20, offset: 0, response_time_ms: 3, cached: false },
+      results: [makeProduct('cached-1', { title: 'Cached Item', price: 42 })],
+      total: 1, page: { limit: 20, offset: 0 },
+      response_time_ms: 3, cached: false,
     };
     redisGetMock.mock.mockImplementation((key) => {
-      if (typeof key === 'string' && key.includes('fts2:')) {
+      if (typeof key === 'string' && key.startsWith('fts:') && key.includes(':cached:')) {
         return Promise.resolve(JSON.stringify(cachedResponse));
       }
       return Promise.resolve(null);
@@ -601,7 +602,7 @@ describe('MCP JSON-RPC — caching behavior', () => {
     const body = await res.json();
     const data = JSON.parse(body.result.content[0].text);
     assert.equal(data.cached, true);
-    assert.equal(data.data[0].title, 'Cached Item');
+    assert.equal(data.results[0].title, 'Cached Item');
   });
 
   it('caches deals results after DB query', async () => {
