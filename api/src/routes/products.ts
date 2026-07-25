@@ -953,7 +953,7 @@ router.get(
         )
         SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
         FROM top_ids
-        JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
+        JOIN products ON products.id = top_ids.id
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY top_ids.rank DESC
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
@@ -1048,7 +1048,7 @@ router.get(
               )
               SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
               FROM top_ids
-              JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
+              JOIN products ON products.id = top_ids.id
               LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
               ORDER BY top_ids.rank DESC
             `;
@@ -2491,7 +2491,7 @@ export async function warmSearchCache(): Promise<void> {
         )
         SELECT ${joinedColumns}
         FROM top_ids
-        JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
+        JOIN products ON products.id = top_ids.id
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY products.updated_at DESC
         LIMIT $${idx} OFFSET $${idx + 1}
