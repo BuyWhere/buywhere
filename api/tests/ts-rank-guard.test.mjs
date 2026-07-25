@@ -97,8 +97,8 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
     const src = readProductsSource();
     const block = extractUseFtsRankingBlock(src);
     assert.ok(
-      /SELECT\s+id,\s*(?:country_code,\s*)?ts_rank\(\s*search_vector\s*,\s*plainto_tsquery\(\s*'english'\s*,\s*\$+\{?ftsParamIdx\}?\s*\)\s*\)\s+AS\s+rank/i.test(block),
-      'Expected the live CTE to project `id, ts_rank(search_vector, plainto_tsquery(..., ${ftsParamIdx})) AS rank` — '
+      /SELECT\s+rh\.id,\s*rh\.country_code,[\s\S]*ts_rank\(\s*rhp\.search_vector\s*,\s*plainto_tsquery\(\s*'english'\s*,\s*\$+\{?ftsParamIdx\}?\s*\)\s*\)[\s\S]*AS\s+rank/i.test(block),
+      'Expected the live CTE to project `rh.id, rh.country_code, ts_rank(rhp.search_vector, plainto_tsquery(..., ${ftsParamIdx})) ... AS rank` — '
         + 'removing ts_rank forces a 1.4s+ Merge Append on the partitioned products table (BUY-32228).'
     );
   });
@@ -108,10 +108,8 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
     const block = extractUseFtsRankingBlock(src);
     const recentHits = block.match(/WITH\s+recent_hits\s+AS\s+(?:MATERIALIZED\s+)?\(([\s\S]*?)\),\s*top_ids\s+AS/i);
     assert.ok(recentHits, 'Expected a `WITH recent_hits AS [MATERIALIZED] (...)` CTE before top_ids');
-    assert.ok(
-      /ORDER\s+BY\s+updated_at\s+DESC/i.test(recentHits[1]) && /LIMIT\s+\$?\{?CANDIDATE_CAP\}?/i.test(recentHits[1]),
-      'Expected recent_hits to `ORDER BY updated_at DESC LIMIT ${CANDIDATE_CAP}` before ranking so ts_rank only sorts an indexed bounded slice.'
-    );
+    assert.ok(/LIMIT\s+\$?\{?CANDIDATE_CAP\}?/i.test(recentHits[1]), 'Expected recent_hits to cap candidates before ranking.');
+    assert.ok(!/ORDER\s+BY\s+updated_at\s+DESC/i.test(recentHits[1]), 'Expected recent_hits to avoid sorting the full FTS match set before LIMIT.');
   });
 
   it('live useFtsRanking branch ranks only recent_hits by rank DESC', () => {
@@ -184,9 +182,9 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
     assert.ok(/andRes\.rows\.length\s*===\s*0\s*&&\s*useSgFreshnessGuardrail/.test(fallbackBlock), 'Expected fallback to be limited to zero-AND SG relevance searches');
     assert.ok(/runBoundedSgMatch\(ftsOrMatch\)/.test(fallbackBlock), 'Expected fresh bounded FTS fallback before broad OR');
     assert.ok(/runBoundedSgMatch\(ftsOrMatch,\s*dataParams,\s*broadRecentSliceWhereClause\)/.test(fallbackBlock), 'Expected all-time bounded FTS retry before broad OR');
-    assert.ok(/AND\s+\$\{matchExpr\}[\s\S]*ORDER\s+BY\s+updated_at\s+DESC/.test(fallbackBlock), 'Expected FTS match inside the candidate CTE before freshness sorting');
+    assert.ok(/AND\s+\$\{matchExpr\}[\s\S]*LIMIT\s+\$\{CANDIDATE_CAP\}/.test(fallbackBlock), 'Expected FTS match inside the candidate CTE before its cap');
     assert.ok(/LIMIT\s+\$\{CANDIDATE_CAP\}/.test(fallbackBlock), 'Expected fallback to cap matched candidates before ranking');
-    assert.ok(/ORDER\s+BY\s+updated_at\s+DESC/.test(fallbackBlock), 'Expected bounded SG slice to use the indexed freshness order');
+    assert.ok(!/ORDER\s+BY\s+updated_at\s+DESC/.test(fallbackBlock), 'Expected bounded SG fallback to avoid sorting the full FTS match set before LIMIT');
     assert.ok(!/ORDER\s+BY\s+id\s+DESC/.test(fallbackBlock), 'Expected bounded SG fallback to avoid partition-wide id ordering');
     assert.ok(/WITH\s+recent_candidates\s+AS\s+MATERIALIZED\s+\(/.test(src), 'Expected matched candidates to be materialized before ranking');
   });

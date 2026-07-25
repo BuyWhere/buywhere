@@ -28,6 +28,24 @@ config.redis.set = redisSetMock;
 config.redis.incr = redisIncrMock;
 config.redis.expire = redisExpireMock;
 config.redis.on = () => {};
+config.redis.hincrby = mock.fn(() => Promise.resolve(1));
+config.redis.hset = mock.fn(() => Promise.resolve(1));
+
+function responseResults(body) {
+  return body.data ?? body.results ?? [];
+}
+
+function responsePage(body) {
+  return body.meta ?? body.page ?? {};
+}
+
+function responseCached(body) {
+  return body.meta?.cached ?? body.cached;
+}
+
+function responseTimeMs(body) {
+  return body.meta?.response_time_ms ?? body.response_time_ms;
+}
 
 function makeProduct(id, overrides = {}) {
   return {
@@ -190,11 +208,11 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     assert.equal(body.result.content[0].type, 'text');
 
     const data = JSON.parse(body.result.content[0].text);
-    assert.ok(Array.isArray(data.results));
-    assert.equal(data.results.length, 2);
-    assert.equal(data.results[0].title, 'Gaming Laptop');
-    assert.equal(data.results[0].price.amount, 1299);
-    assert.ok(typeof data.response_time_ms === 'number');
+    assert.ok(Array.isArray(responseResults(data)));
+    assert.equal(responseResults(data).length, 2);
+    assert.equal(responseResults(data)[0].title, 'Gaming Laptop');
+    assert.equal(responseResults(data)[0].price.amount, 1299);
+    assert.ok(typeof responseTimeMs(data) === 'number');
   });
 
   it('search_products enforces SG default country_code', async () => {
@@ -239,9 +257,9 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     });
     const body = await res.json();
     const data = JSON.parse(body.result.content[0].text);
-    assert.equal(data.results[0].canonical_id, '1');
-    assert.ok(data.results[0].normalized_price_usd != null);
-    assert.ok(Array.isArray(data.results[0].comparison_attributes));
+    assert.equal(responseResults(data)[0].canonical_id, '1');
+    assert.ok(responseResults(data)[0].normalized_price_usd != null);
+    assert.ok(Array.isArray(responseResults(data)[0].comparison_attributes));
   });
 
   it('get_product returns single product', async () => {
@@ -267,9 +285,9 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     });
     const body = await res.json();
     const data = JSON.parse(body.result.content[0].text);
-    assert.equal(data.results[0].id, 'abc-123');
-    assert.equal(data.results[0].title, 'Specific Product');
-    assert.equal(data.results[0].price.amount, 199.99);
+    assert.equal(responseResults(data)[0].id, 'abc-123');
+    assert.equal(responseResults(data)[0].title, 'Specific Product');
+    assert.equal(responseResults(data)[0].price.amount, 199.99);
   });
 
   it('get_product returns error for missing product', async () => {
@@ -323,9 +341,9 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     });
     const body = await res.json();
     const data = JSON.parse(body.result.content[0].text);
-    assert.equal(data.results.length, 2);
-    assert.equal(data.results[0].title, 'Phone A');
-    assert.equal(data.results[1].title, 'Phone B');
+    assert.equal(responseResults(data).length, 2);
+    assert.equal(responseResults(data)[0].title, 'Phone A');
+    assert.equal(responseResults(data)[1].title, 'Phone B');
   });
 
   it('compare_products rejects fewer than 2 IDs', async () => {
@@ -584,7 +602,7 @@ describe('MCP JSON-RPC — caching behavior', () => {
       response_time_ms: 3, cached: true,
     };
     redisGetMock.mock.mockImplementation((key) => {
-      if (typeof key === 'string' && key.includes('fts:')) {
+      if (typeof key === 'string' && key.includes('fts2:')) {
         return Promise.resolve(JSON.stringify(cachedResponse));
       }
       return Promise.resolve(null);
@@ -600,8 +618,8 @@ describe('MCP JSON-RPC — caching behavior', () => {
     });
     const body = await res.json();
     const data = JSON.parse(body.result.content[0].text);
-    assert.equal(data.cached, true);
-    assert.equal(data.results[0].title, 'Cached Item');
+    assert.equal(responseCached(data), true);
+    assert.equal(responseResults(data)[0].title, 'Cached Item');
   });
 
   it('caches deals results after DB query', async () => {
@@ -683,6 +701,6 @@ describe('MCP JSON-RPC — protocol compliance', () => {
     });
     const body = await res.json();
     const data = JSON.parse(body.result.content[0].text);
-    assert.equal(data.page.limit, 100);
+    assert.equal(responsePage(data).limit, 100);
   });
 });
