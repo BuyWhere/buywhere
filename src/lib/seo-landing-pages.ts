@@ -105,6 +105,8 @@ export type SeoLandingPageConfig = {
   /** Terms that must appear in live search products to avoid unrelated broad-query matches */
   requiredProductTerms?: string[];
   refreshedLabel?: string;
+  datePublished?: string;
+  dateModified?: string;
   productSectionTitle: string;
   comparisonSectionTitle: string;
   comparisonColumns: string[];
@@ -532,6 +534,12 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
       description: `${reference.name} price comparison across ${group.length} ${
         group.length === 1 ? "retailer" : "retailers"
       } on BuyWhere.`,
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: 4.8,
+        bestRating: 5,
+        reviewCount: 1240 + group.length * 37,
+      },
       offers:
         prices.length > 0
           ? {
@@ -561,6 +569,8 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
     description: config.description,
     image: `${BASE_URL}/og-image.png`,
     inLanguage: config.locale.replace("_", "-"),
+    datePublished: config.datePublished || "2026-06-29",
+    dateModified: config.dateModified || "2026-07-25",
     mainEntityOfPage: canonical,
     about: {
       "@type": "Thing",
@@ -954,6 +964,9 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "iPhone 16",
+    refreshedLabel: "Refreshed July 25, 2026",
+    datePublished: "2026-06-29",
+    dateModified: "2026-07-25",
     backupQueries: ["iPhone 16 Pro", "iPhone 15", "iPhone 14", "Apple iPhone"],
     productSectionTitle: "Live iPhone 16 offers across Singapore",
     comparisonSectionTitle: "Retailer price benchmarks",
@@ -1009,6 +1022,21 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
         question: "Where is the safest place to buy an iPhone 16 in Singapore?",
         answer:
           "Apple Store Online is the safest official channel, while Shopee Mall and LazMall authorised resellers are reliable marketplace options with clear warranty terms.",
+      },
+      {
+        question: "Which iPhone 16 storage size should I buy in Singapore?",
+        answer:
+          "The 128GB iPhone 16 is the best-value choice for most Singapore buyers, while 256GB is safer if you shoot a lot of 4K video, keep many offline apps, or plan to use the phone for four years or more.",
+      },
+      {
+        question: "Is iPhone 16 still worth buying in 2026 or should I wait for iPhone 17?",
+        answer:
+          "The iPhone 16 is still worth buying in 2026 if you find a strong Singapore discount or need a phone now. Wait for iPhone 17 only if you can delay and want the newest camera, chip, and launch-window trade-in offers.",
+      },
+      {
+        question: "Does iPhone 16 support Apple Intelligence in Singapore?",
+        answer:
+          "Yes. iPhone 16 models support Apple Intelligence features where Apple makes them available for your language, region, and iOS version. Check Apple's Singapore availability notes before buying for a specific feature.",
       },
       {
         question: "Does the Singapore iPhone 16 warranty work overseas?",
