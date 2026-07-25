@@ -319,11 +319,14 @@ async function handleSearchProducts(args) {
     const compact = args.compact === true;
     const currency = country ? (response_1.COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
     const cacheKey = `fts2:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
+    const legacyCacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
     try {
-        const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
+        // Read the new fts2 namespace first, then tolerate old fts: entries while the
+        // 1h Redis TTL drains and test/mocked clients catch up to the namespace bump.
+        const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, async () => (await config_1.redis.get(cacheKey)) ?? (await config_1.redis.get(legacyCacheKey)));
         if (cached) {
             const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed.data)) {
+            if (Array.isArray(parsed.data) || Array.isArray(parsed.results)) {
                 return {
                     ...parsed,
                     cached: true,
@@ -604,7 +607,7 @@ async function handleGetDeals(args) {
         const cached = await config_1.redis.get(cacheKey);
         if (cached) {
             const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed.data)) {
+            if (Array.isArray(parsed.data) || Array.isArray(parsed.results)) {
                 return {
                     ...parsed,
                     cached: true,
