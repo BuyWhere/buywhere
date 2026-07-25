@@ -380,13 +380,19 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // Dead US product slug pages — same thin-content issue (BUY-40757: allow 2-segment paths)
-  if (normalizedForDead.startsWith("/products/us/")) {
-    const afterUsPrefix = normalizedForDead.slice("/products/us/".length);
-    if (afterUsPrefix.split("/").filter(Boolean).length <= 1) {
-      return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
-    }
-  }
+  // US product slug pages (/products/us/<slug>) — intentionally NOT 410'd.
+  // The single-segment route src/app/products/us/[slug]/page.tsx resolves the
+  // product from the id suffix and SSR-renders a real price-comparison page
+  // (USProductDetail + fetchUSProductSSR), falling back to notFound() (404) for
+  // genuinely unknown slugs. Previously this middleware hard-410'd every
+  // single-segment US product URL (BUY-40757 thin-content de-index), which left
+  // inbound Google-indexed URLs and internal related-product links dead and made
+  // every US product detail page read as "410 Gone" (BUY-63952 P0). Mirrors the
+  // /about decision (BUY-58440): let the page render real content + metadata so
+  // Google can index it, instead of suppressing it with a 410. The richer
+  // 2-segment canonical (/products/us/<merchant>/<id>) still renders via its own
+  // route and remains the sitemap canonical; SG single-segment slugs stay 410'd
+  // above because their page is still client-only thin content.
 
   // Trailing-slash canonicalisation: 301 redirect to the non-slash URL.
   // GSC flagged 9 URL pairs (BUY-55695) where slash and non-slash variants both
