@@ -97,7 +97,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
 
       <main id="main-content" className="flex-1">
         <section className="overflow-hidden max-sm:overflow-visible bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#f59e0b_130%)] text-white">
-          <div className="mx-auto grid max-w-6xl gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end lg:py-24">
+          <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end ${config.compactCatalogCards ? "py-6" : "py-16 lg:py-24"}`}>
             <div>
               <div className="mb-5 inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-200">
                 {config.heroEyebrow}
@@ -137,9 +137,9 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
           </div>
         </section>
 
-        <section className="bg-slate-50 py-16">
+        <section className={`bg-slate-50 ${config.compactCatalogCards ? "py-6" : "py-16"}`}>
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div className={`${config.compactCatalogCards ? "mb-4" : "mb-8"} flex flex-col gap-3 md:flex-row md:items-end md:justify-between`}>
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">Live catalog snapshot</p>
                 <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
@@ -156,9 +156,9 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 </p>
               </div>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className={config.compactCatalogCards ? "grid gap-4 lg:grid-cols-2" : "grid gap-4 sm:grid-cols-2 xl:grid-cols-4"}>
                 {products.map((product) => (
-                  <ProductGridCard key={product.id} product={product} />
+                  <ProductGridCard key={product.id} product={product} compact={config.compactCatalogCards} />
                 ))}
               </div>
             )}
