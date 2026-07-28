@@ -90,3 +90,16 @@ jobs:
             echo "ERROR: MCP initialize smoke test returned unexpected payload"
             exit 1
           fi
+
+  regression-guard:
+    name: MCP production regression guard
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run production regression guard
+        env:
+          MCP_ENDPOINT: ${{ env.MCP_URL }}
+          BUYWHERE_MCP_API_KEY: ${{ secrets.BUYWHERE_MCP_API_KEY }}
+        run: node scripts/run-mcp-production-regression-guard.mjs
