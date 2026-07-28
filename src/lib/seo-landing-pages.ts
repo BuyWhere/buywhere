@@ -104,6 +104,12 @@ export type SeoLandingPageConfig = {
   minPrice?: number;
   /** Terms that must appear in live search products to avoid unrelated broad-query matches */
   requiredProductTerms?: string[];
+  /** Upstream category filter used to constrain broad catalog searches */
+  searchCategory?: string;
+  /** Strictly reject product parts and accessories from live catalog cards */
+  excludeAccessories?: boolean;
+  /** Render a denser desktop hero and two-column cards so complete offer data is visible above the fold */
+  compactCatalogCards?: boolean;
   refreshedLabel?: string;
   productSectionTitle: string;
   comparisonSectionTitle: string;
@@ -228,7 +234,11 @@ function isUsableProductImage(imageUrl?: string | null) {
 
   try {
     const url = new URL(imageUrl);
-    return url.hostname !== "source.unsplash.com";
+    return (
+      url.hostname !== "source.unsplash.com" &&
+      url.hostname !== "elescat.store" &&
+      !url.hostname.endsWith(".elescat.store")
+    );
   } catch {
     return false;
   }
@@ -238,6 +248,26 @@ function productMatchesRequiredTerms(product: LandingProduct, requiredTerms?: st
   if (!requiredTerms || requiredTerms.length === 0) return true;
   const haystack = [product.name, product.brand, product.category].filter(Boolean).join(" ").toLowerCase();
   return requiredTerms.some((term) => haystack.includes(term.toLowerCase()));
+}
+
+const PRODUCT_ACCESSORY_RE =
+  /\b(?:accessor(?:y|ies)|adapter|attachment|battery|batteries|brush(?:es)?|cable|charger|charging station|cleaning solution|cover|dust bags?|fabric cleaner|filter(?:s)?|holder|kit|mop pads?|motor|nozzles?|parts?|replacement|roller(?:s)?|side brush(?:es)?|spare|supply|supplies|water tanks?)\b/i;
+const NON_FLOOR_ROBOT_VACUUM_RE = /\b(?:cordless|handheld|pool|stick|upright)\b/i;
+const COMPLETE_ROBOT_VACUUM_RE = /\b(?:robot(?:ic)?\s+vacuums?|roomba|deebot)\b/i;
+
+export function isCompleteRobotVacuum(product: Pick<LandingProduct, "name" | "brand" | "category">) {
+  const text = [product.name, product.brand, product.category].filter(Boolean).join(" ");
+  return (
+    COMPLETE_ROBOT_VACUUM_RE.test(text) &&
+    !PRODUCT_ACCESSORY_RE.test(text) &&
+    !NON_FLOOR_ROBOT_VACUUM_RE.test(text)
+  );
+}
+
+function isExcludedAccessory(product: LandingProduct, config: SeoLandingPageConfig) {
+  if (!config.excludeAccessories) return false;
+  if (config.searchCategory === "robot_vacuums") return !isCompleteRobotVacuum(product);
+  return PRODUCT_ACCESSORY_RE.test([product.name, product.brand, product.category].filter(Boolean).join(" "));
 }
 
 function hasUsableLiveCard(product: LandingProduct) {
@@ -362,8 +392,11 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       const params = new URLSearchParams({
         q: query,
         country: config.country,
-        limit: "8",
+        limit: config.excludeAccessories ? "24" : "8",
       });
+      if (config.searchCategory) {
+        params.set("category", config.searchCategory);
+      }
 
       // Route through BuyWhere's own /api/products/search route handler rather
       // than the external product API. The route handler injects the backend
@@ -404,6 +437,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         const product = normalizeProduct(item, config.currency, config.minPrice);
         if (!product) continue;
         if (!hasUsableLiveCard(product)) continue;
+        if (isExcludedAccessory(product, config)) continue;
         if (!productMatchesRequiredTerms(product, config.requiredProductTerms)) continue;
         if (!seenIds.has(product.id)) {
           seenIds.add(product.id);
@@ -961,9 +995,12 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
     currency: "USD",
     locale: "en_US",
     searchQuery: "robot vacuum",
-backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
+    searchCategory: "robot_vacuums",
+    excludeAccessories: true,
+    compactCatalogCards: true,
+    backupQueries: ["Eufy robot vacuum", "Roborock robot vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
     minPrice: 50,
-    requiredProductTerms: ["robot vacuum", "vacuum", "roomba", "roborock", "deebot", "eufy", "shark", "irobot"],
+    requiredProductTerms: ["robot vacuum", "robotic vacuum", "roomba", "deebot"],
     hreflangAlternates: { "en-SG": "/best-robot-vacuums-singapore" },
     productSectionTitle: "Live robot vacuum deals across the US",
     comparisonSectionTitle: "Top robot vacuum & Roomba picks at a glance",
