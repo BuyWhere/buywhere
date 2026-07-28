@@ -27,6 +27,7 @@ import url from 'node:url';
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const apiSrcRoot = path.resolve(__dirname, '..', 'src');
 const productsTsPath = path.resolve(apiSrcRoot, 'routes', 'products.ts');
+const mcpTsPath = path.resolve(apiSrcRoot, 'routes', 'mcp.ts');
 
 function walk(dir) {
   const out = [];
@@ -202,6 +203,25 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
     assert.ok(
       /FROM\s+search_products\s+sp/.test(src),
       'Expected default keyword path to use the RAM-fitting search_products tier'
+    );
+  });
+
+  it('BUY-64151 releaseClientSafely discards transaction-poisoned clients (transactionStatus === 3)', () => {
+    const src = fs.readFileSync(mcpTsPath, 'utf8');
+    const match = src.match(/function\s+releaseClientSafely\s*\([\s\S]*?\n\}\n/);
+    assert.ok(match, 'Expected releaseClientSafely() in api/src/routes/mcp.ts');
+    const fn = match[0];
+    assert.ok(
+      /client\.transactionStatus\s*===\s*3/.test(fn),
+      'Expected releaseClientSafely to check pg transactionStatus === 3, not client.state'
+    );
+    assert.ok(
+      !/client\.state\s*===\s*['"]error['"]/.test(fn),
+      'releaseClientSafely must not rely on client.state === "error"; that tracks socket state, not transaction state'
+    );
+    assert.ok(
+      /client\.release\(true\)/.test(fn),
+      'Expected releaseClientSafely to call client.release(true) for poisoned connections'
     );
   });
 });

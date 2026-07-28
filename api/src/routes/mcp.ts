@@ -10,14 +10,16 @@ import { getCachedFxRates } from '../lib/fxRatesLoader';
 
 const router = Router();
 
-// BUY-56185: Detect statement_timeout poisoned connections.
+// BUY-56185/BUY-64151: Detect statement_timeout poisoned connections.
 // When PostgreSQL's statement_timeout fires, the query is cancelled but the
-// connection enters PQTRANS_INERROR state. Returning such a connection to the
-// pool poises every subsequent query on it with "current transaction is aborted".
-// client.state returns 'error' in this state — discard instead of reusing.
+// connection enters PQTRANS_INERROR state (transactionStatus === 3). Returning
+// such a connection to the pool poisons every subsequent query with "current
+// transaction is aborted". client.state tracks the socket state, not the
+// transaction state, so use pg's transactionStatus instead.
 function releaseClientSafely(client: any) {
   try {
-    if (client && typeof client.state === 'string' && client.state === 'error') {
+    // PQTRANS_INERROR = 3 — transaction aborted due to statement_timeout or other error.
+    if (client && client.transactionStatus === 3) {
       client.release(true); // discard — do NOT return poisoned connection to pool
     } else {
       client.release();
