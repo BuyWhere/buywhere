@@ -29,8 +29,12 @@ from typing import Any
 
 from playwright.async_api import async_playwright, Page
 
-from scrapers.logging import get_logger
-from scrapers.scraper_registry import register
+try:
+    from scrapers.scraper_logging import get_logger
+    from scrapers.scraper_registry import register
+except ModuleNotFoundError:
+    from scraper_logging import get_logger
+    from scraper_registry import register
 
 MERCHANT_ID = "ezbuy_sg"
 SOURCE = "ezbuy_sg"

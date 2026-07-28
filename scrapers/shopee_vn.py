@@ -1,15 +1,18 @@
 """
 Shopee Vietnam product scraper.
 
-Scrapes products from Shopee VN using direct HTTP access.
+Scrapes products from Shopee VN using direct HTTP access, with optional
+BrightData unblocker proxy support (added per BUY-64221, 2026-07-28).
+
 Adapts from shopee_sg.py template for Vietnam marketplace.
 
 Usage:
     python -m scrapers.shopee_vn --api-key <key> [--batch-size 100] [--delay 1.0]
     python -m scrapers.shopee_vn --scrape-only  # save to data/shopee_vn/ without ingesting
 
-Note: Shopee VN WAF blocks BrightData proxy IPs. Direct HTTP access is used
-as a workaround, but may return SSR skeleton HTML without product data.
+    # BrightData unblocker (preferred when account is active):
+    BRIGHTDATA_ZONE=shopee_vn_ul python -m scrapers.shopee_vn \\
+        --use-brightdata --scrape-only --limit 5000
 """
 import argparse
 import asyncio
@@ -25,6 +28,22 @@ MERCHANT_ID = "shopee_vn"
 SOURCE = "shopee_vn"
 BASE_URL = "https://www.shopee.vn"
 OUTPUT_DIR = "/home/paperclip/buywhere-api/data/shopee_vn"
+
+# BrightData proxy wiring (added BUY-64221). Defaults pull from env so secrets
+# stay out of argv/logs. Override --bd-zone explicitly when needed.
+_BD_USER = os.environ.get("BRIGHTDATA_RESIDENTIAL_USERNAME") or os.environ.get("BRIGHTDATA_CUSTOMER_ID", "")
+_BD_PASS = os.environ.get("BRIGHTDATA_RESIDENTIAL_PASSWORD") or os.environ.get("BRIGHTDATA_ZONE_PASSWORD", "")
+_BD_HOST = os.environ.get("BRIGHTDATA_RESIDENTIAL_HOST") or "brd.superproxy.io"
+_BD_PORT = os.environ.get("BRIGHTDATA_RESIDENTIAL_PORT") or "22225"
+_BD_DEFAULT_ZONE = os.environ.get("BRIGHTDATA_ZONE", "shopee_vn_ul")
+
+
+def build_brightdata_proxy(zone: str) -> str:
+    """Build the BrightData superproxy URL for a given unblocker zone."""
+    if not (_BD_USER and _BD_PASS):
+        return ""
+    return f"http://{_BD_USER}:{_BD_PASS}@{_BD_HOST}:{_BD_PORT}"
+
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -64,13 +83,33 @@ class ShopeeVNScraper:
         batch_size: int = 100,
         delay: float = 1.0,
         scrape_only: bool = False,
+        use_brightdata: bool = False,
+        bd_zone: str = "",
     ):
         self.api_key = api_key
         self.api_base = api_base.rstrip("/")
         self.batch_size = batch_size
         self.delay = delay
         self.scrape_only = scrape_only
-        self.client = httpx.AsyncClient(timeout=30.0, headers=HEADERS)
+        self.use_brightdata = bool(use_brightdata)
+        self.bd_zone = bd_zone or _BD_DEFAULT_ZONE
+        proxy_url = ""
+        if self.use_brightdata:
+            proxy_url = build_brightdata_proxy(self.bd_zone)
+            if not proxy_url:
+                raise RuntimeError(
+                    "BRIGHTDATA_* env vars missing — cannot enable --use-brightdata. "
+                    "Set BRIGHTDATA_RESIDENTIAL_USERNAME/PASSWORD (or CUSTOMER_ID+ZONE_PASSWORD)."
+                )
+        # httpx>=0.25 uses `proxies=` (plural); fall back to `proxy=` for older.
+        client_kwargs: dict[str, Any] = {"timeout": 30.0, "headers": HEADERS}
+        if proxy_url:
+            try:
+                self.client = httpx.AsyncClient(**client_kwargs, proxies=proxy_url)
+            except TypeError:
+                self.client = httpx.AsyncClient(**client_kwargs, proxy=proxy_url)
+        else:
+            self.client = httpx.AsyncClient(**client_kwargs)
         self.total_scraped = 0
         self.total_ingested = 0
         self.total_updated = 0
@@ -301,10 +340,11 @@ class ShopeeVNScraper:
         print(f"  [{cat_name} / {sub_name}] Done: {counts}")
         return counts
 
-    async def run(self) -> dict[str, Any]:
+    async def run(self, limit: int = 0) -> dict[str, Any]:
         mode = "scrape only" if self.scrape_only else f"API: {self.api_base}"
+        proxy_mode = f"BD zone={self.bd_zone}" if self.use_brightdata else "direct"
         print(f"Shopee VN Scraper starting...")
-        print(f"Mode: {mode}")
+        print(f"Mode: {mode}, Proxy: {proxy_mode}")
         print(f"Batch size: {self.batch_size}, Delay: {self.delay}s")
         print(f"Output: {self.products_outfile}")
         print(f"Categories: {len(CATEGORIES)} verticals")
@@ -312,6 +352,9 @@ class ShopeeVNScraper:
         start = time.time()
 
         for cat in CATEGORIES:
+            if limit > 0 and self.total_scraped >= limit:
+                print(f"Limit of {limit} reached!")
+                break
             await self.scrape_category(cat)
             await asyncio.sleep(2)
 
@@ -341,6 +384,17 @@ async def main():
     parser.add_argument("--batch-size", type=int, default=100)
     parser.add_argument("--delay", type=float, default=1.0, help="Delay between batches (seconds)")
     parser.add_argument("--scrape-only", action="store_true", help="Save to JSONL without ingesting")
+    parser.add_argument(
+        "--use-brightdata",
+        action="store_true",
+        help="Route requests through BrightData superproxy using BRIGHTDATA_* env vars",
+    )
+    parser.add_argument(
+        "--bd-zone",
+        default="",
+        help="BrightData zone to use (default: BRIGHTDATA_ZONE env or shopee_vn_ul)",
+    )
+    parser.add_argument("--limit", type=int, default=0, help="Max products to scrape (0 = unlimited)")
     args = parser.parse_args()
 
     scraper = ShopeeVNScraper(
@@ -349,7 +403,14 @@ async def main():
         batch_size=args.batch_size,
         delay=args.delay,
         scrape_only=args.scrape_only,
+        use_brightdata=args.use_brightdata,
+        bd_zone=args.bd_zone,
     )
+
+    try:
+        await scraper.run(limit=args.limit)
+    finally:
+        await scraper.close()
 
     try:
         await scraper.run()

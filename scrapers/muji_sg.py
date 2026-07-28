@@ -23,7 +23,10 @@ from typing import Any
 
 import httpx
 
-from scrapers.logging import get_logger
+try:
+    from scrapers.scraper_logging import get_logger
+except ModuleNotFoundError:
+    from scraper_logging import get_logger
 
 MERCHANT_ID = "muji_sg"
 log = get_logger(MERCHANT_ID)

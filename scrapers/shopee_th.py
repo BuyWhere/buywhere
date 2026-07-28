@@ -105,7 +105,10 @@ class ShopeeTHScraper:
         self.use_scraperapi_proxy = use_scraperapi_proxy and bool(SCRAPERAPI_KEY)
         kwargs = {"timeout": 60.0, "headers": HEADERS, "verify": False}
         if self.use_scraperapi_proxy:
-            kwargs["proxy"] = SCRAPERAPI_PROXY
+            # httpx>=0.25 renamed the `proxy=` kwarg to `proxies=` (plural).
+            # Use the new name; this fixes a pre-network TypeError on
+            # `AsyncClient.__init__()` that was reported in BUY-64222.
+            kwargs["proxies"] = SCRAPERAPI_PROXY
         self.client = httpx.AsyncClient(**kwargs)
         self.total_scraped = 0
         self.total_ingested = 0
