@@ -1,6 +1,7 @@
 ---
 slug: "mcp-server-ecosystem-2026"
 title: "The MCP Server Ecosystem in 2026: Every Category You Need to Know"
+description: "The MCP ecosystem exploded past thousands of servers. Here's the category map — what each does, which matter for real agent builds, and where the gaps still are."
 publishedAt: "2026-07-17"
 excerpt: "The MCP ecosystem exploded past thousands of servers. Here's the category map — what each does, which matter for real agent builds, and where the gaps still are."
 tags: ["mcp", "ecosystem", "ai-agents", "developer-tools"]

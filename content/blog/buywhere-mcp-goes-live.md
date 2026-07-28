@@ -1,6 +1,7 @@
 ---
 slug: "buywhere-mcp-goes-live"
 title: "BuyWhere MCP Goes Live: The Open-Source Commerce API for AI Agents"
+description: "BuyWhere is live as a production MCP server — 288M+ products, SG/SEA/US markets, one-command install. Here's what it is, why we open-sourced the client, and how to wire it in."
 publishedAt: "2026-07-17"
 excerpt: "BuyWhere is live as a production MCP server — 288M+ products, SG/SEA/US markets, one-command install. Here's what it is, why we open-sourced the client, and how to wire it in."
 tags: ["mcp", "announcement", "open-source", "ecommerce"]

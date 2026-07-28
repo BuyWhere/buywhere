@@ -1,6 +1,7 @@
 ---
 slug: "five-mcp-servers-that-earn-context-window"
 title: "5 MCP Servers That Earn Their Place in the Context Window"
+description: "Every MCP server you load costs context window and latency. These five earn their keep by doing something an agent genuinely can't do alone."
 publishedAt: "2026-07-17"
 excerpt: "Every MCP server you load costs context window and latency. These five earn their keep by doing something an agent genuinely can't do alone."
 tags: ["mcp", "ai-agents", "developer-tools", "best-of"]

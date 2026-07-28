@@ -1,6 +1,7 @@
 ---
 slug: "mcp-for-ecommerce"
 title: "MCP for Ecommerce: The Missing Infrastructure Layer for AI Agent Shopping"
+description: "AI agents can write code and summarize docs but can't buy a thing. Ecommerce is the missing MCP layer — and it's harder to build than it looks."
 publishedAt: "2026-07-17"
 excerpt: "AI agents can write code and summarize docs but can't buy a thing. Ecommerce is the missing MCP layer — and it's harder to build than it looks."
 tags: ["mcp", "ecommerce", "ai-agents", "infrastructure"]

@@ -1,6 +1,7 @@
 ---
 slug: "the-mcp-server-discovery-gap"
 title: "The MCP Server Discovery Gap: How Do You Find the Right MCP Server for Your Agent?"
+description: "There are thousands of MCP servers. Almost none are discoverable. Here's how the discovery gap breaks agents — and what a usable registry actually needs."
 publishedAt: "2026-07-17"
 excerpt: "There are thousands of MCP servers. Almost none are discoverable. Here's how the discovery gap breaks agents — and what a usable registry actually needs."
 tags: ["mcp", "ai-agents", "developer-tools", "infrastructure"]

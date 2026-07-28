@@ -1,6 +1,7 @@
 ---
 slug: "building-production-mcp-servers"
 title: "Building Production MCP Servers: Architecture, Tool Design, and Distribution"
+description: "A demo MCP server is easy. A production server that thousands of agents call daily is a different engineering problem. Architecture, tool design, and the distribution playbook."
 publishedAt: "2026-07-17"
 excerpt: "A demo MCP server is easy. A production server that thousands of agents call daily is a different engineering problem. Architecture, tool design, and the distribution playbook."
 tags: ["mcp", "architecture", "developer-tools", "engineering"]
