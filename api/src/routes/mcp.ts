@@ -27,6 +27,24 @@ function releaseClientSafely(client: any) {
   }
 }
 
+const VECTOR_DB_TIMEOUT_MS = Number(process.env.VECTOR_DB_TIMEOUT_MS || 1500);
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+async function queryVectorDb<T = Record<string, unknown>>(sql: string, params: unknown[]): Promise<{ rows: T[] }> {
+  if (!vectorDb) throw new Error('vector DB not configured');
+  const result = await withTimeout(vectorDb.query(sql, params), VECTOR_DB_TIMEOUT_MS, 'vector DB query');
+  return result as { rows: T[] };
+}
+
 // MCP tools manifest
 const TOOLS = [
   {
@@ -357,7 +375,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-  let rows: unknown[];
+  let rows: unknown[] = [];
   let total: number;
 
   // BUY-57370: catch pool exhaustion fast — under concurrent load (e.g. Tune
@@ -402,60 +420,68 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         }
 
         if (queryVec && vectorDb) {
-          let candidateIds: string[];
+          try {
+            let candidateIds: string[];
 
-          if (mode === 'semantic') {
-            // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
-            const vecRows = await vectorDb.query<{ product_id: string }>(
-              `SELECT product_id FROM product_embeddings
-               ORDER BY embedding <=> $1::vector LIMIT 200`,
-              [queryVec]
-            );
-            candidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
-          } else {
-            // Hybrid: app-level RRF of FTS ranks + vector ranks
-            const [ftsResult, vecResult] = await Promise.all([
-              searchClient.query<{ id: string }>(
-                `SELECT id FROM products ${where} LIMIT 200`,
-                params
-              ),
-              vectorDb.query<{ product_id: string }>(
-                `SELECT product_id FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT 200`,
+            if (mode === 'semantic') {
+              // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
+              const vecRows = await queryVectorDb<{ product_id: string }>(
+                `SELECT product_id FROM product_embeddings
+                 ORDER BY embedding <=> $1::vector LIMIT 200`,
                 [queryVec]
-              ),
-            ]);
-            const ftsRank = new Map(ftsResult.rows.map((r, i) => [r.id, i + 1]));
-            const vecRank = new Map(vecResult.rows.map((r, i) => [r.product_id, i + 1]));
-            const allIds = new Set([...ftsRank.keys(), ...vecRank.keys()]);
-            candidateIds = [...allIds]
-              .map(id => ({
-                id,
-                score: 1 / (60 + (ftsRank.get(id) ?? 201)) + 1 / (60 + (vecRank.get(id) ?? 201)),
-              }))
-              .sort((a, b) => b.score - a.score)
-              .slice(0, limit + offset)
-              .map(s => s.id);
-          }
+              );
+              candidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
+            } else {
+              // Hybrid: app-level RRF of FTS ranks + vector ranks
+              const [ftsResult, vecResult] = await Promise.all([
+                searchClient.query<{ id: string }>(
+                  `SELECT id FROM products ${where} LIMIT 200`,
+                  params
+                ),
+                queryVectorDb<{ product_id: string }>(
+                  `SELECT product_id FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT 200`,
+                  [queryVec]
+                ),
+              ]);
+              const ftsRank = new Map(ftsResult.rows.map((r, i) => [r.id, i + 1]));
+              const vecRank = new Map(vecResult.rows.map((r, i) => [r.product_id, i + 1]));
+              const allIds = new Set([...ftsRank.keys(), ...vecRank.keys()]);
+              candidateIds = [...allIds]
+                .map(id => ({
+                  id,
+                  score: 1 / (60 + (ftsRank.get(id) ?? 201)) + 1 / (60 + (vecRank.get(id) ?? 201)),
+                }))
+                .sort((a, b) => b.score - a.score)
+                .slice(0, limit + offset)
+                .map(s => s.id);
+            }
 
-          total = candidateIds.length;
-          const pageIds = candidateIds.slice(offset, offset + limit);
+            total = candidateIds.length;
+            const pageIds = candidateIds.slice(offset, offset + limit);
 
-          if (pageIds.length === 0) {
-            rows = [];
-          } else {
-            const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
-            const detailResult = await searchClient.query(
-              `SELECT id, sku AS source, source AS domain, url, title,
-                      price, currency, image_url, metadata, updated_at, region, country_code
-               FROM products WHERE id IN (${ph}) AND is_active = true`,
-              pageIds
-            );
-            // Preserve ranking order
-            const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
-            rows = pageIds.map(id => byId.get(id)).filter(Boolean) as Record<string, unknown>[];
+            if (pageIds.length === 0) {
+              rows = [];
+            } else {
+              const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
+              const detailResult = await searchClient.query(
+                `SELECT id, sku AS source, source AS domain, url, title,
+                        price, currency, image_url, metadata, updated_at, region, country_code
+                 FROM products WHERE id IN (${ph}) AND is_active = true`,
+                pageIds
+              );
+              // Preserve ranking order
+              const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
+              rows = pageIds.map(id => byId.get(id)).filter(Boolean) as Record<string, unknown>[];
+            }
+          } catch (vectorErr) {
+            // BUY-63230: vector DB unreachable / timed out — fail open to keyword FTS.
+            console.warn(`[search] ${mode} vector path failed open to FTS:`, (vectorErr as Error).message);
+            queryVec = null;
           }
-        } else {
-          // Embed failed — fall through to keyword FTS
+        }
+
+        if (!queryVec || !vectorDb) {
+          // Embed/vector unavailable or failed open — keyword FTS fallback
           const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
           params.push(CANDIDATE_LIMIT, limit, offset);
           const result = await searchClient.query(
