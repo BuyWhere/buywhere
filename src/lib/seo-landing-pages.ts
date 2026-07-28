@@ -104,6 +104,12 @@ export type SeoLandingPageConfig = {
   minPrice?: number;
   /** Terms that must appear in live search products to avoid unrelated broad-query matches */
   requiredProductTerms?: string[];
+  /** Upstream category filter used to constrain broad catalog searches */
+  searchCategory?: string;
+  /** Strictly reject product parts and accessories from live catalog cards */
+  excludeAccessories?: boolean;
+  /** Render a denser desktop hero and two-column cards so complete offer data is visible above the fold */
+  compactCatalogCards?: boolean;
   refreshedLabel?: string;
   productSectionTitle: string;
   comparisonSectionTitle: string;
@@ -228,7 +234,81 @@ function isUsableProductImage(imageUrl?: string | null) {
 
   try {
     const url = new URL(imageUrl);
-    return url.hostname !== "source.unsplash.com";
+    return (
+      url.hostname !== "source.unsplash.com" &&
+      url.hostname !== "elescat.store" &&
+      !url.hostname.endsWith(".elescat.store")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Build a brand-coloured SVG data URL that ProductGridImage can render in
+ * place of a broken/missing remote image. Keeps the card visually polished
+ * instead of the generic broken-image icon.
+ */
+function brandedProductPlaceholderSvg(brand?: string | null, name?: string | null): string {
+  const text = (brand || name || "Product").slice(0, 24).replace(/[<>&"']/g, "");
+  const initial = (text[0] || "P").toUpperCase();
+  // Stable colour derived from name length so cards differ visually.
+  const palette = ["#fde68a", "#bae6fd", "#fecaca", "#bbf7d0", "#ddd6fe", "#fbcfe8", "#fed7aa"];
+  const hue = palette[(text.length * 7) % palette.length];
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 150'><rect width='200' height='150' fill='${hue}'/><text x='100' y='90' font-family='system-ui,sans-serif' font-size='52' font-weight='700' text-anchor='middle' fill='#1e293b'>${initial}</text><text x='100' y='130' font-family='system-ui,sans-serif' font-size='14' text-anchor='middle' fill='#334155'>${text.slice(0, 20)}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * Verify that a remote image URL actually responds 2xx. Live search results
+ * frequently include image URLs from third-party CDNs (asus.com, courts.com.sg,
+ * shopifycdn, etc.) that return 404/403 in the browser even though the
+ * search API considered the product usable. Without this probe the SEO
+ * landing page would SSR with an <img> that fails to load and lands on the
+ * Placeholder (BUY-64729).
+ */
+async function verifyReachableImage(imageUrl: string | null, timeoutMs = 2500): Promise<boolean> {
+  if (!imageUrl) return false;
+  if (imageUrl.startsWith("data:image/svg+xml")) return true;
+  try {
+    const url = new URL(imageUrl);
+    // Treat these hosts as always-reachable; probing them at SSR is wasteful
+    // and Amazon's CDN often blocks non-browser UAs.
+    if (
+      url.hostname === "m.media-amazon.com" ||
+      url.hostname.endsWith(".media-amazon.com") ||
+      url.hostname === "images-na.ssl-images-amazon.com"
+    ) {
+      return true;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(imageUrl, {
+        method: "HEAD",
+        signal: controller.signal,
+        // CDN image servers may return 405 on HEAD; fall back to a ranged GET.
+        redirect: "follow",
+      });
+      if (res.ok) return true;
+      if (res.status === 405 || res.status === 403) {
+        // Some image hosts (Cloudflare, Shopify CDN) forbid HEAD. Allow only
+        // when the response indicates actual blocking (403 -> false). 405 -> retry GET.
+        if (res.status === 405) {
+          const get = await fetch(imageUrl, {
+            method: "GET",
+            signal: controller.signal,
+            redirect: "follow",
+            headers: { Range: "bytes=0-0" },
+          });
+          return get.ok || get.status === 206;
+        }
+        return false;
+      }
+      return false;
+    } finally {
+      clearTimeout(timer);
+    }
   } catch {
     return false;
   }
@@ -238,6 +318,26 @@ function productMatchesRequiredTerms(product: LandingProduct, requiredTerms?: st
   if (!requiredTerms || requiredTerms.length === 0) return true;
   const haystack = [product.name, product.brand, product.category].filter(Boolean).join(" ").toLowerCase();
   return requiredTerms.some((term) => haystack.includes(term.toLowerCase()));
+}
+
+const PRODUCT_ACCESSORY_RE =
+  /\b(?:accessor(?:y|ies)(?:\s+(?:package|kit|set))?|fabric cleaner|replacement\s+(?:battery|batteries|brush(?:es)?|dust bags?|filter(?:s)?|kit|mop pads?|motor|nozzles?|parts?|roller(?:s)?|side brush(?:es)?|water tanks?)|vacuum\s+(?:accessor(?:y|ies)|parts?|supply|supplies)|(?:\d+[- ]?pack|pack of \d+)\s+(?:replacement\s+)?(?:brush(?:es)?|dust bags?|filter(?:s)?|mop pads?|roller(?:s)?|side brush(?:es)?)|(?:brush(?:es)?|dust bags?|filter(?:s)?|mop pads?|roller(?:s)?|side brush(?:es)?)\s+(?:kit|set)\s+(?:for|compatible with))\b/i;
+const NON_FLOOR_ROBOT_VACUUM_RE = /\b(?:cordless|handheld|pool|stick|upright)\b/i;
+const COMPLETE_ROBOT_VACUUM_RE = /\b(?:robot(?:ic)?\s+vacuums?|roomba|deebot)\b/i;
+
+export function isCompleteRobotVacuum(product: Pick<LandingProduct, "name" | "brand" | "category">) {
+  const text = [product.name, product.brand, product.category].filter(Boolean).join(" ");
+  return (
+    COMPLETE_ROBOT_VACUUM_RE.test(text) &&
+    !PRODUCT_ACCESSORY_RE.test(text) &&
+    !NON_FLOOR_ROBOT_VACUUM_RE.test(text)
+  );
+}
+
+function isExcludedAccessory(product: LandingProduct, config: SeoLandingPageConfig) {
+  if (!config.excludeAccessories) return false;
+  if (config.searchCategory === "robot_vacuums") return !isCompleteRobotVacuum(product);
+  return PRODUCT_ACCESSORY_RE.test([product.name, product.brand, product.category].filter(Boolean).join(" "));
 }
 
 function hasUsableLiveCard(product: LandingProduct) {
@@ -345,7 +445,25 @@ export function getSeoLandingFallbackProductBySlug(region: string, slug: string)
 }
 
 export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promise<LandingProduct[]> {
-  const fallback = config.fallbackProducts.filter(isTrustedFallbackProduct);
+  // Filter and repair fallback products up-front: trustcheck + image probe.
+  // The static fallback list (e.g. Dyson/Philips/Xiaomi URLs in
+  // config.fallbackProducts) can also contain dead CDN URLs — replacing the
+  // image with a brand-coloured SVG here means the page never falls back to a
+  // generic placeholder icon when live products are unavailable (BUY-64729).
+  const trustedFallback = config.fallbackProducts.filter(isTrustedFallbackProduct);
+  const fallback = await Promise.all(
+    trustedFallback.map(async (fb) => {
+      if (!fb.imageUrl) {
+        return { ...fb, imageUrl: brandedProductPlaceholderSvg(fb.brand, fb.name) };
+      }
+      const reachable = await verifyReachableImage(fb.imageUrl);
+      if (reachable) return fb;
+      console.warn(
+        `[seo] replacing unreachable fallback image for product ${fb.id} on ${config.slug}: ${fb.imageUrl}`
+      );
+      return { ...fb, imageUrl: brandedProductPlaceholderSvg(fb.brand, fb.name) };
+    }),
+  );
 
   // Try the broad query first, then progressively fall back to brand-specific
   // backup queries. Broad queries on the product search API frequently time out
@@ -362,8 +480,11 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       const params = new URLSearchParams({
         q: query,
         country: config.country,
-        limit: "8",
+        limit: config.excludeAccessories ? "24" : "8",
       });
+      if (config.searchCategory) {
+        params.set("category", config.searchCategory);
+      }
 
       // Route through BuyWhere's own /api/products/search route handler rather
       // than the external product API. The route handler injects the backend
@@ -404,6 +525,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         const product = normalizeProduct(item, config.currency, config.minPrice);
         if (!product) continue;
         if (!hasUsableLiveCard(product)) continue;
+        if (isExcludedAccessory(product, config)) continue;
         if (!productMatchesRequiredTerms(product, config.requiredProductTerms)) continue;
         if (!seenIds.has(product.id)) {
           seenIds.add(product.id);
@@ -417,21 +539,58 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     }
   }
 
-  if (collected.length >= 4) {
-    return collected.slice(0, 8).map((p) => withLiveProductDetailUrl(p, config.country));
+  // Verify every collected product's image is actually reachable. Live search
+  // results from third-party CDNs (asus.com, courts.com.sg, shopifycdn, ...)
+  // frequently return 404/403 even though the search API itself succeeded. If
+  // we leave a dead URL in the rendered HTML the browser shows a generic
+  // broken-image icon instead of a real product thumbnail (BUY-64729).
+  //
+  // We probe URLs in parallel with a short per-request timeout. Reachable
+  // images keep their URL; unreachable ones are replaced with a brand-coloured
+  // SVG so the card still renders a polished, distinguishable thumbnail
+  // instead of the placeholder icon. The replacement never produces a
+  // "broken image" state because SVG data URLs render instantly.
+  const verified = await Promise.all(
+    collected.map(async (product) => {
+      if (!product.imageUrl) {
+        return {
+          ...product,
+          imageUrl: brandedProductPlaceholderSvg(product.brand, product.name),
+        };
+      }
+      const reachable = await verifyReachableImage(product.imageUrl);
+      if (!reachable) {
+        console.warn(
+          `[seo] replacing unreachable image for product ${product.id} on ${config.slug}: ${product.imageUrl}`
+        );
+        return {
+          ...product,
+          imageUrl: brandedProductPlaceholderSvg(product.brand, product.name),
+        };
+      }
+      return product;
+    }),
+  );
+
+  // Carry seenIds across the verified list so fallback top-up dedup still works.
+  const verifiedProducts = verified.filter(Boolean) as LandingProduct[];
+
+  if (verifiedProducts.length >= 4) {
+    return verifiedProducts.slice(0, 8).map((p) => withLiveProductDetailUrl(p, config.country));
   }
 
   // If we got some (but fewer than 4) real products, top up with fallbacks so
   // the page always shows at least 4 cards. Prefer real data first.
-  if (collected.length > 0) {
+  if (verifiedProducts.length > 0) {
+    const topUp: LandingProduct[] = [...verifiedProducts];
     for (const fb of fallback) {
-      if (collected.length >= 4) break;
+      if (topUp.length >= 4) break;
       if (!seenIds.has(fb.id)) {
         seenIds.add(fb.id);
-        collected.push(withFallbackDetailUrl(fb, config.country));
+        topUp.push(withFallbackDetailUrl(fb, config.country));
       }
     }
-    return collected.slice(0, 8).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
+    return topUp.slice(0, 8).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
   }
 
   // No real products from any query — show curated fallback products (with real
@@ -961,9 +1120,12 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
     currency: "USD",
     locale: "en_US",
     searchQuery: "robot vacuum",
-backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
+    searchCategory: "robot_vacuums",
+    excludeAccessories: true,
+    compactCatalogCards: true,
+    backupQueries: ["Eufy robot vacuum", "Roborock robot vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
     minPrice: 50,
-    requiredProductTerms: ["robot vacuum", "vacuum", "roomba", "roborock", "deebot", "eufy", "shark", "irobot"],
+    requiredProductTerms: ["robot vacuum", "robotic vacuum", "roomba", "deebot"],
     hreflangAlternates: { "en-SG": "/best-robot-vacuums-singapore" },
     productSectionTitle: "Live robot vacuum deals across the US",
     comparisonSectionTitle: "Top robot vacuum & Roomba picks at a glance",
