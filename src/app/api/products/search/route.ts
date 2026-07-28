@@ -8,7 +8,7 @@ const API_BASE_URL = (
 ).replace(/\/$/, '');
 
 const API_KEY = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || '';
-const ALLOWED_PARAMS = new Set(['q', 'country', 'country_code', 'limit', 'cursor', 'offset']);
+const ALLOWED_PARAMS = new Set(['q', 'country', 'country_code', 'category', 'limit', 'cursor', 'offset']);
 const ACCESSORY_KEYWORDS = [
   'adapter',
   'battery',
