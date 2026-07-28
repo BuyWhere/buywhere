@@ -228,34 +228,67 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
   };
 }
 
+// Hosts that historically serve 200 to bots but 403/404 inside a browser.
+// Treat them as unreachable so the placeholder path takes over instead of
+// rendering a broken-image icon on the live SEO landing pages.
+const HOTLINK_BLOCKED_HOSTS = new Set([
+  "courts.com.sg",
+  "www.courts.com.sg",
+  "dlcdnwebimgs.asus.com",
+  "www.asus.com",
+  "shopifycdn.com",
+  "elescat.store",
+  "source.unsplash.com",
+]);
+
 function isUsableProductImage(imageUrl?: string | null) {
   if (!imageUrl) return false;
   if (imageUrl.startsWith("data:image/svg+xml")) return true;
 
   try {
     const url = new URL(imageUrl);
-    return (
-      url.hostname !== "source.unsplash.com" &&
-      url.hostname !== "elescat.store" &&
-      !url.hostname.endsWith(".elescat.store")
-    );
+    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
+    return !url.hostname.endsWith(".elescat.store");
   } catch {
     return false;
   }
 }
 
 /**
- * Build a brand-coloured SVG data URL that ProductGridImage can render in
- * place of a broken/missing remote image. Keeps the card visually polished
- * instead of the generic broken-image icon.
+ * Build a brand-aware SVG data URL that ProductGridImage can render in place
+ * of a broken/missing remote image. The previous version (single-letter
+ * initial on a pastel chip) was flagged by QA as still reading as a "generic
+ * placeholder" on the air-purifier-singapore first card (BUY-64260). The new
+ * layout shows the product's full brand + category on a polished white card
+ * with a stylised product icon — clearly branded, not a placeholder chip.
  */
-function brandedProductPlaceholderSvg(brand?: string | null, name?: string | null): string {
-  const text = (brand || name || "Product").slice(0, 24).replace(/[<>&"']/g, "");
-  const initial = (text[0] || "P").toUpperCase();
-  // Stable colour derived from name length so cards differ visually.
-  const palette = ["#fde68a", "#bae6fd", "#fecaca", "#bbf7d0", "#ddd6fe", "#fbcfe8", "#fed7aa"];
-  const hue = palette[(text.length * 7) % palette.length];
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 150'><rect width='200' height='150' fill='${hue}'/><text x='100' y='90' font-family='system-ui,sans-serif' font-size='52' font-weight='700' text-anchor='middle' fill='#1e293b'>${initial}</text><text x='100' y='130' font-family='system-ui,sans-serif' font-size='14' text-anchor='middle' fill='#334155'>${text.slice(0, 20)}</text></svg>`;
+function brandedProductPlaceholderSvg(
+  brand?: string | null,
+  name?: string | null,
+  category?: string | null,
+): string {
+  const clean = (s: string) => s.replace(/[<>&"']/g, "").trim();
+  const brandText = clean(brand || "").slice(0, 18) || "BuyWhere";
+  const categoryText = clean(category || "").slice(0, 22) || "Featured product";
+  const productLabel = clean(name || "").slice(0, 26) || categoryText;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'>
+  <defs>
+    <linearGradient id='bg' x1='0' x2='1' y1='0' y2='1'>
+      <stop offset='0' stop-color='#fff7ed'/>
+      <stop offset='1' stop-color='#fde68a'/>
+    </linearGradient>
+  </defs>
+  <rect width='400' height='300' fill='url(#bg)'/>
+  <rect x='40' y='40' width='320' height='220' rx='24' fill='#ffffff' stroke='#fcd34d' stroke-width='3'/>
+  <g transform='translate(140 80)' fill='none' stroke='#b45309' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'>
+    <rect x='0' y='0' width='120' height='90' rx='12' fill='#fef3c7'/>
+    <circle cx='60' cy='40' r='14' fill='#f59e0b' stroke='none'/>
+    <path d='M0 70 L40 35 L80 60 L120 25' stroke='#b45309'/>
+  </g>
+  <text x='200' y='208' text-anchor='middle' font-family='system-ui,sans-serif' font-size='22' font-weight='700' fill='#0f172a'>${brandText}</text>
+  <text x='200' y='236' text-anchor='middle' font-family='system-ui,sans-serif' font-size='14' font-weight='500' fill='#475569'>${productLabel}</text>
+  <text x='200' y='258' text-anchor='middle' font-family='system-ui,sans-serif' font-size='11' font-weight='600' letter-spacing='2' fill='#92400e'>BUYWHERE</text>
+</svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
@@ -272,6 +305,10 @@ async function verifyReachableImage(imageUrl: string | null, timeoutMs = 2500): 
   if (imageUrl.startsWith("data:image/svg+xml")) return true;
   try {
     const url = new URL(imageUrl);
+    // Known hotlink-protected hosts always serve a broken image in the browser
+    // even when the HEAD probe is green. Skip the probe and mark them
+    // unreachable so the branded placeholder path takes over.
+    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
     // Treat these hosts as always-reachable; probing them at SSR is wasteful
     // and Amazon's CDN often blocks non-browser UAs.
     if (
@@ -454,14 +491,14 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   const fallback = await Promise.all(
     trustedFallback.map(async (fb) => {
       if (!fb.imageUrl) {
-        return { ...fb, imageUrl: brandedProductPlaceholderSvg(fb.brand, fb.name) };
+        return { ...fb, imageUrl: brandedProductPlaceholderSvg(fb.brand, fb.name, fb.category) };
       }
       const reachable = await verifyReachableImage(fb.imageUrl);
       if (reachable) return fb;
       console.warn(
         `[seo] replacing unreachable fallback image for product ${fb.id} on ${config.slug}: ${fb.imageUrl}`
       );
-      return { ...fb, imageUrl: brandedProductPlaceholderSvg(fb.brand, fb.name) };
+      return { ...fb, imageUrl: brandedProductPlaceholderSvg(fb.brand, fb.name, fb.category) };
     }),
   );
 
@@ -555,7 +592,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       if (!product.imageUrl) {
         return {
           ...product,
-          imageUrl: brandedProductPlaceholderSvg(product.brand, product.name),
+          imageUrl: brandedProductPlaceholderSvg(product.brand, product.name, product.category),
         };
       }
       const reachable = await verifyReachableImage(product.imageUrl);
@@ -565,7 +602,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         );
         return {
           ...product,
-          imageUrl: brandedProductPlaceholderSvg(product.brand, product.name),
+          imageUrl: brandedProductPlaceholderSvg(product.brand, product.name, product.category),
         };
       }
       return product;
