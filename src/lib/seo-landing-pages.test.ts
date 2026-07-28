@@ -105,12 +105,16 @@ test("robot-vacuum classifier accepts complete floor robots and rejects accessor
     "Roborock Qrevo Robot Vacuum with Multifunctional Dock",
     "Lefant Robot Vacuum and Mop, M501-A Robotic Vacuums Cleaner",
     "ECOVACS DEEBOT T8+ Vacuum & Mop Robot",
+    "Roborock S7 Pro Ultra Robot Vacuum with HEPA filter for allergies",
+    "iRobot Roomba i7+ Robot Vacuum with tangle-free rubber brushes",
+    "Roborock S8 MaxV Ultra Robot Vacuum with dust bag included",
   ];
   const rejectedProducts = [
     "Xiaomi Robot Vacuum E10 2600mAh Vacuum Replacement Battery",
     "Eufy Fabric Cleaner for Eufy Robot Vacuum Omni E28",
     "Eufy Accessories Package For Eufy Robot Vacuum Omni E28",
     "12-Pack Replacement Mop Pads for Narwal Robot Vacuum & Mop",
+    "6 Pack Dust Bags Set for iRobot Roomba Robot Vacuum",
     "Ecovacs vacuum accessory/supply Robot vacuum Dust bag",
     "Roborock H60 Cordless Stick Vacuum",
     "Bestway Automatic Robotic Pool Vacuum",

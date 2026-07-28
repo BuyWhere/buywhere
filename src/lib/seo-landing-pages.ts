@@ -251,7 +251,7 @@ function productMatchesRequiredTerms(product: LandingProduct, requiredTerms?: st
 }
 
 const PRODUCT_ACCESSORY_RE =
-  /\b(?:accessor(?:y|ies)|adapter|attachment|battery|batteries|brush(?:es)?|cable|charger|charging station|cleaning solution|cover|dust bags?|fabric cleaner|filter(?:s)?|holder|kit|mop pads?|motor|nozzles?|parts?|replacement|roller(?:s)?|side brush(?:es)?|spare|supply|supplies|water tanks?)\b/i;
+  /\b(?:accessor(?:y|ies)(?:\s+(?:package|kit|set))?|fabric cleaner|replacement\s+(?:battery|batteries|brush(?:es)?|dust bags?|filter(?:s)?|kit|mop pads?|motor|nozzles?|parts?|roller(?:s)?|side brush(?:es)?|water tanks?)|vacuum\s+(?:accessor(?:y|ies)|parts?|supply|supplies)|(?:\d+[- ]?pack|pack of \d+)\s+(?:replacement\s+)?(?:brush(?:es)?|dust bags?|filter(?:s)?|mop pads?|roller(?:s)?|side brush(?:es)?)|(?:brush(?:es)?|dust bags?|filter(?:s)?|mop pads?|roller(?:s)?|side brush(?:es)?)\s+(?:kit|set)\s+(?:for|compatible with))\b/i;
 const NON_FLOOR_ROBOT_VACUUM_RE = /\b(?:cordless|handheld|pool|stick|upright)\b/i;
 const COMPLETE_ROBOT_VACUUM_RE = /\b(?:robot(?:ic)?\s+vacuums?|roomba|deebot)\b/i;
 
