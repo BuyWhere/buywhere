@@ -13,9 +13,10 @@ export default function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 font-bold text-lg text-indigo-600 mb-3">
-              <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
+              <svg width="24" height="24" viewBox="0 0 28 28" fill="none" aria-hidden="true">
                 <rect width="28" height="28" rx="6" fill="#4f46e5" />
-                <path d="M7 10h14M7 14h10M7 18h12" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                <path d="M8 11h12l-1 9H9z" stroke="white" strokeWidth="1.6" strokeLinejoin="round" fill="none" />
+                <path d="M11 11V9a3 3 0 0 1 6 0v2" stroke="white" strokeWidth="1.6" strokeLinecap="round" fill="none" />
               </svg>
               BuyWhere
             </div>

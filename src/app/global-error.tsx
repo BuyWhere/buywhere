@@ -32,10 +32,18 @@ export default function GlobalError({
             >
               <rect width="28" height="28" rx="6" fill="#4f46e5" />
               <path
-                d="M7 10h14M7 14h10M7 18h12"
+                d="M8 11h12l-1 9H9z"
                 stroke="white"
-                strokeWidth="2"
+                strokeWidth="1.6"
+                strokeLinejoin="round"
+                fill="none"
+              />
+              <path
+                d="M11 11V9a3 3 0 0 1 6 0v2"
+                stroke="white"
+                strokeWidth="1.6"
                 strokeLinecap="round"
+                fill="none"
               />
             </svg>
           </div>
