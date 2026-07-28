@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { db, redis, vectorDb, replicaDb } from '../config';
+import { db, redis, vectorDb, replicaDb, catalogDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -195,7 +195,7 @@ let _hasDiscountPct: boolean | undefined = true;
 
 async function probeDiscountPctColumn(): Promise<boolean> {
   try {
-    const probe = await db.query(
+    const probe = await catalogDb.query(
       `SELECT c.is_generated, EXISTS (
          SELECT 1 FROM products
          WHERE is_active = true AND price > 0 AND discount_pct > 0
@@ -265,7 +265,7 @@ async function runTierSearch(p: {
   const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
   const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
 
-  const pool = replicaDb ?? db;
+  const pool = replicaDb ?? catalogDb;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -386,7 +386,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // (string code like '57P01') escapes to the outer handler which checks
   // typeof code === 'number' — fails for string codes — and returns the
   // opaque -32603 "Internal error" that Tune detected.
-  const searchClient = await db.connect().catch((err) => {
+  const searchClient = await catalogDb.connect().catch((err) => {
     console.warn('[search_products] db.connect failed:', err.message);
     throw { code: -32603, message: 'Database connection timeout — pool may be exhausted' };
   });
@@ -580,7 +580,7 @@ async function handleGetProduct(args: Record<string, unknown>) {
 
   let result;
   try {
-    result = await db.query(
+    result = await catalogDb.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price, currency, image_url, brand, category_path,
               avg_rating AS rating, review_count, metadata, updated_at, region, country_code
@@ -614,7 +614,7 @@ async function handleCompareProducts(args: Record<string, unknown>) {
   const placeholders = validIds.map((_, i) => `$${i + 1}`).join(',');
   let result;
   try {
-    result = await db.query(
+    result = await catalogDb.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price, currency, image_url, brand, category_path,
               avg_rating AS rating, review_count, metadata, updated_at, region, country_code
@@ -699,7 +699,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
   let dealsTimedOut = false;
-  const dealsClient = await db.connect().catch((err: unknown) => {
+  const dealsClient = await catalogDb.connect().catch((err: unknown) => {
     console.error('[mcp] get_deals db.connect failed:', err);
     throw { code: -32603, message: 'Database unavailable' };
   });
@@ -799,7 +799,7 @@ async function handleListCategories(args: Record<string, unknown>) {
 
   // 3. No in-flight query — start one and register it so concurrent callers coalesce
   const queryPromise = (async () => {
-    const client = await db.connect().catch((err) => {
+    const client = await catalogDb.connect().catch((err) => {
       console.warn('[list_categories] db.connect failed:', err.message);
       throw { code: -32603, message: 'Database connection timeout — pool may be exhausted' };
     });
@@ -903,7 +903,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   params.push(CANDIDATE_POOL, limit);
   const where = `WHERE ${conditions.join(' AND ')}`;
 
-  const bestPriceClient = await db.connect().catch((err) => {
+  const bestPriceClient = await catalogDb.connect().catch((err) => {
     console.warn("[find_best_price] db.connect failed:", err.message);
     throw { code: -32603, message: "Database connection timeout" };
   });
@@ -1288,7 +1288,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   // Step 3: fetch product details from main DB
   const nearIds = nearResult.rows.map(r => r.product_id);
   const ph = nearIds.map((_, i) => `$${i + 1}`).join(',');
-  const detailResult = await db.query(
+  const detailResult = await catalogDb.query(
     `SELECT id, title, price, currency, source AS domain, url, image_url
      FROM products WHERE id IN (${ph}) AND is_active = true`,
     nearIds
