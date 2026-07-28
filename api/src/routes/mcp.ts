@@ -698,6 +698,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // (idx_products_deals_country/region) for both paths; 25s is more than enough.
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
+  let dealsTimedOut = false;
   const dealsClient = await db.connect().catch((err: unknown) => {
     console.error('[mcp] get_deals db.connect failed:', err);
     throw { code: -32603, message: 'Database unavailable' };
@@ -728,16 +729,29 @@ async function handleGetDeals(args: Record<string, unknown>) {
     products = dataResult.rows.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
+  } catch (err) {
+    // BUY-64151: the strict discount scan can exceed the bounded statement_timeout
+    // (57014 / "canceling statement"). Fail open with an explicit unavailable flag
+    // so the MCP tool returns a clean empty result instead of surfacing -32603,
+    // which external registries treat as the server being DOWN. The poisoned
+    // connection is discarded in the finally block below.
+    const msg = (err as { message?: string })?.message || String(err);
+    if (/statement timeout|canceling statement|57014/i.test(msg)) {
+      dealsTimedOut = true;
+      console.warn('[mcp] get_deals bounded scan timed out; returning unavailable:', msg);
+    } else {
+      throw err;
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);
   }
 
   const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
-  // BUY-60068: surface `meta.unavailable:true` when both the strict discount filter
-  // and the regional fallback returned zero rows for the requested region/country,
-  // so callers can distinguish "no live deals" from "server bug".
-  if ((region || country) && products.length === 0) {
+  // BUY-60068/BUY-64151: surface `meta.unavailable:true` when both the strict
+  // discount filter returned zero rows (or timed out) for the requested
+  // region/country, so callers can distinguish "no live deals" from "server bug".
+  if ((dealsTimedOut || (region || country) && products.length === 0)) {
     (result as { unavailable?: boolean }).unavailable = true;
   }
 
@@ -863,63 +877,66 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const region = (args.region as string) || "";
   const category = (args.category as string) || "";
   const limit = 10;
+  const requestedCountry = country || (region.toLowerCase() === "us" ? "US" : "SG");
 
-  // BUY-62458: use FTS+GIN bounded scan instead of ORDER BY updated_at LIMIT 50000.
-  // The old pattern scanned/sorted all active products by updated_at, which timed out
-  // on cold cache (12s statement_timeout on "iphone 15 pro"). The GIN index on
-  // search_vector bounds the scan to only matching rows, then we pick the cheapest.
+  // BUY-64151: keep this aligned with mcp-railway's fast path. Ranking every
+  // broad FTS hit (`laptop` in SG) by ts_rank before LIMIT can exceed the 12s
+  // MCP timeout. Fetch a bounded candidate pool via the GIN search_vector match
+  // first, then price-sort only that small set.
+  const conditions: string[] = ['is_active = true', 'price > 0'];
+  const params: unknown[] = [];
+  const ftsTokens = productName.replace(/[^\p{L}\p{N} ]/gu, "").trim();
+
+  params.push(ftsTokens || productName);
+  conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
+
+  if (requestedCountry) {
+    params.push(requestedCountry);
+    conditions.push(`country_code = $${params.length}`);
+  }
+  if (category) {
+    params.push(`%${category}%`);
+    conditions.push(`category ILIKE $${params.length}`);
+  }
+
+  const CANDIDATE_POOL = Math.max(limit * 50, 500);
+  params.push(CANDIDATE_POOL, limit);
+  const where = `WHERE ${conditions.join(' AND ')}`;
+
   const bestPriceClient = await db.connect().catch((err) => {
     console.warn("[find_best_price] db.connect failed:", err.message);
     throw { code: -32603, message: "Database connection timeout" };
   });
-  let result: { rows: Record<string, unknown>[] };
+  let result: { rows: Record<string, unknown>[] } = { rows: [] };
+  let bestPriceTimedOut = false;
   try {
     await bestPriceClient.query("SET statement_timeout = 12000");
-    await bestPriceClient.query("SET work_mem = '64MB'");
-    const requestedCountry = country || (region.toLowerCase() === "us" ? "US" : "SG");
-    const ftsTokens = productName.replace(/[^\p{L}\p{N} ]/gu, "").trim();
-    // FTS match via GIN index, bounded to 2000 candidate rows, then price-sort on the small set.
     result = await bestPriceClient.query(
-      `SELECT id, title, price, currency, source AS domain, url, image_url,
-              country_code, updated_at
-       FROM (
-         SELECT id, title, price, currency, source, url, image_url,
-                country_code, updated_at,
-                ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
-         FROM products
-         WHERE is_active = true AND price > 0
-           AND search_vector @@ plainto_tsquery('english', $1)
-           AND country_code = $2
-         ORDER BY rank DESC
-         LIMIT 2000
-       ) _fts_matches
+      `SELECT * FROM (
+         SELECT id, title, price, currency, source AS domain, url, image_url,
+                country_code, updated_at
+         FROM products ${where}
+         LIMIT $${params.length - 1}
+       ) _candidates
        ORDER BY price ASC, updated_at DESC
-       LIMIT $3`,
-      [ftsTokens, requestedCountry, limit]
+       LIMIT $${params.length}`,
+      params
     );
-    if (result.rows.length === 0) {
-      // ILIKE fallback for terms that the FTS parser strips (model numbers, short codes)
-      result = await bestPriceClient.query(
-        `SELECT * FROM (
-           SELECT id, title, price, currency, source AS domain, url, image_url,
-                  country_code, updated_at
-           FROM products
-           WHERE is_active = true AND price > 0
-           ORDER BY updated_at DESC
-           LIMIT $1
-         ) _candidates
-         WHERE country_code = $2
-           AND title ILIKE $3
-         ORDER BY price ASC, updated_at DESC
-         LIMIT $4`,
-        [20000, requestedCountry, "%" + productName + "%", limit]
-      );
+  } catch (err) {
+    // BUY-64151: fail open on bounded statement_timeout so price lookups return
+    // an explicit empty/unavailable shape instead of JSON-RPC -32603.
+    const msg = (err as { message?: string })?.message || String(err);
+    if (/statement timeout|canceling statement|57014/i.test(msg)) {
+      bestPriceTimedOut = true;
+      console.warn('[find_best_price] bounded scan timed out; returning unavailable:', msg);
+    } else {
+      throw err;
     }
   } finally {
     releaseClientSafely(bestPriceClient);
   }
 
-  const currency = COUNTRY_CURRENCY[country || (region.toLowerCase() === 'us' ? 'US' : 'SG')] || 'SGD';
+  const currency = COUNTRY_CURRENCY[requestedCountry] || 'SGD';
   const rates = getCachedFxRates();
   const toUsd = rates[currency] ?? CURRENCY_RATES[currency] ?? 1;
 
@@ -937,7 +954,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   return {
     best_price: data[0] ?? null,
     alternatives: data.slice(1),
-    meta: { total: data.length, country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'), response_time_ms: Date.now() - t0 },
+    meta: { total: data.length, country: requestedCountry, response_time_ms: Date.now() - t0, unavailable: bestPriceTimedOut },
   };
 }
 

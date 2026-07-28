@@ -661,6 +661,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   });
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
+  let dealsTimedOut = false;
   try {
     await dealsClient.query('SET statement_timeout = 10000');
     const dataResult = await dealsClient.query(
@@ -684,16 +685,27 @@ async function handleGetDeals(args: Record<string, unknown>) {
     products = dataResult.rows.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
+  } catch (err) {
+    // BUY-64151: fail open on bounded statement_timeout so registries/agents get
+    // an explicit unavailable result instead of JSON-RPC -32603 server-down.
+    // releaseClientSafely() below discards the poisoned transaction client.
+    const msg = (err as { message?: string })?.message || String(err);
+    if (/statement timeout|canceling statement|57014/i.test(msg)) {
+      dealsTimedOut = true;
+      console.warn('[mcp] get_deals bounded scan timed out; returning unavailable:', msg);
+    } else {
+      throw err;
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);
   }
 
   const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
-  // BUY-60076: surface `unavailable:true` when the strict + regional fallback
-  // returned zero rows, mirroring api/src/routes/mcp.ts so callers can
-  // distinguish "no live deals" from "server bug".
-  if ((region || country) && products.length === 0) {
+  // BUY-60076/BUY-64151: surface `unavailable:true` when the strict query
+  // returned zero rows or timed out, mirroring api/src/routes/mcp.ts so callers
+  // can distinguish "no live deals" from "server bug".
+  if (dealsTimedOut || ((region || country) && products.length === 0)) {
     (result as { unavailable?: boolean }).unavailable = true;
   }
 
