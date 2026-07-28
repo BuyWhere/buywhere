@@ -17,14 +17,10 @@ export default function Header() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
         <Link
           href="/"
-          className="flex items-center gap-2 font-bold text-lg text-indigo-600 dark:text-indigo-400"
+          className="font-bold text-lg text-indigo-600 dark:text-indigo-400"
           aria-label="BuyWhere Home"
           aria-current={isHome ? "page" : undefined}
         >
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <rect width="28" height="28" rx="6" fill="#4f46e5" />
-            <path d="M7 10h14M7 14h10M7 18h12" stroke="white" strokeWidth="2" strokeLinecap="round" />
-          </svg>
           <span>BuyWhere</span>
         </Link>
 
