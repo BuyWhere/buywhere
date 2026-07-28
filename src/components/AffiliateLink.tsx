@@ -92,23 +92,27 @@ export function AffiliateLink({
 }
 
 /**
- * Utility function to add UTM parameters to a URL
+ * Utility function to add UTM parameters to a URL.
+ * Uses useState + useEffect to avoid SSR/hydration mismatch:
+ * server returns raw URL, client enhances with UTM params post-hydration.
  */
 function useEnhancedHrefWithUTM(url: string, utmParams: Record<string, string>): string {
-  try {
-    const urlObj = new URL(url, window.location.origin);
-    
-    // Add UTM parameters
-    Object.entries(utmParams).forEach(([key, value]) => {
-      if (value) {
-        urlObj.searchParams.set(key, value);
-      }
-    });
-    
-    return urlObj.toString();
-  } catch (e) {
-    // If URL parsing fails, return original URL
-    console.warn("Failed to parse URL for UTM enhancement:", url, e);
-    return url;
-  }
+  const [enhanced, setEnhanced] = React.useState(url);
+
+  React.useEffect(() => {
+    try {
+      const urlObj = new URL(url, window.location.origin);
+      Object.entries(utmParams).forEach(([key, value]) => {
+        if (value) {
+          urlObj.searchParams.set(key, value);
+        }
+      });
+      setEnhanced(urlObj.toString());
+    } catch (e) {
+      console.warn("Failed to parse URL for UTM enhancement:", url, e);
+      setEnhanced(url);
+    }
+  }, [url, utmParams]);
+
+  return enhanced;
 }
