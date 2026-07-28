@@ -327,6 +327,11 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
         ) : (
           <div className="relative z-10 flex h-full items-center justify-center text-4xl text-slate-600">◎</div>
         )}
+        <div className="absolute left-2 top-2 z-20">
+          <span className="inline-flex items-center rounded-full bg-white/95 px-2.5 py-1 text-sm font-bold tracking-tight text-slate-950 shadow-md ring-1 ring-slate-200 backdrop-blur">
+            {formatPrice(product.price, product.currency)}
+          </span>
+        </div>
         <div className="absolute right-2 top-2">
           <CompareSelectButton product={product} className="h-9 w-9" />
         </div>
