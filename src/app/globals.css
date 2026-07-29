@@ -16,15 +16,19 @@ body {
   }
 }
 
-/* Search input placeholder — WCAG AA contrast on dark indigo hero background */
+/* Search input placeholder — WCAG AA contrast on indigo-600→indigo-900 gradient.
+ * placeholder-white/95 (and InheritedTailwind .placeholder-white/95) gives >=4.5:1
+ * contrast once alpha-composited over the bg-white/10 field tint. The previously
+ * shipped 0.85 white failed AA on the lightest gradient edge (indigo-600 ≈ 4.21:1).
+ */
 .search-input::placeholder {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .search-input::-webkit-input-placeholder {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .search-input::-moz-placeholder {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.95);
 }
