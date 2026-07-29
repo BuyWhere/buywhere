@@ -500,7 +500,13 @@ async function handleCompareProducts(args: Record<string, unknown>) {
   if (validIds.length > 10) {
     throw { code: -32602, message: 'Provide at most 10 valid product IDs' };
   }
-  const placeholders = validIds.map((_, i) => `$${i + 1}`).join(',');
+  // BUY-26210: filter to numeric IDs only (products.id is bigint); non-numeric
+  // strings like UUIDs cause Postgres type errors in the WHERE IN clause.
+  const numericIds = validIds.filter((id) => /^\d+$/.test(id));
+  if (numericIds.length < 2) {
+    throw { code: -32001, message: 'Products not found' };
+  }
+  const placeholders = numericIds.map((_, i) => `$${i + 1}`).join(',');
   let result;
   try {
     result = await db.query(
@@ -508,9 +514,12 @@ async function handleCompareProducts(args: Record<string, unknown>) {
               price, currency, image_url, brand, category_path,
               avg_rating AS rating, review_count, metadata, updated_at, region, country_code
        FROM products WHERE id IN (${placeholders})`,
-      validIds
+      numericIds
     );
   } catch {
+    throw { code: -32001, message: 'Products not found' };
+  }
+  if (!result.rows.length) {
     throw { code: -32001, message: 'Products not found' };
   }
   const products = result.rows.map((r: Record<string, unknown>) => buildProduct(r, 'SGD', false));
@@ -535,7 +544,7 @@ async function getRegionalProductSample(
          AND country_code = $1
          AND search_vector @@ plainto_tsquery('english', $2)
        LIMIT $3`,
-      [country, fallbackQuery, limit]
+      [country, fallbackQuery, Number(limit) || 20]
     );
     if (!result.rows.length) return null;
     const products = result.rows.map((r: Record<string, unknown>) =>
@@ -639,7 +648,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     const outerConditions = conditions.map((condition) =>
       condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + outerParamsStart}`)
     );
-    const outerParams = [...innerParams, ...params, limit, offset];
+    const outerParams = [...innerParams, ...params, Number(limit) || 20, Number(offset) || 0];
     const dataResult = await dealsClient.query(
       `SELECT id, source, domain, url, title, price, original_price,
               currency, image_url, metadata, updated_at, region, country_code,
@@ -682,7 +691,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
            AND country_code = $1
            AND search_vector @@ plainto_tsquery('english', $2)
          LIMIT $3`,
-        [country, fallbackQuery, limit]
+        [country, fallbackQuery, Number(limit) || 20]
       );
       total = fallbackResult.rows.length;
       products = fallbackResult.rows.map((r: Record<string, unknown>) =>
