@@ -89,13 +89,14 @@ export async function generateMetadata({
 // 404 before reaching the page render (BUY-64729).
 export const dynamicParams = false;
 
-// Static params = every canonical SEO landing slug + every alias, so any URL
-// pattern we want to serve is pre-registered and unknown slugs fall through
-// to a real 404.
+// Static params = every canonical SEO landing slug + every alias KEY (not just
+// target). We pre-register the alias keys themselves (e.g. "laptop",
+// "air-purifier", "laptops") so /c/laptop etc. are recognized at the
+// framework level and don't fall through to a 404 from dynamicParams = false.
 export function generateStaticParams() {
   const seen = new Set<string>();
   for (const slug of Object.keys(seoLandingPages)) seen.add(slug);
-  for (const target of Object.values(SLUG_ALIASES)) seen.add(target);
+  for (const alias of Object.keys(SLUG_ALIASES)) seen.add(alias);
   return Array.from(seen).map((slug) => ({ slug }));
 }
 
