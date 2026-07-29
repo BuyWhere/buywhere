@@ -4,9 +4,9 @@
 
 ## What is BuyWhere
 
-BuyWhere is an agent-native product catalog API for AI agents and LLM applications: 288M+ structured products from 158,000+ independent storefronts worldwide, normalized into one schema, with location-aware ranking so agents only recommend products their user can actually receive.
+BuyWhere is an agent-native product catalog API for AI agents and LLM applications: 297M+ structured products from 214,000+ independent storefronts worldwide, normalized into one schema, with location-aware ranking so agents only recommend products their user can actually receive.
 
-- Coverage: 296,510,560 total products, 214,306 merchants (live at GET /v1/catalog/stats)
+- Coverage: 297,218,016 total products, 214,325 merchants (live at GET /v1/catalog/stats; refreshed 2026-07-29)
 - Location-aware search: `deliver_to=<ISO country>` ranks deliverable-first; each product carries an `availability` label.
 - Compact mode: `compact=true` returns `structured_specs`, `comparison_attributes`, `normalized_price_usd`.
 - Performance: P50 search latency <250ms; cached lookups <10ms; 99.9% uptime.
@@ -68,15 +68,15 @@ curl -H "Authorization: Bearer $BUYWHERE_API_KEY" \
 | POST | /v1/webhooks | Register a webhook subscription |
 | GET | /v1/webhooks | List current webhooks |
 
-## Categories (50 leaf slugs)
+## Categories (46 leaf slugs across 329 sitemap URLs)
 
-Returned by GET /v1/categories. Each is also served at `https://buywhere.ai/categories/{slug}` (where the route exists) and listed in `sitemap-categories.xml`.
+Returned by GET /v1/categories. Each is served at `https://buywhere.ai/categories/{slug}` (where the route exists) and listed in `sitemap-categories.xml` (329 URLs include country variants US, SG, MY, TH, VN, ID, PH).
 
 Top-level categories: home-living, fashion, food-beverages, electronics, sports-outdoors, automotive, pet-supplies, toys-games, health-wellness, beauty, grocery.
 
-Sub-categories (electronics family): phones, appliances, computers, gaming, audio, tv-home-theater, smart-home.
+Sub-categories (electronics family): phones, appliances, computers, gaming, audio, tv-home-theater, smart-home, cameras-camcorders.
 
-Plus 28 more leaf slugs; full list at GET /v1/categories.
+Full leaf slug list: appliances, audio, automotive, bathroom, beauty, beauty-health, beauty-personal-care, beer-wine-spirits, cameras-camcorders, car-care, cleaning, computers, dairy-chilled-eggs, drinks, electronics, fashion, food-beverages, food-cupboard, frozen, gaming, grocery, health-improvements, health-wellness, home-appliances, home-living, household, international-selections, lightings, phones, plus 16 more. Full list at GET /v1/categories and at `https://buywhere.ai/sitemap-categories.xml`.
 
 ## Supported countries
 
