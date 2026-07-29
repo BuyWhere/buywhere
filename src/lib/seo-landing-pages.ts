@@ -228,7 +228,111 @@ function isUsableProductImage(imageUrl?: string | null) {
 
   try {
     const url = new URL(imageUrl);
-    return url.hostname !== "source.unsplash.com";
+    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
+    return !url.hostname.endsWith(".elescat.store") && url.hostname !== "source.unsplash.com";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Build a brand-aware SVG data URL that ProductGridImage can render in place
+ * of a broken/missing remote image. The previous version (single-letter
+ * initial on a pastel chip) was flagged by QA as still reading as a "generic
+ * placeholder" on the air-purifier-singapore first card (BUY-64260). The new
+ * layout shows the product's full brand + category on a polished white card
+ * with a stylised product icon — clearly branded, not a placeholder chip.
+ */
+function brandedProductPlaceholderSvg(
+  brand?: string | null,
+  name?: string | null,
+  category?: string | null,
+): string {
+  const clean = (s: string) => s.replace(/[<>&"']/g, "").trim();
+  const brandText = clean(brand || "").slice(0, 18) || "BuyWhere";
+  const categoryText = clean(category || "").slice(0, 22) || "Featured product";
+  const productLabel = clean(name || "").slice(0, 26) || categoryText;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'>
+  <defs>
+    <linearGradient id='bg' x1='0' x2='1' y1='0' y2='1'>
+      <stop offset='0' stop-color='#fff7ed'/>
+      <stop offset='1' stop-color='#fde68a'/>
+    </linearGradient>
+  </defs>
+  <rect width='400' height='300' fill='url(#bg)'/>
+  <rect x='40' y='40' width='320' height='220' rx='24' fill='#ffffff' stroke='#fcd34d' stroke-width='3'/>
+  <g transform='translate(140 80)' fill='none' stroke='#b45309' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'>
+    <rect x='0' y='0' width='120' height='90' rx='12' fill='#fef3c7'/>
+    <circle cx='60' cy='40' r='14' fill='#f59e0b' stroke='none'/>
+    <path d='M0 70 L40 35 L80 60 L120 25' stroke='#b45309'/>
+  </g>
+  <text x='200' y='208' text-anchor='middle' font-family='system-ui,sans-serif' font-size='22' font-weight='700' fill='#0f172a'>${brandText}</text>
+  <text x='200' y='236' text-anchor='middle' font-family='system-ui,sans-serif' font-size='14' font-weight='500' fill='#475569'>${productLabel}</text>
+  <text x='200' y='258' text-anchor='middle' font-family='system-ui,sans-serif' font-size='11' font-weight='600' letter-spacing='2' fill='#92400e'>BUYWHERE</text>
+</svg>`;
+  // RFC 2397 requires either `;charset=<chars>` or `;base64`. The previous
+  // `;utf8,` parameter is malformed and modern browsers (Chromium, Firefox)
+  // reject the data URL, fall through to the <img> onError handler, and render
+  // the generic slate-placeholder from ProductGridImage — which is exactly
+  // what QA reported on air-purifier-singapore (BUY-64260). Use the
+  // standards-compliant `;charset=utf-8,` form so the branded SVG renders.
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * Verify that a remote image URL actually responds 2xx. Live search results
+ * frequently include image URLs from third-party CDNs (asus.com, courts.com.sg,
+ * shopifycdn, etc.) that return 404/403 in the browser even though the
+ * search API considered the product usable. Without this probe the SEO
+ * landing page would SSR with an <img> that fails to load and lands on the
+ * Placeholder (BUY-64729).
+ */
+async function verifyReachableImage(imageUrl: string | null, timeoutMs = 2500): Promise<boolean> {
+  if (!imageUrl) return false;
+  if (imageUrl.startsWith("data:image/svg+xml")) return true;
+  try {
+    const url = new URL(imageUrl);
+    // Known hotlink-protected hosts always serve a broken image in the browser
+    // even when the HEAD probe is green. Skip the probe and mark them
+    // unreachable so the branded placeholder path takes over.
+    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
+    // Treat these hosts as always-reachable; probing them at SSR is wasteful
+    // and Amazon's CDN often blocks non-browser UAs.
+    if (
+      url.hostname === "m.media-amazon.com" ||
+      url.hostname.endsWith(".media-amazon.com") ||
+      url.hostname === "images-na.ssl-images-amazon.com"
+    ) {
+      return true;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(imageUrl, {
+        method: "HEAD",
+        signal: controller.signal,
+        // CDN image servers may return 405 on HEAD; fall back to a ranged GET.
+        redirect: "follow",
+      });
+      if (res.ok) return true;
+      if (res.status === 405 || res.status === 403) {
+        // Some image hosts (Cloudflare, Shopify CDN) forbid HEAD. Allow only
+        // when the response indicates actual blocking (403 -> false). 405 -> retry GET.
+        if (res.status === 405) {
+          const get = await fetch(imageUrl, {
+            method: "GET",
+            signal: controller.signal,
+            redirect: "follow",
+            headers: { Range: "bytes=0-0" },
+          });
+          return get.ok || get.status === 206;
+        }
+        return false;
+      }
+      return false;
+    } finally {
+      clearTimeout(timer);
+    }
   } catch {
     return false;
   }
