@@ -19,8 +19,16 @@ function formatPrice(price: number | null, currency: string) {
 export function ProductGridCard({ product, compact = false }: { product: LandingProduct; compact?: boolean }) {
   const isMerchantOffer =
     product.href.startsWith("http://") || product.href.startsWith("https://");
-  const detailUrl =
-    product.productUrl || `/search?q=${encodeURIComponent(product.name)}`;
+
+  // Prefer a verified internal product page, but never let the card link land
+  // on a 404-prone synthetic URL when a working external merchant URL is
+  // available. `buildUSProductSlug` appends `-<id>` and the /products route
+  // can only resolve that when the API is reachable (BUY-52332 cutover). If
+  // the card already has a merchant offer, send the click straight to it —
+  // that's the same destination the explicit "Buy at <merchant>" button uses.
+  const detailUrl = isMerchantOffer
+    ? product.href
+    : product.productUrl || `/search?q=${encodeURIComponent(product.name)}`;
 
   function handleMerchantClick(e: React.MouseEvent) {
     e.preventDefault();
@@ -40,6 +48,8 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
     <Link
       href={detailUrl}
       prefetch={false}
+      target={isMerchantOffer ? "_blank" : undefined}
+      rel={isMerchantOffer ? "noopener noreferrer" : undefined}
       className={`group grid h-full min-w-0 rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl ${
         compact ? "grid-cols-[9rem_minmax(0,1fr)] sm:grid-cols-[11rem_minmax(0,1fr)]" : "grid-rows-[auto_1fr]"
       }`}
