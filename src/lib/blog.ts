@@ -28,7 +28,7 @@ type Frontmatter = {
   canonicalUrl?: string;
   coverImage?: string;
   tags?: string[];
-  jsonLd?: string;
+  jsonLd?: unknown;
 };
 
 function parseBlogPost(fileName: string): BlogPost | null {
@@ -70,6 +70,25 @@ function parseBlogPost(fileName: string): BlogPost | null {
       : String(lastUpdatedAtRaw)
     : publishedAtStr;
 
+  // Normalize jsonLd: both object (from YAML block) and string frontmatter
+  // must end up as a safe JSON string before passing to dangerouslySetInnerHTML.
+  let jsonLdStr: string | undefined;
+  if (frontmatter.jsonLd !== undefined) {
+    if (typeof frontmatter.jsonLd === "string") {
+      // Already a string — validate it parses as JSON, then pass through.
+      try {
+        JSON.parse(frontmatter.jsonLd);
+        jsonLdStr = frontmatter.jsonLd;
+      } catch {
+        // Malformed JSON string — stringify the raw value instead.
+        jsonLdStr = JSON.stringify(frontmatter.jsonLd);
+      }
+    } else {
+      // YAML block parsed to an object — serialize safely.
+      jsonLdStr = JSON.stringify(frontmatter.jsonLd);
+    }
+  }
+
   return {
     slug: frontmatter.slug,
     title: frontmatter.title,
@@ -80,7 +99,7 @@ function parseBlogPost(fileName: string): BlogPost | null {
     canonicalUrl: frontmatter.canonicalUrl,
     coverImage: frontmatter.coverImage,
     tags: frontmatter.tags ?? [],
-    jsonLd: frontmatter.jsonLd,
+    jsonLd: jsonLdStr,
     body: content.trim(),
   };
 }
