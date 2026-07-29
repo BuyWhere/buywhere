@@ -14,8 +14,8 @@ test("getCategorySitemapEntries uses canonical (no trailing slash) URLs", () => 
   }
 });
 
-test("getCompareSitemapEntries uses canonical (no trailing slash) URLs", () => {
-  const entries = getCompareSitemapEntries();
+test("getCompareSitemapEntries uses canonical (no trailing slash) URLs", async () => {
+  const entries = await getCompareSitemapEntries();
   for (const entry of entries) {
     const path = new URL(entry.url).pathname;
     assert.ok(
@@ -133,4 +133,30 @@ test("getStaticSitemapEntries count is 230 (matches the post-fix prod target) or
     entries.length <= 230,
     `sitemap-pages.xml emitted ${entries.length} entries; expected <= 230`,
   );
+});
+
+
+test("getCompareSitemapEntries includes every canonical populated category pair once (BUY-65161)", async () => {
+  const entries = await getCompareSitemapEntries();
+  const comparePairPaths = entries
+    .map((e) => new URL(e.url).pathname)
+    .filter((p) => p.startsWith("/compare/") && p.includes("-vs-"));
+
+  assert.ok(
+    comparePairPaths.length >= 500,
+    `expected at least 500 category pair URLs; got ${comparePairPaths.length}`,
+  );
+
+  assert.equal(
+    new Set(comparePairPaths).size,
+    comparePairPaths.length,
+    "category pair URLs should be unique",
+  );
+
+  for (const path of comparePairPaths) {
+    const pairSlug = path.replace("/compare/", "");
+    const [left, right] = pairSlug.split("-vs-");
+    assert.ok(left < right, `${path} should use deterministic canonical slug ordering`);
+    assert.ok(!comparePairPaths.includes(`/compare/${right}-vs-${left}`), `${path} should not have a symmetric duplicate`);
+  }
 });
