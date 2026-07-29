@@ -47,6 +47,25 @@ async function queryVectorDb<T = Record<string, unknown>>(sql: string, params: u
   return result as { rows: T[] };
 }
 
+const MCP_REGION_MARKETS: Record<string, { country: string; description: string }> = {
+  us: { country: 'US', description: 'United States' },
+  sea: { country: 'SG', description: 'Southeast Asia representative market (Singapore)' },
+  sg: { country: 'SG', description: 'Singapore' },
+  eu: { country: 'GB', description: 'Europe representative market (United Kingdom)' },
+  au: { country: 'SG', description: 'Australia currently falls back to SG until AU catalog partitions are live' },
+};
+
+function normalizeMcpMarket(args: Record<string, unknown>, options: { defaultCountry?: string } = {}) {
+  const region = String(args.region || '').trim().toLowerCase();
+  if (region && !MCP_REGION_MARKETS[region]) {
+    throw { code: -32602, message: `unsupported region: ${region}. Supported regions: ${Object.keys(MCP_REGION_MARKETS).join(', ')}` };
+  }
+  const explicitCountry = String((args.country_code || args.country || '')).trim().toUpperCase();
+  const regionCountry = region ? MCP_REGION_MARKETS[region].country : '';
+  const country = explicitCountry || regionCountry || (options.defaultCountry || '');
+  return { country, region };
+}
+
 // MCP tools manifest
 const TOOLS = [
   {
@@ -873,11 +892,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const productName = (args.product_name as string) || "";
   if (!productName) throw { code: -32602, message: "product_name is required" };
 
-  const country = (((args.country_code as string) || (args.country as string)) || "SG").toUpperCase();
-  const region = (args.region as string) || "";
+  // BUY-65075: do not default to SG before considering `region`; `region:"us"`
+  // must route identically to `country_code:"US"`.
+  const market = normalizeMcpMarket(args, { defaultCountry: 'SG' });
+  const requestedCountry = market.country;
   const category = (args.category as string) || "";
   const limit = 10;
-  const requestedCountry = country || (region.toLowerCase() === "us" ? "US" : "SG");
 
   // BUY-64151: keep this aligned with mcp-railway's fast path. Ranking every
   // broad FTS hit (`laptop` in SG) by ts_rank before LIMIT can exceed the 12s
