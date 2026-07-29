@@ -36,6 +36,25 @@ test.describe('Homepage', () => {
     await expect(nav).toBeVisible();
   });
 
+
+  for (const viewport of [
+    { name: 'mobile', width: 390, height: 844 },
+    { name: 'tablet', width: 768, height: 1024 },
+  ]) {
+    test(`shows one menu icon and a plain brand on ${viewport.name}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await page.goto('/');
+
+      const brand = page.getByRole('link', { name: 'BuyWhere Home' });
+      await expect(brand).toBeVisible();
+      await expect(brand.locator('svg')).toHaveCount(0);
+
+      const menu = page.getByRole('button', { name: 'Open menu' });
+      await expect(menu).toBeVisible();
+      await expect(menu).toHaveCount(1);
+    });
+  }
+
   test('has no broken meta charset or viewport', async ({ page }) => {
     await page.goto('/');
     const title = await page.title();
