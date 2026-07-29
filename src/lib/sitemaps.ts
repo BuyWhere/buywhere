@@ -64,7 +64,8 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/integrate", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/api-keys", priority: 0.9, changeFrequency: "monthly" as const },
   { path: "/us", priority: 0.8, changeFrequency: "weekly" as const },
-  { path: "/us/signup", priority: 0.8, changeFrequency: "weekly" as const },
+  // BUY-65100: /us/signup canonicalizes to /us and has no dedicated route,
+  // so keep it out of sitemap-pages.xml to avoid sitemap/canonical contradiction.
   { path: "/merchants", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/partnership", priority: 0.8, changeFrequency: "weekly" as const },
   { path: "/partners", priority: 0.8, changeFrequency: "monthly" as const },
