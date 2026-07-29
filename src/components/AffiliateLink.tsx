@@ -96,7 +96,7 @@ export function AffiliateLink({
  */
 function useEnhancedHrefWithUTM(url: string, utmParams: Record<string, string>): string {
   try {
-    const urlObj = new URL(url, window.location.origin);
+    const urlObj = new URL(url, typeof window === "undefined" ? "https://buywhere.ai" : window.location.origin);
     
     // Add UTM parameters
     Object.entries(utmParams).forEach(([key, value]) => {

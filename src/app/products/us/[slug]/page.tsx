@@ -89,7 +89,7 @@ export default async function USProductSlugPage({ params }: PageProps) {
     notFound();
   }
 
-  const initialData = await fetchUSProductSSR(resolvedProduct.id);
+  const initialData = resolvedProduct.initialData || await fetchUSProductSSR(resolvedProduct.id);
 
   return <USProductDetail productId={resolvedProduct.id} initialData={initialData} />;
 }

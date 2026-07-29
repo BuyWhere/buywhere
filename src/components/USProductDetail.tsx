@@ -274,7 +274,12 @@ function USRetailerCard({
   productInCompare?: boolean;
   onToggleCompare?: () => void;
 }) {
-  const info = MERCHANT_INFO[price.merchant];
+  const info = MERCHANT_INFO[price.merchant] || {
+    color: "text-indigo-700",
+    bgColor: "bg-indigo-50",
+    accentColor: "border-indigo-200",
+    icon: "🏷️",
+  };
 
   return (
     <div
@@ -811,9 +816,11 @@ export default function USProductDetail({ productId, initialData }: USProductDet
   };
 
   useEffect(() => {
-    fetchProductAndHistory();
+    if (!initialData) {
+      fetchProductAndHistory();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productId, numericProductId]);
+  }, [productId, numericProductId, initialData]);
 
   useEffect(() => {
     if (product) {
