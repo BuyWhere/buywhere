@@ -722,7 +722,15 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
       // would fail with "no unique or exclusion constraint matching the ON CONFLICT".
       const conflictTarget = `(${conflictCols.join(', ')})`;
 
-      await withDbRetry(
+      // BUY-64988: RETURNING (xmax = 0) AS inserted is the canonical truth
+      // for whether the upsert created a fresh row. The precheck
+      // `existingSkus` set is unreliable when the products conflict target
+      // drifts between (sku, source) and (sku, source, country_code); that
+      // drift caused rows_inserted to be bumped for updates, while
+      // products.created_at was never stamped (DO UPDATE branch leaves the
+      // column alone). Counting (xmax = 0) from RETURNING puts rows_inserted
+      // back in sync with COUNT(products.created_at in same hour).
+      const upsertResult = await withDbRetry(
         () => db.query(
         `INSERT INTO products
            (sku, source, merchant_id, title, description, price, currency, url,
@@ -743,19 +751,18 @@ async function handleIngest(req: Request, res: Response): Promise<void> {
            is_active = true,
            region = COALESCE(EXCLUDED.region, products.region),
            country_code = COALESCE(EXCLUDED.country_code, products.country_code),
-           updated_at = NOW()`,
+           updated_at = NOW()
+         RETURNING (xmax = 0) AS inserted, sku`,
           values
         ),
         'upsert products batch'
       );
 
-      for (const p of validProducts) {
-        const key = productKey(p);
-        if (existingSkus.has(key)) {
-          rowsUpdated++;
-        } else {
-          rowsInserted++;
-        }
+      rowsInserted = 0;
+      rowsUpdated = 0;
+      for (const r of upsertResult.rows as { inserted: boolean; sku: string }[]) {
+        if (r.inserted) rowsInserted++;
+        else rowsUpdated++;
       }
     } catch (e) {
       const msg = (e as Error).message;
