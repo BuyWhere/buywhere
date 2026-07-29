@@ -107,7 +107,7 @@ describe('BUY-60548 /r/:slug/:productId redirect', () => {
     assert.notEqual(res.redirectedTo, 'https://buywhere.ai', 'must not fall back to homepage');
   });
 
-  it('rotates the confirmed broken BUY-65154 Compumarts destination to a live merchant', async () => {
+  it('routes the confirmed broken BUY-65154 Compumarts destination to graceful BuyWhere alternatives', async () => {
     const brokenUrl = 'https://compumarts.com/products/asus-rog-strix-g16-g614pw-ts161w-ryzen-9-8940hx-rtx-5080-16gb-gddr7-1tb-pcie-4-0-nvme-ssd-16-inch-2-5k-300hz-gaming-laptop';
     queryHandler = (text) => {
       if (text.includes('FROM affiliate_links')) return { rows: [] };
@@ -125,7 +125,7 @@ describe('BUY-60548 /r/:slug/:productId redirect', () => {
     assert.equal(res.statusCode, 302);
     assert.equal(
       res.redirectedTo,
-      'https://challenger.sg/products/asus-rog-g614pw-rv105w-r9-8940hx-16gb-1tb-rtx5080-16'
+      'https://buywhere.ai/search?q=ASUS%20ROG%20Strix%20G16%20G614PW'
     );
     assert.notEqual(res.redirectedTo, brokenUrl);
   });
@@ -154,7 +154,7 @@ describe('BUY-60548 /r/:slug/:productId redirect', () => {
     assert.equal(res.statusCode, 302);
     assert.equal(
       res.redirectedTo,
-      'https://challenger.sg/products/asus-rog-g614pw-rv105w-r9-8940hx-16gb-1tb-rtx5080-16'
+      'https://buywhere.ai/search?q=ASUS%20ROG%20Strix%20G16%20G614PW'
     );
   });
 
