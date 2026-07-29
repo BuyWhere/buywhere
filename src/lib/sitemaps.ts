@@ -52,6 +52,136 @@ const CATEGORY_PAGE_SLUGS = [
   "toys-games",
 ] as const;
 
+
+interface ApiCategoryRecord {
+  slug: string;
+  name: string;
+  product_count?: number;
+}
+
+export interface PopulatedCompareCategory {
+  slug: string;
+  name: string;
+  productCount: number;
+}
+
+export interface CompareCategoryPair {
+  left: PopulatedCompareCategory;
+  right: PopulatedCompareCategory;
+}
+
+function normalizeCategorySlug(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function titleizeSlug(slug: string): string {
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+async function fetchCategories(currency: string): Promise<PopulatedCompareCategory[]> {
+  const baseUrl =
+    process.env.BUYWHERE_API_INTERNAL_URL ||
+    process.env.NEXT_PUBLIC_BUYWHERE_API_URL ||
+    "https://api.buywhere.ai";
+  const apiKey =
+    process.env.BUYWHERE_API_KEY ||
+    process.env.NEXT_PUBLIC_BUYWHERE_API_KEY ||
+    "";
+  const headers: Record<string, string> = apiKey
+    ? { Authorization: `Bearer ${apiKey}` }
+    : {};
+
+  try {
+    const res = await fetch(`${baseUrl}/v1/categories?currency=${currency}`, {
+      headers,
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[sitemap] fetchCategories currency=${currency} base=${baseUrl} auth=${apiKey ? "yes" : "no"} status=${res.status}`
+      );
+      return [];
+    }
+    const data = (await res.json()) as { data?: ApiCategoryRecord[] };
+    return (data.data ?? [])
+      .map((category) => {
+        const slug = normalizeCategorySlug(category.slug || category.name || "");
+        return {
+          slug,
+          name: category.name || titleizeSlug(slug),
+          productCount: Number(category.product_count ?? 0),
+        };
+      })
+      .filter((category) => category.slug && category.productCount > 0);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[sitemap] fetchCategories currency=${currency} threw: ${(err as Error)?.message ?? err}`
+    );
+    return [];
+  }
+}
+
+export async function getPopulatedCompareCategories(): Promise<PopulatedCompareCategory[]> {
+  const bySlug = new Map<string, PopulatedCompareCategory>();
+  const apiCategories = (await Promise.all([fetchCategories("SGD"), fetchCategories("USD")])).flat();
+
+  for (const category of apiCategories) {
+    const existing = bySlug.get(category.slug);
+    if (!existing || category.productCount > existing.productCount) {
+      bySlug.set(category.slug, category);
+    }
+  }
+
+  if (bySlug.size === 0) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[sitemap] /v1/categories returned no populated categories; falling back to static PRODUCT_TAXONOMY compare categories"
+    );
+    for (const category of PRODUCT_TAXONOMY) {
+      bySlug.set(category.slug, {
+        slug: category.slug,
+        name: category.name,
+        productCount: 1,
+      });
+    }
+  }
+
+  return Array.from(bySlug.values()).sort((a, b) =>
+    a.slug.localeCompare(b.slug)
+  );
+}
+
+export async function getCompareCategoryPairs(): Promise<CompareCategoryPair[]> {
+  const categories = await getPopulatedCompareCategories();
+  const pairs: CompareCategoryPair[] = [];
+
+  for (let i = 0; i < categories.length; i += 1) {
+    for (let j = i + 1; j < categories.length; j += 1) {
+      pairs.push({ left: categories[i], right: categories[j] });
+    }
+  }
+
+  return pairs;
+}
+
+export function compareCategoryPairSlug(pair: CompareCategoryPair): string {
+  return `${pair.left.slug}-vs-${pair.right.slug}`;
+}
+
+export async function findCompareCategoryPair(slug: string): Promise<CompareCategoryPair | null> {
+  const pairs = await getCompareCategoryPairs();
+  return pairs.find((pair) => compareCategoryPairSlug(pair) === slug) ?? null;
+}
+
 const STATIC_SITEMAP_ROUTES = [
   { path: "/", priority: 1.0, changeFrequency: "weekly" as const },
   { path: "/docs", priority: 1.0, changeFrequency: "weekly" as const },
@@ -287,7 +417,7 @@ export function getCategorySitemapEntries(): SitemapUrlEntry[] {
   return Array.from(entries.values());
 }
 
-export function getCompareSitemapEntries(): SitemapUrlEntry[] {
+export async function getCompareSitemapEntries(): Promise<SitemapUrlEntry[]> {
   const now = new Date();
   const entries = new Map<string, SitemapUrlEntry>();
 
@@ -305,6 +435,10 @@ export function getCompareSitemapEntries(): SitemapUrlEntry[] {
 
   for (const category of PRODUCT_TAXONOMY) {
     addEntry(`/compare/${category.slug}`, 0.8);
+  }
+
+  for (const pair of await getCompareCategoryPairs()) {
+    addEntry(`/compare/${compareCategoryPairSlug(pair)}`, 0.7);
   }
 
   return Array.from(entries.values());
