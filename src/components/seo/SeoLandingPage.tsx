@@ -99,7 +99,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
         <section className="overflow-hidden max-sm:overflow-visible bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#f59e0b_130%)] text-white">
           <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end ${config.compactCatalogCards ? "py-6" : "py-16 lg:py-24"}`}>
             <div>
-              <div className="mb-5 inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-200">
+              <div className="mb-5 inline-flex items-center rounded-full border border-white/20 bg-slate-950/40 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-200">
                 {config.heroEyebrow}
               </div>
               <h1 className="max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl">
@@ -151,7 +151,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
 
             {products.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center col-span-full">
-                <p className="text-slate-500">
+                <p className="text-slate-600">
                   Live product data is currently unavailable for this category. Please check back shortly or use the search to find products.
                 </p>
               </div>
@@ -168,7 +168,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
         <section className="py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="mb-8 max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Editor summary</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-700">Editor summary</p>
               <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.comparisonSectionTitle}</h2>
             </div>
 
@@ -271,7 +271,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
             </div>
 
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">What to check</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-700">What to check</p>
               <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.adviceSectionTitle}</h2>
               <div className="mt-8 rounded-[28px] border border-slate-200 bg-slate-900 p-8 text-slate-100 shadow-sm">
                 <ul className="space-y-4">
@@ -304,7 +304,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
         <section className="py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">FAQ</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-700">FAQ</p>
               <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.faqSectionTitle}</h2>
             </div>
             <div className="mt-8 grid gap-4">

@@ -390,7 +390,7 @@ export default function HomePage() {
               </p>
               <Link
                 href="/developers"
-                className="inline-flex items-center text-indigo-400 font-medium hover:text-indigo-300 transition-colors"
+                className="inline-flex items-center text-indigo-300 font-medium hover:text-indigo-200 transition-colors"
               >
                 View docs →
               </Link>
