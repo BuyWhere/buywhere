@@ -31,7 +31,8 @@ function categoryUrl(slug: string, country: string) {
   return `${SITEMAP_BASE_URL}/categories/${slug}/${country}`;
 }
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function CategoryCountryPage({ params }: PageProps) {
   const { slug, country } = await params;
@@ -156,8 +157,4 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       type: "website",
     },
   };
-}
-
-export async function generateStaticParams() {
-  return [];
 }
