@@ -302,6 +302,7 @@ function SearchProgressIndicator({ startedAt }: { startedAt: number }) {
 function SearchCard({ product }: { product: SearchCardProduct }) {
   return (
     <a
+      data-testid="search-product-card"
       href={product.href}
       target="_blank"
       rel="noopener noreferrer"
@@ -404,6 +405,21 @@ export default function SearchResultsClient({
   const lastRequestKeyRef = useRef<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchFieldRef = useRef<HTMLLabelElement>(null);
+  const searchRefineRef = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 640px)');
+    const syncRefineDisclosure = (matches: boolean) => {
+      if (searchRefineRef.current) {
+        searchRefineRef.current.open = matches;
+      }
+    };
+    const handleViewportChange = (event: MediaQueryListEvent) => syncRefineDisclosure(event.matches);
+
+    syncRefineDisclosure(mediaQuery.matches);
+    mediaQuery.addEventListener('change', handleViewportChange);
+    return () => mediaQuery.removeEventListener('change', handleViewportChange);
+  }, []);
 
   const persistSearchHistory = useCallback((searchTerm: string) => {
     setSearchHistory((currentHistory) => {
@@ -659,8 +675,8 @@ export default function SearchResultsClient({
 
       <main id="main-content" className="flex-1">
         <section className="border-b border-amber-100 bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.22),_rgba(255,247,237,0.85)_38%,_rgba(255,255,255,1)_80%)]">
-          <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${hasActiveSearch ? 'py-5 lg:py-6' : 'py-10 lg:py-14'}`}>
-            <div className="max-w-3xl">
+          <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${hasActiveSearch ? 'py-3 sm:py-5 lg:py-6' : 'py-10 lg:py-14'}`}>
+            <div className={`max-w-3xl ${hasActiveSearch ? 'hidden sm:block' : ''}`} data-testid="search-desktop-hero">
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">Product search</p>
               <h1 className={`${hasActiveSearch ? 'mt-2 text-3xl sm:text-4xl' : 'mt-3 text-4xl sm:text-5xl'} font-semibold tracking-tight text-slate-950`}>
                 {query.trim() ? `Search results for "${query.trim()}"` : "Find live catalog results without leaving BuyWhere"}
@@ -670,10 +686,30 @@ export default function SearchResultsClient({
               </p>
             </div>
 
-            <div className={`${hasActiveSearch ? 'mt-5 rounded-[28px] p-3 md:p-4' : 'mt-8 rounded-[32px] p-4 md:p-6'} border border-white/80 bg-white/80 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)] backdrop-blur`}>
-              {isNavigating && showSearchPrompt ? <SearchInputSkeleton /> : null}
+            {hasActiveSearch ? (
+              <div className="sm:hidden" data-testid="search-mobile-summary">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">{activeCountry.label}</p>
+                <h1 className="mt-1 truncate text-xl font-semibold tracking-tight text-slate-950">
+                  {loadingInitial ? `Searching for “${debouncedQuery}”` : `${total.toLocaleString()} results for “${debouncedQuery}”`}
+                </h1>
+              </div>
+            ) : null}
 
-              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
+            <details
+              ref={searchRefineRef}
+              className={`${hasActiveSearch ? 'group mt-3 sm:mt-5' : ''} search-refine`}
+              data-testid="search-refine"
+            >
+              {hasActiveSearch ? (
+                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-2xl border border-amber-200 bg-white/90 px-4 text-sm font-semibold text-slate-800 shadow-sm marker:content-none sm:hidden [&::-webkit-details-marker]:hidden">
+                  Refine search
+                  <span className="text-amber-700 transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
+                </summary>
+              ) : null}
+              <div className={`${hasActiveSearch ? 'mt-3 rounded-[24px] p-3 sm:mt-5 sm:rounded-[28px] md:p-4' : 'mt-8 rounded-[32px] p-4 md:p-6'} border border-white/80 bg-white/80 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)] backdrop-blur`} data-testid="search-editor">
+                {isNavigating && showSearchPrompt ? <SearchInputSkeleton /> : null}
+
+                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
                 <label ref={searchFieldRef} className="relative block">
                   <span className="mb-2 block text-sm font-medium text-slate-700">Search query</span>
                   <Search className="pointer-events-none absolute left-4 top-[3.2rem] h-5 w-5 text-slate-600" aria-hidden="true" />
@@ -816,24 +852,32 @@ export default function SearchResultsClient({
                 </label>
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-500">
-                <span>Suggested:</span>
-                {SUGGESTED_SEARCHES.map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    onClick={() => runSearch(suggestion)}
-                    className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 font-medium text-amber-800 transition hover:border-amber-300 hover:bg-amber-100"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
+                <div className={`${hasActiveSearch ? 'hidden sm:flex' : 'flex'} mt-4 flex-wrap items-center gap-2 text-sm text-slate-500`}>
+                  <span>Suggested:</span>
+                  {SUGGESTED_SEARCHES.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => runSearch(suggestion)}
+                      className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 font-medium text-amber-800 transition hover:border-amber-300 hover:bg-amber-100"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            </details>
+            <style jsx>{`
+              @media (max-width: 639px) {
+                .search-refine:not([open]) > div {
+                  display: none;
+                }
+              }
+            `}</style>
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+        <section className={`mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 ${hasActiveSearch ? 'py-4 sm:py-8 lg:py-10' : 'py-8 lg:py-10'}`}>
           {showSearchPrompt ? (
             <div className="rounded-[28px] border border-dashed border-slate-300 bg-white/90 p-8 text-center shadow-sm">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-600">Start browsing</p>
@@ -851,8 +895,8 @@ export default function SearchResultsClient({
           ) : null}
 
           {!showSearchPrompt && !error ? (
-            <div className="space-y-6">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="space-y-4 sm:space-y-6">
+              <div className="hidden sm:flex sm:items-end sm:justify-between" data-testid="search-desktop-toolbar">
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
                     {activeCountry.label}
@@ -945,7 +989,7 @@ export default function SearchResultsClient({
 
               {!loadingInitial && products.length > 0 ? (
                 <>
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" data-testid="search-product-grid">
                     {products.map((product) => (
                       <SearchCard key={product.id} product={product} />
                     ))}
