@@ -291,7 +291,13 @@ function brandedProductPlaceholderSvg(
   <text x='200' y='236' text-anchor='middle' font-family='system-ui,sans-serif' font-size='14' font-weight='500' fill='#475569'>${productLabel}</text>
   <text x='200' y='258' text-anchor='middle' font-family='system-ui,sans-serif' font-size='11' font-weight='600' letter-spacing='2' fill='#92400e'>BUYWHERE</text>
 </svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  // RFC 2397 requires either `;charset=<chars>` or `;base64`. The previous
+  // `;utf8,` parameter is malformed and modern browsers (Chromium, Firefox)
+  // reject the data URL, fall through to the <img> onError handler, and render
+  // the generic slate-placeholder from ProductGridImage — which is exactly
+  // what QA reported on air-purifier-singapore (BUY-64260). Use the
+  // standards-compliant `;charset=utf-8,` form so the branded SVG renders.
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
 /**
