@@ -999,6 +999,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     backupQueries: ["MacBook laptop", "ASUS laptop", "Lenovo laptop", "Dell laptop"],
     minPrice: 300,
     requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
+    compactCatalogCards: true,
     productSectionTitle: "Live laptop offers across Singapore",
     comparisonSectionTitle: "Popular laptop picks at a glance",
     comparisonColumns: ["Model", "Price", "Weight", "Chip", "Best For"],
