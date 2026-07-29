@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { createHash } from 'crypto';
 import { db } from '../config';
 import { trackAffiliateClick } from '../analytics/posthog';
+import { fallbackForBrokenDestination } from '../lib/brokenDestinationFallbacks';
 
 function hashKey(rawKey: string): string {
   return createHash('sha256').update(rawKey).digest('hex');
@@ -186,6 +187,12 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
   if (!destinationUrl) {
     res.redirect(302, FALLBACK_URL);
     return;
+  }
+
+  const brokenDestinationFallback = fallbackForBrokenDestination(destinationUrl);
+  if (brokenDestinationFallback) {
+    console.warn(`[redirect] replacing confirmed broken destination for product ${productId}`);
+    destinationUrl = brokenDestinationFallback;
   }
 
   // Determine API key for attribution
