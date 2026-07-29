@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 
 interface ProductGridImageProps {
   src: string;
@@ -17,7 +16,7 @@ function BrandedPlaceholder({ alt, brand, merchant }: { alt: string; brand?: str
   const productLabel = clean(alt).slice(0, 26) || "Featured product";
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-b from-amber-50 to-amber-100 p-4 text-center">
+    <div className="flex h-full w-full flex-col items-center justify-center bg-slate-100 p-4 text-center">
       <div className="mb-3 flex items-center justify-center">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" className="w-full max-w-[180px] drop-shadow-sm">
           <defs>
@@ -44,7 +43,6 @@ function BrandedPlaceholder({ alt, brand, merchant }: { alt: string; brand?: str
           </text>
         </svg>
       </div>
-      <span className="text-sm font-semibold leading-tight text-slate-600 line-clamp-2">{alt}</span>
       {(brand || merchant) && (
         <span className="mt-1 text-xs text-slate-400">{brand || merchant}</span>
       )}
@@ -59,14 +57,20 @@ export function ProductGridImage({ src, alt, brand, merchant, className }: Produ
     return <BrandedPlaceholder alt={alt} brand={brand} merchant={merchant} />;
   }
 
+  // BUY-65158: Use a plain <img> (not next/image) so the SSR HTML shows the
+  // image directly on first paint. next/image + loading="lazy" causes a visible
+  // loading flash where the background gradient (or empty box) is rendered
+  // before the image resolves — QA saw this as "static noise/wireframe" on
+  // /best-gaming-laptops-us and /air-purifier-singapore.
   return (
-    <Image
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
       src={src}
       alt={alt}
-      fill
-      sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 25vw"
-      unoptimized
-      className={className ?? "object-cover transition-transform duration-300 group-hover:scale-[1.03]"}
+      loading="lazy"
+      decoding="async"
+      referrerPolicy="no-referrer-when-downgrade"
+      className={className ?? "h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"}
       onError={() => setHasError(true)}
     />
   );
