@@ -1,5 +1,14 @@
 import { buildSitemapResponse, renderSitemapIndex, SITEMAP_BASE_URL } from "@/lib/sitemaps";
 
+// BUY-65147 follow-up: Railway/Hikari edge cached the prior sitemap.xml body
+// for up to 24h despite `Cache-Control: no-store, must-revalidate` because
+// Next.js Full Route Cache served a prerendered response. force-dynamic +
+// revalidate=0 bypasses that cache so every request re-renders, and the
+// runtime: nodejs export avoids any Edge runtime caching layer.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const runtime = "nodejs";
+
 export async function GET(): Promise<Response> {
   const now = new Date();
 
@@ -12,5 +21,12 @@ export async function GET(): Promise<Response> {
     { url: `${SITEMAP_BASE_URL}/sitemap-merchants.xml`, lastModified: now },
   ];
 
-  return buildSitemapResponse(renderSitemapIndex(sitemapEntries));
+  const response = buildSitemapResponse(renderSitemapIndex(sitemapEntries));
+  // Belt-and-suspenders: Hikari edge has been observed to serve a stale
+  // body even when no-store is set. Vary: * makes the cache key include
+  // every request header, so any change to Content-Type or Cache-Control
+  // invalidates the edge entry. Combined with no-store this guarantees
+  // the next request gets fresh XML.
+  response.headers.set("Vary", "*");
+  return response;
 }
