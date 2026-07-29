@@ -1,11 +1,12 @@
 import asyncio
+import json
 from decimal import Decimal
 from typing import List, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -312,63 +313,90 @@ async def ingest_products(
         })
 
     if values_list:
-        # BUY-64988: explicit `created_at = NOW()` so the canonical stamp is
-        # written even if the column DEFAULT is ever dropped. The DO UPDATE
-        # branch leaves created_at alone — it is the proof-of-insert timestamp
-        # and must not move on updates.
-        ins = insert(Product.__table__)
-        stmt = (
-            ins.values(values_list)
-            .on_conflict_do_update(
-                constraint="products_sku_source_unique",
-                set_={
-                    "title": ins.excluded.title,
-                    "description": ins.excluded.description,
-                    "price": ins.excluded.price,
-                    "currency": ins.excluded.currency,
-                    "region": ins.excluded.region,
-                    "country_code": ins.excluded.country_code,
-                    "url": ins.excluded.url,
-                    "image_url": ins.excluded.image_url,
-                    "brand": ins.excluded.brand,
-                    "category": ins.excluded.category,
-                    "category_path": ins.excluded.category_path,
-                    "merchant_id": ins.excluded.merchant_id,
-                    "metadata": ins.excluded.metadata,
-                    "is_active": True,
-                    "is_available": ins.excluded.is_available,
-                    "in_stock": ins.excluded.in_stock,
-                    "stock_level": ins.excluded.stock_level,
-                    "last_checked": ins.excluded.last_checked,
-                    "updated_at": func.now(),
-                }
-            )
-        )
-        await db.execute(stmt)
+        # BUY-64988: use RETURNING (xmax = 0) AS is_insert to get the canonical
+        # truth of whether the upsert created a fresh row — the same approach as
+        # the TypeScript writer (api/src/routes/ingest.ts). The precheck
+        # `existing_ids` set is unreliable when the products conflict target
+        # drifts between (sku, source) and (sku, source, country_code); that
+        # drift caused rows_inserted to be bumped for updates, while
+        # products.created_at was never stamped (DO UPDATE leaves the column
+        # alone). Counting (xmax = 0) from RETURNING puts rows_inserted
+        # back in sync with COUNT(products.created_at in same hour).
+        #
+        # We build a raw SQL string with numbered placeholders ($1, $2, …)
+        # because SQLAlchemy's insert().on_conflict_do_update().returning()
+        # cannot emit the (xmax = 0) system-column expression.
+        col_count = 14  # sku, source, merchant_id, title, description, price,
+                        # currency, url, image_url, brand, category, is_active,
+                        # region, country_code
+        row_count = len(values_list)
+        params: List[object] = []
+        for v in values_list:
+            params.extend([
+                v["sku"], v["source"], v["merchant_id"], v["title"],
+                v["description"], v["price"], v["currency"], v["url"],
+                v["image_url"], v["brand"], v["category"], v["is_active"],
+                v["region"], v["country_code"],
+            ])
 
-    # BUY-64988: re-derive rows_inserted/rows_updated from the DB rather
-    # than trusting the precheck. The precheck `existing_ids` set can drift
-    # from the actual conflict target when the unique constraint shape
-    # changes; trusting it caused rows_inserted to be bumped for updates,
-    # while products.created_at was never stamped (DO UPDATE branch).
-    final_result = await db.execute(
-        select(Product.id, Product.sku, Product.price, Product.is_available, Product.created_at).where(
-            Product.sku.in_(skus),
-            Product.source == body.source
+        placeholders = "".join(
+            f"({','.join(f'${i+j+1}' for j in range(col_count))}),"
+            for i in range(0, col_count * row_count, col_count)
         )
-    )
-    final_map = {row.sku: (row.id, row.price, row.is_available) for row in final_result.all()}
+        placeholders = placeholders.rstrip(",")
+
+        upsert_sql = text(f"""
+            INSERT INTO products
+                (sku, source, merchant_id, title, description, price, currency,
+                 url, image_url, brand, category, is_active, region, country_code)
+            VALUES {placeholders}
+            ON CONFLICT (sku, source)
+            DO UPDATE SET
+                title       = EXCLUDED.title,
+                description = EXCLUDED.description,
+                price      = EXCLUDED.price,
+                currency   = EXCLUDED.currency,
+                url        = EXCLUDED.url,
+                image_url  = COALESCE(NULLIF(EXCLUDED.image_url, ''), products.image_url),
+                brand      = EXCLUDED.brand,
+                category   = EXCLUDED.category,
+                category_path   = EXCLUDED.category_path,
+                merchant_id     = EXCLUDED.merchant_id,
+                metadata        = EXCLUDED.metadata,
+                is_active       = TRUE,
+                is_available    = EXCLUDED.is_available,
+                in_stock        = EXCLUDED.in_stock,
+                stock_level     = EXCLUDED.stock_level,
+                last_checked    = EXCLUDED.last_checked,
+                region          = COALESCE(EXCLUDED.region, products.region),
+                country_code    = COALESCE(EXCLUDED.country_code, products.country_code),
+                updated_at      = NOW()
+            RETURNING id, sku, (xmax = 0) AS is_insert
+        """)
+
+        result = await db.execute(upsert_sql, params)
+        upserted_rows = result.fetchall()  # List of (id, sku, is_insert)
+
+        rows_inserted = sum(1 for r in upserted_rows if r.is_insert)
+        rows_updated = len(upserted_rows) - rows_inserted
+
+        # Build sku -> (id, is_insert) map from RETURNING results (no extra DB round-trip)
+        sku_info = {r.sku: (r.id, r.is_insert) for r in upserted_rows}
+    else:
+        rows_inserted = 0
+        rows_updated = 0
+        sku_info = {}
 
     price_history_records = []
     for idx, item in enumerate(body.products):
         try:
-            if item.sku not in final_map:
+            if item.sku not in sku_info:
                 continue
 
-            product_id, new_price, new_available = final_map[item.sku]
-            is_update = item.sku in existing_ids
-            old_price = existing_map[item.sku][1] if is_update else None
-            old_available = existing_map[item.sku][2] if is_update else None
+            product_id, is_insert = sku_info[item.sku]
+            is_update = not is_insert
+            old_price = existing_map[item.sku][1] if is_update and item.sku in existing_map else None
+            old_available = existing_map[item.sku][2] if is_update and item.sku in existing_map else None
 
             if item.price is not None:
                 price_history_records.append({
@@ -394,7 +422,6 @@ async def ingest_products(
             }
 
             if is_update:
-                rows_updated += 1
                 webhook_events.append({
                     "is_new": False,
                     "product": product_data,
@@ -402,7 +429,6 @@ async def ingest_products(
                     "was_available": old_available,
                 })
             else:
-                rows_inserted += 1
                 webhook_events.append({
                     "is_new": True,
                     "product": product_data,
