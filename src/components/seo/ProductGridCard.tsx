@@ -44,7 +44,7 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
         compact ? "grid-cols-[9rem_minmax(0,1fr)] sm:grid-cols-[11rem_minmax(0,1fr)]" : "grid-rows-[auto_1fr]"
       }`}
     >
-      <div className={`relative overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.25),_rgba(248,250,252,0.92)_55%,_rgba(226,232,240,0.95))] ${compact ? "min-h-64 rounded-l-[27px]" : "aspect-[4/3] rounded-t-[27px]"}`}>
+      <div className={`relative overflow-hidden bg-slate-100 ${compact ? "min-h-64 rounded-l-[27px]" : "aspect-[4/3] rounded-t-[27px]"}`}>
         <ProductGridImage
           src={product.imageUrl || ""}
           alt={product.name}
