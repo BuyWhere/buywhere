@@ -52,11 +52,72 @@ const CATEGORY_PAGE_SLUGS = [
   "toys-games",
 ] as const;
 
+// BUY-65150 fallback derived from the verified 2026-07-29 /v1/categories
+// response. The endpoint currently returns at most 50 records, and the site API
+// key can hit its daily limit before a crawler requests the sitemap. Keeping the
+// normalized slugs here prevents the expanded sitemap and category-country pages
+// from collapsing to the old 28-URL set during that rate-limit window.
+const CATEGORY_API_FALLBACK_SLUGS = [
+  "accessories",
+  "appliances",
+  "audio",
+  "automotive",
+  "baby-kids",
+  "beauty-health",
+  "books-stationery",
+  "cameras",
+  "computers",
+  "electronics",
+  "fashion",
+  "food-beverages",
+  "furniture",
+  "gaming",
+  "garden-outdoor",
+  "grocery",
+  "health-wellness",
+  "home-living",
+  "home-office",
+  "household",
+  "jewelry-watches",
+  "kitchen-dining",
+  "laptops",
+  "mobile-phones",
+  "music",
+  "office-supplies",
+  "personal-care",
+  "pet-supplies",
+  "phones",
+  "photography",
+  "shoes",
+  "smart-home",
+  "software",
+  "sports-outdoors",
+  "tablets",
+  "tools-home-improvement",
+  "toys-games",
+  "travel",
+  "tv-video",
+  "video-games",
+  "wearables",
+  "women-fashion",
+  "womens-fashion",
+] as const;
 
-interface ApiCategoryRecord {
+
+export interface ApiCategoryRecord {
   slug: string;
   name: string;
   product_count?: number;
+}
+
+export const CATEGORY_SITEMAP_COUNTRIES = ["us", "sg", "my", "th", "id", "ph", "vn"] as const;
+
+export function formatCategoryName(slug: string, fallback?: string): string {
+  return (fallback || slug)
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 export interface PopulatedCompareCategory {
@@ -101,6 +162,7 @@ async function fetchCategories(currency: string): Promise<PopulatedCompareCatego
   try {
     const res = await fetch(`${baseUrl}/v1/categories?currency=${currency}`, {
       headers,
+      next: { revalidate: 3600 },
       signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) {
@@ -128,6 +190,45 @@ async function fetchCategories(currency: string): Promise<PopulatedCompareCatego
     );
     return [];
   }
+}
+
+export async function fetchApiCategories(): Promise<ApiCategoryRecord[]> {
+  const categories = (await Promise.all([fetchCategories("SGD"), fetchCategories("USD")])).flat();
+  const bySlug = new Map<string, ApiCategoryRecord>();
+
+  for (const category of categories) {
+    if (!category.slug || category.slug === "uncategorized") continue;
+    const existing = bySlug.get(category.slug);
+    if (!existing || category.productCount > (existing.product_count ?? 0)) {
+      bySlug.set(category.slug, {
+        slug: category.slug,
+        name: category.name || formatCategoryName(category.slug),
+        product_count: category.productCount,
+      });
+    }
+  }
+
+  if (bySlug.size === 0) {
+    // Keep category-country pages and the sitemap available during API rate-limit
+    // windows. These slugs come from the last verified API response and are
+    // normalized through the same path as live records.
+    for (const fallbackSlug of CATEGORY_API_FALLBACK_SLUGS) {
+      const slug = normalizeCategorySlug(fallbackSlug);
+      if (!slug || slug === "uncategorized") continue;
+      bySlug.set(slug, {
+        slug,
+        name: formatCategoryName(slug),
+      });
+    }
+  }
+
+  return Array.from(bySlug.values()).sort((a, b) => a.slug.localeCompare(b.slug));
+}
+
+export async function getApiCategoryBySlug(slug: string): Promise<ApiCategoryRecord | null> {
+  const normalizedSlug = normalizeCategorySlug(slug);
+  const categories = await fetchApiCategories();
+  return categories.find((category) => category.slug === normalizedSlug) ?? null;
 }
 
 export async function getPopulatedCompareCategories(): Promise<PopulatedCompareCategory[]> {
@@ -381,7 +482,7 @@ export function getStaticSitemapEntries(): SitemapUrlEntry[] {
   return Array.from(byUrl.values());
 }
 
-export function getCategorySitemapEntries(): SitemapUrlEntry[] {
+export async function getCategorySitemapEntries(): Promise<SitemapUrlEntry[]> {
   const now = new Date();
   const entries = new Map<string, SitemapUrlEntry>();
 
@@ -412,6 +513,12 @@ export function getCategorySitemapEntries(): SitemapUrlEntry[] {
 
   for (const slug of Object.keys(US_CATEGORY_META)) {
     addEntry(`/us/category/${slug}`, 0.8);
+  }
+
+  for (const category of await fetchApiCategories()) {
+    for (const country of CATEGORY_SITEMAP_COUNTRIES) {
+      addEntry(`/categories/${category.slug}/${country}`, 0.8);
+    }
   }
 
   return Array.from(entries.values());

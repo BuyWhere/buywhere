@@ -3,8 +3,8 @@ import test from "node:test";
 import { getCategorySitemapEntries, getCompareSitemapEntries, getStaticSitemapEntries } from "@/lib/sitemaps";
 import { toSiteUrl } from "@/lib/site-url";
 
-test("getCategorySitemapEntries uses canonical (no trailing slash) URLs", () => {
-  const entries = getCategorySitemapEntries();
+test("getCategorySitemapEntries uses canonical (no trailing slash) URLs", async () => {
+  const entries = await getCategorySitemapEntries();
   for (const entry of entries) {
     const path = new URL(entry.url).pathname;
     assert.ok(
@@ -25,8 +25,8 @@ test("getCompareSitemapEntries uses canonical (no trailing slash) URLs", async (
   }
 });
 
-test("getCategorySitemapEntries excludes soft-404 slugs flagged in BUY-39762 / BUY-41940", () => {
-  const entries = getCategorySitemapEntries();
+test("getCategorySitemapEntries excludes soft-404 slugs flagged in BUY-39762 / BUY-41940", async () => {
+  const entries = await getCategorySitemapEntries();
   const urls = entries.map((e) => e.url);
   for (const slug of ["books-stationery", "garden-outdoor", "pet-supplies", "sports-outdoors"]) {
     assert.ok(
@@ -36,11 +36,11 @@ test("getCategorySitemapEntries excludes soft-404 slugs flagged in BUY-39762 / B
   }
 });
 
-test("getCategorySitemapEntries includes only real category slugs that exist in PRODUCT_TAXONOMY", () => {
-  const entries = getCategorySitemapEntries();
+test("getCategorySitemapEntries includes only real category slugs that exist in PRODUCT_TAXONOMY", async () => {
+  const entries = await getCategorySitemapEntries();
   const categoryPaths = entries
     .map((e) => new URL(e.url).pathname)
-    .filter((p) => p.startsWith("/categories/") && p !== "/categories");
+    .filter((p) => /^\/categories\/[^/]+$/.test(p));
   // Sanity: at least the known-good slugs are present.
   for (const slug of ["electronics", "fashion", "home-living", "beauty-health", "grocery"]) {
     assert.ok(
@@ -48,6 +48,28 @@ test("getCategorySitemapEntries includes only real category slugs that exist in 
       `expected /categories/${slug} in sitemap`,
     );
   }
+});
+
+test("getCategorySitemapEntries emits API category-country combinations once (BUY-65150)", async () => {
+  const entries = await getCategorySitemapEntries();
+  const categoryCountryPaths = entries
+    .map((e) => new URL(e.url).pathname)
+    .filter((path) => /^\/categories\/[^/]+\/(us|sg|my|th|id|ph|vn)$/.test(path));
+
+  assert.ok(
+    categoryCountryPaths.length >= 250,
+    `expected at least 250 category-country URLs; got ${categoryCountryPaths.length}`,
+  );
+  assert.equal(
+    new Set(categoryCountryPaths).size,
+    categoryCountryPaths.length,
+    "category-country URLs should be unique",
+  );
+  assert.equal(
+    categoryCountryPaths.length % 7,
+    0,
+    "every API category should have all seven country variants",
+  );
 });
 
 // BUY-42727: the merchant sitemap URL builder must emit canonical-form
