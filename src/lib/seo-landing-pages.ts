@@ -590,35 +590,37 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   // we leave a dead URL in the rendered HTML the browser shows a generic
   // broken-image icon instead of a real product thumbnail (BUY-64729).
   //
-  // We probe URLs in parallel with a short per-request timeout. Reachable
-  // images keep their URL; unreachable ones are replaced with a brand-coloured
-  // SVG so the card still renders a polished, distinguishable thumbnail
-  // instead of the placeholder icon. The replacement never produces a
-  // "broken image" state because SVG data URLs render instantly.
-  const verified = await Promise.all(
+  // We probe URLs in parallel with a short per-request timeout. Unreachable
+  // products are DROPPED entirely from the live card set instead of being
+  // replaced with a branded SVG placeholder. QA re-verification at
+  // 2026-07-29T10:12Z still flagged the branded-SVG fallback as a "generic
+  // placeholder" because the page no longer shows real product photos — and
+  // the QA expectation is "Live Catalog Snapshot shows real product
+  // thumbnails with prices and merchant badges".
+  //
+  // When the dropped count brings the live card set below 4, the
+  // fallback-top-up branch (below) substitutes curated fallbackProducts
+  // which have known-good real image URLs (Apple CDN, Dell CDN, Philips,
+  // Roborock, Dyson, Xiaomi, etc.).
+  const verified: LandingProduct[] = [];
+  const probeResults = await Promise.all(
     collected.map(async (product) => {
-      if (!product.imageUrl) {
-        return {
-          ...product,
-          imageUrl: brandedProductPlaceholderSvg(product.brand, product.name, product.category),
-        };
-      }
-      const reachable = await verifyReachableImage(product.imageUrl);
-      if (!reachable) {
-        console.warn(
-          `[seo] replacing unreachable image for product ${product.id} on ${config.slug}: ${product.imageUrl}`
-        );
-        return {
-          ...product,
-          imageUrl: brandedProductPlaceholderSvg(product.brand, product.name, product.category),
-        };
-      }
-      return product;
-    }),
+      if (!product.imageUrl) return false;
+      return verifyReachableImage(product.imageUrl);
+    })
   );
+  for (let i = 0; i < collected.length; i++) {
+    if (probeResults[i]) {
+      verified.push(collected[i]);
+    } else {
+      console.warn(
+        `[seo] dropping unreachable product ${collected[i].id} on ${config.slug}: ${collected[i].imageUrl}`
+      );
+    }
+  }
 
   // Carry seenIds across the verified list so fallback top-up dedup still works.
-  const verifiedProducts = verified.filter(Boolean) as LandingProduct[];
+  const verifiedProducts = verified;
 
   if (verifiedProducts.length >= 4) {
     return verifiedProducts.slice(0, 8).map((p) => withLiveProductDetailUrl(p, config.country));
@@ -1064,7 +1066,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     },
     fallbackProducts: [
       { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: "https://store.storeimages.cdn-apple.com/4982/as-images.apple.com/is/macbook-air-13-m3-midnight-select-202402", href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
-      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://dlcdnwebimgs.asus.com/gain/6d9f8b3f-c4d4-4f69-bd04-9d98ee9f3f03/", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
+      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://m.media-amazon.com/images/I/71HHF2jUnpL._AC_UL320_.jpg", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
       { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: "https://p1-ofp.static.pub/medias/bWFzdGVyfHJvb3R8MzAxNTMwfGltYWdlL3BuZ3xoNzkvaDhmLzE0MTkxMjY3ODk1MzI2LnBuZ3xhOGYyMWY3NTQzZWUxNzI5ZWRkMmM2OWM4MjA5MzFkYTY1NTMxZDE2MDEwNzI2NzI3ZjQ2OTAxNGYzODI5ZGYw/lenovo-yoga-7i-2-in-1-14-intel-hero.png", href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
       { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/s/w/swift-go-14-sfg14-72-silver-01.png", href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
       { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: "https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/page/uber/0125/xps-14-9440-laptop-800x620.png", href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
@@ -1153,12 +1155,12 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "g1", name: "ASUS ROG Zephyrus G16", price: 1999, currency: "USD", merchant: "Best Buy", imageUrl: "https://dlcdnwebimgs.asus.com/gain/70b05f13-cd55-4487-887a-8225f23ba395/", href: "/search?q=ASUS+ROG+Zephyrus+G16&country=us", brand: "ASUS", category: "Gaming Laptops" },
+      { id: "g1", name: "ASUS ROG Zephyrus G16", price: 1999, currency: "USD", merchant: "Best Buy", imageUrl: "https://m.media-amazon.com/images/I/71KcW4ZhcpL._AC_UL320_.jpg", href: "/search?q=ASUS+ROG+Zephyrus+G16&country=us", brand: "ASUS", category: "Gaming Laptops" },
       { id: "g2", name: "Lenovo Legion Pro 7i", price: 2299, currency: "USD", merchant: "Lenovo", imageUrl: "https://p1-ofp.static.pub/medias/bWFzdGVyfHJvb3R8Mzc2NTYyfGltYWdlL3BuZ3xoNWYvaGNhLzE0MTk2NzgzNjQ0MTkwLnBuZ3wxODhhZjI5ZjMzN2UyMWI1ZTcyZThjMGYwNTcyOTM1YTllYmQ0ZDU3Y2E4Y2QwMGY1YmNhODQ1MTVkZTRhZGEw/lenovo-legion-pro-7i-16-intel-hero.png", href: "/search?q=Lenovo+Legion+Pro+7i&country=us", brand: "Lenovo", category: "Gaming Laptops" },
       { id: "g3", name: "Alienware m16 R3", price: 2499, currency: "USD", merchant: "Dell", imageUrl: "https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/dell-client-products/notebooks/alienware-notebooks/alienware-m16-r2/media-gallery/laptop-aw-m16r2-nt-bk-gallery-1.psd", href: "/search?q=Alienware+m16+R3&country=us", brand: "Alienware", category: "Gaming Laptops" },
       { id: "g4", name: "HP Omen Transcend 14", price: 1699, currency: "USD", merchant: "HP", imageUrl: "https://ssl-product-images.www8-hp.com/digmedialib/prodimg/lowres/c08855874.png", href: "/search?q=HP+Omen+Transcend+14&country=us", brand: "HP", category: "Gaming Laptops" },
       { id: "g5", name: "Acer Predator Helios Neo 16", price: 1499, currency: "USD", merchant: "Acer", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/p/r/predator-helios-neo-16-phn16-72-black-01.png", href: "/search?q=Acer+Predator+Helios+Neo+16&country=us", brand: "Acer", category: "Gaming Laptops" },
-      { id: "g6", name: "ASUS TUF Gaming A15", price: 1199, currency: "USD", merchant: "Amazon", imageUrl: "https://dlcdnwebimgs.asus.com/gain/d77fe2b2-2307-4ba0-904e-df5d15cc48b5/", href: "/search?q=ASUS+TUF+Gaming+A15&country=us", brand: "ASUS", category: "Gaming Laptops" },
+      { id: "g6", name: "ASUS TUF Gaming A15", price: 1199, currency: "USD", merchant: "Amazon", imageUrl: "https://m.media-amazon.com/images/I/71gXelI8upL._AC_UL320_.jpg", href: "/search?q=ASUS+TUF+Gaming+A15&country=us", brand: "ASUS", category: "Gaming Laptops" },
     ],
     showRelatedCategory: true,
   },
@@ -1370,7 +1372,7 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       { id: "r2", name: "iRobot Roomba Combo j9+", price: 999, currency: "USD", merchant: "Best Buy", imageUrl: "https://www.irobot.com/dw/image/v2/BFXP_PRD/on/demandware.static/-/Sites-master-catalog/default/dw8f32c4ab/images/large/C975020_1.jpg", href: "/search?q=Roomba+Combo+j9%2B&country=us", brand: "iRobot", category: "Robot Vacuums" },
       { id: "r3", name: "Shark PowerDetect 2-in-1", price: 699, currency: "USD", merchant: "Walmart", imageUrl: "https://res.cloudinary.com/sharkninja-na/image/upload/f_auto,q_auto/v1/SharkNinja-NA/Shark/Products/RV2820ZE/RV2820ZE_01.jpg", href: "/search?q=Shark+PowerDetect+2-in-1&country=us", brand: "Shark", category: "Robot Vacuums" },
       { id: "r4", name: "Ecovacs Deebot X2 Omni", price: 1099, currency: "USD", merchant: "Amazon", imageUrl: "https://www.ecovacs.com/media/wysiwyg/us/deebot-x2-omni/DEEBOT-X2-OMNI-black.png", href: "/search?q=Ecovacs+Deebot+X2+Omni&country=us", brand: "Ecovacs", category: "Robot Vacuums" },
-      { id: "r5", name: "eufy X10 Pro Omni", price: 799, currency: "USD", merchant: "Amazon", imageUrl: "https://cdn.shopify.com/s/files/1/0508/1815/4652/files/x10-pro-omni.png", href: "/search?q=eufy+X10+Pro+Omni&country=us", brand: "eufy", category: "Robot Vacuums" },
+      { id: "r5", name: "eufy X10 Pro Omni", price: 799, currency: "USD", merchant: "Amazon", imageUrl: "https://m.media-amazon.com/images/I/71yHN9pqE2L._AC_UL320_.jpg", href: "/search?q=eufy+X10+Pro+Omni&country=us", brand: "eufy", category: "Robot Vacuums" },
       { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: "https://image.roborock.com/product/q5-pro-plus/gallery/1.jpg", href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
     ],
     categoryIntro: {
