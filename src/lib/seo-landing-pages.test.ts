@@ -216,3 +216,32 @@ test("QA-sampled SEO source configs do not contain synthetic placeholders", () =
     assert.doesNotMatch(block, /imageUrl:\s*"\/seo\//i, `${slug} still uses local SEO placeholder artwork in source`);
   }
 });
+
+test("branded SVG placeholder data URL uses RFC-2397 charset form (BUY-64260)", async () => {
+  const source = readFileSync(
+    new URL("./seo-landing-pages.ts", import.meta.url),
+    "utf8",
+  );
+
+  // Defensive: the SVG placeholder pipeline must not emit the malformed
+  // `;utf8,` MIME parameter that browsers reject (BUY-64260). The two
+  // standards-compliant forms are `;charset=utf-8,` and `;base64,`.
+  assert.doesNotMatch(
+    source,
+    /data:image\/svg\+xml;utf8,/,
+    "brandedProductPlaceholderSvg must not emit the malformed `;utf8,` MIME parameter (BUY-64260)",
+  );
+
+  // The branded placeholder is the only producer of `data:image/svg+xml` URLs
+  // in this file. Confirm it uses the explicit-charset form so modern browsers
+  // decode the SVG instead of falling through to the broken-image icon.
+  const dataUrlMatches = source.match(/data:image\/svg\+xml[^"`,)}\s]+/g) ?? [];
+  assert.ok(dataUrlMatches.length > 0, "expected at least one data:image/svg+xml URL in source");
+  for (const url of dataUrlMatches) {
+    assert.ok(
+      url.startsWith("data:image/svg+xml;charset=utf-8,") ||
+        url.startsWith("data:image/svg+xml;base64,"),
+      `data URL must use RFC-2397 form, got: ${url.slice(0, 60)}…`,
+    );
+  }
+});
