@@ -206,4 +206,48 @@ describe('BUY-32028 + BUY-32228: ts_rank ORDER BY regression guard', () => {
       'Expected default keyword path to use the RAM-fitting search_products tier'
     );
   });
+
+  it('BUY-63505 demotes accessories before SEO fallback pagination', () => {
+    const src = readProductsSource();
+    const seoStart = src.indexOf('const seoFallbackQuery = `');
+    const seoEnd = src.indexOf('const seoFallbackParamsWithPage', seoStart);
+    assert.ok(seoStart >= 0 && seoEnd > seoStart, 'Expected SEO fallback query block');
+    const seoBlock = src.slice(seoStart, seoEnd);
+
+    assert.ok(/accessoryDemotionSql/.test(src), 'Expected shared accessory demotion expression');
+    for (const term of ['replacement', 'battery', 'filter', 'skin', 'backpack', 'software', 'accessory', 'part']) {
+      assert.ok(src.includes(term), `Expected accessory demotion to include ${term}`);
+    }
+    assert.ok(
+      /SELECT\s+id,\s+updated_at,\s+\$\{accessoryDemotionSql\}\s+AS\s+accessory_rank/i.test(seoBlock),
+      'Expected SEO fallback CTE to calculate accessory_rank before LIMIT/OFFSET'
+    );
+    assert.ok(
+      /ORDER\s+BY\s+accessory_rank\s+ASC,\s+updated_at\s+DESC,\s+id\s+DESC/i.test(seoBlock),
+      'Expected SEO fallback candidate selection to demote accessories before pagination'
+    );
+    assert.ok(
+      /ORDER\s+BY\s+fallback_ids\.accessory_rank\s+ASC,\s+fallback_ids\.updated_at\s+DESC,\s+products\.id\s+DESC/i.test(seoBlock),
+      'Expected SEO fallback final ordering to preserve accessory demotion'
+    );
+  });
+
+  it('BUY-65156 FTS ranking branch excludes backpack/accessory titles from the 2.0x laptop boost', () => {
+    // Regression guard: 'CARBONADO 30 L Backpack Gaming Backpack For Laptop, Gaming Laptop
+    // and Gaming Accessories' was matching the laptop boost because its title literally
+    // contained 'laptop' (and 'gaming laptop') but the product is a backpack. The fix
+    // negates 'backpack'/'accessories' (and other laptop-adjacent accessories) in the
+    // top_ids CTE so accessory SKUs cannot outrank actual gaming-laptop products.
+    const src = readProductsSource();
+    const block = extractUseFtsRankingBlock(src);
+    const topIds = block.match(/top_ids\s+AS\s*\(([\s\S]*?)\)\s*SELECT/i);
+    assert.ok(topIds, 'Expected a `top_ids AS (...)` CTE in the useFtsRanking branch');
+    const cte = topIds[1];
+    for (const term of ['backpack', 'accessories', 'accessory', 'replacement', 'battery', 'mouse', 'keyboard', 'headset', 'monitor']) {
+      assert.ok(
+        new RegExp(`NOT\\s+LIKE\\s+'%${term}%'`, 'i').test(cte),
+        `BUY-65156: expected the top_ids CTE to negate '${term}' from the laptop-boost else-branch; an accessory titled 'Gaming ${term}...' would still rank above real laptops.`
+      );
+    }
+  });
 });

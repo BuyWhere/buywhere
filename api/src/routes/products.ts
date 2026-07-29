@@ -782,19 +782,26 @@ router.get(
       `source = $${seoFallbackSourceParamIdx}`,
       ...(seoFallbackTermConditions.length ? [`(${seoFallbackTermConditions.join(' OR ')})`] : []),
     ].join(' AND ')}`;
+    const accessoryDemotionSql = `
+      CASE
+        WHEN products.title ~* '\\m(replacement|replace|battery|batteries|filter|filters|skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|software|license|accessory|accessories|part|parts)\\M'
+          OR products.category ~* '\\m(replacement|replace|battery|batteries|filter|filters|skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|software|license|accessory|accessories|part|parts)\\M'
+          OR array_to_string(products.category_path, ' ') ~* '\\m(replacement|replace|battery|batteries|filter|filters|skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|software|license|accessory|accessories|part|parts)\\M'
+        THEN 1 ELSE 0
+      END`;
     const seoFallbackQuery = `
       WITH fallback_ids AS (
-        SELECT id, updated_at
+        SELECT id, updated_at, ${accessoryDemotionSql} AS accessory_rank
         FROM products
         ${seoFallbackWhereClause}
-        ORDER BY updated_at DESC
+        ORDER BY accessory_rank ASC, updated_at DESC, id DESC
         LIMIT $${seoFallbackLimitParamIdx} OFFSET $${seoFallbackOffsetParamIdx}
       )
       SELECT ${joinedColumns}
       FROM fallback_ids
       JOIN products ON products.id = fallback_ids.id
       LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-      ORDER BY fallback_ids.updated_at DESC
+      ORDER BY fallback_ids.accessory_rank ASC, fallback_ids.updated_at DESC, products.id DESC
     `;
     const seoFallbackParamsWithPage = [
       ...seoFallbackParams,
@@ -816,15 +823,8 @@ router.get(
       `(products.title ILIKE '%laptop%' OR products.title ILIKE '%notebook%' OR products.title ILIKE '%macbook%' OR products.category ILIKE '%laptop%' OR array_to_string(products.category_path, ' ') ILIKE '%laptop%')`,
       ...(laptopTermConditions.length ? laptopTermConditions : []),
     ].join(' AND ')}`;
-    const laptopAccessoryDemotionSql = `
-      CASE
-        WHEN products.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors)\\M'
-          OR products.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers)\\M'
-          OR array_to_string(products.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers)\\M'
-        THEN 1 ELSE 0
-      END`;
     const laptopFallbackQuery = `
-      SELECT ${joinedColumns}, ${laptopAccessoryDemotionSql} AS _accessory_rank
+      SELECT ${joinedColumns}, ${accessoryDemotionSql} AS _accessory_rank
       FROM products
       LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
       ${laptopFallbackWhereClause}
@@ -845,11 +845,11 @@ router.get(
       ...(generalFallbackTermConditions.length ? [`(${generalFallbackTermConditions.join(' OR ')})`] : []),
     ].join(' AND ')}`;
     const generalFallbackQuery = `
-      SELECT ${joinedColumns}
+      SELECT ${joinedColumns}, ${accessoryDemotionSql} AS _accessory_rank
       FROM products
       LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
       ${generalFallbackWhereClause}
-      ORDER BY products.updated_at DESC
+      ORDER BY _accessory_rank ASC, products.updated_at DESC, products.id DESC
       LIMIT $${generalFallbackLimitParamIdx}
     `;
     const generalFallbackParams = [
@@ -915,6 +915,50 @@ router.get(
                      AND lower(rhp.title) NOT LIKE '%briefcase%'
                      AND lower(rhp.title) NOT LIKE '%charger%'
                      AND lower(rhp.title) NOT LIKE '%table%'
+                     -- BUY-65156: 'CARBONADO 30 L Backpack Gaming Backpack For Laptop...' was
+                     -- matching the laptop-boost (2.0x) because its title literally contained
+                     -- 'laptop' (and 'gaming laptop') but the product is a backpack. Add
+                     -- 'backpack'/'accessories' to the negator so a backpack titled "Gaming
+                     -- Backpack For Laptop, Gaming Laptop and Gaming Accessories" does not
+                     -- outrank actual gaming-laptop SKUs.
+                     AND lower(rhp.title) NOT LIKE '%backpack%'
+                     AND lower(rhp.title) NOT LIKE '%backpacks%'
+                     AND lower(rhp.title) NOT LIKE '%accessories%'
+                     AND lower(rhp.title) NOT LIKE '%accessory%'
+                     AND lower(rhp.title) NOT LIKE '%replacement%'
+                     AND lower(rhp.title) NOT LIKE '%replace%'
+                     AND lower(rhp.title) NOT LIKE '%battery%'
+                     AND lower(rhp.title) NOT LIKE '%batteries%'
+                     AND lower(rhp.title) NOT LIKE '%filter%'
+                     AND lower(rhp.title) NOT LIKE '%filters%'
+                     AND lower(rhp.title) NOT LIKE '%skin%'
+                     AND lower(rhp.title) NOT LIKE '%skins%'
+                     AND lower(rhp.title) NOT LIKE '%decal%'
+                     AND lower(rhp.title) NOT LIKE '%decals%'
+                     AND lower(rhp.title) NOT LIKE '%sticker%'
+                     AND lower(rhp.title) NOT LIKE '%stickers%'
+                     AND lower(rhp.title) NOT LIKE '%protector%'
+                     AND lower(rhp.title) NOT LIKE '%protectors%'
+                     AND lower(rhp.title) NOT LIKE '%cover%'
+                     AND lower(rhp.title) NOT LIKE '%covers%'
+                     AND lower(rhp.title) NOT LIKE '%software%'
+                     AND lower(rhp.title) NOT LIKE '%license%'
+                     AND lower(rhp.title) NOT LIKE '% part %'
+                     AND lower(rhp.title) NOT LIKE '% parts%'
+                     AND lower(rhp.title) NOT LIKE '%mouse%'
+                     AND lower(rhp.title) NOT LIKE '%keyboard%'
+                     AND lower(rhp.title) NOT LIKE '%headset%'
+                     AND lower(rhp.title) NOT LIKE '%headphones%'
+                     AND lower(rhp.title) NOT LIKE '%earbuds%'
+                     AND lower(rhp.title) NOT LIKE '%cable%'
+                     AND lower(rhp.title) NOT LIKE '%usb%'
+                     AND lower(rhp.title) NOT LIKE '%router%'
+                     AND lower(rhp.title) NOT LIKE '%monitor%'
+                     AND lower(rhp.title) NOT LIKE '%stylus%'
+                     AND lower(rhp.title) NOT LIKE '%pen %'
+                     AND lower(rhp.title) NOT LIKE '%light %'
+                     AND lower(rhp.title) NOT LIKE '%tote%'
+                     AND lower(rhp.title) NOT LIKE '%strap%'
                    THEN 2.0
                    ELSE 1.0
                  END AS rank
