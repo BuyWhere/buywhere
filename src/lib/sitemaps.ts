@@ -100,10 +100,19 @@ function formatLastMod(value: Date | string): string {
 }
 
 export function buildSitemapResponse(xml: string): Response {
+  // Why no-store (BUY-65147 follow-up):
+  //   The previous max-age=3600 / s-maxage=3600 / stale-while-revalidate=86400
+  //   policy meant Railway/Hikari edge served a stale sitemap index for up to
+  //   24h after a deploy that added/removed sub-sitemaps. That is how the
+  //   sitemap-merchants.xml registration kept silently regressing: the deploy
+  //   landed on main, the route ran with the new code, but the CDN kept
+  //   serving the cached pre-deploy XML body. Sub-sitemap files
+  //   (sitemap-pages, -products, -merchants, etc.) keep their own
+  //   per-route cache for crawl budget; the *index* must always be fresh.
   return new Response(xml, {
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
-      "Cache-Control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
+      "Cache-Control": "no-store, must-revalidate",
     },
   });
 }
