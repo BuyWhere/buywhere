@@ -119,7 +119,15 @@ test("branded SVG placeholder data URL uses RFC-2397 charset form (BUY-64260)", 
   // The branded placeholder is the only producer of `data:image/svg+xml` URLs
   // in this file. Confirm it uses the explicit-charset form so modern browsers
   // decode the SVG instead of falling through to the broken-image icon.
-  const dataUrlMatches = source.match(/data:image\/svg\+xml[^"`,)}\s]+/g) ?? [];
+  // We restrict the match to data URLs that include a MIME parameter (i.e.
+  // template-string concatenations that actually build the data URL), not
+  // bare `startsWith("data:image/svg+xml")` checks. The pattern requires
+  // `;charset=` or `;base64` immediately after `+xml` so the bare
+  // `startsWith("data:image/svg+xml")` guards elsewhere in the file are
+  // skipped. We allow `,` and `;` in the trailing body so the matched
+  // substring is the full data URL template, not just the prefix.
+  const dataUrlMatches =
+    source.match(/data:image\/svg\+xml(?:;charset=|;base64)[^"`)\s]+/g) ?? [];
   assert.ok(dataUrlMatches.length > 0, "expected at least one data:image/svg+xml URL in source");
   for (const url of dataUrlMatches) {
     assert.ok(

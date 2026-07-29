@@ -500,6 +500,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         if (!product) continue;
         if (!hasUsableLiveCard(product)) continue;
         if (!productMatchesRequiredTerms(product, config.requiredProductTerms)) continue;
+
         if (!seenIds.has(product.id)) {
           seenIds.add(product.id);
           collected.push(product);
@@ -509,6 +510,28 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     } catch (err) {
       console.warn(`[seo] fetch failure for ${config.slug} (q="${query}"):`, err);
       continue;
+    }
+  }
+
+  // BUY-64729 / BUY-64260: live catalog frequently includes third-party CDN
+  // URLs (ASUS, courts.com.sg, shopifycdn) that the search API accepted but
+  // the browser will 403/404. Probe every collected product's imageUrl in
+  // parallel and replace unreachable ones with a branded SVG data URL so the
+  // rendered card never falls through to the camera-icon Placeholder.
+  if (collected.length > 0) {
+    const probeResults = await Promise.all(
+      collected.map((p) => verifyReachableImage(p.imageUrl, 1500))
+    );
+    for (let i = 0; i < collected.length; i++) {
+      const product = collected[i];
+      const reachable = probeResults[i];
+      if (!reachable) {
+        product.imageUrl = brandedProductPlaceholderSvg(
+          product.brand,
+          product.name,
+          product.category,
+        );
+      }
     }
   }
 
@@ -522,8 +545,11 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     for (const fb of fallback) {
       if (collected.length >= 4) break;
       if (!seenIds.has(fb.id)) {
-        seenIds.add(fb.id);
-        collected.push(withFallbackSearchUrl(fb));
+        const filled = fb.imageUrl
+          ? fb
+          : { ...fb, imageUrl: brandedProductPlaceholderSvg(fb.brand, fb.name, fb.category) };
+        seenIds.add(filled.id);
+        collected.push(withFallbackSearchUrl(filled));
       }
     }
     return collected.slice(0, 8).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
@@ -532,7 +558,14 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   // No real products from any query — show curated fallback products (with real
   // names, prices, merchants, and deep-link search hrefs) rather than an empty
   // page. These are honest editorial picks, not empty skeleton cards.
-  return fallback.slice(0, 8).map(withFallbackSearchUrl);
+  return fallback.slice(0, 8).map((fb) =>
+    fb.imageUrl
+      ? withFallbackSearchUrl(fb)
+      : withFallbackSearchUrl({
+          ...fb,
+          imageUrl: brandedProductPlaceholderSvg(fb.brand, fb.name, fb.category),
+        }),
+  );
 }
 
 export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata {
