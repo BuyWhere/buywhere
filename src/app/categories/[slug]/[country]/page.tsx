@@ -135,10 +135,10 @@ export default async function CategoryCountryPage({ params }: PageProps) {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug, country } = await params;
   const normalizedCountry = country.toLowerCase();
-  if (!isSupportedCountry(normalizedCountry)) return { title: "Category Not Found" };
+  if (!isSupportedCountry(normalizedCountry)) notFound();
 
   const category = await getApiCategoryBySlug(decodeURIComponent(slug));
-  if (!category) return { title: "Category Not Found" };
+  if (!category) notFound();
 
   const categoryName = formatCategoryName(category.slug, category.name);
   const countryLabel = COUNTRY_LABELS[normalizedCountry];
