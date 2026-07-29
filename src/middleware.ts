@@ -207,16 +207,22 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
     return "/docs";
   }
 
-  // BUY-64260: SEO landing-page slug aliases. QA re-verification
-  // (2026-07-29T06:25Z) hit https://buywhere.ai/laptop-deals expecting a
-  // catalog page; no such route exists. The intent ("laptop deals in SG")
-  // is the same as the canonical /laptop-singapore landing page, so 301
-  // redirect. Keep this list minimal — only redirect slugs that are pure
-  // synonyms of existing canonical SEO landing pages, NOT new content.
+  // BUY-64260 + BUY-64258: SEO landing-page slug aliases. QA re-verification
+  // (2026-07-29T06:25Z) hit https://buywhere.ai/laptop-deals,
+  // https://buywhere.ai/robot-vacuum, and
+  // https://buywhere.ai/category/home/robots expecting catalog pages; no
+  // such routes exist. The intent ("laptop deals in SG" / "robot vacuum
+  // page") maps cleanly to the canonical /laptop-singapore and
+  // /best-robot-vacuums-2026 landing pages, so 301 redirect. Keep this list
+  // minimal — only redirect slugs that are pure synonyms of existing
+  // canonical SEO landing pages, NOT new content.
   // Keys must be normalizedPath (with leading slash) to match.
   const SEO_LANDING_ALIASES: Record<string, string> = {
     "/laptop-deals": "/laptop-singapore",
     "/laptop-deals-singapore": "/laptop-singapore",
+    "/robot-vacuum": "/best-robot-vacuums-2026",
+    "/robot-vacuums": "/best-robot-vacuums-2026",
+    "/category/home/robots": "/best-robot-vacuums-2026",
   };
   if (SEO_LANDING_ALIASES[normalizedPath]) {
     return SEO_LANDING_ALIASES[normalizedPath];
