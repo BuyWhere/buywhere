@@ -23,7 +23,8 @@ export default function Header() {
         >
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <rect width="28" height="28" rx="6" fill="#4f46e5" />
-            <path d="M7 10h14M7 14h10M7 18h12" stroke="white" strokeWidth="2" strokeLinecap="round" />
+            <path d="M8 11h12l-1 9H9z" stroke="white" strokeWidth="1.6" strokeLinejoin="round" />
+            <path d="M11 11V9a3 3 0 0 1 6 0v2" stroke="white" strokeWidth="1.6" strokeLinecap="round" />
           </svg>
           <span>BuyWhere</span>
         </Link>
