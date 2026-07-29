@@ -82,6 +82,24 @@ export async function generateMetadata({
   };
 }
 
+// Only slugs that resolve to a canonical SEO landing page are valid. Unknown
+// slugs must short-circuit at the framework level (HTTP 404) rather than
+// render a 200 "Category Not Found" soft-404 — mirroring src/app/categories/
+// [slug]/page.tsx which uses dynamicParams = false so the framework returns
+// 404 before reaching the page render (BUY-64729).
+export const dynamicParams = false;
+
+// Static params = every canonical SEO landing slug + every alias KEY (not just
+// target). We pre-register the alias keys themselves (e.g. "laptop",
+// "air-purifier", "laptops") so /c/laptop etc. are recognized at the
+// framework level and don't fall through to a 404 from dynamicParams = false.
+export function generateStaticParams() {
+  const seen = new Set<string>();
+  for (const slug of Object.keys(seoLandingPages)) seen.add(slug);
+  for (const alias of Object.keys(SLUG_ALIASES)) seen.add(alias);
+  return Array.from(seen).map((slug) => ({ slug }));
+}
+
 export default async function CSlugPage({
   params,
 }: {
