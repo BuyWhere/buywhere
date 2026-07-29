@@ -302,11 +302,11 @@ function SearchProgressIndicator({ startedAt }: { startedAt: number }) {
 function SearchCard({ product }: { product: SearchCardProduct }) {
   return (
     <a
+      data-testid="search-product-card"
       href={product.href}
       target="_blank"
       rel="noopener noreferrer"
       className="group relative flex h-full min-w-0 flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
-      data-testid="search-product-card"
     >
       <div
         className="relative aspect-[4/3] w-full shrink-0 overflow-hidden border-b border-slate-100 bg-slate-100"
@@ -662,7 +662,25 @@ export default function SearchResultsClient({
       <Header />
 
       <main id="main-content" className="flex-1">
-        <section className="border-b border-amber-100 bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.22),_rgba(255,247,237,0.85)_38%,_rgba(255,255,255,1)_80%)]">
+        {/* Mobile compact summary (replaces the full hero on mobile when an active search
+            is running) — keeps only a single line with country + result count + query.
+            Rendered as an <h1> for SEO semantics and tightened to ~44px above the fold. */}
+        {hasActiveSearch ? (
+          <h1
+            data-testid="search-mobile-summary"
+            className="mx-auto block max-w-7xl truncate px-4 py-3 text-sm font-semibold text-slate-700 md:hidden"
+          >
+            <span className="text-amber-700">{activeCountry.label.toUpperCase()}</span>
+            <span className="mx-2 text-slate-300">/</span>
+            <span>
+              {loadingInitial
+                ? 'Searching…'
+                : `${total.toLocaleString()} results for “${debouncedQuery}”`}
+            </span>
+          </h1>
+        ) : null}
+
+        <section className="hidden border-b border-amber-100 bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.22),_rgba(255,247,237,0.85)_38%,_rgba(255,255,255,1)_80%)] md:block">
           <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${hasActiveSearch ? 'py-5 lg:py-6' : 'py-10 lg:py-14'}`}>
             <div className="max-w-3xl">
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">Product search</p>
@@ -837,7 +855,7 @@ export default function SearchResultsClient({
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+        <section className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
           {showSearchPrompt ? (
             <div className="rounded-[28px] border border-dashed border-slate-300 bg-white/90 p-8 text-center shadow-sm">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-600">Start browsing</p>
@@ -857,7 +875,7 @@ export default function SearchResultsClient({
           {!showSearchPrompt && !error ? (
             <div className="space-y-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
+                <div className="hidden md:block">
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
                     {activeCountry.label}
                   </p>
@@ -874,7 +892,7 @@ export default function SearchResultsClient({
                 </div>
                 <Link
                   href="/"
-                  className="inline-flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                  className="hidden self-start rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900 sm:inline-flex sm:items-center sm:gap-2"
                 >
                   Back to homepage
                 </Link>
@@ -949,7 +967,7 @@ export default function SearchResultsClient({
 
               {!loadingInitial && products.length > 0 ? (
                 <>
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     {products.map((product) => (
                       <SearchCard key={product.id} product={product} />
                     ))}
