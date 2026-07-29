@@ -52,6 +52,22 @@ function buildComparisonRows(config: SeoLandingPageConfig, products: LandingProd
   return { columns, rows };
 }
 
+// Cap on how recent a product `updatedAt` can be before we stop trusting it
+// as a proxy for "page freshness". A catalog row stamped more than this many
+// days ago (BUY-63742: 2026-05-05 entries while today is 2026-07-29, ~85
+// days) reads like a placeholder and undermines buyer trust — fall back to
+// the generic copy rather than display a misleading badge. 30 days keeps the
+// badge honest: it only renders when there is genuinely fresh activity in
+// the upstream catalog for this query.
+const STALE_CATALOG_DAYS = 30;
+
+function parseCatalogTimestamp(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const ts = Date.parse(value);
+  if (!Number.isFinite(ts)) return null;
+  return new Date(ts);
+}
+
 function buildRefreshedLabel(config: SeoLandingPageConfig, products: LandingProduct[]): string {
   // If the config provides a static label, keep it for editorial pages that
   // explicitly set a review/revision date.
@@ -59,16 +75,21 @@ function buildRefreshedLabel(config: SeoLandingPageConfig, products: LandingProd
     return config.refreshedLabel;
   }
 
-  // Otherwise, reflect the freshness of the live products on the page.
+  // Otherwise, reflect the freshness of the live products on the page — but
+  // only when the upstream `updated_at` is plausibly live. Skipping future
+  // dates and anything older than STALE_CATALOG_DAYS prevents a stale catalog
+  // row (BUY-63742) from rendering as a hero badge.
+  const now = Date.now();
+  const staleCutoff = now - STALE_CATALOG_DAYS * 24 * 60 * 60 * 1000;
   const latest = products
-    .map((p) => p.updatedAt)
-    .filter(Boolean)
-    .sort()
-    .pop();
+    .map((p) => parseCatalogTimestamp(p.updatedAt))
+    .filter((d): d is Date => d !== null)
+    .filter((d) => d.getTime() <= now && d.getTime() >= staleCutoff)
+    .map((d) => d.getTime())
+    .reduce<number | null>((max, ts) => (max === null || ts > max ? ts : max), null);
 
-  if (latest) {
-    const date = new Date(latest);
-    const formatted = date.toLocaleDateString("en-US", {
+  if (latest !== null) {
+    const formatted = new Date(latest).toLocaleDateString("en-US", {
       month: "long",
       day: "numeric",
       year: "numeric",
@@ -79,6 +100,9 @@ function buildRefreshedLabel(config: SeoLandingPageConfig, products: LandingProd
 
   return "Live prices updated regularly";
 }
+
+// Exported for the regression test in SeoLandingPage.test.tsx (BUY-63742).
+export const __test__ = { buildRefreshedLabel, STALE_CATALOG_DAYS };
 
 export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig }) {
   const shopperCta = config.shopperCta || DEFAULT_SHOPPER_CTA;
