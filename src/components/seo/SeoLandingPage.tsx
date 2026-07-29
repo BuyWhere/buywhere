@@ -151,7 +151,57 @@ function buildRefreshedLabel(config: SeoLandingPageConfig, products: LandingProd
 export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig }) {
   const shopperCta = config.shopperCta || DEFAULT_SHOPPER_CTA;
   const developerCta = config.developerCta || DEFAULT_DEVELOPER_CTA;
-  const products = await getSeoLandingProducts(config);
+  const rawProducts = await getSeoLandingProducts(config);
+  // BUY-64260 (QA re-verification 2026-07-29T10:12Z): QA still reads the
+  // branded-SVG fallback as a "generic placeholder". Drop cards whose
+  // upstream imageUrl is null / empty / placeholder-data-url so every rendered
+  // card shows a real product photo. If that leaves fewer than 4 cards, top
+  // up from the curated fallbackProducts list — those have real image
+  // URLs (Apple CDN, Dell CDN, Roborock CDN, …) that have been verified
+  // reachable.
+  // Hotlink-blocked / unreachable-in-browser hosts. These return 200 to
+  // server-side HEAD probes but 403/404 in the browser due to Referer /
+  // hotlink protection, which is why the previous branded-SVG fallback was
+  // still showing on cards whose upstream `imageUrl` had been accepted by
+  // the catalog. Excluded at render time so the rendered card set never
+  // contains a URL that will trigger the branded placeholder fallback.
+  const HOTLINK_BLOCKED_RENDER_HOSTS = new Set([
+    "courts.com.sg",
+    "www.courts.com.sg",
+    "dlcdnwebimgs.asus.com",
+    "www.asus.com",
+    "shopifycdn.com",
+    "elescat.store",
+    "source.unsplash.com",
+  ]);
+  const usableProducts = rawProducts.filter((p) => {
+    if (typeof p.imageUrl !== "string" || p.imageUrl.length === 0) return false;
+    if (p.imageUrl.startsWith("data:image/svg+xml")) return false;
+    try {
+      const host = new URL(p.imageUrl).hostname.toLowerCase();
+      if (HOTLINK_BLOCKED_RENDER_HOSTS.has(host)) return false;
+    } catch {
+      return false;
+    }
+    return true;
+  });
+  let products = usableProducts;
+  if (products.length < 4) {
+    const seen = new Set(products.map((p) => p.id));
+    for (const fb of config.fallbackProducts) {
+      if (products.length >= 4) break;
+      if (!fb.imageUrl || fb.imageUrl.startsWith("data:image/svg+xml")) continue;
+      try {
+        const host = new URL(fb.imageUrl).hostname.toLowerCase();
+        if (HOTLINK_BLOCKED_RENDER_HOSTS.has(host)) continue;
+      } catch {
+        continue;
+      }
+      if (seen.has(fb.id)) continue;
+      seen.add(fb.id);
+      products = [...products, fb];
+    }
+  }
   const comparison = buildComparisonRows(config, products);
   const schema = buildSeoLandingSchema(config, products);
 
