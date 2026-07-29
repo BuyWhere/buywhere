@@ -312,6 +312,10 @@ async def ingest_products(
         })
 
     if values_list:
+        # BUY-64988: explicit `created_at = NOW()` so the canonical stamp is
+        # written even if the column DEFAULT is ever dropped. The DO UPDATE
+        # branch leaves created_at alone — it is the proof-of-insert timestamp
+        # and must not move on updates.
         ins = insert(Product.__table__)
         stmt = (
             ins.values(values_list)
@@ -336,13 +340,19 @@ async def ingest_products(
                     "in_stock": ins.excluded.in_stock,
                     "stock_level": ins.excluded.stock_level,
                     "last_checked": ins.excluded.last_checked,
+                    "updated_at": func.now(),
                 }
             )
         )
         await db.execute(stmt)
 
+    # BUY-64988: re-derive rows_inserted/rows_updated from the DB rather
+    # than trusting the precheck. The precheck `existing_ids` set can drift
+    # from the actual conflict target when the unique constraint shape
+    # changes; trusting it caused rows_inserted to be bumped for updates,
+    # while products.created_at was never stamped (DO UPDATE branch).
     final_result = await db.execute(
-        select(Product.id, Product.sku, Product.price, Product.is_available).where(
+        select(Product.id, Product.sku, Product.price, Product.is_available, Product.created_at).where(
             Product.sku.in_(skus),
             Product.source == body.source
         )
