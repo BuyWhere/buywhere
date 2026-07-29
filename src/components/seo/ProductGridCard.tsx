@@ -42,7 +42,7 @@ export function ProductGridCard({ product }: { product: LandingProduct }) {
       prefetch={false}
       className="group flex h-full flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
-      <div className="relative aspect-[4/3] overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.25),_rgba(248,250,252,0.92)_55%,_rgba(226,232,240,0.95))]">
+      <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
         <ProductGridImage
           src={product.imageUrl || ""}
           alt={product.name}
