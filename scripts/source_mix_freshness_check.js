@@ -123,22 +123,29 @@ async function main() {
         gap_pct: Number(gapPct.toFixed(4)),
         threshold_pct: THRESHOLD_PCT,
         reconciliation_status: status,
+        reconciliation_reason: status === 'drift'
+          ? `gap=${gapAbs} rows (${gapPct.toFixed(2)}%); writer counter vs created_at stamp diverged`
+          : status === 'warn'
+          ? `gap=${gapAbs} rows (${gapPct.toFixed(2)}%); within warn threshold`
+          : null,
       });
     }
 
+    // Canonical column name in the existing table is hour_start, not hour.
+    // source is nullable; for UPSERT use hour_start as the sole conflict target
+    // (the existing PK is on hour_start alone, and source is already in the row).
     const upsertSql = `
       INSERT INTO canonical_throughput_hourly
-        (hour, source, ingestion_runs_rows_inserted, products_created_at_count,
-         gap_abs, gap_pct, threshold_pct, reconciliation_status, last_checked_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-      ON CONFLICT (hour, source) DO UPDATE SET
-        ingestion_runs_rows_inserted = EXCLUDED.ingestion_runs_rows_inserted,
-        products_created_at_count    = EXCLUDED.products_created_at_count,
-        gap_abs                      = EXCLUDED.gap_abs,
-        gap_pct                      = EXCLUDED.gap_pct,
-        threshold_pct                = EXCLUDED.threshold_pct,
-        reconciliation_status        = EXCLUDED.reconciliation_status,
-        last_checked_at              = NOW()
+        (hour_start, source, ing_inserted, n_tup_ins, n_tup_upd, n_live_tup,
+         live_count, reconciliation_status, reconciliation_gap,
+         reconciliation_reason, reconciliation_checked_at)
+      VALUES ($1, $2, $3, 0, 0, 0, 0, $4, $5, $6, NOW())
+      ON CONFLICT (hour_start) DO UPDATE SET
+        ing_inserted               = EXCLUDED.ing_inserted,
+        reconciliation_status     = EXCLUDED.reconciliation_status,
+        reconciliation_gap        = EXCLUDED.reconciliation_gap,
+        reconciliation_reason     = EXCLUDED.reconciliation_reason,
+        reconciliation_checked_at = NOW()
     `;
 
     if (!args.dryRun) {
@@ -147,11 +154,9 @@ async function main() {
           s.hour,
           s.source,
           s.ingestion_runs_rows_inserted,
-          s.products_created_at_count,
-          s.gap_abs,
-          s.gap_pct,
-          s.threshold_pct,
           s.reconciliation_status,
+          s.gap_abs,
+          s.reconciliation_reason,
         ]);
       }
     }
