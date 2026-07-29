@@ -41,7 +41,7 @@ export function MerchantBadge({ merchant, className = '', showVerified = true }:
       aria-label={`${merchant}${isVerified ? ' - Verified retailer' : ''}`}
     >
       <span className="text-sm flex-shrink-0">{config.icon}</span>
-      <span className={`text-xs font-medium ${config.textColor || 'text-gray-700'}`}>
+      <span className={`min-w-0 truncate text-xs font-medium ${config.textColor || 'text-gray-700'}`} title={merchant}>
         {merchant}
       </span>
       {isVerified && (
