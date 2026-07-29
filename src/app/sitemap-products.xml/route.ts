@@ -1,15 +1,12 @@
-import { buildSitemapResponse, getAllRegionMerchantListingSitemapEntries, renderUrlSet } from "@/lib/sitemaps";
+import { buildSitemapResponse, renderUrlSet } from "@/lib/sitemaps";
 
-// Dynamic at the route level (regenerated on every request) so the
-// runtime env (BUYWHERE_API_KEY / BUYWHERE_API_INTERNAL_URL) is used —
-// the Railway build environment does NOT have those vars, so ISR
-// pre-render would hit /v1/merchants unauthenticated and produce an
-// empty sitemap (BUY-42890). Rate-limit safety is provided by an
-// in-memory cache inside getAllRegionMerchantListingSitemapEntries
-// (see src/lib/sitemaps.ts), keyed by region, TTL 1h, mutex-deduped.
+// BUY-65097: Merchant product-listing routes are intentionally noindex while
+// they render thin "Product listings coming soon" placeholders. Google treats
+// noindex sitemap URLs as conflicting signals, so keep sitemap-products.xml
+// empty until it can be backed by useful, indexable product inventory. Do not
+// remove noindex from placeholder pages instead.
 export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
-  const entries = await getAllRegionMerchantListingSitemapEntries();
-  return buildSitemapResponse(renderUrlSet(entries));
+  return buildSitemapResponse(renderUrlSet([]));
 }
