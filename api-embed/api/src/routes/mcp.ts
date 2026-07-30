@@ -685,16 +685,20 @@ async function handleListCategories(args: Record<string, unknown>) {
         // BUY-60056: materialized view is empty/stale in production. Instead of
         // returning unavailable or running a full-table GROUP BY, sample recent
         // products through the updated_at path and derive a bounded category list.
+        // BUY-65477: Also check `category` column as fallback since category_path
+        // may be empty but category column is populated.
         const fallbackResult = await client.query(
           `SELECT slug, slug AS name, COUNT(*)::int AS product_count
            FROM (
-             SELECT category_path, country_code
-             FROM products
-             ORDER BY updated_at DESC
-             LIMIT 50000
+               SELECT category_path, category, country_code
+               FROM products
+               ORDER BY updated_at DESC
+               LIMIT 50000
            ) _recent_categories
-           CROSS JOIN LATERAL (SELECT category_path[1] AS slug) _cat
-           WHERE country_code = $1 AND slug IS NOT NULL
+           CROSS JOIN LATERAL (
+               SELECT COALESCE(category_path[1], NULLIF(lower(regexp_replace(category, '\\s+', '-', 'g')), '')) AS slug
+           ) _cat
+           WHERE country_code = $1 AND slug IS NOT NULL AND slug <> ''
            GROUP BY slug
            ORDER BY product_count DESC
            LIMIT 100`,

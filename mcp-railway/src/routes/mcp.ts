@@ -828,21 +828,25 @@ async function handleListCategories(args: Record<string, unknown>) {
       // country during ingestion skew. Keep the bounded updated_at scan, but push the
       // country/category predicates into the inner query so each market gets its own
       // recent sample before grouping.
+      // BUY-65477: Also check `category` column as fallback since category_path
+      // may be empty but category column is populated.
       if (rows.length === 0) {
         try {
           await client.query(`SET statement_timeout = ${LIVE_TIMEOUT_MS}`);
           const recentResult = await client.query(
             `SELECT slug, slug AS name, COUNT(*)::int AS product_count
              FROM (
-               SELECT category_path
+               SELECT category_path, category
                FROM products
                WHERE country_code = $1
-                 AND category_path[1] IS NOT NULL
                  AND is_active = true
                ORDER BY updated_at DESC
                LIMIT 50000
              ) _recent_categories
-             CROSS JOIN LATERAL (SELECT category_path[1] AS slug) _cat
+             CROSS JOIN LATERAL (
+               SELECT COALESCE(category_path[1], NULLIF(lower(regexp_replace(category, '\\s+', '-', 'g')), '')) AS slug
+             ) _cat
+             WHERE slug IS NOT NULL AND slug <> ''
              GROUP BY slug
              ORDER BY product_count DESC
              LIMIT 100`,
