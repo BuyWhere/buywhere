@@ -331,11 +331,6 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
         ) : (
           <div className="relative z-10 flex h-full items-center justify-center text-4xl text-slate-600">◎</div>
         )}
-        <div className="absolute left-2 top-2 z-20">
-          <span className="inline-flex items-center rounded-full bg-white/95 px-2.5 py-1 text-sm font-bold tracking-tight text-slate-950 shadow-md ring-1 ring-slate-200 backdrop-blur">
-            {formatPrice(product.price, product.currency)}
-          </span>
-        </div>
         <div className="absolute right-2 top-2 z-20">
           <CompareSelectButton product={product} className="h-9 w-9" />
         </div>
@@ -363,9 +358,9 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
         </div>
 
         <div className="mt-auto space-y-2.5 border-t border-slate-100 pt-2.5">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Current price</p>
-            <p className="mt-0.5 text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Current price</p>
+            <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
           </div>
           <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
             View Deal
