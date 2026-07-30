@@ -20,8 +20,72 @@ const MERCHANT_CONFIG: Record<string, MerchantConfig> = {
   'Adidas': { icon: '👟', bgColor: 'bg-gray-900', textColor: 'text-white', verified: true },
 };
 
+// Canonical platform roots. When the raw merchant string starts with one of
+// these (case-insensitive, underscore- or hyphen-separated), the trailing
+// tenant/database suffix is stripped so the badge renders e.g. "Shopify"
+// instead of "Shopify Buy30620 Crate". String values match the title-cased
+// keys in MERCHANT_CONFIG; lookup is done in lowercase.
+const PLATFORM_ROOTS = new Set([
+  'shopify',
+  'walmart',
+  'amazon',
+  'target',
+  'best buy',
+  'costco',
+  'home depot',
+  'lowes',
+  'lowe\'s',
+  'nike',
+  'adidas',
+  'google shopping',
+  'ebay',
+  'newegg',
+  'apple',
+  'dell',
+  'lenovo',
+  'gamestop',
+  'magento',
+  'woocommerce',
+]);
+
 export function getMerchantConfig(merchant: string): MerchantConfig {
   return MERCHANT_CONFIG[merchant] || { icon: '🏬', bgColor: 'bg-gray-100', textColor: 'text-gray-700', verified: false };
+}
+
+/**
+ * Strip internal tenant/database suffixes from a merchant string so the badge
+ * shows a clean platform name. Operates on the raw API value (snake_case);
+ * the visible casing is left to the caller.
+ *
+ * Examples:
+ *   "shopify" -> "shopify"
+ *   "shopify_buy30620_crate" -> "shopify"
+ *   "shopify_buy30620_hunt2" -> "shopify"
+ *   "shopify_scrape" -> "shopify"
+ *   "walmart_us" -> "walmart"
+ *   "google_shopping" -> "google_shopping" (kept; both tokens are platform)
+ *   "lordandtaylorcom" -> "lordandtaylorcom" (unknown platform, kept as-is)
+ */
+export function stripMerchantTenantSuffix(value?: string | null): string {
+  if (!value) return '';
+  const tokens = value.split(/[_-]+/).filter(Boolean);
+  if (tokens.length <= 1) return value;
+
+  const firstToken = tokens[0].toLowerCase();
+  if (PLATFORM_ROOTS.has(firstToken)) {
+    return tokens[0];
+  }
+
+  // Two-token platforms like "google_shopping" must be preserved when both
+  // tokens form a known platform name.
+  if (tokens.length >= 2) {
+    const twoToken = `${tokens[0].toLowerCase()} ${tokens[1].toLowerCase()}`;
+    if (PLATFORM_ROOTS.has(twoToken)) {
+      return `${tokens[0]} ${tokens[1]}`;
+    }
+  }
+
+  return value;
 }
 
 export interface MerchantBadgeProps {
@@ -31,18 +95,22 @@ export interface MerchantBadgeProps {
 }
 
 export function MerchantBadge({ merchant, className = '', showVerified = true }: MerchantBadgeProps) {
-  const config = getMerchantConfig(merchant);
+  const cleanedMerchant = stripMerchantTenantSuffix(merchant);
+  const displayKey = cleanedMerchant
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+  const config = getMerchantConfig(displayKey);
   const isVerified = config.verified && showVerified;
 
   return (
     <div
       className={`inline-flex max-w-full items-center gap-1.5 self-start rounded-2xl px-2 py-1 ${config.bgColor} ${className}`}
       role="img"
-      aria-label={`${merchant}${isVerified ? ' - Verified retailer' : ''}`}
+      aria-label={`${displayKey}${isVerified ? ' - Verified retailer' : ''}`}
     >
       <span className="text-sm flex-shrink-0 leading-none">{config.icon}</span>
-      <span className={`min-w-0 whitespace-normal break-words [overflow-wrap:anywhere] text-xs font-medium leading-snug ${config.textColor || 'text-gray-700'}`} title={merchant}>
-        {merchant}
+      <span className={`min-w-0 whitespace-normal break-words [overflow-wrap:anywhere] text-xs font-medium leading-snug ${config.textColor || 'text-gray-700'}`} title={displayKey}>
+        {displayKey}
       </span>
       {isVerified && (
         <span className="flex items-center justify-center w-4 h-4 rounded-full bg-white/80 shadow-sm" aria-hidden="true">
