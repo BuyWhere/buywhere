@@ -1,7 +1,7 @@
 ---
 slug: "compare-headphones-singapore-2026"
-title: "Buy Sony WH-1000XM5 Singapore — Cheapest Price S$349 (2026)"
-description: "Buy Sony WH-1000XM5 in Singapore from S$349 on Shopee SG. Compare 2026 prices across Lazada, Amazon, Challenger, Courts and Harvey Norman — live headphone deals."
+title: "Sony WH-1000XM5 vs AirPods Max Singapore — From S$349"
+description: "Compare Singapore headphone prices: Sony WH-1000XM5 from S$349, AirPods Max from S$699. Shopee, Lazada, Amazon, Challenger — live 2026 pricing."
 author: "BuyWhere Team"
 publishedAt: "2026-06-19"
 lastUpdatedAt: "2026-07-29"
@@ -12,8 +12,8 @@ jsonLd: >
     "@graph": [
       {
         "@type": "Article",
-        "headline": "Buy Sony WH-1000XM5 Singapore — Cheapest Price S$349 (2026)",
-        "description": "Buy Sony WH-1000XM5 in Singapore from S$349 on Shopee SG. Compare 2026 prices across Lazada, Amazon, Challenger, Courts and Harvey Norman — live headphone deals.",
+        "headline": "Sony WH-1000XM5 vs AirPods Max Singapore — From S$349",
+        "description": "Compare Singapore headphone prices: Sony WH-1000XM5 from S$349, AirPods Max from S$699. Shopee, Lazada, Amazon, Challenger — live 2026 pricing.",
         "datePublished": "2026-06-19",
         "dateModified": "2026-07-29",
         "author": { "@type": "Organization", "name": "BuyWhere Team", "url": "https://buywhere.ai" },
@@ -78,7 +78,7 @@ jsonLd: >
   }
 ---
 
-# Buy Sony WH-1000XM5 Singapore — Cheapest Price S$349 (2026)
+# Sony WH-1000XM5 vs AirPods Max Singapore — From S$349
 
 The top wireless headphones in Singapore — Sony WH-1000XM5, Apple AirPods Max, and Bose QuietComfort Ultra — are available from 15+ merchants with significant price variation. BuyWhere tracks real-time pricing across all Singapore merchants, showing price differences of SGD 50–150 between the cheapest and most expensive retailers for the same product.
 
