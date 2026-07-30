@@ -319,7 +319,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const compact = args.compact === true;
   const currency = country ? (COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
 
-  const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
+  // BUY-65550: bumped cache key prefix to invalidate stale degraded responses cached
+  // before the BUY-65449 catalog/ranking fix and the BUY-65529 iPhone backfill.
+  const cacheKey = `fts:v7:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
   try {
     const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
     if (cached) {
@@ -903,6 +905,28 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   params.push(CANDIDATE_POOL, limit);
   const where = `WHERE ${conditions.join(' AND ')}`;
 
+  // BUY-65529: accessory demotion - exclude common accessory keywords from primary device results
+  // This mirrors the accessory filtering in products.ts for laptop searches.
+  // Only apply for device-oriented brand names; falls back to unfiltered results when no matches.
+  const searchLower = productName.toLowerCase();
+  const looksLikeDeviceSearch =
+    ['iphone', 'samsung', 'galaxy', 'pixel', 'macbook', 'laptop', 'ipad', 'tablet'].some(
+      (term) => searchLower.includes(term)
+    );
+  const accessoryExclusionSql = looksLikeDeviceSearch
+    ? `
+        AND (
+          title ILIKE '%case%' OR title ILIKE '%cover%' OR title ILIKE '%protector%'
+          OR title ILIKE '%skin%' OR title ILIKE '%film%' OR title ILIKE '%shield%'
+          OR title ILIKE '%charger%' OR title ILIKE '%cable%' OR title ILIKE '%adapter%'
+          OR title ILIKE '%holder%' OR title ILIKE '%stand%' OR title ILIKE '%dock%'
+          OR title ILIKE '%ssd%' OR title ILIKE '%drive%' OR title ILIKE '%keyboard%'
+          OR category ILIKE '%case%' OR category ILIKE '%cover%' OR category ILIKE '%protector%'
+          OR category ILIKE '%accessory%' OR category ILIKE '%accessories%'
+        ) = FALSE
+      `
+    : '';
+
   const bestPriceClient = await catalogDb.connect().catch((err) => {
     console.warn("[find_best_price] db.connect failed:", err.message);
     throw { code: -32603, message: "Database connection timeout" };
@@ -911,17 +935,33 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   let bestPriceTimedOut = false;
   try {
     await bestPriceClient.query("SET statement_timeout = 12000");
+    // First pass: try with accessory exclusion (primary devices only)
     result = await bestPriceClient.query(
       `SELECT * FROM (
          SELECT id, title, price, currency, source AS domain, url, image_url,
                 country_code, updated_at
-         FROM products ${where}
+         FROM products ${where} ${accessoryExclusionSql}
          LIMIT $${params.length - 1}
        ) _candidates
        ORDER BY price ASC, updated_at DESC
        LIMIT $${params.length}`,
       params
     );
+    // If no results, fall back to all results (including accessories) as a safety net
+    if (result.rows.length === 0) {
+      console.warn('[find_best_price] no primary devices found, falling back to include accessories');
+      result = await bestPriceClient.query(
+        `SELECT * FROM (
+           SELECT id, title, price, currency, source AS domain, url, image_url,
+                  country_code, updated_at
+           FROM products ${where}
+           LIMIT $${params.length - 1}
+         ) _candidates
+         ORDER BY price ASC, updated_at DESC
+         LIMIT $${params.length}`,
+        params
+      );
+    }
   } catch (err) {
     // BUY-64151: fail open on bounded statement_timeout so price lookups return
     // an explicit empty/unavailable shape instead of JSON-RPC -32603.
