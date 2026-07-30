@@ -216,7 +216,7 @@ function ComparisonSearchForm({
           Compare now
         </button>
       </div>
-      <p className="mt-3 text-sm text-indigo-100">
+      <p className="search-form-caption mt-3 text-sm text-[#CBD5E1]">
         Compare by search query or direct product IDs. We sort results by the cheapest available offer first.
       </p>
     </form>
@@ -521,7 +521,7 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
             <p className="mt-5 text-lg text-indigo-100">
               Search one product or paste explicit IDs to compare price, availability, imagery, and affiliate destinations without context switching.
             </p>
-            <p className="mt-4 text-xs uppercase tracking-[0.22em] text-indigo-200/80">
+            <p className="hero-metadata mt-4 text-xs uppercase tracking-[0.22em] text-[#CBD5E1]">
               Last refreshed: June 18, 2026 · live data cached for 5 minutes
             </p>
           </div>
