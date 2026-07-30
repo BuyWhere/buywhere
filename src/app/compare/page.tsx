@@ -66,11 +66,16 @@ async function fetchJson(url: string) {
     throw new Error("BUYWHERE API key is required for compare page live offers");
   }
 
+  // BUY-65450: /compare is a high-intent conversion page (rows show retailer
+  // prices and "Open retailer" CTAs). 5-minute Next.js cache combined with
+  // the upstream API's 10-minute cache meant stale "Price unavailable" rows
+  // lingered for up to 10 min after prices had been updated in the database.
+  // Tighten to 60s so a fix or ingest is visible within ~1 minute.
   const response = await fetch(url, {
     headers: {
       Authorization: `Bearer ${API_KEY}`,
     },
-    next: { revalidate: 300 },
+    next: { revalidate: 60, tags: ["compare-offers"] },
   });
 
   if (!response.ok) {
