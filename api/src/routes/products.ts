@@ -182,6 +182,13 @@ async function tryTierSearch(
     let rows = lexemes.length === 1 ? (await client.query(titleFallbackQuery, params)).rows : [];
     if (rows.length === 0) {
       rows = (await client.query(mkQuery(andMatch), params)).rows;
+      // BUY-65420: cheap title-contains LIKE before the expensive to_tsquery OR-match.
+      // Broad multi-word queries (e.g. "wireless headphones", "nike shoes") produce too
+      // many GIN candidates for OR-FTS and timeout at 6500ms. The substring match on
+      // the smaller search_products tier is fast and catches the common case.
+      if (rows.length === 0 && lexemes.length > 1) {
+        rows = (await client.query(tokenTitleFallbackQuery, params)).rows;
+      }
       if (rows.length === 0 && lexemes.length > 1) {
         rows = (await client.query(mkQuery(orMatch), params)).rows;   // recall fallback
       }
