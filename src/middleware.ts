@@ -328,7 +328,9 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/api/") ||
     pathname.startsWith("/assets/") ||
-    (pathname.includes(".") && !pathname.startsWith("/docs")) ||
+    (pathname.includes(".") && !pathname.startsWith("/docs") &&
+     pathname !== "/developers/robots.txt" &&
+     pathname !== "/developers/sitemap.xml") ||
     pathname === "/.well-known/"
   ) {
     return NextResponse.next();
