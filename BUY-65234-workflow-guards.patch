@@ -1,0 +1,95 @@
+diff --git a/.github/workflows/deploy-api-production.yml b/.github/workflows/deploy-api-production.yml
+index 310a744e..1442ef10 100644
+--- a/.github/workflows/deploy-api-production.yml
++++ b/.github/workflows/deploy-api-production.yml
+@@ -29,6 +29,14 @@ jobs:
+     name: API Regression (${{ github.event.inputs.test_scope || 'all' }})
+     runs-on: ubuntu-latest
+     steps:
++      - name: Refuse non-main refs (BUY-65234)
++        if: github.ref != 'refs/heads/main'
++        run: |
++          echo "::error::PRODUCTION DEPLOYS MUST COME FROM main. You dispatched from '${GITHUB_REF}'."
++          echo "::error::Deploying a feature branch to production ships a stale build and silently reverts newer main content (see BUY-65234 incident 2026-07-29)."
++          echo "::error::Merge your branch to main first; pushes to main auto-deploy."
++          exit 1
++
+       - uses: actions/checkout@v4
+ 
+       - name: Set up Python
+diff --git a/.github/workflows/deploy-mcp-railway.yml b/.github/workflows/deploy-mcp-railway.yml
+index 248af861..b7c2f78d 100644
+--- a/.github/workflows/deploy-mcp-railway.yml
++++ b/.github/workflows/deploy-mcp-railway.yml
+@@ -23,6 +23,14 @@ jobs:
+     name: Deploy mcp-server to Railway
+     runs-on: ubuntu-latest
+     steps:
++      - name: Refuse non-main refs (BUY-65234)
++        if: github.ref != 'refs/heads/main'
++        run: |
++          echo "::error::PRODUCTION DEPLOYS MUST COME FROM main. You dispatched from '${GITHUB_REF}'."
++          echo "::error::Deploying a feature branch to production ships a stale build and silently reverts newer main content (see BUY-65234 incident 2026-07-29)."
++          echo "::error::Merge your branch to main first; pushes to main auto-deploy."
++          exit 1
++
+       - uses: actions/checkout@v4
+ 
+       - name: Trigger Railway deploy of this SHA
+diff --git a/.github/workflows/deploy-nginx-production.yml b/.github/workflows/deploy-nginx-production.yml
+index 3b2d16ef..07c0cc58 100644
+--- a/.github/workflows/deploy-nginx-production.yml
++++ b/.github/workflows/deploy-nginx-production.yml
+@@ -10,6 +10,14 @@ jobs:
+     environment: production
+ 
+     steps:
++      - name: Refuse non-main refs (BUY-65234)
++        if: github.ref != 'refs/heads/main'
++        run: |
++          echo "::error::PRODUCTION DEPLOYS MUST COME FROM main. You dispatched from '${GITHUB_REF}'."
++          echo "::error::Deploying a feature branch to production ships a stale build and silently reverts newer main content (see BUY-65234 incident 2026-07-29)."
++          echo "::error::Merge your branch to main first; pushes to main auto-deploy."
++          exit 1
++
+       - uses: actions/checkout@v4
+ 
+       - name: Set up SSH
+diff --git a/.github/workflows/deploy-railway.yml b/.github/workflows/deploy-railway.yml
+index fe0c1618..c056c6fc 100644
+--- a/.github/workflows/deploy-railway.yml
++++ b/.github/workflows/deploy-railway.yml
+@@ -17,6 +17,14 @@ jobs:
+     name: Deploy to Railway
+     runs-on: ubuntu-latest
+     steps:
++      - name: Refuse non-main refs (BUY-65234)
++        if: github.ref != 'refs/heads/main'
++        run: |
++          echo "::error::PRODUCTION DEPLOYS MUST COME FROM main. You dispatched from '${GITHUB_REF}'."
++          echo "::error::Deploying a feature branch to production ships a stale build and silently reverts newer main content (see BUY-65234 incident 2026-07-29)."
++          echo "::error::Merge your branch to main first; pushes to main auto-deploy."
++          exit 1
++
+       - uses: actions/checkout@v4
+ 
+       - name: Setup Node.js
+diff --git a/.github/workflows/deploy-www.yml b/.github/workflows/deploy-www.yml
+index cbb97ca9..6a287389 100644
+--- a/.github/workflows/deploy-www.yml
++++ b/.github/workflows/deploy-www.yml
+@@ -34,6 +34,14 @@ jobs:
+   guard:
+     runs-on: ubuntu-latest
+     steps:
++      - name: Refuse non-main refs (BUY-65234)
++        if: github.ref != 'refs/heads/main'
++        run: |
++          echo "::error::PRODUCTION DEPLOYS MUST COME FROM main. You dispatched from '${GITHUB_REF}'."
++          echo "::error::Deploying a feature branch to production ships a stale build and silently reverts newer main content (see BUY-65234 incident 2026-07-29)."
++          echo "::error::Merge your branch to main first; pushes to main auto-deploy."
++          exit 1
++
+       - uses: actions/checkout@v4
+       - name: No production mock catalog data
+         run: |
