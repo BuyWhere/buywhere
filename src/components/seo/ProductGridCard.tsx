@@ -76,7 +76,7 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
             {product.name}
           </h2>
           {product.brand ? (
-            <p className="text-sm text-slate-500">{product.brand}</p>
+            <p className="text-sm text-slate-600">{product.brand}</p>
           ) : null}
         </div>
 
