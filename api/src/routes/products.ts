@@ -6,7 +6,7 @@ import { readDb, ReplicaUnavailableError, servingReadDbConnect } from '../lib/re
 import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
-import { recordQueryCacheLookup } from '../monitoring/cacheStats';
+import { recordCacheOutcome, recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
@@ -18,6 +18,11 @@ import { embedQuery } from '../jobs/embedProducts';
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
 const SEARCH_CACHE_TTL_SECONDS = 3600;
+const SEARCH_STALE_CACHE_TTL_SECONDS = Math.max(
+  SEARCH_CACHE_TTL_SECONDS,
+  Number(process.env.SEARCH_STALE_CACHE_TTL_SECONDS) || 24 * 60 * 60
+);
+const SEARCH_STALE_CACHE_SWEEP_LIMIT = Math.max(1, Number(process.env.SEARCH_STALE_CACHE_SWEEP_LIMIT) || 100);
 
 // BUY-41572: bumped from 5s → 15s as a temporary measure so the 50-query hybrid
 // eval (BUY-41140) can complete against the live DB. Roundhouse EXPLAIN happy
@@ -272,6 +277,86 @@ function mergeRrfCandidateIds(ftsIds: string[], semanticIds: string[], limit: nu
 
 function isSeoHeadQuery(query: string): boolean {
   return query.trim().split(/\s+/).filter(Boolean).length >= 2;
+}
+
+type SearchCachePayload = Record<string, unknown>;
+
+function safeJsonParseCache(value: string | null): SearchCachePayload | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed as SearchCachePayload : null;
+  } catch {
+    return null;
+  }
+}
+
+function productSearchStaleCacheKey(cacheKey: string): string {
+  return `stale:${cacheKey}`;
+}
+
+function productSearchWarmKey(qNorm: string, countryCode: string | undefined, currency: string, limit: number): string {
+  return `fts-warm:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${countryCode || ''}:${currency}:${limit}:${qNorm}`;
+}
+
+async function readStaleSearchCache(cacheKey: string): Promise<SearchCachePayload | null> {
+  return safeJsonParseCache(await redis.get(productSearchStaleCacheKey(cacheKey)).catch(() => null));
+}
+
+function stampCachedResponse(
+  payload: SearchCachePayload,
+  requestStart: number,
+  stale = false,
+): SearchCachePayload {
+  const response = { ...payload };
+  response.cached = true;
+  response.cache_stale = stale;
+  response.response_time_ms = Date.now() - requestStart;
+  return response;
+}
+
+async function writeSearchCaches(cacheKey: string, responseBody: unknown, qNorm?: string, countryCode?: string, currency?: string, limit?: number): Promise<void> {
+  const serialized = JSON.stringify(responseBody);
+  const writes: Array<Promise<unknown>> = [
+    redis.set(cacheKey, serialized, 'EX', SEARCH_CACHE_TTL_SECONDS),
+    redis.set(productSearchStaleCacheKey(cacheKey), serialized, 'EX', SEARCH_STALE_CACHE_TTL_SECONDS),
+  ];
+  if (qNorm && countryCode && currency && typeof limit === 'number') {
+    writes.push(redis.set(productSearchWarmKey(qNorm, countryCode, currency, limit), cacheKey, 'EX', SEARCH_STALE_CACHE_TTL_SECONDS));
+  }
+  await Promise.all(writes).catch(() => {});
+}
+
+async function readWarmSearchCache(
+  qNorm: string,
+  countryCode: string | undefined,
+  currency: string,
+  limit: number,
+): Promise<SearchCachePayload | null> {
+  if (!countryCode) return null;
+  const warmKey = await redis.get(productSearchWarmKey(qNorm, countryCode, currency, limit)).catch(() => null);
+  if (!warmKey) return null;
+  return readStaleSearchCache(warmKey);
+}
+
+async function findAnyWarmSearchCache(qNorm: string): Promise<SearchCachePayload | null> {
+  const pattern = `fts-warm:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:*:*:*:${qNorm}`;
+  try {
+    let cursor = '0';
+    do {
+      const [next, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', SEARCH_STALE_CACHE_SWEEP_LIMIT);
+      cursor = next;
+      for (const key of keys) {
+        const cacheKey = await redis.get(key).catch(() => null);
+        if (!cacheKey) continue;
+        const payload = await readStaleSearchCache(cacheKey);
+        if (payload) return payload;
+      }
+    } while (cursor !== '0');
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 // deliver_to soft contract (2026-07-14): annotate availability relative to the END
@@ -560,28 +645,57 @@ router.get(
       .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
       || q.toLowerCase().trim();
     const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
+    const canUseWarmSearchCache = offset === 0 && !domain && !region && !category && !categoryId && !(categoryPath && categoryPath.length > 0) && !brand && !merchantId && !availability && minPrice === undefined && maxPrice === undefined && !sort && !(fields && fields.length > 0) && searchMode === DEFAULT_SEARCH_MODE && !compact && !deliverTo && includeUnshippable;
     try {
-      const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        const elapsed = Date.now() - requestStart;
-        parsed.cached = true;
-        parsed.response_time_ms = elapsed;
-        const cachedProducts = parsed.products || parsed.results || parsed.data || [];
+      const cached = await redis.get(cacheKey).catch(() => null);
+      const parsed = safeJsonParseCache(cached);
+      if (parsed) {
+        const stamped = stampCachedResponse(parsed, requestStart);
+        const cachedProducts = (stamped.products || stamped.results || stamped.data || []) as Array<{ id?: string | number }>;
         recordProductViewsBulk({
           productIds: cachedProducts
-            .map((product: { id?: string | number }) => product.id)
-            .filter(Boolean),
+            .map((product) => product.id)
+            .filter((id): id is string | number => id != null),
           source: 'products.search.cache',
           queryHash: q ? createHash('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
           req,
         });
+        await recordCacheOutcome(redis, true);
         res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
         res.set('X-Cache', 'HIT');
         res.locals.cacheHit = true;
-        return res.json(parsed);
+        return res.json(stamped);
       }
+
+      // BUY-65260: the maglev replay pounds read-heavy /v1/products/search with
+      // repeated head queries plus small pagination/filter variations. Keep a
+      // longer-lived stale copy and a normalized warm-query pointer so replay
+      // traffic gets a fast degraded read instead of falling back to a 8-10s DB
+      // statement_timeout floor after the hot TTL expires or the exact key shifts.
+      const stale = await readStaleSearchCache(cacheKey)
+        || (canUseWarmSearchCache
+          ? await readWarmSearchCache(qNorm, countryCode, currency, limit) || await findAnyWarmSearchCache(qNorm)
+          : null);
+      if (stale) {
+        const stamped = stampCachedResponse(stale, requestStart, true);
+        const cachedProducts = (stamped.products || stamped.results || stamped.data || []) as Array<{ id?: string | number }>;
+        recordProductViewsBulk({
+          productIds: cachedProducts
+            .map((product) => product.id)
+            .filter((id): id is string | number => id != null),
+          source: 'products.search.cache.stale',
+          queryHash: q ? createHash('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
+          req,
+        });
+        await recordCacheOutcome(redis, true);
+        res.set('Cache-Control', 'public, max-age=30, s-maxage=30, stale-while-revalidate=86400');
+        res.set('X-Cache', 'STALE');
+        res.locals.cacheHit = true;
+        return res.json(stamped);
+      }
+      await recordCacheOutcome(redis, false);
     } catch (_) {
+      await recordCacheOutcome(redis, false);
       // Redis miss or error — fall through to DB
     }
 
@@ -911,7 +1025,7 @@ router.get(
         fallbackProducts, total, limit, offset, responseTimeMs, hasMore
       );
       annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
-      redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+      writeSearchCaches(cacheKey, responseBody, canUseWarmSearchCache ? qNorm : undefined, countryCode, currency, limit).catch(() => {});
       res.set('X-Search-Fallback', source);
       res.json(responseBody);
     };
@@ -1436,7 +1550,7 @@ router.get(
     annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
 
     // Cache result in Redis (fire-and-forget)
-    redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+    writeSearchCaches(cacheKey, responseBody, canUseWarmSearchCache ? qNorm : undefined, countryCode, currency, limit).catch(() => {});
 
     // Extract categories from results for analytics
     const categories = extractCategories(products);
