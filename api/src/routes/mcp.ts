@@ -605,7 +605,12 @@ async function handleGetDeals(args: Record<string, unknown>) {
       innerConditions.push(`country_code = $1`);
     }
     const innerWhere = innerConditions.join(' AND ');
-    const innerParams: unknown[] = effectiveCountry ? [effectiveCountry] : [];
+    // BUY-65475: candidateLimit must be bound as a positional parameter so the
+    // inner LIMIT resolves to a bigint. Previously the LIMIT placeholder
+    // ($${innerParams.length+1}) resolved to the currency/country text param.
+    const innerParams: unknown[] = effectiveCountry
+      ? [effectiveCountry, candidateLimit]
+      : [candidateLimit];
     // Build the outer WHERE from the discount/currency conditions with re-indexed
     // positional parameters ($1..$N inside → $N+1.. in the outer query).
     const outerParamsStart = innerParams.length + 1;
@@ -627,7 +632,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
          FROM products
          WHERE ${innerWhere}
          ORDER BY updated_at DESC
-         LIMIT $${innerParams.length + 1}
+         LIMIT $${innerParams.length}
        ) _recent_deals
        WHERE ${outerConditions.join(' AND ')}
        ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
