@@ -189,7 +189,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 </p>
               </div>
             ) : (
-              <div className={config.compactCatalogCards ? "grid gap-4 lg:grid-cols-2" : "grid gap-4 sm:grid-cols-2 xl:grid-cols-4"}>
+              <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-2 xl:grid-cols-4"}>
                 {products.map((product) => (
                   <ProductGridCard key={product.id} product={product} compact={config.compactCatalogCards} />
                 ))}
