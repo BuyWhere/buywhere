@@ -370,6 +370,77 @@ const PRODUCT_ACCESSORY_RE =
 const NON_FLOOR_ROBOT_VACUUM_RE = /\b(?:cordless|handheld|pool|stick|upright)\b/i;
 const COMPLETE_ROBOT_VACUUM_RE = /\b(?:robot(?:ic)?\s+vacuums?|roomba|deebot)\b/i;
 
+// BUY-63381: laptop accessory regex. The previous "laptop" keyword match in
+// `requiredProductTerms` let unrelated accessories pass whenever the
+// accessory name happened to contain "laptop" — e.g. "CARBONADO 30 L Backpack
+// Gaming Backpack For Laptop" or "Robotic Doodle Laptop Ideapad Gaming 3
+// Laptop Skin". The QA re-verification at 2026-07-29T18:17Z still saw those
+// items in the live deals section for /best-gaming-laptops-us. Match the
+// accessory-style keywords explicitly so we never let skins, sleeves,
+// backpacks, stands, decals, stickers, covers, or laptop coolers reach the
+// product cards regardless of how the upstream search API classifies them.
+const LAPTOP_ACCESSORY_RE =
+  /(?:laptop\s+(?:skin|skins|sleeve|sleeves|cover|covers|case|cases|stand|stands|cooler|coolers|bag|bags|backpack|backpacks|sticker|stickers|decal|decals|charger|chargers|adapter|adapters|battery|batteries)|\bbackpack(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bsleeve(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bskin(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bsticker(?:s)?(?:\s+(?:for|of|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bdecal(?:s)?(?:\s+(?:for|of|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\breplacement\s+(?:battery|batteries|adapter|adapters|charger|chargers|keyboard|fan|fans|hinge|screen|hdd|ssd|ram|memory)|compatible\s+with\s+(?:laptop|notebook|macbook|gaming\s+laptop))/i;
+// Require at least one "true laptop" signal in the product text so we never
+// accept a generic accessory that mentions a laptop model name in passing.
+// Tokens here are intentionally NOT bare "laptop" — that single word is too
+// weak (a backpack or sleeve can include it as a noun, not a product type).
+// Require at least one "true laptop" signal in the product text so we never
+// accept a generic accessory that mentions a laptop model name in passing.
+// "laptop" is included as a fallback — the LAPTOP_ACCESSORY_RE check runs
+// first and excludes anything whose text looks like a skin/sleeve/backpack,
+// so the bare "laptop" token here is safe: products that survive that
+// check are real laptops, not accessories that happen to mention laptops.
+const LAPTOP_REQUIRED_TOKENS = [
+  "laptop",
+  "notebook",
+  "ultrabook",
+  "chromebook",
+  "macbook",
+  "macbook pro",
+  "macbook air",
+  "zenbook",
+  "vivobook",
+  "xps",
+  "rog ",
+  "tuf ",
+  "legion",
+  "ideapad",
+  "thinkpad",
+  "yoga",
+  "swift ",
+  "aspire",
+  "omen",
+  "predator",
+  "alienware",
+  "razer blade",
+  "msi ",
+  "nvidia rtx",
+  "geforce rtx",
+  "rtx 30",
+  "rtx 40",
+  "rtx 50",
+];
+// Gaming-laptop specific tokens: require a strong gaming signal so the page
+// never degrades to a generic laptop catalog (which would itself start
+// pulling in accessories once we relax the terms). Excludes bare "laptop".
+const GAMING_LAPTOP_REQUIRED_TOKENS = [
+  "gaming laptop",
+  "rog",
+  "legion",
+  "alienware",
+  "omen",
+  "predator",
+  "tuf",
+  "msi",
+  "razer blade",
+  "nvidia rtx",
+  "geforce rtx",
+  "rtx 30",
+  "rtx 40",
+  "rtx 50",
+];
+
 export function isCompleteRobotVacuum(product: Pick<LandingProduct, "name" | "brand" | "category">) {
   const text = [product.name, product.brand, product.category].filter(Boolean).join(" ");
   return (
@@ -381,8 +452,30 @@ export function isCompleteRobotVacuum(product: Pick<LandingProduct, "name" | "br
 
 function isExcludedAccessory(product: LandingProduct, config: SeoLandingPageConfig) {
   if (!config.excludeAccessories) return false;
+  const text = [product.name, product.brand, product.category].filter(Boolean).join(" ");
   if (config.searchCategory === "robot_vacuums") return !isCompleteRobotVacuum(product);
-  return PRODUCT_ACCESSORY_RE.test([product.name, product.brand, product.category].filter(Boolean).join(" "));
+  if (config.searchCategory === "gaming_laptops") {
+    // BUY-63381: never let laptop skins, sleeves, backpacks, decals, stickers,
+    // stands, or coolers reach the gaming laptop cards regardless of how the
+    // upstream search API classifies them. Also reject anything that fails
+    // the strict gaming-laptop required-token match — see
+    // `productMatchesRequiredTerms` for the AND-style filter.
+    if (LAPTOP_ACCESSORY_RE.test(text)) return true;
+    return !matchesAnyToken(text, GAMING_LAPTOP_REQUIRED_TOKENS);
+  }
+  if (config.searchCategory === "laptops") {
+    // Generic laptop landing pages should still exclude obvious accessories
+    // (skins, sleeves, backpacks, decals) so /laptop-singapore and /laptop-us
+    // don't drift into the same accessory noise.
+    if (LAPTOP_ACCESSORY_RE.test(text)) return true;
+    return !matchesAnyToken(text, LAPTOP_REQUIRED_TOKENS);
+  }
+  return PRODUCT_ACCESSORY_RE.test(text);
+}
+
+function matchesAnyToken(text: string, tokens: string[]) {
+  const haystack = text.toLowerCase();
+  return tokens.some((token) => haystack.includes(token.toLowerCase()));
 }
 
 function hasUsableLiveCard(product: LandingProduct) {
@@ -998,6 +1091,8 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "laptop",
+    searchCategory: "laptops",
+    excludeAccessories: true,
     backupQueries: ["MacBook laptop", "ASUS laptop", "Lenovo laptop", "Dell laptop"],
     minPrice: 300,
     requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
@@ -1066,7 +1161,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     },
     fallbackProducts: [
       { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: "https://store.storeimages.cdn-apple.com/4982/as-images.apple.com/is/macbook-air-13-m3-midnight-select-202402", href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
-      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://m.media-amazon.com/images/I/71HHF2jUnpL._AC_UL320_.jpg", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
+      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://dlcdnwebimgs.asus.com/gain/53d4a89d-7321-473b-bfc9-505466b60408/w800", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
       { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: "https://p1-ofp.static.pub/medias/bWFzdGVyfHJvb3R8MzAxNTMwfGltYWdlL3BuZ3xoNzkvaDhmLzE0MTkxMjY3ODk1MzI2LnBuZ3xhOGYyMWY3NTQzZWUxNzI5ZWRkMmM2OWM4MjA5MzFkYTY1NTMxZDE2MDEwNzI2NzI3ZjQ2OTAxNGYzODI5ZGYw/lenovo-yoga-7i-2-in-1-14-intel-hero.png", href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
       { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/s/w/swift-go-14-sfg14-72-silver-01.png", href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
       { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: "https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/page/uber/0125/xps-14-9440-laptop-800x620.png", href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
@@ -1087,6 +1182,8 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "gaming laptop",
+    searchCategory: "gaming_laptops",
+    excludeAccessories: true,
 backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator laptop", "gaming laptop NVIDIA RTX"],
     minPrice: 300,
     requiredProductTerms: ["gaming laptop", "laptop", "rog", "legion", "alienware", "omen", "predator", "tuf", "msi", "nvidia rtx"],
@@ -1617,6 +1714,11 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "gaming laptop",
+    searchCategory: "gaming_laptops",
+    excludeAccessories: true,
+    backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator laptop", "gaming laptop NVIDIA RTX"],
+    minPrice: 800,
+    requiredProductTerms: ["gaming laptop", "laptop", "rog", "legion", "alienware", "omen", "predator", "tuf", "msi", "nvidia rtx"],
     hreflangAlternates: { "en-US": "/best-gaming-laptops-us" },
     productSectionTitle: "Live gaming laptop deals across Singapore",
     comparisonSectionTitle: "Top gaming laptop picks at a glance",
@@ -12168,6 +12270,10 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Laptop",
+    searchCategory: "laptops",
+    excludeAccessories: true,
+    minPrice: 300,
+    requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
     productSectionTitle: "Live Laptop offers across the US",
     comparisonSectionTitle: "Popular Laptop picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],
