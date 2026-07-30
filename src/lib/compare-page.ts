@@ -41,6 +41,7 @@ type SearchLikeItem = {
   availability?: string | null;
   stock_status?: string | null;
   in_stock?: boolean | null;
+  is_available?: boolean | null;
   available?: boolean | null;
   last_updated?: string | null;
   updated_at?: string | null;
@@ -111,6 +112,16 @@ function normalizeAvailability(item: SearchLikeItem): Pick<ComparisonOffer, "ava
     return {
       availability: item.available ? "Available" : "Unavailable",
       inStock: item.available,
+    };
+  }
+
+  // BUY-65450: /v1/products/search returns `is_available` (bool), not `in_stock`.
+  // Without this branch every compare row rendered "Availability unknown" even
+  // when the API explicitly said the product was for sale.
+  if (typeof item.is_available === "boolean") {
+    return {
+      availability: item.is_available ? "In stock" : "Out of stock",
+      inStock: item.is_available,
     };
   }
 
