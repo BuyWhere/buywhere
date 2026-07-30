@@ -59,10 +59,10 @@ export function HomeProductSearch() {
         className="grid gap-3"
         noValidate
       >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch lg:gap-3">
           <div className="relative min-w-0 flex-1">
             <Search
-              className="pointer-events-none absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-indigo-100"
+              className="pointer-events-none absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-white"
               aria-hidden="true"
             />
             <input
@@ -74,8 +74,8 @@ export function HomeProductSearch() {
                   setError('');
                 }
               }}
-              placeholder="Search products (e.g. wireless headphones)..."
-              className="w-full rounded-xl border-2 border-white/20 bg-white/10 py-5 pl-14 pr-4 text-lg text-white placeholder-indigo-200 transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20"
+              placeholder="Search products..."
+              className="search-input w-full rounded-xl border-2 border-white/20 bg-white/10 py-5 pl-14 pr-4 text-lg text-white placeholder-white transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20"
               aria-label="Search products"
               aria-invalid={Boolean(error)}
               aria-describedby={error ? errorId : undefined}
@@ -89,7 +89,7 @@ export function HomeProductSearch() {
               setCountry(event.target.value as CountryValue);
               setCountryTouched(true);
             }}
-            className="h-[66px] w-full shrink-0 rounded-xl border-2 border-white/20 bg-white/10 px-4 text-base font-medium text-white transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20 sm:w-44"
+            className="h-[66px] w-full shrink-0 rounded-xl border-2 border-white/20 bg-white/10 px-4 text-base font-medium text-white transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20 lg:w-36"
             aria-label="Search country"
           >
             {countryOptions.map((option) => (
@@ -101,7 +101,7 @@ export function HomeProductSearch() {
 
           <button
             type="submit"
-            className="inline-flex h-[66px] shrink-0 items-center justify-center whitespace-nowrap rounded-xl bg-white px-6 text-base font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 sm:w-auto sm:min-w-[12rem]"
+            className="inline-flex h-[66px] shrink-0 items-center justify-center whitespace-nowrap rounded-xl bg-white px-5 text-base font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 lg:w-auto lg:min-w-[10rem]"
           >
             Search catalog
           </button>
@@ -113,7 +113,7 @@ export function HomeProductSearch() {
               {error}
             </p>
           ) : (
-            <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-indigo-100">
+            <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-white">
               <span>Try</span>
               {exampleQueries.map((example) => (
                 <button

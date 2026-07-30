@@ -75,16 +75,12 @@ export default function Nav() {
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg text-indigo-600" aria-label="BuyWhere Home">
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <rect width="28" height="28" rx="6" fill="#4f46e5" />
-            <path d="M7 10h14M7 14h10M7 18h12" stroke="white" strokeWidth="2" strokeLinecap="round" />
-          </svg>
+        <Link href="/" className="font-bold text-lg text-indigo-600" aria-label="BuyWhere Home">
           <span>BuyWhere</span>
         </Link>
 
         {/* Desktop nav */}
-        <nav id="main-navigation" className="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600" aria-label="Main navigation">
+        <nav id="main-navigation" className="hidden lg:flex items-center gap-6 text-sm font-medium text-gray-600" aria-label="Main navigation">
           <DevDropdown />
           <Link href="/challenge" className="hover:text-indigo-600 transition-colors">Challenge</Link>
           <Link href="/merchants" className="hover:text-indigo-600 transition-colors">Merchants</Link>
@@ -102,7 +98,7 @@ export default function Nav() {
 
         {/* Mobile hamburger — always rendered so SSR and CSR match. CSS hides on lg+ screens. */}
         <button
-          className="md:hidden p-2 rounded-lg hover:bg-gray-100"
+          className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
           onClick={() => setOpen(!open)}
           aria-label={open ? "Close menu" : "Open menu"}
           aria-expanded={open}
@@ -122,7 +118,7 @@ export default function Nav() {
       {open && (
         <nav
           id="mobile-nav"
-          className="md:hidden border-t border-gray-100 bg-white px-4 pb-4 flex flex-col gap-1 text-sm font-medium text-gray-700"
+          className="lg:hidden border-t border-gray-100 bg-white px-4 pb-4 flex flex-col gap-1 text-sm font-medium text-gray-700"
           aria-label="Mobile navigation"
         >
           {/* Developer section */}

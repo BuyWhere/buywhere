@@ -32,6 +32,7 @@ config.redis.on = () => {};
 function makeProduct(id, overrides = {}) {
   return {
     id, sku: `src_${id}`, source: overrides.source || 'shopee_sg',
+    domain: overrides.domain || overrides.source || 'shopee_sg',
     title: overrides.title || `Product ${id}`,
     price: overrides.price ?? 99.99, currency: overrides.currency || 'SGD',
     url: `https://x.com/p${id}`, image_url: overrides.image_url || null,
@@ -133,7 +134,7 @@ describe('MCP JSON-RPC — public methods (no auth)', () => {
     assert.equal(body.result.serverInfo.version, '1.0.0');
   });
 
-  it('tools/list returns tool manifest with all 6 tools', async () => {
+  it('tools/list returns tool manifest with all 8 tools', async () => {
     const res = await fetch(`http://localhost:${port}/mcp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -147,7 +148,7 @@ describe('MCP JSON-RPC — public methods (no auth)', () => {
     assert.ok(Array.isArray(body.result.tools));
 
     const toolNames = body.result.tools.map(t => t.name);
-    const expected = ['search_products', 'get_product', 'compare_products', 'get_deals', 'list_categories', 'find_best_price'];
+    const expected = ['search_products', 'get_product', 'compare_products', 'get_deals', 'list_categories', 'find_best_price', 'find_similar', 'ingest_products'];
     for (const name of expected) {
       assert.ok(toolNames.includes(name), `Missing tool: ${name}`);
     }
@@ -190,20 +191,20 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     assert.equal(body.result.content[0].type, 'text');
 
     const data = JSON.parse(body.result.content[0].text);
-    assert.ok(Array.isArray(data.results));
-    assert.equal(data.results.length, 2);
-    assert.equal(data.results[0].title, 'Gaming Laptop');
-    assert.equal(data.results[0].price.amount, 1299);
-    assert.ok(typeof data.response_time_ms === 'number');
+    assert.ok(Array.isArray(data.data));
+    assert.equal(data.data.length, 2);
+    assert.equal(data.data[0].title, 'Gaming Laptop');
+    assert.equal(data.data[0].price.amount, 1299);
+    assert.ok(typeof data.meta.response_time_ms === 'number');
   });
 
-  it('search_products enforces SG default country_code', async () => {
+  it('search_products passes country_code filter when provided', async () => {
     await fetch(`http://localhost:${port}/mcp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
       body: JSON.stringify({
         jsonrpc: '2.0', id: 11, method: 'tools/call',
-        params: { name: 'search_products', arguments: { q: 'laptop' } },
+        params: { name: 'search_products', arguments: { q: 'laptop', country_code: 'SG' } },
       }),
     });
 
@@ -239,9 +240,9 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     });
     const body = await res.json();
     const data = JSON.parse(body.result.content[0].text);
-    assert.equal(data.results[0].canonical_id, '1');
-    assert.ok(data.results[0].normalized_price_usd != null);
-    assert.ok(Array.isArray(data.results[0].comparison_attributes));
+    assert.equal(data.data[0].canonical_id, '1');
+    assert.ok(data.data[0].normalized_price_usd != null);
+    assert.ok(Array.isArray(data.data[0].comparison_attributes));
   });
 
   it('get_product returns single product', async () => {
@@ -267,9 +268,9 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     });
     const body = await res.json();
     const data = JSON.parse(body.result.content[0].text);
-    assert.equal(data.results[0].id, 'abc-123');
-    assert.equal(data.results[0].title, 'Specific Product');
-    assert.equal(data.results[0].price.amount, 199.99);
+    assert.equal(data.data[0].id, 'abc-123');
+    assert.equal(data.data[0].title, 'Specific Product');
+    assert.equal(data.data[0].price.amount, 199.99);
   });
 
   it('get_product returns error for missing product', async () => {
@@ -323,9 +324,9 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     });
     const body = await res.json();
     const data = JSON.parse(body.result.content[0].text);
-    assert.equal(data.results.length, 2);
-    assert.equal(data.results[0].title, 'Phone A');
-    assert.equal(data.results[1].title, 'Phone B');
+    assert.equal(data.data.length, 2);
+    assert.equal(data.data[0].title, 'Phone A');
+    assert.equal(data.data[1].title, 'Phone B');
   });
 
   it('compare_products rejects fewer than 2 IDs', async () => {
@@ -581,10 +582,10 @@ describe('MCP JSON-RPC — caching behavior', () => {
     const cachedResponse = {
       results: [makeProduct('cached-1', { title: 'Cached Item', price: 42 })],
       total: 1, page: { limit: 20, offset: 0 },
-      response_time_ms: 3, cached: true,
+      response_time_ms: 3, cached: false,
     };
     redisGetMock.mock.mockImplementation((key) => {
-      if (typeof key === 'string' && key.includes('fts:')) {
+      if (typeof key === 'string' && key.startsWith('fts:') && key.includes(':cached:')) {
         return Promise.resolve(JSON.stringify(cachedResponse));
       }
       return Promise.resolve(null);
@@ -683,6 +684,6 @@ describe('MCP JSON-RPC — protocol compliance', () => {
     });
     const body = await res.json();
     const data = JSON.parse(body.result.content[0].text);
-    assert.equal(data.page.limit, 100);
+    assert.equal(data.meta.limit, 100);
   });
 });

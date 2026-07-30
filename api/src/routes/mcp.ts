@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { db, redis, vectorDb, replicaDb } from '../config';
+import { db, redis, vectorDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -187,81 +187,6 @@ async function probeDiscountPctColumn(): Promise<boolean> {
 probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() => {});
 
 // Tool handlers
-// ── Search-tier query for MCP (parity with REST products.ts). Serves keyword
-// search from the RAM-fitting search_products tier with AND-first-then-OR and
-// ts_rank relevance ordering (composite gin(country_code,search_vector) keeps
-// broad+country fast). Returns a response object on success, or null so the
-// caller falls through to the archive path (hybrid — zero recall risk).
-async function runTierSearch(p: {
-  q: string; country: string; domain: string; category: string;
-  minPrice: number | null; maxPrice: number | null; limit: number; offset: number;
-  compact: boolean; currency: string; t0: number;
-}): Promise<Record<string, unknown> | null> {
-  const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
-  if (lexemes.length === 0) return null;
-  const tsOr = lexemes.join(' | ');
-
-  const conds: string[] = [];
-  const params: unknown[] = [];
-  let i = 1;
-  const qIdx = i; params.push(p.q); i++;
-  const orIdx = i; params.push(tsOr); i++;
-  if (p.country) { conds.push(`sp.country_code = $${i}`); params.push(p.country.toUpperCase()); i++; }
-  if (p.minPrice != null && Number.isFinite(p.minPrice)) { conds.push(`sp.price >= $${i}`); params.push(p.minPrice); i++; }
-  if (p.maxPrice != null && Number.isFinite(p.maxPrice)) { conds.push(`sp.price <= $${i}`); params.push(p.maxPrice); i++; }
-  if (p.domain) { conds.push(`sp.source = $${i}`); params.push(p.domain); i++; }
-  if (p.category) { conds.push(`lower(regexp_replace(coalesce(sp.category,''),'\\s+','-','g')) = lower($${i})`); params.push(p.category); i++; }
-  const filterSql = conds.length ? ' AND ' + conds.join(' AND ') : '';
-  const limitIdx = i; params.push(p.limit); i++;
-  const offsetIdx = i; params.push(p.offset); i++;
-
-  const cols = `sp.id, sp.sku AS source, sp.source AS domain, sp.url, sp.title, sp.price, sp.currency,
-    sp.image_url,
-    jsonb_build_object('brand', sp.brand, 'category', sp.category,
-      'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata,
-    sp.updated_at, sp.region, sp.country_code, sp.in_stock`;
-
-  const mkQuery = (match: string) => `
-    WITH top AS (
-      SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) AS rank
-      FROM search_products sp
-      WHERE ${match}${filterSql}
-      ORDER BY rank DESC
-      LIMIT 200
-    )
-    SELECT ${cols}, top.rank AS _fts_rank
-    FROM top JOIN search_products sp ON sp.id = top.id
-    ORDER BY top.rank DESC
-    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
-
-  const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
-  const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
-
-  const pool = replicaDb ?? db;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query(`SET LOCAL statement_timeout = '4000'`);
-    await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
-    await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`); // fuzzy sampling breaks multi-word AND
-    let rows = (await client.query(mkQuery(andMatch), params)).rows;
-    if (rows.length === 0 && lexemes.length > 1) {
-      rows = (await client.query(mkQuery(orMatch), params)).rows;
-    }
-    await client.query('COMMIT');
-    const products = (rows as Record<string, unknown>[]).map((r) => buildProduct(r, p.currency, p.compact));
-    const total = p.offset + rows.length;
-    const resp = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.t0, false) as unknown as Record<string, unknown>;
-    resp.source = 'search_products_tier';
-    return resp;
-  } catch (e) {
-    try { await client.query('ROLLBACK'); } catch (_) { /* ignore */ }
-    throw e;
-  } finally {
-    releaseClientSafely(client);
-  }
-}
-
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
   const q = (args.q as string) || '';
@@ -285,7 +210,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const compact = args.compact === true;
   const currency = country ? (COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
 
-  const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
+  const cacheKey = `fts:v7:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
   try {
     const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
     if (cached) {
@@ -295,19 +220,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
       }
     }
   } catch (_) { /* redis miss — proceed */ }
-
-  // ── SEARCH TIER fast-path (gated by SEARCH_USE_TIER). Keyword search only; the
-  // vector/hybrid path is unchanged. On any error, fall through to the archive
-  // path below (hybrid — zero recall risk).
-  if (q && !useVector && process.env.SEARCH_USE_TIER === '1') {
-    const tierRes = await runTierSearch({
-      q, country, domain, category, minPrice, maxPrice, limit, offset, compact, currency, t0,
-    }).catch((e) => { console.warn('[mcp tier] fell back to archive:', (e as Error)?.message); return null; });
-    if (tierRes) {
-      try { await redis.set(cacheKey, JSON.stringify(tierRes), 'EX', 3600); } catch (_) { /* non-fatal */ }
-      return tierRes;
-    }
-  }
 
   const conditions: string[] = ['is_active = true'];
   const params: unknown[] = [];
@@ -360,7 +272,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
     // complete within 12s via GIN index; anything longer signals plan regression or
     // pool exhaustion. Failing fast prevents cascading connection starvation.
-    await searchClient.query('SET statement_timeout = 18000');
+    await searchClient.query('SET statement_timeout = 12000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
     const COUNT_CAP = 1001;
     if (q) {
@@ -394,14 +306,16 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           if (mode === 'semantic') {
             // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
             try {
+              // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
               const vecRows = await vectorDb.query<{ product_id: string }>(
                 `SELECT product_id FROM product_embeddings
+                 WHERE model_ver = 'gemini-embedding-001@512'
                  ORDER BY embedding <=> $1::vector LIMIT 200`,
                 [queryVec]
               );
               vectorCandidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
             } catch (vecErr) {
-              // BUY-65474: dimension mismatch (512 vs 1024) — fall through to FTS
+              // BUY-65474: dimension mismatch or other error — fall through to FTS
               console.warn('[search] vector query failed, falling back to FTS:', (vecErr as Error).message);
               vectorCandidateIds = null;
             }
@@ -410,8 +324,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             let vecRows: { product_id: string }[] = [];
             let ftsRows: { id: string }[] = [];
             try {
+              // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
               const vecResult = await vectorDb.query<{ product_id: string }>(
-                `SELECT product_id FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT 200`,
+                `SELECT product_id FROM product_embeddings
+                 WHERE model_ver = 'gemini-embedding-001@512'
+                 ORDER BY embedding <=> $1::vector LIMIT 200`,
                 [queryVec]
               );
               vecRows = vecResult.rows;
@@ -590,7 +507,13 @@ async function handleCompareProducts(args: Record<string, unknown>) {
   if (validIds.length > 10) {
     throw { code: -32602, message: 'Provide at most 10 valid product IDs' };
   }
-  const placeholders = validIds.map((_, i) => `$${i + 1}`).join(',');
+  // BUY-26210: filter to numeric IDs only (products.id is bigint); non-numeric
+  // strings like UUIDs cause Postgres type errors in the WHERE IN clause.
+  const numericIds = validIds.filter((id) => /^\d+$/.test(id));
+  if (numericIds.length < 2) {
+    throw { code: -32001, message: 'Products not found' };
+  }
+  const placeholders = numericIds.map((_, i) => `$${i + 1}`).join(',');
   let result;
   try {
     result = await db.query(
@@ -598,9 +521,12 @@ async function handleCompareProducts(args: Record<string, unknown>) {
               price, currency, image_url, brand, category_path,
               avg_rating AS rating, review_count, metadata, updated_at, region, country_code
        FROM products WHERE id IN (${placeholders})`,
-      validIds
+      numericIds
     );
   } catch {
+    throw { code: -32001, message: 'Products not found' };
+  }
+  if (!result.rows.length) {
     throw { code: -32001, message: 'Products not found' };
   }
   const products = result.rows.map((r: Record<string, unknown>) => buildProduct(r, 'SGD', false));
@@ -687,12 +613,32 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // recent active window via the updated_at path, then filter/order the small
     // candidate set. Acceptance needs non-empty regional deals under 5s, not an
     // exact global count.
-    await dealsClient.query('SET statement_timeout = 20000');
+    // BUY-65298: the subquery must filter by country INSIDE the ordered scan so
+    // the 50k-row window is relevant to the requested region. Previously the
+    // unfiltered subquery returned recent GLOBAL products whose currency did not
+    // match, resulting in empty results and cascading timeouts for every region.
+    await dealsClient.query('SET statement_timeout = 4500');
     const candidateLimit = Math.max((limit + offset) * 200, 5000);
-    const candidateParams = [candidateLimit, ...params, limit, offset];
-    const filterConditions = conditions.map((condition) =>
-      condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`)
-    ).join(' AND ');
+    // Build the inner (subquery) WHERE — includes country filter so the
+    // updated_at scan is scoped to the requested region, not random recent rows.
+    const innerConditions = ['is_active = true', 'price > 0'];
+    if (effectiveCountry) {
+      innerConditions.push(`country_code = $1`);
+    }
+    const innerWhere = innerConditions.join(' AND ');
+    // BUY-65475: candidateLimit must be bound as a positional parameter so the
+    // inner LIMIT resolves to a bigint. Previously the LIMIT placeholder
+    // ($${innerParams.length+1}) resolved to the currency/country text param.
+    const innerParams: unknown[] = effectiveCountry
+      ? [effectiveCountry, candidateLimit]
+      : [candidateLimit];
+    // Build the outer WHERE from the discount/currency conditions with re-indexed
+    // positional parameters ($1..$N inside → $N+1.. in the outer query).
+    const outerParamsStart = innerParams.length + 1;
+    const outerConditions = conditions.map((condition) =>
+      condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + outerParamsStart}`)
+    );
+    const outerParams = [...innerParams, ...params, Number(limit) || 20, Number(offset) || 0];
     const dataResult = await dealsClient.query(
       `SELECT id, source, domain, url, title, price, original_price,
               currency, image_url, metadata, updated_at, region, country_code,
@@ -705,14 +651,14 @@ async function handleGetDeals(args: Record<string, unknown>) {
                 currency, image_url, metadata, updated_at, region, country_code, is_active,
                 ${discountSelect}
          FROM products
-         WHERE is_active = true AND price > 0
+         WHERE ${innerWhere}
          ORDER BY updated_at DESC
-         LIMIT $1::int
+         LIMIT $${innerParams.length}::int
        ) _recent_deals
-       WHERE ${filterConditions}
+       WHERE ${outerConditions.join(' AND ')}
        ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
-       LIMIT $${candidateParams.length - 1}::int OFFSET $${candidateParams.length}::int`,
-      candidateParams
+       LIMIT $${outerParams.length - 1}::int OFFSET $${outerParams.length}::int`,
+      outerParams
     );
     total = dataResult.rows.length;
     products = dataResult.rows.map((r: Record<string, unknown>) =>
@@ -736,7 +682,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
            AND country_code = $1
            AND search_vector @@ plainto_tsquery('english', $2)
          LIMIT $3`,
-        [effectiveCountry, fallbackQuery, limit]
+        [effectiveCountry, fallbackQuery, Number(limit) || 20]
       );
       total = fallbackResult.rows.length;
       products = fallbackResult.rows.map((r: Record<string, unknown>) =>
@@ -756,7 +702,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     (result as { unavailable?: boolean }).unavailable = true;
   }
 
-  redis.set(cacheKey, JSON.stringify(result), 'EX', 300).catch(() => {});
+  redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
 
   return result;
 }
@@ -825,16 +771,20 @@ async function handleListCategories(args: Record<string, unknown>) {
         // BUY-60056: materialized view is empty/stale in production. Instead of
         // returning unavailable or running a full-table GROUP BY, sample recent
         // products through the updated_at path and derive a bounded category list.
+        // BUY-65477: Also check `category` column as fallback since category_path
+        // may be empty but category column is populated.
         const fallbackResult = await client.query(
           `SELECT slug, slug AS name, COUNT(*)::int AS product_count
            FROM (
-             SELECT category_path, country_code
-             FROM products
-             ORDER BY updated_at DESC
-             LIMIT 50000
+               SELECT category_path, category, country_code
+               FROM products
+               ORDER BY updated_at DESC
+               LIMIT 50000
            ) _recent_categories
-           CROSS JOIN LATERAL (SELECT category_path[1] AS slug) _cat
-           WHERE country_code = $1 AND slug IS NOT NULL
+           CROSS JOIN LATERAL (
+               SELECT COALESCE(category_path[1], NULLIF(lower(regexp_replace(category, '\\s+', '-', 'g')), '')) AS slug
+           ) _cat
+           WHERE country_code = $1 AND slug IS NOT NULL AND slug <> ''
            GROUP BY slug
            ORDER BY product_count DESC
            LIMIT 100`,
@@ -877,7 +827,17 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const productName = (args.product_name as string) || '';
   if (!productName) throw { code: -32602, message: 'product_name is required' };
 
-  const country = (((args.country_code as string) || (args.country as string)) || 'SG').toUpperCase();
+  // BUY-65298: derive country from region when only region is supplied. The
+  // previous code hard-fell back to SG for any region other than 'us' or for
+  // callers omitting country_code, causing region=us callers to sometimes get
+  // SG rows/SGD prices depending on how the request was serialized.
+  const REGION_TO_COUNTRY: Record<string, string> = {
+    us: 'US',
+    sea: 'SG',
+  };
+  const regionRaw = ((args.region as string) || '').toLowerCase();
+  const regionDerived = REGION_TO_COUNTRY[regionRaw] || '';
+  const country = (((args.country_code as string) || (args.country as string)) || regionDerived || 'SG').toUpperCase();
   const region = (args.region as string) || '';
   const category = (args.category as string) || '';
   const limit = 10;
@@ -895,11 +855,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   });
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 12000');
+    await bestPriceClient.query('SET statement_timeout = 4500');
     // BUY-60056: fetch a bounded FTS candidate set first, then apply the
     // requested country filter in the outer query. This avoids the slow
     // country+FTS plan that timed out for US, while preserving region metadata.
-    const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
+    // BUY-65298: `country` already incorporates region→country derivation above,
+    // so use it directly instead of re-deriving through `requestedCountry`.
     const titlePattern = `%${productName}%`;
     result = await bestPriceClient.query(
       `SELECT * FROM (
@@ -914,7 +875,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          AND title ILIKE $3
        ORDER BY price ASC, updated_at DESC
        LIMIT $4::int`,
-      [50000, requestedCountry, titlePattern, limit]
+      [50000, country, titlePattern, limit]
     );
     // BUY-65474: no fallback for unrelated products. If title has no ILIKE match,
     // return an empty result rather than misleading cheapest products (e.g. bike
@@ -924,7 +885,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     releaseClientSafely(bestPriceClient);
   }
 
-  const currency = COUNTRY_CURRENCY[country || (region.toLowerCase() === 'us' ? 'US' : 'SG')] || 'SGD';
+  const currency = COUNTRY_CURRENCY[country] || 'SGD';
   const rates = getCachedFxRates();
   const toUsd = rates[currency] ?? CURRENCY_RATES[currency] ?? 1;
 
@@ -1245,8 +1206,10 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   // Step 1: get reference embedding from vector DB
   let refResult;
   try {
+    // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
     refResult = await vectorDb.query<{ embedding: string }>(
-      `SELECT embedding::text FROM product_embeddings WHERE product_id = $1`,
+      `SELECT embedding::text FROM product_embeddings
+       WHERE product_id = $1 AND model_ver = 'gemini-embedding-001@512'`,
       [productId]
     );
   } catch {
@@ -1258,11 +1221,13 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   const refEmbedding = refResult.rows[0].embedding;
 
   // Step 2: find nearest neighbours in vector DB (excluding source product)
+  // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
   let nearResult;
   try {
     nearResult = await vectorDb.query<{ product_id: string; distance: number }>(
       `SELECT product_id, (embedding <=> $1::vector)::float AS distance
-       FROM product_embeddings WHERE product_id != $2
+       FROM product_embeddings
+       WHERE product_id != $2 AND model_ver = 'gemini-embedding-001@512'
        ORDER BY distance LIMIT $3`,
       [refEmbedding, productId, limit]
     );

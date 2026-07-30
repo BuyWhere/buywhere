@@ -446,6 +446,70 @@ END
 $$;
 `;
 
+function quoteIdentifier(identifier: string): string {
+  return `"${identifier.replace(/"/g, '""')}"`;
+}
+
+function quoteQualifiedIdentifier(qualifiedIdentifier: string): string {
+  return qualifiedIdentifier.split('.').map(quoteIdentifier).join('.');
+}
+
+async function ensureStrictDealsIndexes() {
+  const partitions = await db.query(
+    `SELECT c.oid::regclass::text AS table_name
+       FROM pg_inherits i
+       JOIN pg_class c ON c.oid = i.inhrelid
+      WHERE i.inhparent = 'public.products'::regclass
+      ORDER BY c.oid::regclass::text`
+  );
+  const targetTables = partitions.rows.length > 0
+    ? partitions.rows.map((row: { table_name: string }) => row.table_name)
+    : ['public.products'];
+
+  for (const tableName of targetTables) {
+    const safeSuffix = tableName.replace(/^public\./, '').replace(/[^a-zA-Z0-9_]/g, '_');
+    const quotedTableName = quoteQualifiedIdentifier(tableName);
+    const expectedIndexes = [
+      {
+        name: `idx_buy64112_deals_country_${safeSuffix}`,
+        tableName,
+        createSql: `
+          CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy64112_deals_country_${safeSuffix}
+            ON ${quotedTableName} (currency, country_code, discount_pct DESC)
+            WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
+              AND country_code IS NOT NULL
+        `,
+      },
+      {
+        name: `idx_buy64112_deals_region_${safeSuffix}`,
+        tableName,
+        createSql: `
+          CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy64112_deals_region_${safeSuffix}
+            ON ${quotedTableName} (currency, region, discount_pct DESC)
+            WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
+              AND region IS NOT NULL
+        `,
+      },
+    ];
+
+    for (const expectedIndex of expectedIndexes) {
+      try {
+        const client = await db.connect();
+        try {
+          await client.query('SET statement_timeout = 1800000');
+          await client.query('SET lock_timeout = 60000');
+          await client.query(expectedIndex.createSql);
+          console.log(`[migration] ${expectedIndex.name} verified for ${expectedIndex.tableName}.`);
+        } finally {
+          client.release();
+        }
+      } catch (err: any) {
+        console.warn(`[migration] ${expectedIndex.name} strict index verify failed (non-fatal): ${err.message?.slice(0, 200)}`);
+      }
+    }
+  }
+}
+
 export async function runMigrations() {
   console.log('Running migrations...');
 
@@ -619,6 +683,12 @@ export async function runMigrations() {
   } catch (err: any) {
     console.warn(`[migration] Index dedup step failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
+
+  // BUY-64112: repair stale deal indexes before the legacy generated-column gate
+  // below. Production has a populated plain discount_pct column; even if converting
+  // it to GENERATED is deferred/fails, strict get_deals must still use the column
+  // index path instead of seq-scanning the live products table.
+  await ensureStrictDealsIndexes();
 
   // BUY-22324: discount_pct GENERATED STORED column — must detect and fix a plain
   // (non-generated) column left by a prior migration failure.

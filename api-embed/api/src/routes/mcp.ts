@@ -306,8 +306,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
 
           if (mode === 'semantic') {
             // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
+            // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
             const vecRows = await vectorDb.query<{ product_id: string }>(
               `SELECT product_id FROM product_embeddings
+               WHERE model_ver = 'gemini-embedding-001@512'
                ORDER BY embedding <=> $1::vector LIMIT 200`,
               [queryVec]
             );
@@ -319,8 +321,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
                 `SELECT id FROM products ${where} LIMIT 200`,
                 params
               ),
+              // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
               vectorDb.query<{ product_id: string }>(
-                `SELECT product_id FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT 200`,
+                `SELECT product_id FROM product_embeddings
+                 WHERE model_ver = 'gemini-embedding-001@512'
+                 ORDER BY embedding <=> $1::vector LIMIT 200`,
                 [queryVec]
               ),
             ]);
@@ -513,7 +518,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
 
-  const cacheKey = `deals_mcp:${currency}:${minDiscount}:${region}:${country}:${limit}:${offset}`;
+  const cacheKey = `deals_mcp:buy64112-strict:${currency}:${minDiscount}:${region}:${country}:${limit}:${offset}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -555,7 +560,6 @@ async function handleGetDeals(args: Record<string, unknown>) {
     conditions.push(`country_code = $${params.length}`);
   }
 
-  const whereClause = conditions.join(' AND ');
 
   const discountSelect = useDiscountCol
     ? 'discount_pct'
@@ -575,67 +579,30 @@ async function handleGetDeals(args: Record<string, unknown>) {
     throw { code: -32603, message: 'Database unavailable' };
   });
   try {
-    // BUY-60056: avoid the slow COUNT + full filtered discount sort that can
-    // monopolize a pool connection for the caller's whole 30s window. Sample a
-    // recent active window via the updated_at path, then filter/order the small
-    // candidate set. Acceptance needs non-empty regional deals under 5s, not an
-    // exact global count.
-    await dealsClient.query('SET statement_timeout = 4500');
-    const candidateLimit = Math.max((limit + offset) * 200, 5000);
-    const candidateParams = [candidateLimit, ...params, limit, offset];
-    const filterConditions = conditions.map((condition) =>
-      condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`)
-    ).join(' AND ');
+    // BUY-64112: use the strict discount predicate directly so the planner can
+    // use the production discount/country index and never return fallback rows.
+    await dealsClient.query('SET statement_timeout = 10000');
     const dataResult = await dealsClient.query(
       `SELECT id, source, domain, url, title, price, original_price,
               currency, image_url, metadata, updated_at, region, country_code,
               discount_pct
        FROM (
-         SELECT id, sku AS source, source AS domain, url, title,
-                price,
+         SELECT id, sku AS source, source AS domain, url, title, price,
                 CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
-                     THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
-                currency, image_url, metadata, updated_at, region, country_code, is_active,
+                  THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
+                currency, image_url, metadata, updated_at, region, country_code,
                 ${discountSelect}
          FROM products
-         WHERE is_active = true AND price > 0
-         ORDER BY updated_at DESC
-         LIMIT $1
-       ) _recent_deals
-       WHERE ${filterConditions}
-       ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
-       LIMIT $${candidateParams.length - 1} OFFSET $${candidateParams.length}`,
-      candidateParams
+         WHERE ${conditions.join(' AND ')}
+       ) _deals
+       ORDER BY ${discountOrder}, updated_at DESC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
     );
     total = dataResult.rows.length;
     products = dataResult.rows.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
-    if (products.length === 0 && effectiveCountry) {
-      // BUY-60056: many live rows lack original_price/discount metadata, so the
-      // strict discount filter can be empty even while the regional catalog is
-      // healthy. Return a bounded recent regional sample instead of a timeout or
-      // empty response; callers still get product/country metadata under 5s.
-      // BUY-60068: extend the fallback to fire whenever a region-derived country
-      // exists, not only when country_code is explicitly passed.
-      const fallbackQuery = effectiveCountry === 'US' ? 'watch' : 'laptop';
-      const fallbackResult = await dealsClient.query(
-        `SELECT id, sku AS source, source AS domain, url, title,
-                price, NULL::numeric AS original_price, currency, image_url,
-                metadata, updated_at, region, country_code, 0::numeric AS discount_pct
-         FROM products
-         WHERE is_active = true
-           AND price > 0
-           AND country_code = $1
-           AND search_vector @@ plainto_tsquery('english', $2)
-         LIMIT $3`,
-        [effectiveCountry, fallbackQuery, limit]
-      );
-      total = fallbackResult.rows.length;
-      products = fallbackResult.rows.map((r: Record<string, unknown>) =>
-        buildProduct(r, currency, false)
-      );
-    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);
@@ -649,7 +616,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     (result as { unavailable?: boolean }).unavailable = true;
   }
 
-  redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
+  redis.set(cacheKey, JSON.stringify(result), 'EX', 300).catch(() => {});
 
   return result;
 }
@@ -718,16 +685,20 @@ async function handleListCategories(args: Record<string, unknown>) {
         // BUY-60056: materialized view is empty/stale in production. Instead of
         // returning unavailable or running a full-table GROUP BY, sample recent
         // products through the updated_at path and derive a bounded category list.
+        // BUY-65477: Also check `category` column as fallback since category_path
+        // may be empty but category column is populated.
         const fallbackResult = await client.query(
           `SELECT slug, slug AS name, COUNT(*)::int AS product_count
            FROM (
-             SELECT category_path, country_code
-             FROM products
-             ORDER BY updated_at DESC
-             LIMIT 50000
+               SELECT category_path, category, country_code
+               FROM products
+               ORDER BY updated_at DESC
+               LIMIT 50000
            ) _recent_categories
-           CROSS JOIN LATERAL (SELECT category_path[1] AS slug) _cat
-           WHERE country_code = $1 AND slug IS NOT NULL
+           CROSS JOIN LATERAL (
+               SELECT COALESCE(category_path[1], NULLIF(lower(regexp_replace(category, '\\s+', '-', 'g')), '')) AS slug
+           ) _cat
+           WHERE country_code = $1 AND slug IS NOT NULL AND slug <> ''
            GROUP BY slug
            ORDER BY product_count DESC
            LIMIT 100`,
@@ -1146,10 +1117,12 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   }
 
   // Step 1: get reference embedding from vector DB
+  // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
   let refResult;
   try {
     refResult = await vectorDb.query<{ embedding: string }>(
-      `SELECT embedding::text FROM product_embeddings WHERE product_id = $1`,
+      `SELECT embedding::text FROM product_embeddings
+       WHERE product_id = $1 AND model_ver = 'gemini-embedding-001@512'`,
       [productId]
     );
   } catch {
@@ -1161,11 +1134,13 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   const refEmbedding = refResult.rows[0].embedding;
 
   // Step 2: find nearest neighbours in vector DB (excluding source product)
+  // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
   let nearResult;
   try {
     nearResult = await vectorDb.query<{ product_id: string; distance: number }>(
       `SELECT product_id, (embedding <=> $1::vector)::float AS distance
-       FROM product_embeddings WHERE product_id != $2
+       FROM product_embeddings
+       WHERE product_id != $2 AND model_ver = 'gemini-embedding-001@512'
        ORDER BY distance LIMIT $3`,
       [refEmbedding, productId, limit]
     );

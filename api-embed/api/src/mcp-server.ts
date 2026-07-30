@@ -92,13 +92,17 @@ async function warmupMcpCaches() {
     await client.query(`
       CREATE MATERIALIZED VIEW IF NOT EXISTS mcp_category_summary_by_country AS
         SELECT country_code,
-               category_path[1] AS slug,
-               category_path[1] AS name,
-               COUNT(*)         AS product_count
-        FROM products
-        WHERE country_code IS NOT NULL
-          AND category_path[1] IS NOT NULL
-        GROUP BY country_code, category_path[1]
+               slug,
+               slug AS name,
+               COUNT(*) AS product_count
+        FROM (
+          SELECT country_code,
+                 COALESCE(category_path[1], NULLIF(lower(regexp_replace(category, '\\s+', '-', 'g')), '')) AS slug
+          FROM products
+          WHERE country_code IS NOT NULL
+        ) _cat
+        WHERE slug IS NOT NULL AND slug <> ''
+        GROUP BY country_code, slug
         ORDER BY country_code, product_count DESC
     `);
 

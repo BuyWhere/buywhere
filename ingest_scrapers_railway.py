@@ -54,6 +54,7 @@ UPSERT_SQL = """
         metadata = EXCLUDED.metadata,
         updated_at = NOW(),
         data_updated_at = NOW()
+    RETURNING (xmax = 0) AS inserted
 """
 
 
@@ -134,8 +135,22 @@ def finish_ingestion_run(cur, run_id: int | None, inserted: int, updated: int, f
         print(f"  Warning: failed to update ingestion_run id={run_id}: {e}")
 
 
+def ingest_batch(cur, batch: list[dict]) -> tuple[int, int]:
+    if not batch:
+        return 0, 0
+    inserted = updated = 0
+    for row in batch:
+        cur.execute(UPSERT_SQL, row)
+        result = cur.fetchone()
+        if result and result[0]:
+            inserted += 1
+        else:
+            updated += 1
+    return inserted, updated
+
+
 def ingest_file(cur, filepath: Path, platform: str) -> tuple[int, int, int, int]:
-    total = inserted = errors = 0
+    total = inserted = updated = errors = 0
     batch = []
 
     with open(filepath) as f:
@@ -152,8 +167,9 @@ def ingest_file(cur, filepath: Path, platform: str) -> tuple[int, int, int, int]
                     continue
                 batch.append(row)
                 if len(batch) >= BATCH_SIZE:
-                    psycopg2.extras.execute_batch(cur, UPSERT_SQL, batch, page_size=BATCH_SIZE)
-                    inserted += len(batch)
+                    batch_inserted, batch_updated = ingest_batch(cur, batch)
+                    inserted += batch_inserted
+                    updated += batch_updated
                     batch = []
             except Exception as e:
                 errors += 1
@@ -161,10 +177,11 @@ def ingest_file(cur, filepath: Path, platform: str) -> tuple[int, int, int, int]
                     print(f"  Error on line {total}: {e}")
 
     if batch:
-        psycopg2.extras.execute_batch(cur, UPSERT_SQL, batch, page_size=BATCH_SIZE)
-        inserted += len(batch)
+        batch_inserted, batch_updated = ingest_batch(cur, batch)
+        inserted += batch_inserted
+        updated += batch_updated
 
-    return total, inserted, 0, errors
+    return total, inserted, updated, errors
 
 
 def main(sources: list[str] | None = None):

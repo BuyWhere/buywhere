@@ -284,7 +284,7 @@ export default function HomePage() {
       <main id="main-content" role="main" tabIndex={-1} aria-label="Main content">
       {/* Hero */}
       <section role="region" aria-label="Content section" className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 md:py-24">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 md:py-20 xl:py-24">
           <div className="max-w-3xl mx-auto text-center mb-4">
             <div className="inline-flex items-center gap-2 rounded-full border border-white bg-white px-3 py-1 text-sm font-bold text-indigo-900 shadow-sm mb-6">
               <span className="w-2 h-2 bg-green-600 rounded-full"></span>
@@ -390,7 +390,7 @@ export default function HomePage() {
               </p>
               <Link
                 href="/developers"
-                className="inline-flex items-center text-indigo-400 font-medium hover:text-indigo-300 transition-colors"
+                className="inline-flex items-center text-indigo-300 font-medium hover:text-indigo-200 transition-colors"
               >
                 View docs →
               </Link>

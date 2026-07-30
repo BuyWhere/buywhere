@@ -29,7 +29,7 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
 const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v6'; // bumped: invalidate pre-fix cached empties/degraded results after the ORDER BY updated_at removal
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'search-v7'; // bumped: invalidate pre-fix cached empties/degraded results after the ORDER BY updated_at removal
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -172,12 +172,23 @@ async function tryTierSearch(
   try { client = await servingReadDbConnect(); } catch { return false; }
   try {
     await client.query('BEGIN');
-    await client.query(`SET LOCAL statement_timeout = '4000'`);
+    // 6500 (was 4000, 2026-07-18): measured cold tier queries complete in 4.5-6.7s;
+    // at 4s they timed out and fell to the archive path which then burned to the 10s
+    // handler cap (cache-miss p50 was 4-7s for real agents). 6.5s converts that band
+    // into tier successes while leaving headroom inside the 10s handler budget.
+    await client.query(`SET LOCAL statement_timeout = '6500'`);
     await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`); // fuzzy sampling breaks multi-word AND
     await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
     let rows = lexemes.length === 1 ? (await client.query(titleFallbackQuery, params)).rows : [];
     if (rows.length === 0) {
       rows = (await client.query(mkQuery(andMatch), params)).rows;
+      // BUY-65420: cheap title-contains LIKE before the expensive to_tsquery OR-match.
+      // Broad multi-word queries (e.g. "wireless headphones", "nike shoes") produce too
+      // many GIN candidates for OR-FTS and timeout at 6500ms. The substring match on
+      // the smaller search_products tier is fast and catches the common case.
+      if (rows.length === 0 && lexemes.length > 1) {
+        rows = (await client.query(tokenTitleFallbackQuery, params)).rows;
+      }
       if (rows.length === 0 && lexemes.length > 1) {
         rows = (await client.query(mkQuery(orMatch), params)).rows;   // recall fallback
       }
@@ -1529,29 +1540,38 @@ router.get(
       }
     });
 
-    // Deals: prefer discount_pct generated column (BUY-14332), fall back to inline
-    // computation if the column doesn't exist yet (migration may not have run).
+    // Deals: prefer a populated discount_pct column (BUY-14332/BUY-64109), fall
+    // back to inline computation only if the column is absent or empty.
     const dealConditions: string[] = ['currency = $1', 'price > 0'];
     const dealParams: unknown[] = [currency];
     let dealIdx = 2;
     let useDiscountCol = true;
 
-    // Probe whether discount_pct column exists as GENERATED (cached per-process)
-    // BUY-22324: must verify is_generated = 'ALWAYS'; a plain column is 100% NULL
-    // and produces wrong results (get_deals returns total: 0).
+    // Probe whether discount_pct is usable (cached per-process). BUY-64109: the
+    // production table has a populated plain numeric discount_pct column, so
+    // requiring is_generated = 'ALWAYS' incorrectly forced the metadata fallback.
     if (typeof (router as any)._hasDiscountPct === 'undefined') {
       try {
         const probe = await db.query(
-          `SELECT is_generated FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`
+          `SELECT c.is_generated, EXISTS (
+             SELECT 1 FROM products
+             WHERE is_active = true AND price > 0 AND discount_pct > 0
+             LIMIT 1
+           ) AS has_positive_discounts
+           FROM information_schema.columns c
+           WHERE c.table_name = 'products' AND c.column_name = 'discount_pct'
+           LIMIT 1`
         );
-        (router as any)._hasDiscountPct = probe.rows.length > 0 && probe.rows[0].is_generated === 'ALWAYS';
+        (router as any)._hasDiscountPct = probe.rows.length > 0
+          && (probe.rows[0].is_generated === 'ALWAYS' || probe.rows[0].has_positive_discounts === true);
       } catch {
-        (router as any)._hasDiscountPct = false;
+        (router as any)._hasDiscountPct = true;
       }
     }
     useDiscountCol = (router as any)._hasDiscountPct;
 
     if (useDiscountCol) {
+      dealConditions.push(`discount_pct IS NOT NULL`);
       dealConditions.push(`discount_pct >= $${dealIdx}`);
     } else {
       dealConditions.push(`(metadata->>'original_price')::numeric > price`);
@@ -1566,7 +1586,11 @@ router.get(
       dealIdx++;
     }
 
-    const dealWhere = dealConditions.join(' AND ');
+    const marketConditions = dealConditions.filter((condition) =>
+      !condition.includes('discount_pct')
+        && !condition.includes("metadata->>'original_price'")
+        && !condition.includes('NULLIF')
+    );
 
     const discountSelect = useDiscountCol
       ? 'discount_pct'
@@ -1589,20 +1613,36 @@ router.get(
       await dealsClient.query(`SET work_mem = '${SEARCH_WORK_MEM}'`);
       await dealsClient.query(`SET statement_timeout = ${DEALS_QUERY_TIMEOUT_MS}`);
 
-      // BUY-60309: bounded sampling - sample recent active candidates, filter, order, paginate
-      // This replaces the unbounded COUNT + ORDER BY over the full table
+      // BUY-64109: first take a bounded recent active slice, then filter/order it.
+      // Filtering discount_pct before the LIMIT misses newly backfilled deals when
+      // the planner chooses a slow full-table path and times out.
+      const candidateParams: unknown[] = [DEALS_SAMPLE_CAP, ...dealParams, limit, offset];
+      const marketWhere = marketConditions
+        .map((condition) => condition.replace(/\$(\d+)/g, (_match, idx) => `$${Number(idx) + 1}`))
+        .join(' AND ');
+      const filterConditions = dealConditions
+        .map((condition) => condition.replace(/\$(\d+)/g, (_match, idx) => `$${Number(idx) + 1}`))
+        .join(' AND ');
       const sampleResult = await dealsClient.query(
-        `SELECT id, sku AS source_id, source AS domain, url,
-                title, price, (metadata->>'original_price')::numeric AS original_price,
-                currency, image_url, metadata, updated_at,
-                region, country_code, created_at, description, brand, mpn, gtin,
-                category_path, category, merchant_id, avg_rating, review_count,
-                ${discountSelect}
-         FROM products
-         WHERE ${dealWhere}
+        `SELECT *
+         FROM (
+           SELECT id, sku AS source_id, source AS domain, url,
+                  title, price,
+                  CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
+                       THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
+                  currency, image_url, metadata, updated_at,
+                  region, country_code, created_at, description, brand, mpn, gtin,
+                  category_path, category, merchant_id, avg_rating, review_count,
+                  ${discountSelect}
+           FROM products
+           WHERE is_active = true AND ${marketWhere}
+           ORDER BY updated_at DESC
+           LIMIT $1
+         ) _recent_deals
+         WHERE ${filterConditions}
          ORDER BY updated_at DESC
-         LIMIT ${DEALS_SAMPLE_CAP}`,
-        dealParams
+         LIMIT $${candidateParams.length - 1} OFFSET $${candidateParams.length}`,
+        candidateParams
       );
 
       // Filter and order the bounded sample in memory (fast, no DB timeout risk)

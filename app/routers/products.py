@@ -582,7 +582,12 @@ async def v1_product_search(
                 response.headers["X-Currency-Source"] = source_currency
                 response.headers["X-Currency-Target"] = target_currency
 
-    await cache.cache_set(cache_key, response.model_dump(mode="json"), ttl_seconds=600)
+    # BUY-65450: 10-minute cache on a query-driven search meant /compare kept
+    # showing "Price unavailable" rows for up to 10 min after upstream prices
+    # were corrected. Drop query-driven searches to 60s; non-query browse
+    # results still benefit from the previous 600s default.
+    cache_ttl = 60 if q else 600
+    await cache.cache_set(cache_key, response.model_dump(mode="json"), ttl_seconds=cache_ttl)
 
     return response
 

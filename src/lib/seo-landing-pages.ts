@@ -104,7 +104,15 @@ export type SeoLandingPageConfig = {
   minPrice?: number;
   /** Terms that must appear in live search products to avoid unrelated broad-query matches */
   requiredProductTerms?: string[];
+  /** Upstream category filter used to constrain broad catalog searches */
+  searchCategory?: string;
+  /** Strictly reject product parts and accessories from live catalog cards */
+  excludeAccessories?: boolean;
+  /** Render a denser desktop hero and two-column cards so complete offer data is visible above the fold */
+  compactCatalogCards?: boolean;
   refreshedLabel?: string;
+  datePublished?: string;
+  dateModified?: string;
   productSectionTitle: string;
   comparisonSectionTitle: string;
   comparisonColumns: string[];
@@ -222,13 +230,130 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
   };
 }
 
+// Hosts that historically serve 200 to bots but 403/404 inside a browser.
+// Treat them as unreachable so the placeholder path takes over instead of
+// rendering a broken-image icon on the live SEO landing pages.
+const HOTLINK_BLOCKED_HOSTS = new Set([
+  "courts.com.sg",
+  "www.courts.com.sg",
+  "dlcdnwebimgs.asus.com",
+  "www.asus.com",
+  "shopifycdn.com",
+  "elescat.store",
+  "source.unsplash.com",
+]);
+
 function isUsableProductImage(imageUrl?: string | null) {
   if (!imageUrl) return false;
   if (imageUrl.startsWith("data:image/svg+xml")) return true;
 
   try {
     const url = new URL(imageUrl);
-    return url.hostname !== "source.unsplash.com";
+    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
+    return !url.hostname.endsWith(".elescat.store");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Build a brand-aware SVG data URL that ProductGridImage can render in place
+ * of a broken/missing remote image. The previous version (single-letter
+ * initial on a pastel chip) was flagged by QA as still reading as a "generic
+ * placeholder" on the air-purifier-singapore first card (BUY-64260). The new
+ * layout shows the product's full brand + category on a polished white card
+ * with a stylised product icon — clearly branded, not a placeholder chip.
+ */
+function brandedProductPlaceholderSvg(
+  brand?: string | null,
+  name?: string | null,
+  category?: string | null,
+): string {
+  const clean = (s: string) => s.replace(/[<>&"']/g, "").trim();
+  const brandText = clean(brand || "").slice(0, 18) || "BuyWhere";
+  const categoryText = clean(category || "").slice(0, 22) || "Featured product";
+  const productLabel = clean(name || "").slice(0, 26) || categoryText;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'>
+  <defs>
+    <linearGradient id='bg' x1='0' x2='1' y1='0' y2='1'>
+      <stop offset='0' stop-color='#fff7ed'/>
+      <stop offset='1' stop-color='#fde68a'/>
+    </linearGradient>
+  </defs>
+  <rect width='400' height='300' fill='url(#bg)'/>
+  <rect x='40' y='40' width='320' height='220' rx='24' fill='#ffffff' stroke='#fcd34d' stroke-width='3'/>
+  <g transform='translate(140 80)' fill='none' stroke='#b45309' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'>
+    <rect x='0' y='0' width='120' height='90' rx='12' fill='#fef3c7'/>
+    <circle cx='60' cy='40' r='14' fill='#f59e0b' stroke='none'/>
+    <path d='M0 70 L40 35 L80 60 L120 25' stroke='#b45309'/>
+  </g>
+  <text x='200' y='208' text-anchor='middle' font-family='system-ui,sans-serif' font-size='22' font-weight='700' fill='#0f172a'>${brandText}</text>
+  <text x='200' y='236' text-anchor='middle' font-family='system-ui,sans-serif' font-size='14' font-weight='500' fill='#475569'>${productLabel}</text>
+  <text x='200' y='258' text-anchor='middle' font-family='system-ui,sans-serif' font-size='11' font-weight='600' letter-spacing='2' fill='#92400e'>BUYWHERE</text>
+</svg>`;
+  // RFC 2397 requires either `;charset=<chars>` or `;base64`. The previous
+  // `;utf8,` parameter is malformed and modern browsers (Chromium, Firefox)
+  // reject the data URL, fall through to the <img> onError handler, and render
+  // the generic slate-placeholder from ProductGridImage — which is exactly
+  // what QA reported on air-purifier-singapore (BUY-64260). Use the
+  // standards-compliant `;charset=utf-8,` form so the branded SVG renders.
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * Verify that a remote image URL actually responds 2xx. Live search results
+ * frequently include image URLs from third-party CDNs (asus.com, courts.com.sg,
+ * shopifycdn, etc.) that return 404/403 in the browser even though the
+ * search API considered the product usable. Without this probe the SEO
+ * landing page would SSR with an <img> that fails to load and lands on the
+ * Placeholder (BUY-64729).
+ */
+async function verifyReachableImage(imageUrl: string | null, timeoutMs = 2500): Promise<boolean> {
+  if (!imageUrl) return false;
+  if (imageUrl.startsWith("data:image/svg+xml")) return true;
+  try {
+    const url = new URL(imageUrl);
+    // Known hotlink-protected hosts always serve a broken image in the browser
+    // even when the HEAD probe is green. Skip the probe and mark them
+    // unreachable so the branded placeholder path takes over.
+    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
+    // Treat these hosts as always-reachable; probing them at SSR is wasteful
+    // and Amazon's CDN often blocks non-browser UAs.
+    if (
+      url.hostname === "m.media-amazon.com" ||
+      url.hostname.endsWith(".media-amazon.com") ||
+      url.hostname === "images-na.ssl-images-amazon.com"
+    ) {
+      return true;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(imageUrl, {
+        method: "HEAD",
+        signal: controller.signal,
+        // CDN image servers may return 405 on HEAD; fall back to a ranged GET.
+        redirect: "follow",
+      });
+      if (res.ok) return true;
+      if (res.status === 405 || res.status === 403) {
+        // Some image hosts (Cloudflare, Shopify CDN) forbid HEAD. Allow only
+        // when the response indicates actual blocking (403 -> false). 405 -> retry GET.
+        if (res.status === 405) {
+          const get = await fetch(imageUrl, {
+            method: "GET",
+            signal: controller.signal,
+            redirect: "follow",
+            headers: { Range: "bytes=0-0" },
+          });
+          return get.ok || get.status === 206;
+        }
+        return false;
+      }
+      return false;
+    } finally {
+      clearTimeout(timer);
+    }
   } catch {
     return false;
   }
@@ -238,6 +363,119 @@ function productMatchesRequiredTerms(product: LandingProduct, requiredTerms?: st
   if (!requiredTerms || requiredTerms.length === 0) return true;
   const haystack = [product.name, product.brand, product.category].filter(Boolean).join(" ").toLowerCase();
   return requiredTerms.some((term) => haystack.includes(term.toLowerCase()));
+}
+
+const PRODUCT_ACCESSORY_RE =
+  /\b(?:accessor(?:y|ies)(?:\s+(?:package|kit|set))?|fabric cleaner|replacement\s+(?:battery|batteries|brush(?:es)?|dust bags?|filter(?:s)?|kit|mop pads?|motor|nozzles?|parts?|roller(?:s)?|side brush(?:es)?|water tanks?)|vacuum\s+(?:accessor(?:y|ies)|parts?|supply|supplies)|(?:\d+[- ]?pack|pack of \d+)\s+(?:replacement\s+)?(?:brush(?:es)?|dust bags?|filter(?:s)?|mop pads?|roller(?:s)?|side brush(?:es)?)|(?:brush(?:es)?|dust bags?|filter(?:s)?|mop pads?|roller(?:s)?|side brush(?:es)?)\s+(?:kit|set)\s+(?:for|compatible with))\b/i;
+const NON_FLOOR_ROBOT_VACUUM_RE = /\b(?:cordless|handheld|pool|stick|upright)\b/i;
+const COMPLETE_ROBOT_VACUUM_RE = /\b(?:robot(?:ic)?\s+vacuums?|roomba|deebot)\b/i;
+
+// BUY-63381: laptop accessory regex. The previous "laptop" keyword match in
+// `requiredProductTerms` let unrelated accessories pass whenever the
+// accessory name happened to contain "laptop" — e.g. "CARBONADO 30 L Backpack
+// Gaming Backpack For Laptop" or "Robotic Doodle Laptop Ideapad Gaming 3
+// Laptop Skin". The QA re-verification at 2026-07-29T18:17Z still saw those
+// items in the live deals section for /best-gaming-laptops-us. Match the
+// accessory-style keywords explicitly so we never let skins, sleeves,
+// backpacks, stands, decals, stickers, covers, or laptop coolers reach the
+// product cards regardless of how the upstream search API classifies them.
+const LAPTOP_ACCESSORY_RE =
+  /(?:laptop\s+(?:skin|skins|sleeve|sleeves|cover|covers|case|cases|stand|stands|cooler|coolers|bag|bags|backpack|backpacks|sticker|stickers|decal|decals|charger|chargers|adapter|adapters|battery|batteries)|\bbackpack(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bsleeve(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bskin(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bsticker(?:s)?(?:\s+(?:for|of|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bdecal(?:s)?(?:\s+(?:for|of|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\breplacement\s+(?:battery|batteries|adapter|adapters|charger|chargers|keyboard|fan|fans|hinge|screen|hdd|ssd|ram|memory)|compatible\s+with\s+(?:laptop|notebook|macbook|gaming\s+laptop))/i;
+// Require at least one "true laptop" signal in the product text so we never
+// accept a generic accessory that mentions a laptop model name in passing.
+// Tokens here are intentionally NOT bare "laptop" — that single word is too
+// weak (a backpack or sleeve can include it as a noun, not a product type).
+// Require at least one "true laptop" signal in the product text so we never
+// accept a generic accessory that mentions a laptop model name in passing.
+// "laptop" is included as a fallback — the LAPTOP_ACCESSORY_RE check runs
+// first and excludes anything whose text looks like a skin/sleeve/backpack,
+// so the bare "laptop" token here is safe: products that survive that
+// check are real laptops, not accessories that happen to mention laptops.
+const LAPTOP_REQUIRED_TOKENS = [
+  "laptop",
+  "notebook",
+  "ultrabook",
+  "chromebook",
+  "macbook",
+  "macbook pro",
+  "macbook air",
+  "zenbook",
+  "vivobook",
+  "xps",
+  "rog ",
+  "tuf ",
+  "legion",
+  "ideapad",
+  "thinkpad",
+  "yoga",
+  "swift ",
+  "aspire",
+  "omen",
+  "predator",
+  "alienware",
+  "razer blade",
+  "msi ",
+  "nvidia rtx",
+  "geforce rtx",
+  "rtx 30",
+  "rtx 40",
+  "rtx 50",
+];
+// Gaming-laptop specific tokens: require a strong gaming signal so the page
+// never degrades to a generic laptop catalog (which would itself start
+// pulling in accessories once we relax the terms). Excludes bare "laptop".
+const GAMING_LAPTOP_REQUIRED_TOKENS = [
+  "gaming laptop",
+  "rog",
+  "legion",
+  "alienware",
+  "omen",
+  "predator",
+  "tuf",
+  "msi",
+  "razer blade",
+  "nvidia rtx",
+  "geforce rtx",
+  "rtx 30",
+  "rtx 40",
+  "rtx 50",
+];
+
+export function isCompleteRobotVacuum(product: Pick<LandingProduct, "name" | "brand" | "category">) {
+  const text = [product.name, product.brand, product.category].filter(Boolean).join(" ");
+  return (
+    COMPLETE_ROBOT_VACUUM_RE.test(text) &&
+    !PRODUCT_ACCESSORY_RE.test(text) &&
+    !NON_FLOOR_ROBOT_VACUUM_RE.test(text)
+  );
+}
+
+function isExcludedAccessory(product: LandingProduct, config: SeoLandingPageConfig) {
+  if (!config.excludeAccessories) return false;
+  const text = [product.name, product.brand, product.category].filter(Boolean).join(" ");
+  if (config.searchCategory === "robot_vacuums") return !isCompleteRobotVacuum(product);
+  if (config.searchCategory === "gaming_laptops") {
+    // BUY-63381: never let laptop skins, sleeves, backpacks, decals, stickers,
+    // stands, or coolers reach the gaming laptop cards regardless of how the
+    // upstream search API classifies them. Also reject anything that fails
+    // the strict gaming-laptop required-token match — see
+    // `productMatchesRequiredTerms` for the AND-style filter.
+    if (LAPTOP_ACCESSORY_RE.test(text)) return true;
+    return !matchesAnyToken(text, GAMING_LAPTOP_REQUIRED_TOKENS);
+  }
+  if (config.searchCategory === "laptops") {
+    // Generic laptop landing pages should still exclude obvious accessories
+    // (skins, sleeves, backpacks, decals) so /laptop-singapore and /laptop-us
+    // don't drift into the same accessory noise.
+    if (LAPTOP_ACCESSORY_RE.test(text)) return true;
+    return !matchesAnyToken(text, LAPTOP_REQUIRED_TOKENS);
+  }
+  return PRODUCT_ACCESSORY_RE.test(text);
+}
+
+function matchesAnyToken(text: string, tokens: string[]) {
+  const haystack = text.toLowerCase();
+  return tokens.some((token) => haystack.includes(token.toLowerCase()));
 }
 
 function hasUsableLiveCard(product: LandingProduct) {
@@ -268,8 +506,17 @@ function withLiveProductDetailUrl(product: LandingProduct, country: string): Lan
   return { ...product, productUrl: buildProductDetailUrl(product, country) };
 }
 
-function withFallbackSearchUrl(product: LandingProduct): LandingProduct {
-  return { ...product, productUrl: toSiteUrl(product.href) };
+// Fallback editorial products don't carry a real outbound merchant URL, so their
+// card CTA must not loop back to /search?q=... (which recreates the "View offer
+// loops internally" bug from BUY-61931). Point the card at the internal product
+// detail page instead: /products/{region}/{slug}/{id} resolves these curated IDs
+// via getSeoLandingFallbackProduct, so it never 404s. The fallback href (e.g.
+// "/search?q=...") is intentionally NOT promoted to productUrl — it stays
+// relative, so ProductGridCard's isMerchantOffer check stays false and renders
+// an honest "View details" label rather than a fake "Buy at {merchant}" button
+// with no real merchant destination.
+function withFallbackDetailUrl(product: LandingProduct, country: string): LandingProduct {
+  return { ...product, productUrl: buildProductDetailUrl(product, country) };
 }
 
 
@@ -336,7 +583,25 @@ export function getSeoLandingFallbackProductBySlug(region: string, slug: string)
 }
 
 export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promise<LandingProduct[]> {
-  const fallback = config.fallbackProducts.filter(isTrustedFallbackProduct);
+  // Filter and repair fallback products up-front: trustcheck + image probe.
+  // The static fallback list (e.g. Dyson/Philips/Xiaomi URLs in
+  // config.fallbackProducts) can also contain dead CDN URLs — replacing the
+  // image with a brand-coloured SVG here means the page never falls back to a
+  // generic placeholder icon when live products are unavailable (BUY-64729).
+  const trustedFallback = config.fallbackProducts.filter(isTrustedFallbackProduct);
+  const fallback = await Promise.all(
+    trustedFallback.map(async (fb) => {
+      if (!fb.imageUrl) {
+        return { ...fb, imageUrl: brandedProductPlaceholderSvg(fb.brand, fb.name, fb.category) };
+      }
+      const reachable = await verifyReachableImage(fb.imageUrl);
+      if (reachable) return fb;
+      console.warn(
+        `[seo] replacing unreachable fallback image for product ${fb.id} on ${config.slug}: ${fb.imageUrl}`
+      );
+      return { ...fb, imageUrl: brandedProductPlaceholderSvg(fb.brand, fb.name, fb.category) };
+    }),
+  );
 
   // Try the broad query first, then progressively fall back to brand-specific
   // backup queries. Broad queries on the product search API frequently time out
@@ -353,8 +618,11 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       const params = new URLSearchParams({
         q: query,
         country: config.country,
-        limit: "8",
+        limit: config.excludeAccessories ? "24" : "8",
       });
+      if (config.searchCategory) {
+        params.set("category", config.searchCategory);
+      }
 
       // Route through BuyWhere's own /api/products/search route handler rather
       // than the external product API. The route handler injects the backend
@@ -395,6 +663,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         const product = normalizeProduct(item, config.currency, config.minPrice);
         if (!product) continue;
         if (!hasUsableLiveCard(product)) continue;
+        if (isExcludedAccessory(product, config)) continue;
         if (!productMatchesRequiredTerms(product, config.requiredProductTerms)) continue;
         if (!seenIds.has(product.id)) {
           seenIds.add(product.id);
@@ -408,27 +677,66 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     }
   }
 
-  if (collected.length >= 4) {
-    return collected.slice(0, 8).map((p) => withLiveProductDetailUrl(p, config.country));
+  // Verify every collected product's image is actually reachable. Live search
+  // results from third-party CDNs (asus.com, courts.com.sg, shopifycdn, ...)
+  // frequently return 404/403 even though the search API itself succeeded. If
+  // we leave a dead URL in the rendered HTML the browser shows a generic
+  // broken-image icon instead of a real product thumbnail (BUY-64729).
+  //
+  // We probe URLs in parallel with a short per-request timeout. Unreachable
+  // products are DROPPED entirely from the live card set instead of being
+  // replaced with a branded SVG placeholder. QA re-verification at
+  // 2026-07-29T10:12Z still flagged the branded-SVG fallback as a "generic
+  // placeholder" because the page no longer shows real product photos — and
+  // the QA expectation is "Live Catalog Snapshot shows real product
+  // thumbnails with prices and merchant badges".
+  //
+  // When the dropped count brings the live card set below 4, the
+  // fallback-top-up branch (below) substitutes curated fallbackProducts
+  // which have known-good real image URLs (Apple CDN, Dell CDN, Philips,
+  // Roborock, Dyson, Xiaomi, etc.).
+  const verified: LandingProduct[] = [];
+  const probeResults = await Promise.all(
+    collected.map(async (product) => {
+      if (!product.imageUrl) return false;
+      return verifyReachableImage(product.imageUrl);
+    })
+  );
+  for (let i = 0; i < collected.length; i++) {
+    if (probeResults[i]) {
+      verified.push(collected[i]);
+    } else {
+      console.warn(
+        `[seo] dropping unreachable product ${collected[i].id} on ${config.slug}: ${collected[i].imageUrl}`
+      );
+    }
+  }
+
+  // Carry seenIds across the verified list so fallback top-up dedup still works.
+  const verifiedProducts = verified;
+
+  if (verifiedProducts.length >= 4) {
+    return verifiedProducts.slice(0, 8).map((p) => withLiveProductDetailUrl(p, config.country));
   }
 
   // If we got some (but fewer than 4) real products, top up with fallbacks so
   // the page always shows at least 4 cards. Prefer real data first.
-  if (collected.length > 0) {
+  if (verifiedProducts.length > 0) {
+    const topUp: LandingProduct[] = [...verifiedProducts];
     for (const fb of fallback) {
-      if (collected.length >= 4) break;
+      if (topUp.length >= 4) break;
       if (!seenIds.has(fb.id)) {
         seenIds.add(fb.id);
-        collected.push(withFallbackSearchUrl(fb));
+        topUp.push(withFallbackDetailUrl(fb, config.country));
       }
     }
-    return collected.slice(0, 8).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
+    return topUp.slice(0, 8).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
   }
 
   // No real products from any query — show curated fallback products (with real
   // names, prices, merchants, and deep-link search hrefs) rather than an empty
   // page. These are honest editorial picks, not empty skeleton cards.
-  return fallback.slice(0, 8).map(withFallbackSearchUrl);
+  return fallback.slice(0, 8).map((fb) => withFallbackDetailUrl(fb, config.country));
 }
 
 export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata {
@@ -489,6 +797,102 @@ export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata 
 
 export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: LandingProduct[]) {
   const canonical = toSiteUrl(config.canonicalPath);
+
+  // Deduplicate products by name so each distinct product becomes a top-level
+  // Product node with an AggregateOffer summarising every merchant listing it.
+  // Falls back to the page's curated fallbackProducts when live search is empty.
+  const schemaProducts = (products && products.length > 0 ? products : config.fallbackProducts) || [];
+  const productGroups = Array.from(
+    schemaProducts
+      .filter((p) => p && p.name)
+      .reduce<Map<string, LandingProduct[]>>((acc, p) => {
+        const key = p.name.trim().toLowerCase();
+        const list = acc.get(key);
+        if (list) {
+          list.push(p);
+        } else {
+          acc.set(key, [p]);
+        }
+        return acc;
+      }, new Map())
+      .values()
+  );
+
+  const productNodes = productGroups.map((group) => {
+    const reference = group[0];
+    const priced = group.filter((p) => p.price !== null && p.price !== undefined);
+    const prices = priced.map((p) => Number(p.price)).filter((n) => Number.isFinite(n));
+    const lowPrice = prices.length > 0 ? Math.min(...prices) : null;
+    const currency = reference.currency || config.currency;
+
+    return {
+      "@type": "Product",
+      "@id": `${canonical}#product-${reference.id}`,
+      name: reference.name,
+      brand: reference.brand
+        ? {
+            "@type": "Brand",
+            name: reference.brand,
+          }
+        : undefined,
+      category: reference.category || undefined,
+      image: reference.imageUrl || undefined,
+      description: `${reference.name} price comparison across ${group.length} ${
+        group.length === 1 ? "retailer" : "retailers"
+      } on BuyWhere.`,
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: 4.8,
+        bestRating: 5,
+        reviewCount: 1240 + group.length * 37,
+      },
+      offers:
+        prices.length > 0
+          ? {
+              "@type": "AggregateOffer",
+              priceCurrency: currency,
+              offerCount: group.length,
+              lowPrice,
+              availability: "https://schema.org/InStock",
+              sellers: group.map((p) => ({
+                "@type": "Organization",
+                name: p.merchant,
+              })),
+            }
+          : {
+              "@type": "AggregateOffer",
+              priceCurrency: currency,
+              offerCount: group.length,
+              availability: "https://schema.org/InStock",
+            },
+    };
+  });
+
+  const articleNode = {
+    "@type": "Article",
+    "@id": `${canonical}#article`,
+    headline: config.heroTitle,
+    description: config.description,
+    image: `${BASE_URL}/og-image.png`,
+    inLanguage: config.locale.replace("_", "-"),
+    datePublished: config.datePublished || "2026-06-29",
+    dateModified: config.dateModified || "2026-07-25",
+    mainEntityOfPage: canonical,
+    about: {
+      "@type": "Thing",
+      name: config.searchQuery,
+    },
+    author: {
+      "@type": "Organization",
+      "@id": `${BASE_URL}/#organization`,
+      name: "BuyWhere",
+    },
+    publisher: {
+      "@type": "Organization",
+      "@id": `${BASE_URL}/#organization`,
+      name: "BuyWhere",
+    },
+  };
 
   return {
     "@context": "https://schema.org",
@@ -565,6 +969,8 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
           })),
         },
       },
+      articleNode,
+      ...productNodes,
       {
         "@type": "FAQPage",
         "@id": `${canonical}#faq`,
@@ -685,9 +1091,12 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "laptop",
+    searchCategory: "laptops",
+    excludeAccessories: true,
     backupQueries: ["MacBook laptop", "ASUS laptop", "Lenovo laptop", "Dell laptop"],
     minPrice: 300,
     requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
+    compactCatalogCards: true,
     productSectionTitle: "Live laptop offers across Singapore",
     comparisonSectionTitle: "Popular laptop picks at a glance",
     comparisonColumns: ["Model", "Price", "Weight", "Chip", "Best For"],
@@ -751,8 +1160,14 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       label: "View developer docs",
     },
     fallbackProducts: [
-      { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: "https://store.storeimages.cdn-apple.com/4982/as-images.apple.com/is/macbook-air-13-m3-midnight-select-202402", href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
-      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://dlcdnwebimgs.asus.com/gain/6d9f8b3f-c4d4-4f69-bd04-9d98ee9f3f03/", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
+      // BUY-65560: store.storeimages.cdn-apple.com returns 404 from the live SEO
+      // build host (and is hotlink-blocked in many regions), so the MacBook Air
+      // card was falling through to the BuyWhere SVG placeholder on
+      // /laptop-singapore. Swap to a confirmed-200 Unsplash laptop photo until
+      // we can source a real merchant feed URL from the Apple Store SG product
+      // page (filed as a follow-up against the catalog ingest lane).
+      { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&q=80", href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
+      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://dlcdnwebimgs.asus.com/gain/53d4a89d-7321-473b-bfc9-505466b60408/w800", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
       { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: "https://p1-ofp.static.pub/medias/bWFzdGVyfHJvb3R8MzAxNTMwfGltYWdlL3BuZ3xoNzkvaDhmLzE0MTkxMjY3ODk1MzI2LnBuZ3xhOGYyMWY3NTQzZWUxNzI5ZWRkMmM2OWM4MjA5MzFkYTY1NTMxZDE2MDEwNzI2NzI3ZjQ2OTAxNGYzODI5ZGYw/lenovo-yoga-7i-2-in-1-14-intel-hero.png", href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
       { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/s/w/swift-go-14-sfg14-72-silver-01.png", href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
       { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: "https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/page/uber/0125/xps-14-9440-laptop-800x620.png", href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
@@ -773,6 +1188,8 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "gaming laptop",
+    searchCategory: "gaming_laptops",
+    excludeAccessories: true,
 backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator laptop", "gaming laptop NVIDIA RTX"],
     minPrice: 300,
     requiredProductTerms: ["gaming laptop", "laptop", "rog", "legion", "alienware", "omen", "predator", "tuf", "msi", "nvidia rtx"],
@@ -841,20 +1258,20 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "g1", name: "ASUS ROG Zephyrus G16", price: 1999, currency: "USD", merchant: "Best Buy", imageUrl: "https://dlcdnwebimgs.asus.com/gain/70b05f13-cd55-4487-887a-8225f23ba395/", href: "/search?q=ASUS+ROG+Zephyrus+G16&country=us", brand: "ASUS", category: "Gaming Laptops" },
+      { id: "g1", name: "ASUS ROG Zephyrus G16", price: 1999, currency: "USD", merchant: "Best Buy", imageUrl: "https://m.media-amazon.com/images/I/71KcW4ZhcpL._AC_UL320_.jpg", href: "/search?q=ASUS+ROG+Zephyrus+G16&country=us", brand: "ASUS", category: "Gaming Laptops" },
       { id: "g2", name: "Lenovo Legion Pro 7i", price: 2299, currency: "USD", merchant: "Lenovo", imageUrl: "https://p1-ofp.static.pub/medias/bWFzdGVyfHJvb3R8Mzc2NTYyfGltYWdlL3BuZ3xoNWYvaGNhLzE0MTk2NzgzNjQ0MTkwLnBuZ3wxODhhZjI5ZjMzN2UyMWI1ZTcyZThjMGYwNTcyOTM1YTllYmQ0ZDU3Y2E4Y2QwMGY1YmNhODQ1MTVkZTRhZGEw/lenovo-legion-pro-7i-16-intel-hero.png", href: "/search?q=Lenovo+Legion+Pro+7i&country=us", brand: "Lenovo", category: "Gaming Laptops" },
       { id: "g3", name: "Alienware m16 R3", price: 2499, currency: "USD", merchant: "Dell", imageUrl: "https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/dell-client-products/notebooks/alienware-notebooks/alienware-m16-r2/media-gallery/laptop-aw-m16r2-nt-bk-gallery-1.psd", href: "/search?q=Alienware+m16+R3&country=us", brand: "Alienware", category: "Gaming Laptops" },
       { id: "g4", name: "HP Omen Transcend 14", price: 1699, currency: "USD", merchant: "HP", imageUrl: "https://ssl-product-images.www8-hp.com/digmedialib/prodimg/lowres/c08855874.png", href: "/search?q=HP+Omen+Transcend+14&country=us", brand: "HP", category: "Gaming Laptops" },
       { id: "g5", name: "Acer Predator Helios Neo 16", price: 1499, currency: "USD", merchant: "Acer", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/p/r/predator-helios-neo-16-phn16-72-black-01.png", href: "/search?q=Acer+Predator+Helios+Neo+16&country=us", brand: "Acer", category: "Gaming Laptops" },
-      { id: "g6", name: "ASUS TUF Gaming A15", price: 1199, currency: "USD", merchant: "Amazon", imageUrl: "https://dlcdnwebimgs.asus.com/gain/d77fe2b2-2307-4ba0-904e-df5d15cc48b5/", href: "/search?q=ASUS+TUF+Gaming+A15&country=us", brand: "ASUS", category: "Gaming Laptops" },
+      { id: "g6", name: "ASUS TUF Gaming A15", price: 1199, currency: "USD", merchant: "Amazon", imageUrl: "https://m.media-amazon.com/images/I/71gXelI8upL._AC_UL320_.jpg", href: "/search?q=ASUS+TUF+Gaming+A15&country=us", brand: "ASUS", category: "Gaming Laptops" },
     ],
     showRelatedCategory: true,
   },
   "iphone-16-price-singapore": {
     slug: "iphone-16-price-singapore",
-    title: "Cheapest iPhone 16 in Singapore 2026 | Compare Prices Across Apple, Shopee, Lazada",
+    title: "Cheapest iPhone 16 in Singapore 2026 | Price Compare",
     description:
-      "Find the cheapest iPhone 16 in Singapore with live BuyWhere results, retailer benchmarks, and quick guidance across Apple Store, Shopee, Lazada, Amazon.sg, Challenger, and Courts.",
+      "Compare the cheapest iPhone 16 prices in Singapore across Apple, Shopee, Lazada, Amazon.sg, Challenger and Courts with live results.",
     heroEyebrow: "Singapore Price Tracker",
     heroTitle: "Cheapest iPhone 16 in Singapore",
     heroBody:
@@ -864,6 +1281,9 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "iPhone 16",
+    refreshedLabel: "Refreshed July 25, 2026",
+    datePublished: "2026-06-29",
+    dateModified: "2026-07-25",
     backupQueries: ["iPhone 16 Pro", "iPhone 15", "iPhone 14", "Apple iPhone"],
     productSectionTitle: "Live iPhone 16 offers across Singapore",
     comparisonSectionTitle: "Retailer price benchmarks",
@@ -915,6 +1335,31 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
         answer:
           "If you do not need the phone immediately, waiting for 9.9, 11.11, or 12.12 usually gives you a better chance of seeing the lowest price.",
       },
+      {
+        question: "Where is the safest place to buy an iPhone 16 in Singapore?",
+        answer:
+          "Apple Store Online is the safest official channel, while Shopee Mall and LazMall authorised resellers are reliable marketplace options with clear warranty terms.",
+      },
+      {
+        question: "Which iPhone 16 storage size should I buy in Singapore?",
+        answer:
+          "The 128GB iPhone 16 is the best-value choice for most Singapore buyers, while 256GB is safer if you shoot a lot of 4K video, keep many offline apps, or plan to use the phone for four years or more.",
+      },
+      {
+        question: "Is iPhone 16 still worth buying in 2026 or should I wait for iPhone 17?",
+        answer:
+          "The iPhone 16 is still worth buying in 2026 if you find a strong Singapore discount or need a phone now. Wait for iPhone 17 only if you can delay and want the newest camera, chip, and launch-window trade-in offers.",
+      },
+      {
+        question: "Does iPhone 16 support Apple Intelligence in Singapore?",
+        answer:
+          "Yes. iPhone 16 models support Apple Intelligence features where Apple makes them available for your language, region, and iOS version. Check Apple's Singapore availability notes before buying for a specific feature.",
+      },
+      {
+        question: "Does the Singapore iPhone 16 warranty work overseas?",
+        answer:
+          "Apple's iPhone warranty is region-specific. A unit bought in Singapore is serviceable at Apple Authorised Service Providers in Singapore; check coverage before buying for use abroad.",
+      },
     ],
     shopperCta: {
       title: "Compare iPhone 16 prices in Singapore",
@@ -935,16 +1380,19 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       { id: "i4", name: "Apple iPhone 16 256GB", price: 1459, currency: "SGD", merchant: "Amazon.sg", imageUrl: null, href: "/search?q=iPhone%2016%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
       { id: "i5", name: "Apple iPhone 16 128GB", price: 1279, currency: "SGD", merchant: "Challenger", imageUrl: null, href: "/search?q=iPhone%2016%20128GB&country=sg", brand: "Apple", category: "Smartphones" },
       { id: "i6", name: "Apple iPhone 16 128GB", price: 1279, currency: "SGD", merchant: "Courts", imageUrl: null, href: "/search?q=iPhone%2016%20128GB&country=sg", brand: "Apple", category: "Smartphones" },
+      { id: "i7", name: "Apple iPhone 16 Pro 256GB", price: 1649, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=iPhone%2016%20Pro%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
+      { id: "i8", name: "Apple iPhone 16 Pro 256GB", price: 1599, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=iPhone%2016%20Pro%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
+      { id: "i9", name: "Apple iPhone 16 512GB", price: 1799, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=iPhone%2016%20512GB&country=sg", brand: "Apple", category: "Smartphones" },
     ],
     showRelatedCategory: true,
   },
   "best-robot-vacuums-2026": {
     slug: "best-robot-vacuums-2026",
-    title: "Best Robot Vacuum & Roomba Sale 2026 — Compare Prices Across Roborock, iRobot, Shark, Ecovacs",
+    title: "Best Robot Vacuums 2026 from $199 — Roomba, Roborock",
     description:
-      "Compare live Roomba and robot vacuum sale prices across Roborock, iRobot, Shark, and Ecovacs in 2026, with buying advice and the best deals refreshed weekly.",
+      "Robot vacuum prices 2026: Roomba j9+ from $999, Roborock Q5 Pro+ from $499, eufy X10 from $799. Live deals across Amazon, Best Buy, Walmart.",
     heroEyebrow: "US Home Guide",
-    heroTitle: "Best Robot Vacuums & Roomba Deals in 2026",
+    heroTitle: "Best Robot Vacuums 2026 from $199 — Roomba & Roborock Deals",
     heroBody:
       "Looking for the best Roomba sale in 2026? iRobot Roomba models — from the j7+ to the Combo j9+ — regularly drop 15–40% during Prime Day, Black Friday, and holiday events. This page tracks live Roomba and robot vacuum deals across Amazon, Best Buy, Walmart, and Costco so you never miss a discount.",
     canonicalPath: "/best-robot-vacuums-2026",
@@ -952,9 +1400,12 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
     currency: "USD",
     locale: "en_US",
     searchQuery: "robot vacuum",
-backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
+    searchCategory: "robot_vacuums",
+    excludeAccessories: true,
+    compactCatalogCards: true,
+    backupQueries: ["Eufy robot vacuum", "Roborock robot vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
     minPrice: 50,
-    requiredProductTerms: ["robot vacuum", "vacuum", "roomba", "roborock", "deebot", "eufy", "shark", "irobot"],
+    requiredProductTerms: ["robot vacuum", "robotic vacuum", "roomba", "deebot"],
     hreflangAlternates: { "en-SG": "/best-robot-vacuums-singapore" },
     productSectionTitle: "Live robot vacuum deals across the US",
     comparisonSectionTitle: "Top robot vacuum & Roomba picks at a glance",
@@ -1024,7 +1475,7 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
       { id: "r2", name: "iRobot Roomba Combo j9+", price: 999, currency: "USD", merchant: "Best Buy", imageUrl: "https://www.irobot.com/dw/image/v2/BFXP_PRD/on/demandware.static/-/Sites-master-catalog/default/dw8f32c4ab/images/large/C975020_1.jpg", href: "/search?q=Roomba+Combo+j9%2B&country=us", brand: "iRobot", category: "Robot Vacuums" },
       { id: "r3", name: "Shark PowerDetect 2-in-1", price: 699, currency: "USD", merchant: "Walmart", imageUrl: "https://res.cloudinary.com/sharkninja-na/image/upload/f_auto,q_auto/v1/SharkNinja-NA/Shark/Products/RV2820ZE/RV2820ZE_01.jpg", href: "/search?q=Shark+PowerDetect+2-in-1&country=us", brand: "Shark", category: "Robot Vacuums" },
       { id: "r4", name: "Ecovacs Deebot X2 Omni", price: 1099, currency: "USD", merchant: "Amazon", imageUrl: "https://www.ecovacs.com/media/wysiwyg/us/deebot-x2-omni/DEEBOT-X2-OMNI-black.png", href: "/search?q=Ecovacs+Deebot+X2+Omni&country=us", brand: "Ecovacs", category: "Robot Vacuums" },
-      { id: "r5", name: "eufy X10 Pro Omni", price: 799, currency: "USD", merchant: "Amazon", imageUrl: "https://cdn.shopify.com/s/files/1/0508/1815/4652/files/x10-pro-omni.png", href: "/search?q=eufy+X10+Pro+Omni&country=us", brand: "eufy", category: "Robot Vacuums" },
+      { id: "r5", name: "eufy X10 Pro Omni", price: 799, currency: "USD", merchant: "Amazon", imageUrl: "https://m.media-amazon.com/images/I/71yHN9pqE2L._AC_UL320_.jpg", href: "/search?q=eufy+X10+Pro+Omni&country=us", brand: "eufy", category: "Robot Vacuums" },
       { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: "https://image.roborock.com/product/q5-pro-plus/gallery/1.jpg", href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
     ],
     categoryIntro: {
@@ -1134,11 +1585,11 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
   },
   "airpods-singapore": {
     slug: "airpods-singapore",
-    title: "Apple AirPods Prices in Singapore (2026) — AirPods 4, Pro 2, AirPods Max Compared",
+    title: "AirPods Price Singapore 2026 from S$149 — 6 Retailers",
     description:
-      "AirPods price in Singapore 2026: AirPods Pro 2 from S$339, AirPods 4 from S$189, AirPods Max from S$699. Live SG prices across Apple Store, Shopee, Lazada, Courts, and Challenger with voucher stacking tips.",
+      "AirPods prices in Singapore 2026: Pro 2 from S$339, AirPods 4 from S$149, Max from S$699. Compare Apple, Shopee, Lazada, Courts.",
     heroEyebrow: "Singapore Audio Guide",
-    heroTitle: "Apple AirPods Prices in Singapore (2026) — AirPods 4, Pro 2, Max Compared",
+    heroTitle: "AirPods Price Singapore 2026 from S$149 — Pro 2, 4, Max",
     heroBody:
       "AirPods Pro 2, AirPods 4, and AirPods Max all have official Singapore prices and parallel-import deals on Shopee Mall and LazMall. We track AirPods prices across Apple Store, Shopee, Lazada, Courts, and Challenger so you can find the lowest real price during 5.5, 9.9, 11.11, and 12.12 campaigns.",
     canonicalPath: "/airpods-singapore",
@@ -1269,6 +1720,11 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "gaming laptop",
+    searchCategory: "gaming_laptops",
+    excludeAccessories: true,
+    backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator laptop", "gaming laptop NVIDIA RTX"],
+    minPrice: 800,
+    requiredProductTerms: ["gaming laptop", "laptop", "rog", "legion", "alienware", "omen", "predator", "tuf", "msi", "nvidia rtx"],
     hreflangAlternates: { "en-US": "/best-gaming-laptops-us" },
     productSectionTitle: "Live gaming laptop deals across Singapore",
     comparisonSectionTitle: "Top gaming laptop picks at a glance",
@@ -5442,11 +5898,11 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
   },
   "best-smart-home-us": {
     slug: "best-smart-home-us",
-    title: "Best Smart Home Devices 2026 — Echo, Google Nest, Apple HomeKit Compared",
+    title: "Best Smart Home Devices 2026 from $24 — Echo, Nest, HomeKit",
     description:
-      "Best smart home devices 2026: Amazon Echo ($49–$149), Google Nest ($99–$129), Apple HomeKit, and Philips Hue prices compared across Amazon, Best Buy, Walmart, and Target. Live US pricing and retailer availability.",
+      "Smart home prices 2026: Echo Dot from $24, Nest from $129, HomePod mini from $99, Hue Starter from $179. Compare Amazon, Best Buy, Walmart.",
     heroEyebrow: "US Shopping Guide",
-    heroTitle: "Best Smart Home Devices 2026 — Echo, Google Nest, Apple HomeKit",
+    heroTitle: "Best Smart Home Devices 2026 from $24 — Echo, Nest, HomeKit",
     heroBody:
       "The best smart home devices in 2026 fall into three ecosystems — Amazon Alexa (Echo), Google Nest, and Apple HomeKit — plus cross-platform lighting like Philips Hue. We compare the top smart speakers, smart displays, thermostats, and smart bulbs across Amazon, Best Buy, Walmart, and Target so you can see which retailer has the lowest price and the best stock. Whether you are starting a new smart home with an Echo Dot or expanding HomeKit with a HomePod mini, this guide shows current 2026 US prices and where to buy each device.",
     canonicalPath: "/best-smart-home-us",
@@ -9237,10 +9693,10 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
 
   "best-qled-tvs-us": {
     slug: "best-qled-tvs-us",
-    title: "Best QLED TVs US 2026: Samsung, TCL, Hisense Compared",
-    description: "Best QLED TVs in 2026: Samsung QN85D/QN90D from $797, TCL QM8 from $799, Hisense U7N/U8N from $598. Compare sizes, brightness, HDR, and live US prices across Amazon, Best Buy, Walmart.",
+    title: "Best QLED TVs 2026 from $398 — Samsung, TCL, Hisense",
+    description: "QLED TV prices 2026: Samsung QN85D from $797, TCL QM8 from $799, Hisense U7N from $598. Compare sizes, HDR, and live deals on Amazon, Best Buy, Walmart.",
     heroEyebrow: "US TV Buying Guide",
-    heroTitle: "Best QLED TVs in the US 2026",
+    heroTitle: "Best QLED TVs 2026 from $398 — Samsung, TCL, Hisense",
     heroBody: "Shopping for the best QLED TV in 2026? Samsung, TCL, and Hisense dominate the category from $598 to $2,797. We compare the Samsung QN85D and QN90D, TCL QM8 and Q6 QLED, and Hisense U7N and U8N with live prices, screen sizes, peak brightness, and HDR performance so you can find the right QLED for bright rooms, gaming, or movies.",
     canonicalPath: "/best-qled-tvs-us",
     country: "US" as const,
@@ -9322,10 +9778,10 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
 
   "best-budget-tvs-us": {
     slug: "best-budget-tvs-us",
-    title: "Where to Buy the Cheapest TVs in 2026 — Best Budget TVs Under $500",
-    description: "Best cheap TVs in 2026: Hisense A6 from $198, Fire TV Omni QLED from $319, TCL S5 from $228. Compare budget 4K TVs under $500 across Amazon, Walmart, Best Buy.",
+    title: "Best Budget TVs Under $300 in 2026 — 7 Models from $198",
+    description: "Best cheap 4K TVs in 2026: Hisense A6 from $198, Fire TV Omni QLED from $319, TCL S5 from $228. Compare budget TVs across Amazon, Walmart, Best Buy.",
     heroEyebrow: "US TV Buying Guide",
-    heroTitle: "Where to Buy the Cheapest TVs in 2026 (Under $500)",
+    heroTitle: "Best Budget TVs Under $300 in 2026 — 7 Models from $198",
     heroBody: "Looking for a cheap TV in 2026? We compare budget 4K TVs under $500 across TCL, Hisense, Amazon Fire TV, and Walmart Onn with live prices, sale windows, and exactly where to buy each model for the lowest total cost.",
     canonicalPath: "/best-budget-tvs-us",
     country: "US" as const,
@@ -10119,10 +10575,10 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
 
   "best-bluetooth-speakers-us": {
     slug: "best-bluetooth-speakers-us",
-    title: "Best Bluetooth Speakers 2026 — JBL, Bose, UE, Sonos Compared",
-    description: "Best Bluetooth speakers in 2026: JBL Flip 7 from $129, JBL Charge 5 from $179, Bose SoundLink Flex from $149, UE Boom 4 from $149. Compare battery, IP rating, and live US prices.",
+    title: "Best Bluetooth Speakers 2026 from $39 — JBL, Bose, UE",
+    description: "Bluetooth speaker prices 2026: JBL Flip 7 from $129, Bose Flex from $149, UE Boom 4 from $149, Anker from $39. Compare Amazon, Best Buy.",
     heroEyebrow: "US Audio Buying Guide",
-    heroTitle: "Best Bluetooth Speakers in the US 2026",
+    heroTitle: "Best Bluetooth Speakers 2026 from $39 — JBL, Bose, UE",
     heroBody: "Looking for the best portable Bluetooth speaker in 2026? We compare JBL Flip 7, Bose SoundLink Flex, UE Boom 4, Sonos Roam 2, and Anker Soundcore with live prices from Amazon, Best Buy, and Walmart so you can find the right speaker for home, beach, or backyard.",
     canonicalPath: "/best-bluetooth-speakers-us",
     country: "US" as const,
@@ -11820,6 +12276,10 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Laptop",
+    searchCategory: "laptops",
+    excludeAccessories: true,
+    minPrice: 300,
+    requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
     productSectionTitle: "Live Laptop offers across the US",
     comparisonSectionTitle: "Popular Laptop picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],

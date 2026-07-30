@@ -13,6 +13,7 @@ const queryLog_1 = require("../middleware/queryLog");
 const response_1 = require("../lib/response");
 const compare_query_1 = require("../lib/compare-query");
 const queryPreprocessor_1 = require("../lib/queryPreprocessor");
+const shipsTo_1 = require("../lib/shipsTo");
 const instrumentation_1 = require("../lib/instrumentation");
 const embedProducts_1 = require("../jobs/embedProducts");
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
@@ -58,6 +59,22 @@ function asyncHandler(fn) {
             }
         });
     };
+}
+// BUY-62624: dedupe product rows by id. A LEFT JOIN on affiliate_links can fan out
+// one row per matching affiliate link (same product, multiple tracking URLs), which
+// renders identical product cards. Keep the first occurrence (highest-ranked/first in
+// the ordered result set) and drop the rest. Applied to every search result path.
+function dedupeProductRows(rows) {
+    const seen = new Set();
+    const out = [];
+    for (const row of rows) {
+        const id = String(row.id);
+        if (seen.has(id))
+            continue;
+        seen.add(id);
+        out.push(row);
+    }
+    return out;
 }
 function shiftSqlPlaceholders(sql, offset) {
     return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
@@ -181,12 +198,23 @@ async function tryTierSearch(req, res, p) {
     }
     try {
         await client.query('BEGIN');
-        await client.query(`SET LOCAL statement_timeout = '4000'`);
+        // 6500 (was 4000, 2026-07-18): measured cold tier queries complete in 4.5-6.7s;
+        // at 4s they timed out and fell to the archive path which then burned to the 10s
+        // handler cap (cache-miss p50 was 4-7s for real agents). 6.5s converts that band
+        // into tier successes while leaving headroom inside the 10s handler budget.
+        await client.query(`SET LOCAL statement_timeout = '6500'`);
         await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`); // fuzzy sampling breaks multi-word AND
         await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
         let rows = lexemes.length === 1 ? (await client.query(titleFallbackQuery, params)).rows : [];
         if (rows.length === 0) {
             rows = (await client.query(mkQuery(andMatch), params)).rows;
+            // BUY-65420: cheap title-contains LIKE before the expensive to_tsquery OR-match.
+            // Broad multi-word queries (e.g. "wireless headphones", "nike shoes") produce too
+            // many GIN candidates for OR-FTS and timeout at 6500ms. The substring match on
+            // the smaller search_products tier is fast and catches the common case.
+            if (rows.length === 0 && lexemes.length > 1) {
+                rows = (await client.query(tokenTitleFallbackQuery, params)).rows;
+            }
             if (rows.length === 0 && lexemes.length > 1) {
                 rows = (await client.query(mkQuery(orMatch), params)).rows; // recall fallback
             }
@@ -289,10 +317,19 @@ function annotateDeliverTo(body, deliverTo, includeUnshippable, q) {
     const items = body.data || [];
     const meta = body.meta;
     if (deliverTo) {
-        for (const it of items)
-            it.availability = it.country_code === deliverTo ? 'local' : 'unknown';
+        for (const it of items) {
+            if (it.country_code === deliverTo) {
+                it.availability = 'local';
+                continue;
+            }
+            // ships-to upgrade (2026-07-15): merchant-level scope from merchant_shipping.
+            const scope = (0, shipsTo_1.shipScopeForUrl)(it.url);
+            it.availability = scope === 'worldwide' ? 'ships_to_you'
+                : scope === 'domestic' ? 'unavailable'
+                    : 'unknown';
+        }
         if (!includeUnshippable) {
-            const kept = items.filter((it) => it.availability === 'local');
+            const kept = items.filter((it) => it.availability === 'local' || it.availability === 'ships_to_you');
             body.data = kept;
             if (meta)
                 meta.total = kept.length;
@@ -329,6 +366,7 @@ const LIST_SORT_COLUMNS = {
 };
 const LIST_SORT_TTL_SECONDS = 60;
 router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.list'), asyncHandler(async (req, res) => {
+    res.locals.cacheHit = false;
     // Backward compatibility: early public docs and clients used
     // `/v1/products?query=...` for search. Treat that as the canonical
     // bounded search route instead of falling through to the unsearched list
@@ -381,6 +419,7 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
             });
             res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
             res.set('X-Cache', 'HIT');
+            res.locals.cacheHit = true;
             return res.json(parsed);
         }
     }
@@ -514,6 +553,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // so FTS alone returns near-zero matches even when 10k+ products exist.
     const { cleanedQuery, canonicalSources } = (0, queryPreprocessor_1.preprocessSearchQuery)(rawQuery, minPrice, maxPrice);
     const q = cleanedQuery || rawQuery;
+    res.locals.cacheHit = false;
     // Sprint C (1.4): normalize the q component of the cache key — lowercase,
     // sorted, punctuation-stripped token set — so "Running Shoes", "running shoe s"
     // orderings and casings share one cache entry (AND/OR matching is order-
@@ -541,12 +581,14 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             });
             res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
             res.set('X-Cache', 'HIT');
+            res.locals.cacheHit = true;
             return res.json(parsed);
         }
     }
     catch (_) {
         // Redis miss or error — fall through to DB
     }
+    res.locals.cacheHit = false;
     // BUY-33987: only active products are surfaced to API consumers; the partial
     // GIN index `products_*_search_vector_idx WHERE is_active = true` lets the
     // planner skip dead rows and the inactive non-leaf rows that previously
@@ -562,6 +604,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // single-table archive constraints because it falls through unchanged on any
     // tier error, and SEARCH_USE_TIER=0 remains a runtime kill switch.
     const useSearchTier = req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0');
+    res.locals.cacheHit = false;
     if (q && searchMode === 'keyword' && useSearchTier) {
         const handled = await tryTierSearch(req, res, {
             q, countryCode, currency, limit, offset, minPrice, maxPrice,
@@ -841,9 +884,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         requestedRows,
     ];
     const sendFallbackProducts = async (rows, source) => {
-        dataResult = { rows };
-        total = rows.length;
-        hasMore = rows.length > limit;
+        dataResult = { rows: dedupeProductRows(rows) };
+        total = dataResult.rows.length;
+        hasMore = dataResult.rows.length > limit;
         if (hasMore)
             dataResult.rows = dataResult.rows.slice(0, limit);
         const responseTimeMs = Date.now() - requestStart;
@@ -898,7 +941,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         )
         SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
         FROM top_ids
-        JOIN products ON products.id = top_ids.id
+        JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY top_ids.rank DESC
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
@@ -989,7 +1032,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
               )
               SELECT ${joinedColumns}, top_ids.rank AS _fts_rank
               FROM top_ids
-              JOIN products ON products.id = top_ids.id
+              JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
               LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
               ORDER BY top_ids.rank DESC
             `;
@@ -1309,6 +1352,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         throw err;
     }
     client.release();
+    // BUY-62624: collapse affiliate_links fan-out duplicates before pagination
+    // math so hasMore reflects distinct results.
+    dataResult.rows = dedupeProductRows(dataResult.rows);
     if (typeof hasMore === 'undefined') {
         hasMore = dataResult.rows.length > limit;
         if (hasMore)
@@ -1393,6 +1439,7 @@ const DEALS_QUERY_TIMEOUT_MS = 4500;
 const DEALS_RESPONSE_TIMEOUT_MS = 5000;
 const DEALS_SAMPLE_CAP = 5000; // max candidates to sample for deals
 router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.deals'), asyncHandler(async (req, res) => {
+    res.locals.cacheHit = false;
     const start = Date.now();
     const currency = req.query.currency || 'SGD';
     const countryCode = (req.query.country_code || req.query.country)?.toUpperCase() || undefined;
@@ -1413,6 +1460,7 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
                 source: 'products.deals.cache',
                 req,
             });
+            res.locals.cacheHit = true;
             return res.json(parsed);
         }
     }
@@ -1439,19 +1487,27 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
             catch (_) { }
         }
     });
-    // Deals: prefer discount_pct generated column (BUY-14332), fall back to inline
-    // computation if the column doesn't exist yet (migration may not have run).
+    // Deals: prefer a populated discount_pct column (BUY-14332/BUY-64109), fall
+    // back to inline computation only if the column is absent or empty.
     const dealConditions = ['currency = $1', 'price > 0'];
     const dealParams = [currency];
     let dealIdx = 2;
     let useDiscountCol = true;
-    // Probe whether discount_pct column exists as GENERATED (cached per-process)
-    // BUY-22324: must verify is_generated = 'ALWAYS'; a plain column is 100% NULL
-    // and produces wrong results (get_deals returns total: 0).
+    // Probe whether discount_pct is usable (cached per-process). BUY-64109: the
+    // production table has a populated plain numeric discount_pct column, so
+    // requiring is_generated = 'ALWAYS' incorrectly forced the metadata fallback.
     if (typeof router._hasDiscountPct === 'undefined') {
         try {
-            const probe = await config_1.db.query(`SELECT is_generated FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`);
-            router._hasDiscountPct = probe.rows.length > 0 && probe.rows[0].is_generated === 'ALWAYS';
+            const probe = await config_1.db.query(`SELECT c.is_generated, EXISTS (
+             SELECT 1 FROM products
+             WHERE is_active = true AND price > 0 AND discount_pct > 0
+             LIMIT 1
+           ) AS has_positive_discounts
+           FROM information_schema.columns c
+           WHERE c.table_name = 'products' AND c.column_name = 'discount_pct'
+           LIMIT 1`);
+            router._hasDiscountPct = probe.rows.length > 0
+                && (probe.rows[0].is_generated === 'ALWAYS' || probe.rows[0].has_positive_discounts === true);
         }
         catch {
             router._hasDiscountPct = false;
@@ -1472,7 +1528,6 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
         dealParams.push(countryCode);
         dealIdx++;
     }
-    const dealWhere = dealConditions.join(' AND ');
     const discountSelect = useDiscountCol
         ? 'discount_pct'
         : `ROUND(((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)::numeric, 1) AS discount_pct`;
@@ -1492,18 +1547,31 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
         // BUY-34291: cap work_mem too (same shared_buffers pressure reasoning as search)
         await dealsClient.query(`SET work_mem = '${SEARCH_WORK_MEM}'`);
         await dealsClient.query(`SET statement_timeout = ${DEALS_QUERY_TIMEOUT_MS}`);
-        // BUY-60309: bounded sampling - sample recent active candidates, filter, order, paginate
-        // This replaces the unbounded COUNT + ORDER BY over the full table
-        const sampleResult = await dealsClient.query(`SELECT id, sku AS source_id, source AS domain, url,
-                title, price, (metadata->>'original_price')::numeric AS original_price,
-                currency, image_url, metadata, updated_at,
-                region, country_code, created_at, description, brand, mpn, gtin,
-                category_path, category, merchant_id, avg_rating, review_count,
-                ${discountSelect}
-         FROM products
-         WHERE ${dealWhere}
+        // BUY-64109: first take a bounded recent active slice, then filter/order it.
+        // Filtering discount_pct before the LIMIT misses newly backfilled deals when
+        // the planner chooses a slow full-table path and times out.
+        const candidateParams = [DEALS_SAMPLE_CAP, ...dealParams, limit, offset];
+        const filterConditions = dealConditions
+            .map((condition) => condition.replace(/\$(\d+)/g, (_match, idx) => `$${Number(idx) + 1}`))
+            .join(' AND ');
+        const sampleResult = await dealsClient.query(`SELECT *
+         FROM (
+           SELECT id, sku AS source_id, source AS domain, url,
+                  title, price,
+                  CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
+                       THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
+                  currency, image_url, metadata, updated_at,
+                  region, country_code, created_at, description, brand, mpn, gtin,
+                  category_path, category, merchant_id, avg_rating, review_count,
+                  ${discountSelect}
+           FROM products
+           WHERE is_active = true AND price > 0
+           ORDER BY updated_at DESC
+           LIMIT $1
+         ) _recent_deals
+         WHERE ${filterConditions}
          ORDER BY updated_at DESC
-         LIMIT ${DEALS_SAMPLE_CAP}`, dealParams);
+         LIMIT $${candidateParams.length - 1} OFFSET $${candidateParams.length}`, candidateParams);
         // Filter and order the bounded sample in memory (fast, no DB timeout risk)
         const sampleDeals = sampleResult.rows
             .filter(row => {
@@ -1547,6 +1615,7 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
         source: 'products.deals',
         req,
     });
+    res.locals.cacheHit = false;
     res.json(responseBody);
 }));
 // GET /v1/products/compare?ids=id1,id2,id3
@@ -1828,6 +1897,7 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
 // GET /v1/products/featured
 // Keep this route above /:id so Express does not treat "featured" as a product id.
 router.get('/featured', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.featured'), asyncHandler(async (req, res) => {
+    res.locals.cacheHit = false;
     const start = Date.now();
     const rawCountry = req.query.country_code || req.query.country;
     const countryCode = rawCountry?.toUpperCase() || 'SG';
@@ -1849,6 +1919,7 @@ router.get('/featured', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApi
                 source: 'products.featured.cache',
                 req,
             });
+            res.locals.cacheHit = true;
             return res.json(parsed);
         }
     }
@@ -1868,6 +1939,7 @@ router.get('/featured', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApi
     const responseBody = (0, response_1.buildSearchResponse)(products, products.length, limit, offset, Date.now() - start, false);
     config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => { });
     res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
+    res.locals.cacheHit = false;
     res.json(responseBody);
 }));
 // GET /v1/products/:id
@@ -2219,7 +2291,7 @@ async function warmSearchCache() {
         )
         SELECT ${joinedColumns}
         FROM top_ids
-        JOIN products ON products.id = top_ids.id
+        JOIN products ON products.id = top_ids.id AND products.country_code = top_ids.country_code
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
         ORDER BY products.updated_at DESC
         LIMIT $${idx} OFFSET $${idx + 1}

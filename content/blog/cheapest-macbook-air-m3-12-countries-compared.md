@@ -1,7 +1,7 @@
 ---
 slug: "cheapest-macbook-air-m3-12-countries-compared"
-title: "Cheapest Country to Buy MacBook Air M3 (2026) — From US$799"
-description: "Cheapest MacBook Air M3 in 2026 is in India at ₹94,900 (~$1,138); US at US$799 is the cheapest in the accessible global market. Live prices across 12 countries."
+title: "Cheapest Country for MacBook Air M3: US$799 vs SG$1,499"
+description: "The US is cheapest for MacBook Air M3 at US$799. Compare Singapore, Japan, India, UK, EU and 12 countries before you buy."
 author: "BuyWhere Team"
 publishedAt: "2026-06-30"
 tags: ["macbook-air", "apple", "m3-chip", "global-pricing", "laptop", "12-countries", "comparison"]
@@ -11,8 +11,8 @@ jsonLd: >
     "@graph": [
       {
         "@type": "Article",
-        "headline": "Cheapest Country to Buy MacBook Air M3 (2026) — From US$799",
-        "description": "Find the cheapest MacBook Air M3 in 2026: India ₹94,900 (~$1,138), Malaysia RM5,199 (~$1,110), US $799. 12 countries compared with live Apple and Amazon pricing.",
+        "headline": "Cheapest Country for MacBook Air M3: US$799 vs SG$1,499",
+        "description": "The US is cheapest for MacBook Air M3 at US$799. Compare Singapore, Japan, India, UK, EU and 12 countries before you buy.",
         "datePublished": "2026-06-30",
         "dateModified": "2026-06-30",
         "author": { "@type": "Organization", "name": "BuyWhere Team", "url": "https://buywhere.ai" },

@@ -126,12 +126,22 @@ const ACTIVE_BLOG_SLUGS = new Set([
   "cheapest-macbook-air-m3-12-countries-compared",
   "amazon-prime-day-2026-preview",
   "airpods-pro-2-cheapest-us-sg-my-jp",
+  "best-time-to-buy-back-to-school-laptops-2026",
+  "best-time-to-buy-small-kitchen-appliances-2026",
+  "best-noise-cancelling-headphones-2026-bose-sony-sennheiser-apple",
+  "buywhere-vs-google-shopping-vs-amazon-pricing-2026",
   "compare-headphones-singapore-2026",
   "compare-product-prices-singapore-2026",
   "fathers-day-deals-2026",
   "home-appliance-deals-singapore-2026",
   "iphone-16-vs-iphone-17-upgrade-worth-it-2026",
   "openai-agents-sdk-buywhere-mcp-tutorial",
+  "the-mcp-server-discovery-gap",
+  "building-production-mcp-servers",
+  "five-mcp-servers-that-earn-context-window",
+  "mcp-for-ecommerce",
+  "buywhere-mcp-goes-live",
+  "mcp-server-ecosystem-2026",
 ]);
 
 function normalizePathname(pathname: string): string {
@@ -314,14 +324,35 @@ export function middleware(request: NextRequest) {
   const wantsMarkdown = accept.includes("text/markdown");
 
   // Bypass all middleware for static files
+  // Exception: /developers/robots.txt and /developers/sitemap.xml must reach the rewrite
+  // logic below (BUY-65437) — they contain "." but are not real static files.
+  const isDeveloperRobotsOrSitemap =
+    pathname === "/developers/robots.txt" ||
+    pathname === "/developers/robots" ||
+    pathname === "/developers/sitemap.xml" ||
+    pathname === "/developers/sitemap";
   if (
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/api/") ||
     pathname.startsWith("/assets/") ||
-    (pathname.includes(".") && !pathname.startsWith("/docs")) ||
+    (pathname.includes(".") && !pathname.startsWith("/docs") && !isDeveloperRobotsOrSitemap) ||
     pathname === "/.well-known/"
   ) {
     return NextResponse.next();
+  }
+
+  // BUY-65437: Rewrite /developers/robots.txt -> /robots.txt and /developers/sitemap.xml -> /sitemap.xml
+  // The Next.js file-based routing matches .txt/.xml extensions before middleware can rewrite,
+  // so we need explicit rewrites for these legacy routes that were working before.
+  if (pathname === "/developers/robots.txt" || pathname === "/developers/robots") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/robots.txt";
+    return NextResponse.rewrite(url);
+  }
+  if (pathname === "/developers/sitemap.xml" || pathname === "/developers/sitemap") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/sitemap.xml";
+    return NextResponse.rewrite(url);
   }
 
   const ua = request.headers.get("user-agent") ?? "";
@@ -374,13 +405,19 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // Dead US product slug pages — same thin-content issue (BUY-40757: allow 2-segment paths)
-  if (normalizedForDead.startsWith("/products/us/")) {
-    const afterUsPrefix = normalizedForDead.slice("/products/us/".length);
-    if (afterUsPrefix.split("/").filter(Boolean).length <= 1) {
-      return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
-    }
-  }
+  // US product slug pages (/products/us/<slug>) — intentionally NOT 410'd.
+  // The single-segment route src/app/products/us/[slug]/page.tsx resolves the
+  // product from the id suffix and SSR-renders a real price-comparison page
+  // (USProductDetail + fetchUSProductSSR), falling back to notFound() (404) for
+  // genuinely unknown slugs. Previously this middleware hard-410'd every
+  // single-segment US product URL (BUY-40757 thin-content de-index), which left
+  // inbound Google-indexed URLs and internal related-product links dead and made
+  // every US product detail page read as "410 Gone" (BUY-63952 P0). Mirrors the
+  // /about decision (BUY-58440): let the page render real content + metadata so
+  // Google can index it, instead of suppressing it with a 410. The richer
+  // 2-segment canonical (/products/us/<merchant>/<id>) still renders via its own
+  // route and remains the sitemap canonical; SG single-segment slugs stay 410'd
+  // above because their page is still client-only thin content.
 
   // Trailing-slash canonicalisation: 301 redirect to the non-slash URL.
   // GSC flagged 9 URL pairs (BUY-55695) where slash and non-slash variants both
@@ -460,6 +497,26 @@ export function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/search";
     url.search = `q=${encodeURIComponent(query.replace(/-/g, " "))}&country=${encodeURIComponent(location)}`;
+    return NextResponse.rewrite(url);
+  }
+
+  // BUY-65437: /developers/* and /us/robots/* routes regressed to 404 after
+  // BUY-64524 recovery. These legacy SEO/crawler paths have no on-disk route
+  // handler; rewrite them to the canonical root handlers so crawlers get a
+  // 200 instead of a 404. /developers/robots.txt → /robots.txt, everything
+  // else (sitemap-flavoured) → /sitemap.xml.
+  if (pathname === "/developers/robots.txt") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/robots.txt";
+    return NextResponse.rewrite(url);
+  }
+  if (
+    pathname === "/developers/sitemap.xml" ||
+    pathname === "/developers/robots/sitemap/us" ||
+    pathname === "/us/robots/sitemap/us"
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/sitemap.xml";
     return NextResponse.rewrite(url);
   }
 
