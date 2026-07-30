@@ -300,7 +300,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         }
 
         if (queryVec && vectorDb) {
-          let candidateIds: string[];
+          let candidateIds: string[] = [];
           let vectorCandidateIds: string[] | null = null;
 
           if (mode === 'semantic') {
