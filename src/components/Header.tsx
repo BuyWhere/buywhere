@@ -1,31 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import AuthNavControls from "@/components/AuthNavControls";
 import { useTheme } from "@/lib/use-theme";
-
-function useLgUp() {
-  // True when viewport is >= Tailwind's `lg` breakpoint (1024px).
-  // Returns `undefined` during SSR / first paint to keep server + client markup identical.
-  const [isLgUp, setIsLgUp] = useState<boolean | undefined>(undefined);
-  useEffect(() => {
-    const mql = window.matchMedia("(min-width: 1024px)");
-    const update = () => setIsLgUp(mql.matches);
-    update();
-    mql.addEventListener("change", update);
-    return () => mql.removeEventListener("change", update);
-  }, []);
-  return isLgUp;
-}
 
 export default function Header() {
   const [open, setOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const pathname = usePathname();
   const isHome = pathname === "/";
-  const isLgUp = useLgUp();
 
   return (
     <header tabIndex={-1} role="banner" aria-label="Site header" className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100 dark:bg-gray-900/90 dark:border-gray-800">
@@ -53,45 +38,32 @@ export default function Header() {
           <Link href="/pricing" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Pricing</Link>
           <Link href="/about" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">About</Link>
           <AuthNavControls />
-          {isLgUp !== false && (
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-            >
-              {theme === 'light' ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-600">
-                  <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-                </svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-300">
-                  <circle cx="12" cy="12" r="5" />
-                  <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-                </svg>
-              )}
-            </button>
-          )}
         </nav>
 
         <div className="flex items-center gap-2">
-          {isLgUp !== true && (
-            <button
-              onClick={toggleTheme}
-              className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-            >
-              {theme === 'light' ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-600">
-                  <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-                </svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-300">
-                  <circle cx="12" cy="12" r="5" />
-                  <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-                </svg>
-              )}
-            </button>
-          )}
+          {/*
+            Single dark-mode toggle rendered in the source. The desktop nav
+            already has `hidden lg:flex`, so on desktop the toggle is the
+            rightmost button next to where the nav ends; on mobile it sits
+            next to the hamburger menu. SSR + first paint emit exactly ONE
+            button into the DOM, eliminating the duplicate-icon regression.
+          */}
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          >
+            {theme === 'light' ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-600">
+                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-300">
+                <circle cx="12" cy="12" r="5" />
+                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+              </svg>
+            )}
+          </button>
           <button
             className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
             onClick={() => setOpen(!open)}
