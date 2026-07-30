@@ -1,5 +1,14 @@
+import {
+  buildSitemapResponse,
+  renderUrlSet,
+  getSGProductSitemapEntries,
+} from "@/lib/sitemaps";
+
+// Force dynamic so the route uses runtime env vars and returns fresh data
+// on each request (same pattern as sitemap-products.xml).
+export const dynamic = "force-dynamic";
+
 export async function GET(): Promise<Response> {
-  // Product slug pages return 410 Gone (BUY-37747/BUY-37750).
-  // This sitemap is deprecated — delete it from GSC to avoid coverage errors.
-  return new Response(null, { status: 410 });
+  const entries = await getSGProductSitemapEntries();
+  return buildSitemapResponse(renderUrlSet(entries));
 }
