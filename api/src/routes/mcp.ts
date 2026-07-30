@@ -301,34 +301,52 @@ async function handleSearchProducts(args: Record<string, unknown>) {
 
         if (queryVec && vectorDb) {
           let candidateIds: string[];
+          let vectorCandidateIds: string[] | null = null;
 
           if (mode === 'semantic') {
             // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
-            // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors from Cohere/Jina
-            const vecRows = await vectorDb.query<{ product_id: string }>(
-              `SELECT product_id FROM product_embeddings
-               WHERE model_ver = 'gemini-embedding-001@512'
-               ORDER BY embedding <=> $1::vector LIMIT 200`,
-              [queryVec]
-            );
-            candidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
-          } else {
-            // Hybrid: app-level RRF of FTS ranks + vector ranks
-            const [ftsResult, vecResult] = await Promise.all([
-              searchClient.query<{ id: string }>(
-                `SELECT id FROM products ${where} LIMIT 200`,
-                params
-              ),
+            try {
               // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
-              vectorDb.query<{ product_id: string }>(
+              const vecRows = await vectorDb.query<{ product_id: string }>(
                 `SELECT product_id FROM product_embeddings
                  WHERE model_ver = 'gemini-embedding-001@512'
                  ORDER BY embedding <=> $1::vector LIMIT 200`,
                 [queryVec]
-              ),
-            ]);
-            const ftsRank = new Map(ftsResult.rows.map((r, i) => [r.id, i + 1]));
-            const vecRank = new Map(vecResult.rows.map((r, i) => [r.product_id, i + 1]));
+              );
+              vectorCandidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
+            } catch (vecErr) {
+              // BUY-65474: dimension mismatch or other error — fall through to FTS
+              console.warn('[search] vector query failed, falling back to FTS:', (vecErr as Error).message);
+              vectorCandidateIds = null;
+            }
+          } else {
+            // Hybrid: app-level RRF of FTS ranks + vector ranks
+            let vecRows: { product_id: string }[] = [];
+            let ftsRows: { id: string }[] = [];
+            try {
+              // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
+              const vecResult = await vectorDb.query<{ product_id: string }>(
+                `SELECT product_id FROM product_embeddings
+                 WHERE model_ver = 'gemini-embedding-001@512'
+                 ORDER BY embedding <=> $1::vector LIMIT 200`,
+                [queryVec]
+              );
+              vecRows = vecResult.rows;
+            } catch (vecErr) {
+              // BUY-65474: dimension mismatch — use FTS only
+              console.warn('[search] hybrid vector query failed, FTS only:', (vecErr as Error).message);
+            }
+            try {
+              const ftsResult = await searchClient.query<{ id: string }>(
+                `SELECT id FROM products ${where} LIMIT 200`,
+                params
+              );
+              ftsRows = ftsResult.rows;
+            } catch (ftsErr) {
+              console.warn('[search] hybrid FTS query failed:', (ftsErr as Error).message);
+            }
+            const ftsRank = new Map(ftsRows.map((r, i) => [r.id, i + 1]));
+            const vecRank = new Map(vecRows.map((r, i) => [r.product_id, i + 1]));
             const allIds = new Set([...ftsRank.keys(), ...vecRank.keys()]);
             candidateIds = [...allIds]
               .map(id => ({
@@ -340,7 +358,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
               .map(s => s.id);
           }
 
-          total = candidateIds.length;
+          // BUY-65474: use vector results if available, else fall through to FTS
+          if (vectorCandidateIds !== null) {
+            candidateIds = vectorCandidateIds;
+          }
           const pageIds = candidateIds.slice(offset, offset + limit);
 
           if (pageIds.length === 0) {
@@ -366,10 +387,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
                SELECT id, sku AS source, source AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code
                FROM products ${where}
-               LIMIT $${params.length - 2}
+               LIMIT $${params.length - 2}::int
              ) _candidates
              ORDER BY updated_at DESC
-             LIMIT $${params.length - 1} OFFSET $${params.length}`,
+             LIMIT $${params.length - 1}::int OFFSET $${params.length}::int`,
             params
           );
           rows = result.rows;
@@ -383,10 +404,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
              SELECT id, sku AS source, source AS domain, url, title,
                     price, currency, image_url, metadata, updated_at, region, country_code
              FROM products ${where}
-             LIMIT $${params.length - 2}
+             LIMIT $${params.length - 2}::int
            ) _candidates
            ORDER BY updated_at DESC
-           LIMIT $${params.length - 1} OFFSET $${params.length}`,
+           LIMIT $${params.length - 1}::int OFFSET $${params.length}::int`,
           params
         );
         rows = result.rows;
@@ -632,11 +653,11 @@ async function handleGetDeals(args: Record<string, unknown>) {
          FROM products
          WHERE ${innerWhere}
          ORDER BY updated_at DESC
-         LIMIT $${innerParams.length}
+         LIMIT $${innerParams.length}::int
        ) _recent_deals
        WHERE ${outerConditions.join(' AND ')}
        ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
-       LIMIT $${outerParams.length - 1} OFFSET $${outerParams.length}`,
+       LIMIT $${outerParams.length - 1}::int OFFSET $${outerParams.length}::int`,
       outerParams
     );
     total = dataResult.rows.length;
@@ -778,11 +799,14 @@ async function handleListCategories(args: Record<string, unknown>) {
           product_count: 0,
         }));
       }
+      const isFallback = rows.length > 0 && rows.every(r => r.product_count === 0);
       const data = {
         data: rows,
-        meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false, unavailable: false },
+        meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false, unavailable: rows.length === 0 },
       };
-      redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
+      // BUY-65474: use shorter TTL for empty/fallback data (60s) vs real data (600s)
+      const cacheTtl = isFallback ? 60 : 600;
+      redis.set(cacheKey, JSON.stringify(data), 'EX', cacheTtl).catch(() => {});
       return data;
     } finally {
       releaseClientSafely(client);
@@ -845,30 +869,17 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          FROM products
          WHERE is_active = true AND price > 0
          ORDER BY updated_at DESC
-         LIMIT $1
+         LIMIT $1::int
        ) _candidates
        WHERE country_code = $2
          AND title ILIKE $3
        ORDER BY price ASC, updated_at DESC
-       LIMIT $4`,
+       LIMIT $4::int`,
       [50000, country, titlePattern, limit]
     );
-    if (result.rows.length === 0) {
-      result = await bestPriceClient.query(
-        `SELECT * FROM (
-           SELECT id, title, price, currency, source AS domain, url, image_url,
-                  country_code, updated_at
-           FROM products
-           WHERE is_active = true AND price > 0
-           ORDER BY updated_at DESC
-           LIMIT $1
-         ) _candidates
-         WHERE country_code = $2
-         ORDER BY price ASC, updated_at DESC
-         LIMIT $3`,
-        [50000, country, limit]
-      );
-    }
+    // BUY-65474: no fallback for unrelated products. If title has no ILIKE match,
+    // return an empty result rather than misleading cheapest products (e.g. bike
+    // hardware for an "iphone" query).
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);
