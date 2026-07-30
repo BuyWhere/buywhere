@@ -132,11 +132,20 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-200">
                 {config.heroBody}
               </p>
-              <div className="mt-8 flex flex-wrap gap-3 text-sm text-slate-100">
-                <span className="rounded-full bg-white/10 px-3 py-1.5">{buildRefreshedLabel(config, products)}</span>
-                <span className="rounded-full bg-white/10 px-3 py-1.5">{config.country} market coverage</span>
-                <span className="rounded-full bg-white/10 px-3 py-1.5">Live BuyWhere search results</span>
-              </div>
+              <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-100" aria-label="Page metadata">
+                <li className="inline-flex items-center gap-2">
+                  <span aria-hidden="true" className="text-amber-300">✓</span>
+                  <span>{buildRefreshedLabel(config, products)}</span>
+                </li>
+                <li className="inline-flex items-center gap-2">
+                  <span aria-hidden="true" className="text-amber-300">✓</span>
+                  <span>{config.country} market coverage</span>
+                </li>
+                <li className="inline-flex items-center gap-2">
+                  <span aria-hidden="true" className="text-amber-300">✓</span>
+                  <span>Live BuyWhere search results</span>
+                </li>
+              </ul>
             </div>
 
             <div className="rounded-[32px] border border-white/10 bg-slate-950/35 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur">
