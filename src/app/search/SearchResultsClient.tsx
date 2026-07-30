@@ -358,6 +358,10 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
         </div>
 
         <div className="mt-auto space-y-2.5 border-t border-slate-100 pt-2.5">
+          {/* BUY-65455: label + price on a single baseline-aligned row so the
+              numeric price is visually adjacent to the 'Current price' label
+              (previously they were disconnected: a floating pill on the image
+              + the label here). */}
           <div className="flex items-baseline justify-between gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Current price</p>
             <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
