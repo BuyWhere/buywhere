@@ -54,12 +54,14 @@ export function getMerchantConfig(merchant: string): MerchantConfig {
 
 /**
  * Strip internal tenant/database suffixes from a merchant string so the badge
- * shows a clean platform name. Operates on the raw API value (snake_case);
- * the visible casing is left to the caller.
+ * shows a clean platform name. Tolerates input that has already been
+ * title-cased and de-underscored by upstream serializers (so the boundary
+ * between platform and tenant may be a space rather than an underscore).
  *
  * Examples:
  *   "shopify" -> "shopify"
  *   "shopify_buy30620_crate" -> "shopify"
+ *   "Shopify Buy30620 Crate" -> "Shopify" (already-de-underscored input)
  *   "shopify_buy30620_hunt2" -> "shopify"
  *   "shopify_scrape" -> "shopify"
  *   "walmart_us" -> "walmart"
@@ -68,7 +70,7 @@ export function getMerchantConfig(merchant: string): MerchantConfig {
  */
 export function stripMerchantTenantSuffix(value?: string | null): string {
   if (!value) return '';
-  const tokens = value.split(/[_-]+/).filter(Boolean);
+  const tokens = value.split(/[\s_-]+/).filter(Boolean);
   if (tokens.length <= 1) return value;
 
   const firstToken = tokens[0].toLowerCase();
