@@ -15,3 +15,16 @@ body {
     text-wrap: balance;
   }
 }
+
+/* Search input placeholder — WCAG AA contrast on dark indigo hero background */
+.search-input::placeholder {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.search-input::-webkit-input-placeholder {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.search-input::-moz-placeholder {
+  color: rgba(255, 255, 255, 0.85);
+}

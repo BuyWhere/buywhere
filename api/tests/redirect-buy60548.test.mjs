@@ -107,6 +107,57 @@ describe('BUY-60548 /r/:slug/:productId redirect', () => {
     assert.notEqual(res.redirectedTo, 'https://buywhere.ai', 'must not fall back to homepage');
   });
 
+  it('routes the confirmed broken BUY-65154 Compumarts destination to graceful BuyWhere alternatives', async () => {
+    const brokenUrl = 'https://compumarts.com/products/asus-rog-strix-g16-g614pw-ts161w-ryzen-9-8940hx-rtx-5080-16gb-gddr7-1tb-pcie-4-0-nvme-ssd-16-inch-2-5k-300hz-gaming-laptop';
+    queryHandler = (text) => {
+      if (text.includes('FROM affiliate_links')) return { rows: [] };
+      if (text.includes('FROM products')) {
+        return { rows: [{ url: brokenUrl, merchant_id: 'shopify_scrape' }] };
+      }
+      return { rows: [] };
+    };
+
+    const req = makeReq({ slug: 'direct', productId: '678974890', query: { source: 'product_card' } });
+    const res = makeRes();
+
+    await dispatch(req, res);
+
+    assert.equal(res.statusCode, 302);
+    assert.equal(
+      res.redirectedTo,
+      'https://buywhere.ai/search?q=ASUS%20ROG%20Strix%20G16%20G614PW'
+    );
+    assert.notEqual(res.redirectedTo, brokenUrl);
+  });
+
+  it('rotates the same broken URL when it comes from affiliate_links', async () => {
+    const brokenUrl = 'https://compumarts.com/products/asus-rog-strix-g16-g614pw-ts161w-ryzen-9-8940hx-rtx-5080-16gb-gddr7-1tb-pcie-4-0-nvme-ssd-16-inch-2-5k-300hz-gaming-laptop';
+    queryHandler = (text) => {
+      if (text.includes('FROM affiliate_links')) {
+        return {
+          rows: [{
+            id: 'link-broken',
+            merchant_id: 'shopify_scrape',
+            affiliate_url: brokenUrl,
+            destination_url: brokenUrl,
+          }],
+        };
+      }
+      return { rows: [] };
+    };
+
+    const req = makeReq({ slug: 'direct', productId: '678974890', query: { source: 'product_card' } });
+    const res = makeRes();
+
+    await dispatch(req, res);
+
+    assert.equal(res.statusCode, 302);
+    assert.equal(
+      res.redirectedTo,
+      'https://buywhere.ai/search?q=ASUS%20ROG%20Strix%20G16%20G614PW'
+    );
+  });
+
   it('falls back to the product URL even if the affiliate_links query errors', async () => {
     // Simulate the original bug: affiliate_links query throws (e.g. bad column),
     // but the product fallback must still resolve the destination.

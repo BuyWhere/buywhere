@@ -245,6 +245,111 @@ const createPaperclipIssue = async (alert: UptimeRobotAlert, isDown: boolean): P
   }
 };
 
+// BUY-47930: UP-recovery. When a monitor transitions DOWN -> UP, resolve the
+// matching open DOWN incident instead of creating a standalone UP issue. We
+// look for an open incident whose description references the same monitor ID,
+// falling back to a title match on friendlyName / monitor URL host.
+interface PaperclipIssue {
+  id: string;
+  identifier?: string;
+  title?: string;
+  description?: string;
+  status: string;
+}
+
+const OPEN_INCIDENT_STATUSES = ['todo', 'in_progress', 'in_review', 'backlog'];
+
+const findOpenIncidentByMonitor = async (
+  monitorID: string,
+  friendlyName: string,
+  monitorURL: string,
+): Promise<PaperclipIssue | null> => {
+  if (!PAPERCLIP_BASE_URL || !PAPERCLIP_API_KEY) return null;
+  const host = hostnameOf(monitorURL);
+  const needles: string[] = [];
+  if (monitorID) needles.push(`**Monitor ID:** ${monitorID}`);
+  if (friendlyName && friendlyName !== 'unknown') needles.push(friendlyName);
+  if (host) needles.push(host);
+
+  for (const status of OPEN_INCIDENT_STATUSES) {
+    const url = `${ISSUES_ENDPOINT}?status=${encodeURIComponent(status)}&limit=50`;
+    try {
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${PAPERCLIP_API_KEY}` },
+      });
+      if (!res.ok) {
+        console.warn(`[webhooks/uptime-robot] findOpenIncident list status=${status} -> ${res.status}`);
+        continue;
+      }
+      const data = (await res.json()) as PaperclipIssue[] | { issues?: PaperclipIssue[] };
+      const issues: PaperclipIssue[] = Array.isArray(data) ? data : (data?.issues ?? []);
+      for (const issue of issues) {
+        const haystack = `${issue.title || ''}\n${issue.description || ''}`;
+        const isDownIncident = /\[INCIDENT\]\s*DOWN/i.test(issue.title || '');
+        if (!isDownIncident) continue;
+        if (needles.some((n) => haystack.includes(n))) {
+          return issue;
+        }
+      }
+    } catch (err) {
+      console.warn('[webhooks/uptime-robot] findOpenIncident request failed:', (err as Error).message);
+    }
+  }
+  return null;
+};
+
+const closePaperclipIncident = async (
+  issueId: string,
+  recoverySummary: string,
+): Promise<boolean> => {
+  if (!PAPERCLIP_BASE_URL || !PAPERCLIP_API_KEY) return false;
+  const patchUrl = `${PAPERCLIP_BASE_URL}/api/issues/${issueId}`;
+  try {
+    const res = await fetch(patchUrl, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${PAPERCLIP_API_KEY}`,
+      },
+      body: JSON.stringify({
+        status: 'done',
+        comment: `\u{1F7E2} **Auto-resolved by UP-recovery (BUY-47930).** ${recoverySummary}`,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.warn(`[webhooks/uptime-robot] closePaperclipIncident ${issueId} -> ${res.status}: ${body}`);
+      return false;
+    }
+    console.log(`[webhooks/uptime-robot] Resolved open DOWN incident ${issueId} via UP-recovery.`);
+    return true;
+  } catch (err) {
+    console.warn('[webhooks/uptime-robot] closePaperclipIncident request failed:', (err as Error).message);
+    return false;
+  }
+};
+
+// Resolves the matching open DOWN incident for an UP event; returns true if an
+// incident was found and closed so the caller can skip a redundant UP issue.
+const resolveDownIncidentOnUp = async (alert: UptimeRobotAlert): Promise<boolean> => {
+  const monitorIDStr = alert.monitorID != null ? String(alert.monitorID) : '';
+  const authoritativeMonitor = monitorIDStr ? await fetchMonitorFromUptimeRobot(monitorIDStr) : null;
+  const friendlyName = authoritativeMonitor?.friendly_name
+    || alert.monitorFriendlyName
+    || alert.monitorName
+    || alert.monitor_name
+    || 'unknown';
+  const monitorURL = authoritativeMonitor?.url || alert.monitorURL || 'unknown';
+
+  const open = await findOpenIncidentByMonitor(monitorIDStr, friendlyName, monitorURL);
+  if (!open) {
+    console.log(`[webhooks/uptime-robot] UP-recovery: no open DOWN incident matched monitor=${monitorIDStr} (${friendlyName}).`);
+    return false;
+  }
+  const summary = `Monitor ${friendlyName} (${monitorURL}) reported UP at ${new Date().toISOString()}. Matching DOWN incident ${open.identifier || open.id} auto-closed.`;
+  return closePaperclipIncident(open.id, summary);
+};
+
 router.post('/uptime-robot', async (req: Request, res: Response) => {
   const payload = req.body as UptimeRobotAlert;
   console.log('[webhooks/uptime-robot] Received alert:', JSON.stringify(payload));
@@ -296,7 +401,19 @@ router.post('/uptime-robot', async (req: Request, res: Response) => {
           return;
         }
       }
-      void createPaperclipIssue(payload, false);
+      // BUY-47930: resolve the matching open DOWN incident; only create a
+      // standalone UP issue if no open DOWN incident matched, to avoid
+      // leaving stale in_progress incidents and spurious UP tickets.
+      void (async () => {
+        try {
+          const resolved = await resolveDownIncidentOnUp(payload);
+          if (!resolved) {
+            await createPaperclipIssue(payload, false);
+          }
+        } catch (err) {
+          console.error('[webhooks/uptime-robot] UP-recovery error:', err);
+        }
+      })();
     } else {
       console.log(`[webhooks/uptime-robot] Alert type ${payload?.alertType ?? payload?.alert_type}: ${friendlyName} (${monitorURL}) — ${alertDetails}`);
     }

@@ -66,18 +66,52 @@ async function fetchJson(url: string) {
     throw new Error("BUYWHERE API key is required for compare page live offers");
   }
 
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${API_KEY}`,
-    },
-    next: { revalidate: 300 },
-  });
+  // BUY-65450: /compare is a high-intent conversion page (rows show retailer
+  // prices and "Open retailer" CTAs). 5-minute Next.js cache combined with
+  // the upstream API's 10-minute cache meant stale "Price unavailable" rows
+  // lingered for up to 10 min after prices had been updated in the database.
+  // Tighten to 60s so a fix or ingest is visible within ~1 minute.
+  //
+  // Also retry on 429 (rate limit) up to 3 times with exponential backoff so
+  // a brief over-cap burst from any Tune/MCP probe falls back gracefully
+  // instead of returning "No results found" for what is otherwise a live
+  // catalog page.
+  const maxAttempts = 3;
+  let lastResponse: Response | null = null;
+  let lastError: unknown = null;
 
-  if (!response.ok) {
-    throw new Error(`API request failed with ${response.status}`);
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${API_KEY}`,
+        },
+        next: { revalidate: 60, tags: ["compare-offers"] },
+      });
+
+      if (response.ok) {
+        return response.json();
+      }
+
+      lastResponse = response;
+
+      if (response.status !== 429 || attempt === maxAttempts - 1) {
+        throw new Error(`API request failed with ${response.status}`);
+      }
+
+      const retryAfterHeader = response.headers.get("retry-after");
+      const retryAfterSeconds = retryAfterHeader ? Math.max(1, Number(retryAfterHeader) || 1) : 0;
+      const backoffMs = retryAfterSeconds > 0
+        ? retryAfterSeconds * 1000
+        : Math.min(2000, 250 * 2 ** attempt);
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+    } catch (error) {
+      lastError = error;
+      if (attempt === maxAttempts - 1) throw error;
+    }
   }
 
-  return response.json();
+  throw lastError ?? new Error(`API request failed with ${lastResponse?.status ?? "unknown"}`);
 }
 
 async function fetchOffersByQuery(query: string, country?: string): Promise<ComparisonOffer[]> {

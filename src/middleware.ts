@@ -324,14 +324,35 @@ export function middleware(request: NextRequest) {
   const wantsMarkdown = accept.includes("text/markdown");
 
   // Bypass all middleware for static files
+  // Exception: /developers/robots.txt and /developers/sitemap.xml must reach the rewrite
+  // logic below (BUY-65437) — they contain "." but are not real static files.
+  const isDeveloperRobotsOrSitemap =
+    pathname === "/developers/robots.txt" ||
+    pathname === "/developers/robots" ||
+    pathname === "/developers/sitemap.xml" ||
+    pathname === "/developers/sitemap";
   if (
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/api/") ||
     pathname.startsWith("/assets/") ||
-    (pathname.includes(".") && !pathname.startsWith("/docs")) ||
+    (pathname.includes(".") && !pathname.startsWith("/docs") && !isDeveloperRobotsOrSitemap) ||
     pathname === "/.well-known/"
   ) {
     return NextResponse.next();
+  }
+
+  // BUY-65437: Rewrite /developers/robots.txt -> /robots.txt and /developers/sitemap.xml -> /sitemap.xml
+  // The Next.js file-based routing matches .txt/.xml extensions before middleware can rewrite,
+  // so we need explicit rewrites for these legacy routes that were working before.
+  if (pathname === "/developers/robots.txt" || pathname === "/developers/robots") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/robots.txt";
+    return NextResponse.rewrite(url);
+  }
+  if (pathname === "/developers/sitemap.xml" || pathname === "/developers/sitemap") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/sitemap.xml";
+    return NextResponse.rewrite(url);
   }
 
   const ua = request.headers.get("user-agent") ?? "";
@@ -476,6 +497,26 @@ export function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/search";
     url.search = `q=${encodeURIComponent(query.replace(/-/g, " "))}&country=${encodeURIComponent(location)}`;
+    return NextResponse.rewrite(url);
+  }
+
+  // BUY-65437: /developers/* and /us/robots/* routes regressed to 404 after
+  // BUY-64524 recovery. These legacy SEO/crawler paths have no on-disk route
+  // handler; rewrite them to the canonical root handlers so crawlers get a
+  // 200 instead of a 404. /developers/robots.txt → /robots.txt, everything
+  // else (sitemap-flavoured) → /sitemap.xml.
+  if (pathname === "/developers/robots.txt") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/robots.txt";
+    return NextResponse.rewrite(url);
+  }
+  if (
+    pathname === "/developers/sitemap.xml" ||
+    pathname === "/developers/robots/sitemap/us" ||
+    pathname === "/us/robots/sitemap/us"
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/sitemap.xml";
     return NextResponse.rewrite(url);
   }
 

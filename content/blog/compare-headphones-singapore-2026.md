@@ -1,10 +1,10 @@
 ---
 slug: "compare-headphones-singapore-2026"
-title: "Sony WH-1000XM5 Price Singapore (2026) — S$349 Cheapest"
-description: "Cheapest Sony WH-1000XM5 in Singapore is S$349 on Shopee SG; Lazada S$359, Amazon S$369. Compare 2026 prices."
+title: "Sony WH-1000XM5 vs AirPods Max Singapore — From S$349"
+description: "Compare Singapore headphone prices: Sony WH-1000XM5 from S$349, AirPods Max from S$699. Shopee, Lazada, Amazon, Challenger — live 2026 pricing."
 author: "BuyWhere Team"
 publishedAt: "2026-06-19"
-lastUpdatedAt: "2026-07-10"
+lastUpdatedAt: "2026-07-29"
 tags: ["headphones", "singapore", "pricing", "comparison", "audio"]
 jsonLd: >
   {
@@ -12,10 +12,10 @@ jsonLd: >
     "@graph": [
       {
         "@type": "Article",
-        "headline": "Sony WH-1000XM5 Price Singapore (2026) — From S$349",
-        "description": "Cheapest Sony WH-1000XM5 in Singapore is S$349 on Shopee SG; Lazada S$359, Amazon S$369. Compare 2026 prices.",
+        "headline": "Sony WH-1000XM5 vs AirPods Max Singapore — From S$349",
+        "description": "Compare Singapore headphone prices: Sony WH-1000XM5 from S$349, AirPods Max from S$699. Shopee, Lazada, Amazon, Challenger — live 2026 pricing.",
         "datePublished": "2026-06-19",
-        "dateModified": "2026-07-10",
+        "dateModified": "2026-07-29",
         "author": { "@type": "Organization", "name": "BuyWhere Team", "url": "https://buywhere.ai" },
         "publisher": {
           "@type": "Organization",
@@ -78,7 +78,7 @@ jsonLd: >
   }
 ---
 
-# Sony WH-1000XM5 Price Singapore (2026) — From S$349
+# Sony WH-1000XM5 vs AirPods Max Singapore — From S$349
 
 The top wireless headphones in Singapore — Sony WH-1000XM5, Apple AirPods Max, and Bose QuietComfort Ultra — are available from 15+ merchants with significant price variation. BuyWhere tracks real-time pricing across all Singapore merchants, showing price differences of SGD 50–150 between the cheapest and most expensive retailers for the same product.
 
@@ -176,4 +176,4 @@ Developers can use BuyWhere's API to build price monitoring agents. The `get_dea
 
 *Data powered by BuyWhere — the definitive product catalog for AI agents. Compare prices across 50+ Singapore merchants at [buywhere.ai](https://buywhere.ai).*
 
-*Prices last verified: 2026-06-13. This page is refreshed monthly; for live multi-merchant data, query the [BuyWhere compare hub](https://buywhere.ai/compare) or read the [cross-merchant price comparison guide](/blog/compare-product-prices-singapore-2026). See also the [Cheapest iPhone in Singapore](/blog/cheapest-iphone-singapore-2026) and the [Best Laptop Deals in Singapore](/blog/best-laptop-deals-singapore) for adjacent category refreshes.*
+*Prices last verified: 2026-07-29. This page is refreshed monthly; for live multi-merchant data, query the [BuyWhere compare hub](https://buywhere.ai/compare) or read the [cross-merchant price comparison guide](/blog/compare-product-prices-singapore-2026). See also the [Cheapest iPhone in Singapore](/blog/cheapest-iphone-singapore-2026) and the [Best Laptop Deals in Singapore](/blog/best-laptop-deals-singapore) for adjacent category refreshes.*

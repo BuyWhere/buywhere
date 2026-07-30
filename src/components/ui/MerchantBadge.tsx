@@ -36,12 +36,12 @@ export function MerchantBadge({ merchant, className = '', showVerified = true }:
 
   return (
     <div
-      className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full w-fit ${config.bgColor} ${className}`}
+      className={`inline-flex max-w-full items-center gap-1.5 self-start rounded-2xl px-2 py-1 ${config.bgColor} ${className}`}
       role="img"
       aria-label={`${merchant}${isVerified ? ' - Verified retailer' : ''}`}
     >
-      <span className="text-sm flex-shrink-0">{config.icon}</span>
-      <span className={`text-xs font-medium ${config.textColor || 'text-gray-700'}`}>
+      <span className="text-sm flex-shrink-0 leading-none">{config.icon}</span>
+      <span className={`min-w-0 whitespace-normal break-words [overflow-wrap:anywhere] text-xs font-medium leading-snug ${config.textColor || 'text-gray-700'}`} title={merchant}>
         {merchant}
       </span>
       {isVerified && (

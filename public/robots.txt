@@ -23,5 +23,10 @@ Allow: /
 
 Sitemap: https://buywhere.ai/sitemap.xml
 Sitemap: https://buywhere.ai/sitemap-compare.xml
+Sitemap: https://buywhere.ai/sitemap-merchants.xml
+Sitemap: https://buywhere.ai/sitemap-products.xml
+Sitemap: https://buywhere.ai/sitemap-products-sg.xml
+Sitemap: https://buywhere.ai/sitemap-categories.xml
 LLMs-Txt: https://buywhere.ai/llms.txt
+LLMs-Full-Txt: https://buywhere.ai/llms-full.txt
 Agent-Card: https://buywhere.ai/.well-known/agent.json
