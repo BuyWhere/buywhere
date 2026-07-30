@@ -16,15 +16,19 @@ body {
   }
 }
 
-/* Search input placeholder — WCAG AA contrast on dark indigo hero background */
+/* Search input placeholder — WCAG AA contrast on dark indigo hero background.
+ * Bumped to 1.0 (was 0.85): at indigo-600 corner of bg-gradient-to-br the
+ * 0.85 placeholder composites to 4.21:1 against the effective bg, failing
+ * 4.5:1 AA. Full-opacity white placeholder composites to 5.16:1 on the
+ * lightest gradient stop. (BUY-65459) */
 .search-input::placeholder {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 1);
 }
 
 .search-input::-webkit-input-placeholder {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 1);
 }
 
 .search-input::-moz-placeholder {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 1);
 }
