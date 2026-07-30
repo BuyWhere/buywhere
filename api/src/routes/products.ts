@@ -1,8 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { createHash } from 'crypto';
 import { PoolClient } from 'pg';
-import { db, redis, vectorDb } from '../config';
-import { readDb, ReplicaUnavailableError, servingReadDbConnect } from '../lib/readReplica';
+import { catalogDb, db, redis, vectorDb } from '../config';
+import { readDb } from '../lib/readReplica';
 import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
@@ -29,7 +29,10 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
 const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v6'; // bumped: invalidate pre-fix cached empties/degraded results after the ORDER BY updated_at removal
+// BUY-65550: bumped to invalidate stale degraded responses that persisted after BUY-65449
+// catalog/ranking fix. The cold path was returning cached empty results from before the
+// iPhone catalog gap was backfilled by BUY-65529.
+const SEARCH_CACHE_VERSION = 'search-v7';
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -48,6 +51,13 @@ const HYBRID_RRF_K = 60;
 // `could not resize shared memory segment... No space left on device` (SQLSTATE 53200).
 // 4MB is enough for the 200-row top-N sort + Nested Loop pkey lookups.
 const SEARCH_WORK_MEM = '4MB';
+// BUY-54980: was hardcoded to 0, which overrode the gin_fuzzy_search_limit=2000
+// that Ops applied on the maglev search replica via ALTER ROLE. Leave unset by default
+// so the database/role setting controls it; set SEARCH_GIN_FUZZY_SEARCH_LIMIT only for
+// an emergency route-level override.
+const SEARCH_GIN_FUZZY_SEARCH_LIMIT = process.env.SEARCH_GIN_FUZZY_SEARCH_LIMIT == null
+  ? null
+  : Math.max(0, Number(process.env.SEARCH_GIN_FUZZY_SEARCH_LIMIT) || 0);
 const SEO_SEARCH_FALLBACK_SOURCE = 'seo_search_fallback';
 const GENERAL_SEARCH_FALLBACK_TIMEOUT_MS = Math.max(250, Number(process.env.GENERAL_SEARCH_FALLBACK_TIMEOUT_MS) || 1200);
 
@@ -169,7 +179,7 @@ async function tryTierSearch(
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
 
   let client: PoolClient;
-  try { client = await servingReadDbConnect(); } catch { return false; }
+  try { client = await catalogDb.connect(); } catch { return false; }
   try {
     await client.query('BEGIN');
     // 6500 (was 4000, 2026-07-18): measured cold tier queries complete in 4.5-6.7s;
@@ -177,7 +187,9 @@ async function tryTierSearch(
     // handler cap (cache-miss p50 was 4-7s for real agents). 6.5s converts that band
     // into tier successes while leaving headroom inside the 10s handler budget.
     await client.query(`SET LOCAL statement_timeout = '6500'`);
-    await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`); // fuzzy sampling breaks multi-word AND
+    if (SEARCH_GIN_FUZZY_SEARCH_LIMIT !== null) {
+      await client.query(`SET LOCAL gin_fuzzy_search_limit = ${SEARCH_GIN_FUZZY_SEARCH_LIMIT}`);
+    }
     await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
     let rows = lexemes.length === 1 ? (await client.query(titleFallbackQuery, params)).rows : [];
     if (rows.length === 0) {
@@ -559,7 +571,7 @@ router.get(
     const qNorm = q.toLowerCase().trim().split(/\s+/)
       .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
       || q.toLowerCase().trim();
-    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
+    const cacheKey = `fts:${SEARCH_CACHE_VERSION}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
       if (cached) {
@@ -978,16 +990,15 @@ router.get(
 
     let client: PoolClient;
     try {
-      client = await servingReadDbConnect();
+      client = await catalogDb.connect();
     } catch (err) {
-      if (err instanceof ReplicaUnavailableError) {
-        res.status(503).json({
-          error: 'search_replica_unavailable',
-          message: err.message,
-        });
-        return;
-      }
-      throw err;
+      // catalogDb.connect() errors → 503 fallback (same as old ReplicaUnavailableError)
+      const msg = err instanceof Error ? err.message : String(err);
+      res.status(503).json({
+        error: 'search_replica_unavailable',
+        message: msg,
+      });
+      return;
     }
     try {
       await client.query('BEGIN');
@@ -1011,7 +1022,9 @@ router.get(
       await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`);
       await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
       await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`);
-      await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`);
+      if (SEARCH_GIN_FUZZY_SEARCH_LIMIT !== null) {
+        await client.query(`SET LOCAL gin_fuzzy_search_limit = ${SEARCH_GIN_FUZZY_SEARCH_LIMIT}`);
+      }
 
       // AND-first-then-OR execution (non-SG relevance multi-word queries only; SG
       // queries are already bounded by the freshness guardrail, so their OR cost is
