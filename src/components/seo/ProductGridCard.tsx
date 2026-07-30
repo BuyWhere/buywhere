@@ -50,7 +50,7 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
       prefetch={false}
       target={isMerchantOffer ? "_blank" : undefined}
       rel={isMerchantOffer ? "noopener noreferrer" : undefined}
-      className={`group grid h-full min-w-0 rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl ${
+      className={`group grid h-full min-w-0 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl ${
         compact ? "grid-cols-[9rem_minmax(0,1fr)] sm:grid-cols-[11rem_minmax(0,1fr)]" : "grid-rows-[auto_1fr]"
       }`}
     >
