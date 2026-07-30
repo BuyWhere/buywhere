@@ -1065,7 +1065,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       label: "View developer docs",
     },
     fallbackProducts: [
-      { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: "https://store.storeimages.cdn-apple.com/4982/as-images.apple.com/is/macbook-air-13-m3-midnight-select-202402", href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
+      { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: "https://store.storeimages.cdn-apple.com/875/as-images.apple.com/is/mba13-midnight-select-202402", href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
       { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://m.media-amazon.com/images/I/71HHF2jUnpL._AC_UL320_.jpg", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
       { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: "https://p1-ofp.static.pub/medias/bWFzdGVyfHJvb3R8MzAxNTMwfGltYWdlL3BuZ3xoNzkvaDhmLzE0MTkxMjY3ODk1MzI2LnBuZ3xhOGYyMWY3NTQzZWUxNzI5ZWRkMmM2OWM4MjA5MzFkYTY1NTMxZDE2MDEwNzI2NzI3ZjQ2OTAxNGYzODI5ZGYw/lenovo-yoga-7i-2-in-1-14-intel-hero.png", href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
       { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/s/w/swift-go-14-sfg14-72-silver-01.png", href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
