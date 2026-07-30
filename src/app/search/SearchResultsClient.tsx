@@ -331,11 +331,6 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
         ) : (
           <div className="relative z-10 flex h-full items-center justify-center text-4xl text-slate-600">◎</div>
         )}
-        <div className="absolute left-2 top-2 z-20">
-          <span className="inline-flex items-center rounded-full bg-white/95 px-2.5 py-1 text-sm font-bold tracking-tight text-slate-950 shadow-md ring-1 ring-slate-200 backdrop-blur">
-            {formatPrice(product.price, product.currency)}
-          </span>
-        </div>
         <div className="absolute right-2 top-2 z-20">
           <CompareSelectButton product={product} className="h-9 w-9" />
         </div>
@@ -363,9 +358,9 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
         </div>
 
         <div className="mt-auto space-y-2.5 border-t border-slate-100 pt-2.5">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Current price</p>
-            <p className="mt-0.5 text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Current price</p>
+            <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
           </div>
           <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
             View Deal
@@ -683,13 +678,20 @@ export default function SearchResultsClient({
         <section className="hidden border-b border-amber-100 bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.22),_rgba(255,247,237,0.85)_38%,_rgba(255,255,255,1)_80%)] md:block">
           <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${hasActiveSearch ? 'py-5 lg:py-6' : 'py-10 lg:py-14'}`}>
             <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">Product search</p>
-              <h1 className={`${hasActiveSearch ? 'mt-2 text-3xl sm:text-4xl' : 'mt-3 text-4xl sm:text-5xl'} font-semibold tracking-tight text-slate-950`}>
-                {query.trim() ? `Search results for "${query.trim()}"` : "Find live catalog results without leaving BuyWhere"}
-              </h1>
-              <p className={`${hasActiveSearch ? 'sr-only' : 'mt-4'} max-w-2xl text-base leading-7 text-slate-600 sm:text-lg`}>
-                Search BuyWhere&apos;s product index by query and country, then jump directly to retailer listings.
-              </p>
+              {/* Hide the hero H1 + eyebrow when an active search is running so the query
+                  isn't echoed twice. The result-count heading below becomes the single,
+                  unified results header (rendered as <h1> for SEO semantics). */}
+              {hasActiveSearch ? null : (
+                <>
+                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">Product search</p>
+                  <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
+                    Find live catalog results without leaving BuyWhere
+                  </h1>
+                  <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
+                    Search BuyWhere&apos;s product index by query and country, then jump directly to retailer listings.
+                  </p>
+                </>
+              )}
             </div>
 
             <div className={`${hasActiveSearch ? 'mt-5 rounded-[28px] p-3 md:p-4' : 'mt-8 rounded-[32px] p-4 md:p-6'} border border-white/80 bg-white/80 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)] backdrop-blur`}>
@@ -879,7 +881,7 @@ export default function SearchResultsClient({
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
                     {activeCountry.label}
                   </p>
-                  <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                  <h1 className="mt-1 text-2xl font-semibold text-slate-950">
                     {loadingInitial ? (
                       <>
                         Searching catalog...
@@ -888,7 +890,7 @@ export default function SearchResultsClient({
                     ) : (
                       `${total.toLocaleString()} results for “${debouncedQuery}”`
                     )}
-                  </h2>
+                  </h1>
                 </div>
                 <Link
                   href="/"
