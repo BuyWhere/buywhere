@@ -62,7 +62,7 @@ export function HomeProductSearch() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch lg:gap-3">
           <div className="relative min-w-0 flex-1">
             <Search
-              className="pointer-events-none absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-indigo-100"
+              className="pointer-events-none absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-white"
               aria-hidden="true"
             />
             <input
@@ -75,7 +75,7 @@ export function HomeProductSearch() {
                 }
               }}
               placeholder="Search products..."
-              className="search-input w-full rounded-xl border-2 border-white/20 bg-white/10 py-5 pl-14 pr-4 text-lg text-white placeholder-white/85 transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20"
+              className="search-input w-full rounded-xl border-2 border-white/20 bg-white/10 py-5 pl-14 pr-4 text-lg text-white placeholder-white transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20"
               aria-label="Search products"
               aria-invalid={Boolean(error)}
               aria-describedby={error ? errorId : undefined}
@@ -113,7 +113,7 @@ export function HomeProductSearch() {
               {error}
             </p>
           ) : (
-            <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-indigo-100">
+            <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-white">
               <span>Try</span>
               {exampleQueries.map((example) => (
                 <button
