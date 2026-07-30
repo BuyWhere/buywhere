@@ -1285,11 +1285,11 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
   },
   "best-robot-vacuums-2026": {
     slug: "best-robot-vacuums-2026",
-    title: "Best Robot Vacuum & Roomba Sale 2026 — Compare Prices Across Roborock, iRobot, Shark, Ecovacs",
+    title: "Best Robot Vacuums 2026 from $199 — Roomba, Roborock",
     description:
-      "Compare live Roomba and robot vacuum sale prices across Roborock, iRobot, Shark, and Ecovacs in 2026, with buying advice and the best deals refreshed weekly.",
+      "Robot vacuum prices 2026: Roomba j9+ from $999, Roborock Q5 Pro+ from $499, eufy X10 from $799. Live deals across Amazon, Best Buy, Walmart.",
     heroEyebrow: "US Home Guide",
-    heroTitle: "Best Robot Vacuums & Roomba Deals in 2026",
+    heroTitle: "Best Robot Vacuums 2026 from $199 — Roomba & Roborock Deals",
     heroBody:
       "Looking for the best Roomba sale in 2026? iRobot Roomba models — from the j7+ to the Combo j9+ — regularly drop 15–40% during Prime Day, Black Friday, and holiday events. This page tracks live Roomba and robot vacuum deals across Amazon, Best Buy, Walmart, and Costco so you never miss a discount.",
     canonicalPath: "/best-robot-vacuums-2026",
@@ -1482,11 +1482,11 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
   },
   "airpods-singapore": {
     slug: "airpods-singapore",
-    title: "Apple AirPods Prices in Singapore (2026) — AirPods 4, Pro 2, AirPods Max Compared",
+    title: "AirPods Price Singapore 2026 from S$149 — 6 Retailers",
     description:
-      "AirPods price in Singapore 2026: AirPods Pro 2 from S$339, AirPods 4 from S$189, AirPods Max from S$699. Live SG prices across Apple Store, Shopee, Lazada, Courts, and Challenger with voucher stacking tips.",
+      "AirPods prices in Singapore 2026: Pro 2 from S$339, AirPods 4 from S$149, Max from S$699. Compare Apple, Shopee, Lazada, Courts.",
     heroEyebrow: "Singapore Audio Guide",
-    heroTitle: "Apple AirPods Prices in Singapore (2026) — AirPods 4, Pro 2, Max Compared",
+    heroTitle: "AirPods Price Singapore 2026 from S$149 — Pro 2, 4, Max",
     heroBody:
       "AirPods Pro 2, AirPods 4, and AirPods Max all have official Singapore prices and parallel-import deals on Shopee Mall and LazMall. We track AirPods prices across Apple Store, Shopee, Lazada, Courts, and Challenger so you can find the lowest real price during 5.5, 9.9, 11.11, and 12.12 campaigns.",
     canonicalPath: "/airpods-singapore",
@@ -5790,11 +5790,11 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
   },
   "best-smart-home-us": {
     slug: "best-smart-home-us",
-    title: "Best Smart Home Devices 2026 — Echo, Google Nest, Apple HomeKit Compared",
+    title: "Best Smart Home Devices 2026 from $24 — Echo, Nest, HomeKit",
     description:
-      "Best smart home devices 2026: Amazon Echo ($49–$149), Google Nest ($99–$129), Apple HomeKit, and Philips Hue prices compared across Amazon, Best Buy, Walmart, and Target. Live US pricing and retailer availability.",
+      "Smart home prices 2026: Echo Dot from $24, Nest from $129, HomePod mini from $99, Hue Starter from $179. Compare Amazon, Best Buy, Walmart.",
     heroEyebrow: "US Shopping Guide",
-    heroTitle: "Best Smart Home Devices 2026 — Echo, Google Nest, Apple HomeKit",
+    heroTitle: "Best Smart Home Devices 2026 from $24 — Echo, Nest, HomeKit",
     heroBody:
       "The best smart home devices in 2026 fall into three ecosystems — Amazon Alexa (Echo), Google Nest, and Apple HomeKit — plus cross-platform lighting like Philips Hue. We compare the top smart speakers, smart displays, thermostats, and smart bulbs across Amazon, Best Buy, Walmart, and Target so you can see which retailer has the lowest price and the best stock. Whether you are starting a new smart home with an Echo Dot or expanding HomeKit with a HomePod mini, this guide shows current 2026 US prices and where to buy each device.",
     canonicalPath: "/best-smart-home-us",
@@ -9585,10 +9585,10 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
 
   "best-qled-tvs-us": {
     slug: "best-qled-tvs-us",
-    title: "Best QLED TVs US 2026: Samsung, TCL, Hisense Compared",
-    description: "Best QLED TVs in 2026: Samsung QN85D/QN90D from $797, TCL QM8 from $799, Hisense U7N/U8N from $598. Compare sizes, brightness, HDR, and live US prices across Amazon, Best Buy, Walmart.",
+    title: "Best QLED TVs 2026 from $398 — Samsung, TCL, Hisense",
+    description: "QLED TV prices 2026: Samsung QN85D from $797, TCL QM8 from $799, Hisense U7N from $598. Compare sizes, HDR, and live deals on Amazon, Best Buy, Walmart.",
     heroEyebrow: "US TV Buying Guide",
-    heroTitle: "Best QLED TVs in the US 2026",
+    heroTitle: "Best QLED TVs 2026 from $398 — Samsung, TCL, Hisense",
     heroBody: "Shopping for the best QLED TV in 2026? Samsung, TCL, and Hisense dominate the category from $598 to $2,797. We compare the Samsung QN85D and QN90D, TCL QM8 and Q6 QLED, and Hisense U7N and U8N with live prices, screen sizes, peak brightness, and HDR performance so you can find the right QLED for bright rooms, gaming, or movies.",
     canonicalPath: "/best-qled-tvs-us",
     country: "US" as const,
@@ -9670,10 +9670,10 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
 
   "best-budget-tvs-us": {
     slug: "best-budget-tvs-us",
-    title: "Where to Buy the Cheapest TVs in 2026 — Best Budget TVs Under $500",
-    description: "Best cheap TVs in 2026: Hisense A6 from $198, Fire TV Omni QLED from $319, TCL S5 from $228. Compare budget 4K TVs under $500 across Amazon, Walmart, Best Buy.",
+    title: "Best Budget TVs Under $300 in 2026 — 7 Models from $198",
+    description: "Best cheap 4K TVs in 2026: Hisense A6 from $198, Fire TV Omni QLED from $319, TCL S5 from $228. Compare budget TVs across Amazon, Walmart, Best Buy.",
     heroEyebrow: "US TV Buying Guide",
-    heroTitle: "Where to Buy the Cheapest TVs in 2026 (Under $500)",
+    heroTitle: "Best Budget TVs Under $300 in 2026 — 7 Models from $198",
     heroBody: "Looking for a cheap TV in 2026? We compare budget 4K TVs under $500 across TCL, Hisense, Amazon Fire TV, and Walmart Onn with live prices, sale windows, and exactly where to buy each model for the lowest total cost.",
     canonicalPath: "/best-budget-tvs-us",
     country: "US" as const,
@@ -10467,10 +10467,10 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
 
   "best-bluetooth-speakers-us": {
     slug: "best-bluetooth-speakers-us",
-    title: "Best Bluetooth Speakers 2026 — JBL, Bose, UE, Sonos Compared",
-    description: "Best Bluetooth speakers in 2026: JBL Flip 7 from $129, JBL Charge 5 from $179, Bose SoundLink Flex from $149, UE Boom 4 from $149. Compare battery, IP rating, and live US prices.",
+    title: "Best Bluetooth Speakers 2026 from $39 — JBL, Bose, UE",
+    description: "Bluetooth speaker prices 2026: JBL Flip 7 from $129, Bose Flex from $149, UE Boom 4 from $149, Anker from $39. Compare Amazon, Best Buy.",
     heroEyebrow: "US Audio Buying Guide",
-    heroTitle: "Best Bluetooth Speakers in the US 2026",
+    heroTitle: "Best Bluetooth Speakers 2026 from $39 — JBL, Bose, UE",
     heroBody: "Looking for the best portable Bluetooth speaker in 2026? We compare JBL Flip 7, Bose SoundLink Flex, UE Boom 4, Sonos Roam 2, and Anker Soundcore with live prices from Amazon, Best Buy, and Walmart so you can find the right speaker for home, beach, or backyard.",
     canonicalPath: "/best-bluetooth-speakers-us",
     country: "US" as const,
