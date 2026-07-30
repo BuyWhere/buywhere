@@ -304,8 +304,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
 
           if (mode === 'semantic') {
             // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
+            // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors from Cohere/Jina
             const vecRows = await vectorDb.query<{ product_id: string }>(
               `SELECT product_id FROM product_embeddings
+               WHERE model_ver = 'gemini-embedding-001@512'
                ORDER BY embedding <=> $1::vector LIMIT 200`,
               [queryVec]
             );
@@ -317,8 +319,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
                 `SELECT id FROM products ${where} LIMIT 200`,
                 params
               ),
+              // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
               vectorDb.query<{ product_id: string }>(
-                `SELECT product_id FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT 200`,
+                `SELECT product_id FROM product_embeddings
+                 WHERE model_ver = 'gemini-embedding-001@512'
+                 ORDER BY embedding <=> $1::vector LIMIT 200`,
                 [queryVec]
               ),
             ]);
@@ -1181,8 +1186,10 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   // Step 1: get reference embedding from vector DB
   let refResult;
   try {
+    // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
     refResult = await vectorDb.query<{ embedding: string }>(
-      `SELECT embedding::text FROM product_embeddings WHERE product_id = $1`,
+      `SELECT embedding::text FROM product_embeddings
+       WHERE product_id = $1 AND model_ver = 'gemini-embedding-001@512'`,
       [productId]
     );
   } catch {
@@ -1194,11 +1201,13 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   const refEmbedding = refResult.rows[0].embedding;
 
   // Step 2: find nearest neighbours in vector DB (excluding source product)
+  // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
   let nearResult;
   try {
     nearResult = await vectorDb.query<{ product_id: string; distance: number }>(
       `SELECT product_id, (embedding <=> $1::vector)::float AS distance
-       FROM product_embeddings WHERE product_id != $2
+       FROM product_embeddings
+       WHERE product_id != $2 AND model_ver = 'gemini-embedding-001@512'
        ORDER BY distance LIMIT $3`,
       [refEmbedding, productId, limit]
     );
