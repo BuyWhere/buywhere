@@ -12,11 +12,7 @@ export default function Footer() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           <div className="col-span-2 md:col-span-1">
-            <div className="flex items-center gap-2 font-bold text-lg text-indigo-600 mb-3">
-              <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
-                <rect width="28" height="28" rx="6" fill="#4f46e5" />
-                <path d="M7 10h14M7 14h10M7 18h12" stroke="white" strokeWidth="2" strokeLinecap="round" />
-              </svg>
+            <div className="font-bold text-lg text-indigo-600 mb-3">
               BuyWhere
             </div>
             <p className="text-sm text-gray-500 leading-relaxed">
