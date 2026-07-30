@@ -324,14 +324,35 @@ export function middleware(request: NextRequest) {
   const wantsMarkdown = accept.includes("text/markdown");
 
   // Bypass all middleware for static files
+  // Exception: /developers/robots.txt and /developers/sitemap.xml must reach the rewrite
+  // logic below (BUY-65437) — they contain "." but are not real static files.
+  const isDeveloperRobotsOrSitemap =
+    pathname === "/developers/robots.txt" ||
+    pathname === "/developers/robots" ||
+    pathname === "/developers/sitemap.xml" ||
+    pathname === "/developers/sitemap";
   if (
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/api/") ||
     pathname.startsWith("/assets/") ||
-    (pathname.includes(".") && !pathname.startsWith("/docs")) ||
+    (pathname.includes(".") && !pathname.startsWith("/docs") && !isDeveloperRobotsOrSitemap) ||
     pathname === "/.well-known/"
   ) {
     return NextResponse.next();
+  }
+
+  // BUY-65437: Rewrite /developers/robots.txt -> /robots.txt and /developers/sitemap.xml -> /sitemap.xml
+  // The Next.js file-based routing matches .txt/.xml extensions before middleware can rewrite,
+  // so we need explicit rewrites for these legacy routes that were working before.
+  if (pathname === "/developers/robots.txt" || pathname === "/developers/robots") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/robots.txt";
+    return NextResponse.rewrite(url);
+  }
+  if (pathname === "/developers/sitemap.xml" || pathname === "/developers/sitemap") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/sitemap.xml";
+    return NextResponse.rewrite(url);
   }
 
   const ua = request.headers.get("user-agent") ?? "";
