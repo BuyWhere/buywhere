@@ -479,6 +479,26 @@ export function middleware(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
+  // BUY-65437: /developers/* and /us/robots/* routes regressed to 404 after
+  // BUY-64524 recovery. These legacy SEO/crawler paths have no on-disk route
+  // handler; rewrite them to the canonical root handlers so crawlers get a
+  // 200 instead of a 404. /developers/robots.txt → /robots.txt, everything
+  // else (sitemap-flavoured) → /sitemap.xml.
+  if (pathname === "/developers/robots.txt") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/robots.txt";
+    return NextResponse.rewrite(url);
+  }
+  if (
+    pathname === "/developers/sitemap.xml" ||
+    pathname === "/developers/robots/sitemap/us" ||
+    pathname === "/us/robots/sitemap/us"
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/sitemap.xml";
+    return NextResponse.rewrite(url);
+  }
+
   // Content negotiation: rewrite to dedicated markdown route handlers.
   // Use nextUrl.clone() + pathname assignment (not new URL(path, request.url)) so
   // the rewrite target is always on the same origin, regardless of Host header value.
