@@ -444,7 +444,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
             onError={() => {
               setImageError(true);
             }}
-            className="relative z-10 block h-full w-full object-cover p-2 transition-transform duration-300 group-hover:scale-[1.03]"
+            className="relative z-10 block h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : imageError || !product.imageUrl ? (
           <BrandedPlaceholder />
