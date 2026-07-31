@@ -26,7 +26,23 @@
  *                       source text, destination_url text, clicked_at timestamptz)
  */
 import { createHash } from 'crypto';
-import { db } from '../config';
+import { Pool } from 'pg';
+
+// Dedicated lightweight pool for instrumentation inserts.
+// Uses no statement_timeout so inserts always complete (or fail fast with PG error).
+// Separate from main `db` pool to avoid interference.
+let _insertPool: Pool | null = null;
+function getInsertPool(): Pool {
+  if (!_insertPool) {
+    _insertPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      max: 5,
+      idleTimeoutMillis: 10000,
+      connectionTimeoutMillis: 10000,
+    });
+  }
+  return _insertPool;
+}
 
 // ---------------------------------------------------------------------------
 // Idempotency filter — bounded LRU keyed on the dedup tuple.
@@ -74,10 +90,10 @@ export function recordProductView(opts: {
   if (!shouldInsert('product_views', productId, callerId)) return;
 
   const queryHash = opts.queryHash ?? null;
-  db.query(
+  getInsertPool().query(
     `INSERT INTO product_views (product_id, source, query_hash) VALUES ($1, $2, $3)`,
     [productId, opts.source, queryHash]
-  ).catch((err: Error) => {
+  ).then(() => console.log('[instrumentation] DB write SUCCESS for ' + productId)).catch((err: Error) => {
     console.warn(`[instrumentation] product_views insert failed for ${productId}: ${err.message}`);
   });
 }
@@ -99,7 +115,7 @@ export function recordProductViewsBulk(opts: {
     if (seen.has(id)) continue;
     seen.add(id);
     if (!shouldInsert('product_views', id, callerId)) continue;
-    db.query(
+    getInsertPool().query(
       `INSERT INTO product_views (product_id, source, query_hash) VALUES ($1, $2, $3)`,
       [id, opts.source, queryHash]
     ).then(() => console.log('[instrumentation] DB write SUCCESS for ' + id)).catch((err: Error) => {
