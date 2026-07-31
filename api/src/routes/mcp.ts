@@ -657,7 +657,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
        ) _recent_deals
        WHERE ${outerConditions.join(' AND ')}
        ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
-       LIMIT $${outerParams.length - 1}::int OFFSET $${outerParams.length}::int`,
+       LIMIT ${limit} OFFSET ${offset}`,
       outerParams
     );
     total = dataResult.rows.length;
