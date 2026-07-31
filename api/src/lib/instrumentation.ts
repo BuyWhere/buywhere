@@ -102,7 +102,7 @@ export function recordProductViewsBulk(opts: {
     db.query(
       `INSERT INTO product_views (product_id, source, query_hash) VALUES ($1, $2, $3)`,
       [id, opts.source, queryHash]
-    ).catch((err: Error) => {
+    ).then(() => console.log('[instrumentation] DB write SUCCESS for ' + id)).catch((err: Error) => {
       console.warn('[instrumentation] bulk insert failed for ' + id + ': ' + err.message);
     });
   }
