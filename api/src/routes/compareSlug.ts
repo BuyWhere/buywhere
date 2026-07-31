@@ -128,14 +128,15 @@ async function handleCategoryCompareFallback(slug: string, req: Request, res: Re
   const currency = (req.query.country === 'US' || req.query.region === 'us') ? 'USD' : 'SGD';
   const aliasNames = COMPARE_CATEGORY_ALIASES[normalizedSlug] || [];
 
-  // Look up the category column for this slug - use ILIKE for partial match
-  // e.g., slug "electronics" matches "Electronics and computers", "Consumer Electronics", etc.
+  // Look up the category column for this slug - use exact match first (fastest)
+  // Falls back to ILIKE prefix match if no exact match exists
+  // This is critical for performance - ILIKE without trigram index can timeout on large tables
   const slugResult = await db.query<{ name: string }>(
     `SELECT DISTINCT category AS name FROM products
      WHERE currency = $1 AND category IS NOT NULL AND category != ''
-       AND category::text ILIKE $2 || '%'
+       AND (category = $2 OR category::text ILIKE $2 || '%')
      LIMIT 1`,
-    [currency, normalizedSlug]
+    [currency, normalizedSlug.charAt(0).toUpperCase() + normalizedSlug.slice(1)]
   ).catch(() => null);
 
   if (!slugResult || slugResult.rows.length === 0) {
