@@ -1,4 +1,4 @@
-import { CanonicalProduct, ComparisonAttribute, SearchResponse } from '../types/product';
+import { CanonicalProduct, ComparisonAttribute, ProductPrice, SearchResponse } from '../types/product';
 import { resolvePrecomputedAffiliateUrl } from './affiliateWrapper';
 import { buildAffiliateRedirectUrl, buildClickUrl } from './instrumentation';
 
@@ -9,6 +9,37 @@ export const CURRENCY_RATES: Record<string, number> = {
 export const COUNTRY_CURRENCY: Record<string, string> = {
   SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
 };
+
+// BUY-65559 / BUY-65685: Sentinel-price guard (parallel to PR #36 in @buywhere/mcp).
+// Catalog rows where `price.amount < 10` (or non-finite / null) are produced by
+// the BuyWhere ingest pipeline when the merchant page had no parseable price;
+// the scraper writes `1` as a placeholder, which AI agents then render as
+// `.00` ("Price: $1.00 SGD"). Until BUY-52807 ships an ingest-time sanity bound,
+// surface a "see merchant" hint so MCP clients (AI agents) do not quote a fake
+// price. The JSON-RPC surface is the dominant AI-agent touchpoint (mcp.buywhere.ai /
+// Railway mcp-server, far higher traffic than the npm @buywhere/mcp consumers).
+// We replace the structured `price` object with a sentinel string in the JSON
+// output so AI agents cannot accidentally format `price.amount` as `.00`.
+export const PRICE_SENTINEL_MIN = 10;
+export const PRICE_UNAVAILABLE_TEXT =
+  'see merchant (price unavailable in catalog) — click through to confirm';
+
+export function isSentinelPrice(amount: unknown): boolean {
+  return typeof amount !== 'number' || !Number.isFinite(amount) || amount < PRICE_SENTINEL_MIN;
+}
+
+/**
+ * Format the `price` field for JSON-RPC tool outputs. When the amount is a
+ * sentinel (placeholder from the ingest pipeline), return a short string so
+ * AI agents display a "see merchant" hint instead of formatting a fake price.
+ * Otherwise return the standard `{amount, currency}` object.
+ */
+export function formatPriceField(amount: number | null, currency: string): ProductPrice | string {
+  if (isSentinelPrice(amount)) {
+    return PRICE_UNAVAILABLE_TEXT;
+  }
+  return { amount: amount as number, currency };
+}
 
 export function buildProduct(
   row: Record<string, unknown>,
@@ -37,7 +68,7 @@ export function buildProduct(
   const base: CanonicalProduct = {
     id: productId,
     title: row.title as string,
-    price: { amount, currency },
+    price: formatPriceField(amount, currency), // string when sentinel, see BUY-65559
     merchant,
     url: destinationUrl,
     image_url: (row.image_url as string) || null,
@@ -63,14 +94,18 @@ export function buildProduct(
     if (structured_specs.category != null)
       comparison_attributes.push({ key: 'category', label: 'Category', value: structured_specs.category });
     if (amount != null)
-      comparison_attributes.push({ key: 'price', label: `Price (${currency})`, value: amount });
+      comparison_attributes.push({
+        key: 'price',
+        label: `Price (${currency})`,
+        value: isSentinelPrice(amount) ? PRICE_UNAVAILABLE_TEXT : amount,
+      });
     if (structured_specs.model != null)
       comparison_attributes.push({ key: 'model', label: 'Model', value: structured_specs.model });
     if (structured_specs.color != null)
       comparison_attributes.push({ key: 'color', label: 'Color', value: structured_specs.color });
 
     const rate = CURRENCY_RATES[currency] ?? null;
-    const normalized_price_usd = amount != null && rate != null ? +(amount * rate).toFixed(4) : null;
+    const normalized_price_usd = amount != null && !isSentinelPrice(amount) && rate != null ? +(amount * rate).toFixed(4) : null;
 
     base.canonical_id = row.id as string;
     base.normalized_price_usd = normalized_price_usd;
