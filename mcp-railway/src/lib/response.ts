@@ -46,6 +46,24 @@ export function formatPriceField(amount: number | null, currency: string): Produ
   return { amount: amount as number, currency };
 }
 
+/**
+ * BUY-65693: format the `price` field for the flat `find_similar` response shape.
+ *
+ * Unlike the other JSON-RPC tools (which nest `{price: {amount, currency}}`),
+ * `handleFindSimilar` returns each similar product as a flat object with
+ * `price` and `currency` as sibling fields. We can't reuse `formatPriceField`
+ * 1:1 because callers must assign the helper's return to the `price` slot —
+ * so the helper returns either the sentinel string OR the structured
+ * `{amount, currency}` object, and the caller drops the now-redundant sibling
+ * `currency` field at the same time.
+ */
+export function formatSimilarPriceField(
+  amount: number | null,
+  currency: string,
+): ProductPrice | string {
+  return formatPriceField(amount, currency);
+}
+
 export function buildProduct(
   row: Record<string, unknown>,
   defaultCurrency: string,
