@@ -13,6 +13,7 @@ const queryLog_1 = require("../middleware/queryLog");
 const response_1 = require("../lib/response");
 const compare_query_1 = require("../lib/compare-query");
 const queryPreprocessor_1 = require("../lib/queryPreprocessor");
+const shipsTo_1 = require("../lib/shipsTo");
 const instrumentation_1 = require("../lib/instrumentation");
 const embedProducts_1 = require("../jobs/embedProducts");
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
@@ -28,7 +29,7 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
 const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v6'; // bumped: invalidate pre-fix cached empties/degraded results after the ORDER BY updated_at removal
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v7'; // BUY-59878: disable SG freshness guardrail to fix timeouts
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
 // unavailable, semantic/hybrid requests fall back to the keyword path.
@@ -58,6 +59,22 @@ function asyncHandler(fn) {
             }
         });
     };
+}
+// BUY-62624: dedupe product rows by id. A LEFT JOIN on affiliate_links can fan out
+// one row per matching affiliate link (same product, multiple tracking URLs), which
+// renders identical product cards. Keep the first occurrence (highest-ranked/first in
+// the ordered result set) and drop the rest. Applied to every search result path.
+function dedupeProductRows(rows) {
+    const seen = new Set();
+    const out = [];
+    for (const row of rows) {
+        const id = String(row.id);
+        if (seen.has(id))
+            continue;
+        seen.add(id);
+        out.push(row);
+    }
+    return out;
 }
 function shiftSqlPlaceholders(sql, offset) {
     return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
@@ -289,10 +306,19 @@ function annotateDeliverTo(body, deliverTo, includeUnshippable, q) {
     const items = body.data || [];
     const meta = body.meta;
     if (deliverTo) {
-        for (const it of items)
-            it.availability = it.country_code === deliverTo ? 'local' : 'unknown';
+        for (const it of items) {
+            if (it.country_code === deliverTo) {
+                it.availability = 'local';
+                continue;
+            }
+            // ships-to upgrade (2026-07-15): merchant-level scope from merchant_shipping.
+            const scope = (0, shipsTo_1.shipScopeForUrl)(it.url);
+            it.availability = scope === 'worldwide' ? 'ships_to_you'
+                : scope === 'domestic' ? 'unavailable'
+                    : 'unknown';
+        }
         if (!includeUnshippable) {
-            const kept = items.filter((it) => it.availability === 'local');
+            const kept = items.filter((it) => it.availability === 'local' || it.availability === 'ships_to_you');
             body.data = kept;
             if (meta)
                 meta.total = kept.length;
@@ -713,7 +739,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
     const useFtsRanking = (!effectiveSort || effectiveSort === 'relevance') && ftsParamIdx;
-    const useSgFreshnessGuardrail = countryCode === 'SG' && (!effectiveSort || effectiveSort === 'relevance') && Boolean(q);
+    // BUY-59878: SG freshness guardrail disabled — caused GIN scan timeouts on SG queries.
+    // Re-enable by setting to: countryCode === 'SG' && (!effectiveSort || effectiveSort === 'relevance') && Boolean(q);
+    const useSgFreshnessGuardrail = false;
     const freshSearchConditions = useSgFreshnessGuardrail
         ? [...searchConditions, `products.updated_at >= NOW() - INTERVAL '${SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS} hours'`]
         : searchConditions;
@@ -841,9 +869,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         requestedRows,
     ];
     const sendFallbackProducts = async (rows, source) => {
-        dataResult = { rows };
-        total = rows.length;
-        hasMore = rows.length > limit;
+        dataResult = { rows: dedupeProductRows(rows) };
+        total = dataResult.rows.length;
+        hasMore = dataResult.rows.length > limit;
         if (hasMore)
             dataResult.rows = dataResult.rows.slice(0, limit);
         const responseTimeMs = Date.now() - requestStart;
@@ -1309,6 +1337,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         throw err;
     }
     client.release();
+    // BUY-62624: collapse affiliate_links fan-out duplicates before pagination
+    // math so hasMore reflects distinct results.
+    dataResult.rows = dedupeProductRows(dataResult.rows);
     if (typeof hasMore === 'undefined') {
         hasMore = dataResult.rows.length > limit;
         if (hasMore)

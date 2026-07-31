@@ -29,7 +29,7 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
 const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v6'; // bumped: invalidate pre-fix cached empties/degraded results after the ORDER BY updated_at removal
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v7'; // BUY-59878: disable SG freshness guardrail to fix timeouts
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -742,7 +742,9 @@ router.get(
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
     const useFtsRanking = (!effectiveSort || effectiveSort === 'relevance') && ftsParamIdx;
-    const useSgFreshnessGuardrail = countryCode === 'SG' && (!effectiveSort || effectiveSort === 'relevance') && Boolean(q);
+    // BUY-59878: SG freshness guardrail disabled — caused GIN scan timeouts on SG queries.
+    // Re-enable by setting to: countryCode === 'SG' && (!effectiveSort || effectiveSort === 'relevance') && Boolean(q);
+    const useSgFreshnessGuardrail = false;
     const freshSearchConditions = useSgFreshnessGuardrail
       ? [...searchConditions, `products.updated_at >= NOW() - INTERVAL '${SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS} hours'`]
       : searchConditions;
