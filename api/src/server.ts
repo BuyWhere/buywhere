@@ -215,6 +215,8 @@ export function createApp() {
   app.use('/mcp', mcpRouter);
   // /api/mcp — backwards-compatible alias (BUY-30153)
   app.use('/api/mcp', mcpRouter);
+  // BUY-65766: /mcp/v1/* — alias for probes hitting the v1 suffix path
+  app.use('/mcp/v1', mcpRouter);
 
   // v1 API
   app.use('/v1/auth', authRouter);
