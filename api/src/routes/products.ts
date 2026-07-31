@@ -6,7 +6,7 @@ import { readDb, ReplicaUnavailableError, servingReadDbConnect } from '../lib/re
 import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
-import { recordCacheOutcome, recordQueryCacheLookup } from '../monitoring/cacheStats';
+import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
@@ -18,11 +18,6 @@ import { embedQuery } from '../jobs/embedProducts';
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
 const SEARCH_CACHE_TTL_SECONDS = 3600;
-const SEARCH_STALE_CACHE_TTL_SECONDS = Math.max(
-  SEARCH_CACHE_TTL_SECONDS,
-  Number(process.env.SEARCH_STALE_CACHE_TTL_SECONDS) || 24 * 60 * 60
-);
-const SEARCH_STALE_CACHE_SWEEP_LIMIT = Math.max(1, Number(process.env.SEARCH_STALE_CACHE_SWEEP_LIMIT) || 100);
 
 // BUY-41572: bumped from 5s → 15s as a temporary measure so the 50-query hybrid
 // eval (BUY-41140) can complete against the live DB. Roundhouse EXPLAIN happy
@@ -34,7 +29,7 @@ const SEARCH_STALE_CACHE_SWEEP_LIMIT = Math.max(1, Number(process.env.SEARCH_STA
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
 const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'search-v7'; // bumped: invalidate pre-fix cached empties/degraded results after the ORDER BY updated_at removal
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v7'; // BUY-59878: disable SG freshness guardrail to fix timeouts
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -177,23 +172,12 @@ async function tryTierSearch(
   try { client = await servingReadDbConnect(); } catch { return false; }
   try {
     await client.query('BEGIN');
-    // 6500 (was 4000, 2026-07-18): measured cold tier queries complete in 4.5-6.7s;
-    // at 4s they timed out and fell to the archive path which then burned to the 10s
-    // handler cap (cache-miss p50 was 4-7s for real agents). 6.5s converts that band
-    // into tier successes while leaving headroom inside the 10s handler budget.
-    await client.query(`SET LOCAL statement_timeout = '6500'`);
+    await client.query(`SET LOCAL statement_timeout = '4000'`);
     await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`); // fuzzy sampling breaks multi-word AND
     await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
     let rows = lexemes.length === 1 ? (await client.query(titleFallbackQuery, params)).rows : [];
     if (rows.length === 0) {
       rows = (await client.query(mkQuery(andMatch), params)).rows;
-      // BUY-65420: cheap title-contains LIKE before the expensive to_tsquery OR-match.
-      // Broad multi-word queries (e.g. "wireless headphones", "nike shoes") produce too
-      // many GIN candidates for OR-FTS and timeout at 6500ms. The substring match on
-      // the smaller search_products tier is fast and catches the common case.
-      if (rows.length === 0 && lexemes.length > 1) {
-        rows = (await client.query(tokenTitleFallbackQuery, params)).rows;
-      }
       if (rows.length === 0 && lexemes.length > 1) {
         rows = (await client.query(mkQuery(orMatch), params)).rows;   // recall fallback
       }
@@ -279,86 +263,6 @@ function isSeoHeadQuery(query: string): boolean {
   return query.trim().split(/\s+/).filter(Boolean).length >= 2;
 }
 
-type SearchCachePayload = Record<string, unknown>;
-
-function safeJsonParseCache(value: string | null): SearchCachePayload | null {
-  if (!value) return null;
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === 'object' ? parsed as SearchCachePayload : null;
-  } catch {
-    return null;
-  }
-}
-
-function productSearchStaleCacheKey(cacheKey: string): string {
-  return `stale:${cacheKey}`;
-}
-
-function productSearchWarmKey(qNorm: string, countryCode: string | undefined, currency: string, limit: number): string {
-  return `fts-warm:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${countryCode || ''}:${currency}:${limit}:${qNorm}`;
-}
-
-async function readStaleSearchCache(cacheKey: string): Promise<SearchCachePayload | null> {
-  return safeJsonParseCache(await redis.get(productSearchStaleCacheKey(cacheKey)).catch(() => null));
-}
-
-function stampCachedResponse(
-  payload: SearchCachePayload,
-  requestStart: number,
-  stale = false,
-): SearchCachePayload {
-  const response = { ...payload };
-  response.cached = true;
-  response.cache_stale = stale;
-  response.response_time_ms = Date.now() - requestStart;
-  return response;
-}
-
-async function writeSearchCaches(cacheKey: string, responseBody: unknown, qNorm?: string, countryCode?: string, currency?: string, limit?: number): Promise<void> {
-  const serialized = JSON.stringify(responseBody);
-  const writes: Array<Promise<unknown>> = [
-    redis.set(cacheKey, serialized, 'EX', SEARCH_CACHE_TTL_SECONDS),
-    redis.set(productSearchStaleCacheKey(cacheKey), serialized, 'EX', SEARCH_STALE_CACHE_TTL_SECONDS),
-  ];
-  if (qNorm && countryCode && currency && typeof limit === 'number') {
-    writes.push(redis.set(productSearchWarmKey(qNorm, countryCode, currency, limit), cacheKey, 'EX', SEARCH_STALE_CACHE_TTL_SECONDS));
-  }
-  await Promise.all(writes).catch(() => {});
-}
-
-async function readWarmSearchCache(
-  qNorm: string,
-  countryCode: string | undefined,
-  currency: string,
-  limit: number,
-): Promise<SearchCachePayload | null> {
-  if (!countryCode) return null;
-  const warmKey = await redis.get(productSearchWarmKey(qNorm, countryCode, currency, limit)).catch(() => null);
-  if (!warmKey) return null;
-  return readStaleSearchCache(warmKey);
-}
-
-async function findAnyWarmSearchCache(qNorm: string): Promise<SearchCachePayload | null> {
-  const pattern = `fts-warm:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:*:*:*:${qNorm}`;
-  try {
-    let cursor = '0';
-    do {
-      const [next, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', SEARCH_STALE_CACHE_SWEEP_LIMIT);
-      cursor = next;
-      for (const key of keys) {
-        const cacheKey = await redis.get(key).catch(() => null);
-        if (!cacheKey) continue;
-        const payload = await readStaleSearchCache(cacheKey);
-        if (payload) return payload;
-      }
-    } while (cursor !== '0');
-  } catch {
-    return null;
-  }
-  return null;
-}
-
 // deliver_to soft contract (2026-07-14): annotate availability relative to the END
 // USER's country, optionally filter to local-only, and hint agents to pass deliver_to.
 // v1 labels (merchant-country == deliver_to -> 'local', else 'unknown') until
@@ -422,8 +326,6 @@ router.get(
   checkRateLimit,
   queryLogMiddleware('products.list'),
   asyncHandler(async (req: Request, res: Response) => {
-    res.locals.cacheHit = false;
-
     // Backward compatibility: early public docs and clients used
     // `/v1/products?query=...` for search. Treat that as the canonical
     // bounded search route instead of falling through to the unsearched list
@@ -478,7 +380,6 @@ router.get(
         });
         res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
         res.set('X-Cache', 'HIT');
-        res.locals.cacheHit = true;
         return res.json(parsed);
       }
     } catch (_) {
@@ -635,7 +536,6 @@ router.get(
     const { cleanedQuery, canonicalSources } = preprocessSearchQuery(rawQuery, minPrice, maxPrice);
     const q = cleanedQuery || rawQuery;
 
-    res.locals.cacheHit = false;
     // Sprint C (1.4): normalize the q component of the cache key — lowercase,
     // sorted, punctuation-stripped token set — so "Running Shoes", "running shoe s"
     // orderings and casings share one cache entry (AND/OR matching is order-
@@ -645,61 +545,29 @@ router.get(
       .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
       || q.toLowerCase().trim();
     const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
-    const canUseWarmSearchCache = offset === 0 && !domain && !region && !category && !categoryId && !(categoryPath && categoryPath.length > 0) && !brand && !merchantId && !availability && minPrice === undefined && maxPrice === undefined && !sort && !(fields && fields.length > 0) && searchMode === DEFAULT_SEARCH_MODE && !compact && !deliverTo && includeUnshippable;
     try {
-      const cached = await redis.get(cacheKey).catch(() => null);
-      const parsed = safeJsonParseCache(cached);
-      if (parsed) {
-        const stamped = stampCachedResponse(parsed, requestStart);
-        const cachedProducts = (stamped.products || stamped.results || stamped.data || []) as Array<{ id?: string | number }>;
+      const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const elapsed = Date.now() - requestStart;
+        parsed.cached = true;
+        parsed.response_time_ms = elapsed;
+        const cachedProducts = parsed.products || parsed.results || parsed.data || [];
         recordProductViewsBulk({
           productIds: cachedProducts
-            .map((product) => product.id)
-            .filter((id): id is string | number => id != null),
+            .map((product: { id?: string | number }) => product.id)
+            .filter(Boolean),
           source: 'products.search.cache',
           queryHash: q ? createHash('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
           req,
         });
-        await recordCacheOutcome(redis, true);
         res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
         res.set('X-Cache', 'HIT');
-        res.locals.cacheHit = true;
-        return res.json(stamped);
+        return res.json(parsed);
       }
-
-      // BUY-65260: the maglev replay pounds read-heavy /v1/products/search with
-      // repeated head queries plus small pagination/filter variations. Keep a
-      // longer-lived stale copy and a normalized warm-query pointer so replay
-      // traffic gets a fast degraded read instead of falling back to a 8-10s DB
-      // statement_timeout floor after the hot TTL expires or the exact key shifts.
-      const stale = await readStaleSearchCache(cacheKey)
-        || (canUseWarmSearchCache
-          ? await readWarmSearchCache(qNorm, countryCode, currency, limit) || await findAnyWarmSearchCache(qNorm)
-          : null);
-      if (stale) {
-        const stamped = stampCachedResponse(stale, requestStart, true);
-        const cachedProducts = (stamped.products || stamped.results || stamped.data || []) as Array<{ id?: string | number }>;
-        recordProductViewsBulk({
-          productIds: cachedProducts
-            .map((product) => product.id)
-            .filter((id): id is string | number => id != null),
-          source: 'products.search.cache.stale',
-          queryHash: q ? createHash('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
-          req,
-        });
-        await recordCacheOutcome(redis, true);
-        res.set('Cache-Control', 'public, max-age=30, s-maxage=30, stale-while-revalidate=86400');
-        res.set('X-Cache', 'STALE');
-        res.locals.cacheHit = true;
-        return res.json(stamped);
-      }
-      await recordCacheOutcome(redis, false);
     } catch (_) {
-      await recordCacheOutcome(redis, false);
       // Redis miss or error — fall through to DB
     }
-
-    res.locals.cacheHit = false;
 
     // BUY-33987: only active products are surfaced to API consumers; the partial
     // GIN index `products_*_search_vector_idx WHERE is_active = true` lets the
@@ -716,7 +584,6 @@ router.get(
     // single-table archive constraints because it falls through unchanged on any
     // tier error, and SEARCH_USE_TIER=0 remains a runtime kill switch.
     const useSearchTier = req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0');
-    res.locals.cacheHit = false;
     if (q && searchMode === 'keyword' && useSearchTier) {
       const handled = await tryTierSearch(req, res, {
         q, countryCode, currency, limit, offset, minPrice, maxPrice,
@@ -875,7 +742,9 @@ router.get(
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
     const useFtsRanking = (!effectiveSort || effectiveSort === 'relevance') && ftsParamIdx;
-    const useSgFreshnessGuardrail = countryCode === 'SG' && (!effectiveSort || effectiveSort === 'relevance') && Boolean(q);
+    // BUY-59878: SG freshness guardrail disabled — caused GIN scan timeouts on SG queries.
+    // Re-enable by setting to: countryCode === 'SG' && (!effectiveSort || effectiveSort === 'relevance') && Boolean(q);
+    const useSgFreshnessGuardrail = false;
     const freshSearchConditions = useSgFreshnessGuardrail
       ? [...searchConditions, `products.updated_at >= NOW() - INTERVAL '${SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS} hours'`]
       : searchConditions;
@@ -1025,7 +894,7 @@ router.get(
         fallbackProducts, total, limit, offset, responseTimeMs, hasMore
       );
       annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
-      writeSearchCaches(cacheKey, responseBody, canUseWarmSearchCache ? qNorm : undefined, countryCode, currency, limit).catch(() => {});
+      redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
       res.set('X-Search-Fallback', source);
       res.json(responseBody);
     };
@@ -1550,7 +1419,7 @@ router.get(
     annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
 
     // Cache result in Redis (fire-and-forget)
-    writeSearchCaches(cacheKey, responseBody, canUseWarmSearchCache ? qNorm : undefined, countryCode, currency, limit).catch(() => {});
+    redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
 
     // Extract categories from results for analytics
     const categories = extractCategories(products);
@@ -1605,7 +1474,6 @@ router.get(
   checkRateLimit,
   queryLogMiddleware('products.deals'),
   asyncHandler(async (req: Request, res: Response) => {
-    res.locals.cacheHit = false;
     const start = Date.now();
     const currency = (req.query.currency as string) || 'SGD';
     const countryCode = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
@@ -1627,7 +1495,6 @@ router.get(
           source: 'products.deals.cache',
           req,
         });
-        res.locals.cacheHit = true;
         return res.json(parsed);
       }
     } catch (_) {}
@@ -1654,38 +1521,29 @@ router.get(
       }
     });
 
-    // Deals: prefer a populated discount_pct column (BUY-14332/BUY-64109), fall
-    // back to inline computation only if the column is absent or empty.
+    // Deals: prefer discount_pct generated column (BUY-14332), fall back to inline
+    // computation if the column doesn't exist yet (migration may not have run).
     const dealConditions: string[] = ['currency = $1', 'price > 0'];
     const dealParams: unknown[] = [currency];
     let dealIdx = 2;
     let useDiscountCol = true;
 
-    // Probe whether discount_pct is usable (cached per-process). BUY-64109: the
-    // production table has a populated plain numeric discount_pct column, so
-    // requiring is_generated = 'ALWAYS' incorrectly forced the metadata fallback.
+    // Probe whether discount_pct column exists as GENERATED (cached per-process)
+    // BUY-22324: must verify is_generated = 'ALWAYS'; a plain column is 100% NULL
+    // and produces wrong results (get_deals returns total: 0).
     if (typeof (router as any)._hasDiscountPct === 'undefined') {
       try {
         const probe = await db.query(
-          `SELECT c.is_generated, EXISTS (
-             SELECT 1 FROM products
-             WHERE is_active = true AND price > 0 AND discount_pct > 0
-             LIMIT 1
-           ) AS has_positive_discounts
-           FROM information_schema.columns c
-           WHERE c.table_name = 'products' AND c.column_name = 'discount_pct'
-           LIMIT 1`
+          `SELECT is_generated FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'discount_pct' LIMIT 1`
         );
-        (router as any)._hasDiscountPct = probe.rows.length > 0
-          && (probe.rows[0].is_generated === 'ALWAYS' || probe.rows[0].has_positive_discounts === true);
+        (router as any)._hasDiscountPct = probe.rows.length > 0 && probe.rows[0].is_generated === 'ALWAYS';
       } catch {
-        (router as any)._hasDiscountPct = true;
+        (router as any)._hasDiscountPct = false;
       }
     }
     useDiscountCol = (router as any)._hasDiscountPct;
 
     if (useDiscountCol) {
-      dealConditions.push(`discount_pct IS NOT NULL`);
       dealConditions.push(`discount_pct >= $${dealIdx}`);
     } else {
       dealConditions.push(`(metadata->>'original_price')::numeric > price`);
@@ -1700,11 +1558,7 @@ router.get(
       dealIdx++;
     }
 
-    const marketConditions = dealConditions.filter((condition) =>
-      !condition.includes('discount_pct')
-        && !condition.includes("metadata->>'original_price'")
-        && !condition.includes('NULLIF')
-    );
+    const dealWhere = dealConditions.join(' AND ');
 
     const discountSelect = useDiscountCol
       ? 'discount_pct'
@@ -1727,36 +1581,20 @@ router.get(
       await dealsClient.query(`SET work_mem = '${SEARCH_WORK_MEM}'`);
       await dealsClient.query(`SET statement_timeout = ${DEALS_QUERY_TIMEOUT_MS}`);
 
-      // BUY-64109: first take a bounded recent active slice, then filter/order it.
-      // Filtering discount_pct before the LIMIT misses newly backfilled deals when
-      // the planner chooses a slow full-table path and times out.
-      const candidateParams: unknown[] = [DEALS_SAMPLE_CAP, ...dealParams, limit, offset];
-      const marketWhere = marketConditions
-        .map((condition) => condition.replace(/\$(\d+)/g, (_match, idx) => `$${Number(idx) + 1}`))
-        .join(' AND ');
-      const filterConditions = dealConditions
-        .map((condition) => condition.replace(/\$(\d+)/g, (_match, idx) => `$${Number(idx) + 1}`))
-        .join(' AND ');
+      // BUY-60309: bounded sampling - sample recent active candidates, filter, order, paginate
+      // This replaces the unbounded COUNT + ORDER BY over the full table
       const sampleResult = await dealsClient.query(
-        `SELECT *
-         FROM (
-           SELECT id, sku AS source_id, source AS domain, url,
-                  title, price,
-                  CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
-                       THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
-                  currency, image_url, metadata, updated_at,
-                  region, country_code, created_at, description, brand, mpn, gtin,
-                  category_path, category, merchant_id, avg_rating, review_count,
-                  ${discountSelect}
-           FROM products
-           WHERE is_active = true AND ${marketWhere}
-           ORDER BY updated_at DESC
-           LIMIT $1
-         ) _recent_deals
-         WHERE ${filterConditions}
+        `SELECT id, sku AS source_id, source AS domain, url,
+                title, price, (metadata->>'original_price')::numeric AS original_price,
+                currency, image_url, metadata, updated_at,
+                region, country_code, created_at, description, brand, mpn, gtin,
+                category_path, category, merchant_id, avg_rating, review_count,
+                ${discountSelect}
+         FROM products
+         WHERE ${dealWhere}
          ORDER BY updated_at DESC
-         LIMIT $${candidateParams.length - 1} OFFSET $${candidateParams.length}`,
-        candidateParams
+         LIMIT ${DEALS_SAMPLE_CAP}`,
+        dealParams
       );
 
       // Filter and order the bounded sample in memory (fast, no DB timeout risk)
@@ -1804,7 +1642,6 @@ router.get(
       req,
     });
 
-    res.locals.cacheHit = false;
     res.json(responseBody);
   })
 );
@@ -2176,7 +2013,6 @@ router.get(
   checkRateLimit,
   queryLogMiddleware('products.featured'),
   asyncHandler(async (req: Request, res: Response) => {
-    res.locals.cacheHit = false;
     const start = Date.now();
     const rawCountry = (req.query.country_code as string | undefined) || (req.query.country as string | undefined);
     const countryCode = rawCountry?.toUpperCase() || 'SG';
@@ -2199,7 +2035,6 @@ router.get(
           source: 'products.featured.cache',
           req,
         });
-        res.locals.cacheHit = true;
         return res.json(parsed);
       }
     } catch (_) {}
@@ -2223,7 +2058,6 @@ router.get(
     const responseBody = buildSearchResponse(products, products.length, limit, offset, Date.now() - start, false);
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => {});
     res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
-    res.locals.cacheHit = false;
     res.json(responseBody);
   })
 );
