@@ -70,7 +70,7 @@ export function ProductGridImage({ src, alt, brand, merchant, className }: Produ
       loading="lazy"
       decoding="async"
       referrerPolicy="no-referrer-when-downgrade"
-      className={className ?? "h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"}
+      className={className ?? "h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]"}
       onError={() => setHasError(true)}
     />
   );
