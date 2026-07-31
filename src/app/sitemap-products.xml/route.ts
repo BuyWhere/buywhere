@@ -2,24 +2,15 @@ import {
   buildSitemapResponse,
   renderUrlSet,
   getProductSitemapEntries,
-  getSGProductSitemapEntries,
 } from "@/lib/sitemaps";
 
-// BUY-65097: Merchant product-listing routes are intentionally noindex while
-// they render thin "Product listings coming soon" placeholders. Google treats
-// noindex sitemap URLs as conflicting signals, so merchant listing URLs are
-// excluded from sitemap-products.xml (getMerchantListingSitemapEntries is not
-// called here). US/SG product detail routes ARE indexable, so they remain.
-// BUY-65121: the prior fix returned renderUrlSet([]), which also dropped all
-// US/SG product URLs (regression from 38KB → 110 bytes). Restored here.
+// BUY-65819: sitemap-products.xml must contain US-only product URLs.
+// SG product URLs belong in sitemap-products-sg.xml (BUY-65557).
+// This restores the baseline of ~100 US-only URLs (23,688B) from mid-July.
+// Prior regression: 200 URLs (100 US + 100 SG) with all SG entries 410 Gone.
 export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
-  // Intentionally NOT calling getMerchantListingSitemapEntries() — those
-  // routes are noindex placeholders (BUY-65097).
-  const [usEntries, sgEntries] = await Promise.all([
-    getProductSitemapEntries(),
-    getSGProductSitemapEntries(),
-  ]);
-  return buildSitemapResponse(renderUrlSet([...usEntries, ...sgEntries]));
+  const usEntries = await getProductSitemapEntries();
+  return buildSitemapResponse(renderUrlSet(usEntries));
 }
