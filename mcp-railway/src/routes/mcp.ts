@@ -639,16 +639,26 @@ async function handleGetDeals(args: Record<string, unknown>) {
   try {
     await dealsClient.query('SET statement_timeout = 4500');
     const candidateLimit = Math.max((limit + offset) * 200, 5000);
-    // Build the inner (subquery) WHERE — includes country filter so the
-    // updated_at scan is scoped to the requested region, not random recent rows.
+    // BUY-62608: push currency/region/country into the inner subquery so the 5k
+    // candidate window fetches recent rows FOR THAT REGION, not global US rows.
+    // candidateLimit is always $1 in inner query; currency/region/country follow.
     const innerConditions = ['is_active = true', 'price > 0'];
+    const innerParams: unknown[] = [candidateLimit];
+    if (currency) {
+      innerParams.push(currency);
+      innerConditions.push(`currency = $${innerParams.length}`);
+    }
+    if (region) {
+      innerParams.push(region);
+      innerConditions.push(`region = $${innerParams.length}`);
+    }
     if (country) {
-      innerConditions.push(`country_code = $1`);
+      innerParams.push(country.toUpperCase());
+      innerConditions.push(`country_code = $${innerParams.length}`);
     }
     const innerWhere = innerConditions.join(' AND ');
-    const innerParams: unknown[] = country ? [country] : [];
-    // Build the outer WHERE from the discount/currency conditions with re-indexed
-    // positional parameters ($1..$N inside → $N+1.. in the outer query).
+    // Re-index outer params: conditions reference $1..$N from params[];
+    // shift them by innerParams.length so they become $N+1.. in the full query.
     const outerParamsStart = innerParams.length + 1;
     const outerConditions = conditions.map((condition) =>
       condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + outerParamsStart}`)
@@ -668,7 +678,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
          FROM products
          WHERE ${innerWhere}
          ORDER BY updated_at DESC
-         LIMIT $${innerParams.length + 1}
+         LIMIT $1
        ) _recent_deals
        WHERE ${outerConditions.join(' AND ')}
        ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
