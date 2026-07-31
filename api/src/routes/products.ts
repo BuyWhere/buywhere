@@ -823,18 +823,39 @@ router.get(
       offset,
     ];
 
-    const laptopSearchTerms = buildSearchTokens(q);
+    const laptopSearchTokens = buildSearchTokens(q);
     const isLaptopSearch = q ? isLaptopSearchQuery(q) : false;
-    const laptopPositiveTerms = laptopSearchTerms.filter((term) => !['laptop', 'notebook'].includes(term));
-    const laptopTermStartIdx = baseIdx;
-    const laptopTermConditions = laptopPositiveTerms.map((_, i) => `products.title ILIKE $${laptopTermStartIdx + i}`);
-    const laptopLimitParamIdx = laptopTermStartIdx + laptopPositiveTerms.length;
+    // Tokens from the user's query that are not the laptop-intent marker itself
+    // (e.g. "gaming" in "gaming laptop"). These are descriptive adjectives, not
+    // category filters — a real ASUS ROG Strix does NOT contain the word
+    // "gaming" in its title, so ANDing these into the WHERE clause would
+    // exclude the very products the user wants. Instead we use them as
+    // _scoring_ signals: rows whose title/category contains any positive
+    // token get a small boost (laptopPositiveBoost), and rows whose title
+    // contains NONE get a mild penalty. Accessories still get demoted last.
+    const laptopPositiveTokens = laptopSearchTokens.filter((term) => !['laptop', 'notebook', 'macbook'].includes(term));
+    const laptopLimitParamIdx = baseIdx + laptopPositiveTokens.length;
     const laptopOffsetParamIdx = laptopLimitParamIdx + 1;
     const laptopFallbackWhereClause = `WHERE ${[
       ...baseConditions,
       `(products.title ILIKE '%laptop%' OR products.title ILIKE '%notebook%' OR products.title ILIKE '%macbook%' OR products.category ILIKE '%laptop%' OR array_to_string(products.category_path, ' ') ILIKE '%laptop%')`,
-      ...(laptopTermConditions.length ? laptopTermConditions : []),
+      // No AND on positive tokens — that excluded ROG/Legion/MSI. We only
+      // require the row to look like a laptop product.
     ].join(' AND ')}`;
+    // Scoring: accessories go last (1); plain laptops that match at least one
+    // positive token come first (0); plain laptops with no positive-token hit
+    // are still real laptops, ranked after matched tokens but ahead of
+    // accessories (-1). This keeps "gaming laptop" returning actual ROGs
+    // above a CARBONADO backpack.
+    const laptopPositiveMatchSql = laptopPositiveTokens.length
+      ? `CASE
+          WHEN (${laptopPositiveTokens.map((_, i) =>
+            `products.title ILIKE $${baseIdx + i} OR products.category ILIKE $${baseIdx + i} OR array_to_string(products.category_path, ' ') ILIKE $${baseIdx + i}`
+          ).join(' OR ')})
+          THEN 0
+          ELSE -1
+        END`
+      : '0';
     const laptopAccessoryDemotionSql = `
       CASE
         WHEN products.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors)\\M'
@@ -843,16 +864,16 @@ router.get(
         THEN 1 ELSE 0
       END`;
     const laptopFallbackQuery = `
-      SELECT ${joinedColumns}, ${laptopAccessoryDemotionSql} AS _accessory_rank
+      SELECT ${joinedColumns}, ${laptopAccessoryDemotionSql} AS _accessory_rank, ${laptopPositiveMatchSql} AS _positive_match
       FROM products
       LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
       ${laptopFallbackWhereClause}
-      ORDER BY _accessory_rank ASC, products.updated_at DESC, products.id DESC
+      ORDER BY _accessory_rank ASC, _positive_match DESC, products.updated_at DESC, products.id DESC
       LIMIT $${laptopLimitParamIdx} OFFSET $${laptopOffsetParamIdx}
     `;
     const laptopFallbackParams = [
       ...baseParams,
-      ...laptopPositiveTerms.map((term) => `%${term}%`),
+      ...laptopPositiveTokens.map((term) => `%${term}%`),
       requestedRows,
       offset,
     ];
@@ -1183,7 +1204,12 @@ router.get(
       // and can burn the full request budget before any fallback runs. They also
       // matched accessory SKUs (skins/decals/sleeves) too strongly. Use a bounded
       // product-intent path first, with accessories demoted behind actual laptops.
-      if (isLaptopSearch && countryCode === 'US' && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
+      // BUY-63953: the WHERE clause previously ANDed the user's other tokens
+      // (`title ILIKE '%gaming%'` for "gaming laptop"), which excluded ROG/Legion
+      // /MSI titles — leaving accessories as the top hits. Tokens are now used
+      // for scoring, not filtering. Country gate removed (was US-only) so
+      // SG/TH/MY/ID get the same protection.
+      if (isLaptopSearch && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
         const laptopFallbackResult = await client.query(laptopFallbackQuery, laptopFallbackParams);
         if (laptopFallbackResult.rows.length > 0) {
           await client.query('COMMIT');
