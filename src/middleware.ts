@@ -197,6 +197,19 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
   const normalizedPath = normalizePathname(pathname);
   const isDocsHost = host === "docs.buywhere.ai";
 
+
+  // BUY-65785: /developers/mcp and /developers/api regressed to 404.
+  // Redirect to canonical developer onboarding pages.
+  if (normalizedPath === "/developers/mcp") {
+    return "/quickstart";
+  }
+  if (normalizedPath === "/developers/api") {
+    return "/api-keys";
+  }
+  if (normalizedPath === "/developers/quickstart") {
+    return "/quickstart";
+  }
+
   if (normalizedPath === "/api-keys-keys") {
     return "/api-keys";
   }
