@@ -10,16 +10,14 @@ const errors_1 = require("../middleware/errors");
 const response_1 = require("../lib/response");
 const fxRatesLoader_1 = require("../lib/fxRatesLoader");
 const router = (0, express_1.Router)();
-// BUY-56185/BUY-64151: Detect statement_timeout poisoned connections.
+// BUY-56185: Detect statement_timeout poisoned connections.
 // When PostgreSQL's statement_timeout fires, the query is cancelled but the
-// connection enters PQTRANS_INERROR state (transactionStatus === 3). Returning
-// such a connection to the pool poisons every subsequent query with "current
-// transaction is aborted". client.state tracks the socket state, not the
-// transaction state, so use pg's transactionStatus instead.
+// connection enters PQTRANS_INERROR state. Returning such a connection to the
+// pool poises every subsequent query on it with "current transaction is aborted".
+// client.state returns 'error' in this state — discard instead of reusing.
 function releaseClientSafely(client) {
     try {
-        // PQTRANS_INERROR = 3 — transaction aborted due to statement_timeout or other error.
-        if (client && client.transactionStatus === 3) {
+        if (client && typeof client.state === 'string' && client.state === 'error') {
             client.release(true); // discard — do NOT return poisoned connection to pool
         }
         else {
@@ -207,7 +205,7 @@ async function handleSearchProducts(args) {
     const offset = Number(args.offset) || 0;
     const compact = args.compact === true;
     const currency = country ? (response_1.COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
-    const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
+    const cacheKey = `fts:v7:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
     try {
         const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
         if (cached) {
@@ -289,21 +287,47 @@ async function handleSearchProducts(args) {
                     console.warn('[search] embed query failed, falling back to FTS:', embedErr.message);
                 }
                 if (queryVec && config_1.vectorDb) {
-                    let candidateIds;
+                    let candidateIds = [];
+                    let vectorCandidateIds = null;
                     if (mode === 'semantic') {
                         // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
-                        const vecRows = await config_1.vectorDb.query(`SELECT product_id FROM product_embeddings
-               ORDER BY embedding <=> $1::vector LIMIT 200`, [queryVec]);
-                        candidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
+                        try {
+                            // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
+                            const vecRows = await config_1.vectorDb.query(`SELECT product_id FROM product_embeddings
+                 WHERE model_ver = 'gemini-embedding-001@512'
+                 ORDER BY embedding <=> $1::vector LIMIT 200`, [queryVec]);
+                            vectorCandidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
+                        }
+                        catch (vecErr) {
+                            // BUY-65474: dimension mismatch or other error — fall through to FTS
+                            console.warn('[search] vector query failed, falling back to FTS:', vecErr.message);
+                            vectorCandidateIds = null;
+                        }
                     }
                     else {
                         // Hybrid: app-level RRF of FTS ranks + vector ranks
-                        const [ftsResult, vecResult] = await Promise.all([
-                            searchClient.query(`SELECT id FROM products ${where} LIMIT 200`, params),
-                            config_1.vectorDb.query(`SELECT product_id FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT 200`, [queryVec]),
-                        ]);
-                        const ftsRank = new Map(ftsResult.rows.map((r, i) => [r.id, i + 1]));
-                        const vecRank = new Map(vecResult.rows.map((r, i) => [r.product_id, i + 1]));
+                        let vecRows = [];
+                        let ftsRows = [];
+                        try {
+                            // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
+                            const vecResult = await config_1.vectorDb.query(`SELECT product_id FROM product_embeddings
+                 WHERE model_ver = 'gemini-embedding-001@512'
+                 ORDER BY embedding <=> $1::vector LIMIT 200`, [queryVec]);
+                            vecRows = vecResult.rows;
+                        }
+                        catch (vecErr) {
+                            // BUY-65474: dimension mismatch — use FTS only
+                            console.warn('[search] hybrid vector query failed, FTS only:', vecErr.message);
+                        }
+                        try {
+                            const ftsResult = await searchClient.query(`SELECT id FROM products ${where} LIMIT 200`, params);
+                            ftsRows = ftsResult.rows;
+                        }
+                        catch (ftsErr) {
+                            console.warn('[search] hybrid FTS query failed:', ftsErr.message);
+                        }
+                        const ftsRank = new Map(ftsRows.map((r, i) => [r.id, i + 1]));
+                        const vecRank = new Map(vecRows.map((r, i) => [r.product_id, i + 1]));
                         const allIds = new Set([...ftsRank.keys(), ...vecRank.keys()]);
                         candidateIds = [...allIds]
                             .map(id => ({
@@ -314,7 +338,10 @@ async function handleSearchProducts(args) {
                             .slice(0, limit + offset)
                             .map(s => s.id);
                     }
-                    total = candidateIds.length;
+                    // BUY-65474: use vector results if available, else fall through to FTS
+                    if (vectorCandidateIds !== null) {
+                        candidateIds = vectorCandidateIds;
+                    }
                     const pageIds = candidateIds.slice(offset, offset + limit);
                     if (pageIds.length === 0) {
                         rows = [];
@@ -337,10 +364,10 @@ async function handleSearchProducts(args) {
                SELECT id, sku AS source, source AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code
                FROM products ${where}
-               LIMIT $${params.length - 2}
+               LIMIT $${params.length - 2}::int
              ) _candidates
              ORDER BY updated_at DESC
-             LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
+             LIMIT $${params.length - 1}::int OFFSET $${params.length}::int`, params);
                     rows = result.rows;
                 }
             }
@@ -352,10 +379,10 @@ async function handleSearchProducts(args) {
              SELECT id, sku AS source, source AS domain, url, title,
                     price, currency, image_url, metadata, updated_at, region, country_code
              FROM products ${where}
-             LIMIT $${params.length - 2}
+             LIMIT $${params.length - 2}::int
            ) _candidates
            ORDER BY updated_at DESC
-           LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
+           LIMIT $${params.length - 1}::int OFFSET $${params.length}::int`, params);
                 rows = result.rows;
             }
         }
@@ -438,15 +465,24 @@ async function handleCompareProducts(args) {
     if (validIds.length > 10) {
         throw { code: -32602, message: 'Provide at most 10 valid product IDs' };
     }
-    const placeholders = validIds.map((_, i) => `$${i + 1}`).join(',');
+    // BUY-26210: filter to numeric IDs only (products.id is bigint); non-numeric
+    // strings like UUIDs cause Postgres type errors in the WHERE IN clause.
+    const numericIds = validIds.filter((id) => /^\d+$/.test(id));
+    if (numericIds.length < 2) {
+        throw { code: -32001, message: 'Products not found' };
+    }
+    const placeholders = numericIds.map((_, i) => `$${i + 1}`).join(',');
     let result;
     try {
         result = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
               price, currency, image_url, brand, category_path,
               avg_rating AS rating, review_count, metadata, updated_at, region, country_code
-       FROM products WHERE id IN (${placeholders})`, validIds);
+       FROM products WHERE id IN (${placeholders})`, numericIds);
     }
     catch {
+        throw { code: -32001, message: 'Products not found' };
+    }
+    if (!result.rows.length) {
         throw { code: -32001, message: 'Products not found' };
     }
     const products = result.rows.map((r) => (0, response_1.buildProduct)(r, 'SGD', false));
@@ -540,12 +576,17 @@ async function handleGetDeals(args) {
             innerConditions.push(`country_code = $1`);
         }
         const innerWhere = innerConditions.join(' AND ');
-        const innerParams = effectiveCountry ? [effectiveCountry] : [];
+        // BUY-65475: candidateLimit must be bound as a positional parameter so the
+        // inner LIMIT resolves to a bigint. Previously the LIMIT placeholder
+        // ($${innerParams.length+1}) resolved to the currency/country text param.
+        const innerParams = effectiveCountry
+            ? [effectiveCountry, candidateLimit]
+            : [candidateLimit];
         // Build the outer WHERE from the discount/currency conditions with re-indexed
         // positional parameters ($1..$N inside → $N+1.. in the outer query).
         const outerParamsStart = innerParams.length + 1;
         const outerConditions = conditions.map((condition) => condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + outerParamsStart}`));
-        const outerParams = [...innerParams, ...params, limit, offset];
+        const outerParams = [...innerParams, ...params, Number(limit) || 20, Number(offset) || 0];
         const dataResult = await dealsClient.query(`SELECT id, source, domain, url, title, price, original_price,
               currency, image_url, metadata, updated_at, region, country_code,
               discount_pct
@@ -559,11 +600,11 @@ async function handleGetDeals(args) {
          FROM products
          WHERE ${innerWhere}
          ORDER BY updated_at DESC
-         LIMIT $${innerParams.length + 1}
+         LIMIT $${innerParams.length}::int
        ) _recent_deals
        WHERE ${outerConditions.join(' AND ')}
        ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
-       LIMIT $${outerParams.length - 1} OFFSET $${outerParams.length}`, outerParams);
+       LIMIT $${outerParams.length - 1}::int OFFSET $${outerParams.length}::int`, outerParams);
         total = dataResult.rows.length;
         products = dataResult.rows.map((r) => (0, response_1.buildProduct)(r, currency, false));
         if (products.length === 0 && effectiveCountry) {
@@ -582,7 +623,7 @@ async function handleGetDeals(args) {
            AND price > 0
            AND country_code = $1
            AND search_vector @@ plainto_tsquery('english', $2)
-         LIMIT $3`, [effectiveCountry, fallbackQuery, limit]);
+         LIMIT $3`, [effectiveCountry, fallbackQuery, Number(limit) || 20]);
             total = fallbackResult.rows.length;
             products = fallbackResult.rows.map((r) => (0, response_1.buildProduct)(r, currency, false));
         }
@@ -657,15 +698,19 @@ async function handleListCategories(args) {
                 // BUY-60056: materialized view is empty/stale in production. Instead of
                 // returning unavailable or running a full-table GROUP BY, sample recent
                 // products through the updated_at path and derive a bounded category list.
+                // BUY-65477: Also check `category` column as fallback since category_path
+                // may be empty but category column is populated.
                 const fallbackResult = await client.query(`SELECT slug, slug AS name, COUNT(*)::int AS product_count
            FROM (
-             SELECT category_path, country_code
-             FROM products
-             ORDER BY updated_at DESC
-             LIMIT 50000
+               SELECT category_path, category, country_code
+               FROM products
+               ORDER BY updated_at DESC
+               LIMIT 50000
            ) _recent_categories
-           CROSS JOIN LATERAL (SELECT category_path[1] AS slug) _cat
-           WHERE country_code = $1 AND slug IS NOT NULL
+           CROSS JOIN LATERAL (
+               SELECT COALESCE(category_path[1], NULLIF(lower(regexp_replace(category, '\\s+', '-', 'g')), '')) AS slug
+           ) _cat
+           WHERE country_code = $1 AND slug IS NOT NULL AND slug <> ''
            GROUP BY slug
            ORDER BY product_count DESC
            LIMIT 100`, [country]);
@@ -678,11 +723,14 @@ async function handleListCategories(args) {
                     product_count: 0,
                 }));
             }
+            const isFallback = rows.length > 0 && rows.every(r => r.product_count === 0);
             const data = {
                 data: rows,
-                meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false, unavailable: false },
+                meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false, unavailable: rows.length === 0 },
             };
-            config_1.redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => { }); // 10 min TTL
+            // BUY-65474: use shorter TTL for empty/fallback data (60s) vs real data (600s)
+            const cacheTtl = isFallback ? 60 : 600;
+            config_1.redis.set(cacheKey, JSON.stringify(data), 'EX', cacheTtl).catch(() => { });
             return data;
         }
         finally {
@@ -742,25 +790,15 @@ async function handleFindBestPrice(args) {
          FROM products
          WHERE is_active = true AND price > 0
          ORDER BY updated_at DESC
-         LIMIT $1
+         LIMIT $1::int
        ) _candidates
        WHERE country_code = $2
          AND title ILIKE $3
        ORDER BY price ASC, updated_at DESC
-       LIMIT $4`, [50000, country, titlePattern, limit]);
-        if (result.rows.length === 0) {
-            result = await bestPriceClient.query(`SELECT * FROM (
-           SELECT id, title, price, currency, source AS domain, url, image_url,
-                  country_code, updated_at
-           FROM products
-           WHERE is_active = true AND price > 0
-           ORDER BY updated_at DESC
-           LIMIT $1
-         ) _candidates
-         WHERE country_code = $2
-         ORDER BY price ASC, updated_at DESC
-         LIMIT $3`, [50000, country, limit]);
-        }
+       LIMIT $4::int`, [50000, country, titlePattern, limit]);
+        // BUY-65474: no fallback for unrelated products. If title has no ILIKE match,
+        // return an empty result rather than misleading cheapest products (e.g. bike
+        // hardware for an "iphone" query).
     }
     finally {
         // BUY-56185: discard connections poisoned by statement_timeout
@@ -1040,7 +1078,9 @@ async function handleFindSimilar(args) {
     // Step 1: get reference embedding from vector DB
     let refResult;
     try {
-        refResult = await config_1.vectorDb.query(`SELECT embedding::text FROM product_embeddings WHERE product_id = $1`, [productId]);
+        // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
+        refResult = await config_1.vectorDb.query(`SELECT embedding::text FROM product_embeddings
+       WHERE product_id = $1 AND model_ver = 'gemini-embedding-001@512'`, [productId]);
     }
     catch {
         throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
@@ -1050,10 +1090,12 @@ async function handleFindSimilar(args) {
     }
     const refEmbedding = refResult.rows[0].embedding;
     // Step 2: find nearest neighbours in vector DB (excluding source product)
+    // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
     let nearResult;
     try {
         nearResult = await config_1.vectorDb.query(`SELECT product_id, (embedding <=> $1::vector)::float AS distance
-       FROM product_embeddings WHERE product_id != $2
+       FROM product_embeddings
+       WHERE product_id != $2 AND model_ver = 'gemini-embedding-001@512'
        ORDER BY distance LIMIT $3`, [refEmbedding, productId, limit]);
     }
     catch {

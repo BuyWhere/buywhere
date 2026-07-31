@@ -169,11 +169,11 @@ WHERE category_path = '{}' OR array_length(category_path, 1) = 0;
 -- GEO fields (BUY-1970, BUY-1979): columns and indexes handled at top of migration
 
 -- Comparison pages curation table (BUY-2273)
--- product_ids: array of products.id (uuid) rows that represent this SKU across retailers
+-- product_ids: array of products.id (bigint) rows that represent this SKU across retailers
 CREATE TABLE IF NOT EXISTS comparison_pages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   slug TEXT UNIQUE NOT NULL,
-  product_ids UUID[] NOT NULL DEFAULT '{}',
+  product_ids BIGINT[] NOT NULL DEFAULT '{}',
   category TEXT NOT NULL CHECK (category IN ('electronics','grocery','home','health')),
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published','archived')),
   expert_summary TEXT,
@@ -186,16 +186,18 @@ CREATE TABLE IF NOT EXISTS comparison_pages (
 
 CREATE INDEX IF NOT EXISTS idx_comparison_pages_published ON comparison_pages(status) WHERE status = 'published';
 
--- Convert existing BIGINT[] column to UUID[] if table was created before schema alignment (BUY-2270)
+-- Convert existing UUID[] column to BIGINT[] (BUY-60005)
 DO $$
 DECLARE col_type TEXT;
 BEGIN
   SELECT udt_name INTO col_type
   FROM information_schema.columns
   WHERE table_name = 'comparison_pages' AND column_name = 'product_ids';
-  IF col_type = '_int8' THEN
+  IF col_type = '_uuid' THEN
     ALTER TABLE comparison_pages ALTER COLUMN product_ids DROP DEFAULT;
-    ALTER TABLE comparison_pages ALTER COLUMN product_ids TYPE UUID[] USING '{}'::UUID[];
+    ALTER TABLE comparison_pages ALTER COLUMN product_ids TYPE BIGINT[]
+      USING ARRAY(SELECT CASE WHEN v ~ '^[0-9]+$' THEN v::BIGINT ELSE NULL END
+                  FROM unnest(product_ids::text[]) AS v);
     ALTER TABLE comparison_pages ALTER COLUMN product_ids SET DEFAULT '{}';
   END IF;
 END$$;

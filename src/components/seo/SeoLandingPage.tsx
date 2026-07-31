@@ -68,11 +68,33 @@ function parseCatalogTimestamp(value: string | null | undefined): Date | null {
   return new Date(ts);
 }
 
+// Parse a refreshedLabel like "Refreshed July 25, 2026" or "Updated July 21, 2026"
+// to extract the date. Returns null if the label doesn't contain a parseable date
+// or if the date is in the future (BUY-63853: catch placeholder/future dates in hardcoded labels).
+function parseRefreshedLabelDate(label: string): Date | null {
+  // Match patterns like "Updated July 21, 2026" or "Refreshed Jan 15, 2026"
+  const match = label.match(/(?:Updated|Refreshed)\s+(\w+\s+\d{1,2},?\s+\d{4})/i);
+  if (!match) return null;
+  const ts = Date.parse(match[1]);
+  if (!Number.isFinite(ts)) return null;
+  return new Date(ts);
+}
+
 function buildRefreshedLabel(config: SeoLandingPageConfig, products: LandingProduct[]): string {
-  // If the config provides a static label, keep it for editorial pages that
-  // explicitly set a review/revision date.
+  // If the config provides a static label, validate it's not a future/placeholder date.
+  // Editorial pages may set an explicit review date, but it must be in the past
+  // to avoid the "future/placeholder-style date" false positive (BUY-63853).
   if (config.refreshedLabel) {
-    return config.refreshedLabel;
+    const labelDate = parseRefreshedLabelDate(config.refreshedLabel);
+    const now = Date.now();
+    // If we can parse a date from the label and it's in the future, fall back to dynamic
+    if (labelDate && labelDate.getTime() > now) {
+      console.warn(
+        `[seo] ${config.slug}: refreshedLabel "${config.refreshedLabel}" has future date, falling back to dynamic`
+      );
+    } else {
+      return config.refreshedLabel;
+    }
   }
 
   // Otherwise, reflect the freshness of the live products on the page — but

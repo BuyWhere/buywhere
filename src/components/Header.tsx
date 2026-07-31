@@ -23,9 +23,9 @@ export default function Header() {
         >
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <rect width="28" height="28" rx="6" fill="#4f46e5" />
-            {/* Shopping bag mark — single non-hamburger glyph inside the brand badge. */}
-            <path d="M8 11h12l-1 9H9z" stroke="white" strokeWidth="1.6" strokeLinejoin="round" fill="none" />
-            <path d="M11 11V9a3 3 0 0 1 6 0v2" stroke="white" strokeWidth="1.6" strokeLinecap="round" fill="none" />
+            {/* B letterform mark — distinct from hamburger icons. */}
+            <path d="M9 9h5.5a3.5 3.5 0 0 1 0 7H9V9z" fill="white" />
+            <path d="M9 16h6a3.5 3.5 0 0 1 0 7H9v-7z" fill="white" />
           </svg>
           <span>BuyWhere</span>
         </Link>

@@ -13,6 +13,45 @@ const INTERNAL_ORIGIN =
   process.env.NEXT_PUBLIC_SITE_URL ||
   BASE_URL;
 
+// Build-time validation: warn if any SEO config has future dates in dateModified/refreshedLabel.
+// Catching these at build/test time prevents future/placeholder dates from reaching production.
+// Exported so tests can call it. (BUY-63853)
+export function validateSeoLandingConfigDates(config: SeoLandingPageConfig): string[] {
+  const warnings: string[] = [];
+  const now = Date.now();
+
+  // Check refreshedLabel for future dates
+  if (config.refreshedLabel) {
+    const match = config.refreshedLabel.match(/(?:Updated|Refreshed)\s+(\w+\s+\d{1,2},?\s+\d{4})/i);
+    if (match) {
+      const ts = Date.parse(match[1]);
+      if (Number.isFinite(ts) && ts > now) {
+        warnings.push(
+          `${config.slug}: refreshedLabel "${config.refreshedLabel}" has future date (${match[1]})`
+        );
+      }
+    }
+  }
+
+  // Check dateModified for future dates
+  if (config.dateModified) {
+    const ts = Date.parse(config.dateModified);
+    if (Number.isFinite(ts) && ts > now) {
+      warnings.push(`${config.slug}: dateModified "${config.dateModified}" is in the future`);
+    }
+  }
+
+  // Check datePublished for future dates
+  if (config.datePublished) {
+    const ts = Date.parse(config.datePublished);
+    if (Number.isFinite(ts) && ts > now) {
+      warnings.push(`${config.slug}: datePublished "${config.datePublished}" is in the future`);
+    }
+  }
+
+  return warnings;
+}
+
 export type LandingProduct = {
   id: string;
   updatedAt?: string | null;

@@ -121,20 +121,20 @@ function formatPrice(price) {
 }
 /**
  * When a slug is not a comparison_page, try to resolve it as a category.
+ * Uses category column (not category_path) since category_path is often NULL/empty
+ * and category has searchable data like "Electronics and computers Torches".
  * Returns true if a response was sent, false if category also not found.
  */
 async function handleCategoryCompareFallback(slug, req, res) {
     const normalizedSlug = slugifyCategory(slug);
     const currency = (req.query.country === 'US' || req.query.region === 'us') ? 'USD' : 'SGD';
     const aliasNames = COMPARE_CATEGORY_ALIASES[normalizedSlug] || [];
-    // Look up the category_path[1] name for this slug
-    const slugResult = await config_1.db.query(`SELECT DISTINCT category_path[1] AS name FROM products
-     WHERE currency = $1 AND category_path IS NOT NULL
-       AND (
-         LOWER(REGEXP_REPLACE(category_path[1], '[^a-zA-Z0-9]+', '-', 'g')) = $2
-         OR category_path[1] = ANY($3::text[])
-       )
-     LIMIT 1`, [currency, normalizedSlug, aliasNames]).catch(() => null);
+    // Look up the category column for this slug - use ILIKE for partial match
+    // e.g., slug "electronics" matches "Electronics and computers", "Consumer Electronics", etc.
+    const slugResult = await config_1.db.query(`SELECT DISTINCT category AS name FROM products
+     WHERE currency = $1 AND category IS NOT NULL AND category != ''
+       AND category::text ILIKE $2 || '%'
+     LIMIT 1`, [currency, normalizedSlug]).catch(() => null);
     if (!slugResult || slugResult.rows.length === 0) {
         return false;
     }
@@ -144,9 +144,9 @@ async function handleCategoryCompareFallback(slug, req, res) {
     const productsResult = await config_1.db.query(`SELECT id, title, brand, image_url, price, currency, url, source, is_active,
             updated_at, sku, mpn
      FROM products
-     WHERE currency = $1 AND category_path[1] = ANY($2::text[])
+     WHERE currency = $1 AND category = $2
      ORDER BY updated_at DESC
-     LIMIT $3 OFFSET $4`, [currency, [categoryName, ...aliasNames], limit, offset]).catch(() => null);
+     LIMIT $3 OFFSET $4`, [currency, categoryName, limit, offset]).catch(() => null);
     if (!productsResult || productsResult.rows.length === 0) {
         return false;
     }
@@ -218,7 +218,11 @@ router.get('/:slug', async (req, res) => {
         return;
     }
     const page = pageResult.rows[0];
-    const productIds = (page.product_ids || []).filter((id) => typeof id === 'string' && id.length > 0);
+    // product_ids is BIGINT[] — filter to valid numeric IDs
+    const productIds = (page.product_ids || []).filter((id) => {
+        const num = Number(id);
+        return typeof id === 'string' && id.length > 0 && !isNaN(num);
+    });
     if (productIds.length === 0) {
         res.status(404).json({ error: 'No products linked' });
         return;
@@ -228,7 +232,7 @@ router.get('/:slug', async (req, res) => {
             price, currency, url, source, is_active, updated_at, gtin,
             sku, mpn
      FROM products
-     WHERE id = ANY($1::uuid[]) AND url IS NOT NULL
+     WHERE id = ANY($1::bigint[]) AND url IS NOT NULL
      ORDER BY price::numeric ASC NULLS LAST`, [productIds]).catch(() => null);
     const rows = productsResult?.rows ?? [];
     const canonical = rows[0]; // used for product card (first/cheapest row)

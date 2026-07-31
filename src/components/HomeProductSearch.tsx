@@ -75,7 +75,7 @@ export function HomeProductSearch() {
                 }
               }}
               placeholder="Search products..."
-              className="search-input w-full rounded-xl border-2 border-white/20 bg-white/10 py-5 pl-14 pr-4 text-lg text-white placeholder-white transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20"
+              className="search-input w-full rounded-xl border-2 border-white/50 bg-white/10 py-5 pl-14 pr-4 text-lg text-white placeholder-white transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20"
               aria-label="Search products"
               aria-invalid={Boolean(error)}
               aria-describedby={error ? errorId : undefined}
@@ -89,7 +89,7 @@ export function HomeProductSearch() {
               setCountry(event.target.value as CountryValue);
               setCountryTouched(true);
             }}
-            className="h-[66px] w-full shrink-0 rounded-xl border-2 border-white/20 bg-white/10 px-4 text-base font-medium text-white transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20 lg:w-36"
+            className="h-[66px] w-full shrink-0 rounded-xl border-2 border-white/50 bg-white/10 px-4 text-base font-medium text-white transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20 lg:w-36"
             aria-label="Search country"
           >
             {countryOptions.map((option) => (

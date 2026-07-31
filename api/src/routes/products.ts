@@ -48,7 +48,10 @@ const HYBRID_RRF_K = 60;
 // `could not resize shared memory segment... No space left on device` (SQLSTATE 53200).
 // 4MB is enough for the 200-row top-N sort + Nested Loop pkey lookups.
 const SEARCH_WORK_MEM = '4MB';
-const SEO_SEARCH_FALLBACK_SOURCE = 'seo_search_fallback';
+// BUY-62711: Archive fallback ladder collapsed. The search tier (search_products) now serves
+// virtually all keyword traffic (~99%). Archive path is only a last-resort fallback
+// on tier errors. Dead kill-switches removed: SEARCH_OR_TOPUP, SEO_HEAD_PREEMPT.
+// Contract preserved: tier error -> archive -> degraded-200.
 const GENERAL_SEARCH_FALLBACK_TIMEOUT_MS = Math.max(250, Number(process.env.GENERAL_SEARCH_FALLBACK_TIMEOUT_MS) || 1200);
 
 // Express 4 doesn't catch async rejections — unhandled errors crash the process.
@@ -132,6 +135,23 @@ async function tryTierSearch(
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
 
+  // BUY-63738: add laptop accessory demotion and boost to tier search results.
+  // Accessories (backpacks, skins, cases, sleeves) should rank lower for laptop queries.
+  // Also boost products that contain "laptop" in title/category.
+  const laptopAccessoryPenalty = `
+    CASE
+      WHEN sp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+        OR sp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+        OR array_to_string(sp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+      THEN 0.25 ELSE 1.0
+    END`;
+  const laptopBoost = `
+    CASE
+      WHEN lower(sp.title) LIKE '%laptop%' OR lower(sp.title) LIKE '%notebook%' OR lower(sp.title) LIKE '%macbook%'
+        OR lower(sp.category) LIKE '%laptop%'
+        OR array_to_string(sp.category_path, ' ') LIKE '%laptop%'
+      THEN 2.0 ELSE 1.0
+    END`;
   const mkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
       SELECT id, search_vector FROM search_products sp
@@ -142,7 +162,9 @@ async function tryTierSearch(
       -- below ranks the bounded candidate set.
       LIMIT 5000
     ), top AS (
-      SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) AS rank
+      SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) *
+            (${laptopBoost}) *
+            (${laptopAccessoryPenalty}) AS rank
       FROM cand ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
@@ -153,19 +175,28 @@ async function tryTierSearch(
 
   const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
   const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
+  // BUY-63738: add accessory penalty to title fallback queries so accessories don't
+  // dominate results when FTS returns no matches. Uses 0.25x multiplier like mkQuery.
+  const laptopAccessoryPenaltyTitle = `
+    CASE
+      WHEN sp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+        OR sp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+        OR array_to_string(sp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+      THEN 0 ELSE 1
+    END`;
   const titleFallbackQuery = `
     SELECT ${cols}, 0 AS _fts_rank
     FROM search_products sp
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}
-    ORDER BY ${orderPrefix}sp.id DESC
+    ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const tokenTitleFallbackQuery = `
     SELECT ${cols}, 0 AS _fts_rank
     FROM search_products sp
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}
-    ORDER BY ${orderPrefix}sp.id DESC
+    ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
 
   let client: PoolClient;
@@ -259,10 +290,6 @@ function mergeRrfCandidateIds(ftsIds: string[], semanticIds: string[], limit: nu
     .map((entry) => entry.id);
 }
 
-function isSeoHeadQuery(query: string): boolean {
-  return query.trim().split(/\s+/).filter(Boolean).length >= 2;
-}
-
 // deliver_to soft contract (2026-07-14): annotate availability relative to the END
 // USER's country, optionally filter to local-only, and hint agents to pass deliver_to.
 // v1 labels (merchant-country == deliver_to -> 'local', else 'unknown') until
@@ -289,18 +316,6 @@ function annotateDeliverTo(body: Record<string, unknown>, deliverTo: string | un
   } else if (q && meta) {
     meta.hint = "Pass deliver_to=<ISO-3166 country of your end user, e.g. deliver_to=SG> to rank products deliverable to them first (adds an availability label per product). Add include_unshippable=false to return only same-country products.";
   }
-}
-
-function isLaptopSearchQuery(query: string): boolean {
-  return /\b(laptop|notebook|macbook)\b/i.test(query);
-}
-
-function buildSearchTokens(query: string): string[] {
-  return query.toLowerCase()
-    .split(/\s+/)
-    .map((token) => token.replace(/[^\p{L}\p{N}]/gu, ''))
-    .filter(Boolean)
-    .slice(0, 6);
 }
 
 const router = Router();
@@ -789,100 +804,12 @@ router.get(
     const RECENT_SLICE_CAP = 2000;
 
     const seoFallbackTerms = q.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
-    const seoFallbackConditions = baseConditions;
-    const seoFallbackParams = baseParams;
-    const seoFallbackSourceParamIdx = seoFallbackParams.length + 1;
-    const seoFallbackTermStartIdx = seoFallbackSourceParamIdx + 1;
-    const seoFallbackTermConditions = seoFallbackTerms.map((_, i) => `products.title ILIKE $${seoFallbackTermStartIdx + i}`);
-    const seoFallbackLimitParamIdx = seoFallbackTermStartIdx + seoFallbackTerms.length;
-    const seoFallbackOffsetParamIdx = seoFallbackLimitParamIdx + 1;
-    const seoFallbackWhereClause = `WHERE ${[
-      ...seoFallbackConditions,
-      `source = $${seoFallbackSourceParamIdx}`,
-      ...(seoFallbackTermConditions.length ? [`(${seoFallbackTermConditions.join(' OR ')})`] : []),
-    ].join(' AND ')}`;
-    const seoFallbackQuery = `
-      WITH fallback_ids AS (
-        SELECT id, updated_at
-        FROM products
-        ${seoFallbackWhereClause}
-        ORDER BY updated_at DESC
-        LIMIT $${seoFallbackLimitParamIdx} OFFSET $${seoFallbackOffsetParamIdx}
-      )
-      SELECT ${joinedColumns}
-      FROM fallback_ids
-      JOIN products ON products.id = fallback_ids.id
-      LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-      ORDER BY fallback_ids.updated_at DESC
-    `;
-    const seoFallbackParamsWithPage = [
-      ...seoFallbackParams,
-      SEO_SEARCH_FALLBACK_SOURCE,
-      ...seoFallbackTerms.map((term) => `%${term}%`),
-      requestedRows,
-      offset,
-    ];
-
-    const laptopSearchTokens = buildSearchTokens(q);
-    const isLaptopSearch = q ? isLaptopSearchQuery(q) : false;
-    // Tokens from the user's query that are not the laptop-intent marker itself
-    // (e.g. "gaming" in "gaming laptop"). These are descriptive adjectives, not
-    // category filters — a real ASUS ROG Strix does NOT contain the word
-    // "gaming" in its title, so ANDing these into the WHERE clause would
-    // exclude the very products the user wants. Instead we use them as
-    // _scoring_ signals: rows whose title/category contains any positive
-    // token get a small boost (laptopPositiveBoost), and rows whose title
-    // contains NONE get a mild penalty. Accessories still get demoted last.
-    const laptopPositiveTokens = laptopSearchTokens.filter((term) => !['laptop', 'notebook', 'macbook'].includes(term));
-    const laptopLimitParamIdx = baseIdx + laptopPositiveTokens.length;
-    const laptopOffsetParamIdx = laptopLimitParamIdx + 1;
-    const laptopFallbackWhereClause = `WHERE ${[
-      ...baseConditions,
-      `(products.title ILIKE '%laptop%' OR products.title ILIKE '%notebook%' OR products.title ILIKE '%macbook%' OR products.category ILIKE '%laptop%' OR array_to_string(products.category_path, ' ') ILIKE '%laptop%')`,
-      // No AND on positive tokens — that excluded ROG/Legion/MSI. We only
-      // require the row to look like a laptop product.
-    ].join(' AND ')}`;
-    // Scoring: accessories go last (1); plain laptops that match at least one
-    // positive token come first (0); plain laptops with no positive-token hit
-    // are still real laptops, ranked after matched tokens but ahead of
-    // accessories (-1). This keeps "gaming laptop" returning actual ROGs
-    // above a CARBONADO backpack.
-    const laptopPositiveMatchSql = laptopPositiveTokens.length
-      ? `CASE
-          WHEN (${laptopPositiveTokens.map((_, i) =>
-            `products.title ILIKE $${baseIdx + i} OR products.category ILIKE $${baseIdx + i} OR array_to_string(products.category_path, ' ') ILIKE $${baseIdx + i}`
-          ).join(' OR ')})
-          THEN 0
-          ELSE -1
-        END`
-      : '0';
-    const laptopAccessoryDemotionSql = `
-      CASE
-        WHEN products.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags)\\M'
-          OR products.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags)\\M'
-          OR array_to_string(products.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags)\\M'
-        THEN 1 ELSE 0
-      END`;
-    const laptopFallbackQuery = `
-      SELECT ${joinedColumns}, ${laptopAccessoryDemotionSql} AS _accessory_rank, ${laptopPositiveMatchSql} AS _positive_match
-      FROM products
-      LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-      ${laptopFallbackWhereClause}
-      ORDER BY _accessory_rank ASC, _positive_match DESC, products.updated_at DESC, products.id DESC
-      LIMIT $${laptopLimitParamIdx} OFFSET $${laptopOffsetParamIdx}
-    `;
-    const laptopFallbackParams = [
-      ...baseParams,
-      ...laptopPositiveTokens.map((term) => `%${term}%`),
-      requestedRows,
-      offset,
-    ];
-
-    const generalFallbackTermConditions = seoFallbackTerms.map((_, i) => `products.title ILIKE $${baseIdx + i}`);
+    // BUY-62711: archive fallback is ONE bounded FTS pass + ONE ILIKE last-resort.
+    const archiveFallbackTermConditions = seoFallbackTerms.map((_, i) => `products.title ILIKE $${baseIdx + i}`);
     const generalFallbackLimitParamIdx = baseIdx + seoFallbackTerms.length;
     const generalFallbackWhereClause = `WHERE ${[
       ...baseConditions,
-      ...(generalFallbackTermConditions.length ? [`(${generalFallbackTermConditions.join(' OR ')})`] : []),
+      ...(archiveFallbackTermConditions.length ? [`(${archiveFallbackTermConditions.join(' OR ')})`] : []),
     ].join(' AND ')}`;
     const generalFallbackQuery = `
       SELECT ${joinedColumns}
@@ -940,23 +867,18 @@ router.get(
         ), top_ids AS (
           SELECT rh.id, rh.country_code,
                  ts_rank(rhp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
+                 -- BUY-63738: boost laptop products and penalize accessories
                  CASE
-                   WHEN lower(rhp.title) LIKE '%laptop%'
-                     AND lower(rhp.title) NOT LIKE '%sleeve%'
-                     AND lower(rhp.title) NOT LIKE '%case%'
-                     AND lower(rhp.title) NOT LIKE '%bag%'
-                     AND lower(rhp.title) NOT LIKE '%stand%'
-                     AND lower(rhp.title) NOT LIKE '%pad%'
-                     AND lower(rhp.title) NOT LIKE '%cooler%'
-                     AND lower(rhp.title) NOT LIKE '%adapter%'
-                     AND lower(rhp.title) NOT LIKE '%dock%'
-                     AND lower(rhp.title) NOT LIKE '%hub%'
-                     AND lower(rhp.title) NOT LIKE '%lock%'
-                     AND lower(rhp.title) NOT LIKE '%briefcase%'
-                     AND lower(rhp.title) NOT LIKE '%charger%'
-                     AND lower(rhp.title) NOT LIKE '%table%'
-                   THEN 2.0
-                   ELSE 1.0
+                   WHEN lower(rhp.title) LIKE '%laptop%' OR lower(rhp.title) LIKE '%notebook%' OR lower(rhp.title) LIKE '%macbook%'
+                     OR lower(rhp.category) LIKE '%laptop%'
+                     OR array_to_string(rhp.category_path, ' ') LIKE '%laptop%'
+                   THEN 2.0 ELSE 1.0
+                 END *
+                 CASE
+                   WHEN rhp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+                     OR rhp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+                     OR array_to_string(rhp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+                   THEN 0.25 ELSE 1.0
                  END AS rank
           FROM recent_hits rh
           JOIN products rhp ON rhp.id = rh.id
@@ -1143,47 +1065,9 @@ router.get(
             if (recentSliceRes.rows.length > 0) return recentSliceRes;
             return runBoundedSgMatch(ftsOrMatch, dataParams, broadRecentSliceWhereClause);
           }
-          // Strict AND matches rank first (precise). Sprint C: if AND under-fills
-          // the page, TOP UP from the broad OR match (dedup by id) so the page is
-          // full without losing precision-first ordering. The OR top-up is best-
-          // effort: if it times out on the memory-starved replica, serve the AND
-          // rows alone rather than discarding good results for a degraded payload.
-          if (andRes.rows.length >= requestedRows) return andRes;
-          // Budget guard: the OR top-up can cost up to a full statement timeout on a
-          // cold replica. Only attempt it when the request still has comfortable
-          // headroom inside the handler window; otherwise a thin-but-precise page
-          // NOW beats a degraded empty page at the handler timeout.
-          // KILL-SWITCH (2026-07-03): top-up DEFAULT OFF — sustained ~18/hr degraded
-          // searches traced to broad OR scans churning the 4GB replica buffers.
-          // Re-enable with SEARCH_OR_TOPUP=1 once the search tier (plan Phase 3)
-          // gives OR scans a working set that fits in RAM.
-          if (andRes.rows.length > 0 && process.env.SEARCH_OR_TOPUP !== '1') return andRes;
-          if (andRes.rows.length > 0 && Date.now() - requestStart > 2000) return andRes;
-          if (andRes.rows.length > 0) {
-            try {
-              let orRes = await client.query(baseQuery, dataParams);
-              if (useSgFreshnessGuardrail && orRes.rows.length === 0) {
-                orRes = await client.query(baseQuery.replace(freshWhereClause, whereClause), dataParams);
-              }
-              const seenIds = new Set(andRes.rows.map((r0) => String((r0 as Record<string, unknown>).id)));
-              const merged = [...andRes.rows];
-              for (const row of orRes.rows) {
-                if (merged.length >= requestedRows) break;
-                const rid = String((row as Record<string, unknown>).id);
-                if (!seenIds.has(rid)) { seenIds.add(rid); merged.push(row); }
-              }
-              return { rows: merged };
-            } catch {
-              // OR top-up timed out/failed — the transaction is aborted, so recover
-              // it and serve the precise AND rows we already have.
-              await client.query('ROLLBACK').catch(() => {});
-              await client.query('BEGIN').catch(() => {});
-              await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`).catch(() => {});
-              await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`).catch(() => {});
-              await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`).catch(() => {});
-              return andRes;
-            }
-          }
+          // BUY-62711: OR top-up removed. The tier now serves virtually all keyword traffic.
+          // Archive path is only a fallback on tier errors.
+          if (andRes.rows.length > 0) return andRes;
         }
         let r = await client.query(baseQuery, dataParams);
         if (useSgFreshnessGuardrail && r.rows.length === 0) {
@@ -1196,43 +1080,7 @@ router.get(
         ? vectorDb
         : null;
 
-      // BUY-60082: SEO landing head queries may have curated fallback rows even
-      // when broad multi-token FTS is too expensive. Read those rows first via a
-      // tightly bounded source/country/currency predicate so `/api/products/search`
-      // returns real product cards instead of the degraded empty timeout response.
-      // BUY-59982 / BUY-60623: laptop category queries are high-cardinality in FTS
-      // and can burn the full request budget before any fallback runs. They also
-      // matched accessory SKUs (skins/decals/sleeves) too strongly. Use a bounded
-      // product-intent path first, with accessories demoted behind actual laptops.
-      // BUY-63953: the WHERE clause previously ANDed the user's other tokens
-      // (`title ILIKE '%gaming%'` for "gaming laptop"), which excluded ROG/Legion
-      // /MSI titles — leaving accessories as the top hits. Tokens are now used
-      // for scoring, not filtering. Country gate removed (was US-only) so
-      // SG/TH/MY/ID get the same protection.
-      if (isLaptopSearch && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
-        const laptopFallbackResult = await client.query(laptopFallbackQuery, laptopFallbackParams);
-        if (laptopFallbackResult.rows.length > 0) {
-          await client.query('COMMIT');
-          client.release();
-          await sendFallbackProducts(laptopFallbackResult.rows, 'laptop_product_intent');
-          return;
-        }
-      }
-
-      // BUY perf 2026-07-14: this SEO-head pre-empt ran a slow title-ILIKE seq scan (~8s)
-      // BEFORE the FTS path for EVERY >=2-word query (isSeoHeadQuery = "2+ words"), returning
-      // ILIKE junk ("coffee maker" -> "Coffee Cookie Stamp"). Now that the FTS candidate gather
-      // is fast (~150ms), skip the pre-empt so FTS serves relevant results. Re-enable for
-      // curated SEO landing rows only via SEO_HEAD_PREEMPT=1.
-      if (process.env.SEO_HEAD_PREEMPT === '1' && q && isSeoHeadQuery(q) && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
-        const seoFallbackResult = await client.query(seoFallbackQuery, seoFallbackParamsWithPage);
-        if (seoFallbackResult.rows.length > 0) {
-          await client.query('COMMIT');
-          client.release();
-          await sendFallbackProducts(seoFallbackResult.rows, SEO_SEARCH_FALLBACK_SOURCE);
-          return;
-        }
-      }
+      // BUY-62711: laptop/SEO pre-empts removed - tier now serves ~99% of keyword traffic.
 
       if (activeVectorDb) {
         const queryVector = await getCachedQueryEmbedding(q, geminiKey);

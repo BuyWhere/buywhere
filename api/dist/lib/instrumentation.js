@@ -33,7 +33,22 @@ exports.buildAffiliateRedirectUrl = buildAffiliateRedirectUrl;
  *                       source text, destination_url text, clicked_at timestamptz)
  */
 const crypto_1 = require("crypto");
-const config_1 = require("../config");
+const pg_1 = require("pg");
+// Dedicated lightweight pool for instrumentation inserts.
+// Uses no statement_timeout so inserts always complete (or fail fast with PG error).
+// Separate from main `db` pool to avoid interference.
+let _insertPool = null;
+function getInsertPool() {
+    if (!_insertPool) {
+        _insertPool = new pg_1.Pool({
+            connectionString: process.env.DATABASE_URL,
+            max: 5,
+            idleTimeoutMillis: 10000,
+            connectionTimeoutMillis: 10000,
+        });
+    }
+    return _insertPool;
+}
 // ---------------------------------------------------------------------------
 // Idempotency filter — bounded LRU keyed on the dedup tuple.
 // ---------------------------------------------------------------------------
@@ -73,7 +88,7 @@ function recordProductView(opts) {
     if (!shouldInsert('product_views', productId, callerId))
         return;
     const queryHash = opts.queryHash ?? null;
-    config_1.db.query(`INSERT INTO product_views (product_id, source, query_hash) VALUES ($1, $2, $3)`, [productId, opts.source, queryHash]).catch((err) => {
+    getInsertPool().query(`INSERT INTO product_views (product_id, source, query_hash) VALUES ($1, $2, $3)`, [productId, opts.source, queryHash]).then(() => console.log('[instrumentation] DB write SUCCESS for ' + productId)).catch((err) => {
         console.warn(`[instrumentation] product_views insert failed for ${productId}: ${err.message}`);
     });
 }
@@ -91,8 +106,7 @@ function recordProductViewsBulk(opts) {
         seen.add(id);
         if (!shouldInsert('product_views', id, callerId))
             continue;
-        console.log('[instrumentation] recording product_view id=' + id + ' source=' + opts.source + ' caller=' + callerId);
-        config_1.db.query(`INSERT INTO product_views (product_id, source, query_hash) VALUES ($1, $2, $3)`, [id, opts.source, queryHash]).catch((err) => {
+        getInsertPool().query(`INSERT INTO product_views (product_id, source, query_hash) VALUES ($1, $2, $3)`, [id, opts.source, queryHash]).then(() => console.log('[instrumentation] DB write SUCCESS for ' + id)).catch((err) => {
             console.warn('[instrumentation] bulk insert failed for ' + id + ': ' + err.message);
         });
     }

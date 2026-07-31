@@ -33,6 +33,23 @@ async function tick() {
             console.log(`[disk-space-runner] ${alert.severity.toUpperCase()} alert already sent recently — skipping`);
             return;
         }
+        // Run WC cycle artifact cleanup before opening an incident.
+        // Auto-apply only at critical severity; warning stays dry-run for safety.
+        const retentionHours = parseInt(process.env.ARTIFACT_CLEANUP_RETENTION_HOURS || '48', 10);
+        const autoApply = alert.severity === 'critical' && process.env.ARTIFACT_CLEANUP_AUTO_APPLY !== '0';
+        const cleanupReport = await (0, diskSpace_1.runArtifactCleanup)(autoApply, retentionHours);
+        if (cleanupReport.removedCount > 0 || cleanupReport.alertRequired) {
+            console.warn(`[disk-space-runner] cleanup applied=${autoApply} ` +
+                `scanned=${cleanupReport.scannedCount} removed=${cleanupReport.removedCount} ` +
+                `reclaimed_kb=${cleanupReport.reclaimedKb} alert_required=${cleanupReport.alertRequired}` +
+                (cleanupReport.error ? ` error=${cleanupReport.error}` : ''));
+        }
+        else {
+            console.log(`[disk-space-runner] cleanup applied=${autoApply} ` +
+                `scanned=${cleanupReport.scannedCount} removed=${cleanupReport.removedCount} ` +
+                `reclaimed_kb=${cleanupReport.reclaimedKb}` +
+                (cleanupReport.error ? ` error=${cleanupReport.error}` : ''));
+        }
         // Create Paperclip incident
         console.warn(`[disk-space-runner] ${alert.severity.toUpperCase()}: ${alert.availableGb}GB available ` +
             `(threshold: ${alert.thresholdGb}GB, ${alert.usePercent}% used)`);

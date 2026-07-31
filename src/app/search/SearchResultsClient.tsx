@@ -138,15 +138,86 @@ function hasUsableProductImage(value?: string | null) {
   }
 }
 
-function sortProductsByImageQuality(products: SearchCardProduct[]) {
-  return [...products].sort((leftProduct, rightProduct) => {
-    const leftHasImage = leftProduct.imageUrl ? 1 : 0;
-    const rightHasImage = rightProduct.imageUrl ? 1 : 0;
+// BUY-63738: Re-rank search results for product-category queries.
+// Priorities (descending):
+//   1. Has usable image (filter out generic placeholders)
+//   2. Has valid price (not null)
+//   3. Is primary product (not accessory)
+//   4. ts_rank from API (preserved within same tier)
+const ACCESSORY_KEYWORDS = [
+  'skin', 'skins', 'decal', 'decals', 'sticker', 'stickers',
+  'sleeve', 'sleeves', 'case', 'cases', 'cover', 'covers', 'protector', 'protectors',
+  'backpack', 'backpacks', 'bag', 'bags', 'briefcase', 'briefcases', 'messenger',
+  'shell', 'shells', 'pad', 'pads', 'cooler', 'coolers',
+  'adapter', 'adapters', 'dock', 'docks', 'hub', 'hubs',
+  'lock', 'locks', 'charger', 'chargers', 'cable', 'cables',
+  'stand', 'stands', 'mat', 'mats', 'tablet',
+];
 
-    if (leftHasImage !== rightHasImage) return rightHasImage - leftHasImage;
+function isAccessoryProduct(product: SearchCardProduct): boolean {
+  const titleLower = product.name.toLowerCase();
+  const categoryLower = (product.category || '').toLowerCase();
+  const text = `${titleLower} ${categoryLower}`;
+
+  // BUY-63738: Detect accessories (backpacks, skins, sleeves, etc.).
+  // Strategy: products with accessory keywords are accessories UNLESS the title
+  // is clearly a primary laptop/notebook/macbook product.
+  const hasAccessoryKeyword = ACCESSORY_KEYWORDS.some(keyword => titleLower.includes(keyword));
+
+  if (!hasAccessoryKeyword) return false;
+
+  // If title contains "laptop" and the title STARTS with or centers on a real laptop
+  // (not an accessory for laptop), it's a laptop product.
+  // E.g., "ASUS TUF Gaming F16 Laptop Intel..." = laptop
+  // E.g., "Backpack Gaming Backpack For Laptop" = accessory
+  // E.g., "Robotic Doodle Laptop Skin" = accessory
+  // E.g., "MacBook Pro Case Cover" = accessory
+
+  // Heuristic: if accessory keyword appears BEFORE "laptop/notebook/macbook", it's an accessory
+  const accessoryIdx = ACCESSORY_KEYWORDS.reduce((minIdx, kw) => {
+    const idx = titleLower.indexOf(kw);
+    return idx >= 0 && (minIdx < 0 || idx < minIdx) ? idx : minIdx;
+  }, -1);
+
+  const laptopMatch = titleLower.match(/\b(laptop|notebook|macbook)\b/);
+  const laptopIdx = laptopMatch ? laptopMatch.index! : -1;
+
+  // Accessory word appears before laptop word = accessory (e.g., "Backpack for Laptop")
+  if (accessoryIdx >= 0 && laptopIdx >= 0 && accessoryIdx < laptopIdx) {
+    return true;
+  }
+
+  // Accessory word appears after laptop word and is a common suffix pattern
+  // E.g., "Laptop Skin", "MacBook Case" = accessory
+  if (accessoryIdx >= 0 && laptopIdx >= 0 && accessoryIdx > laptopIdx) {
+    // If the accessory keyword is within 20 chars of the laptop word, it's likely a modifier (accessory)
+    return (accessoryIdx - laptopIdx) < 25;
+  }
+
+  // Only accessory keyword (no laptop) = accessory
+  return true;
+}
+
+function rankProduct(product: SearchCardProduct): number {
+  let score = 0;
+  // Has usable image
+  if (product.imageUrl) score += 100;
+  // Has valid price
+  if (product.price !== null) score += 50;
+  // Not an accessory
+  if (!isAccessoryProduct(product)) score += 25;
+  return score;
+}
+
+function sortProductsByRelevance(products: SearchCardProduct[]) {
+  return [...products].sort((leftProduct, rightProduct) => {
+    const leftScore = rankProduct(leftProduct);
+    const rightScore = rankProduct(rightProduct);
+    if (leftScore !== rightScore) return rightScore - leftScore;
     return 0;
   });
 }
+
 
 function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): SearchCardProduct {
   const priceValue =
@@ -245,7 +316,11 @@ function SearchInputSkeleton() {
 
 function SearchResultsSkeleton() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-hidden="true">
+    <div
+      className="grid gap-4"
+      style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', maxWidth: '1200px' }}
+      aria-hidden="true"
+    >
       {Array.from({ length: 8 }).map((_, index) => (
         <div key={index} className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
           <div className="aspect-[4/3] animate-pulse bg-slate-200" />
@@ -300,6 +375,49 @@ function SearchProgressIndicator({ startedAt }: { startedAt: number }) {
 
 
 function SearchCard({ product }: { product: SearchCardProduct }) {
+  const [imageError, setImageError] = useState(false);
+
+  // Branded placeholder for broken/missing images - shows brand + product name
+  // Similar to ProductGridImage's BrandedPlaceholder (BUY-63851 fix)
+  function BrandedPlaceholder() {
+    const brandText = (product.brand || 'BuyWhere').slice(0, 18);
+    const productLabel = product.name.slice(0, 26);
+
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 p-4">
+        <div className="mb-2 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" className="w-full max-w-[180px] drop-shadow-sm">
+            <defs>
+              <linearGradient id="searchCardBg" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0" stopColor="#fff7ed" />
+                <stop offset="1" stopColor="#fde68a" />
+              </linearGradient>
+            </defs>
+            <rect width="400" height="300" fill="url(#searchCardBg)" />
+            <rect x="40" y="40" width="320" height="220" rx="24" fill="#ffffff" stroke="#fcd34d" strokeWidth="3" />
+            <g transform="translate(140 80)" fill="none" stroke="#b45309" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="0" y="0" width="120" height="90" rx="12" fill="#fef3c7" />
+              <circle cx="60" cy="40" r="14" fill="#f59e0b" stroke="none" />
+              <path d="M0 70 L40 35 L80 60 L120 25" stroke="#b45309" />
+            </g>
+            <text x="200" y="208" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="22" fontWeight="700" fill="#0f172a">
+              {brandText}
+            </text>
+            <text x="200" y="236" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="14" fontWeight="500" fill="#475569">
+              {productLabel}
+            </text>
+            <text x="200" y="258" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="11" fontWeight="600" letterSpacing="2" fill="#92400e">
+              BUYWHERE
+            </text>
+          </svg>
+        </div>
+        {product.brand && (
+          <span className="text-xs text-slate-500">{product.brand}</span>
+        )}
+      </div>
+    );
+  }
+
   return (
     <a
       data-testid="search-product-card"
@@ -315,7 +433,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
         <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))] text-sm font-semibold text-slate-600">
           Product image
         </div>
-        {product.imageUrl ? (
+        {product.imageUrl && !imageError ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={product.imageUrl}
@@ -323,14 +441,14 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
             loading="lazy"
             decoding="async"
             referrerPolicy="no-referrer"
-            onError={(event) => {
-              event.currentTarget.style.display = 'none';
+            onError={() => {
+              setImageError(true);
             }}
-            className="relative z-10 block h-full max-h-full w-full max-w-full object-contain p-2 transition-transform duration-300 group-hover:scale-[1.03]"
+            className="relative z-10 block h-full w-full object-cover p-2 transition-transform duration-300 group-hover:scale-[1.03]"
           />
-        ) : (
-          <div className="relative z-10 flex h-full items-center justify-center text-4xl text-slate-600">◎</div>
-        )}
+        ) : imageError || !product.imageUrl ? (
+          <BrandedPlaceholder />
+        ) : null}
         <div className="absolute right-2 top-2 z-20">
           <CompareSelectButton product={product} className="h-9 w-9" />
         </div>
@@ -579,7 +697,7 @@ export default function SearchResultsClient({
         setDegraded(false);
         setDegradedHint(null);
       }
-      const normalizedItems = sortProductsByImageQuality(
+      const normalizedItems = sortProductsByRelevance(
         rawItems.map((item) => normalizeProduct(item, activeCountry.currency))
       ).slice(0, PAGE_SIZE);
       const fetchedPageIsFull = rawItems.length >= SEARCH_FETCH_LIMIT;
@@ -880,28 +998,25 @@ export default function SearchResultsClient({
 
           {!showSearchPrompt && !error ? (
             <div className="space-y-6">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div className="hidden md:block">
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
-                    {activeCountry.label}
-                  </p>
-                  <h1 className="mt-1 text-2xl font-semibold text-slate-950">
-                    {loadingInitial ? (
-                      <>
-                        Searching catalog...
-                        <span className="ml-2 animate-pulse text-lg leading-none">&bull;&bull;&bull;</span>
-                      </>
-                    ) : (
-                      `${total.toLocaleString()} results for “${debouncedQuery}”`
-                    )}
-                  </h1>
-                </div>
-                <Link
-                  href="/"
-                  className="hidden self-start rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900 sm:inline-flex sm:items-center sm:gap-2"
-                >
-                  Back to homepage
-                </Link>
+              {/* BUY-63238: Removed the redundant 'Back to homepage' CTA from the
+                  results header. The sticky header logo already provides homepage
+                  navigation on every viewport, so the CTA was duplicating it in the
+                  highest-value slot and (previously) pushed product cards below the
+                  fold on mobile. Keep the result-count heading alone above the grid. */}
+              <div className="hidden md:block">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
+                  {activeCountry.label}
+                </p>
+                <h1 className="mt-1 text-2xl font-semibold text-slate-950">
+                  {loadingInitial ? (
+                    <>
+                      Searching catalog...
+                      <span className="ml-2 animate-pulse text-lg leading-none">&bull;&bull;&bull;</span>
+                    </>
+                  ) : (
+                    `${total.toLocaleString()} results for “${debouncedQuery}”`
+                  )}
+                </h1>
               </div>
 
               {loadingInitial ? (
@@ -973,7 +1088,10 @@ export default function SearchResultsClient({
 
               {!loadingInitial && products.length > 0 ? (
                 <>
-                  <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <div
+                    className="grid gap-3 sm:gap-4"
+                    style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', maxWidth: '1200px' }}
+                  >
                     {products.map((product) => (
                       <SearchCard key={product.id} product={product} />
                     ))}

@@ -61,7 +61,7 @@ function makeProduct(updatedAt: string | null): LandingProduct {
   };
 }
 
-test("uses an explicit refreshedLabel override", () => {
+test("uses an explicit refreshedLabel override when date is valid", () => {
   const label = buildRefreshedLabel(
     makeConfig({ refreshedLabel: "Reviewed by our team — March 2026" }),
     [makeProduct("2026-07-29T00:00:00Z")],
@@ -69,12 +69,25 @@ test("uses an explicit refreshedLabel override", () => {
   assert.equal(label, "Reviewed by our team — March 2026");
 });
 
+test("rejects hardcoded refreshedLabel with future date (BUY-63853)", () => {
+  // A hardcoded label like "Updated July 21, 2026" when today is July 22, 2026
+  // should fall back to dynamic (or generic) rather than showing a future date.
+  // Use a clearly future date to ensure test stability.
+  const futureLabel = `Updated December 25, 2099`; // Way in the future
+  const label = buildRefreshedLabel(makeConfig({ refreshedLabel: futureLabel }), [
+    makeProduct("2026-07-29T00:00:00Z"),
+  ]);
+  // Should NOT return the future-dated label - should fall back to dynamic or generic
+  assert.notEqual(label, futureLabel);
+});
+
 test("ignores future-dated product updates (BUY-63742)", () => {
   const future = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   const label = buildRefreshedLabel(makeConfig(), [
     makeProduct(future),
-    makeProduct("2026-07-29T00:00:00Z"),
+    makeProduct(null),
   ]);
+  // All products are either future-dated or null → should fall back to generic copy
   assert.equal(label, "Live prices updated regularly");
 });
 
