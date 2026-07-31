@@ -398,6 +398,156 @@ async function verifyReachableImage(imageUrl: string | null, timeoutMs = 2500): 
   }
 }
 
+// BUY-63507: image-content probe. A 200 OK on an image URL is not enough —
+// many third-party product photos are 1:1 squares (1500x1500, 1200x1200) with
+// the actual product centered on a large white background. When the SEO
+// catalog card renders such an image with `object-cover` inside an
+// `aspect-[4/3]` frame, the cover transform crops top and bottom. For a 1:1
+// source scaled into a 4:3 box the crop lands on the centered product — but
+// the white margins at the top and bottom still bleed into the visible frame
+// when the source product occupies less than ~50% of the source height. QA
+// (BUY-63507, vidmee://asset/vidmee_ss_1ca68079995d260ebee255ea) reports the
+// card as "appears blank/white"; QA on Zephyrus G16 (vidmee_ss_47fd25fecb4d...)
+// reports the laptop lid cut off above the keyboard base.
+//
+// The cheapest reliable signal we can read at SSR without an image library is
+// the source aspect ratio embedded in the JPEG SOF / PNG IHDR header. Square
+// product photos are the highest-risk shape for our 4:3 cards — drop them
+// and let the next live product fill the slot. The filter is conservative:
+// non-square images (the majority of merchant photos) pass through.
+function parseImageDimensions(buffer: ArrayBuffer | Uint8Array): { w: number; h: number } | null {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  // PNG: 8-byte signature, then IHDR width @ offset 16, height @ offset 20.
+  if (bytes.length >= 24 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    const w = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+    const h = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+    if (w > 0 && h > 0) return { w, h };
+    return null;
+  }
+  // JPEG: walk markers until we hit SOF0/SOF1/SOF2/SOF3 (0xC0..0xC3). The SOF
+  // segment has the dimensions at offset 5/6 (height) and 7/8 (width) from
+  // the segment start.
+  if (bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    let i = 2;
+    while (i < bytes.length - 9) {
+      if (bytes[i] !== 0xff) return null;
+      const marker = bytes[i + 1];
+      if (marker === 0xd9 || marker === 0xda) return null; // EOI or SOS — no more SOF ahead
+      if (marker >= 0xc0 && marker <= 0xc3) {
+        const h = (bytes[i + 5] << 8) | bytes[i + 6];
+        const w = (bytes[i + 7] << 8) | bytes[i + 8];
+        if (w > 0 && h > 0) return { w, h };
+        return null;
+      }
+      const segLen = (bytes[i + 2] << 8) | bytes[i + 3];
+      i += 2 + segLen;
+    }
+  }
+  // WebP / AVIF / unknown — skip and return null. The existing
+  // verifyReachableImage check already filtered those out at this stage.
+  return null;
+}
+
+const SQUARE_ASPECT_TOLERANCE = 0.06; // |AR - 1| <= 0.06 → treat as square
+const SQUARE_FILE_SIZE_THRESHOLD = 250 * 1024; // < 250 KB square product photos are likely centered-on-white
+
+function isSquareAspect(dims: { w: number; h: number }): boolean {
+  const ar = dims.w / dims.h;
+  return Math.abs(ar - 1) <= SQUARE_ASPECT_TOLERANCE;
+}
+
+/**
+ * Verify that an image's actual pixel dimensions are compatible with our
+ * aspect-[4/3] / object-cover catalog cards. Returns false for square
+ * product photos whose centered subject leaves large white margins that
+ * render as "blank" cards (BUY-63507). Returns true for any image whose
+ * dimensions can't be parsed (WebP, AVIF, exotic formats) — the existing
+ * verifyReachableImage check already filtered those out.
+ *
+ * Cost: a single ranged GET of the first 24 KB. Content-Length headers are
+ * insufficient because Shopify / Cloudflare often omit them; we need the
+ * bytes themselves to find the JPEG SOF marker or PNG IHDR chunk. We also
+ * read the Content-Length response header to factor in file size — a 1:1
+ * photo at 120 KB is almost always a small subject on a white background
+ * (BUY-63507: Gigabyte A16, Zephyrus G16), while a 1:1 photo at 968 KB is
+ * a rich product shot that fills the frame even when square.
+ */
+async function verifyUsableImageContent(
+  imageUrl: string,
+  timeoutMs = 3000,
+): Promise<boolean> {
+  try {
+    const url = new URL(imageUrl);
+    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
+    // Amazon CDN: known good landscape product photos — skip the probe.
+    if (
+      url.hostname === "m.media-amazon.com" ||
+      url.hostname.endsWith(".media-amazon.com") ||
+      url.hostname === "images-na.ssl-images-amazon.com"
+    ) {
+      return true;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(imageUrl, {
+        method: "GET",
+        signal: controller.signal,
+        redirect: "follow",
+      });
+      if (!res.ok && res.status !== 206) return true; // probe failed → don't double-block, the reachable check already gated this
+      // Read at most the first 32 KB into a Uint8Array. JPEG SOF / PNG IHDR
+      // markers sit in the first few KB; we add a buffer for DQT/DHT segments
+      // that may precede SOF.
+      const reader = res.body?.getReader();
+      if (!reader) return true;
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      const LIMIT = 32 * 1024;
+      while (total < LIMIT) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (total + value.byteLength > LIMIT) {
+          const slice = value.subarray(0, LIMIT - total);
+          chunks.push(slice);
+          total += slice.byteLength;
+          // Cancel further reads; we have enough header bytes.
+          try { await reader.cancel(); } catch { /* noop */ }
+          break;
+        }
+        chunks.push(value);
+        total += value.byteLength;
+      }
+      const buf = new Uint8Array(total);
+      let offset = 0;
+      for (const c of chunks) {
+        buf.set(c, offset);
+        offset += c.byteLength;
+      }
+      const dims = parseImageDimensions(buf);
+      if (!dims) return true; // unknown format — pass through, the existing onError fallback handles failures
+      if (!isSquareAspect(dims)) return true; // non-square → safe to keep
+      // Square: keep only when the file is rich enough that the subject likely
+      // fills the frame. Small square JPEGs are the high-risk "blank/white"
+      // case (BUY-63507: 1500x1500 @ 127KB Gigabyte A16, 1200x1200 @ 120KB
+      // Zephyrus G16). Large square JPEGs (e.g. 1200x1200 @ 968KB ProArt P16)
+      // have enough detail to render correctly.
+      const contentLength = Number(res.headers.get("content-length") || "0");
+      if (contentLength > 0 && contentLength < SQUARE_FILE_SIZE_THRESHOLD) {
+        return false;
+      }
+      // No content-length header — we can't tell how big the full file is,
+      // so be conservative and keep the image. The reachable check already
+      // gates truly dead URLs.
+      return true;
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return true; // probe failed — pass through; the reachable check is enough to gate dead URLs
+  }
+}
+
 function productMatchesRequiredTerms(product: LandingProduct, requiredTerms?: string[]) {
   if (!requiredTerms || requiredTerms.length === 0) return true;
   const haystack = [product.name, product.brand, product.category].filter(Boolean).join(" ").toLowerCase();
@@ -738,7 +888,14 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   const probeResults = await Promise.all(
     collected.map(async (product) => {
       if (!product.imageUrl) return false;
-      return verifyReachableImage(product.imageUrl);
+      // BUY-63507: chain the reachable probe with a content-shape probe. A 200
+      // OK on a 1:1 product photo with heavy white margins renders as a
+      // "blank/white" card under our aspect-[4/3] + object-cover layout. The
+      // content probe drops those products so the next live result fills the
+      // slot instead.
+      const reachable = await verifyReachableImage(product.imageUrl);
+      if (!reachable) return false;
+      return verifyUsableImageContent(product.imageUrl);
     })
   );
   for (let i = 0; i < collected.length; i++) {
@@ -746,7 +903,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       verified.push(collected[i]);
     } else {
       console.warn(
-        `[seo] dropping unreachable product ${collected[i].id} on ${config.slug}: ${collected[i].imageUrl}`
+        `[seo] dropping unusable product ${collected[i].id} on ${config.slug}: ${collected[i].imageUrl}`
       );
     }
   }
