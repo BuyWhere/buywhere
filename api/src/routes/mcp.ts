@@ -633,8 +633,14 @@ async function handleGetDeals(args: Record<string, unknown>) {
       ? [effectiveCountry, candidateLimit]
       : [candidateLimit];
     // Build the outer WHERE from the discount/currency conditions with re-indexed
-    // positional parameters ($1..$N inside → $N+1.. in the outer query).
-    const outerParamsStart = innerParams.length + 1;
+    // positional parameters. The inner query consumes exactly `innerParams.length`
+    // positional placeholders (country_code=$1 + LIMIT=$2 when a country is set,
+    // or just LIMIT=$1 otherwise), so the first outer param lands at
+    // $innerParams.length + 1 and the offset applied to each outer $N is
+    // `innerParams.length`. Previously this was `innerParams.length + 1`, which
+    // left an orphaned $2 in the no-country path (inner only used $1) and threw
+    // "could not determine data type of parameter $2" at PREPARE time.
+    const outerParamsStart = innerParams.length;
     const outerConditions = conditions.map((condition) =>
       condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + outerParamsStart}`)
     );
