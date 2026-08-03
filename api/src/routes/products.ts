@@ -381,9 +381,11 @@ router.get(
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
 
     const cacheKey = `list:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}`;
+    res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
       if (cached) {
+        res.locals.cacheHit = true;
         const parsed = JSON.parse(cached);
         parsed.pagination.response_time_ms = Date.now() - requestStart;
         recordProductViewsBulk({
@@ -560,9 +562,11 @@ router.get(
       .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
       || q.toLowerCase().trim();
     const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
+    res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
       if (cached) {
+        res.locals.cacheHit = true;
         const parsed = JSON.parse(cached);
         const elapsed = Date.now() - requestStart;
         parsed.cached = true;
@@ -1356,9 +1360,11 @@ router.get(
     const offset = parseInt((req.query.offset as string) || '0');
 
     const cacheKey = `deals:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
+    res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
       if (cached) {
+        res.locals.cacheHit = true;
         const parsed = JSON.parse(cached);
         parsed.cached = true;
         parsed.response_time_ms = Date.now() - start;
@@ -1896,9 +1902,11 @@ router.get(
     const compact = req.query.compact === 'true';
 
     const cacheKey = `featured:${countryCode}:${currency}:${limit}:${offset}:${compact ? 'c' : 'f'}`;
+    res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
       if (cached) {
+        res.locals.cacheHit = true;
         const parsed = JSON.parse(cached);
         parsed.cached = true;
         parsed.response_time_ms = Date.now() - start;
