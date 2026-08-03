@@ -430,7 +430,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
                 region, country_code
          FROM products
          ORDER BY updated_at DESC
-         LIMIT $1`,
+         LIMIT $1::int`,
         [fetchLimit]
       );
       if (needsFilter) {
@@ -681,7 +681,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
            AND price > 0
            AND country_code = $1
            AND search_vector @@ plainto_tsquery('english', $2)
-         LIMIT $3`,
+         LIMIT $3::int`,
         [effectiveCountry, fallbackQuery, Number(limit) || 20]
       );
       total = fallbackResult.rows.length;
@@ -1255,7 +1255,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
       `SELECT product_id, (embedding <=> $1::vector)::float AS distance
        FROM product_embeddings
        WHERE product_id != $2 AND model_ver = 'gemini-embedding-001@512'
-       ORDER BY distance LIMIT $3`,
+       ORDER BY distance LIMIT $3::int`,
       [refEmbedding, productId, limit]
     );
   } catch {
