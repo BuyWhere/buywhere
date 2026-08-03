@@ -843,7 +843,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          SELECT id, title, price, currency, source AS domain, url, image_url,
                 country_code, updated_at
          FROM products
-         WHERE is_active = true AND price > 0
+         WHERE is_active = true AND price > 1
          ORDER BY updated_at DESC
          LIMIT $1
        ) _candidates
@@ -859,7 +859,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
            SELECT id, title, price, currency, source AS domain, url, image_url,
                   country_code, updated_at
            FROM products
-           WHERE is_active = true AND price > 0
+           WHERE is_active = true AND price > 1
            ORDER BY updated_at DESC
            LIMIT $1
          ) _candidates

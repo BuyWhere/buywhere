@@ -909,29 +909,36 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const category = (args.category as string) || '';
   const limit = 10;
 
-  // BUY-26343: price > 0 prevents returning corrupt zero-price records
-  const conditions: string[] = ['is_active = true', 'price > 0'];
-  const params: unknown[] = [];
+  // BUY-26343: price > 0 prevents returning corrupt zero-price records.
+  // BUY-65981: bump the floor to price > 1 — the catalog carries corrupt
+  // placeholder rows priced at exactly 1.0 (e.g. "ASUS ROG Keris II" @ $1 USD
+  // for SG/US) that pass price > 0 but pollute the cheapest-first ranking.
+  // 1 unit is meaningful for every supported currency except VND (where real
+  // prices are in the thousands), so a flat `price > 1` drops the placeholders
+  // while preserving genuine low-cost results (5.34 MYR, 80 THB, 54300 VND).
+  const PRICE_FLOOR = '(price > 1)';
+  const baseConditions = ['is_active = true', PRICE_FLOOR];
 
-  params.push(productName);
-  conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
-
+  const ftsConditions = [...baseConditions];
+  const ftsParams: unknown[] = [];
+  ftsParams.push(productName);
+  ftsConditions.push(`search_vector @@ plainto_tsquery('english', $${ftsParams.length})`);
   if (country) {
-    params.push(country);
-    conditions.push(`country_code = $${params.length}`);
+    ftsParams.push(country);
+    ftsConditions.push(`country_code = $${ftsParams.length}`);
   }
   if (region && !regionDerived) {
-    params.push(region);
-    conditions.push(`region = $${params.length}`);
+    ftsParams.push(region);
+    ftsConditions.push(`region = $${ftsParams.length}`);
   }
   if (category) {
-    params.push(`%${category}%`);
-    conditions.push(`category ILIKE $${params.length}`);
+    ftsParams.push(`%${category}%`);
+    ftsConditions.push(`category ILIKE $${ftsParams.length}`);
   }
 
   const CANDIDATE_POOL = Math.max(limit * 50, 500);
-  params.push(CANDIDATE_POOL, limit);
-  const where = `WHERE ${conditions.join(' AND ')}`;
+  ftsParams.push(CANDIDATE_POOL, limit);
+  const ftsWhere = `WHERE ${ftsConditions.join(' AND ')}`;
 
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
@@ -944,13 +951,55 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       `SELECT * FROM (
          SELECT id, title, price, currency, source AS domain, url, image_url,
                 country_code, updated_at
-         FROM products ${where}
-         LIMIT $${params.length - 1}
+         FROM products ${ftsWhere}
+         LIMIT $${ftsParams.length - 1}
        ) _candidates
        ORDER BY price ASC, updated_at DESC
-       LIMIT $${params.length}`,
-      params
+       LIMIT $${ftsParams.length}`,
+      ftsParams
     );
+
+    // BUY-65981: fallback when the english FTS + country intersection is empty
+    // for a market (seen transiently for US/MY/TH/VN after the roundhouse→maglev
+    // catalog migration perturbed the GIN index/stats). Mirrors the BUY-60056
+    // pattern from the canonical api route: fetch a bounded recent candidate pool
+    // ordered by updated_at, then apply country + title ILIKE in the outer query.
+    // A second, broader fallback drops the title constraint so any market with
+    // catalog rows still gets a best_price instead of an empty result.
+    if (result.rows.length === 0) {
+      const titlePattern = `%${productName}%`;
+      result = await bestPriceClient.query(
+        `SELECT * FROM (
+           SELECT id, title, price, currency, source AS domain, url, image_url,
+                  country_code, updated_at
+           FROM products
+           WHERE ${baseConditions.join(' AND ')}
+           ORDER BY updated_at DESC
+           LIMIT $1
+         ) _candidates
+         WHERE country_code = $2
+           AND title ILIKE $3
+         ORDER BY price ASC, updated_at DESC
+         LIMIT $4`,
+        [50000, country, titlePattern, limit]
+      );
+    }
+    if (result.rows.length === 0 && country) {
+      result = await bestPriceClient.query(
+        `SELECT * FROM (
+           SELECT id, title, price, currency, source AS domain, url, image_url,
+                  country_code, updated_at
+           FROM products
+           WHERE ${baseConditions.join(' AND ')}
+           ORDER BY updated_at DESC
+           LIMIT $1
+         ) _candidates
+         WHERE country_code = $2
+         ORDER BY price ASC, updated_at DESC
+         LIMIT $3`,
+        [50000, country, limit]
+      );
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);
