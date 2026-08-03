@@ -1528,3 +1528,5 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
 });
 
 export default router;
+
+// BUY-65474: LIMIT ::int cast deployed (probe #332). Force-redeploy marker.
