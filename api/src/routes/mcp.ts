@@ -232,7 +232,7 @@ async function runTierSearch(p: {
     SELECT ${cols}, top.rank AS _fts_rank
     FROM top JOIN search_products sp ON sp.id = top.id
     ORDER BY top.rank DESC
-    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+    LIMIT $${limitIdx}::int OFFSET $${offsetIdx}::int`;
 
   const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
   const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
@@ -455,10 +455,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
                SELECT id, sku AS source, source AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code
                FROM products ${where}
-               LIMIT $${params.length - 2}
+               LIMIT $${params.length - 2}::int
              ) _candidates
              ORDER BY updated_at DESC
-             LIMIT $${params.length - 1} OFFSET $${params.length}`,
+             LIMIT $${params.length - 1}::int OFFSET $${params.length}::int`,
             params
           );
           rows = result.rows;
@@ -472,10 +472,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
              SELECT id, sku AS source, source AS domain, url, title,
                     price, currency, image_url, metadata, updated_at, region, country_code
              FROM products ${where}
-             LIMIT $${params.length - 2}
+             LIMIT $${params.length - 2}::int
            ) _candidates
            ORDER BY updated_at DESC
-           LIMIT $${params.length - 1} OFFSET $${params.length}`,
+           LIMIT $${params.length - 1}::int OFFSET $${params.length}::int`,
           params
         );
         rows = result.rows;
@@ -498,7 +498,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
                 region, country_code
          FROM products
          ORDER BY updated_at DESC
-         LIMIT $1`,
+         LIMIT $1::int`,
         [fetchLimit]
       );
       if (needsFilter) {
@@ -697,11 +697,11 @@ async function handleGetDeals(args: Record<string, unknown>) {
          FROM products
          WHERE ${marketWhere}
          ORDER BY updated_at DESC
-         LIMIT $1
+         LIMIT $1::int
        ) _recent_deals
        WHERE ${filterConditions}
        ORDER BY ${discountOrder}, updated_at DESC
-       LIMIT $${candidateParams.length - 1} OFFSET $${candidateParams.length}`,
+       LIMIT $${candidateParams.length - 1}::int OFFSET $${candidateParams.length}::int`,
       candidateParams
     );
     total = dataResult.rows.length;
@@ -874,7 +874,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          LIMIT 2000
        ) _fts_matches
        ORDER BY price ASC, updated_at DESC
-       LIMIT $3`,
+       LIMIT $3::int`,
       [ftsTokens, requestedCountry, limit]
     );
     if (result.rows.length === 0) {
@@ -886,12 +886,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
            FROM products
            WHERE is_active = true AND price > 0
            ORDER BY updated_at DESC
-           LIMIT $1
+           LIMIT $1::int
          ) _candidates
          WHERE country_code = $2
            AND title ILIKE $3
          ORDER BY price ASC, updated_at DESC
-         LIMIT $4`,
+         LIMIT $4::int`,
         [20000, requestedCountry, "%" + productName + "%", limit]
       );
     }
@@ -1238,7 +1238,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     nearResult = await vectorDb.query<{ product_id: string; distance: number }>(
       `SELECT product_id, (embedding <=> $1::vector)::float AS distance
        FROM product_embeddings WHERE product_id != $2
-       ORDER BY distance LIMIT $3`,
+       ORDER BY distance LIMIT $3::int`,
       [refEmbedding, productId, limit]
     );
   } catch {
