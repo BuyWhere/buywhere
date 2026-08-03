@@ -23,9 +23,13 @@ import time
 import asyncpg
 from playwright.async_api import async_playwright, Error as PlaywrightError
 
+from pathlib import Path as _P
+sys.path.insert(0, str(_P(__file__).resolve().parent.parent))
+import catalog_guard  # fail-fast: bulk writes only ever target maglev
 DATABASE_URL = os.environ.get("DATABASE_PUBLIC_URL") or os.environ.get("DATABASE_URL")
 if not DATABASE_URL:
     sys.exit("DATABASE_PUBLIC_URL or DATABASE_URL env var required")
+catalog_guard.assert_catalog_url(DATABASE_URL, "env")
 
 _HEADERS = {
     "User-Agent": (

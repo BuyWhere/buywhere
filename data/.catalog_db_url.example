@@ -1,0 +1,1 @@
+postgresql://buywhere_ingest:CHANGE_ME@maglev.proxy.rlwy.net:31310/railway?sslmode=require

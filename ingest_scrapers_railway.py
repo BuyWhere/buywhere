@@ -16,7 +16,8 @@ sys.path.insert(0, '/home/paperclip/buywhere-catalog-api/venv/lib/python3.12/sit
 import psycopg2
 import psycopg2.extras
 
-DB_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:uzxujl66t16mzzsr3unqcw8e0v54yutb@roundhouse.proxy.rlwy.net:27479/railway")
+import catalog_guard  # fail-fast: bulk writes only ever target maglev
+DB_URL = catalog_guard.resolve_catalog_url()
 
 WORKSPACE = Path("/paperclip/instances/default/workspaces/8ca957f8-0911-4e81-a963-e2cf54c97d44/buywhere")
 
@@ -198,6 +199,7 @@ def main(sources: list[str] | None = None):
 
     conn = psycopg2.connect(DB_URL)
     cur = conn.cursor()
+    catalog_guard.assert_catalog_cursor(cur)
 
     results = {}
     for merchant, data_dir in search_dirs.items():
