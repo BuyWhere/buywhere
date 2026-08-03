@@ -1,17 +1,35 @@
-import { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
-function buildRedirectUrl(request: NextRequest): string {
-  const url = new URL("https://api.buywhere.ai/health");
-  request.nextUrl.searchParams.forEach((value, key) => {
-    url.searchParams.append(key, value);
+export const runtime = "edge";
+export const dynamic = "force-dynamic";
+
+/**
+ * GET /health
+ *
+ * Lightweight site-level liveness probe. Returns 200 with a stable JSON body.
+ * The deeper content-level probe lives at /api/health/site.
+ */
+export async function GET(): Promise<NextResponse> {
+  return NextResponse.json(
+    {
+      status: "ok",
+      ts: new Date().toISOString(),
+      service: "buywhere-site",
+    },
+    {
+      status: 200,
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      },
+    },
+  );
+}
+
+export function HEAD(): Response {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+    },
   });
-  return url.toString();
-}
-
-export function GET(request: NextRequest): Response {
-  return Response.redirect(buildRedirectUrl(request), 308);
-}
-
-export function HEAD(request: NextRequest): Response {
-  return Response.redirect(buildRedirectUrl(request), 308);
 }

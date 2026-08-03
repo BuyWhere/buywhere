@@ -1,3 +1,8 @@
+import { NextResponse } from "next/server";
+
+export const runtime = "edge";
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/health
  *
@@ -5,12 +10,6 @@
  * Returns 200 with a stable JSON body. The deeper content-level probe lives
  * at /api/health/site.
  */
-
-import { NextResponse } from "next/server";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 export async function GET(): Promise<NextResponse> {
   return NextResponse.json(
     {
