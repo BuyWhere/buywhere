@@ -856,30 +856,57 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   let result: { rows: Record<string, unknown>[] };
   try {
     await bestPriceClient.query('SET statement_timeout = 4500');
-    // BUY-60056: fetch a bounded FTS candidate set first, then apply the
-    // requested country filter in the outer query. This avoids the slow
-    // country+FTS plan that timed out for US, while preserving region metadata.
-    // BUY-65298: `country` already incorporates region→country derivation above,
-    // so use it directly instead of re-deriving through `requestedCountry`.
-    const titlePattern = `%${productName}%`;
+    await bestPriceClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS
+    // BUY-65971: the country filter MUST be inside the candidate subquery, not
+    // applied in the outer query. `products` is LIST-partitioned by country_code,
+    // so `country_code = $N` in the WHERE clause triggers partition pruning and
+    // scans only the target country's partition. The previous structure selected
+    // the 50,000 most-recently-updated rows GLOBALLY (no country filter in the
+    // inner query), a window dominated by SG (the highest-volume ingest market),
+    // then filtered by country in the outer query — which yielded an empty
+    // candidate set for US/MY/TH/VN and made find_best_price return
+    // best_price:null / total:0 for every market except SG. Filtering by country
+    // first (mirroring search_products and mcp-railway's find_best_price) bounds
+    // the candidate window to the right partition, where the title match +
+    // price-ASC sort then resolves correctly.
+    // BUY-65474: no fallback to UNRELATED products. If the title has no match at
+    // all, return an empty result rather than misleading cheapest products (e.g.
+    // bike hardware for an "iphone" query). The ILIKE fallback below is still a
+    // title match (substring), not an unrelated-product fallback.
+    // Primary path: GIN-indexed FTS (fast; same path as search_products and
+    // mcp-railway). Leading with FTS avoids a leading-wildcard ILIKE full scan of
+    // the partition on the hot path.
     result = await bestPriceClient.query(
-      `SELECT * FROM (
-         SELECT id, title, price, currency, source AS domain, url, image_url,
+      `SELECT id, title, price, currency, source AS domain, url, image_url,
+              country_code, updated_at
+       FROM products
+       WHERE is_active = true
+         AND price > 0
+         AND country_code = $1
+         AND search_vector @@ plainto_tsquery('english', $2)
+       ORDER BY price ASC, updated_at DESC
+       LIMIT $3::int`,
+      [country, productName, limit]
+    );
+    if (result.rows.length === 0) {
+      // ILIKE fallback: FTS tokenization can miss titles where the term appears
+      // as a substring of a larger token (model numbers, compound words, or text
+      // the 'english' config doesn't stem). Fall back to a substring match within
+      // the (pruned) country partition to recover those listings.
+      const titlePattern = `%${productName}%`;
+      result = await bestPriceClient.query(
+        `SELECT id, title, price, currency, source AS domain, url, image_url,
                 country_code, updated_at
          FROM products
-         WHERE is_active = true AND price > 0
-         ORDER BY updated_at DESC
-         LIMIT $1::int
-       ) _candidates
-       WHERE country_code = $2
-         AND title ILIKE $3
-       ORDER BY price ASC, updated_at DESC
-       LIMIT $4::int`,
-      [50000, country, titlePattern, limit]
-    );
-    // BUY-65474: no fallback for unrelated products. If title has no ILIKE match,
-    // return an empty result rather than misleading cheapest products (e.g. bike
-    // hardware for an "iphone" query).
+         WHERE is_active = true
+           AND price > 0
+           AND country_code = $1
+           AND title ILIKE $2
+         ORDER BY price ASC, updated_at DESC
+         LIMIT $3::int`,
+        [country, titlePattern, limit]
+      );
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);
