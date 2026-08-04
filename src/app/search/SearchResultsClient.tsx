@@ -445,7 +445,11 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
             onError={() => {
               setImageError(true);
             }}
-            className="relative z-10 block h-full w-full max-h-[220px] object-contain p-2 transition-transform duration-300 group-hover:scale-[1.03]"
+            // BUY-64266: drop group-hover:scale-[1.03] which pushed the rightmost
+            // card image beyond the grid column on desktop. Keep BUY-64736's
+            // max-h-[220px] / max-w-full / object-contain bounds so the image
+            // can never exceed its 220px-tall card frame.
+            className="relative z-10 block h-full w-full max-h-[220px] max-w-full object-contain p-2"
             style={{ maxHeight: '220px', width: '100%', objectFit: 'contain' }}
           />
         ) : imageError || !product.imageUrl ? (
