@@ -313,7 +313,7 @@ export default function HomePage() {
                 Developers: Get API access
               </Link>
             </div>
-            <p className="text-sm font-semibold text-white">
+            <p className="text-base font-semibold text-white">
               288M+ structured products from 158,000+ merchant catalogs — normalized, deduplicated, and location-aware.
             </p>
           </div>
