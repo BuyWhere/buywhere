@@ -584,10 +584,10 @@ async function handleGetDeals(args) {
     let products = [];
     let total = 0;
     try {
-        // BUY-63030: maglev-replica catalog scans need more than 4.5s on cold
-        // cache. Keep a 15s budget for deals while still failing fast enough to
-        // avoid Railway proxy idle-client teardown.
-        await dealsClient.query('SET statement_timeout = 15000');
+        // BUY-63030: maglev-replica catalog scans can take 15-20s on cold cache.
+        // Keep a 20s budget for deals while still failing fast enough to avoid
+        // Railway proxy idle-client teardown.
+        await dealsClient.query('SET statement_timeout = 20000');
         const candidateLimit = Math.max((limit + offset) * 200, 5000);
         const limitParam = Number(limit) || 20;
         const offsetParam = Number(offset) || 0;
