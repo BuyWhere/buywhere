@@ -148,8 +148,8 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
               alt={deal.name}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              className="object-cover"
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              className="object-contain"
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
               loading={deal.id <= 4 ? 'eager' : 'lazy'}
               priority={deal.id <= 2}
             />
