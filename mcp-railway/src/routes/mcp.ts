@@ -593,29 +593,35 @@ async function handleGetDeals(args: Record<string, unknown>) {
     _hasDiscountPct = useDiscountCol;
   }
 
+  // BUY-63030: Inline all validated params (currency, minDiscount, region,
+  // country) into the SQL string instead of using positional placeholders.
+  // Each value is already constrained: currency is a known ISO code from
+  // COUNTRY_CURRENCY, minDiscount is a clamped number, region/country are
+  // validated ISO codes. Inlining eliminates the
+  // "could not determine data type of parameter $N" errors that Postgres
+  // raises when renumbered positional params appear in subquery+outer-query
+  // boundaries without explicit casts.
   const conditions: string[] = [
-    `currency = $1::text`,
+    `currency = '${currency.replace(/'/g, "''")}'`,
     `price > 0`,
     `is_active = true`,
   ];
   if (useDiscountCol) {
-    conditions.push(`discount_pct >= $2::numeric`);
+    conditions.push(`discount_pct >= ${Number(minDiscount) || 10}::numeric`);
   } else {
     // Guard: only consider rows where original_price is a valid numeric string.
     // Matches the partial index predicate on idx_products_deals_country/region.
     conditions.push(`metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'`);
     conditions.push(`(metadata->>'original_price')::numeric > price`);
-    conditions.push(`((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) >= $2::numeric`);
+    conditions.push(`((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) >= ${Number(minDiscount) || 10}::numeric`);
   }
-  const params: unknown[] = [currency, minDiscount];
 
   if (region) {
-    params.push(region);
-    conditions.push(`region = $${params.length}::text`);
+    conditions.push(`region = '${String(region).replace(/'/g, "''")}'`);
   }
   if (country) {
-    params.push(country.toUpperCase());
-    conditions.push(`country_code = $${params.length}::text`);
+    const c = country.toUpperCase().replace(/'/g, "''");
+    conditions.push(`country_code = '${c}'`);
   }
 
   const discountSelect = useDiscountCol
@@ -630,6 +636,9 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // the 50k-row window is relevant to the requested region. Previously the
   // unfiltered subquery returned recent GLOBAL products whose currency did not
   // match, resulting in empty results and cascading timeouts for every region.
+  // BUY-65795: limit/offset are already-validated bounded integers (limit: 1-100,
+  // offset: >=0), so interpolate them directly into LIMIT/OFFSET. Inner subquery
+  // LIMIT is the bounded integer candidateLimit (also safe to inline).
   const dealsClient = await acquireMcpClient().catch((err: unknown) => {
     console.error('[mcp] get_deals db.connect failed:', err);
     throw { code: -32603, message: 'Database unavailable' };
@@ -639,30 +648,15 @@ async function handleGetDeals(args: Record<string, unknown>) {
   try {
     await dealsClient.query('SET statement_timeout = 4500');
     const candidateLimit = Math.max((limit + offset) * 200, 5000);
-    // Build the inner (subquery) WHERE — includes country filter so the
-    // updated_at scan is scoped to the requested region, not random recent rows.
-    const innerConditions = ['is_active = true', 'price > 0'];
-    if (country) {
-      innerConditions.push(`country_code = $1`);
-    }
-    const innerWhere = innerConditions.join(' AND ');
-    const innerParams: unknown[] = country ? [country] : [];
-    // Build the outer WHERE from the discount/currency conditions with re-indexed
-    // positional parameters ($1..$N inside → $N+1.. in the outer query).
-    const outerParamsStart = innerParams.length + 1;
-    const outerConditions = conditions.map((condition) =>
-      condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + outerParamsStart}`)
-    );
-    // BUY-65795: limit/offset are already-validated bounded integers (limit: 1-100,
-    // offset: >=0), so interpolate them directly into LIMIT/OFFSET instead of
-    // appending them as positional params. The previous code appended them to
-    // outerParams and referenced misaligned $-positions, which made Postgres read a
-    // text-typed currency/minDiscount value as LIMIT → "argument of LIMIT must be
-    // type bigint, not type text". Inner subquery LIMIT is the bounded integer
-    // candidateLimit (also safe to inline).
-    const outerParams = [...innerParams, ...params];
     const limitParam = Number(limit) || 20;
     const offsetParam = Number(offset) || 0;
+    // Build inner subquery WHERE inline (country only, when set).
+    const innerConditions = ['is_active = true', 'price > 0'];
+    if (country) {
+      const c = country.toUpperCase().replace(/'/g, "''");
+      innerConditions.push(`country_code = '${c}'`);
+    }
+    const innerWhere = innerConditions.join(' AND ');
     const dataResult = await dealsClient.query(
       `SELECT id, source, domain, url, title, price, original_price,
               currency, image_url, metadata, updated_at, region, country_code,
@@ -679,10 +673,9 @@ async function handleGetDeals(args: Record<string, unknown>) {
          ORDER BY updated_at DESC
          LIMIT ${candidateLimit}
        ) _recent_deals
-       WHERE ${outerConditions.join(' AND ')}
+       WHERE ${conditions.join(' AND ')}
        ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
-       LIMIT ${limitParam} OFFSET ${offsetParam}`,
-      outerParams
+       LIMIT ${limitParam} OFFSET ${offsetParam}`
     );
     total = dataResult.rows.length;
     products = dataResult.rows.map((r: Record<string, unknown>) =>
@@ -695,6 +688,8 @@ async function handleGetDeals(args: Record<string, unknown>) {
       // callers get a structured response under the 5s budget instead of a
       // 60s MONITOR_TIMEOUT.
       const fallbackQuery = country === 'US' ? 'watch' : 'laptop';
+      const fallbackCountry = String(country).toUpperCase().replace(/'/g, "''");
+      const fallbackLimit = Number(limit) || 20;
       const fallbackResult = await dealsClient.query(
         `SELECT id, sku AS source, source AS domain, url, title,
                 price, NULL::numeric AS original_price, currency, image_url,
@@ -702,10 +697,9 @@ async function handleGetDeals(args: Record<string, unknown>) {
          FROM products
          WHERE is_active = true
            AND price > 0
-           AND country_code = $1
-           AND search_vector @@ plainto_tsquery('english', $2)
-         LIMIT $3`,
-        [country, fallbackQuery, Number(limit) || 20]
+           AND country_code = '${fallbackCountry}'
+           AND search_vector @@ plainto_tsquery('english', '${fallbackQuery.replace(/'/g, "''")}')
+         LIMIT ${fallbackLimit}`
       );
       total = fallbackResult.rows.length;
       products = fallbackResult.rows.map((r: Record<string, unknown>) =>
