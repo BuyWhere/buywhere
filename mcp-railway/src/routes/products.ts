@@ -1043,6 +1043,18 @@ router.get(
   queryLogMiddleware('products.similar'),
   asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
+    // BUY-41137: hard ceiling so the request returns a deterministic response even
+    // if a slow vectorDb KNN / fallback scan would otherwise hang. The hook sends a
+    // degraded 504 (kept honest via meta) instead of leaving the client to its own
+    // socket timeout. Mirrors the fix on the primary api service.
+    let timedOut = false;
+    res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, () => {
+      timedOut = true;
+      console.warn(`[products.similar] request timed out after ${SEARCH_HANDLER_TIMEOUT_MS}ms (id=${req.params.id})`);
+      if (!res.headersSent) {
+        res.status(504).json({ error: 'Find-Similar timed out', meta: { response_time_ms: Date.now() - start } });
+      }
+    });
     const { id } = req.params;
     const limit = Math.min(parseInt((req.query.limit as string) || '10'), 20);
 
@@ -1053,7 +1065,7 @@ router.get(
       [id]
     );
     if (srcResult.rows.length === 0) {
-      res.status(404).json({ error: 'Product not found' });
+      if (!timedOut && !res.headersSent) res.status(404).json({ error: 'Product not found' });
       return;
     }
     const src = srcResult.rows[0];
@@ -1187,6 +1199,7 @@ router.get(
       similarity: row._similarity ?? null,
     }));
 
+    if (timedOut || res.headersSent) return;
     res.json({
       data,
       meta: {

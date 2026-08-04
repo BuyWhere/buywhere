@@ -1598,14 +1598,23 @@ router.get('/:id/prices', agentDetect_1.agentDetectMiddleware, apiKey_1.requireA
 // Latency target: p95 ≤ 200 ms under load.
 router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.similar'), asyncHandler(async (req, res) => {
     const start = Date.now();
-    // BUY-41137: hard ceiling so the request fires even if pool exhaustion (from
-    // slow vectorDb KNN) would otherwise hang indefinitely.
+    // BUY-41137: hard ceiling so the request returns a deterministic response even
+    // if pool exhaustion (from a slow vectorDb KNN) would otherwise hang. The prior
+    // version of this hook only logged and never sent a response, leaving clients
+    // hanging until their own socket timeout. The handler now races its work against
+    // this deadline and responds 504 if it loses.
+    let timedOut = false;
     res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, () => {
-        console.warn(`[products.similar] request timed out after ${SEARCH_HANDLER_TIMEOUT_MS}ms`);
+        timedOut = true;
+        console.warn(`[products.similar] request timed out after ${SEARCH_HANDLER_TIMEOUT_MS}ms (id=${req.params.id})`);
+        if (!res.headersSent) {
+            res.status(504).json({ error: 'Find-Similar timed out', meta: { response_time_ms: Date.now() - start } });
+        }
     });
     const { id } = req.params;
     if (!compare_query_1.PRODUCT_ID_RE.test(String(id))) {
-        res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
+        if (!timedOut && !res.headersSent)
+            res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
         return;
     }
     const limit = Math.min(parseInt(req.query.limit || '10'), 20);
@@ -1613,7 +1622,8 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
     const srcResult = await config_1.db.query(`SELECT id, title, brand, category_path, currency, country_code
        FROM products WHERE id = $1`, [id]);
     if (srcResult.rows.length === 0) {
-        res.status(404).json({ error: 'Product not found' });
+        if (!timedOut && !res.headersSent)
+            res.status(404).json({ error: 'Product not found' });
         return;
     }
     const src = srcResult.rows[0];
@@ -1728,6 +1738,8 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
         country_code: row.country_code || null,
         similarity: row._similarity ?? null,
     }));
+    if (timedOut || res.headersSent)
+        return;
     res.json({
         data,
         meta: {
