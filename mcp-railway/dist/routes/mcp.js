@@ -589,7 +589,16 @@ async function handleGetDeals(args) {
         // positional parameters ($1..$N inside → $N+1.. in the outer query).
         const outerParamsStart = innerParams.length + 1;
         const outerConditions = conditions.map((condition) => condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + outerParamsStart}`));
-        const outerParams = [...innerParams, ...params, Number(limit) || 20, Number(offset) || 0];
+        // BUY-65795: limit/offset are already-validated bounded integers (limit: 1-100,
+        // offset: >=0), so interpolate them directly into LIMIT/OFFSET instead of
+        // appending them as positional params. The previous code appended them to
+        // outerParams and referenced misaligned $-positions, which made Postgres read a
+        // text-typed currency/minDiscount value as LIMIT → "argument of LIMIT must be
+        // type bigint, not type text". Inner subquery LIMIT is the bounded integer
+        // candidateLimit (also safe to inline).
+        const outerParams = [...innerParams, ...params];
+        const limitParam = Number(limit) || 20;
+        const offsetParam = Number(offset) || 0;
         const dataResult = await dealsClient.query(`SELECT id, source, domain, url, title, price, original_price,
               currency, image_url, metadata, updated_at, region, country_code,
               discount_pct
@@ -603,11 +612,11 @@ async function handleGetDeals(args) {
          FROM products
          WHERE ${innerWhere}
          ORDER BY updated_at DESC
-         LIMIT $${innerParams.length + 1}
+         LIMIT ${candidateLimit}
        ) _recent_deals
        WHERE ${outerConditions.join(' AND ')}
        ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
-       LIMIT $${outerParams.length - 1} OFFSET $${outerParams.length}`, outerParams);
+       LIMIT ${limitParam} OFFSET ${offsetParam}`, outerParams);
         total = dataResult.rows.length;
         products = dataResult.rows.map((r) => (0, response_1.buildProduct)(r, currency, false));
         if (products.length === 0 && country) {
