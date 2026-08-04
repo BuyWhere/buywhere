@@ -249,6 +249,14 @@ function ProductCard({ product, isMobile }: { product: Product; isMobile?: boole
           productQuery={product.name}
           maxPlatforms={isSingleRetailer ? 1 : 3}
           className="mt-2"
+          prices={product.prices
+            .filter((p) => p.url && p.url !== '#')
+            .map((p) => ({
+              platform: p.merchant,
+              price: p.price,
+              url: p.url,
+              inStock: p.inStock ?? true,
+            }))}
         />
         {coverageInfo && (
           <div className={`text-xs ${coverageInfo.color} mt-2 font-medium`}>
