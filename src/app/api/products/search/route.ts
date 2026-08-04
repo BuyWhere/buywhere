@@ -70,23 +70,6 @@ const ACCESSORY_KEYWORDS = [
 const ACCESSORY_TITLE_PREFIX_PATTERN = /^(capas?|cases?|covers?|skins?|stickers?|decals?|wraps?|shells?|sleeves?|sleevings?|replacements?|spares?|filters?|adapters?|chargers?|cables?|protectors?|mounts?|holders?|stands?|clips?|grips?|bumpers?|earmuffs?|cushions?|foams?|pads?|straps?|rings?|housings?|docks?|backpacks?|bags?)\s+(for|compatible\s+with|fits|to|with|of)\b/i;
 const QUERY_STOP_WORDS = new Set(['a', 'an', 'and', 'best', 'for', 'in', 'of', 'the', 'to', 'with']);
 
-type SearchFallbackItem = {
-  id: string;
-  title: string;
-  name: string;
-  price: { amount: number; currency: string };
-  price_amount: number;
-  price_currency: string;
-  currency: string;
-  merchant: string;
-  merchant_name: string;
-  source: string;
-  url: string;
-  click_url: string;
-  brand: string;
-  category: string;
-};
-
 type SearchFallback = {
   slug: string;
   label: string;
@@ -94,6 +77,8 @@ type SearchFallback = {
   country: 'US' | 'SG';
   currency: 'USD' | 'SGD';
   keywords: string[];
+  // BUY-60872: products[] retained for slugs/guide metadata only; we no longer
+  // synthesize these as search result items (governance rule #10).
   products: Array<{
     name: string;
     price: number;
@@ -264,36 +249,17 @@ function isDegradedZero(data: UpstreamSearchResponse | null) {
 }
 
 function buildFallbackResponse(data: UpstreamSearchResponse | null, fallback: SearchFallback) {
+  // BUY-60872 (governance rule #10): when upstream is degraded with zero results,
+  // we MUST NOT synthesize invented product rows. Instead we return an honest empty
+  // result set with a degraded flag and a suggestion to browse the editorial guide.
   const fallbackUrl = `/${fallback.slug}`;
-  const countryPrefix = fallback.country === 'SG' ? 'sg' : 'us';
-  const items: SearchFallbackItem[] = fallback.products.map((product, index) => {
-    const productSlug = slugifyProductName(product.name);
-    const productUrl = `/products/${countryPrefix}/${productSlug}`;
-    return {
-      id: `fallback-${fallback.slug}-${index + 1}`,
-      title: product.name,
-      name: product.name,
-      price: { amount: product.price, currency: fallback.currency },
-      price_amount: product.price,
-      price_currency: fallback.currency,
-      currency: fallback.currency,
-      merchant: product.merchant,
-      merchant_name: product.merchant,
-      source: 'editorial_fallback',
-      url: productUrl,
-      click_url: productUrl,
-      brand: product.brand,
-      category: fallback.category,
-    };
-  });
-
   return {
     ...data,
-    data: items,
-    items,
-    results: items,
-    products: items,
-    total: items.length,
+    data: [],
+    items: [],
+    results: [],
+    products: [],
+    total: 0,
     fallback: {
       type: 'editorial',
       label: fallback.label,
@@ -302,12 +268,12 @@ function buildFallbackResponse(data: UpstreamSearchResponse | null, fallback: Se
     },
     meta: {
       ...(data?.meta ?? {}),
-      total: items.length,
+      total: 0,
       degraded: true,
       fallback: true,
       fallback_url: fallbackUrl,
     },
-    hint: `Live search is degraded, so we are showing curated ${fallback.label.toLowerCase()} picks with a populated BuyWhere guide.`,
+    hint: `Live search is currently degraded. Browse our curated ${fallback.label.toLowerCase()} guide at ${fallbackUrl} for hand-picked recommendations, or try a different search term.`,
   };
 }
 
