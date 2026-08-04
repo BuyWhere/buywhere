@@ -1461,9 +1461,23 @@ router.get(
       await dealsClient.query(`SET work_mem = '${SEARCH_WORK_MEM}'`);
       await dealsClient.query(`SET statement_timeout = ${DEALS_QUERY_TIMEOUT_MS}`);
 
-      // BUY-60309: bounded sampling - sample recent active candidates, filter, order, paginate
-      // This replaces the unbounded COUNT + ORDER BY over the full table
-      const sampleResult = await dealsClient.query(
+      // BUY-64112: direct index-backed strict deal query.
+      // The partial index idx_products_deals_country/region supports a direct
+      // query matching its predicate (discount_pct IS NOT NULL AND price > 0
+      // AND is_active = true), so ORDER BY discount_pct DESC + LIMIT/OFFSET is
+      // sub-ms and needs no candidate window. Previously the bounded
+      // updated_at sample (LIMIT DEALS_SAMPLE_CAP) excluded deals older than
+      // the recent window, returning empty for healthy regions.
+      const dealLimitIdx = dealIdx;
+      dealParams.push(limit);
+      const dealLimitParam = `$${dealLimitIdx}`;
+      dealIdx++;
+      const dealOffsetIdx = dealIdx;
+      dealParams.push(offset);
+      const dealOffsetParam = `$${dealOffsetIdx}`;
+      dealIdx++;
+
+      const dealResult = await dealsClient.query(
         `SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
                 currency, image_url, metadata, updated_at,
@@ -1472,27 +1486,13 @@ router.get(
                 ${discountSelect}
          FROM products
          WHERE ${dealWhere}
-         ORDER BY updated_at DESC
-         LIMIT ${DEALS_SAMPLE_CAP}`,
+         ORDER BY ${discountOrder} NULLS LAST, updated_at DESC
+         LIMIT ${dealLimitParam}::int OFFSET ${dealOffsetParam}::int`,
         dealParams
       );
 
-      // Filter and order the bounded sample in memory (fast, no DB timeout risk)
-      const sampleDeals = sampleResult.rows
-        .filter(row => {
-          // Apply discount threshold - already in WHERE but double-check for safety
-          const discountPct = row.discount_pct;
-          return discountPct !== null && discountPct >= minDiscount;
-        })
-        .sort((a, b) => {
-          // Order by discount descending, then updated_at descending
-          const discountDiff = (b.discount_pct || 0) - (a.discount_pct || 0);
-          if (discountDiff !== 0) return discountDiff;
-          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-        })
-        .slice(offset, offset + limit);
-
-      total = sampleDeals.length; // Return actual count of sampled results
+      const sampleDeals = dealResult.rows;
+      total = sampleDeals.length;
       deals = sampleDeals.map((row) =>
         buildProduct(row as Record<string, unknown>, currency, false)
       );

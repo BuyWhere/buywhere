@@ -608,93 +608,31 @@ async function handleGetDeals(args: Record<string, unknown>) {
     throw { code: -32603, message: 'Database unavailable' };
   });
   try {
-    // BUY-60056: avoid the slow COUNT + full filtered discount sort that can
-    // monopolize a pool connection for the caller's whole 30s window. Sample a
-    // recent active window via the updated_at path, then filter/order the small
-    // candidate set. Acceptance needs non-empty regional deals under 5s, not an
-    // exact global count.
-    // BUY-65298: the subquery must filter by country INSIDE the ordered scan so
-    // the 50k-row window is relevant to the requested region. Previously the
-    // unfiltered subquery returned recent GLOBAL products whose currency did not
-    // match, resulting in empty results and cascading timeouts for every region.
+    // BUY-64112: use direct index-backed strict deal query.
+    // The partial index idx_products_deals_country/region on
+    // (country_code, region, discount_pct DESC) with predicate
+    // WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
+    // supports direct queries that match the predicate. No candidate window needed.
+    // Also removes the laptop/watch keyword fallback that masked empty results.
     await dealsClient.query('SET statement_timeout = 4500');
-    const candidateLimit = Math.max((limit + offset) * 200, 5000);
-    // Build the inner (subquery) WHERE — includes country filter so the
-    // updated_at scan is scoped to the requested region, not random recent rows.
-    const innerConditions = ['is_active = true', 'price > 0'];
-    if (effectiveCountry) {
-      innerConditions.push(`country_code = $1`);
-    }
-    const innerWhere = innerConditions.join(' AND ');
-    // BUY-65475: candidateLimit must be bound as a positional parameter so the
-    // inner LIMIT resolves to a bigint. Previously the LIMIT placeholder
-    // ($${innerParams.length+1}) resolved to the currency/country text param.
-    const innerParams: unknown[] = effectiveCountry
-      ? [effectiveCountry, candidateLimit]
-      : [candidateLimit];
-    // Build the outer WHERE from the discount/currency conditions with re-indexed
-    // positional parameters. The inner query consumes exactly `innerParams.length`
-    // positional placeholders (country_code=$1 + LIMIT=$2 when a country is set,
-    // or just LIMIT=$1 otherwise), so the first outer param lands at
-    // $innerParams.length + 1 and the offset applied to each outer $N is
-    // `innerParams.length`. Previously this was `innerParams.length + 1`, which
-    // left an orphaned $2 in the no-country path (inner only used $1) and threw
-    // "could not determine data type of parameter $2" at PREPARE time.
-    const outerParamsStart = innerParams.length;
-    const outerConditions = conditions.map((condition) =>
-      condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + outerParamsStart}`)
-    );
-    const outerParams = [...innerParams, ...params, Number(limit) || 20, Number(offset) || 0];
+    // params already has: currency, minDiscount, [region], [country]
+    // Add limit and offset
+    const queryParams = [...params, Number(limit) || 20, Number(offset) || 0];
     const dataResult = await dealsClient.query(
       `SELECT id, source, domain, url, title, price, original_price,
               currency, image_url, metadata, updated_at, region, country_code,
-              discount_pct
-       FROM (
-         SELECT id, sku AS source, source AS domain, url, title,
-                price,
-                CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
-                     THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
-                currency, image_url, metadata, updated_at, region, country_code, is_active,
-                ${discountSelect}
-         FROM products
-         WHERE ${innerWhere}
-         ORDER BY updated_at DESC
-         LIMIT $${innerParams.length}::int
-       ) _recent_deals
-       WHERE ${outerConditions.join(' AND ')}
-       ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
-       LIMIT $${outerParams.length - 1}::int OFFSET $${outerParams.length}::int`,
-      outerParams
+              ${discountSelect}
+       FROM products
+       WHERE ${whereClause}
+       ORDER BY ${discountOrder} NULLS LAST, updated_at DESC
+       LIMIT $${queryParams.length - 1}::int OFFSET $${queryParams.length}::int`,
+      queryParams
     );
     total = dataResult.rows.length;
     products = dataResult.rows.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
-    if (products.length === 0 && effectiveCountry) {
-      // BUY-60056: many live rows lack original_price/discount metadata, so the
-      // strict discount filter can be empty even while the regional catalog is
-      // healthy. Return a bounded recent regional sample instead of a timeout or
-      // empty response; callers still get product/country metadata under 5s.
-      // BUY-60068: extend the fallback to fire whenever a region-derived country
-      // exists, not only when country_code is explicitly passed.
-      const fallbackQuery = effectiveCountry === 'US' ? 'watch' : 'laptop';
-      const fallbackResult = await dealsClient.query(
-        `SELECT id, sku AS source, source AS domain, url, title,
-                price, NULL::numeric AS original_price, currency, image_url,
-                metadata, updated_at, region, country_code, 0::numeric AS discount_pct
-         FROM products
-         WHERE is_active = true
-           AND price > 0
-           AND country_code = $1
-           AND search_vector @@ plainto_tsquery('english', $2)
-         LIMIT $3::int`,
-        [effectiveCountry, fallbackQuery, Number(limit) || 20]
-      );
-      total = fallbackResult.rows.length;
-      products = fallbackResult.rows.map((r: Record<string, unknown>) =>
-        buildProduct(r, currency, false)
-      );
-    }
+    // BUY-64112: removed keyword fallback (laptop/watch) - return empty when no deals found
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);
