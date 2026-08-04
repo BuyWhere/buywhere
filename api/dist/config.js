@@ -125,11 +125,24 @@ exports.TIER_LIMITS = {
 };
 // Vector DB pool — separate Railway Postgres with pgvector 0.8 (BUY-41135).
 // Null when VECTOR_DB_URL is unset; consumers must check before using.
+//
+// BUY-41137: set statement_timeout so slow KNN queries (e.g. large HNSW scan on
+// a mixed-dim index, or cross-dimension rejection) fail fast instead of hanging
+// for the idleTimeout window and exhausting the pool (max=5). The fallback path
+// (brand/category + FTS) then executes promptly on the main db pool.
+// 10 s is generous for an HNSW-approximate nearest-neighbour scan with <=1000 rows.
+const vectorStatementTimeout = parseInt(process.env.VECTOR_STATEMENT_TIMEOUT || '10000');
 exports.vectorDb = process.env.VECTOR_DB_URL
-    ? new pg_1.Pool({
-        connectionString: process.env.VECTOR_DB_URL,
-        max: 5,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 10000,
-    })
+    ? (() => {
+        const pool = new pg_1.Pool({
+            connectionString: process.env.VECTOR_DB_URL,
+            max: 5,
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 10000,
+        });
+        pool.on('connect', (client) => {
+            client.query(`SET statement_timeout = ${vectorStatementTimeout}`).catch(() => { });
+        });
+        return pool;
+    })()
     : null;

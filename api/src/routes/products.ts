@@ -1723,6 +1723,11 @@ router.get(
   queryLogMiddleware('products.similar'),
   asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
+    // BUY-41137: hard ceiling so the request fires even if pool exhaustion (from
+    // slow vectorDb KNN) would otherwise hang indefinitely.
+    res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, () => {
+      console.warn(`[products.similar] request timed out after ${SEARCH_HANDLER_TIMEOUT_MS}ms`);
+    });
     const { id } = req.params;
     if (!PRODUCT_ID_RE.test(String(id))) {
       res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
@@ -1744,8 +1749,7 @@ router.get(
 
     // Phase 1: Try embedding-based KNN (vector store).
     // BUY-54718 / BUY-41137 / BUY-54796: use the shared vectorDb pool and the
-    // live public.product_embeddings schema so this route follows the Railway
-    // wiring instead of a separate VECTOR_STORE_DATABASE_URL.
+    // product_embeddings table (public schema via vectorDb connection).
     let similar: Array<Record<string, unknown>> = [];
     let similarityFallback = false;
 
@@ -1753,7 +1757,7 @@ router.get(
       try {
         // Fetch pre-computed embedding for this product.
         const embResult = await vectorDb.query<{ embedding: string }>(
-          `SELECT embedding FROM public.product_embeddings
+          `SELECT embedding FROM product_embeddings
            WHERE product_id = $1`,
           [id]
         );
@@ -1766,7 +1770,7 @@ router.get(
           }>(
             `SELECT product_id,
                     1 - (embedding <=> $1::vector) AS score
-             FROM public.product_embeddings
+             FROM product_embeddings
              WHERE product_id != $2
              ORDER BY embedding <=> $1::vector
              LIMIT $3`,

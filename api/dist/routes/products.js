@@ -411,9 +411,11 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
     const orderParam = req.query.order?.toLowerCase();
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
     const cacheKey = `list:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}`;
+    res.locals.cacheHit = false;
     try {
         const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
         if (cached) {
+            res.locals.cacheHit = true;
             const parsed = JSON.parse(cached);
             parsed.pagination.response_time_ms = Date.now() - requestStart;
             (0, instrumentation_1.recordProductViewsBulk)({
@@ -567,9 +569,11 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
         || q.toLowerCase().trim();
     const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
+    res.locals.cacheHit = false;
     try {
         const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
         if (cached) {
+            res.locals.cacheHit = true;
             const parsed = JSON.parse(cached);
             const elapsed = Date.now() - requestStart;
             parsed.cached = true;
@@ -1304,9 +1308,11 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     const limit = Math.min(parseInt(req.query.limit || '20'), 100);
     const offset = parseInt(req.query.offset || '0');
     const cacheKey = `deals:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
+    res.locals.cacheHit = false;
     try {
         const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
         if (cached) {
+            res.locals.cacheHit = true;
             const parsed = JSON.parse(cached);
             parsed.cached = true;
             parsed.response_time_ms = Date.now() - start;
@@ -1396,9 +1402,22 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
         // BUY-34291: cap work_mem too (same shared_buffers pressure reasoning as search)
         await dealsClient.query(`SET work_mem = '${SEARCH_WORK_MEM}'`);
         await dealsClient.query(`SET statement_timeout = ${DEALS_QUERY_TIMEOUT_MS}`);
-        // BUY-60309: bounded sampling - sample recent active candidates, filter, order, paginate
-        // This replaces the unbounded COUNT + ORDER BY over the full table
-        const sampleResult = await dealsClient.query(`SELECT id, sku AS source_id, source AS domain, url,
+        // BUY-64112: direct index-backed strict deal query.
+        // The partial index idx_products_deals_country/region supports a direct
+        // query matching its predicate (discount_pct IS NOT NULL AND price > 0
+        // AND is_active = true), so ORDER BY discount_pct DESC + LIMIT/OFFSET is
+        // sub-ms and needs no candidate window. Previously the bounded
+        // updated_at sample (LIMIT DEALS_SAMPLE_CAP) excluded deals older than
+        // the recent window, returning empty for healthy regions.
+        const dealLimitIdx = dealIdx;
+        dealParams.push(limit);
+        const dealLimitParam = `$${dealLimitIdx}`;
+        dealIdx++;
+        const dealOffsetIdx = dealIdx;
+        dealParams.push(offset);
+        const dealOffsetParam = `$${dealOffsetIdx}`;
+        dealIdx++;
+        const dealResult = await dealsClient.query(`SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
                 currency, image_url, metadata, updated_at,
                 region, country_code, created_at, description, brand, mpn, gtin,
@@ -1406,24 +1425,10 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
                 ${discountSelect}
          FROM products
          WHERE ${dealWhere}
-         ORDER BY updated_at DESC
-         LIMIT ${DEALS_SAMPLE_CAP}`, dealParams);
-        // Filter and order the bounded sample in memory (fast, no DB timeout risk)
-        const sampleDeals = sampleResult.rows
-            .filter(row => {
-            // Apply discount threshold - already in WHERE but double-check for safety
-            const discountPct = row.discount_pct;
-            return discountPct !== null && discountPct >= minDiscount;
-        })
-            .sort((a, b) => {
-            // Order by discount descending, then updated_at descending
-            const discountDiff = (b.discount_pct || 0) - (a.discount_pct || 0);
-            if (discountDiff !== 0)
-                return discountDiff;
-            return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-        })
-            .slice(offset, offset + limit);
-        total = sampleDeals.length; // Return actual count of sampled results
+         ORDER BY ${discountOrder} NULLS LAST, updated_at DESC
+         LIMIT ${dealLimitParam}::int OFFSET ${dealOffsetParam}::int`, dealParams);
+        const sampleDeals = dealResult.rows;
+        total = sampleDeals.length;
         deals = sampleDeals.map((row) => (0, response_1.buildProduct)(row, currency, false));
     }
     catch (err) {
@@ -1593,6 +1598,11 @@ router.get('/:id/prices', agentDetect_1.agentDetectMiddleware, apiKey_1.requireA
 // Latency target: p95 ≤ 200 ms under load.
 router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.similar'), asyncHandler(async (req, res) => {
     const start = Date.now();
+    // BUY-41137: hard ceiling so the request fires even if pool exhaustion (from
+    // slow vectorDb KNN) would otherwise hang indefinitely.
+    res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, () => {
+        console.warn(`[products.similar] request timed out after ${SEARCH_HANDLER_TIMEOUT_MS}ms`);
+    });
     const { id } = req.params;
     if (!compare_query_1.PRODUCT_ID_RE.test(String(id))) {
         res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
@@ -1609,21 +1619,20 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
     const src = srcResult.rows[0];
     // Phase 1: Try embedding-based KNN (vector store).
     // BUY-54718 / BUY-41137 / BUY-54796: use the shared vectorDb pool and the
-    // live public.product_embeddings schema so this route follows the Railway
-    // wiring instead of a separate VECTOR_STORE_DATABASE_URL.
+    // product_embeddings table (public schema via vectorDb connection).
     let similar = [];
     let similarityFallback = false;
     if (config_1.vectorDb) {
         try {
             // Fetch pre-computed embedding for this product.
-            const embResult = await config_1.vectorDb.query(`SELECT embedding FROM public.product_embeddings
+            const embResult = await config_1.vectorDb.query(`SELECT embedding FROM product_embeddings
            WHERE product_id = $1`, [id]);
             if (embResult.rows.length > 0) {
                 const embeddingStr = embResult.rows[0].embedding;
                 // KNN: rows with smallest cosine distance first.
                 const knnResult = await config_1.vectorDb.query(`SELECT product_id,
                     1 - (embedding <=> $1::vector) AS score
-             FROM public.product_embeddings
+             FROM product_embeddings
              WHERE product_id != $2
              ORDER BY embedding <=> $1::vector
              LIMIT $3`, [embeddingStr, id, limit]);
@@ -1740,9 +1749,11 @@ router.get('/featured', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApi
     const offset = Math.max(parseInt(req.query.offset || '0'), 0);
     const compact = req.query.compact === 'true';
     const cacheKey = `featured:${countryCode}:${currency}:${limit}:${offset}:${compact ? 'c' : 'f'}`;
+    res.locals.cacheHit = false;
     try {
         const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
         if (cached) {
+            res.locals.cacheHit = true;
             const parsed = JSON.parse(cached);
             parsed.cached = true;
             parsed.response_time_ms = Date.now() - start;
