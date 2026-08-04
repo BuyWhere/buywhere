@@ -3,7 +3,12 @@ import { resolvePrecomputedAffiliateUrl } from './affiliateWrapper';
 import { buildAffiliateRedirectUrl, buildClickUrl } from './instrumentation';
 
 export const CURRENCY_RATES: Record<string, number> = {
+  // Convention: USD per 1 unit of the foreign currency (amount * rate = USD).
   USD: 1, SGD: 0.74, VND: 0.000039, THB: 0.028, MYR: 0.22, GBP: 0.79,
+  // BUY-66199: EUR added so EUR-priced rows (e.g. .eu merchants mislabeled
+  // country_code=US) can still normalize to USD. find_best_price already
+  // exposes normalized_price_usd; search_products non-compact now does too.
+  EUR: 1.09,
 };
 
 export const COUNTRY_CURRENCY: Record<string, string> = {
@@ -34,10 +39,19 @@ export function buildProduct(
     ? buildAffiliateRedirectUrl({ productId, source: 'product_card' })
     : null;
 
+  // BUY-66199: normalized_price_usd is computed for BOTH compact and
+  // non-compact responses. Previously it was compact-only, so a US-market
+  // search_products caller saw only the row's native currency (e.g. EUR for a
+  // .eu merchant mislabeled country_code=US) with no USD reference — making
+  // prices misleading. Mirrors find_best_price, which always exposes USD.
+  const rate = CURRENCY_RATES[currency] ?? null;
+  const normalized_price_usd = amount != null && rate != null ? +(amount * rate).toFixed(4) : null;
+
   const base: CanonicalProduct = {
     id: productId,
     title: row.title as string,
     price: { amount, currency },
+    normalized_price_usd,
     merchant,
     url: destinationUrl,
     image_url: (row.image_url as string) || null,
@@ -69,11 +83,7 @@ export function buildProduct(
     if (structured_specs.color != null)
       comparison_attributes.push({ key: 'color', label: 'Color', value: structured_specs.color });
 
-    const rate = CURRENCY_RATES[currency] ?? null;
-    const normalized_price_usd = amount != null && rate != null ? +(amount * rate).toFixed(4) : null;
-
     base.canonical_id = row.id as string;
-    base.normalized_price_usd = normalized_price_usd;
     base.structured_specs = structured_specs;
     base.comparison_attributes = comparison_attributes;
   } else {
