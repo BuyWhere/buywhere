@@ -595,11 +595,11 @@ async function handleGetDeals(args) {
             innerConditions.push(`country_code = '${c}'`);
         }
         const innerWhere = innerConditions.join(' AND ');
-        const dataResult = await dealsClient.query(`SELECT id, source, domain, url, title, price, original_price,
+        const dataResult = await dealsClient.query(`SELECT id, sku AS source, source AS domain, url, title, price, original_price,
               currency, image_url, metadata, updated_at, region, country_code,
               discount_pct
        FROM (
-         SELECT id, sku AS source, source AS domain, url, title,
+         SELECT id, sku, source, url, title,
                 price,
                 CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
                      THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
