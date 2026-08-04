@@ -533,28 +533,28 @@ async function handleGetDeals(args) {
         _hasDiscountPct = useDiscountCol;
     }
     const conditions = [
-        `currency = $1`,
+        `currency = $1::text`,
         `price > 0`,
         `is_active = true`,
     ];
     if (useDiscountCol) {
-        conditions.push(`discount_pct >= $2`);
+        conditions.push(`discount_pct >= $2::numeric`);
     }
     else {
         // Guard: only consider rows where original_price is a valid numeric string.
         // Matches the partial index predicate on idx_products_deals_country/region.
         conditions.push(`metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'`);
         conditions.push(`(metadata->>'original_price')::numeric > price`);
-        conditions.push(`((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) >= $2`);
+        conditions.push(`((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) >= $2::numeric`);
     }
     const params = [currency, minDiscount];
     if (region) {
         params.push(region);
-        conditions.push(`region = $${params.length}`);
+        conditions.push(`region = $${params.length}::text`);
     }
     if (country) {
         params.push(country.toUpperCase());
-        conditions.push(`country_code = $${params.length}`);
+        conditions.push(`country_code = $${params.length}::text`);
     }
     const discountSelect = useDiscountCol
         ? 'discount_pct'
