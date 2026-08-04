@@ -143,7 +143,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
 
       <main id="main-content" className="flex-1">
         <section className="overflow-hidden max-sm:overflow-visible bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#f59e0b_130%)] text-white">
-          <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end ${config.compactCatalogCards ? "py-6" : "py-16 lg:py-24"}`}>
+          <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end ${config.compactCatalogCards ? "py-6" : "py-10 lg:py-12"}`}>
             <div>
               <div className="mb-5 inline-flex items-center rounded-full border border-white/20 bg-slate-950/40 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-200">
                 {config.heroEyebrow}
