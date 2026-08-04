@@ -140,8 +140,8 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
       rel="noopener noreferrer"
       className="group block bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-indigo-100 transition-all duration-200"
     >
-      <div className="aspect-square bg-gray-50 relative overflow-hidden" style={{ aspectRatio: '1/1'}}>
-        <div className="relative w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-50">
+      <div className="aspect-square bg-gray-50 relative overflow-hidden" style={{ aspectRatio: '1 / 1' }}>
+        <div className="relative w-full h-full">
           {deal.image_url ? (
             <Image
               src={deal.image_url}
@@ -149,12 +149,13 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               className="object-contain"
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
               loading={deal.id <= 4 ? 'eager' : 'lazy'}
               priority={deal.id <= 2}
             />
           ) : (
-            <span className="text-5xl opacity-50">{config.icon}</span>
+            <div className="flex items-center justify-center w-full h-full bg-gradient-to-br from-gray-100 to-gray-50">
+              <span className="text-5xl opacity-50">{config.icon}</span>
+            </div>
           )}
         </div>
         {deal.discount_pct && deal.discount_pct > 0 && (
