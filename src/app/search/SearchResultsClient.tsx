@@ -427,7 +427,8 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
       className="group relative flex h-full min-h-[460px] min-w-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
       <div
-        className="relative aspect-[4/3] w-full shrink-0 overflow-hidden border-b border-slate-100 bg-slate-100"
+        className="relative w-full max-h-[220px] shrink-0 overflow-hidden border-b border-slate-100 bg-slate-100"
+        style={{ aspectRatio: '4/3', maxHeight: '220px' }}
         data-testid="search-product-media"
       >
         <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))] text-sm font-semibold text-slate-600">
@@ -444,7 +445,8 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
             onError={() => {
               setImageError(true);
             }}
-            className="relative z-10 block h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-[1.03]"
+            className="relative z-10 block h-full w-full max-h-[220px] object-contain p-2 transition-transform duration-300 group-hover:scale-[1.03]"
+            style={{ maxHeight: '220px', width: '100%', objectFit: 'contain' }}
           />
         ) : imageError || !product.imageUrl ? (
           <BrandedPlaceholder />
