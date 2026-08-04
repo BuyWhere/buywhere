@@ -72,11 +72,13 @@ export default function robots(): MetadataRoute.Robots {
     // they ignore a single sitemap.xml pointer to an index. Listing
     // each sub-sitemap here also keeps coverage if the index is
     // temporarily stale at a CDN edge.
+    // Note: sitemap-products-sg.xml is intentionally omitted — SG product
+    // pages return 410 Gone (BUY-37747/BUY-37750) and the route returns 410,
+    // so listing it creates a permanent broken-sitemap reference in GSC.
     sitemap: [
       "https://buywhere.ai/sitemap.xml",
       "https://buywhere.ai/sitemap-pages.xml",
       "https://buywhere.ai/sitemap-products.xml",
-      "https://buywhere.ai/sitemap-products-sg.xml",
       "https://buywhere.ai/sitemap-merchants.xml",
       "https://buywhere.ai/sitemap-categories.xml",
       "https://buywhere.ai/sitemap-compare.xml",
