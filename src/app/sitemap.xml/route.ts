@@ -12,12 +12,15 @@ export const runtime = "nodejs";
 export async function GET(): Promise<Response> {
   const now = new Date();
 
+  // Sub-sitemaps listed here. sitemap-products-sg.xml is intentionally
+  // omitted: SG product slug pages return 410 Gone (BUY-37747/BUY-37750)
+  // and the /sitemap-products-sg.xml route emits 410, so listing it in the
+  // index produces a permanent broken-sitemap reference in GSC coverage.
   const sitemapEntries = [
     { url: `${SITEMAP_BASE_URL}/sitemap-pages.xml`, lastModified: now },
     { url: `${SITEMAP_BASE_URL}/sitemap-categories.xml`, lastModified: now },
     { url: `${SITEMAP_BASE_URL}/sitemap-compare.xml`, lastModified: now },
     { url: `${SITEMAP_BASE_URL}/sitemap-products.xml`, lastModified: now },
-    { url: `${SITEMAP_BASE_URL}/sitemap-products-sg.xml`, lastModified: now },
     { url: `${SITEMAP_BASE_URL}/sitemap-merchants.xml`, lastModified: now },
   ];
 
