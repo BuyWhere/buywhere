@@ -13,7 +13,7 @@ export async function GET(
   });
 
   const headers = new Headers();
-  for (const [key, value] of request.headers.entries()) {
+  for (const [key, value] of Array.from(request.headers.entries())) {
     if (
       key === "host" ||
       key === "connection" ||
@@ -53,7 +53,7 @@ export async function HEAD(
   });
 
   const headers = new Headers();
-  for (const [key, value] of request.headers.entries()) {
+  for (const [key, value] of Array.from(request.headers.entries())) {
     if (
       key === "host" ||
       key === "connection" ||
@@ -86,7 +86,7 @@ export async function POST(
   });
 
   const headers = new Headers();
-  for (const [key, value] of request.headers.entries()) {
+  for (const [key, value] of Array.from(request.headers.entries())) {
     if (
       key === "host" ||
       key === "connection" ||
