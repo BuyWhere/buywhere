@@ -797,9 +797,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     console.warn('[find_best_price] db.connect failed:', err.message);
     throw { code: -32603, message: 'Database connection timeout' };
   });
-  let result: { rows: Record<string, unknown>[] };
+  let result: { rows: Record<string, unknown>[] } = { rows: [] };
+  let ftsTimedOut = false;
   try {
-    await bestPriceClient.query('SET statement_timeout = 4500');
+    // BUY-66280: 4.5s was too tight for GIN FTS on maglev (~127M rows); raise to 30s
+    // and fail open on SQLSTATE 57014 so a slow FTS returns empty instead of 500.
+    await bestPriceClient.query('SET statement_timeout = 30000'); // BUY-66280
     await bestPriceClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS
     // BUY-65971: the country filter MUST be inside the candidate subquery, not
     // applied in the outer query. `products` is LIST-partitioned by country_code,
@@ -820,24 +823,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     // Primary path: GIN-indexed FTS (fast; same path as search_products and
     // mcp-railway). Leading with FTS avoids a leading-wildcard ILIKE full scan of
     // the partition on the hot path.
-    result = await bestPriceClient.query(
-      `SELECT id, title, price, currency, source AS domain, url, image_url,
-              country_code, updated_at
-       FROM products
-       WHERE is_active = true
-         AND price > 0
-         AND country_code = $1
-         AND search_vector @@ plainto_tsquery('english', $2)
-       ORDER BY price ASC, updated_at DESC
-       LIMIT $3::int`,
-      [country, productName, limit]
-    );
-    if (result.rows.length === 0) {
-      // ILIKE fallback: FTS tokenization can miss titles where the term appears
-      // as a substring of a larger token (model numbers, compound words, or text
-      // the 'english' config doesn't stem). Fall back to a substring match within
-      // the (pruned) country partition to recover those listings.
-      const titlePattern = `%${productName}%`;
+    try {
       result = await bestPriceClient.query(
         `SELECT id, title, price, currency, source AS domain, url, image_url,
                 country_code, updated_at
@@ -845,11 +831,39 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          WHERE is_active = true
            AND price > 0
            AND country_code = $1
-           AND title ILIKE $2
+           AND search_vector @@ plainto_tsquery('english', $2)
          ORDER BY price ASC, updated_at DESC
          LIMIT $3::int`,
-        [country, titlePattern, limit]
+        [country, productName, limit]
       );
+      if (result.rows.length === 0) {
+        // ILIKE fallback: FTS tokenization can miss titles where the term appears
+        // as a substring of a larger token (model numbers, compound words, or text
+        // the 'english' config doesn't stem). Fall back to a substring match within
+        // the (pruned) country partition to recover those listings.
+        const titlePattern = `%${productName}%`;
+        result = await bestPriceClient.query(
+          `SELECT id, title, price, currency, source AS domain, url, image_url,
+                  country_code, updated_at
+           FROM products
+           WHERE is_active = true
+             AND price > 0
+             AND country_code = $1
+             AND title ILIKE $2
+           ORDER BY price ASC, updated_at DESC
+           LIMIT $3::int`,
+          [country, titlePattern, limit]
+        );
+      }
+    } catch (ftsErr) {
+      const ftsError = ftsErr as { code?: string };
+      if (ftsError.code === '57014') {
+        console.warn('[find_best_price] FTS timed out for country=', country, 'product=', productName);
+        ftsTimedOut = true;
+        result = { rows: [] };
+      } else {
+        throw ftsErr;
+      }
     }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
@@ -874,7 +888,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   return {
     best_price: data[0] ?? null,
     alternatives: data.slice(1),
-    meta: { total: data.length, country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'), response_time_ms: Date.now() - t0 },
+    meta: { total: data.length, country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'), response_time_ms: Date.now() - t0, ...(ftsTimedOut ? { timed_out: true } : {}) },
   };
 }
 
