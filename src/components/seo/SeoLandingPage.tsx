@@ -191,12 +191,14 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href={shopperCta.href}
+                  prefetch={false}
                   className="inline-flex min-h-[44px] items-center rounded-full bg-amber-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-700"
                 >
                   {shopperCta.label}
                 </Link>
                 <Link
                   href={developerCta.href}
+                  prefetch={false}
                   className="inline-flex min-h-[44px] items-center rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
                 >
                   {developerCta.label}
@@ -213,7 +215,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-800">Live catalog snapshot</p>
                 <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
               </div>
-              <Link href={shopperCta.href} className="text-sm font-semibold text-amber-800 hover:text-amber-900">
+              <Link href={shopperCta.href} prefetch={false} className="text-sm font-semibold text-amber-800 hover:text-amber-900">
                 Open full search
               </Link>
             </div>
@@ -361,6 +363,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 <p className="mt-3 text-sm leading-6 text-slate-600">{developerCta.body}</p>
                 <Link
                   href={developerCta.href}
+                  prefetch={false}
                   className="mt-6 inline-flex min-h-[44px] items-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
                 >
                   {developerCta.label}
