@@ -4,6 +4,11 @@ import Link from "next/link";
 import { getSeoLandingFallbackProduct } from "@/lib/seo-landing-pages";
 import { buildSGLegacyProductRedirect } from "@/lib/legacy-product-redirect";
 
+const INTERNAL_ORIGIN =
+  process.env.BUYWHERE_INTERNAL_ORIGIN ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  "https://buywhere.ai";
+
 interface ProductDetail {
   id: string | number;
   title?: string;
@@ -70,21 +75,10 @@ async function getProduct(
   productId: string,
   merchantSlug: string
 ): Promise<ProductDetail | null> {
-  const baseUrl =
-    process.env.BUYWHERE_API_INTERNAL_URL ||
-    process.env.NEXT_PUBLIC_BUYWHERE_API_URL ||
-    "https://api.buywhere.ai";
-  const apiKey =
-    process.env.BUYWHERE_API_KEY ||
-    process.env.NEXT_PUBLIC_BUYWHERE_API_KEY ||
-    "";
-  const headers: Record<string, string> = apiKey
-    ? { Authorization: `Bearer ${apiKey}` }
-    : {};
-
+  // Route through the internal API route which has the backend API key injected.
+  // This avoids depending on BUYWHERE_API_KEY being present in the SSR environment.
   try {
-    const res = await fetch(`${baseUrl}/v1/products/${encodeURIComponent(productId)}`, {
-      headers,
+    const res = await fetch(`${INTERNAL_ORIGIN}/api/products/${encodeURIComponent(productId)}`, {
       next: { revalidate: 3600 },
       signal: AbortSignal.timeout(5000),
     });
@@ -92,8 +86,11 @@ async function getProduct(
       const data = (await res.json()) as ProductDetail;
       if (data?.id) return data;
     }
-  } catch {}
+  } catch (err) {
+    console.warn(`[products/sg] internal API error for ${productId}:`, err);
+  }
 
+  // Fallback to curated SEO landing page fallback products
   return landingProductToDetail(getSeoLandingFallbackProduct("sg", productId, merchantSlug));
 }
 
