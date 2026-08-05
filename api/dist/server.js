@@ -349,6 +349,90 @@ function createApp() {
     app.use('/webhooks', webhooks_1.default);
     // P95 monitoring endpoints (BUY-31208)
     app.use(routes_1.default);
+    // BUY-66254: Public discovery routes — mounted BEFORE admin routers (which are
+    // at root level and may have router-level auth in older builds). These must
+    // be public so crawlers and AEO can discover the developer portal.
+    app.get('/developers', (_req, res) => {
+        const proto = (_req.headers['x-forwarded-proto'] || _req.protocol).split(',')[0].trim();
+        const host = _req.headers['x-forwarded-host'] || _req.get('host') || 'buywhere.ai';
+        const base = `${proto}://${host}`;
+        res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
+        res.type('text/markdown; charset=utf-8').send(`# BuyWhere Developer Portal\n\n` +
+            `**Base URL:** ${base}/v1\n\n` +
+            `## Quick Links\n\n` +
+            `- [API Reference](/docs)\n` +
+            `- [OpenAPI Spec](/openapi.json)\n` +
+            `- [MCP Integration](/docs/guides/mcp)\n` +
+            `- [Register API Key](/v1/auth/register)\n\n` +
+            `## Endpoints\n\n` +
+            `- \`GET /v1/products/search?q=<query>\` — Search products\n` +
+            `- \`GET /v1/products/:id\` — Get product by ID\n` +
+            `- \`GET /v1/categories\` — List categories\n` +
+            `- \`POST /mcp\` — MCP server\n\n` +
+            `## Authentication\n\n` +
+            `Use \`X-API-Key\` header or \`Authorization: Bearer <key>\`.\n` +
+            `Get a free key at ${base}/v1/auth/register\n`);
+    });
+    app.get('/developers/robots.txt', (_req, res) => {
+        res.set('Content-Signal', 'ai-train=no, search=yes, ai-input=yes');
+        res.type('text/plain').send([
+            'User-agent: *',
+            'Allow: /developers',
+            'Allow: /v1/auth/register',
+            'Disallow: /v1/',
+            '',
+            'Sitemap: https://api.buywhere.ai/sitemap.xml',
+        ].join('\n'));
+    });
+    app.get('/developers/sitemap.xml', (req, res) => {
+        const proto = (req.headers['x-forwarded-proto'] || req.protocol).split(',')[0].trim();
+        const host = req.headers['x-forwarded-host'] || req.get('host') || 'buywhere.ai';
+        const base = `${proto}://${host}`;
+        const now = new Date().toISOString().slice(0, 10);
+        const xml = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+            `  <url><loc>${base}/developers</loc><lastmod>${now}</lastmod></url>`,
+            `  <url><loc>${base}/developers/signup</loc><lastmod>${now}</lastmod></url>`,
+            '</urlset>',
+        ].join('\n');
+        res.set('Content-Type', 'application/xml; charset=utf-8');
+        res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
+        res.send(xml);
+    });
+    // Public discovery paths for developer robots/sitemap sub-paths
+    app.get('/developers/robots/sitemap/us', (req, res) => {
+        const proto = (req.headers['x-forwarded-proto'] || req.protocol).split(',')[0].trim();
+        const host = req.headers['x-forwarded-host'] || req.get('host') || 'buywhere.ai';
+        const base = `${proto}://${host}`;
+        const now = new Date().toISOString().slice(0, 10);
+        const xml = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+            `  <url><loc>${base}/us</loc><lastmod>${now}</lastmod></url>`,
+            `  <url><loc>${base}/us/signup</loc><lastmod>${now}</lastmod></url>`,
+            '</urlset>',
+        ].join('\n');
+        res.set('Content-Type', 'application/xml; charset=utf-8');
+        res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
+        res.send(xml);
+    });
+    app.get('/us/robots/sitemap/us', (req, res) => {
+        const proto = (req.headers['x-forwarded-proto'] || req.protocol).split(',')[0].trim();
+        const host = req.headers['x-forwarded-host'] || req.get('host') || 'buywhere.ai';
+        const base = `${proto}://${host}`;
+        const now = new Date().toISOString().slice(0, 10);
+        const xml = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+            `  <url><loc>${base}/us</loc><lastmod>${now}</lastmod></url>`,
+            `  <url><loc>${base}/us/signup</loc><lastmod>${now}</lastmod></url>`,
+            '</urlset>',
+        ].join('\n');
+        res.set('Content-Type', 'application/xml; charset=utf-8');
+        res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
+        res.send(xml);
+    });
     // BUY-22737 / BUY-35381: admin endpoints (uptime + metrics).
     // Auth is handled inside each router via Authorization: Bearer <admin key>.
     app.use(uptime_1.default);

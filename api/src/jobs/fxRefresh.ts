@@ -1,5 +1,4 @@
 import { Pool } from 'pg';
-import { db } from '../config';
 
 export interface FxRateRecord {
   base_currency: string;
@@ -83,12 +82,18 @@ async function upsertRate(pool: Pool, record: FxRateRecord): Promise<void> {
   );
 }
 
-export async function runFxRefresh(): Promise<FxRefreshResult> {
+export async function runFxRefresh(poolOverride?: Pool): Promise<FxRefreshResult> {
   const start = Date.now();
   const errors: string[] = [];
   const sources = new Set<FxRateSource>();
   let ratesUpserted = 0;
-  const pool = db;
+  let pool: Pool;
+  if (poolOverride) {
+    pool = poolOverride;
+  } else {
+    const { db } = await import('../config');
+    pool = db;
+  }
   const fetchedAt = new Date();
 
   let frankfurterRates = new Map<string, number>();
