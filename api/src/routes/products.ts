@@ -1091,8 +1091,11 @@ router.get(
         if (queryVector) {
           try {
             const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
+            // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors (cohere).
+            // The query embedding is 512-dim (gemini-embedding-001) - only match rows with same dimension.
             const semanticCandidates = await activeVectorDb.query<{ product_id: string }>(
               `SELECT product_id FROM product_embeddings
+               WHERE model_ver = 'gemini-embedding-001@512'
                ORDER BY embedding <=> $1::vector
                LIMIT $2`,
               [queryVector, candidateCap]
