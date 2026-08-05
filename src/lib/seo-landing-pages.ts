@@ -1056,7 +1056,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
               availability: "https://schema.org/InStock",
               sellers: group.map((p) => ({
                 "@type": "Organization",
-                name: p.merchant,
+                name: formatMerchantName(p.merchant),
               })),
             }
           : {
@@ -1160,7 +1160,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
                       seller: {
                         "@type": "Organization",
                         "@id": `${BASE_URL}/#organization`,
-                        name: product.merchant,
+                        name: formatMerchantName(product.merchant),
                       },
                       url: product.productUrl || product.href,
                     }
