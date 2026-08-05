@@ -7,8 +7,8 @@ const nextConfig = {
   // of also returning 410.  Middleware already handles 301 → non-slash for
   // valid pages, so this flag lets 410 pages pass through unchanged.
   output: 'standalone',
-  distDir: '.next-deploy',
-  // BUY-59983: /_next/image was returning HTTP 400 for every product image
+  distDir: '\.next-deploy',
+  // BUY-59983: /\\_next/image was returning HTTP 400 for every product image
   // because no remotePatterns were configured, so Next.js rejected every
   // upstream host the catalog uses.  The list below is the union of hosts
   // observed in /api/products/search results plus the QA-fixture domains
@@ -48,6 +48,29 @@ const nextConfig = {
         ],
         destination: 'https://buywhere.ai/:path*',
         permanent: true,
+      },
+    ];
+  },
+  async rewrites() {
+    return [
+      // /api/v1/* → api.buywhere.ai/v1/*  (canonical v1 path)
+      {
+        source: '/api/v1/:path*',
+        destination: 'https://api.buywhere.ai/v1/:path*\,
+      },
+      // /api/* → api.buywhere.ai/v1/*  (legacy v0-style root-domain API calls)
+      {
+        source: '/api/:path*',
+        destination: 'https://api.buywhere.ai/v1/:path*\,
+      },
+      // /mcp, /mcp/* → mcp.buywhere.ai/mcp/*
+      {
+        source: '/mcp/:path*',
+        destination: 'https://mcp.buywhere.ai/mcp/:path*\,
+      },
+      {
+        source: '/mcp',
+        destination: 'https://mcp.buywhere.ai/mcp',
       },
     ];
   },
