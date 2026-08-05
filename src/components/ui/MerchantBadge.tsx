@@ -1,4 +1,9 @@
 import React from 'react';
+import { stripMerchantTenantSuffix } from '@/lib/merchant-name';
+// Re-export stripMerchantTenantSuffix from the pure utility module so
+// existing imports (`from '@/components/ui/MerchantBadge'`) keep working
+// without consumers having to update their import paths. BUY-66324.
+export { stripMerchantTenantSuffix } from '@/lib/merchant-name';
 
 export interface MerchantConfig {
   icon: string;
@@ -18,76 +23,11 @@ const MERCHANT_CONFIG: Record<string, MerchantConfig> = {
   'Lowe\'s': { icon: '🏡', bgColor: 'bg-blue-50', textColor: 'text-blue-700', verified: true },
   'Nike': { icon: '👟', bgColor: 'bg-black', textColor: 'text-white', verified: true },
   'Adidas': { icon: '👟', bgColor: 'bg-gray-900', textColor: 'text-white', verified: true },
+  'Wellbots': { icon: '🛒', bgColor: 'bg-blue-50', textColor: 'text-blue-700', verified: true },
 };
-
-// Canonical platform roots. When the raw merchant string starts with one of
-// these (case-insensitive, underscore- or hyphen-separated), the trailing
-// tenant/database suffix is stripped so the badge renders e.g. "Shopify"
-// instead of "Shopify Buy30620 Crate". String values match the title-cased
-// keys in MERCHANT_CONFIG; lookup is done in lowercase.
-const PLATFORM_ROOTS = new Set([
-  'shopify',
-  'walmart',
-  'amazon',
-  'target',
-  'best buy',
-  'costco',
-  'home depot',
-  'lowes',
-  'lowe\'s',
-  'nike',
-  'adidas',
-  'google shopping',
-  'ebay',
-  'newegg',
-  'apple',
-  'dell',
-  'lenovo',
-  'gamestop',
-  'magento',
-  'woocommerce',
-]);
 
 export function getMerchantConfig(merchant: string): MerchantConfig {
   return MERCHANT_CONFIG[merchant] || { icon: '🏬', bgColor: 'bg-gray-100', textColor: 'text-gray-700', verified: false };
-}
-
-/**
- * Strip internal tenant/database suffixes from a merchant string so the badge
- * shows a clean platform name. Tolerates input that has already been
- * title-cased and de-underscored by upstream serializers (so the boundary
- * between platform and tenant may be a space rather than an underscore).
- *
- * Examples:
- *   "shopify" -> "shopify"
- *   "shopify_buy30620_crate" -> "shopify"
- *   "Shopify Buy30620 Crate" -> "Shopify" (already-de-underscored input)
- *   "shopify_buy30620_hunt2" -> "shopify"
- *   "shopify_scrape" -> "shopify"
- *   "walmart_us" -> "walmart"
- *   "google_shopping" -> "google_shopping" (kept; both tokens are platform)
- *   "lordandtaylorcom" -> "lordandtaylorcom" (unknown platform, kept as-is)
- */
-export function stripMerchantTenantSuffix(value?: string | null): string {
-  if (!value) return '';
-  const tokens = value.split(/[\s_-]+/).filter(Boolean);
-  if (tokens.length <= 1) return value;
-
-  const firstToken = tokens[0].toLowerCase();
-  if (PLATFORM_ROOTS.has(firstToken)) {
-    return tokens[0];
-  }
-
-  // Two-token platforms like "google_shopping" must be preserved when both
-  // tokens form a known platform name.
-  if (tokens.length >= 2) {
-    const twoToken = `${tokens[0].toLowerCase()} ${tokens[1].toLowerCase()}`;
-    if (PLATFORM_ROOTS.has(twoToken)) {
-      return `${tokens[0]} ${tokens[1]}`;
-    }
-  }
-
-  return value;
 }
 
 export interface MerchantBadgeProps {
@@ -98,9 +38,7 @@ export interface MerchantBadgeProps {
 
 export function MerchantBadge({ merchant, className = '', showVerified = true }: MerchantBadgeProps) {
   const cleanedMerchant = stripMerchantTenantSuffix(merchant);
-  const displayKey = cleanedMerchant
-    .replace(/[_-]+/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  const displayKey = cleanedMerchant.replace(/[_-]+/g, ' ');
   const config = getMerchantConfig(displayKey);
   const isVerified = config.verified && showVerified;
 

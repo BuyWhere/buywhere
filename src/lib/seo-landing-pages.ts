@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { toSiteUrl } from "@/lib/site-url";
+import { stripMerchantTenantSuffix } from "@/lib/merchant-name";
 
 const BASE_URL = "https://buywhere.ai";
 // Origin used to call BuyWhere's own Next.js route handlers from a server
@@ -187,9 +188,12 @@ export type SeoLandingPageConfig = {
 
 function formatMerchantName(value?: string | null) {
   if (!value) return "BuyWhere seller";
-  return value
-    .replace(/[_-]+/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  // BUY-66324: strip internal tenant/database suffixes before title-casing so
+  // upstream values like "shopify_buy30620_stock" or "BUY30590 RETAILER
+  // BESTBUY" don't leak raw ingest IDs into the product cards, comparison
+  // tables, or JSON-LD seller names. stripMerchantTenantSuffix is the same
+  // helper MerchantBadge uses, so the public render is identical.
+  return stripMerchantTenantSuffix(value);
 }
 
 function normalizeExternalHref(...values: Array<string | null | undefined>) {

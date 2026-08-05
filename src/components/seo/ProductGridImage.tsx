@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { stripMerchantTenantSuffix } from "@/lib/merchant-name";
 
 interface ProductGridImageProps {
   src: string;
@@ -14,6 +15,9 @@ function BrandedPlaceholder({ alt, brand, merchant }: { alt: string; brand?: str
   const clean = (s: string) => String(s).replace(/[<>&"']/g, "").trim();
   const brandText = clean(brand || "").slice(0, 18) || "BuyWhere";
   const productLabel = clean(alt).slice(0, 26) || "Featured product";
+  // BUY-66324: defensive cleanup in case a caller passes a raw merchant
+  // string that bypassed `formatMerchantName` upstream.
+  const cleanedMerchant = stripMerchantTenantSuffix(merchant);
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center bg-slate-100 p-4 text-center">
@@ -43,8 +47,8 @@ function BrandedPlaceholder({ alt, brand, merchant }: { alt: string; brand?: str
           </text>
         </svg>
       </div>
-      {(brand || merchant) && (
-        <span className="mt-1 text-xs text-slate-400">{brand || merchant}</span>
+      {(brand || cleanedMerchant) && (
+        <span className="mt-1 text-xs text-slate-400">{brand || cleanedMerchant}</span>
       )}
     </div>
   );
