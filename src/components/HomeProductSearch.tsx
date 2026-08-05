@@ -75,7 +75,7 @@ export function HomeProductSearch() {
                 }
               }}
               placeholder="Search products..."
-              className="search-input w-full rounded-xl border-2 border-white/50 bg-indigo-950/60 py-5 pl-14 pr-4 text-lg text-white placeholder-[#F5F7FF] transition-all focus:border-white focus:bg-indigo-950/70 focus:outline-none focus:ring-4 focus:ring-white/20"
+              className="search-input w-full rounded-xl border-2 border-white/50 bg-indigo-950 py-5 pl-14 pr-4 text-lg text-white placeholder-[#F5F7FF] transition-all focus:border-white focus:outline-none focus:ring-4 focus:ring-white/20"
               aria-label="Search products"
               aria-invalid={Boolean(error)}
               aria-describedby={error ? errorId : undefined}
