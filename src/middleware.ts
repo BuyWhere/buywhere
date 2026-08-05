@@ -217,6 +217,17 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
     return "/docs";
   }
 
+  // BUY-64258: legacy robot-vacuum aliases should resolve to the canonical
+  // SEO landing page instead of falling through to the generic 404.
+  const robotVacuumAlias = {
+    "/robot-vacuum": "/best-robot-vacuums-2026",
+    "/robot-vacuums": "/best-robot-vacuums-2026",
+    "/category/home/robots": "/best-robot-vacuums-2026",
+  }[normalizedPath];
+  if (robotVacuumAlias) {
+    return robotVacuumAlias;
+  }
+
   // BUY-55853: legacy /best-{slug} URLs (no /blog/ prefix) used to 404.  They
   // are blog posts that moved under /blog/, so 301 redirect them to the
   // canonical /blog/{slug} URL.  Only redirect when the slug is currently a
