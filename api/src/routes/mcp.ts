@@ -35,7 +35,8 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        q: { type: 'string', description: 'Keyword search query' },
+        q: { type: 'string', description: 'Keyword search query. Alias: query (for MCP SDK compatibility).' },
+        query: { type: 'string', description: 'Alias for q (MCP SDK convention)' },
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
@@ -189,7 +190,9 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 // Tool handlers
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const q = (args.q as string) || '';
+  // BUY-55646: accept both `q` and `query` parameters — external npm-package agents
+  // send `query=` per the MCP SDK convention; internal callers may use `q=`.
+  const q = ((args.q as string) || (args.query as string) || '').trim();
   const mode = (args.mode as string) || 'hybrid';
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
