@@ -123,8 +123,54 @@ function buildRefreshedLabel(config: SeoLandingPageConfig, products: LandingProd
   return "Live prices updated regularly";
 }
 
-// Exported for the regression test in SeoLandingPage.test.tsx (BUY-63742).
-export const __test__ = { buildRefreshedLabel, STALE_CATALOG_DAYS };
+
+// BUY-66320: derive the H1's "from $N" anchor from the live product list so the
+// headline can never drift above the actual catalog floor. If the catalog is
+// empty or has no numeric prices, fall back to the (cleaned) static heroTitle.
+// Matches " from $N" followed by whitespace; leaves any " — <tail>" segment alone.
+const HERO_FROM_PRICE_REGEX = /\s+from\s+\$\d+(?:[.,]\d+)?(?:\s*[Kk])?\s+/;
+
+function cleanStaticHeroTitle(heroTitle: string): string {
+  // Strip any existing "from $N" segment so the cleaned static fallback is
+  // anchor-free when we cannot derive a live floor.
+  return heroTitle.replace(HERO_FROM_PRICE_REGEX, " ").replace(/\s{2,}/g, " ").trim();
+}
+
+function formatHeroFloor(floor: number, currency: string): string {
+  // Mirror the en-SG / en-US choice used by formatPrice so SGD renders as "S$189"
+  // instead of "SGD 189".
+  const locale = currency === "SGD" ? "en-SG" : "en-US";
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(floor);
+}
+
+function deriveHeroTitle(config: SeoLandingPageConfig, products: LandingProduct[]): string {
+  const staticTitle = cleanStaticHeroTitle(config.heroTitle);
+  if (products.length === 0) {
+    return staticTitle;
+  }
+  const numericPrices = products
+    .map((p) => p.price)
+    .filter((p): p is number => typeof p === "number" && Number.isFinite(p) && p > 0);
+  if (numericPrices.length === 0) {
+    return staticTitle;
+  }
+  const floor = Math.min(...numericPrices);
+  const formatted = formatHeroFloor(floor, config.currency || "USD");
+  // Inject "from $N — " right after the lead "Best ..." prefix (heuristic: take
+  // everything before the first " — " segment, otherwise prefix the whole string).
+  const sepIdx = staticTitle.indexOf(" — ");
+  if (sepIdx > 0) {
+    return `${staticTitle.slice(0, sepIdx)} from ${formatted}${staticTitle.slice(sepIdx)}`;
+  }
+  return `${staticTitle} from ${formatted}`;
+}
+
+export const __test__ = { buildRefreshedLabel, STALE_CATALOG_DAYS, deriveHeroTitle, cleanStaticHeroTitle };
+
 
 export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig }) {
   const shopperCta = config.shopperCta || DEFAULT_SHOPPER_CTA;
@@ -132,6 +178,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
   const products = await getSeoLandingProducts(config);
   const comparison = buildComparisonRows(config, products);
   const schema = buildSeoLandingSchema(config, products);
+  const heroTitle = deriveHeroTitle(config, products);
 
   return (
     <div className="flex min-h-screen flex-col bg-white text-slate-900">
@@ -149,7 +196,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 {config.heroEyebrow}
               </div>
               <h1 className="max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl">
-                {config.heroTitle}
+                {heroTitle}
               </h1>
               <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-200">
                 {config.heroBody}
@@ -380,3 +427,4 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
     </div>
   );
 }
+
