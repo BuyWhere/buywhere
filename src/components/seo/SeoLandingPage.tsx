@@ -154,16 +154,23 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-200">
                 {config.heroBody}
               </p>
-              <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-100" aria-label="Page metadata">
-                <li className="inline-flex items-center gap-2">
+              {/*
+                BUY-66322: single-column layout for the hero checkmark list.
+                The previous `flex flex-wrap gap-x-6 gap-y-2` could flow to two
+                rows on narrow/mid viewports, leaving a perceived empty cell
+                that VidMee flags on /air-purifier-singapore. A vertical stack
+                matches the editorial intent (page metadata, not feature grid).
+              */}
+              <ul className="mt-8 space-y-2 text-sm text-slate-100" aria-label="Page metadata">
+                <li className="flex items-center gap-2">
                   <span aria-hidden="true" className="text-amber-300">✓</span>
                   <span>{buildRefreshedLabel(config, products)}</span>
                 </li>
-                <li className="inline-flex items-center gap-2">
+                <li className="flex items-center gap-2">
                   <span aria-hidden="true" className="text-amber-300">✓</span>
                   <span>{config.country} market coverage</span>
                 </li>
-                <li className="inline-flex items-center gap-2">
+                <li className="flex items-center gap-2">
                   <span aria-hidden="true" className="text-amber-300">✓</span>
                   <span>Live BuyWhere search results</span>
                 </li>
