@@ -1090,6 +1090,10 @@ router.get(
         const queryVector = await getCachedQueryEmbedding(q, geminiKey);
         if (queryVector) {
           try {
+            // BUY-63271: mark a savepoint before any local (client) queries so a statement
+            // timeout in the hybrid FTS candidate query does not leave the transaction
+            // in ABORTED state and break the fail-open FTS fallback.
+            await client.query('SAVEPOINT before_vector');
             const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
             // BUY-65476 + BUY-52089: filter by model_ver to avoid legacy 1024-dim vectors.
             // The query embedding is 512-dim (gemini-embedding-001) - only match rows with same dimension.
@@ -1169,6 +1173,9 @@ router.get(
           } catch (vectorErr) {
             // BUY-52089: vector infra may be unavailable (e.g., dimension mismatch BUY-63231)
             // Fall back to FTS so the public API returns results instead of 500.
+            // BUY-63271: roll back to the savepoint so an aborted local transaction does not
+            // poison the fail-open fallback and surface as a 500.
+            await client.query('ROLLBACK TO SAVEPOINT before_vector').catch(() => {});
             console.warn('[search] vector search failed, falling back to FTS:', (vectorErr as Error)?.message || vectorErr);
             dataResult = await execFtsQuery(dataQuery);
           }
