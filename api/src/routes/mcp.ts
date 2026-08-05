@@ -618,8 +618,14 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // params already has: currency, minDiscount, [region], [country]
     // Add limit and offset
     const queryParams = [...params, Number(limit) || 20, Number(offset) || 0];
+    // BUY-66091: products has no `domain` or `original_price` columns (domain is on
+    // merchants; original_price lives in metadata JSONB). `buildProduct` reads
+    // row.domain / row.original_price, so alias them — mirroring the REST
+    // /v1/products/deals SELECT (products.ts). The prior bare-column form threw
+    // `column "domain" does not exist`.
     const dataResult = await dealsClient.query(
-      `SELECT id, source, domain, url, title, price, original_price,
+      `SELECT id, source AS domain, url, title, price,
+              (metadata->>'original_price')::numeric AS original_price,
               currency, image_url, metadata, updated_at, region, country_code,
               ${discountSelect}
        FROM products

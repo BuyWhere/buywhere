@@ -642,8 +642,14 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // params already has: currency, minDiscount, [region], [country]
     // Add limit and offset
     const queryParams = [...params, Number(limit) || 20, Number(offset) || 0];
+    // BUY-66091: products has no `domain` or `original_price` columns (domain is on
+    // merchants; original_price lives in metadata JSONB). `buildProduct` reads
+    // row.domain / row.original_price, so alias them — mirroring the REST
+    // /v1/products/deals SELECT (products.ts). The prior bare-column form threw
+    // `column "domain" does not exist`.
     const dataResult = await dealsClient.query(
-      `SELECT id, source, domain, url, title, price, original_price,
+      `SELECT id, source AS domain, url, title, price,
+              (metadata->>'original_price')::numeric AS original_price,
               currency, image_url, metadata, updated_at, region, country_code,
               ${discountSelect}
        FROM products
@@ -863,8 +869,14 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const category = (args.category as string) || '';
   const limit = 10;
 
+  // BUY-66280: raise timeout to 30s (was 10s). Real FTS timing is 1s (warm)
+  // to 60s+ (cold) for popular terms like "laptop" / "ps5". The old 10s bound
+  // turned cold-cache lookups into statement_timeout. Also cap price <= 10000
+  // so feed-corruption rows (e.g. $0.01) can't win the price-ASC sort.
+  const PRICE_MAX = 10_000;
+
   // BUY-26343: price > 0 prevents returning corrupt zero-price records
-  const conditions: string[] = ['is_active = true', 'price > 0'];
+  const conditions: string[] = ['is_active = true', 'price > 0', `price <= ${PRICE_MAX}`];
   const params: unknown[] = [];
 
   params.push(productName);
@@ -891,20 +903,35 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
   const bestPriceClient = await acquireMcpClient();
-  let result: { rows: Record<string, unknown>[] };
+  let result: { rows: Record<string, unknown>[] } = { rows: [] };
+  let ftsTimedOut = false;
   try {
-    await bestPriceClient.query('SET statement_timeout = 10000');
-    result = await bestPriceClient.query(
-      `SELECT * FROM (
-         SELECT id, title, price, currency, source AS domain, url, image_url,
-                country_code, updated_at
-         FROM products ${where}
-         LIMIT $${params.length - 1}
-       ) _candidates
-       ORDER BY price ASC, updated_at DESC
-       LIMIT $${params.length}`,
-      params
-    );
+    await bestPriceClient.query('SET statement_timeout = 30000');
+    try {
+      result = await bestPriceClient.query(
+        `SELECT * FROM (
+           SELECT id, title, price, currency, source AS domain, url, image_url,
+                  country_code, updated_at
+           FROM products ${where}
+           LIMIT $${params.length - 1}
+         ) _candidates
+         ORDER BY price ASC, updated_at DESC
+         LIMIT $${params.length}`,
+        params
+      );
+    } catch (ftsErr) {
+      const ftsError = ftsErr as { code?: string };
+      // BUY-66280: SQLSTATE 57014 = statement_timeout (query cancelled).
+      // Fail open — return an empty result instead of a 500 so the MCP
+      // tool surfaces "no price found" rather than an error to the caller.
+      if (ftsError.code === '57014') {
+        console.warn('[find_best_price] FTS timed out for country=', country, 'product=', productName);
+        ftsTimedOut = true;
+        result = { rows: [] };
+      } else {
+        throw ftsErr;
+      }
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);
@@ -927,7 +954,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   return {
     best_price: data[0] ?? null,
     alternatives: data.slice(1),
-    meta: { total: data.length, country, response_time_ms: Date.now() - t0 },
+    meta: {
+      total: data.length,
+      country,
+      response_time_ms: Date.now() - t0,
+      ...(ftsTimedOut ? { timed_out: true } : {}),
+    },
   };
 }
 
