@@ -44,6 +44,19 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'not found' });
 });
 
+// BUY-56185 / BUY-60097: Detect statement_timeout poisoned connections.
+function releaseClientSafely(client: any) {
+  try {
+    if (client && typeof client.state === 'string' && client.state === 'error') {
+      client.release(true); // discard — do NOT return poisoned connection to pool
+    } else {
+      client.release();
+    }
+  } catch (_) {
+    // Swallow release errors — pool will remove the bad client anyway.
+  }
+}
+
 async function warmupMcpCaches() {
   // BUY-63030: invalidate stale category-cache entries BEFORE touching the DB so
   // even if the warmup queries below fail, callers stop seeing cached
@@ -180,7 +193,9 @@ async function warmupMcpCaches() {
       console.log(`[mcp-warmup] list_categories ${country} cached (${result.rows.length} categories, ${Date.now() - t0}ms).`);
     }
   } finally {
-    client.release();
+    // BUY-60097: discard connections poisoned by statement_timeout to keep
+    // the pool free of PQTRANS_INERROR clients.
+    releaseClientSafely(client);
   }
 }
 
