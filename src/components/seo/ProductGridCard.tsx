@@ -54,7 +54,30 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
         compact ? "grid-cols-[9rem_minmax(0,1fr)] sm:grid-cols-[11rem_minmax(0,1fr)]" : "grid-rows-[auto_1fr]"
       }`}
     >
-      <div className={`relative overflow-hidden bg-slate-100 ${compact ? "aspect-[4/3] rounded-l-[27px]" : "aspect-[4/3] rounded-t-[27px]"}`}>
+      {/*
+        BUY-66323: harden image wrapper so the bg never bleeds into the text column.
+
+        The live page was rendering without its CSS bundle (all /_next/static/css/*.css
+        and /_next/static/chunks/app/* return 404 at the moment), which collapses the
+        layout. Even with a stale build, an oversized source image or an aspect-ratio
+        round-up used to push the wrapper past its grid cell, letting the bg-slate-100
+        (or pre-BUY-65158 radial-gradient) bleed behind the metadata tags + title.
+
+        Belt-and-suspenders against any of those failure modes:
+          - `isolate`        -> creates a new stacking context so the bg cannot paint
+                                outside this box even when CSS is partial.
+          - `min-w-0`        -> grid items shrink-to-fit instead of stretching past the
+                                column track.
+          - `max-w-full`     -> inline width cap; redundant with min-w-0 but survives
+                                any Tailwind purge / class-not-applied case.
+          - inline `style`   -> two declarations (overflow:hidden + maxWidth:100%)
+                                apply even when the stylesheet bundle is missing,
+                                which is exactly what QA observed on /laptop-singapore.
+      */}
+      <div
+        className={`relative isolate overflow-hidden bg-slate-100 ${compact ? "aspect-[4/3] min-w-0 max-w-full rounded-l-[27px]" : "aspect-[4/3] min-w-0 max-w-full rounded-t-[27px]"}`}
+        style={{ overflow: "hidden", maxWidth: "100%" }}
+      >
         <ProductGridImage
           src={product.imageUrl || ""}
           alt={product.name}
