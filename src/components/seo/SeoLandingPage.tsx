@@ -109,12 +109,14 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href={config.shopperCta.href}
+                  prefetch={false}
                   className="inline-flex min-h-[44px] items-center rounded-full bg-amber-400 px-5 py-3 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-300"
                 >
                   {config.shopperCta.label}
                 </Link>
                 <Link
                   href={config.developerCta.href}
+                  prefetch={false}
                   className="inline-flex min-h-[44px] items-center rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
                 >
                   {config.developerCta.label}
@@ -131,7 +133,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">Live catalog snapshot</p>
                 <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
               </div>
-              <Link href={config.shopperCta.href} className="text-sm font-semibold text-amber-700 hover:text-amber-800">
+              <Link href={config.shopperCta.href} prefetch={false} className="text-sm font-semibold text-amber-700 hover:text-amber-800">
                 Open full search
               </Link>
             </div>
