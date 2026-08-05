@@ -72,7 +72,7 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
         </div>
 
         <div className="space-y-2">
-          <h2 className="line-clamp-2 text-lg font-semibold leading-tight text-slate-900 transition-colors group-hover:text-amber-700">
+          <h2 className="line-clamp-2 text-lg font-semibold leading-tight text-slate-900 transition-colors group-hover:text-amber-800">
             {product.name}
           </h2>
           {product.brand ? (
@@ -100,7 +100,7 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
               Buy at {product.merchant}
             </span>
           ) : (
-            <span className="inline-flex min-h-11 items-center text-sm font-medium text-amber-700">
+            <span className="inline-flex min-h-11 items-center text-sm font-medium text-amber-800">
               View details
             </span>
           )}
