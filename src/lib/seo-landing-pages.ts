@@ -872,44 +872,42 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   // we leave a dead URL in the rendered HTML the browser shows a generic
   // broken-image icon instead of a real product thumbnail (BUY-64729).
   //
-  // We probe URLs in parallel with a short per-request timeout. Unreachable
-  // products are DROPPED entirely from the live card set instead of being
-  // replaced with a branded SVG placeholder. QA re-verification at
-  // 2026-07-29T10:12Z still flagged the branded-SVG fallback as a "generic
-  // placeholder" because the page no longer shows real product photos — and
-  // the QA expectation is "Live Catalog Snapshot shows real product
-  // thumbnails with prices and merchant badges".
-  //
-  // When the dropped count brings the live card set below 4, the
-  // fallback-top-up branch (below) substitutes curated fallbackProducts
-  // which have known-good real image URLs (Apple CDN, Dell CDN, Philips,
-  // Roborock, Dyson, Xiaomi, etc.).
-  const verified: LandingProduct[] = [];
-  const probeResults = await Promise.all(
+  // BUY-63954: We probe URLs in parallel with a short per-request timeout.
+  // Unlike the original approach that DROPPED products with broken/blank images,
+  // we now REPLACE broken image URLs with branded SVG placeholders. This keeps
+  // the real product name, price, and merchant visible while showing a branded
+  // placeholder instead of a broken-image icon or empty card.
+  const verifiedProducts = await Promise.all(
     collected.map(async (product) => {
-      if (!product.imageUrl) return false;
+      if (!product.imageUrl) {
+        // No image URL at all — replace with branded SVG
+        return {
+          ...product,
+          imageUrl: brandedProductPlaceholderSvg(product.brand, product.name, product.category),
+        };
+      }
       // BUY-63507: chain the reachable probe with a content-shape probe. A 200
       // OK on a 1:1 product photo with heavy white margins renders as a
-      // "blank/white" card under our aspect-[4/3] + object-cover layout. The
-      // content probe drops those products so the next live result fills the
-      // slot instead.
+      // "blank/white" card under our aspect-[4/3] + object-cover layout.
       const reachable = await verifyReachableImage(product.imageUrl);
-      if (!reachable) return false;
-      return verifyUsableImageContent(product.imageUrl);
+      if (!reachable) {
+        console.warn(`[seo] replacing unreachable image for product ${product.id} on ${config.slug}`);
+        return {
+          ...product,
+          imageUrl: brandedProductPlaceholderSvg(product.brand, product.name, product.category),
+        };
+      }
+      const usableContent = await verifyUsableImageContent(product.imageUrl);
+      if (!usableContent) {
+        console.warn(`[seo] replacing unusable image for product ${product.id} on ${config.slug}`);
+        return {
+          ...product,
+          imageUrl: brandedProductPlaceholderSvg(product.brand, product.name, product.category),
+        };
+      }
+      return product;
     })
   );
-  for (let i = 0; i < collected.length; i++) {
-    if (probeResults[i]) {
-      verified.push(collected[i]);
-    } else {
-      console.warn(
-        `[seo] dropping unusable product ${collected[i].id} on ${config.slug}: ${collected[i].imageUrl}`
-      );
-    }
-  }
-
-  // Carry seenIds across the verified list so fallback top-up dedup still works.
-  const verifiedProducts = verified;
 
   if (verifiedProducts.length >= 4) {
     return verifiedProducts.slice(0, 8).map((p) => withLiveProductDetailUrl(p, config.country));
@@ -1363,7 +1361,7 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       // we can source a real merchant feed URL from the Apple Store SG product
       // page (filed as a follow-up against the catalog ingest lane).
       { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&q=80", href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
-      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://dlcdnwebimgs.asus.com/gain/53d4a89d-7321-473b-bfc9-505466b60408/w800", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
+      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&q=80", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
       { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: "https://p1-ofp.static.pub/medias/bWFzdGVyfHJvb3R8MzAxNTMwfGltYWdlL3BuZ3xoNzkvaDhmLzE0MTkxMjY3ODk1MzI2LnBuZ3xhOGYyMWY3NTQzZWUxNzI5ZWRkMmM2OWM4MjA5MzFkYTY1NTMxZDE2MDEwNzI2NzI3ZjQ2OTAxNGYzODI5ZGYw/lenovo-yoga-7i-2-in-1-14-intel-hero.png", href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
       { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/s/w/swift-go-14-sfg14-72-silver-01.png", href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
       { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: "https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/page/uber/0125/xps-14-9440-laptop-800x620.png", href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
