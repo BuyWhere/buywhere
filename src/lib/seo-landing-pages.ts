@@ -258,19 +258,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     price: Number.isFinite(numericPrice) ? numericPrice : null,
     currency: priceCurrency || fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
-    // BUY-63954: render the deterministic branded SVG card for every catalog
-    // snapshot product instead of the upstream CDN image. The remote image
-    // loads fine for human users, but QA's headless screenshot environment
-    // can't load many of these CDNs (hotlink/CORS/referrer policy), which
-    // triggered the <img> onError fallback to a generic slate silhouette and
-    // was reported as "placeholder icons instead of real product photos". The
-    // branded SVG renders identically in SSR and any browser/headless
-    // environment so the Live Catalog Snapshot always looks polished.
-    imageUrl: brandedProductPlaceholderSvg(
-      item.brand || null,
-      item.name || null,
-      item.category || null,
-    ),
+    imageUrl: isUsableProductImage(imageUrl) ? imageUrl : null,
     href: normalizeExternalHref(
       item.affiliate_redirect_url,
       item.click_url,
@@ -312,111 +300,12 @@ function isUsableProductImage(imageUrl?: string | null) {
 }
 
 /**
- * Pick a category-aware silhouette path so each card visually represents the
- * product's category instead of always showing the same generic laptop icon.
- * Returns inline SVG <path>/<rect>/<circle> children positioned inside the
- * 400×300 viewBox used by brandedProductPlaceholderSvg. The shapes are drawn
- * at the origin (0,0) of an inner group that the caller translates by
- * (140,80), so silhouette coordinates are relative to a 120-wide by ~150-tall
- * drawing area centred around (200, 155).
- *
- * Categories sourced from BUY-63954 evidence: laptop, robot vacuum, phone,
- * headphone, air purifier, TV, camera, watch, tablet, shoe, kitchen.
- */
-function categorySilhouette(category?: string | null, name?: string | null): string {
-  const text = `${category || ""} ${name || ""}`.toLowerCase();
-  if (/\brobot\s*vacuum|roomba|deebot|robovac/.test(text)) {
-    return `
-      <ellipse cx='60' cy='110' rx='95' ry='28' fill='#fde68a' stroke='#b45309' stroke-width='4'/>
-      <ellipse cx='60' cy='100' rx='90' ry='22' fill='#fff7ed' stroke='#b45309' stroke-width='3'/>
-      <rect x='30' y='40' width='60' height='30' rx='6' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
-      <circle cx='60' cy='80' r='5' fill='#b45309'/>`;
-  }
-  if (/\bheadphone|earbud|earphone|airpod/.test(text)) {
-    return `
-      <path d='M-20 30 Q-20 -30 60 -30 Q140 -30 140 30' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round'/>
-      <rect x='-30' y='25' width='28' height='48' rx='8' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
-      <rect x='122' y='25' width='28' height='48' rx='8' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
-      <circle cx='-16' cy='73' r='9' fill='#f59e0b'/>
-      <circle cx='136' cy='73' r='9' fill='#f59e0b'/>`;
-  }
-  if (/\bphone|iphone|galaxy\s*s|pixel/.test(text)) {
-    return `
-      <rect x='20' y='0' width='80' height='150' rx='14' fill='#fef3c7' stroke='#b45309' stroke-width='4'/>
-      <rect x='30' y='20' width='60' height='100' rx='4' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
-      <circle cx='60' cy='135' r='4' fill='#b45309'/>`;
-  }
-  if (/\bair\s*purifier|hepa/.test(text)) {
-    return `
-      <rect x='15' y='0' width='90' height='150' rx='16' fill='#fef3c7' stroke='#b45309' stroke-width='4'/>
-      <circle cx='60' cy='40' r='10' fill='#f59e0b'/>
-      <rect x='35' y='70' width='50' height='60' rx='4' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
-      <circle cx='60' cy='130' r='6' fill='#b45309'/>`;
-  }
-  if (/\btv|television|qled|oled/.test(text)) {
-    return `
-      <rect x='-50' y='20' width='220' height='120' rx='8' fill='#fef3c7' stroke='#b45309' stroke-width='4'/>
-      <rect x='-40' y='30' width='200' height='100' rx='4' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
-      <rect x='40' y='140' width='40' height='10' fill='#b45309'/>
-      <rect x='10' y='148' width='100' height='6' rx='3' fill='#b45309'/>`;
-  }
-  if (/\bcamera|dslr|mirrorless/.test(text)) {
-    return `
-      <rect x='-20' y='40' width='160' height='90' rx='10' fill='#fef3c7' stroke='#b45309' stroke-width='4'/>
-      <rect x='40' y='25' width='40' height='20' rx='4' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
-      <circle cx='60' cy='85' r='32' fill='#fff7ed' stroke='#b45309' stroke-width='3'/>
-      <circle cx='60' cy='85' r='18' fill='#fde68a' stroke='#b45309' stroke-width='2'/>`;
-  }
-  if (/\bwatch|smartwatch|apple\s*watch/.test(text)) {
-    return `
-      <rect x='30' y='15' width='60' height='60' rx='10' fill='#fef3c7' stroke='#b45309' stroke-width='4'/>
-      <rect x='40' y='25' width='40' height='40' rx='4' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
-      <path d='M40 15 L35 -10 L85 -10 L80 15' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
-      <path d='M40 75 L35 100 L85 100 L80 75' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
-      <circle cx='60' cy='45' r='6' fill='#f59e0b'/>`;
-  }
-  if (/\btablet|ipad/.test(text)) {
-    return `
-      <rect x='-10' y='10' width='140' height='130' rx='10' fill='#fef3c7' stroke='#b45309' stroke-width='4'/>
-      <rect x='0' y='22' width='120' height='100' rx='4' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
-      <circle cx='60' cy='130' r='4' fill='#b45309'/>`;
-  }
-  if (/\bshoe|sneaker|running/.test(text)) {
-    return `
-      <path d='M-40 130 Q-30 90 20 90 L80 90 Q120 90 150 130 Z' fill='#fef3c7' stroke='#b45309' stroke-width='4'/>
-      <path d='M-40 130 L150 130 L140 145 L-30 145 Z' fill='#b45309'/>
-      <path d='M30 90 L35 75 L55 75 L60 90' fill='none' stroke='#b45309' stroke-width='3'/>`;
-  }
-  if (/\bcoffee|espresso|kitchen|blender|toaster|airfryer/.test(text)) {
-    return `
-      <rect x='10' y='30' width='100' height='110' rx='8' fill='#fef3c7' stroke='#b45309' stroke-width='4'/>
-      <rect x='10' y='45' width='100' height='10' fill='#b45309'/>
-      <circle cx='60' cy='100' r='22' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
-      <path d='M110 60 Q135 60 135 90 Q135 115 110 115' fill='none' stroke='#b45309' stroke-width='4'/>`;
-  }
-  // default: laptop (BUY-63954 evidence shows laptops on the affected pages)
-  return `
-    <rect x='0' y='0' width='120' height='80' rx='8' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
-    <rect x='10' y='10' width='100' height='60' rx='2' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
-    <rect x='-10' y='80' width='140' height='8' rx='3' fill='#b45309'/>
-    <rect x='50' y='88' width='20' height='4' rx='2' fill='#b45309'/>`;
-}
-
-/**
- * Build a brand-aware SVG data URL that ProductGridImage renders as the
- * canonical catalog-snapshot image. BUY-63954: live SSR was emitting upstream
- * CDN image URLs (cdn.shopify, hnsgsfp.imgix, fairprice, pisces.bbystatic) that
- * load fine for human users but fail inside QA's headless screenshot
- * environment, triggering the <img> onError path and rendering a generic slate
- * silhouette — which QA correctly flagged as "placeholder icons instead of
- * real product photos". The deterministic branded SVG renders identically in
- * SSR and any browser/headless environment, so the Live Catalog Snapshot
- * always shows a polished, clearly-branded product card.
- *
- * The silhouette is category-aware (robot vacuum / phone / headphone / air
- * purifier / TV / camera / watch / tablet / shoe / appliance / laptop) so each
- * card visually represents its category instead of always showing the same
- * laptop icon.
+ * Build a brand-aware SVG data URL that ProductGridImage can render in place
+ * of a broken/missing remote image. The previous version (single-letter
+ * initial on a pastel chip) was flagged by QA as still reading as a "generic
+ * placeholder" on the air-purifier-singapore first card (BUY-64260). The new
+ * layout shows the product's full brand + category on a polished white card
+ * with a stylised product icon — clearly branded, not a placeholder chip.
  */
 function brandedProductPlaceholderSvg(
   brand?: string | null,
@@ -426,7 +315,7 @@ function brandedProductPlaceholderSvg(
   const clean = (s: string) => s.replace(/[<>&"']/g, "").trim();
   const brandText = clean(brand || "").slice(0, 18) || "BuyWhere";
   const categoryText = clean(category || "").slice(0, 22) || "Featured product";
-  const productLabel = clean(name || "").slice(0, 36) || categoryText;
+  const productLabel = clean(name || "").slice(0, 26) || categoryText;
   const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'>
   <defs>
     <linearGradient id='bg' x1='0' x2='1' y1='0' y2='1'>
@@ -436,11 +325,14 @@ function brandedProductPlaceholderSvg(
   </defs>
   <rect width='400' height='300' fill='url(#bg)'/>
   <rect x='40' y='40' width='320' height='220' rx='24' fill='#ffffff' stroke='#fcd34d' stroke-width='3'/>
-  <g transform='translate(140 80)' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'>${silhouette}
+  <g transform='translate(140 80)' fill='none' stroke='#b45309' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'>
+    <rect x='0' y='0' width='120' height='90' rx='12' fill='#fef3c7'/>
+    <circle cx='60' cy='40' r='14' fill='#f59e0b' stroke='none'/>
+    <path d='M0 70 L40 35 L80 60 L120 25' stroke='#b45309'/>
   </g>
-  <text x='200' y='218' text-anchor='middle' font-family='system-ui,sans-serif' font-size='20' font-weight='700' fill='#0f172a'>${brandText}</text>
-  <text x='200' y='244' text-anchor='middle' font-family='system-ui,sans-serif' font-size='13' font-weight='500' fill='#475569'>${productLabel}</text>
-  <text x='200' y='262' text-anchor='middle' font-family='system-ui,sans-serif' font-size='11' font-weight='600' letter-spacing='2' fill='#92400e'>BUYWHERE</text>
+  <text x='200' y='208' text-anchor='middle' font-family='system-ui,sans-serif' font-size='22' font-weight='700' fill='#0f172a'>${brandText}</text>
+  <text x='200' y='236' text-anchor='middle' font-family='system-ui,sans-serif' font-size='14' font-weight='500' fill='#475569'>${productLabel}</text>
+  <text x='200' y='258' text-anchor='middle' font-family='system-ui,sans-serif' font-size='11' font-weight='600' letter-spacing='2' fill='#92400e'>BUYWHERE</text>
 </svg>`;
   // RFC 2397 requires either `;charset=<chars>` or `;base64`. The previous
   // `;utf8,` parameter is malformed and modern browsers (Chromium, Firefox)
@@ -590,10 +482,6 @@ async function verifyUsableImageContent(
 ): Promise<boolean> {
   try {
     const url = new URL(imageUrl);
-    // BUY-63954: data: URIs (our deterministic branded SVG card) bypass the
-    // JPEG/PNG shape probe — there are no SOF/IHDR markers to parse and the
-    // SVG already renders identically in every browser/headless environment.
-    if (url.protocol === "data:") return true;
     if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
     // Amazon CDN: known good landscape product photos — skip the probe.
     if (
@@ -1168,7 +1056,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
               availability: "https://schema.org/InStock",
               sellers: group.map((p) => ({
                 "@type": "Organization",
-                name: p.merchant,
+                name: formatMerchantName(p.merchant),
               })),
             }
           : {
@@ -1272,7 +1160,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
                       seller: {
                         "@type": "Organization",
                         "@id": `${BASE_URL}/#organization`,
-                        name: product.merchant,
+                        name: formatMerchantName(product.merchant),
                       },
                       url: product.productUrl || product.href,
                     }

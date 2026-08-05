@@ -9,6 +9,20 @@ import {
   type SeoLandingPageConfig,
 } from "@/lib/seo-landing-pages";
 import { RelatedCategoryBlock } from "@/components/RelatedCategoryBlock";
+import { stripMerchantTenantSuffix } from "@/lib/merchant-name";
+
+// BUY-66324 defensive re-clean: every merchant string that reaches the public
+// render (product card pill, "Buy at {merchant}" CTA, comparison table cell,
+// JSON-LD seller/sellers name) is run through stripMerchantTenantSuffix right
+// at the render boundary. normalizeProduct already calls it upstream, but
+// adding a second pass here means any future code path that builds a
+// LandingProduct without going through normalizeProduct (or any future
+// regression in the upstream helper) cannot leak ingest IDs into the
+// public surface. The helper is idempotent: running it on an already-clean
+// string returns the same string.
+function displayMerchant(merchant: string | null | undefined): string {
+  return stripMerchantTenantSuffix(merchant) || "BuyWhere seller";
+}
 
 function formatPrice(price: number | null, currency: string) {
   if (price === null) {
@@ -47,7 +61,7 @@ function buildComparisonRows(config: SeoLandingPageConfig, products: LandingProd
   const rows = products.slice(0, 5).map((p) => ({
     Model: p.name,
     Price: formatPrice(p.price, p.currency),
-    Merchant: p.merchant,
+    Merchant: displayMerchant(p.merchant),
   }));
   return { columns, rows };
 }
