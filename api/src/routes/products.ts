@@ -1091,8 +1091,11 @@ router.get(
         if (queryVector) {
           try {
             const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
-            // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors (cohere).
+            // BUY-65476 + BUY-52089: filter by model_ver to avoid legacy 1024-dim vectors.
             // The query embedding is 512-dim (gemini-embedding-001) - only match rows with same dimension.
+            // Note: When 0 results return (embed worker blocked on proxy outage), we do NOT fall back
+            // to FTS silently — that would make semantic = keyword (the original bug). Instead,
+            // we return 0 results, which at least makes semantic DIFFERENT from keyword.
             const semanticCandidates = await activeVectorDb.query<{ product_id: string }>(
               `SELECT product_id FROM product_embeddings
                WHERE model_ver = 'gemini-embedding-001@512'
