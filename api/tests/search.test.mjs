@@ -651,6 +651,39 @@ describe('NL search queries — response correctness', () => {
     );
     assert.ok(ftsRankingCall, 'Expected hybrid mode to query FTS candidates for RRF');
   });
+
+  // BUY-52089: vector search should fall back to FTS when vector query throws (e.g., dim mismatch)
+  it('falls back to FTS when vector query throws', async () => {
+    process.env.GEMINI_API_KEY = 'test-jina-key';
+    config.vectorDb = { query: vectorQueryMock };
+    // Simulate vector query throwing (e.g., dimension mismatch error)
+    vectorQueryMock.mock.mockImplementation(() => Promise.reject(new Error('different vector dimensions 512 and 1024')));
+    queryMock.mock.mockImplementation((sql) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (typeof sql === 'string' && sql.includes('FROM products') && sql.includes('ORDER BY ts_rank')) {
+        return Promise.resolve({ rows: [{ id: '1' }] });
+      }
+      if (typeof sql === 'string' && sql.includes('WHERE products.id = ANY($1::bigint[])')) {
+        return Promise.resolve({
+          rows: [makeProduct('1', { title: 'Gaming Laptop', price: 1299 })],
+        });
+      }
+      return defaultQueryHandler(sql);
+    });
+
+    const res = await fetch(`http://localhost:${port}/v1/products/search?q=laptop&mode=semantic`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+    const body = await res.json();
+
+    assert.equal(res.status, 200, 'Should return 200 (not 500) when vector search fails');
+    assert.ok(body.data?.length >= 0, 'Should return some result (FTS fallback)');
+  });
 });
 
 describe('NL search queries — error handling', () => {

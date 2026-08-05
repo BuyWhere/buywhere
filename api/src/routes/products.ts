@@ -1089,75 +1089,82 @@ router.get(
       if (activeVectorDb) {
         const queryVector = await getCachedQueryEmbedding(q, geminiKey);
         if (queryVector) {
-          const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
-          const semanticCandidates = await activeVectorDb.query<{ product_id: string }>(
-            `SELECT product_id FROM product_embeddings
-             ORDER BY embedding <=> $1::vector
-             LIMIT $2`,
-            [queryVector, candidateCap]
-          );
+          try {
+            const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
+            const semanticCandidates = await activeVectorDb.query<{ product_id: string }>(
+              `SELECT product_id FROM product_embeddings
+               ORDER BY embedding <=> $1::vector
+               LIMIT $2`,
+              [queryVector, candidateCap]
+            );
 
-          const rawSemanticIds = semanticCandidates.rows.map((row) => row.product_id);
-          let filteredSemanticIds: string[] = [];
-          if (rawSemanticIds.length > 0) {
-            const vectorFilterQuery = `
-              SELECT id
-              FROM products
-              WHERE id = ANY($1::bigint[]) AND ${baseConditions.map((condition) => shiftSqlPlaceholders(condition, 1)).join(' AND ')}
-            `;
-            const vectorFilterResult = await client.query<{ id: string }>(
-              vectorFilterQuery,
-              [rawSemanticIds, ...baseParams]
-            );
-            const allowedIds = new Set(vectorFilterResult.rows.map((row) => row.id));
-            filteredSemanticIds = rawSemanticIds.filter((id) => allowedIds.has(id));
-          }
+            const rawSemanticIds = semanticCandidates.rows.map((row) => row.product_id);
+            let filteredSemanticIds: string[] = [];
+            if (rawSemanticIds.length > 0) {
+              const vectorFilterQuery = `
+                SELECT id
+                FROM products
+                WHERE id = ANY($1::bigint[]) AND ${baseConditions.map((condition) => shiftSqlPlaceholders(condition, 1)).join(' AND ')}
+              `;
+              const vectorFilterResult = await client.query<{ id: string }>(
+                vectorFilterQuery,
+                [rawSemanticIds, ...baseParams]
+              );
+              const allowedIds = new Set(vectorFilterResult.rows.map((row) => row.id));
+              filteredSemanticIds = rawSemanticIds.filter((id) => allowedIds.has(id));
+            }
 
-          let rankedCandidateIds = filteredSemanticIds;
-          if (searchMode === 'hybrid') {
-            const ftsCandidates = await client.query<{ id: string }>(
-              `SELECT id
-               FROM products
-              ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
-               ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
-               LIMIT 200`,
-              searchParams
-            );
-            rankedCandidateIds = mergeRrfCandidateIds(
-              ftsCandidates.rows.map((row) => row.id),
-              filteredSemanticIds,
-              candidateCap
-            );
-          }
+            let rankedCandidateIds = filteredSemanticIds;
+            if (searchMode === 'hybrid') {
+              const ftsCandidates = await client.query<{ id: string }>(
+                `SELECT id
+                 FROM products
+                ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
+                 ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
+                 LIMIT 200`,
+                searchParams
+              );
+              rankedCandidateIds = mergeRrfCandidateIds(
+                ftsCandidates.rows.map((row) => row.id),
+                filteredSemanticIds,
+                candidateCap
+              );
+            }
 
-          total = rankedCandidateIds.length;
-          hasMore = total > offset + limit;
+            total = rankedCandidateIds.length;
+            hasMore = total > offset + limit;
 
-          if (total === 0) {
-            dataResult = { rows: [] };
-          } else if (!effectiveSort || effectiveSort === 'relevance') {
-            const pageIds = rankedCandidateIds.slice(offset, offset + requestedRows);
-            const detailResult = await client.query(
-              `SELECT ${joinedColumns}
-               FROM products
-               LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-               WHERE products.id = ANY($1::bigint[])`,
-              [pageIds]
-            );
-            const byId = new Map(detailResult.rows.map((row) => [(row as Record<string, unknown>).id as string, row]));
-            dataResult = {
-              rows: pageIds.map((id) => byId.get(id)).filter(Boolean) as Array<Record<string, unknown>>,
-            };
-          } else {
-            dataResult = await client.query(
-              `SELECT ${joinedColumns}
-               FROM products
-               LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-               WHERE products.id = ANY($1::bigint[])
-               ORDER BY ${buildSortOrder()}
-               LIMIT $2 OFFSET $3`,
-              [rankedCandidateIds, requestedRows, offset]
-            );
+            if (total === 0) {
+              dataResult = { rows: [] };
+            } else if (!effectiveSort || effectiveSort === 'relevance') {
+              const pageIds = rankedCandidateIds.slice(offset, offset + requestedRows);
+              const detailResult = await client.query(
+                `SELECT ${joinedColumns}
+                 FROM products
+                 LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+                 WHERE products.id = ANY($1::bigint[])`,
+                [pageIds]
+              );
+              const byId = new Map(detailResult.rows.map((row) => [(row as Record<string, unknown>).id as string, row]));
+              dataResult = {
+                rows: pageIds.map((id) => byId.get(id)).filter(Boolean) as Array<Record<string, unknown>>,
+              };
+            } else {
+              dataResult = await client.query(
+                `SELECT ${joinedColumns}
+                 FROM products
+                 LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+                 WHERE products.id = ANY($1::bigint[])
+                 ORDER BY ${buildSortOrder()}
+                 LIMIT $2 OFFSET $3`,
+                [rankedCandidateIds, requestedRows, offset]
+              );
+            }
+          } catch (vectorErr) {
+            // BUY-52089: vector infra may be unavailable (e.g., dimension mismatch BUY-63231)
+            // Fall back to FTS so the public API returns results instead of 500.
+            console.warn('[search] vector search failed, falling back to FTS:', (vectorErr as Error)?.message || vectorErr);
+            dataResult = await execFtsQuery(dataQuery);
           }
         } else {
           dataResult = await execFtsQuery(dataQuery);
