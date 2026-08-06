@@ -1540,6 +1540,15 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         if (!toolName) {
           return res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
         }
+        // BUY-66684: normalize `cc` to `country_code` so handlers' existing
+        // `args.country_code`/`args.country` lookup logic fires. Some clients
+        // (e.g. Tune probes #363/#367) send `cc` expecting it to be the canonical
+        // short alias. Without this normalization, `cc=US` falls through to the
+        // `q && !region ? 'SG'` default in handleSearchProducts and every market
+        // returns identical SG rows.
+        if (toolArgs.cc != null && toolArgs.country_code == null) {
+          toolArgs.country_code = toolArgs.cc;
+        }
         // BUY-22733: surface tool name to queryLog middleware so the finish
         // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
         res.locals.mcpToolName = toolName;
