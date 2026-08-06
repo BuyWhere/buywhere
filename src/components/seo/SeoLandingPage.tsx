@@ -177,7 +177,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href={shopperCta.href}
-                  className="inline-flex min-h-[44px] items-center rounded-full bg-amber-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-700"
+                  className="inline-flex min-h-[44px] items-center rounded-full bg-amber-800 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-900"
                 >
                   {shopperCta.label}
                 </Link>
@@ -332,7 +332,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 <ul className="space-y-4">
                   {config.advicePoints.map((point) => (
                     <li key={point} className="flex gap-3 text-sm leading-6">
-                      <span className="mt-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-600 text-xs font-semibold text-white">
+                      <span className="mt-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-800 text-xs font-semibold text-white">
                         ✓
                       </span>
                       <span>{point}</span>
