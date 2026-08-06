@@ -56,17 +56,17 @@ const nextConfig = {
       // /api/v1/* → api.buywhere.ai/v1/*  (canonical v1 path)
       {
         source: '/api/v1/:path*',
-        destination: 'https://api.buywhere.ai/v1/:path*\,
+        destination: 'https://api.buywhere.ai/v1/:path*,
       },
       // /api/* → api.buywhere.ai/v1/*  (legacy v0-style root-domain API calls)
       {
         source: '/api/:path*',
-        destination: 'https://api.buywhere.ai/v1/:path*\,
+        destination: 'https://api.buywhere.ai/v1/:path*,
       },
       // /mcp, /mcp/* → mcp.buywhere.ai/mcp/*
       {
         source: '/mcp/:path*',
-        destination: 'https://mcp.buywhere.ai/mcp/:path*\,
+        destination: 'https://mcp.buywhere.ai/mcp/:path*,
       },
       {
         source: '/mcp',
