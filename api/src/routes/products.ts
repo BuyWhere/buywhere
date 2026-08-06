@@ -252,7 +252,8 @@ async function tryTierSearch(
     redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
     if (semEnabled() && p.offset === 0) {
       const rp = p.cacheKey.split(':');
-      semRegister(redis, `a1:${rp[1]}|${rp.slice(3).join(':')}`, rp[2], null, p.cacheKey).catch(() => {});
+      semRegister(redis, `a1:${rp[1]}|${rp.slice(3).join(':')}`, rp[2],
+        (res.locals.semVec as string | null) ?? null, p.cacheKey).catch(() => {});
     }
     res.set('X-Search-Tier', '1');
     res.json(responseBody);
@@ -599,6 +600,9 @@ router.get(
         const semGk = process.env.GEMINI_API_KEY ?? '';
         if (semGk) semVec = await getCachedQueryEmbedding(q, semGk);
         const semHit = await semLookup(redis, semScope, qNorm, semVec);
+        res.locals.semScope = semScope;
+        res.locals.semQNorm = qNorm;
+        res.locals.semVec = semVec;
         if (semHit) {
           res.locals.cacheHit = true;
           const semParsed = JSON.parse(semHit.body);
