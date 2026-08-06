@@ -9,6 +9,20 @@ import {
   type SeoLandingPageConfig,
 } from "@/lib/seo-landing-pages";
 import { RelatedCategoryBlock } from "@/components/RelatedCategoryBlock";
+import { stripMerchantTenantSuffix } from "@/lib/merchant-name";
+
+// BUY-66324 defensive re-clean: every merchant string that reaches the public
+// render (product card pill, "Buy at {merchant}" CTA, comparison table cell,
+// JSON-LD seller/sellers name) is run through stripMerchantTenantSuffix right
+// at the render boundary. normalizeProduct already calls it upstream, but
+// adding a second pass here means any future code path that builds a
+// LandingProduct without going through normalizeProduct (or any future
+// regression in the upstream helper) cannot leak ingest IDs into the
+// public surface. The helper is idempotent: running it on an already-clean
+// string returns the same string.
+function displayMerchant(merchant: string | null | undefined): string {
+  return stripMerchantTenantSuffix(merchant) || "BuyWhere seller";
+}
 
 function formatPrice(price: number | null, currency: string) {
   if (price === null) {
@@ -47,7 +61,7 @@ function buildComparisonRows(config: SeoLandingPageConfig, products: LandingProd
   const rows = products.slice(0, 5).map((p) => ({
     Model: p.name,
     Price: formatPrice(p.price, p.currency),
-    Merchant: p.merchant,
+    Merchant: displayMerchant(p.merchant),
   }));
   return { columns, rows };
 }
@@ -177,12 +191,14 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href={shopperCta.href}
+                  prefetch={false}
                   className="inline-flex min-h-[44px] items-center rounded-full bg-amber-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-700"
                 >
                   {shopperCta.label}
                 </Link>
                 <Link
                   href={developerCta.href}
+                  prefetch={false}
                   className="inline-flex min-h-[44px] items-center rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
                 >
                   {developerCta.label}
@@ -199,7 +215,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-800">Live catalog snapshot</p>
                 <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
               </div>
-              <Link href={shopperCta.href} className="text-sm font-semibold text-amber-800 hover:text-amber-900">
+              <Link href={shopperCta.href} prefetch={false} className="text-sm font-semibold text-amber-800 hover:text-amber-900">
                 Open full search
               </Link>
             </div>
@@ -347,6 +363,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 <p className="mt-3 text-sm leading-6 text-slate-600">{developerCta.body}</p>
                 <Link
                   href={developerCta.href}
+                  prefetch={false}
                   className="mt-6 inline-flex min-h-[44px] items-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
                 >
                   {developerCta.label}

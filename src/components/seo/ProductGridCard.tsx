@@ -2,7 +2,20 @@
 
 import Link from "next/link";
 import { ProductGridImage } from "@/components/seo/ProductGridImage";
+import { stripMerchantTenantSuffix } from "@/lib/merchant-name";
 import type { LandingProduct } from "@/lib/seo-landing-pages";
+
+// BUY-66324 defensive re-clean: every merchant string that reaches the
+// public render runs through stripMerchantTenantSuffix right at the
+// render boundary. normalizeProduct already calls it upstream, but the
+// second pass means any future code path that builds a LandingProduct
+// without going through normalizeProduct (or any future regression in
+// the upstream helper) cannot leak ingest IDs into the product card
+// pill, the "Buy at {merchant}" CTA, the ProductGridImage branded
+// placeholder, or anywhere else downstream. The helper is idempotent.
+function displayMerchant(merchant: string | null | undefined): string {
+  return stripMerchantTenantSuffix(merchant) || "BuyWhere seller";
+}
 
 function formatPrice(price: number | null, currency: string) {
   if (price === null) {
@@ -19,6 +32,7 @@ function formatPrice(price: number | null, currency: string) {
 export function ProductGridCard({ product, compact = false }: { product: LandingProduct; compact?: boolean }) {
   const isMerchantOffer =
     product.href.startsWith("http://") || product.href.startsWith("https://");
+  const merchantLabel = displayMerchant(product.merchant);
 
   // Prefer a verified internal product page, but never let the card link land
   // on a 404-prone synthetic URL when a working external merchant URL is
@@ -59,14 +73,14 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
           src={product.imageUrl || ""}
           alt={product.name}
           brand={product.brand}
-          merchant={product.merchant}
+          merchant={merchantLabel}
         />
       </div>
 
       <div className={`flex min-w-0 flex-1 flex-col gap-4 ${compact ? "p-4" : "p-5"}`}>
         <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
           <span className="rounded-full bg-slate-100 px-2.5 py-1">
-            {product.merchant}
+            {merchantLabel}
           </span>
           {product.category ? <span>{product.category}</span> : null}
         </div>
@@ -97,7 +111,7 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
               onKeyDown={handleMerchantKeyDown}
               className={`inline-flex min-h-11 cursor-pointer items-center justify-center rounded-full bg-amber-700 px-4 py-2.5 text-center font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 ${compact ? "w-full text-xs" : "text-sm"}`}
             >
-              Buy at {product.merchant}
+              Buy at {merchantLabel}
             </span>
           ) : (
             <span className="inline-flex min-h-11 items-center text-sm font-medium text-amber-800">
