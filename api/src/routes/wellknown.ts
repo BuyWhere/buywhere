@@ -43,27 +43,28 @@ const A2A_AGENT_CARD = {
       name: 'Product Search',
       description: 'Search 288M+ products worldwide by keyword, category, price range — pass deliver_to (user country) for deliverable-first ranking with availability labels',
       tags: ['ecommerce', 'search', 'products'],
-      examples: ['Find wireless earbuds under $200 in Singapore'],
+      examples: ['Find espresso machines under 500 USD deliverable to Canada', 'Search wireless headphones under 150 EUR with deliver_to=DE and availability labels'],
     },
     {
       id: 'product_compare',
       name: 'Product Comparison',
-      description: 'Compare products across merchants by price, rating, availability',
+      description: 'Compare products across global storefronts by normalized price, rating, specs, merchant, and availability for a requested delivery location',
       tags: ['ecommerce', 'comparison', 'price'],
-      examples: ['Compare iPhone 15 prices across Singapore retailers'],
+      examples: ['Compare iPhone 16 Pro prices available to ship to Australia', 'Which standing desks are deliverable to Singapore with the best normalized USD price?'],
     },
     {
       id: 'deal_finder',
       name: 'Deal Finder',
-      description: 'Find best deals and discounts across 158,000+ merchants worldwide',
+      description: 'Find best deals and discounts across 158,000+ merchants worldwide, filtered or ranked by availability for the user delivery location',
       tags: ['ecommerce', 'deals', 'discounts'],
-      examples: ['Show me the best laptop deals today'],
+      examples: ['Show me the best laptop deals deliverable to the United Kingdom today', 'Find discounted running shoes that are local or ships_to_you for deliver_to=SG'],
     },
   ],
   protocols: {
     mcp: {
       serverUrl: 'https://api.buywhere.ai/mcp/sse',
       transport: 'sse',
+      note: 'Use /mcp/sse for SSE clients; https://api.buywhere.ai/mcp is the canonical MCP endpoint in llms.txt and remains valid.',
     },
     a2a: {
       serverUrl: 'https://api.buywhere.ai/a2a',
@@ -83,7 +84,7 @@ router.get('/ai-plugin.json', (_req: Request, res: Response) => {
     name_for_model: 'buywhere_catalog',
     description_for_human: 'Product catalog for AI agents: 288M+ products from 158,000+ storefronts worldwide, normalized into one schema. Location-aware: pass deliver_to and every result carries an availability label (local | ships_to_you | unavailable).',
     description_for_model:
-      'Use this plugin to search the BuyWhere product catalog for AI agents. Search by keyword, filter by merchant/retailer, price range, country, and currency (SGD, USD, VND, THB, MYR). Compare prices across merchants, find deals, and browse categories. Register for a free API key at https://api.buywhere.ai/v1/auth/register.',
+      'Use this plugin to search the BuyWhere global product catalog for AI agents and LLM apps. Search 288M+ products across 158,000+ storefronts worldwide; pass deliver_to=<ISO country> for the end user delivery location so results rank deliverable-first and include availability labels (local | ships_to_you | unavailable | unknown). Filter by merchant/retailer, price range, country, currency, availability, and include_unshippable. Register for a free API key at https://api.buywhere.ai/v1/auth/register.',
     auth: {
       type: 'user_http',
       authorization_type: 'bearer',

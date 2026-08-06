@@ -1,6 +1,6 @@
 {
   "name": "BuyWhere",
-  "description": "Agent-native product catalog API for AI agent commerce",
+  "description": "Agent-native product catalog API for AI agent commerce: 288M+ products from 158,000+ storefronts worldwide with deliver_to delivery-location ranking and availability labels.",
   "url": "https://buywhere.ai",
   "provider": {
     "organization": "BuyWhere",
@@ -17,29 +17,39 @@
     {
       "id": "product_search",
       "name": "Product Search",
-      "description": "Search Singapore product catalog by keyword, category, price range",
-      "tags": ["ecommerce", "search", "products"],
-      "examples": ["Find wireless earbuds under $200 in Singapore"]
+      "description": "Search 288M+ products worldwide by keyword, category, price range, merchant, country, currency, and availability; pass deliver_to for the user's delivery location to rank deliverable results first.",
+      "tags": ["ecommerce", "search", "products", "global-catalog"],
+      "examples": [
+        "Find espresso machines under 500 USD deliverable to Canada",
+        "Search wireless headphones under 150 EUR with deliver_to=DE and availability labels"
+      ]
     },
     {
       "id": "product_compare",
-      "name": "Product Comparison",
-      "description": "Compare products across merchants by price, rating, availability",
-      "tags": ["ecommerce", "comparison", "price"],
-      "examples": ["Compare iPhone 15 prices across Singapore retailers"]
+      "name": "Delivery-Aware Product Comparison",
+      "description": "Compare products across global storefronts by normalized price, rating, specs, merchant, and availability for a requested delivery location.",
+      "tags": ["ecommerce", "comparison", "price", "delivery-location"],
+      "examples": [
+        "Compare iPhone 16 Pro prices available to ship to Australia",
+        "Which standing desks are deliverable to Singapore with the best normalized USD price?"
+      ]
     },
     {
       "id": "deal_finder",
       "name": "Deal Finder",
-      "description": "Find best deals and discounts across Singapore merchants",
-      "tags": ["ecommerce", "deals", "discounts"],
-      "examples": ["Show me the best laptop deals today"]
+      "description": "Find best deals and discounts across 158,000+ merchants worldwide, filtered or ranked by availability for the user's delivery location.",
+      "tags": ["ecommerce", "deals", "discounts", "worldwide"],
+      "examples": [
+        "Show me the best laptop deals deliverable to the United Kingdom today",
+        "Find discounted running shoes that are local or ships_to_you for deliver_to=SG"
+      ]
     }
   ],
   "protocols": {
     "mcp": {
-      "serverUrl": "https://mcp.buywhere.ai/sse",
-      "transport": "sse"
+      "serverUrl": "https://api.buywhere.ai/mcp/sse",
+      "transport": "sse",
+      "note": "Use /mcp/sse for SSE clients; https://api.buywhere.ai/mcp is the canonical MCP endpoint in llms.txt and remains valid."
     }
   },
   "contact": {

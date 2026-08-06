@@ -3,9 +3,9 @@ const AI_PLUGIN_JSON = {
   name_for_human: 'BuyWhere Product Catalog',
   name_for_model: 'buywhere_catalog',
   description_for_human:
-    'Search and retrieve product data from 7 merchants across Singapore and the United States.',
+    'Product catalog for AI agents: 288M+ products from 158,000+ storefronts worldwide, normalized into one schema. Location-aware: pass deliver_to and every result carries an availability label (local | ships_to_you | unavailable).',
   description_for_model:
-    'Use this plugin to search the BuyWhere product catalog. You can search by keyword, filter by domain/merchant, price range, currency, and country (SG or US). Merchants covered: Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, Carousell. Currencies: SGD and USD. Register for a free API key at the auth endpoint.',
+    'Use this plugin to search the BuyWhere global product catalog for AI agents and LLM apps. Search 288M+ products across 158,000+ storefronts worldwide; pass deliver_to=<ISO country> for the end user\'s delivery location so results rank deliverable-first and include availability labels (local | ships_to_you | unavailable | unknown). Filter by merchant/retailer, price range, country, currency, availability, and include_unshippable. Register for a free API key at the auth endpoint.',
   auth: {
     type: 'user_http',
     authorization_type: 'bearer',
