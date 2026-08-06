@@ -15,7 +15,7 @@ import os
 from pathlib import Path
 from urllib.parse import urlsplit
 
-REQUIRED_HOST = "maglev.proxy.rlwy.net"
+REQUIRED_HOST = "sakura.proxy.rlwy.net"
 MIN_PRODUCTS_RELTUPLES = 100_000_000
 SENTINEL_SQL = (
     "SELECT COALESCE(max(reltuples), 0) FROM pg_class "
