@@ -19,7 +19,7 @@ const trees = {
 for (const [name, src] of Object.entries(trees)) {
   test(`${name}: semanticCache module exists with threshold + scope safety`, () => {
     const mod = readFileSync(join(src, 'lib', 'semanticCache.ts'), 'utf8');
-    assert.match(mod, /SIM_THRESHOLD = 0\.9/, 'similarity threshold must stay >= 0.9');
+    assert.match(mod, /SIM_THRESHOLD = 0\.8[5-9]/, 'similarity threshold must stay in the calibrated 0.85-0.89 band');
     assert.match(mod, /semanticLookup/, 'lookup export missing');
     assert.match(mod, /semanticRegister/, 'register export missing');
     assert.match(mod, /SEMANTIC_CACHE/, 'kill switch missing');

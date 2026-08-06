@@ -15,7 +15,11 @@
 // Kill switch: set SEMANTIC_CACHE=0 on the service and redeploy.
 // Guarded by api/tests/semantic-cache-contract.test.mjs (both code trees).
 
-const SIM_THRESHOLD = 0.95;
+// Threshold calibrated 2026-08-06 on gemini-embedding-001@512 live pairs:
+// positives — plural 0.87, typo 0.88, close-synonym 0.89, exact-after-norm 1.0;
+// worst cross-product NEGATIVE (keyboard vs mouse) 0.79. Do not raise past 0.90
+// (kills all real matches) or drop below 0.80 (wrong-product territory).
+const SIM_THRESHOLD = 0.86;
 const REGISTRY_MAX = 300;
 const REGISTRY_TTL_SECONDS = 3600;
 
