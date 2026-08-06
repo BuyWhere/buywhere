@@ -792,10 +792,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const regionDerived = REGION_TO_COUNTRY[regionRaw] || '';
   const country = (((args.country_code as string) || (args.country as string)) || regionDerived || 'SG').toUpperCase();
   const region = (args.region as string) || '';
-  const category = (args.category as string) || '';
-  const limit = 10;
 
-  const CANDIDATE_POOL = Math.max(limit * 50, 500);
+  // BUY-63229: fetch a larger candidate pool (100 rows) so we have enough data
+  // points to compute a meaningful median. A tight LIMIT=10 would skew the median
+  // if the scam-priced items dominate the first 10 slots.
+  const MEDIAN_POOL = 100;
 
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
@@ -829,9 +830,8 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     // all, return an empty result rather than misleading cheapest products (e.g.
     // bike hardware for an "iphone" query). The ILIKE fallback below is still a
     // title match (substring), not an unrelated-product fallback.
-    // Primary path: GIN-indexed FTS (fast; same path as search_products and
-    // mcp-railway). Leading with FTS avoids a leading-wildcard ILIKE full scan of
-    // the partition on the hot path.
+    // BUY-63229: fetch MEDIAN_POOL=100 rows ordered by price ASC so we can
+    // compute a currency-normalized median and reject outlier scam-priced listings.
     try {
       result = await bestPriceClient.query(
         `SELECT id, title, price, currency, source AS domain, url, image_url,
@@ -843,7 +843,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
            AND search_vector @@ plainto_tsquery('english', $2)
          ORDER BY price ASC, updated_at DESC
          LIMIT $3::int`,
-        [country, productName, limit]
+        [country, productName, MEDIAN_POOL]
       );
       if (result.rows.length === 0) {
         // ILIKE fallback: FTS tokenization can miss titles where the term appears
@@ -861,7 +861,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
              AND title ILIKE $2
            ORDER BY price ASC, updated_at DESC
            LIMIT $3::int`,
-          [country, titlePattern, limit]
+          [country, titlePattern, MEDIAN_POOL]
         );
       }
     } catch (ftsErr) {
@@ -881,23 +881,100 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
 
   const currency = COUNTRY_CURRENCY[country] || 'SGD';
   const rates = getCachedFxRates();
-  const toUsd = rates[currency] ?? CURRENCY_RATES[currency] ?? 1;
 
-  const data = result.rows.map((r: Record<string, unknown>) => ({
+  // BUY-63229: median-based outlier guard — normalize all candidate prices to USD
+  // before computing median so different currencies don't skew the threshold.
+  // A scam listing priced at $0.97 SGD (~$0.74 USD) alongside real $30-60 USD items
+  // would otherwise pass the guard if we compared raw prices.
+  const toUsd = (price: number, rowCurrency: string) => {
+    const curr = (rowCurrency || currency).toUpperCase();
+    const fxRate = rates[curr] ?? CURRENCY_RATES[curr] ?? 1;
+    return price * fxRate;
+  };
+
+  // Compute USD-normalized prices for all candidates
+  const candidates = result.rows.map((r: Record<string, unknown>) => {
+    const price = r.price != null ? parseFloat(r.price as string) : 0;
+    const rowCurrency = (r.currency as string) || currency;
+    return {
+      row: r,
+      price,
+      normalizedPriceUsd: toUsd(price, rowCurrency),
+    };
+  });
+
+  // Compute median of USD-normalized prices (needs at least 3 candidates for
+  // meaningful outlier detection; with fewer rows skip the guard and return all).
+  let medianPriceUsd: number | null = null;
+  let guardApplied = false;
+  if (candidates.length >= 3) {
+    const sortedUsd = [...candidates].map(c => c.normalizedPriceUsd).sort((a, b) => a - b);
+    const mid = Math.floor(sortedUsd.length / 2);
+    medianPriceUsd = sortedUsd.length % 2 === 0
+      ? (sortedUsd[mid - 1] + sortedUsd[mid]) / 2
+      : sortedUsd[mid];
+    // BUY-63229: reject candidates priced below 15% of the median USD price.
+    // A $0.97 real-Anker listing would only survive if the median price across all
+    // matches were ~$6.50 USD — which is implausible for a real power bank.
+    // Scam/giveaway items are typically priced at <$1 local currency.
+    const MIN_PRICE_USD = medianPriceUsd * 0.15;
+    const filtered = candidates.filter(c => c.normalizedPriceUsd >= MIN_PRICE_USD);
+    if (filtered.length > 0) {
+      // Re-sort the filtered candidates by raw price (preserve original sort order
+      // since result was already ordered by price ASC; just truncate to top 10).
+      const nonOutliers = filtered.slice(0, 10);
+      const filteredOut = candidates.length - nonOutliers.length;
+      guardApplied = filteredOut > 0;
+      if (guardApplied) {
+        console.log(`[find_best_price] BUY-63229 outlier guard: rejected ${filteredOut}/${candidates.length} candidates. median_usd=${medianPriceUsd.toFixed(2)}, min_allowed_usd=${MIN_PRICE_USD.toFixed(2)}, product="${productName}", country=${country}`);
+      }
+      return {
+        best_price: buildPriceEntry(nonOutliers[0].row, currency, rates),
+        alternatives: nonOutliers.slice(1).map(c => buildPriceEntry(c.row, currency, rates)),
+        meta: {
+          total: nonOutliers.length,
+          guard_applied: guardApplied,
+          median_usd: Math.round(medianPriceUsd * 100) / 100,
+          min_allowed_usd: Math.round(MIN_PRICE_USD * 100) / 100,
+          country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'),
+          response_time_ms: Date.now() - t0,
+          ...(ftsTimedOut ? { timed_out: true } : {}),
+        },
+      };
+    }
+    // All candidates were outliers — fall through to null result below.
+  }
+
+  // Fewer than 3 candidates: skip outlier guard and return as-is.
+  const data = result.rows.slice(0, 10).map((r: Record<string, unknown>) => buildPriceEntry(r, currency, rates));
+  return {
+    best_price: data[0] ?? null,
+    alternatives: data.slice(1),
+    meta: {
+      total: data.length,
+      guard_applied: false,
+      country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'),
+      response_time_ms: Date.now() - t0,
+      ...(ftsTimedOut ? { timed_out: true } : {}),
+    },
+  };
+}
+
+// BUY-63229: helper to build a price entry object from a DB row.
+// Extracted to avoid duplication between the outlier-guard and fallback paths.
+function buildPriceEntry(r: Record<string, unknown>, countryCurrency: string, rates: Record<string, number>) {
+  const price = r.price != null ? parseFloat(r.price as string) : null;
+  const rowCurrency = (r.currency as string) || countryCurrency;
+  const fxRate = rates[rowCurrency] ?? CURRENCY_RATES[rowCurrency] ?? 1;
+  return {
     id: r.id,
     title: r.title,
-    price: { amount: r.price != null ? parseFloat(r.price as string) : null, currency: r.currency || currency },
-    normalized_price_usd: r.price != null ? Math.round(Number(r.price) * toUsd * 100) / 100 : null,
+    price: { amount: price, currency: rowCurrency },
+    normalized_price_usd: price != null ? Math.round(price * fxRate * 100) / 100 : null,
     merchant: r.domain as string,
     url: r.url as string,
     image_url: r.image_url as string,
     country_code: r.country_code as string,
-  }));
-
-  return {
-    best_price: data[0] ?? null,
-    alternatives: data.slice(1),
-    meta: { total: data.length, country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'), response_time_ms: Date.now() - t0, ...(ftsTimedOut ? { timed_out: true } : {}) },
   };
 }
 

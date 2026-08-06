@@ -895,8 +895,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     conditions.push(`category ILIKE $${params.length}`);
   }
 
-  const CANDIDATE_POOL = Math.max(limit * 50, 500);
-  params.push(CANDIDATE_POOL, limit);
+  // BUY-63229: fetch 100 candidates to compute a stable median. After outlier
+  // filtering, we'll return the top 10 non-outliers. Must request 100 rows from
+  // the DB to have enough data points for meaningful median computation.
+  const CANDIDATE_POOL = 100;
+  params.push(CANDIDATE_POOL);
   const where = `WHERE ${conditions.join(' AND ')}`;
 
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
@@ -909,12 +912,9 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     await bestPriceClient.query('SET statement_timeout = 30000');
     try {
       result = await bestPriceClient.query(
-        `SELECT * FROM (
-           SELECT id, title, price, currency, source AS domain, url, image_url,
-                  country_code, updated_at
-           FROM products ${where}
-           LIMIT $${params.length - 1}
-         ) _candidates
+        `SELECT id, title, price, currency, source AS domain, url, image_url,
+                country_code, updated_at
+         FROM products ${where}
          ORDER BY price ASC, updated_at DESC
          LIMIT $${params.length}`,
         params
@@ -938,13 +938,49 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   }
 
   const currency = COUNTRY_CURRENCY[country] || 'SGD';
-  const toUsd = CURRENCY_RATES[currency] ?? 1;
+  // BUY-63229: normalize each row's price to USD by its OWN currency (not the
+  // caller's default country currency) so cross-currency scam listings can't slip
+  // past the median guard. result is already ordered price ASC.
+  const rowToUsd = (r: Record<string, unknown>) => {
+    const curr = ((r.currency as string) || currency).toUpperCase();
+    const fxRate = CURRENCY_RATES[curr] ?? 1;
+    const price = r.price != null ? Number(r.price) : 0;
+    return price * fxRate;
+  };
 
-  const data = result.rows.map((r: Record<string, unknown>) => ({
+  // BUY-63229: median-based outlier guard. Reject candidates priced below 15%
+  // of the median USD-normalized price so scam/giveaway listings (e.g. $0.97
+  // Anker power bank) can't win the price-ASC sort. Needs >=3 candidates for a
+  // meaningful median; with fewer, skip the guard and return as-is.
+  let guardApplied = false;
+  let medianUsd: number | null = null;
+  let minAllowedUsd: number | null = null;
+  let finalRows = result.rows;
+  if (result.rows.length >= 3) {
+    const sortedUsd = result.rows.map(rowToUsd).sort((a, b) => a - b);
+    const mid = Math.floor(sortedUsd.length / 2);
+    medianUsd = sortedUsd.length % 2 === 0
+      ? (sortedUsd[mid - 1] + sortedUsd[mid]) / 2
+      : sortedUsd[mid];
+    minAllowedUsd = medianUsd * 0.15;
+    const filtered = result.rows.filter(r => rowToUsd(r) >= (minAllowedUsd as number));
+    if (filtered.length > 0) {
+      finalRows = filtered;
+      guardApplied = filtered.length < result.rows.length;
+      if (guardApplied) {
+        console.log(`[find_best_price] BUY-63229 outlier guard: rejected ${result.rows.length - filtered.length}/${result.rows.length} candidates. median_usd=${medianUsd.toFixed(2)}, min_allowed_usd=${minAllowedUsd.toFixed(2)}, product="${productName}", country=${country}`);
+      }
+    } else {
+      // All candidates below threshold — keep them (avoid returning empty on edge cases).
+      finalRows = result.rows;
+    }
+  }
+
+  const data = finalRows.slice(0, 10).map((r: Record<string, unknown>) => ({
     id: r.id,
     title: r.title,
     price: { amount: r.price != null ? parseFloat(r.price as string) : null, currency: r.currency || currency },
-    normalized_price_usd: r.price != null ? Math.round(Number(r.price) * toUsd * 100) / 100 : null,
+    normalized_price_usd: r.price != null ? Math.round(rowToUsd(r) * 100) / 100 : null,
     merchant: r.domain as string,
     url: r.url as string,
     image_url: r.image_url as string,
@@ -956,6 +992,9 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     alternatives: data.slice(1),
     meta: {
       total: data.length,
+      guard_applied: guardApplied,
+      ...(medianUsd != null ? { median_usd: Math.round(medianUsd * 100) / 100 } : {}),
+      ...(minAllowedUsd != null ? { min_allowed_usd: Math.round(minAllowedUsd * 100) / 100 } : {}),
       country,
       response_time_ms: Date.now() - t0,
       ...(ftsTimedOut ? { timed_out: true } : {}),

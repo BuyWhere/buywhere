@@ -740,10 +740,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
 
   const country = (((args.country_code as string) || (args.country as string)) || 'SG').toUpperCase();
   const region = (args.region as string) || '';
-  const category = (args.category as string) || '';
-  const limit = 10;
 
-  const CANDIDATE_POOL = Math.max(limit * 50, 500);
+  // BUY-63229: fetch 100 candidates to compute a stable median. Must request
+  // more than 10 rows from DB so we have enough data points for outlier detection.
+  const CANDIDATE_POOL = 100;
 
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
@@ -754,12 +754,9 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     console.warn('[find_best_price] db.connect failed:', err.message);
     throw { code: -32603, message: 'Database connection timeout' };
   });
-  let result: { rows: Record<string, unknown>[] };
+  let result: { rows: Record<string, unknown>[] } = { rows: [] };
   try {
     await bestPriceClient.query('SET statement_timeout = 4500');
-    // BUY-60056: fetch a bounded FTS candidate set first, then apply the
-    // requested country filter in the outer query. This avoids the slow
-    // country+FTS plan that timed out for US, while preserving region metadata.
     const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
     const titlePattern = `%${productName}%`;
     result = await bestPriceClient.query(
@@ -775,7 +772,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          AND title ILIKE $3
        ORDER BY price ASC, updated_at DESC
        LIMIT $4`,
-      [50000, requestedCountry, titlePattern, limit]
+      [CANDIDATE_POOL, requestedCountry, titlePattern, CANDIDATE_POOL]
     );
     if (result.rows.length === 0) {
       result = await bestPriceClient.query(
@@ -790,7 +787,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          WHERE country_code = $2
          ORDER BY price ASC, updated_at DESC
          LIMIT $3`,
-        [50000, requestedCountry, limit]
+        [CANDIDATE_POOL, requestedCountry, CANDIDATE_POOL]
       );
     }
   } finally {
@@ -798,25 +795,67 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     releaseClientSafely(bestPriceClient);
   }
 
-  const currency = COUNTRY_CURRENCY[country || (region.toLowerCase() === 'us' ? 'US' : 'SG')] || 'SGD';
+  const countryCurrency = COUNTRY_CURRENCY[country || (region.toLowerCase() === 'us' ? 'US' : 'SG')] || 'SGD';
   const rates = getCachedFxRates();
-  const toUsd = rates[currency] ?? CURRENCY_RATES[currency] ?? 1;
 
-  const data = result.rows.map((r: Record<string, unknown>) => ({
-    id: r.id,
-    title: r.title,
-    price: { amount: r.price != null ? parseFloat(r.price as string) : null, currency: r.currency || currency },
-    normalized_price_usd: r.price != null ? Math.round(Number(r.price) * toUsd * 100) / 100 : null,
-    merchant: r.domain as string,
-    url: r.url as string,
-    image_url: r.image_url as string,
-    country_code: r.country_code as string,
-  }));
+  // BUY-63229: median-based outlier guard — normalize each row's price to USD by
+  // its own currency so scam listings priced in foreign currency can't slip past.
+  const rowToUsd = (r: Record<string, unknown>) => {
+    const curr = ((r.currency as string) || countryCurrency).toUpperCase();
+    const fxRate = rates[curr] ?? CURRENCY_RATES[curr] ?? 1;
+    const price = r.price != null ? Number(r.price) : 0;
+    return price * fxRate;
+  };
+
+  let guardApplied = false;
+  let medianUsd: number | null = null;
+  let minAllowedUsd: number | null = null;
+  let finalRows = result.rows;
+
+  if (result.rows.length >= 3) {
+    const sortedUsd = result.rows.map(rowToUsd).sort((a, b) => a - b);
+    const mid = Math.floor(sortedUsd.length / 2);
+    medianUsd = sortedUsd.length % 2 === 0
+      ? (sortedUsd[mid - 1] + sortedUsd[mid]) / 2
+      : sortedUsd[mid];
+    minAllowedUsd = medianUsd * 0.15;
+    const filtered = result.rows.filter(r => rowToUsd(r) >= (minAllowedUsd as number));
+    if (filtered.length > 0) {
+      finalRows = filtered;
+      guardApplied = filtered.length < result.rows.length;
+      if (guardApplied) {
+        console.log(`[find_best_price] BUY-63229 outlier guard: rejected ${result.rows.length - filtered.length}/${result.rows.length} candidates. median_usd=${medianUsd.toFixed(2)}, min_allowed_usd=${minAllowedUsd.toFixed(2)}, product="${productName}", country=${country}`);
+      }
+    }
+  }
+
+  const data = finalRows.slice(0, 10).map((r: Record<string, unknown>) => {
+    const price = r.price != null ? parseFloat(r.price as string) : null;
+    const curr = ((r.currency as string) || countryCurrency).toUpperCase();
+    const fxRate = rates[curr] ?? CURRENCY_RATES[curr] ?? 1;
+    return {
+      id: r.id,
+      title: r.title,
+      price: { amount: price, currency: curr },
+      normalized_price_usd: price != null ? Math.round(price * fxRate * 100) / 100 : null,
+      merchant: r.domain as string,
+      url: r.url as string,
+      image_url: r.image_url as string,
+      country_code: r.country_code as string,
+    };
+  });
 
   return {
     best_price: data[0] ?? null,
     alternatives: data.slice(1),
-    meta: { total: data.length, country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'), response_time_ms: Date.now() - t0 },
+    meta: {
+      total: data.length,
+      guard_applied: guardApplied,
+      ...(medianUsd != null ? { median_usd: Math.round(medianUsd * 100) / 100 } : {}),
+      ...(minAllowedUsd != null ? { min_allowed_usd: Math.round(minAllowedUsd * 100) / 100 } : {}),
+      country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'),
+      response_time_ms: Date.now() - t0,
+    },
   };
 }
 
