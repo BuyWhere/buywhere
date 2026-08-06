@@ -603,6 +603,7 @@ router.get(
         res.locals.semScope = semScope;
         res.locals.semQNorm = qNorm;
         res.locals.semVec = semVec;
+        res.locals.semCacheKey = cacheKey;
         if (semHit) {
           res.locals.cacheHit = true;
           const semParsed = JSON.parse(semHit.body);

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { db } from '../config';
+import { db, redis } from '../config';
+import { semanticRegister } from '../lib/semanticCache';
 import { trackApiUsage } from '../analytics/posthog';
 
 // Known human User-Agent patterns — browsers, Googlebot, etc.
@@ -100,6 +101,19 @@ export function queryLogMiddleware(endpoint: string) {
 
     // Hook into response finish to capture status code, timing, and result count
     res.once('finish', () => {
+      // Central semantic-cache registration (2026-08-06): the search route stashes
+      // scope/qNorm/vector/cacheKey on cache miss; every successful store path
+      // (tier, archive, fallback) then gets registered here exactly once.
+      if (
+        res.locals.semScope && res.locals.semQNorm && res.locals.semCacheKey &&
+        res.statusCode === 200 && (res.locals.resultCount ?? 0) > 0 &&
+        res.locals.cacheHit !== true
+      ) {
+        semanticRegister(
+          redis, res.locals.semScope, res.locals.semQNorm,
+          (res.locals.semVec as string | null) ?? null, res.locals.semCacheKey
+        ).catch(() => {});
+      }
       const apiKeyRecord = req.apiKeyRecord;
       // Log all requests — unauthenticated ones recorded with null api_key_id
       // so we capture total demand even before API key adoption ramps up.
