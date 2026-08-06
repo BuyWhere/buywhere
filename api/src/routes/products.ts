@@ -2356,7 +2356,6 @@ export async function warmSearchCache(): Promise<void> {
           SELECT id, country_code
           FROM products
           ${whereClause}
-          ORDER BY id DESC
           LIMIT ${CANDIDATE_CAP}
         )
         SELECT ${joinedColumns}
