@@ -1,8 +1,12 @@
 const AGENT_JSON = {
-  name: 'Buywhere Product Catalog',
+  name: 'BuyWhere',
   description:
-    'Agent-native product catalog and price comparison API: 288M+ products from 158,000+ storefronts worldwide, normalized into one schema with deliver_to delivery-location ranking and availability labels.',
+    'Agent-native product catalog API for AI shopping agents: 288M+ products from 158,000+ storefronts worldwide, with location-aware deliver_to ranking and per-result availability labels.',
   url: 'https://buywhere.ai',
+  provider: {
+    organization: 'BuyWhere',
+    url: 'https://buywhere.ai',
+  },
   version: '1.0.0',
   capabilities: {
     streaming: true,
@@ -19,53 +23,65 @@ const AGENT_JSON = {
       id: 'product-search',
       name: 'Product Search',
       description:
-        'Search 288M+ products worldwide by keyword, category, price range, merchant, country, currency, and availability; pass deliver_to for the user delivery location to rank deliverable results first.',
-      tags: ['e-commerce', 'search', 'products', 'global-catalog'],
+        'Search 288M+ products worldwide by keyword, category, price range, merchant, country, and deliver_to for deliverable-first ranking.',
+      tags: ['e-commerce', 'search', 'products', 'availability'],
       examples: [
-        'Find espresso machines under 500 USD deliverable to Canada',
-        'Search wireless headphones under 150 EUR with deliver_to=DE and availability labels',
+        'Find wireless earbuds under 150 USD that ship to US',
+        'Find coffee makers deliverable to Singapore with local or ships_to_you availability',
       ],
     },
     {
-      id: 'delivery-aware-comparison',
-      name: 'Delivery-Aware Product Comparison',
+      id: 'location-aware-shopping',
+      name: 'Location-Aware Shopping',
       description:
-        'Compare products across global storefronts by normalized price, rating, specs, merchant, and availability for a requested delivery location.',
-      tags: ['comparison', 'delivery-location', 'availability', 'price-comparison'],
+        'Use deliver_to=<ISO country> to rank products your end user can actually receive; every result includes availability: local, ships_to_you, unavailable, or unknown.',
+      tags: ['delivery', 'availability', 'cross-border', 'ranking'],
       examples: [
-        'Compare iPhone 16 Pro prices available to ship to Australia',
-        'Which standing desks are deliverable to Singapore with the best normalized USD price?',
+        'Show laptop deals deliverable to AU and hide unavailable results',
+        'Find skincare products that ship to GB with availability labels',
       ],
     },
     {
-      id: 'price-history',
-      name: 'Price History & Alerts',
+      id: 'cross-storefront-comparison',
+      name: 'Cross-Storefront Product Comparison',
       description:
-        'Retrieve historical price data and set price drop alerts using global product and availability context.',
-      tags: ['pricing', 'history', 'alerts'],
+        'Compare products, prices, attributes, and availability across 158,000+ independent storefronts worldwide.',
+      tags: ['comparison', 'price-comparison', 'affiliate', 'merchant'],
       examples: [
-        'Show me 30-day price history for this product with availability for delivery to GB',
-        'Alert me when this drops below 50 USD and ships to my delivery location',
+        'Compare iPhone 16 Pro Max prices across stores that ship to Singapore',
+        'Find equivalent robot vacuums across US and EU storefronts with best delivered price',
       ],
     },
     {
-      id: 'merchant-discovery',
-      name: 'Merchant & Affiliate Discovery',
+      id: 'deal-finder',
+      name: 'Deal Finder',
       description:
-        'Discover which of 158,000+ worldwide storefronts carry a product, whether each offer is deliverable to the user, and retrieve merchant handoff or affiliate links.',
-      tags: ['merchants', 'affiliate', 'deals', 'worldwide'],
+        'Find discounted products and price drops across the global catalog, with filters for category, currency, country, and deliverability.',
+      tags: ['deals', 'discounts', 'pricing'],
       examples: [
-        'Which merchants sell noise-cancelling earbuds under 80 USD and deliver to the Philippines?',
-        'Get the merchant handoff link for this listing if availability is local or ships_to_you',
+        'Show the best monitor deals today that ship to CA',
+        'Find air purifier discounts deliverable to SG under 300 SGD',
       ],
     },
   ],
   protocols: {
     mcp: {
-      serverUrl: 'https://api.buywhere.ai/mcp/sse',
-      transport: 'sse',
-      note: 'Use /mcp/sse for SSE clients; https://api.buywhere.ai/mcp is the canonical MCP endpoint in llms.txt and remains valid.',
+      serverUrl: 'https://api.buywhere.ai/mcp',
+      transport: 'streamable-http',
+      notes:
+        'Canonical MCP endpoint for JSON-RPC over HTTP POST. The legacy SSE endpoint remains at https://api.buywhere.ai/mcp/sse for SSE clients that explicitly require it.',
     },
+    a2a: {
+      serverUrl: 'https://api.buywhere.ai/a2a',
+      transport: 'json',
+    },
+    rest: {
+      serverUrl: 'https://api.buywhere.ai/v1',
+      transport: 'https',
+    },
+  },
+  contact: {
+    email: 'hello@buywhere.ai',
   },
 };
 

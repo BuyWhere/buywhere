@@ -2,7 +2,7 @@ const apiCatalog = {
   apis: [
     {
       name: "BuyWhere Catalog API",
-      description: "Product search, offer comparison, and merchant handoff API for AI shopping agents. Indexes 5M+ products from 40+ retailers across Singapore, Southeast Asia, and the US. Purpose-built for AI shopping agents with BM25-ranked search, structured price comparison, deals discovery, and affiliate link tracking.",
+      description: "Agent-native product search, offer comparison, and merchant handoff API for AI shopping agents. Indexes 288M+ products from 158,000+ storefronts worldwide, normalized into one schema. Location-aware search accepts deliver_to=<ISO country> so agents rank products the end user can actually receive, with availability labels on every result.",
       documentationUrl: "https://buywhere.ai/docs/API_DOCUMENTATION",
       specificationUrl: "https://api.buywhere.ai/openapi.json",
       signupUrl: "https://buywhere.ai/api-keys",
@@ -18,7 +18,7 @@ const apiCatalog = {
       pricing: {
         free: {
           rateLimit: "100 requests/min",
-          features: ["Product search", "Price comparison", "Deal discovery", "Affiliate links"],
+          features: ["Product search", "Price comparison", "Deal discovery", "Affiliate links", "deliver_to availability labels"],
         },
         partner: {
           rateLimit: "1000 requests/min",
@@ -28,10 +28,12 @@ const apiCatalog = {
       protocols: ["REST", "MCP"],
       mcp: {
         endpoint: "https://api.buywhere.ai/mcp",
+        transport: "streamable-http",
+        legacySseEndpoint: "https://api.buywhere.ai/mcp/sse",
         tools: [
           {
             name: "search_products",
-            description: "Search and compare products across retailers. Returns structured results with prices, offers, and affiliate links.",
+            description: "Search and compare products across storefronts worldwide. Returns structured results with prices, offers, affiliate links, and deliver_to-aware availability labels.",
           },
           {
             name: "get_deals",
@@ -51,7 +53,7 @@ const apiCatalog = {
           },
         ],
       },
-      regions: ["SG", "MY", "ID", "TH", "PH", "VN", "US"],
+      regions: ["US", "SG", "GB", "EU", "AU", "MY", "ID", "TH", "PH", "VN"],
       categories: ["electronics", "fashion", "home-garden", "sports", "toys", "books", "automotive", "health-beauty", "groceries"],
       support: {
         contact: "https://buywhere.ai/contact",
