@@ -427,6 +427,7 @@ function brandedProductPlaceholderSvg(
   const brandText = clean(brand || "").slice(0, 18) || "BuyWhere";
   const categoryText = clean(category || "").slice(0, 22) || "Featured product";
   const productLabel = clean(name || "").slice(0, 36) || categoryText;
+  const silhouette = categorySilhouette(category, name);
   const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'>
   <defs>
     <linearGradient id='bg' x1='0' x2='1' y1='0' y2='1'>
