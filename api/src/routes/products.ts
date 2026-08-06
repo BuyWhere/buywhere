@@ -17,6 +17,8 @@ import { embedQuery } from '../jobs/embedProducts';
 
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
+import { semanticLookup as semLookup, semanticRegister as semRegister, semanticEnabled as semEnabled } from '../lib/semanticCache';
+
 const SEARCH_CACHE_TTL_SECONDS = 3600;
 
 // BUY-41572: bumped from 5s → 15s as a temporary measure so the 50-query hybrid
@@ -248,6 +250,10 @@ async function tryTierSearch(
     responseBody.source = 'search_products_tier';
     annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
     redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
+    if (semEnabled() && p.offset === 0) {
+      const rp = p.cacheKey.split(':');
+      semRegister(redis, `a1:${rp[1]}|${rp.slice(3).join(':')}`, rp[2], null, p.cacheKey).catch(() => {});
+    }
     res.set('X-Search-Tier', '1');
     res.json(responseBody);
     return true;
@@ -583,6 +589,26 @@ router.get(
         res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
         res.set('X-Cache', 'HIT');
         return res.json(parsed);
+      }
+      // Semantic cache (2026-08-06): vector-similar reuse within the same scope.
+      // Scope = cacheKey minus the qNorm segment (qNorm can contain no colons).
+      if (semEnabled() && q && offset === 0) {
+        const semParts = cacheKey.split(':');
+        const semScope = `a1:${semParts[1]}|${semParts.slice(3).join(':')}`;
+        let semVec: string | null = null;
+        const semGk = process.env.GEMINI_API_KEY ?? '';
+        if (semGk) semVec = await getCachedQueryEmbedding(q, semGk);
+        const semHit = await semLookup(redis, semScope, qNorm, semVec);
+        if (semHit) {
+          res.locals.cacheHit = true;
+          const semParsed = JSON.parse(semHit.body);
+          semParsed.cached = true;
+          semParsed.semantic_cache = true;
+          semParsed.response_time_ms = Date.now() - requestStart;
+          res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
+          res.set('X-Cache', 'HIT-SEMANTIC');
+          return res.json(semParsed);
+        }
       }
     } catch (_) {
       // Redis miss or error — fall through to DB

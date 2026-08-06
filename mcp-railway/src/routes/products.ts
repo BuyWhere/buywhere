@@ -15,6 +15,8 @@ import { embedQuery } from '../jobs/embedProducts';
 
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
+import { normalizeQuery, semanticLookup, semanticRegister, semanticEnabled } from '../lib/semanticCache';
+
 const SEARCH_CACHE_TTL_SECONDS = 3600;
 
 // BUY-41572: bumped from 5s → 15s as a temporary measure so the 50-query hybrid
@@ -296,6 +298,28 @@ router.get(
       }
     } catch (_) {
       // Redis miss or error — fall through to DB
+    }
+
+    // Semantic cache (2026-08-06): reuse cached responses for normalized-equal or
+    // embedding-similar queries within the same (country, filters) scope.
+    const semScope = `m1:${countryCode || ''}:${domain || ''}:${region || ''}:${category || ''}:${categoryId || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${compact ? 'c' : 'f'}:${searchMode}`;
+    const semQNorm = q ? normalizeQuery(q) : '';
+    let semVec: string | null = null;
+    if (semanticEnabled() && semQNorm && offset === 0) {
+      try {
+        const gk = process.env.GEMINI_API_KEY ?? '';
+        if (gk) semVec = await getCachedQueryEmbedding(q, gk);
+        const semHit = await semanticLookup(redis, semScope, semQNorm, semVec);
+        if (semHit) {
+          const parsed = JSON.parse(semHit.body);
+          parsed.cached = true;
+          parsed.semantic_cache = true;
+          parsed.response_time_ms = Date.now() - requestStart;
+          res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
+          res.set('X-Cache', 'HIT-SEMANTIC');
+          return res.json(parsed);
+        }
+      } catch (_) { /* fall through to DB */ }
     }
 
     // BUY-33987: only active products are surfaced to API consumers; the partial
@@ -668,6 +692,9 @@ router.get(
 
     // Cache result in Redis (fire-and-forget)
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+    if (semanticEnabled() && semQNorm && offset === 0) {
+      semanticRegister(redis, semScope, semQNorm, semVec, cacheKey).catch(() => {});
+    }
 
     // Extract categories from results for analytics
     const categories = extractCategories(products);
