@@ -49,13 +49,14 @@ function releaseClientSafely(client: any) {
 const TOOLS = [
   {
     name: 'search_products',
-    description: 'Search the BuyWhere product catalog by keyword. Returns products from e-commerce platforms across multiple regions (Singapore, US, etc.). Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields.',
+    description: 'Search the BuyWhere product catalog — 300M+ products across 15+ countries. ALWAYS pass deliver_to (the buyer\'s ISO country code, e.g. "SG", "US") so results are scoped to products deliverable to that market; searches without deliver_to scan every country and can be slow or time out. Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields.',
     inputSchema: {
       type: 'object',
       properties: {
         q: { type: 'string', description: 'Keyword search query' },
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
+        deliver_to: { type: 'string', description: 'Buyer\'s ISO country code (e.g. "SG", "US", "MY", "TH", "VN"). ALWAYS pass this — it scopes the search to products deliverable to that market, makes queries fast, and prevents timeouts. Takes precedence over country_code/country.' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
         min_price: { type: 'number', description: 'Minimum price (in currency inferred from country_code, or SGD by default)' },
@@ -105,6 +106,7 @@ const TOOLS = [
         min_discount: { type: 'number', description: 'Minimum discount percentage (default 10)', default: 10 },
         currency: { type: 'string', description: 'Filter by currency code (SGD, USD, MYR, VND, THB). Defaults to SGD.', default: 'SGD' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
+        deliver_to: { type: 'string', description: 'Buyer\'s ISO country code (e.g. "SG", "US", "MY", "TH", "VN"). ALWAYS pass this — it scopes the search to products deliverable to that market, makes queries fast, and prevents timeouts. Takes precedence over country_code/country.' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Alias: country.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
         limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
@@ -133,6 +135,7 @@ const TOOLS = [
       properties: {
         product_name: { type: 'string', description: 'Product name to find best price for (e.g., "iphone 15 pro 256gb", "samsung galaxy s24")' },
         category: { type: 'string', description: 'Category to filter by (e.g., "electronics", "fashion")' },
+        deliver_to: { type: 'string', description: 'Buyer\'s ISO country code (e.g. "SG", "US", "MY", "TH", "VN"). ALWAYS pass this — it scopes the search to products deliverable to that market, makes queries fast, and prevents timeouts. Takes precedence over country_code/country.' },
         country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG). Alias: country.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
         region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter - use "us" for United States or "sea" for Southeast Asia' },
@@ -217,8 +220,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // BUY-6598: Default to SG for search queries. BUY-31962: skip default for
   // empty-q browse mode — no index on country_code makes filtered scan slow,
   // and recent rows are predominantly US/null so SG filter finds nothing.
-  const rawCountry = (((args.country_code as string) || (args.country as string)) || '').toUpperCase();
-  const hasExplicitCountry = !!(args.country_code || args.country);
+  const rawCountry = (((args.deliver_to as string) || (args.country_code as string) || (args.country as string)) || '').toUpperCase();
+  const hasExplicitCountry = !!(args.deliver_to || args.country_code || args.country);
   const country = rawCountry || (q && !region ? 'SG' : '');
   const category = (args.category as string) || '';
   const minPrice = args.min_price != null ? Number(args.min_price) : null;
@@ -569,7 +572,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const REGION_TO_COUNTRY: Record<string, string> = { sg: 'SG', us: 'US', my: 'MY', th: 'TH', vn: 'VN', gb: 'GB' };
   const explicitCurrency = ((args.currency as string) || '').toUpperCase();
   const regionArg = ((args.region as string) || '').toLowerCase();
-  const dealsCountry = ((args.country_code as string) || (args.country as string) || REGION_TO_COUNTRY[regionArg] || '').toUpperCase();
+  const dealsCountry = ((args.deliver_to as string) || (args.country_code as string) || (args.country as string) || REGION_TO_COUNTRY[regionArg] || '').toUpperCase();
   const currency = explicitCurrency || (dealsCountry ? (COUNTRY_CURRENCY[dealsCountry] || 'SGD') : 'SGD');
   const region = regionArg;
   const country = dealsCountry;
@@ -706,7 +709,7 @@ async function handleListCategories(args: Record<string, unknown>) {
     if (!raw) return '';
     return REGION_TO_COUNTRY[raw.toLowerCase()] || raw.toUpperCase();
   };
-  const country = normalizeCountry(args.country_code || args.country || args.region) || 'SG';
+  const country = normalizeCountry(args.deliver_to || args.country_code || args.country || args.region) || 'SG';
   const cacheKey = `categories_mcp:top100:${country}`;
 
   // 1. Redis fast path
@@ -863,7 +866,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   };
   const regionRaw = ((args.region as string) || '').toLowerCase();
   const regionDerived = REGION_TO_COUNTRY[regionRaw] || '';
-  const explicitCountry = ((args.country_code as string) || (args.country as string) || '').toUpperCase();
+  const explicitCountry = ((args.deliver_to as string) || (args.country_code as string) || (args.country as string) || '').toUpperCase();
   const country = explicitCountry || regionDerived || 'SG';
   const region = (args.region as string) || '';
   const category = (args.category as string) || '';
