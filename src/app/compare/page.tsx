@@ -545,9 +545,10 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkup) }}
       />
 
-      <section className="bg-gradient-to-br from-indigo-700 via-slate-900 to-sky-900 text-white py-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="max-w-3xl">
+      <main id="main-content" tabIndex={-1} className="flex-1">
+        <section className="bg-gradient-to-br from-indigo-700 via-slate-900 to-sky-900 text-white py-20">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6">
+            <div className="max-w-3xl">
             <p className="text-sm font-semibold uppercase tracking-[0.24em] text-amber-300">Comparison workspace</p>
             <h1 className="mt-4 text-4xl sm:text-5xl font-bold">
               Side-by-side retailer pricing at <span className="text-amber-300">/compare</span>
@@ -651,6 +652,8 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
           </ul>
         </div>
       </section>
+
+      </main>
 
       <Footer />
     </div>

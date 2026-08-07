@@ -1,7 +1,6 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
-import type { Metadata } from "next";
 import Schema from "@/components/Schema";
 import { buildWebPageSchema } from "@/lib/page-schema";
 import { buildPageMetadata } from "@/lib/page-metadata";
@@ -47,9 +46,9 @@ export default function PartnersPage() {
       <div className="flex flex-col min-h-screen">
         <Nav />
 
-        <main id="main-content" tabIndex={-1}>
-      {/* Hero */}
-      <section className="bg-gradient-to-br from-violet-600 via-violet-700 to-violet-900 text-white py-20">
+        <main id="main-content" tabIndex={-1} className="flex-1">
+          {/* Hero */}
+          <section className="bg-gradient-to-br from-violet-600 via-violet-700 to-violet-900 text-white py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="max-w-2xl">
             <h1 className="text-4xl font-bold mb-4">
@@ -150,6 +149,10 @@ export default function PartnersPage() {
       </section>
 
         </main>
+<<<<<<< HEAD
+
+=======
+>>>>>>> origin/main
         <Footer />
       </div>
     </>
