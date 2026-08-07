@@ -1,4 +1,3 @@
-import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import SearchResultsClient from './SearchResultsClient';
 import Schema from '@/components/Schema';
@@ -83,9 +82,12 @@ export default function SearchPage({ searchParams }: SearchPageProps) {
   return (
     <>
       <Schema data={schema} />
-      <Suspense fallback={null}>
-        <SearchResultsClient initialQuery={initialQuery} initialCountry={initialCountry} />
-      </Suspense>
+      {/* BUY-67036: removed <Suspense> wrapper. Streaming Suspense in Next
+          14.2.35 trips the streaming pass when the page is re-rendered
+          server-side against state-tree-derived searchParams (RSC nav),
+          returning an opaque 500. The client component handles its own
+          loading state internally — no Suspense fallback needed. */}
+      <SearchResultsClient initialQuery={initialQuery} initialCountry={initialCountry} />
     </>
   );
 }
