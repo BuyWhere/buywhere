@@ -80,8 +80,8 @@ export default function CheckoutPage() {
     <div className="flex min-h-screen flex-col bg-slate-50">
       <Nav />
 
-      <main id="main-content" tabIndex={-1}>
-      <section className="flex-1 py-16">
+      <main id="main-content" tabIndex={-1} className="flex-1">
+      <section className="py-16">
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <div className="rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
             <div className="inline-flex rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-indigo-700">
