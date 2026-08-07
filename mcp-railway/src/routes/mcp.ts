@@ -652,7 +652,8 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // `column "domain" does not exist`.
     const dataResult = await dealsClient.query(
       `SELECT id, source AS domain, url, title, price,
-              (metadata->>'original_price')::numeric AS original_price,
+              CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
+                THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
               currency, image_url, metadata, updated_at, region, country_code,
               ${discountSelect}
        FROM products
@@ -666,15 +667,27 @@ async function handleGetDeals(args: Record<string, unknown>) {
       buildProduct(r, currency, false)
     );
     // BUY-64112: removed keyword fallback (laptop/watch) - return empty when no deals found
+  } catch (err) {
+    // BUY-67161: get_deals must never leak bounded strict-query failures as
+    // JSON-RPC -32603. If the live pool/query path times out, return a coherent
+    // unavailable response so agents can continue and operators still see logs.
+    const msg = (err as { message?: string })?.message || String(err);
+    if (/statement timeout|canceling statement|57014|mcp_catalog_db_pool_acquire_timeout/i.test(msg)) {
+      console.warn('[mcp] get_deals strict query unavailable; returning structured empty response:', msg);
+      total = 0;
+      products = [];
+    } else {
+      throw err;
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);
   }
 
   const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
-  // BUY-60076: surface `unavailable:true` when the strict + regional fallback
-  // returned zero rows, mirroring api/src/routes/mcp.ts so callers can
-  // distinguish "no live deals" from "server bug".
+  // BUY-60076/BUY-67161: surface `unavailable:true` when the strict path
+  // returned zero rows or timed out, mirroring api/src/routes/mcp.ts so callers
+  // can distinguish "no live deals" from "server bug".
   if ((region || country) && products.length === 0) {
     (result as { unavailable?: boolean }).unavailable = true;
   }
