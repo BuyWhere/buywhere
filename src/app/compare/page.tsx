@@ -24,6 +24,12 @@ import { inferCategoryFromQuery, filterOffersByCategory } from "@/lib/compare-ca
 
 export const metadata = buildCompareIndexMetadata();
 
+// BUY-66904: Force dynamic rendering so RSC navigation re-renders don't conflict
+// with the static-metadata path (Next.js 14.2.35 returns 500 when a page that uses
+// both `export const metadata` and `searchParams` is re-rendered during an RSC
+// navigation with `Next-Router-State-Tree` containing search-param values).
+export const dynamic = "force-dynamic";
+
 const API_BASE_URL =
   process.env.BUYWHERE_API_INTERNAL_URL ||
   process.env.BUYWHERE_API_URL ||
@@ -518,12 +524,31 @@ function CategoryGrid() {
 }
 
 export default async function CompareIndexPage({ searchParams }: ComparePageProps) {
-  const query = searchParams?.q?.trim() || "";
-  const rawIds = searchParams?.ids || "";
-  const ids = parseIdsParam(rawIds);
-  const country = (searchParams?.country_code || searchParams?.country)?.trim().toLowerCase();
-  const showComparison = query.length > 0 || ids.length > 0;
-  const offers = showComparison ? await loadComparisonOffers(query, ids, country) : [];
+  // BUY-66904: Wrap searchParams reads + loadComparisonOffers() in a defensive try/catch
+  // so that any failure (upstream API 4xx/5xx, malformed params, RSC reconciliation
+  // re-render throwing on this server component) returns an empty result instead of
+  // crashing the whole page to a 500. The page is designed to render gracefully with
+  // zero offers ("No results found" state) — never an HTTP 500 — for any
+  // non-programmer error condition.
+  let query = "";
+  let rawIds = "";
+  let ids: string[] = [];
+  let country: string | undefined;
+  let offers: ComparisonOffer[] = [];
+  try {
+    query = searchParams?.q?.trim() || "";
+    rawIds = searchParams?.ids || "";
+    ids = parseIdsParam(rawIds);
+    country = (searchParams?.country_code || searchParams?.country)?.trim().toLowerCase();
+    const showComparison = query.length > 0 || ids.length > 0;
+    offers = showComparison ? await loadComparisonOffers(query, ids, country) : [];
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") {
+      // Surface the underlying error during local dev for diagnosis.
+      console.error("[BUY-66904] compare page render failure:", err);
+    }
+    offers = [];
+  }
   const emptyStateTitle = query
     ? `No results found for “${query}”`
     : ids.length > 0
