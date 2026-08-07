@@ -106,7 +106,11 @@ export default function BlogIndexPage() {
                 <p className="mb-6 flex-1 text-sm leading-7 text-slate-600">{post.description}</p>
                 <div className="flex items-center justify-between text-sm text-slate-500">
                   <span>{formatDate(post.publishedAt)}</span>
-                  <Link href={`/blog/${post.slug}`} className="font-medium text-indigo-600">
+                  <Link
+                    href={`/blog/${post.slug}`}
+                    className="font-medium text-indigo-600"
+                    aria-label={`Read article: ${post.title}`}
+                  >
                     Read article →
                   </Link>
                 </div>
