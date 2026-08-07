@@ -609,12 +609,12 @@ async function handleGetDeals(args: Record<string, unknown>) {
   });
   try {
     // BUY-64112: use direct index-backed strict deal query.
-    // The partial index idx_products_deals_country/region on
-    // (country_code, region, discount_pct DESC) with predicate
+    // The partial indexes idx_products_deals_country/region on
+    // (currency, country_code, discount_pct DESC) / (currency, region, discount_pct DESC) with predicate
     // WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
     // supports direct queries that match the predicate. No candidate window needed.
     // Also removes the laptop/watch keyword fallback that masked empty results.
-    await dealsClient.query('SET statement_timeout = 4500');
+    await dealsClient.query('SET statement_timeout = 25000');
     // params already has: currency, minDiscount, [region], [country]
     // Add limit and offset
     const queryParams = [...params, Number(limit) || 20, Number(offset) || 0];
@@ -791,16 +791,21 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
-  // BUY-57258: add connect timeout so pool exhaustion fails fast; reduce statement_timeout
-  // to 5s to prevent cascading connection starvation during contention.
+  // BUY-57258: add connect timeout so pool exhaustion fails fast; keep a bounded
+  // 10s statement_timeout so cold-cache indexed FTS can complete without hanging.
   const bestPriceClient = await db.connect().catch((err) => {
     console.warn('[find_best_price] db.connect failed:', err.message);
     throw { code: -32603, message: 'Database connection timeout' };
   });
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 4500');
+    await bestPriceClient.query('SET statement_timeout = 10000');
     await bestPriceClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS
+    // BUY-66326: for broad product intents like "laptop" or "ps5", a pure
+    // price sort promotes cheap accessories (webcam covers, controller trim)
+    // above the actual product. Demote obvious accessory titles while preserving
+    // price ordering inside the main-product and accessory groups.
+    const accessoryRank = `CASE WHEN title ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|controller|controllers|trim|faceplate|faceplates)\\M' THEN 1 ELSE 0 END`;
     // BUY-65971: the country filter MUST be inside the candidate subquery, not
     // applied in the outer query. `products` is LIST-partitioned by country_code,
     // so `country_code = $N` in the WHERE clause triggers partition pruning and
@@ -828,7 +833,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          AND price > 0
          AND country_code = $1
          AND search_vector @@ plainto_tsquery('english', $2)
-       ORDER BY price ASC, updated_at DESC
+       ORDER BY ${accessoryRank} ASC, price ASC, updated_at DESC
        LIMIT $3::int`,
       [country, productName, limit]
     );
@@ -846,7 +851,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
            AND price > 0
            AND country_code = $1
            AND title ILIKE $2
-         ORDER BY price ASC, updated_at DESC
+         ORDER BY ${accessoryRank} ASC, price ASC, updated_at DESC
          LIMIT $3::int`,
         [country, titlePattern, limit]
       );

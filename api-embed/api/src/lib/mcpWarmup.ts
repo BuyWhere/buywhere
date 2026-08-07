@@ -57,8 +57,8 @@ export async function warmupMcpCaches(): Promise<void> {
     // conflicted with the target shape and caused IF NOT EXISTS to recreate the wrong index.
     await queryWithWarmupBudget(client, `
       CREATE INDEX IF NOT EXISTS idx_products_deals_discount_pct
-        ON products (discount_pct)
-        WHERE discount_pct > 0
+        ON products (currency, discount_pct DESC)
+        WHERE discount_pct IS NOT NULL AND price > 0
     `);
     // BUY-56635: country-aware deals index. The plain (currency, discount_pct DESC)
     // index is not used when the MCP deals query also filters by country_code;
@@ -72,7 +72,14 @@ export async function warmupMcpCaches(): Promise<void> {
         WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
           AND country_code IS NOT NULL
     `);
-    console.log('[mcp-warmup] discount_pct column and indexes verified.');
+    // BUY-66936: region-aware deals index — same shape for region-filtered queries.
+    await queryWithWarmupBudget(client, `
+      CREATE INDEX IF NOT EXISTS idx_products_deals_region
+        ON products (currency, region, discount_pct DESC)
+        WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
+          AND region IS NOT NULL
+    `);
+    console.log("[mcp-warmup] discount_pct column and indexes verified.");
 
     // BUY-21057: Use MATERIALIZED VIEW so pg_cron/pgAgent can refresh it on a schedule,
     // eliminating the 68s GROUP BY on 14M rows that caused INTERNAL_ERROR timeouts.
