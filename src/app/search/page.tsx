@@ -32,21 +32,39 @@ const SEARCH_DESCRIPTION =
 const SEARCH_PATH = '/search';
 
 export async function generateMetadata({ searchParams }: SearchPageProps): Promise<Metadata> {
-  const query = getSearchParam(searchParams?.q).trim();
+  // BUY-67036: belt-and-suspenders against state-tree-derived params that
+  // may carry non-string values (Promise-resolved objects) during the
+  // Chrome RSC navigation re-render. Returning safe defaults is preferred
+  // to throwing — the streaming pass can otherwise 500 with no recoverable
+  // diagnostic.
+  let query = '';
+  try {
+    query = getSearchParam(searchParams?.q).trim();
+  } catch {
+    query = '';
+  }
+
   const metadata = buildPageMetadata({
     title: SEARCH_TITLE,
     description: SEARCH_DESCRIPTION,
     path: SEARCH_PATH,
   });
 
+  let canonical = toSiteUrl(SEARCH_PATH);
+  try {
+    if (query) {
+      canonical = toSiteUrl(`/search?q=${encodeURIComponent(query)}`);
+    }
+  } catch {
+    // keep the safe fallback
+  }
+
   return {
     ...metadata,
     title: query ? `Search results for '${query}' — BuyWhere` : SEARCH_TITLE,
     robots: { index: false, follow: true },
     alternates: {
-      canonical: query
-        ? toSiteUrl(`/search?q=${encodeURIComponent(query)}`)
-        : toSiteUrl(SEARCH_PATH),
+      canonical,
     },
   };
 }
