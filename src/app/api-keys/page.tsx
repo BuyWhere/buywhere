@@ -234,7 +234,7 @@ export default function ApiKeysPage() {
               {/* Side info */}
               <div className="md:col-span-2 space-y-5">
                 <div className="bg-indigo-50 rounded-xl p-5">
-                  <h3 className="font-semibold text-gray-900 mb-3 text-sm">What you get</h3>
+                  <h2 className="font-semibold text-gray-900 mb-3 text-sm">What you get</h2>
                   <ul className="space-y-2 text-sm text-gray-600">
                     {[
                       "Instant API key — no waiting",
