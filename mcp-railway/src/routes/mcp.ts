@@ -626,9 +626,9 @@ async function handleGetDeals(args: Record<string, unknown>) {
     : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
   const whereClause = conditions.join(' AND ');
   // BUY-64112: use direct index-backed strict deal query.
-  // The partial index idx_products_deals_country/region on
-  // (country_code, region, discount_pct DESC) with predicate
-  // WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
+  // The partial indexes idx_products_deals_country/region on
+  // (currency, country_code, discount_pct DESC) / (currency, region, discount_pct DESC)
+  // with predicate WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
   // supports direct queries that match the predicate. No candidate window needed.
   // Also removes the laptop/watch keyword fallback that masked empty results.
   const dealsClient = await acquireMcpClient().catch((err: unknown) => {
@@ -638,7 +638,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
   try {
-    await dealsClient.query('SET statement_timeout = 4500');
+    await dealsClient.query('SET statement_timeout = 10000');
     // params already has: currency, minDiscount, [region], [country]
     // Add limit and offset
     const queryParams = [...params, Number(limit) || 20, Number(offset) || 0];

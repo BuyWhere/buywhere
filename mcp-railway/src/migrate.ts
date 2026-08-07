@@ -41,30 +41,27 @@ CREATE INDEX IF NOT EXISTS idx_products_category_path ON products USING GIN(cate
 -- BUY-14332: discount_pct generated column handled separately in runMigrations()
 -- with an extended statement_timeout (5 min) to avoid timeout on 14M row tables.
 
--- BUY-14399: Deals cold-path optimization indexes for country/region filtering
--- These indexes optimize /v1/deals queries that filter by country_code or region
--- with discount percentage sorting, avoiding sequential scans on 14M+ row table.
+
+-- BUY-14399/BUY-66936: Deals cold-path optimization indexes for country/region filtering
+-- These indexes support strict discount_pct queries with currency and optional
+-- country/region filters, avoiding sequential scans on 14M+ row tables.
 CREATE INDEX IF NOT EXISTS idx_products_deals_country ON products (
   currency,
   country_code,
-  (((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)),
-  updated_at DESC
-) WHERE is_active = true
-    AND price > 0
-    AND (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
-    AND (metadata->>'original_price')::numeric > price
-    AND (metadata->>'original_price')::numeric < price * 100;
+  discount_pct DESC
+) WHERE discount_pct IS NOT NULL
+  AND price > 0
+  AND is_active = true
+  AND country_code IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_products_deals_region ON products (
   currency,
   region,
-  (((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)),
-  updated_at DESC
-) WHERE is_active = true
-    AND price > 0
-    AND (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
-    AND (metadata->>'original_price')::numeric > price
-    AND (metadata->>'original_price')::numeric < price * 100;
+  discount_pct DESC
+) WHERE discount_pct IS NOT NULL
+  AND price > 0
+  AND is_active = true
+  AND region IS NOT NULL;
 
 -- api_keys: create if not exists, then add any missing columns
 CREATE TABLE IF NOT EXISTS api_keys (
@@ -417,6 +414,70 @@ END
 $$;
 `;
 
+function quoteIdentifier(identifier: string): string {
+  return `"${identifier.replace(/"/g, '""')}"`;
+}
+
+function quoteQualifiedIdentifier(qualifiedIdentifier: string): string {
+  return qualifiedIdentifier.split('.').map(quoteIdentifier).join('.');
+}
+
+async function ensureStrictDealsIndexes() {
+  const partitions = await db.query(
+    `SELECT c.oid::regclass::text AS table_name
+       FROM pg_inherits i
+       JOIN pg_class c ON c.oid = i.inhrelid
+      WHERE i.inhparent = 'public.products'::regclass
+      ORDER BY c.oid::regclass::text`
+  );
+  const targetTables = partitions.rows.length > 0
+    ? partitions.rows.map((row: { table_name: string }) => row.table_name)
+    : ['public.products'];
+
+  for (const tableName of targetTables) {
+    const safeSuffix = tableName.replace(/^public\./, '').replace(/[^a-zA-Z0-9_]/g, '_');
+    const quotedTableName = quoteQualifiedIdentifier(tableName);
+    const expectedIndexes = [
+      {
+        name: `idx_buy64112_deals_country_${safeSuffix}`,
+        tableName,
+        createSql: `
+          CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy64112_deals_country_${safeSuffix}
+            ON ${quotedTableName} (currency, country_code, discount_pct DESC)
+            WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
+              AND country_code IS NOT NULL
+        `,
+      },
+      {
+        name: `idx_buy64112_deals_region_${safeSuffix}`,
+        tableName,
+        createSql: `
+          CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy64112_deals_region_${safeSuffix}
+            ON ${quotedTableName} (currency, region, discount_pct DESC)
+            WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
+              AND region IS NOT NULL
+        `,
+      },
+    ];
+
+    for (const expectedIndex of expectedIndexes) {
+      try {
+        const client = await db.connect();
+        try {
+          await client.query('SET statement_timeout = 1800000');
+          await client.query('SET lock_timeout = 60000');
+          await client.query(expectedIndex.createSql);
+          console.log(`[migration] ${expectedIndex.name} verified for ${expectedIndex.tableName}.`);
+        } finally {
+          client.release();
+        }
+      } catch (err: any) {
+        console.warn(`[migration] ${expectedIndex.name} strict index verify failed (non-fatal): ${err.message?.slice(0, 200)}`);
+      }
+    }
+  }
+}
+
 export async function runMigrations() {
   console.log('Running migrations...');
 
@@ -446,6 +507,12 @@ export async function runMigrations() {
     console.error(`[migration] FATAL: products UNIQUE index failed (BUY-56217): ${err.message?.slice(0, 200)}`);
     throw err;
   }
+
+  // BUY-64112: repair stale deal indexes before the legacy generated-column gate
+  // below. Production has a populated plain discount_pct column; even if converting
+  // it to GENERATED is deferred/fails, strict get_deals must still use the column
+  // index path instead of seq-scanning the live products table.
+  await ensureStrictDealsIndexes();
 
   // BUY-45553: Prune redundant DUPLICATE indexes on the products partitioned table.
   //

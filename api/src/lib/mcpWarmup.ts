@@ -71,6 +71,12 @@ export async function warmupMcpCaches(): Promise<void> {
         WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
           AND country_code IS NOT NULL
     `);
+    await queryWithWarmupBudget(client, `
+      CREATE INDEX IF NOT EXISTS idx_products_deals_region
+        ON products (currency, region, discount_pct DESC)
+        WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
+          AND region IS NOT NULL
+    `);
     console.log('[mcp-warmup] discount_pct column and indexes verified.');
 
     // BUY-21057: Use MATERIALIZED VIEW so pg_cron/pgAgent can refresh it on a schedule,

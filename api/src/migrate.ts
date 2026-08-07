@@ -45,30 +45,26 @@ CREATE INDEX IF NOT EXISTS idx_products_category_path ON products USING GIN(cate
 -- BUY-14332: discount_pct generated column handled separately in runMigrations()
 -- with an extended statement_timeout (5 min) to avoid timeout on 14M row tables.
 
--- BUY-14399: Deals cold-path optimization indexes for country/region filtering
--- These indexes optimize /v1/deals queries that filter by country_code or region
--- with discount percentage sorting, avoiding sequential scans on 14M+ row table.
+-- BUY-14399/BUY-66936: Deals cold-path optimization indexes for country/region filtering
+-- These indexes support strict discount_pct queries with currency and optional
+-- country/region filters, avoiding sequential scans on 14M+ row tables.
 CREATE INDEX IF NOT EXISTS idx_products_deals_country ON products (
   currency,
   country_code,
-  (((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)),
-  updated_at DESC
-) WHERE is_active = true
-    AND price > 0
-    AND (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
-    AND (metadata->>'original_price')::numeric > price
-    AND (metadata->>'original_price')::numeric < price * 100;
+  discount_pct DESC
+) WHERE discount_pct IS NOT NULL
+  AND price > 0
+  AND is_active = true
+  AND country_code IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_products_deals_region ON products (
   currency,
   region,
-  (((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)),
-  updated_at DESC
-) WHERE is_active = true
-    AND price > 0
-    AND (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
-    AND (metadata->>'original_price')::numeric > price
-    AND (metadata->>'original_price')::numeric < price * 100;
+  discount_pct DESC
+) WHERE discount_pct IS NOT NULL
+  AND price > 0
+  AND is_active = true
+  AND region IS NOT NULL;
 
 -- api_keys: create if not exists, then add any missing columns
 CREATE TABLE IF NOT EXISTS api_keys (
