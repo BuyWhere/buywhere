@@ -149,7 +149,10 @@ export default function PartnersPage() {
       </section>
 
         </main>
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/main
         <Footer />
       </div>
     </>

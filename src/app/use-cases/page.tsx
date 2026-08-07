@@ -168,6 +168,7 @@ export default function UseCasesPage() {
       <div className="flex flex-col min-h-screen">
       <Nav />
 
+      <main id="main-content" tabIndex={-1}>
       {/* Hero */}
       <section className="bg-gray-900 text-white py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -236,6 +237,7 @@ export default function UseCasesPage() {
 
       <PopularComparisons variant="footer" />
 
+      </main>
       <Footer />
     </div>
   </>
