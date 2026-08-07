@@ -6,6 +6,15 @@ import { buildPageMetadata } from '@/lib/page-metadata';
 import { buildSearchPageSchema } from '@/lib/page-schema';
 import { toSiteUrl } from '@/lib/site-url';
 
+// BUY-67036: Chrome RSC navigation requests carry Next-Router-State-Tree
+// + __PAGE__ searchParams. Next 14.2.35 re-runs the page server-side
+// against state-tree-derived params. The combination of streaming Suspense,
+// generateMetadata that reads searchParams, and a data-driven client child
+// trips the streaming pass and returns 500. Forcing dynamic rendering on
+// every request makes the re-render safe (matches /categories/[slug]/[country]).
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 type SearchPageProps = {
   searchParams?: {
     q?: string | string[];
