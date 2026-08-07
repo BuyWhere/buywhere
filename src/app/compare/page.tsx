@@ -46,12 +46,12 @@ const API_KEY =
   process.env.BUYWHERE_API_INTERNAL_KEY;
 
 type ComparePageProps = {
-  searchParams?: {
+  searchParams: Promise<{
     q?: string;
     ids?: string;
     country?: string;
     country_code?: string;
-  };
+  }>;
 };
 
 const schemaMarkup = {
@@ -527,10 +527,20 @@ function CategoryGrid() {
 }
 
 export default async function CompareIndexPage({ searchParams }: ComparePageProps) {
-  const query = searchParams?.q?.trim() || "";
-  const rawIds = searchParams?.ids || "";
+  // BUY-67036: await the searchParams Promise (Next 15 style) so the
+  // route resolver doesn't trip the legacy sync-searchParams code path
+  // that throws 'The router state header was sent but could not be parsed.'
+  // on RSC navigation re-render.
+  let resolved: Awaited<ComparePageProps['searchParams']> = {};
+  try {
+    resolved = await searchParams;
+  } catch {
+    resolved = {};
+  }
+  const query = (resolved?.q ?? "").trim();
+  const rawIds = resolved?.ids ?? "";
   const ids = parseIdsParam(rawIds);
-  const country = (searchParams?.country_code || searchParams?.country)?.trim().toLowerCase();
+  const country = (resolved?.country_code ?? resolved?.country ?? "").trim().toLowerCase();
   const showComparison = query.length > 0 || ids.length > 0;
   // BUY-67036: belt-and-suspenders around loadComparisonOffers so that even
   // if the internal try/catch misses something during RSC re-render, the

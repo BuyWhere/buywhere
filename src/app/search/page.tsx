@@ -4,41 +4,51 @@ import Schema from '@/components/Schema';
 import { buildSearchPageSchema } from '@/lib/page-schema';
 import { toSiteUrl } from '@/lib/site-url';
 
-// BUY-67036: force-dynamic + revalidate=0 so the server-side re-render
-// during Chrome RSC navigation (Next-Router-State-Tree + __PAGE__ params)
-// does not depend on cached build output. Matches /categories/[slug]/[country]
-// which does not exhibit the 500.
+// BUY-67036: force-dynamic + revalidate=0 + Promise-based searchParams.
+// The Next 14.2.35 runtime trips a parser bug when the route is re-rendered
+// server-side against Next-Router-State-Tree-derived searchParams AND the
+// route uses the legacy sync `searchParams` shape. Awaiting the params
+// Promise (Next 15 style) avoids the legacy code path in the route
+// resolver that throws 'The router state header was sent but could not
+// be parsed.'.
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 type SearchPageProps = {
-  searchParams?: {
+  searchParams: Promise<{
     q?: string | string[];
     country?: string | string[];
-  };
+  }>;
 };
 
 function getSearchParam(value?: string | string[]) {
   return Array.isArray(value) ? value[0] ?? '' : value ?? '';
 }
 
-// BUY-67036: restore generateMetadata with extra defensive wrapping. Earlier
-// attempts (static metadata, remove Suspense, try/catch inside metadata)
-// did not fix the RSC-nav 500. The root cause is opaque; the most robust
-// mitigation is to ensure no throw path inside generateMetadata can hit
-// the streaming-pass. We compute the title/canonical inside try/catch and
-// fall back to safe defaults on any error.
-export async function generateMetadata({ searchParams }: SearchPageProps): Promise<Metadata> {
-  const fallbackTitle = 'Search products — BuyWhere';
-  let query = '';
-  let canonical = '/search';
-
+function safeString(value: unknown): string {
   try {
-    query = getSearchParam(searchParams?.q).trim();
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+    return '';
   } catch {
-    query = '';
+    return '';
+  }
+}
+
+export async function generateMetadata({ searchParams }: SearchPageProps): Promise<Metadata> {
+  let resolved: Awaited<SearchPageProps['searchParams']> = {};
+  try {
+    resolved = await searchParams;
+  } catch {
+    resolved = {};
   }
 
+  const query = safeString(resolved?.q).trim();
+  const title = query
+    ? `Search results for '${query}' — BuyWhere`
+    : 'Search products — BuyWhere';
+
+  let canonical = '/search';
   try {
     if (query) {
       canonical = `/search?q=${encodeURIComponent(query)}`;
@@ -55,7 +65,7 @@ export async function generateMetadata({ searchParams }: SearchPageProps): Promi
   }
 
   return {
-    title: query ? `Search results for '${query}' — BuyWhere` : fallbackTitle,
+    title,
     robots: { index: false, follow: true },
     alternates: {
       canonical: safeCanonical,
@@ -63,19 +73,16 @@ export async function generateMetadata({ searchParams }: SearchPageProps): Promi
   };
 }
 
-export default function SearchPage({ searchParams }: SearchPageProps) {
-  let initialQuery = '';
-  let initialCountry = '';
+export default async function SearchPage({ searchParams }: SearchPageProps) {
+  let resolved: Awaited<SearchPageProps['searchParams']> = {};
   try {
-    initialQuery = getSearchParam(searchParams?.q);
+    resolved = await searchParams;
   } catch {
-    initialQuery = '';
+    resolved = {};
   }
-  try {
-    initialCountry = getSearchParam(searchParams?.country);
-  } catch {
-    initialCountry = '';
-  }
+
+  const initialQuery = safeString(resolved?.q);
+  const initialCountry = safeString(resolved?.country);
 
   const schema = buildSearchPageSchema({
     path: '/search',
@@ -87,11 +94,6 @@ export default function SearchPage({ searchParams }: SearchPageProps) {
   return (
     <>
       <Schema data={schema} />
-      {/* BUY-67036: removed <Suspense> wrapper. Streaming Suspense in Next
-          14.2.35 trips the streaming pass when the page is re-rendered
-          server-side against state-tree-derived searchParams (RSC nav),
-          returning an opaque 500. The client component handles its own
-          loading state internally — no Suspense fallback needed. */}
       <SearchResultsClient initialQuery={initialQuery} initialCountry={initialCountry} />
     </>
   );
