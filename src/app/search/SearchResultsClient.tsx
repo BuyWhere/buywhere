@@ -9,6 +9,13 @@ import Footer from '@/components/Footer';
 import { MerchantBadge } from '@/components/ui/MerchantBadge';
 import { CompareSelectButton } from '@/components/compare/CompareSelectButton';
 import { openUpgradeIntentPrompt } from '@/lib/upgrade-intent-prompt';
+import {
+  formatPrice,
+  normalizeProduct,
+  sortProductsByImageQuality,
+  type SearchApiItem,
+  type SearchCardProduct,
+} from './normalize-product';
 
 const PAGE_SIZE = 20;
 const SEARCH_FETCH_LIMIT = 40;
@@ -27,31 +34,13 @@ type CountryValue = (typeof COUNTRY_OPTIONS)[number]['value'];
 type SearchResultsClientProps = {
   initialQuery?: string;
   initialCountry?: string;
+  initialProducts?: SearchCardProduct[];
+  initialTotal?: number;
+  initialDegraded?: boolean;
+  initialHint?: string | null;
 };
 
-type SearchApiItem = {
-  id: number | string;
-  name?: string | null;
-  title?: string | null;
-  price?: number | string | { amount?: number | string | null; currency?: string | null } | null;
-  price_amount?: number | string | null;
-  price_currency?: string | null;
-  currency?: string | null;
-  click_url?: string | null;
-  source?: string | null;
-  merchant?: string | null;
-  merchant_name?: string | null;
-  image_url?: string | null;
-  image?: string | null;
-  url?: string | null;
-  buy_url?: string | null;
-  affiliate_url?: string | null;
-  affiliate_redirect_url?: string | null;
-  brand?: string | null;
-  category?: string | null;
-  structured_specs?: Record<string, unknown> | null;
-  metadata?: Record<string, unknown> | null;
-};
+export type { SearchCardProduct };
 
 type SearchApiResponse = {
   total?: number;
@@ -71,118 +60,12 @@ type SearchApiResponse = {
   timeout_ms?: number;
 };
 
-export type SearchCardProduct = {
-  id: string;
-  name: string;
-  price: number | null;
-  currency: string;
-  merchant: string;
-  imageUrl: string | null;
-  href: string;
-  brand: string | null;
-  category: string | null;
-};
-
 function normalizeCountry(value?: string): CountryValue {
   return value?.toLowerCase() === 'sg' ? 'sg' : 'us';
 }
 
 function getCountryOption(value: CountryValue) {
   return COUNTRY_OPTIONS.find((option) => option.value === value) ?? COUNTRY_OPTIONS[0];
-}
-
-function formatMerchantName(value?: string | null) {
-  if (!value) return 'BuyWhere seller';
-  return value
-    .replace(/[_-]+/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function formatPrice(price: number | null, currency: string) {
-  if (price === null) return 'Price unavailable';
-
-  try {
-    return new Intl.NumberFormat(currency === 'SGD' ? 'en-SG' : 'en-US', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 2,
-    }).format(price);
-  } catch {
-    return `${currency} ${price.toFixed(2)}`;
-  }
-}
-
-function hasUsableProductImage(value?: string | null) {
-  if (!value) return false;
-
-  try {
-    const imageUrl = new URL(value);
-    const hostname = imageUrl.hostname.toLowerCase();
-    const pathname = imageUrl.pathname.toLowerCase();
-    const search = imageUrl.search.toLowerCase();
-    const fullUrl = `${hostname}${pathname}${search}`;
-
-    if (hostname.includes('source.unsplash.com') || fullUrl.includes('source.unsplash.com')) return false;
-    if (hostname.includes('images.unsplash.com') || fullUrl.includes('images.unsplash.com')) return false;
-    if (hostname.includes('unsplash.com')) return false;
-    if (fullUrl.includes('placeholder')) return false;
-    if (fullUrl.includes('image-unavailable')) return false;
-    if (fullUrl.includes('no-image')) return false;
-    if (fullUrl.includes('no_image')) return false;
-    if (fullUrl.includes('missing-image')) return false;
-    if (fullUrl.includes('generic')) return false;
-
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function sortProductsByImageQuality(products: SearchCardProduct[]) {
-  return [...products].sort((leftProduct, rightProduct) => {
-    const leftHasImage = leftProduct.imageUrl ? 1 : 0;
-    const rightHasImage = rightProduct.imageUrl ? 1 : 0;
-
-    if (leftHasImage !== rightHasImage) return rightHasImage - leftHasImage;
-    return 0;
-  });
-}
-
-function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): SearchCardProduct {
-  const priceValue =
-    item.price && typeof item.price === 'object' && 'amount' in item.price
-      ? item.price.amount
-      : item.price_amount ?? item.price;
-  const priceCurrency =
-    item.price && typeof item.price === 'object' && 'currency' in item.price
-      ? item.price.currency
-      : item.price_currency ?? item.currency;
-  const numericPrice =
-    typeof priceValue === 'number'
-      ? priceValue
-      : typeof priceValue === 'string' && priceValue.trim()
-        ? Number(priceValue)
-        : null;
-  const specs = item.structured_specs || item.metadata || null;
-  const specBrand = typeof specs?.brand === 'string' ? specs.brand : null;
-  const specCategory = typeof specs?.category === 'string' ? specs.category : null;
-  const imageUrl = hasUsableProductImage(item.image_url)
-    ? item.image_url || null
-    : hasUsableProductImage(item.image)
-      ? item.image || null
-      : null;
-
-  return {
-    id: String(item.id),
-    name: item.name || item.title || 'Untitled product',
-    price: Number.isFinite(numericPrice) ? numericPrice : null,
-    currency: priceCurrency || fallbackCurrency,
-    merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
-    imageUrl,
-    href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.buy_url || item.url || '#',
-    brand: item.brand || specBrand,
-    category: item.category || specCategory,
-  };
 }
 
 function normalizeSearchHistoryQuery(value: string) {
@@ -380,9 +263,18 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
 export default function SearchResultsClient({
   initialQuery = '',
   initialCountry = 'us',
+  initialProducts,
+  initialTotal,
+  initialDegraded,
+  initialHint,
 }: SearchResultsClientProps) {
   const initialSearchQuery = initialQuery.trim();
   const hasInitialSearchQuery = initialSearchQuery.length >= MIN_QUERY_LENGTH;
+  const seededProducts = useMemo(() => {
+    if (!Array.isArray(initialProducts) || initialProducts.length === 0) return [];
+    return sortProductsByImageQuality(initialProducts);
+  }, [initialProducts]);
+  const hasSeededResults = seededProducts.length > 0;
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchParamsString = searchParams?.toString() ?? '';
@@ -391,21 +283,27 @@ export default function SearchResultsClient({
   const [query, setQuery] = useState(initialQuery);
   const [country, setCountry] = useState<CountryValue>(normalizeCountry(initialCountry));
   const [debouncedQuery, setDebouncedQuery] = useState(initialSearchQuery);
-  const [products, setProducts] = useState<SearchCardProduct[]>([]);
-  const [total, setTotal] = useState(0);
+  const [products, setProducts] = useState<SearchCardProduct[]>(seededProducts);
+  const [total, setTotal] = useState(
+    typeof initialTotal === 'number' ? initialTotal : seededProducts.length,
+  );
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
-  const [loadingInitial, setLoadingInitial] = useState(hasInitialSearchQuery);
+  const [loadingInitial, setLoadingInitial] = useState(hasInitialSearchQuery && !hasSeededResults);
   const [searchStartTime, setSearchStartTime] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [degraded, setDegraded] = useState(false);
-  const [degradedHint, setDegradedHint] = useState<string | null>(null);
+  const [degraded, setDegraded] = useState(Boolean(initialDegraded));
+  const [degradedHint, setDegradedHint] = useState<string | null>(initialHint ?? null);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeHistoryIndex, setActiveHistoryIndex] = useState(-1);
   const lastRequestKeyRef = useRef<string | null>(null);
+  // When the server rendered an initial page for the same URL query, skip the
+  // hydration-time auto-fetch so we don't replace real SSR results with a
+  // duplicate request. A user-driven change to the query still re-fetches.
+  const ssrSeededRef = useRef<boolean>(hasSeededResults);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchFieldRef = useRef<HTMLLabelElement>(null);
 
@@ -623,6 +521,15 @@ export default function SearchResultsClient({
   }, [activeCountry.apiValue, activeCountry.currency, country, debouncedQuery]);
 
   useEffect(() => {
+    // If the SSR pass already shipped product cards for the initial query,
+    // do not re-fetch on hydration — that would briefly blank out the cards
+    // and force a second network roundtrip for crawlers that already got
+    // the data.
+    if (ssrSeededRef.current) {
+      ssrSeededRef.current = false;
+      return;
+    }
+
     const controller = new AbortController();
 
     void fetchResults({
