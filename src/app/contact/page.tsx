@@ -29,6 +29,7 @@ export default function ContactPage() {
       <div className="flex flex-col min-h-screen">
       <Nav />
 
+      <main id="main-content" role="main" tabIndex={-1} aria-label="Main content">
       <section className="bg-indigo-600 text-white py-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <h1 className="text-4xl font-bold mb-3">Get in touch</h1>
@@ -93,6 +94,7 @@ export default function ContactPage() {
         </div>
       </section>
 
+      </main>
       <Footer />
     </div>
   </>

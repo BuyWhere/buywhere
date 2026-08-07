@@ -545,6 +545,7 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkup) }}
       />
 
+      <main id="main-content" role="main" tabIndex={-1} aria-label="Main content">
       <section className="bg-gradient-to-br from-indigo-700 via-slate-900 to-sky-900 text-white py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="max-w-3xl">
@@ -652,6 +653,7 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
         </div>
       </section>
 
+      </main>
       <Footer />
     </div>
   );
