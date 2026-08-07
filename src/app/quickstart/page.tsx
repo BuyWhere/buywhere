@@ -180,6 +180,7 @@ export default function QuickstartPage() {
       </Script>
       <Nav />
 
+      <main id="main-content" tabIndex={-1}>
       <section className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(79,70,229,0.18),_transparent_38%),linear-gradient(135deg,#0f172a_0%,#111827_48%,#1e1b4b_100%)] text-white">
         <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-20 sm:px-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
@@ -404,6 +405,7 @@ export default function QuickstartPage() {
       </section>
 
       <PopularComparisons variant="footer" />
+      </main>
       <Footer />
     </div>
   </>

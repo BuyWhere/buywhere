@@ -388,6 +388,25 @@ export function createApp() {
     );
   });
 
+  app.get('/developers/sitemap-index.xml', (req, res) => {
+    const proto = ((req.headers['x-forwarded-proto'] as string) || req.protocol).split(',')[0].trim();
+    const host = (req.headers['x-forwarded-host'] as string) || req.get('host') || 'buywhere.ai';
+    const base = `${proto}://${host}`;
+    const now = new Date().toISOString().slice(0, 10);
+    const xml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      '  <sitemap>',
+      `    <loc>${base}/developers/sitemap.xml</loc>`,
+      `    <lastmod>${now}</lastmod>`,
+      '  </sitemap>',
+      '</sitemapindex>',
+    ].join('\n');
+    res.set('Content-Type', 'application/xml; charset=utf-8');
+    res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
+    res.send(xml);
+  });
+
   app.get('/developers/sitemap.xml', (req, res) => {
     const proto = ((req.headers['x-forwarded-proto'] as string) || req.protocol).split(',')[0].trim();
     const host = (req.headers['x-forwarded-host'] as string) || req.get('host') || 'buywhere.ai';

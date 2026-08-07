@@ -197,7 +197,7 @@ export default function DevelopersPage() {
       </Script>
       <Nav />
 
-      <main id="main-content" role="main" tabIndex={-1} aria-label="Main content">
+      <main id="main-content" tabIndex={-1}>
       <section className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(79,70,229,0.15),_transparent_40%),linear-gradient(135deg,#0f172a_0%,#1e1b4b_100%)] text-white">
         <div className="mx-auto max-w-6xl px-4 py-24 sm:px-6">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.15em] text-indigo-200">
