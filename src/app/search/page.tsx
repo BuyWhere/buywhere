@@ -26,16 +26,34 @@ function getSearchParam(value?: string | string[]) {
 }
 
 export async function generateMetadata({ searchParams }: SearchPageProps): Promise<Metadata> {
-  const query = getSearchParam(searchParams?.q).trim();
+  // BUY-67036: belt-and-suspenders against state-tree-derived params that
+  // may carry non-string values (Promise-resolved objects) during the
+  // Chrome RSC navigation re-render. Returning safe defaults is preferred
+  // to throwing — the streaming pass can otherwise 500 with no recoverable
+  // diagnostic.
+  let query = '';
+  try {
+    query = getSearchParam(searchParams?.q).trim();
+  } catch {
+    query = '';
+  }
+
   const title = query ? `Search results for '${query}' — BuyWhere` : 'Search products — BuyWhere';
+
+  let canonical = toSiteUrl('/search');
+  try {
+    if (query) {
+      canonical = toSiteUrl(`/search?q=${encodeURIComponent(query)}`);
+    }
+  } catch {
+    // keep the safe fallback
+  }
 
   return {
     title,
     robots: { index: false, follow: true },
     alternates: {
-      canonical: query
-        ? toSiteUrl(`/search?q=${encodeURIComponent(query)}`)
-        : toSiteUrl('/search'),
+      canonical,
     },
   };
 }
