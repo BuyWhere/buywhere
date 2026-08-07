@@ -461,12 +461,12 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
       </div>
 
       <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-2.5 bg-white p-3.5" data-testid="search-product-details">
+        {/* BUY-66909: drop the dark 'Shop' pill next to MerchantBadge — it visually
+            competed with the 'View Deal' button as a second primary CTA. The card
+            itself is the merchant link; MerchantBadge stays as a non-primary badge
+            and 'View Deal' is the single clear primary action. */}
         <div className="flex min-h-7 items-start justify-between gap-2">
           <MerchantBadge merchant={product.merchant} className="min-w-0 flex-1 basis-0" />
-          <span className="inline-flex shrink-0 items-center gap-1 self-start rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
-            Shop
-            <ExternalLink className="h-3 w-3" />
-          </span>
         </div>
 
         <div className="space-y-1.5">
@@ -475,7 +475,10 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
           >
             {product.name}
           </h2>
-          <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+          {/* BUY-66909: raise metadata contrast — slate-500 (4.76:1 on white) was
+              borderline AA. slate-700 (10.35:1) gives comfortable AA + AA-large
+              headroom without competing with the price or title. */}
+          <div className="flex flex-wrap gap-2 text-xs text-slate-700">
             {product.brand ? <span>{product.brand}</span> : null}
             {product.category ? <span>{product.category}</span> : null}
           </div>
@@ -486,8 +489,10 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
               numeric price is visually adjacent to the 'Current price' label
               (previously they were disconnected: a floating pill on the image
               + the label here). */}
+          {/* BUY-66909: 'Current price' label was text-slate-500 (4.76:1) which
+              renders thin under uppercase tracking. Raise to slate-700 (10.35:1). */}
           <div className="flex items-baseline justify-between gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Current price</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">Current price</p>
             <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
           </div>
           <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">

@@ -20,8 +20,12 @@ test.describe('Search result card layout', () => {
       await expect(media).toHaveCSS('overflow', 'hidden');
       await expect(details.getByRole('heading')).toBeVisible();
       await expect(details.getByRole('img')).toBeVisible();
-      await expect(details.getByText('Shop', { exact: true })).toBeVisible();
+      // BUY-66909: removed the dark 'Shop' pill that competed with the
+      // 'View Deal' CTA. The card itself is now the merchant link; the
+      // MerchantBadge is the merchant affordance.
+      await expect(details.getByText('Shop', { exact: true })).toHaveCount(0);
       await expect(details.getByText('View Deal', { exact: true })).toBeVisible();
+      await expect(details.getByText('Current price', { exact: true })).toBeVisible();
 
       const imageCount = await image.count();
       const [mediaBox, detailsBox, imageBox] = await Promise.all([
