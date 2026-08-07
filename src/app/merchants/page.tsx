@@ -73,6 +73,7 @@ export default function MerchantsPage() {
       <div className="flex flex-col min-h-screen">
         <Nav />
 
+      <main id="main-content" role="main" tabIndex={-1} aria-label="Main content">
       {/* Hero */}
       <section className="bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-900 text-white py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -190,6 +191,7 @@ export default function MerchantsPage() {
         </div>
       </section>
 
+      </main>
       <Footer />
     </div>
   </>
