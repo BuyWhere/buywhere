@@ -4,6 +4,7 @@ import SearchResultsClient from './SearchResultsClient';
 import Schema from '@/components/Schema';
 import { buildSearchPageSchema } from '@/lib/page-schema';
 import { toSiteUrl } from '@/lib/site-url';
+import { loadInitialSearchResults } from './server-search';
 
 type SearchPageProps = {
   searchParams?: {
@@ -15,6 +16,11 @@ type SearchPageProps = {
 function getSearchParam(value?: string | string[]) {
   return Array.isArray(value) ? value[0] ?? '' : value ?? '';
 }
+
+const COUNTRY_CURRENCY: Record<string, string> = {
+  us: 'USD',
+  sg: 'SGD',
+};
 
 export async function generateMetadata({ searchParams }: SearchPageProps): Promise<Metadata> {
   const query = getSearchParam(searchParams?.q).trim();
@@ -31,9 +37,16 @@ export async function generateMetadata({ searchParams }: SearchPageProps): Promi
   };
 }
 
-export default function SearchPage({ searchParams }: SearchPageProps) {
+export default async function SearchPage({ searchParams }: SearchPageProps) {
   const initialQuery = getSearchParam(searchParams?.q);
-  const initialCountry = getSearchParam(searchParams?.country);
+  const initialCountry = getSearchParam(searchParams?.country).toLowerCase() || 'us';
+  const fallbackCurrency = COUNTRY_CURRENCY[initialCountry] ?? 'USD';
+
+  const { products, total, degraded, hint } = await loadInitialSearchResults({
+    query: initialQuery,
+    countryCode: initialCountry,
+    fallbackCurrency,
+  });
 
   const schema = buildSearchPageSchema({
     path: '/search',
@@ -46,7 +59,14 @@ export default function SearchPage({ searchParams }: SearchPageProps) {
     <>
       <Schema data={schema} />
       <Suspense fallback={null}>
-        <SearchResultsClient initialQuery={initialQuery} initialCountry={initialCountry} />
+        <SearchResultsClient
+          initialQuery={initialQuery}
+          initialCountry={initialCountry}
+          initialProducts={products}
+          initialTotal={total}
+          initialDegraded={degraded}
+          initialHint={hint}
+        />
       </Suspense>
     </>
   );
