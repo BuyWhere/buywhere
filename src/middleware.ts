@@ -209,12 +209,16 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
     return "/blog";
   }
 
+  if (normalizedPath === "/docs") {
+    return "/quickstart";
+  }
+
   if (normalizedPath === "/guides" || normalizedPath.startsWith("/guides/")) {
-    return "/docs";
+    return "/quickstart";
   }
 
   if (normalizedPath === "/api-reference" || normalizedPath.startsWith("/api-reference/")) {
-    return "/docs";
+    return "/quickstart";
   }
 
   // BUY-64258: legacy robot-vacuum aliases should resolve to the canonical

@@ -178,8 +178,8 @@ export default function DocPage({ params }: DocRouteParams) {
       <main id="main-content" className="flex-1">
         <section className="border-b border-slate-200 bg-white">
           <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 md:py-16">
-            <Link href="/docs" className="mb-6 inline-flex text-sm font-medium text-indigo-600">
-              ← Back to documentation
+            <Link href="/quickstart" className="mb-6 inline-flex text-sm font-medium text-indigo-600">
+              ← Back to quickstart
             </Link>
             <h1 className="mb-6 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
               {doc.title}
