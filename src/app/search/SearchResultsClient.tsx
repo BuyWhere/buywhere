@@ -98,8 +98,76 @@ function formatMerchantName(value?: string | null) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+// BUY-65559: price sanity bounds.
+//
+// The catalog ingest lane (BUY-52807 family) has historically emitted sentinel
+// prices — `amount: 1` when the Google Shopping scraper could not parse the
+// merchant's product page, and `amount: 0` from a handful of Shopify feeds.
+// Those sentinels reached the card as ordinary finite numbers and rendered as
+// "$1.00" / "$0.00", so a RTX 5050 gaming laptop was listed at a dollar.
+//
+// `isPlausiblePrice` is the render-side backstop: anything outside the bounds
+// is coerced to `null` in `normalizeProduct`, which routes it through the
+// existing "Price unavailable" copy instead of showing a fabricated number.
+// A missing price is honest; a wrong price is not.
+//
+// The guard deliberately fails OPEN — hiding a real product from search is a
+// worse failure than showing one odd price, so every bound below is set where
+// no genuine retail offer lives, and anything ambiguous keeps its price.
+const MAX_PLAUSIBLE_PRICE = 10_000_000;
+
+// Universal sentinel floor. Nothing in the catalog legitimately retails below
+// this: the cheapest real rows sampled across gaming laptops, cables,
+// keychains, stickers and screen protectors were $5.50-$6.99. Scraper
+// sentinels cluster at 0, 0.01 and 1, so this bound separates them cleanly
+// without a title heuristic that could misread a real product.
+const ABSOLUTE_MIN_PRICE = 3;
+
+// A second, narrower floor for big-ticket devices, where even $40 is clearly a
+// data error. Applied ONLY when the title is unambiguously a primary device —
+// accessories and collectibles are excluded first, because "Laptop Cooling
+// Pad" ($38) and "Pop Television Action Figure" ($9.99) are real products
+// whose titles merely borrow a high-value keyword.
+const HIGH_VALUE_PRODUCT_PATTERN =
+  /\b(laptop|notebook|macbook|desktop|imac|smartphone|iphone|television|refrigerator|dishwasher|playstation|xbox)\b/;
+const HIGH_VALUE_MIN_PRICE = 50;
+
+// Titles that borrow a high-value keyword while describing something cheap.
+// "Pop Television" is Funko's collectible line, not a TV; a "SIM card holder
+// for iPhone 13 Pro" is not an iPhone. Every entry here was observed as a real
+// live catalog row that the floor would otherwise have hidden. The trailing
+// `s?` matches plural titles ("Ponchos - iPhone") as well as singular.
+const HIGH_VALUE_FALSE_FRIEND_PATTERN =
+  /\b(action figure|figurine|funko|pop television|collectible|plush|poster|keychain|sticker|decal|magnet|mug|t-shirt|tee|toy|lego|replica|miniature|keyboard|mouse|screen protector|tempered glass|poncho|holder|mount|strap|band|grip|ring|wallet|pouch|tripod|stylus|lens|film|clip|skin|sleeve|case|cover)s?\b/;
+
+// A "for <device>" / "compatible with <device>" title is describing something
+// made FOR the device, not the device itself.
+const ACCESSORY_PREPOSITION_PATTERN = /\b(for|compatible with|fits|designed for)\b/;
+
+function isPlausiblePrice(price: number | null, product: { name: string; category: string | null }): boolean {
+  if (price === null || !Number.isFinite(price)) return false;
+
+  // Zero, negative, or absurd is never a real offer, whatever the item.
+  if (price <= 0 || price > MAX_PLAUSIBLE_PRICE) return false;
+
+  // Sentinel territory — below any genuine retail price in the catalog.
+  if (price < ABSOLUTE_MIN_PRICE) return false;
+
+  const text = `${product.name} ${product.category || ''}`.toLowerCase();
+
+  if (HIGH_VALUE_PRODUCT_PATTERN.test(text) && price < HIGH_VALUE_MIN_PRICE) {
+    // Fail open for anything that only looks like a big-ticket device.
+    if (HIGH_VALUE_FALSE_FRIEND_PATTERN.test(text)) return true;
+    if (ACCESSORY_PREPOSITION_PATTERN.test(text)) return true;
+    if (isAccessoryProduct({ name: product.name, category: product.category } as SearchCardProduct)) return true;
+    return false;
+  }
+
+  return true;
+}
+
 function formatPrice(price: number | null, currency: string) {
-  if (price === null) return 'Price unavailable';
+  if (price === null || !Number.isFinite(price)) return 'Price unavailable';
 
   try {
     return new Intl.NumberFormat(currency === 'SGD' ? 'en-SG' : 'en-US', {
@@ -243,18 +311,33 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
       ? item.image || null
       : null;
 
+  const name = item.name || item.title || 'Untitled product';
+  const category = item.category || specCategory;
+  const finitePrice = Number.isFinite(numericPrice) ? numericPrice : null;
+
   return {
     id: String(item.id),
-    name: item.name || item.title || 'Untitled product',
-    price: Number.isFinite(numericPrice) ? numericPrice : null,
+    name,
+    // BUY-65559: drop implausible sentinel prices to null so the card renders
+    // "Price unavailable" instead of a fabricated "$1.00" / "$0.00".
+    price: isPlausiblePrice(finitePrice, { name, category }) ? finitePrice : null,
     currency: priceCurrency || fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
     imageUrl,
     href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.buy_url || item.url || '#',
     brand: item.brand || specBrand,
-    category: item.category || specCategory,
+    category,
   };
 }
+
+// BUY-65559: exported for the price-sanity regression test.
+export const __test__ = {
+  isPlausiblePrice,
+  formatPrice,
+  normalizeProduct,
+  HIGH_VALUE_MIN_PRICE,
+  MAX_PLAUSIBLE_PRICE,
+};
 
 function normalizeSearchHistoryQuery(value: string) {
   return value.trim().replace(/\s+/g, ' ');
