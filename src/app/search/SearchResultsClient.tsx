@@ -27,6 +27,12 @@ type CountryValue = (typeof COUNTRY_OPTIONS)[number]['value'];
 type SearchResultsClientProps = {
   initialQuery?: string;
   initialCountry?: string;
+  // BUY-67120: server-rendered first page of results, passed in from the page
+  // server component so the initial HTML is crawler-visible without waiting
+  // for the client `useEffect(fetchResults)` round-trip.
+  initialProducts?: SearchCardProduct[];
+  initialTotal?: number;
+  initialHasMore?: boolean;
 };
 
 type SearchApiItem = {
@@ -586,6 +592,9 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
 export default function SearchResultsClient({
   initialQuery = '',
   initialCountry = 'us',
+  initialProducts,
+  initialTotal,
+  initialHasMore,
 }: SearchResultsClientProps) {
   const initialSearchQuery = initialQuery.trim();
   const hasInitialSearchQuery = initialSearchQuery.length >= MIN_QUERY_LENGTH;
@@ -597,9 +606,13 @@ export default function SearchResultsClient({
   const [query, setQuery] = useState(initialQuery);
   const [country, setCountry] = useState<CountryValue>(normalizeCountry(initialCountry));
   const [debouncedQuery, setDebouncedQuery] = useState(initialSearchQuery);
-  const [products, setProducts] = useState<SearchCardProduct[]>([]);
-  const [total, setTotal] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
+  // BUY-67120: hydrate from server-rendered results when the page server component
+  // already fetched them. Skip the client fetchResults round-trip on first paint so
+  // the visible HTML and the React tree stay in lock-step.
+  const hasInitialServerResults = Array.isArray(initialProducts) && initialProducts.length > 0;
+  const [products, setProducts] = useState<SearchCardProduct[]>(initialProducts ?? []);
+  const [total, setTotal] = useState(typeof initialTotal === 'number' ? initialTotal : (hasInitialServerResults ? initialProducts!.length : 0));
+  const [hasMore, setHasMore] = useState(Boolean(initialHasMore));
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [loadingInitial, setLoadingInitial] = useState(hasInitialSearchQuery);
@@ -829,6 +842,10 @@ export default function SearchResultsClient({
   }, [activeCountry.apiValue, activeCountry.currency, country, debouncedQuery]);
 
   useEffect(() => {
+    // BUY-67120: skip the initial client fetch when the server-rendered HTML
+    // already includes the first page of results — keeps the visible markup
+    // and the React state in lock-step on first paint.
+    if (hasInitialServerResults) return;
     const controller = new AbortController();
 
     void fetchResults({
@@ -837,7 +854,7 @@ export default function SearchResultsClient({
     });
 
     return () => controller.abort();
-  }, [fetchResults]);
+  }, [fetchResults, hasInitialServerResults]);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
