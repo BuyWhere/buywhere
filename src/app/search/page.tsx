@@ -4,12 +4,10 @@ import Schema from '@/components/Schema';
 import { buildSearchPageSchema } from '@/lib/page-schema';
 import { toSiteUrl } from '@/lib/site-url';
 
-// BUY-67036: Chrome RSC navigation requests carry Next-Router-State-Tree
-// + __PAGE__ searchParams. Next 14.2.35 re-runs the page server-side
-// against state-tree-derived params. The combination of streaming Suspense,
-// generateMetadata that reads searchParams, and a data-driven client child
-// trips the streaming pass and returns 500. Forcing dynamic rendering on
-// every request makes the re-render safe (matches /categories/[slug]/[country]).
+// BUY-67036: force-dynamic + revalidate=0 so the server-side re-render
+// during Chrome RSC navigation (Next-Router-State-Tree + __PAGE__ params)
+// does not depend on cached build output. Matches /categories/[slug]/[country]
+// which does not exhibit the 500.
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
@@ -24,42 +22,60 @@ function getSearchParam(value?: string | string[]) {
   return Array.isArray(value) ? value[0] ?? '' : value ?? '';
 }
 
+// BUY-67036: restore generateMetadata with extra defensive wrapping. Earlier
+// attempts (static metadata, remove Suspense, try/catch inside metadata)
+// did not fix the RSC-nav 500. The root cause is opaque; the most robust
+// mitigation is to ensure no throw path inside generateMetadata can hit
+// the streaming-pass. We compute the title/canonical inside try/catch and
+// fall back to safe defaults on any error.
 export async function generateMetadata({ searchParams }: SearchPageProps): Promise<Metadata> {
-  // BUY-67036: belt-and-suspenders against state-tree-derived params that
-  // may carry non-string values (Promise-resolved objects) during the
-  // Chrome RSC navigation re-render. Returning safe defaults is preferred
-  // to throwing — the streaming pass can otherwise 500 with no recoverable
-  // diagnostic.
+  const fallbackTitle = 'Search products — BuyWhere';
   let query = '';
+  let canonical = '/search';
+
   try {
     query = getSearchParam(searchParams?.q).trim();
   } catch {
     query = '';
   }
 
-  const title = query ? `Search results for '${query}' — BuyWhere` : 'Search products — BuyWhere';
-
-  let canonical = toSiteUrl('/search');
   try {
     if (query) {
-      canonical = toSiteUrl(`/search?q=${encodeURIComponent(query)}`);
+      canonical = `/search?q=${encodeURIComponent(query)}`;
     }
   } catch {
-    // keep the safe fallback
+    canonical = '/search';
+  }
+
+  let safeCanonical = toSiteUrl('/search');
+  try {
+    safeCanonical = toSiteUrl(canonical);
+  } catch {
+    // keep safeCanonical as the /search fallback
   }
 
   return {
-    title,
+    title: query ? `Search results for '${query}' — BuyWhere` : fallbackTitle,
     robots: { index: false, follow: true },
     alternates: {
-      canonical,
+      canonical: safeCanonical,
     },
   };
 }
 
 export default function SearchPage({ searchParams }: SearchPageProps) {
-  const initialQuery = getSearchParam(searchParams?.q);
-  const initialCountry = getSearchParam(searchParams?.country);
+  let initialQuery = '';
+  let initialCountry = '';
+  try {
+    initialQuery = getSearchParam(searchParams?.q);
+  } catch {
+    initialQuery = '';
+  }
+  try {
+    initialCountry = getSearchParam(searchParams?.country);
+  } catch {
+    initialCountry = '';
+  }
 
   const schema = buildSearchPageSchema({
     path: '/search',
