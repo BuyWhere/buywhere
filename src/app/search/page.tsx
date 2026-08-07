@@ -5,22 +5,31 @@ import { buildPageMetadata } from '@/lib/page-metadata';
 import { buildSearchPageSchema } from '@/lib/page-schema';
 import { toSiteUrl } from '@/lib/site-url';
 
-// BUY-67036: force-dynamic + revalidate=0 so the server-side re-render
-// during Chrome RSC navigation (Next-Router-State-Tree + __PAGE__ params)
-// does not depend on cached build output. Matches /categories/[slug]/[country]
-// which does not exhibit the 500.
+// BUY-67036: force-dynamic + revalidate=0 + Promise-based searchParams.
+// The Next 14.2.35 runtime trips a parser bug when the route is re-rendered
+// server-side against Next-Router-State-Tree-derived searchParams AND the
+// route uses the legacy sync `searchParams` shape. Awaiting the params
+// Promise (Next 15 style) avoids the legacy code path in the route
+// resolver that throws 'The router state header was sent but could not
+// be parsed.'.
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 type SearchPageProps = {
-  searchParams?: {
+  searchParams: Promise<{
     q?: string | string[];
     country?: string | string[];
-  };
+  }>;
 };
 
-function getSearchParam(value?: string | string[]) {
-  return Array.isArray(value) ? value[0] ?? '' : value ?? '';
+function safeString(value: unknown): string {
+  try {
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+    return '';
+  } catch {
+    return '';
+  }
 }
 
 const SEARCH_TITLE = 'Search Products Across Retailers | BuyWhere';
@@ -30,18 +39,14 @@ const SEARCH_PATH = '/search';
 const FALLBACK_TITLE = 'Search products — BuyWhere';
 
 export async function generateMetadata({ searchParams }: SearchPageProps): Promise<Metadata> {
-  // BUY-67036: defensive try/catch around every step of metadata resolution.
-  // Chrome RSC navigation re-renders this page server-side against
-  // state-tree-derived searchParams; opaque Promise/non-string values
-  // have hit each helper individually across earlier attempts. The robust
-  // mitigation is to ensure no throw path inside generateMetadata can hit
-  // the streaming pass.
-  let query = '';
+  let resolved: Awaited<SearchPageProps['searchParams']> = {};
   try {
-    query = getSearchParam(searchParams?.q).trim();
+    resolved = await searchParams;
   } catch {
-    query = '';
+    resolved = {};
   }
+
+  const query = safeString(resolved?.q).trim();
 
   let metadata: Metadata;
   try {
@@ -73,22 +78,16 @@ export async function generateMetadata({ searchParams }: SearchPageProps): Promi
   };
 }
 
-export default function SearchPage({ searchParams }: SearchPageProps) {
-  // BUY-67036: same defensive try/catch around searchParam reads in the
-  // default export — earlier revisions missed this and the streaming pass
-  // could still trip on Promise-resolved values.
-  let initialQuery = '';
-  let initialCountry = '';
+export default async function SearchPage({ searchParams }: SearchPageProps) {
+  let resolved: Awaited<SearchPageProps['searchParams']> = {};
   try {
-    initialQuery = getSearchParam(searchParams?.q);
+    resolved = await searchParams;
   } catch {
-    initialQuery = '';
+    resolved = {};
   }
-  try {
-    initialCountry = getSearchParam(searchParams?.country);
-  } catch {
-    initialCountry = '';
-  }
+
+  const initialQuery = safeString(resolved?.q);
+  const initialCountry = safeString(resolved?.country);
 
   const schema = buildSearchPageSchema({
     path: '/search',
@@ -100,11 +99,11 @@ export default function SearchPage({ searchParams }: SearchPageProps) {
   return (
     <>
       <Schema data={schema} />
-      {/* BUY-67036: removed <Suspense> wrapper. Streaming Suspense in Next
+      {/* BUY-67036: no <Suspense> wrapper — streaming Suspense in Next
           14.2.35 trips the streaming pass when the page is re-rendered
           server-side against state-tree-derived searchParams (RSC nav),
           returning an opaque 500. The client component handles its own
-          loading state internally — no Suspense fallback needed. */}
+          loading state internally. */}
       <SearchResultsClient initialQuery={initialQuery} initialCountry={initialCountry} />
     </>
   );
