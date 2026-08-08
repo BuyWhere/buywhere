@@ -24,6 +24,15 @@ import { inferCategoryFromQuery, filterOffersByCategory } from "@/lib/compare-ca
 
 export const metadata = buildCompareIndexMetadata();
 
+// BUY-67036: Chrome RSC navigation requests carry Next-Router-State-Tree
+// + __PAGE__ searchParams. Next 14.2.35 re-runs the page server-side
+// against state-tree-derived params. With async loadComparisonOffers +
+// the implicit route metadata, the streaming pass can fail and return 500.
+// Forcing dynamic rendering on every request makes the re-render safe
+// (matches /categories/[slug]/[country]).
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const API_BASE_URL =
   process.env.BUYWHERE_API_INTERNAL_URL ||
   process.env.BUYWHERE_API_URL ||
@@ -37,12 +46,12 @@ const API_KEY =
   process.env.BUYWHERE_API_INTERNAL_KEY;
 
 type ComparePageProps = {
-  searchParams?: {
+  searchParams: Promise<{
     q?: string;
     ids?: string;
     country?: string;
     country_code?: string;
-  };
+  }>;
 };
 
 const schemaMarkup = {
@@ -518,12 +527,32 @@ function CategoryGrid() {
 }
 
 export default async function CompareIndexPage({ searchParams }: ComparePageProps) {
-  const query = searchParams?.q?.trim() || "";
-  const rawIds = searchParams?.ids || "";
+  // BUY-67036: await the searchParams Promise (Next 15 style) so the
+  // route resolver doesn't trip the legacy sync-searchParams code path
+  // that throws 'The router state header was sent but could not be parsed.'
+  // on RSC navigation re-render.
+  let resolved: Awaited<ComparePageProps['searchParams']> = {};
+  try {
+    resolved = await searchParams;
+  } catch {
+    resolved = {};
+  }
+  const query = (resolved?.q ?? "").trim();
+  const rawIds = resolved?.ids ?? "";
   const ids = parseIdsParam(rawIds);
-  const country = (searchParams?.country_code || searchParams?.country)?.trim().toLowerCase();
+  const country = (resolved?.country_code ?? resolved?.country ?? "").trim().toLowerCase();
   const showComparison = query.length > 0 || ids.length > 0;
-  const offers = showComparison ? await loadComparisonOffers(query, ids, country) : [];
+  // BUY-67036: belt-and-suspenders around loadComparisonOffers so that even
+  // if the internal try/catch misses something during RSC re-render, the
+  // route still returns 200 with the empty-state UI rather than 500.
+  let offers: ComparisonOffer[] = [];
+  if (showComparison) {
+    try {
+      offers = await loadComparisonOffers(query, ids, country);
+    } catch {
+      offers = [];
+    }
+  }
   const emptyStateTitle = query
     ? `No results found for “${query}”`
     : ids.length > 0
