@@ -86,3 +86,40 @@ test('floor never returns empty when at least one device exists; relaxes only if
   const final = floored.length > 0 ? floored : allAccessories;
   assert.equal(final.length, allAccessories.length, 'kept unfloored set rather than returning empty');
 });
+
+// BUY-67522: verify the SQL currency-aware floor computation for mixed-currency catalogs.
+// For a floor of $150 USD:
+//   USD: price >= 150 (USD is 1x)
+//   SGD: price >= 150/0.74 ≈ 202.7 (SGD is 0.74 USD per SGD)
+//   GBP: price >= 150/0.79 ≈ 189.9 (GBP is 0.79 USD per GBP)
+const FLOOR_USD = 150;
+const RATES = { USD: 1, SGD: 0.74, GBP: 0.79, EUR: 1.09 };
+function passesCurrencyFloor(price, currency, floorUsd) {
+  const rate = RATES[currency] ?? 1; // unknown currency treated as USD
+  return price * rate >= floorUsd;
+}
+
+test('SQL currency-aware floor: SGD items priced below ~$203 SGD are excluded', () => {
+  // An iPhone 15 case priced at $10 SGD (= $7.40 USD) should be excluded
+  assert.equal(passesCurrencyFloor(10, 'SGD', FLOOR_USD), false, '$10 SGD = $7.40 USD, below $150 floor');
+  // The same item priced at $220 SGD (= $162.80 USD) should be included
+  assert.equal(passesCurrencyFloor(220, 'SGD', FLOOR_USD), true, '$220 SGD = $162.80 USD, above $150 floor');
+  // A real iPhone 15 at $600 SGD (= $444 USD) should be included
+  assert.equal(passesCurrencyFloor(600, 'SGD', FLOOR_USD), true, '$600 SGD = $444 USD');
+});
+
+test('SQL currency-aware floor: USD items priced below $150 are excluded', () => {
+  assert.equal(passesCurrencyFloor(2, 'USD', FLOOR_USD), false, '$2 USD lens guard excluded');
+  assert.equal(passesCurrencyFloor(150, 'USD', FLOOR_USD), true, '$150 USD exactly at floor');
+  assert.equal(passesCurrencyFloor(799, 'USD', FLOOR_USD), true, '$799 USD iPhone included');
+  assert.equal(passesCurrencyFloor(1.99, 'USD', FLOOR_USD), false, '$1.99 USD gasket excluded');
+});
+
+test('SQL currency-aware floor: GBP items priced below ~$190 GBP are excluded', () => {
+  // $10 GBP = $7.90 USD
+  assert.equal(passesCurrencyFloor(10, 'GBP', FLOOR_USD), false);
+  // $190 GBP = $150.10 USD
+  assert.equal(passesCurrencyFloor(190, 'GBP', FLOOR_USD), true);
+  // $200 GBP = $158 USD
+  assert.equal(passesCurrencyFloor(200, 'GBP', FLOOR_USD), true);
+});

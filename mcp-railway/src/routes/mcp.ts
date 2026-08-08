@@ -1050,6 +1050,31 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   params.push(...tokenFilterParams, accessoryPattern, CANDIDATE_POOL);
   const where = `WHERE ${conditions.join(' AND ')}`;
 
+  // BUY-67522: when the query names a premium device, ORDER BY price ASC fetches
+  // the 100 cheapest matches — which for "iPhone 15" are ALL accessories (a real
+  // $458 phone never enters the pool, so the post-query device floor has nothing
+  // to surface and relaxes back to accessories). Two-pronged fix for device
+  // queries: (1) push a currency-aware price floor into the SQL WHERE so cheap
+  // accessories are excluded at the source and the candidate pool fills with
+  // real devices; (2) order the remaining candidates by ts_rank DESC so the most
+  // relevant real devices are retained when the pool is capped at 100. The
+  // post-query USD floor (below) is kept as a defense-in-depth backstop. Generic
+  // queries keep price ASC for the median guard.
+  const candidateDeviceFloor = deviceMinPriceUsd(productName);
+  let candidateWhere = where;
+  let candidateOrder = `price ASC, updated_at DESC`;
+  if (candidateDeviceFloor != null) {
+    // Convert the USD floor to each row's own currency (mirror CURRENCY_RATES:
+    // amount_usd = price_local * rate). Rows priced in an unknown currency use
+    // rate 1 (treated as USD), matching rowToUsd's CURRENCY_RATES ?? 1 fallback.
+    const floorUsd = candidateDeviceFloor;
+    candidateWhere = `${where} AND price * CASE UPPER(currency)
+        WHEN 'USD' THEN 1 WHEN 'SGD' THEN 0.74 WHEN 'VND' THEN 0.000039
+        WHEN 'THB' THEN 0.028 WHEN 'MYR' THEN 0.22 WHEN 'GBP' THEN 0.79
+        WHEN 'EUR' THEN 1.09 ELSE 1 END >= ${floorUsd}`;
+    candidateOrder = `ts_rank(search_vector, plainto_tsquery('english', $1)) DESC, price ASC, updated_at DESC`;
+  }
+
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
@@ -1066,10 +1091,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       result = await bestPriceClient.query(
         `SELECT id, title, price, currency, source AS domain, url, image_url,
                 country_code, updated_at
-         FROM products ${where}
+         FROM products ${candidateWhere}
            ${titleTokenSql}
            AND title !~* $${accessoryParamIndex}
-         ORDER BY price ASC, updated_at DESC
+         ORDER BY ${candidateOrder}
          LIMIT $${params.length}`,
         params
       );
@@ -1115,7 +1140,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   let guardApplied = false;
   let medianUsd: number | null = null;
   let minAllowedUsd: number | null = null;
-  let deviceFloorUsd = deviceMinPriceUsd(productName);
+  const deviceFloorUsd = candidateDeviceFloor;
   let deviceFloorApplied = false;
   let finalRows = result.rows;
   if (deviceFloorUsd != null && result.rows.length > 0) {
