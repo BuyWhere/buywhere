@@ -49,7 +49,13 @@ const HYBRID_RRF_K = 60;
 // under concurrent load with PostgreSQL errors
 // `could not resize shared memory segment... No space left on device` (SQLSTATE 53200).
 // 4MB is enough for the 200-row top-N sort + Nested Loop pkey lookups.
-const SEARCH_WORK_MEM = '4MB';
+// BUY-67275-bitmap (2026-08-09): raised 4MB -> 32MB. At 4MB the FTS bitmap for a
+// head term (laptop = 277k TIDs) goes LOSSY: 4,915 lossy heap blocks + 37,550 row
+// rechecks = 30,691 buffers / ~9s cold. Exact bitmap = 586 buffers. The old 4MB was
+// chosen for SQLSTATE 53200, which is a PARALLEL bitmap DSM failure — both search
+// paths already set max_parallel_workers_per_gather=0, so this is single-process
+// work_mem and never touches shared memory.
+const SEARCH_WORK_MEM = '32MB';
 // BUY-62711: Archive fallback ladder collapsed. The search tier (search_products) now serves
 // virtually all keyword traffic (~99%). Archive path is only a last-resort fallback
 // on tier errors. Dead kill-switches removed: SEARCH_OR_TOPUP, SEO_HEAD_PREEMPT.
@@ -162,7 +168,9 @@ async function tryTierSearch(
       -- LIMIT (broad OR fallbacks time out at the 4s tier cap; same anti-pattern as
       -- the archive fix in 9e3ad8e, measured 60x there). LIMIT stops early; ts_rank
       -- below ranks the bounded candidate set.
-      LIMIT 5000
+      -- BUY-67275-bitmap: 5000 -> 1000. `top` keeps only 200 rows, so 5000 was a 10x
+      -- over-fetch that inflated the bitmap into lossy territory for head terms.
+      LIMIT 1000
     ), top AS (
       SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) *
             (${laptopBoost}) *
