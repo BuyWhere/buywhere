@@ -419,38 +419,49 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         rows = result.rows;
       }
     } else {
-      // No FTS — browse mode. Use reltuples for approximate total and fetch
-      // recent products via idx_products_updated_at (3ms for 500 rows).
-      // If user explicitly passed country_code/region, overfetch and filter
-      // in-application (no composite index on country_code+updated_at).
-      const approxResult = await searchClient.query(
-        `SELECT reltuples::bigint AS estimate FROM pg_class WHERE relname = 'products'`
-      );
-      total = parseInt(approxResult.rows[0]?.estimate ?? '0', 10);
+      // No FTS — browse mode. Push is_active + country_code + region into SQL
+      // (BUY-62788 fix: re-applied) so the page and total reflect the filtered set,
+      // instead of fetching recent global rows and filtering in-app (which returned 0 rows
+      // for country filters while total showed the global reltuples ~288M).
+      const browseCond: string[] = ['is_active = true'];
+      const browseParams: unknown[] = [];
+      if (country) {
+        browseParams.push(country.toUpperCase());
+        browseCond.push(`country_code = $${browseParams.length}`);
+      }
+      if (region) {
+        browseParams.push(region.toLowerCase());
+        browseCond.push(`lower(region) = $${browseParams.length}`);
+      }
+      const browseWhere = `WHERE ${browseCond.join(' AND ')}`;
 
-      const needsFilter = !!(country || region);
-      const fetchLimit = needsFilter ? Math.min((limit + offset) * 20, 5000) : limit + offset;
+      // Fetch filtered rows with proper SQL WHERE
+      const pageParams = [...browseParams, limit, offset];
       const rawResult = await searchClient.query(
         `SELECT id, sku AS source, source AS domain, url, title,
                 price, currency, image_url, metadata, updated_at,
                 region, country_code
-         FROM products
+         FROM products ${browseWhere}
          ORDER BY updated_at DESC
-         LIMIT $1::int`,
-        [fetchLimit]
+         LIMIT $${pageParams.length - 1}::int OFFSET $${pageParams.length}::int`,
+        pageParams
       );
-      if (needsFilter) {
-        let filtered = rawResult.rows as Record<string, unknown>[];
-        if (country) {
-          filtered = filtered.filter(r => (r.country_code as string || '').toUpperCase() === country);
-        }
-        if (region) {
-          filtered = filtered.filter(r => (r.region as string || '').toLowerCase() === region.toLowerCase());
-        }
-        rows = filtered.slice(offset, offset + limit);
-      } else {
-        rows = (rawResult.rows as unknown[]).slice(offset, offset + limit);
-      }
+      rows = rawResult.rows as Record<string, unknown>[];
+
+      // Bounded count on the filtered set. With a country/region filter this is
+      // cheap (country_code / is_active indexes); with no filter we cap it so we
+      // never run an exact count(*) over the whole ~288M-row table (constraint
+      // BUY-59936 #6). Replaces the global reltuples estimate that
+      // made empty country-filtered pages look like a 288M-row "fabricated cache".
+      const COUNT_CEIL = 100000;
+      const countParams = [...browseParams, COUNT_CEIL];
+      const countRes = await searchClient.query(
+        `SELECT COUNT(*)::bigint AS n FROM (
+           SELECT 1 FROM products ${browseWhere} LIMIT $${countParams.length}::int
+         ) _c`,
+        countParams
+      );
+      total = parseInt(countRes.rows[0]?.n ?? '0', 10);
     }
   } finally {
     // BUY-56185: always use safe release to discard connections poisoned by statement_timeout
