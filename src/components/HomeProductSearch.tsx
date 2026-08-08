@@ -75,7 +75,7 @@ export function HomeProductSearch() {
                 }
               }}
               placeholder="Search products..."
-              className="search-input w-full rounded-xl border-2 border-white/50 bg-indigo-950 py-5 pl-14 pr-4 text-lg text-white placeholder-[#F5F7FF] transition-all focus:border-white focus:outline-none focus:ring-4 focus:ring-white/20"
+              className="search-input w-full rounded-xl border-2 border-white bg-indigo-950 py-5 pl-14 pr-4 text-lg text-white shadow-[0_8px_24px_rgba(0,0,0,0.35)] placeholder-[#F5F7FF] transition-all focus:border-white focus:bg-indigo-900 focus:outline-none focus:ring-4 focus:ring-white/40 focus:ring-offset-2 focus:ring-offset-indigo-700"
               aria-label="Search products"
               aria-invalid={Boolean(error)}
               aria-describedby={error ? errorId : undefined}
@@ -89,7 +89,7 @@ export function HomeProductSearch() {
               setCountry(event.target.value as CountryValue);
               setCountryTouched(true);
             }}
-            className="h-[66px] w-full shrink-0 rounded-xl border-2 border-white/50 bg-white/10 px-4 text-base font-medium text-white transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20 sm:w-28 md:w-36"
+            className="h-[66px] w-full shrink-0 rounded-xl border-2 border-white bg-white/10 px-4 text-base font-medium text-white shadow-[0_8px_24px_rgba(0,0,0,0.35)] transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/40 focus:ring-offset-2 focus:ring-offset-indigo-700 sm:w-28 md:w-36"
             aria-label="Search country"
           >
             {countryOptions.map((option) => (
