@@ -908,9 +908,37 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
-  const bestPriceClient = await acquireMcpClient();
+  // BUY-67221: pool acquire failures (e.g. mcp_db_pool_acquire_timeout) must
+  // return a coherent empty result with meta.unavailable=true instead of
+  // throwing through to JSON-RPC -32603 (which the live probe surfaces to
+  // callers as Internal error). The 57014 statement_timeout path inside the
+  // inner try already fails open; this catches the upstream acquire failure.
+  let bestPriceClient: any = null;
+  let poolUnavailable = false;
+  try {
+    bestPriceClient = await acquireMcpClient();
+  } catch (acquireErr) {
+    console.error('[mcp] find_best_price db.connect failed:', acquireErr);
+    poolUnavailable = true;
+  }
   let result: { rows: Record<string, unknown>[] } = { rows: [] };
   let ftsTimedOut = false;
+  // BUY-67221: pool acquire failed — return a coherent empty result with
+  // meta.unavailable=true so the LIVE probe stops seeing JSON-RPC -32603.
+  if (poolUnavailable) {
+    return {
+      best_price: null,
+      alternatives: [],
+      meta: {
+        total: 0,
+        guard_applied: false,
+        country,
+        response_time_ms: Date.now() - t0,
+        unavailable: true,
+        timed_out: true,
+      },
+    };
+  }
   try {
     await bestPriceClient.query('SET statement_timeout = 30000');
     try {
