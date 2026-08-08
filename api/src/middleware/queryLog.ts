@@ -81,6 +81,38 @@ function extractResultCount(body: unknown, statusCode: number): number | null {
 }
 
 /**
+ * Extract query text from JSON-RPC MCP `tools/call` request body.
+ *
+ * The JSON-RPC envelope is `{ jsonrpc, id, method, params: { name, arguments: {...} } }`
+ * and the user-supplied search/category/id lives in `arguments`. BUY-55788
+ * documented that the BUY-31507 claim "set res.locals.queryText = toolArgs.q"
+ * never landed, so 100% of MCP events had null query_text. This extractor
+ * reads the same data at finish time without depending on route handlers.
+ *
+ * Returns the first useful string we find, in priority order:
+ *   q → query → product_name → category → joined ids
+ */
+function extractJsonRpcQueryText(req: Request): string | null {
+  if (!req.body || typeof req.body !== 'object') return null;
+  const body = req.body as Record<string, unknown>;
+  if (body.jsonrpc !== '2.0') return null;
+  const params = body.params;
+  if (!params || typeof params !== 'object' || Array.isArray(params)) return null;
+  const args = (params as Record<string, unknown>).arguments;
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return null;
+  const a = args as Record<string, unknown>;
+  for (const key of ['q', 'query', 'product_name', 'name', 'category']) {
+    const v = a[key];
+    if (typeof v === 'string' && v.length > 0 && v.length <= 500) return v;
+  }
+  const ids = a.ids;
+  if (Array.isArray(ids) && ids.length > 0) {
+    return ids.slice(0, 10).map(String).join(',');
+  }
+  return null;
+}
+
+/**
  * Express middleware that logs authenticated API requests to the query_log table.
  * Fire-and-forget — never blocks the response.
  *
@@ -121,8 +153,15 @@ export function queryLogMiddleware(endpoint: string) {
       const responseTimeMs = Date.now() - start;
       const isAgent = classifyIsAgent(req);
 
-      // Extract query text from common params
-      const queryText = (req.query.q as string) || (req.query.ids as string) || null;
+      // Extract query text — URL params first, then JSON-RPC body for MCP.
+      // BUY-55788: the MCP `tools/call` envelope carries the query in
+      // params.arguments, not in req.query. Without this fallback, 100% of
+      // MCP events were recorded with null query_text (verified 2026-06-22).
+      const queryText =
+        (req.query.q as string) ||
+        (req.query.ids as string) ||
+        extractJsonRpcQueryText(req) ||
+        null;
 
       db.query(
         `INSERT INTO query_log
