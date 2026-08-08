@@ -208,9 +208,18 @@ async function tryTierSearch(
     await client.query(`SET LOCAL statement_timeout = '4000'`);
     await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`); // fuzzy sampling breaks multi-word AND
     await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
-    let rows = lexemes.length === 1 ? (await client.query(titleFallbackQuery, params)).rows : [];
+    // BUY-67275-headterm (2026-08-09): do NOT lead with titleFallbackQuery for
+    // single-lexeme queries. `lower(sp.title) LIKE lower($1||'%')` cannot use
+    // idx_sp_trgm (the lower() wrapper defeats it; that index has idx_scan=0), so
+    // it seq-scans 119M rows and ALWAYS blows the 4s tier timeout — killing the
+    // tier for precisely the head terms (laptop/macbook/dyson/airpods/ps5) and
+    // eating 4s of the 10s handler budget before the archive even starts. FTS
+    // first (idx_sp_fts); the title-prefix scan stays below as a 0-result fallback.
+    let rows = (await client.query(mkQuery(andMatch), params)).rows;
+    if (rows.length === 0 && lexemes.length === 1) {
+      rows = (await client.query(titleFallbackQuery, params)).rows;
+    }
     if (rows.length === 0) {
-      rows = (await client.query(mkQuery(andMatch), params)).rows;
       if (rows.length === 0 && lexemes.length > 1) {
         rows = (await client.query(mkQuery(orMatch), params)).rows;   // recall fallback
       }
