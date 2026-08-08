@@ -199,6 +199,12 @@ function hasUsableProductImage(value?: string | null) {
     if (fullUrl.includes('no_image')) return false;
     if (fullUrl.includes('missing-image')) return false;
     if (fullUrl.includes('generic')) return false;
+    // BUY-67241: contents.mediadecathlon.com returns hard 410 for every image
+    // path (verified 2026-08-08 — `HTTP/2 410 image/png cache: max-age=2592000`).
+    // Filtering the URL upstream of the <img> avoids the broken request and
+    // the console 410 noise QA captured on the wireless-headphones search.
+    if (hostname === 'contents.mediadecathlon.com' || hostname === 'www.mediadecathlon.com') return false;
+    if (hostname.endsWith('.mediadecathlon.com')) return false;
 
     return true;
   } catch {
@@ -331,10 +337,12 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
 }
 
 // BUY-65559: exported for the price-sanity regression test.
+// BUY-67241: hasUsableProductImage exported for the 410-image-host regression test.
 export const __test__ = {
   isPlausiblePrice,
   formatPrice,
   normalizeProduct,
+  hasUsableProductImage,
   HIGH_VALUE_MIN_PRICE,
   MAX_PLAUSIBLE_PRICE,
 };
