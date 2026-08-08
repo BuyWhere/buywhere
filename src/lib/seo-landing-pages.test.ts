@@ -175,6 +175,44 @@ test("robot-vacuum landing page uses compact, unclipped product cards with compl
   assert.match(readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8"), /url\.hostname !== "elescat\.store"/);
 });
 
+test("ProductGridImage placeholder picks a category-aware silhouette (BUY-67242)", () => {
+  const imageSource = readFileSync(
+    new URL("../components/seo/ProductGridImage.tsx", import.meta.url),
+    "utf8",
+  );
+  const cardSource = readFileSync(
+    new URL("../components/seo/ProductGridCard.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // BrandedPlaceholder must accept a category prop and route the silhouette
+  // through a regex set that includes "robot vacuum" so the QA-flagged
+  // laptop/monitor icon never renders on a robot vacuum card.
+  assert.match(
+    imageSource,
+    /function placeholderSilhouette\(category\?: string \| null, alt\?: string \| null\)/,
+    "placeholderSilhouette helper must accept category + alt",
+  );
+  assert.match(
+    imageSource,
+    /\\brobot\\s\*vacuum\|roomba\|deebot\|robovac/,
+    "placeholderSilhouette must include robot-vacuum regex branch (BUY-67242)",
+  );
+  assert.match(
+    imageSource,
+    /function BrandedPlaceholder\(\{ alt, brand, merchant, category \}/,
+    "BrandedPlaceholder must accept category",
+  );
+
+  // ProductGridCard must thread product.category into ProductGridImage so
+  // the placeholder can pick the right silhouette when imageUrl is empty.
+  assert.match(
+    cardSource,
+    /category=\{product\.category\}/,
+    "ProductGridCard must pass product.category to ProductGridImage",
+  );
+});
+
 test("non-robot landing pages retain the existing eight-result request size", async () => {
   const originalFetch = globalThis.fetch;
   let requestedUrl = "";
@@ -351,4 +389,40 @@ test("parseImageDimensions extracts JPEG SOF and PNG IHDR dimensions", () => {
   assert.equal(isSq({ w: 1500, h: 847 }), false, "1500x847 must NOT be square");
   assert.equal(isSq({ w: 1000, h: 940 }), true, "1000x940 (AR 1.06) is within ±6% tolerance");
   assert.equal(isSq({ w: 1000, h: 1070 }), true, "1000x1070 (AR 0.93) is within ±6% tolerance");
+});
+
+test("categorySilhouette: robot_vacuums placeholder renders a disc, not a laptop/monitor (BUY-67242)", async () => {
+  const source = readFileSync(
+    new URL("./seo-landing-pages.ts", import.meta.url),
+    "utf8",
+  );
+
+  // The placeholder function exists and is reachable from the source.
+  assert.match(source, /function categorySilhouette/, "categorySilhouette helper must exist");
+  assert.match(source, /pageCategory === "robot_vacuums"/, "robot_vacuums branch must be explicit");
+
+  // Static-fallback callsites thread config.searchCategory through so the
+  // page-level category is honoured even when individual products lack it.
+  const callMatches = source.match(/brandedProductPlaceholderSvg\([^)]*\)/g) ?? [];
+  assert.ok(callMatches.length >= 2, "expected at least two placeholder call-sites");
+  for (const call of callMatches) {
+    assert.ok(
+      /config\.searchCategory/.test(call),
+      `placeholder call must pass config.searchCategory for category-aware silhouette (BUY-67242), got: ${call}`,
+    );
+  }
+
+  // The robot-vacuum silhouette group must contain a disc/ellipse (the round
+  // robot vacuum body) and must NOT contain the legacy laptop/monitor
+  // rect-and-wave pair that QA flagged as misleading.
+  const robotBranch = source.match(
+    /if \(pageCategory === "robot_vacuums"\) \{[\s\S]*?\n  \}/,
+  );
+  assert.ok(robotBranch, "robot_vacuums silhouette branch must be present");
+  assert.match(robotBranch![0], /<ellipse/, "robot vacuum silhouette must include an ellipse");
+  assert.doesNotMatch(
+    robotBranch![0],
+    /<rect[^>]*width='120' height='90'/,
+    "robot vacuum silhouette must not include the legacy laptop/monitor rect (BUY-67242)",
+  );
 });

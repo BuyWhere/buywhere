@@ -83,6 +83,7 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
           alt={product.name}
           brand={product.brand}
           merchant={product.merchant}
+          category={product.category}
         />
       </div>
 
