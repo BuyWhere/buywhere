@@ -815,6 +815,6 @@ describe('NL search — Redis caching behavior', () => {
         && c.arguments[0].includes(':keyfmt:')
     );
     assert.ok(cacheGetCalls.length >= 1);
-    assert.ok(cacheGetCalls[0].arguments[0].startsWith('fts:deliver-to-v6:keyfmt:'));
+    assert.ok(cacheGetCalls[0].arguments[0].startsWith('fts:deliver-to-v7:keyfmt:'));
   });
 });

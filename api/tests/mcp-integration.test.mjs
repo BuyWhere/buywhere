@@ -306,10 +306,12 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
       if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
         return Promise.resolve({ rows: [] });
       }
+      // BUY-26210: products.id is bigint; handleCompareProducts filters to numeric
+      // IDs only (/^\d+$/), so the fixture must use numeric IDs (not 'p1'/'p2').
       return Promise.resolve({
         rows: [
-          makeProduct('p1', { title: 'Phone A', price: 999 }),
-          makeProduct('p2', { title: 'Phone B', price: 799 }),
+          makeProduct('1', { title: 'Phone A', price: 999 }),
+          makeProduct('2', { title: 'Phone B', price: 799 }),
         ],
       });
     });
@@ -319,7 +321,7 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
       body: JSON.stringify({
         jsonrpc: '2.0', id: 15, method: 'tools/call',
-        params: { name: 'compare_products', arguments: { ids: ['p1', 'p2'] } },
+        params: { name: 'compare_products', arguments: { ids: ['1', '2'] } },
       }),
     });
     const body = await res.json();
