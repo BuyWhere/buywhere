@@ -235,10 +235,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   let maxPrice = args.max_price != null ? Number(args.max_price) : null;
   if (minPrice == null && _pp.extractedMinPrice !== undefined) minPrice = _pp.extractedMinPrice;
   if (maxPrice == null && _pp.extractedMaxPrice !== undefined) maxPrice = _pp.extractedMaxPrice;
-  // NL sort intent for MCP agents (price only — this handler doesn't select rating cols).
-  const _mcpSortOrder = _pp.sortIntent === 'price_asc' ? 'price ASC NULLS LAST, updated_at DESC'
-    : _pp.sortIntent === 'price_desc' ? 'price DESC NULLS LAST, updated_at DESC'
-    : 'updated_at DESC';
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
   const compact = args.compact === true;
@@ -403,7 +399,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
                FROM products ${where}
                LIMIT $${params.length - 2}
              ) _candidates
-             ORDER BY ${_mcpSortOrder}
+             ORDER BY updated_at DESC
              LIMIT $${params.length - 1} OFFSET $${params.length}`,
             params
           );
@@ -420,7 +416,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
              FROM products ${where}
              LIMIT $${params.length - 2}
            ) _candidates
-           ORDER BY ${_mcpSortOrder}
+           ORDER BY updated_at DESC
            LIMIT $${params.length - 1} OFFSET $${params.length}`,
           params
         );
