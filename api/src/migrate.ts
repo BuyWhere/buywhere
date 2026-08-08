@@ -956,6 +956,32 @@ export async function runMigrations() {
     console.warn(`[migration] P95 monitoring schema failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
+  // BUY-45693 (parent BUY-45672): Deprecate catalog_stats_mv.
+  // The materialized view was created out-of-band and is owned by the postgres
+  // role, so the buywhere_ingest (Oracle/ingest) role cannot REFRESH it. It has
+  // been stale since 2026-06-02 — reporting 30.08M products against a live ~82.2M —
+  // and its definition (count(*) FROM products WHERE is_active) is a full scan that
+  // cannot complete under the statement-timeout / DDL-watchdog regime, so a
+  // scheduled REFRESH would always time out. It is therefore permanently stale.
+  //
+  // Nothing in this repo reads it: the live /v1/catalog/stats path uses
+  // pg_class.reltuples (api/src/routes/catalog.ts, instant, no scan) and the CEO
+  // verification path moved to the metadata estimator (BUY-45672, done). Leaving a
+  // stale MV that under-reports the catalog by ~52M products is a data-integrity
+  // hazard, so we drop it rather than keep it.
+  //
+  // DROP MATERIALIZED VIEW IF EXISTS is metadata-only (no table scan, < 5ms — see
+  // BUY-45693 smoke test) and idempotent. This migrate flow runs as the postgres
+  // role (the same owner that owns products — see BUY-31040), so the drop succeeds
+  // where Oracle's ingest role could not. No CASCADE: if an unexpected dependency
+  // exists we want the warning, not a silent cascade. Precedent: BUY-10976 / BUY-30938.
+  try {
+    await db.query(`DROP MATERIALIZED VIEW IF EXISTS public.catalog_stats_mv;`);
+    console.log('[migration] catalog_stats_mv dropped/absent — deprecated per BUY-45693.');
+  } catch (err: any) {
+    console.warn(`[migration] catalog_stats_mv drop failed (non-fatal): ${err.message?.slice(0, 200)}`);
+  }
+
   console.log('Migrations complete.');
 }
 
