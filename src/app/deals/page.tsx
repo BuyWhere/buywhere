@@ -52,7 +52,7 @@ export default async function DealsPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <main className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      <main id="main-content" className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <div className="container mx-auto px-4 py-16">
           <header className="mb-12">
             <h1 className="text-4xl font-bold text-blue-800 mb-4">
