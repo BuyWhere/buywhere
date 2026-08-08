@@ -285,7 +285,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const tableSql = country === 'SG' ? 'products_sg' : country === 'US' ? 'products_us' : 'products';
+  // BUY-67219 hotfix (2026-08-08): products_sg/products_us partition tables do NOT exist on the
+  // current catalog DB (sakura) — only 'products'. Targeting them 500'd EVERY SG/US search
+  // (default markets) with -32603. Revert to the real table; keep the timeout/seqscan hardening.
+  const tableSql = 'products';
 
   let rows: unknown[];
   let total: number;
