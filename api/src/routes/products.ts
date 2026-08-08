@@ -988,7 +988,7 @@ router.get(
           // BUY-61117: the previous bounded SG path materialized a 2000-row slice of
           // ALL fresh SG products (no FTS in the CTE WHERE) then applied the FTS
           // filter after materialization. Without a (country_code, updated_at)
-          // index, scanning 1.5M+ fresh SG rows took seconds per query, and the
+          // index, scanning 300M+ fresh SG rows took seconds per query, and the
           // 10-query fallback ladder exceeded the handler timeout → degraded 0-result
           // responses. Fix: include the FTS match IN the CTE WHERE so the GIN index
           // (idx_products_search_country) bounds the scan to matching products only,

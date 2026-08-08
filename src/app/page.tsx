@@ -16,7 +16,7 @@ const audiences = [
   {
     icon: "🤖",
     title: "AI Agent Developers",
-    desc: "One API, one schema, 288M+ products. Pass deliver_to with your user's country and get deliverable-first results with availability labels — local, ships_to_you, or unavailable — on every product.",
+    desc: "One API, one schema, 300M+ products. Pass deliver_to with your user's country and get deliverable-first results with availability labels — local, ships_to_you, or unavailable — on every product.",
     cta: "Read the docs",
     ctaHref: "/developers",
   },
@@ -123,7 +123,7 @@ const webApplicationSchema = {
   "@id": "https://buywhere.ai/#webapp",
   name: "BuyWhere API",
   description:
-    "Product catalog API and MCP server for AI agents. 288M+ products from 158,000+ stores worldwide — normalized, deduplicated, location-aware. deliver_to ranking, availability labels, sub-250ms search.",
+    "Product catalog API and MCP server for AI agents. 300M+ products from 238,000+ direct merchants worldwide — normalized, deduplicated, location-aware. deliver_to ranking, availability labels, sub-250ms search.",
   applicationCategory: "BusinessApplication",
   operatingSystem: "Any",
   url: "https://buywhere.ai",
@@ -224,7 +224,7 @@ const jsonLd = {
       url: "https://buywhere.ai",
       name: "BuyWhere",
       description:
-        "MCP server and product catalog API for AI agents. 288M+ products from 158,000+ stores worldwide, with location-aware deliver_to ranking and availability labels.",
+        "MCP server and product catalog API for AI agents. 300M+ products from 238,000+ direct merchants worldwide, with location-aware deliver_to ranking and availability labels.",
       publisher: { "@id": "https://buywhere.ai/#organization" },
       inLanguage: "en",
       potentialAction: {
@@ -288,13 +288,13 @@ export default function HomePage() {
           <div className="max-w-3xl mx-auto text-center mb-4">
             <div className="inline-flex max-w-full items-center gap-2 rounded-xl border border-white bg-white px-3 py-1 text-center text-xs font-bold text-indigo-900 shadow-sm mb-6 sm:rounded-full sm:gap-2 sm:px-3 sm:py-1 sm:text-sm">
               <span className="w-2 h-2 bg-green-600 rounded-full"></span>
-              288 million products. 158,000+ stores. One API.
+              288 million products. 238,000+ direct merchants. One API.
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
               Find the best prices across every store.
             </h1>
             <p className="text-xl font-semibold text-white mb-8 leading-relaxed">
-              One search across 158,000+ storefronts worldwide — deepest coverage in the US and Singapore, with thousands of new stores added every week.
+              One search across 238,000+ storefronts worldwide — deepest coverage in the US and Singapore, with thousands of new stores added every week.
             </p>
           </div>
           <HomeProductSearch />
@@ -314,7 +314,7 @@ export default function HomePage() {
               </Link>
             </div>
             <p className="text-base font-semibold text-white">
-              288M+ structured products from 158,000+ merchant catalogs — normalized, deduplicated, and location-aware.
+              300M+ structured products from 238,000+ merchant catalogs — normalized, deduplicated, and location-aware.
             </p>
           </div>
         </div>
@@ -447,7 +447,7 @@ export default function HomePage() {
                Platform APIs surface their own inventory first. Amazon APIs return Amazon products. Shopee returns Shopee products. Google Shopping returns shopping results, not a normalized product layer. For an AI agent trying to find the best match across the market, those are distribution channels — not the cross-merchant system of record.
              </p>
              <p className="text-gray-600 leading-relaxed mb-8">
-               BuyWhere has no inventory to sell and no platform to favour. We index 288 million products from 158,000+ independent storefronts worldwide into a single, structured API — with MCP tools, an A2A agent card, LangChain and OpenAI-tools SDKs, and an agent-optimized compact mode — so AI agents call one normalized, cross-merchant product layer instead of reconciling one platform&rsquo;s version of the market.
+               BuyWhere has no inventory to sell and no platform to favour. We index 288 million products from 238,000+ independent storefronts worldwide into a single, structured API — with MCP tools, an A2A agent card, LangChain and OpenAI-tools SDKs, and an agent-optimized compact mode — so AI agents call one normalized, cross-merchant product layer instead of reconciling one platform&rsquo;s version of the market.
              </p>
              <Link
                href="/about"
