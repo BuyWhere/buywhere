@@ -211,7 +211,8 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 // Tool handlers
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const rawQ = (args.q as string) || '';
+  // Accept the public `query` alias used by earlier docs/probes; `q` remains canonical.
+  const rawQ = ((args.q as string) || (args.query as string) || '').trim();
   // NL price/query intent (2026-08-08): parse "under 500"/"over 1000" from the agent's
   // query so it filters instead of matching literally, and strip the phrase from FTS.
   const _pp = preprocessSearchQuery(rawQ,
@@ -284,15 +285,17 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const tableSql = country === 'SG' ? 'products_sg' : country === 'US' ? 'products_us' : 'products';
 
   let rows: unknown[];
   let total: number;
+  let unavailable = false;
 
   // BUY-57657: add connect timeout so pool exhaustion fails fast at 2s instead of
   // blocking the entire 12s statement_timeout. The DB itself is fast (70-130ms) so
   // any 8-12s MCP latency is pool-acquisition contention, not query execution.
   const searchClient = await Promise.race([
-    db.connect(),
+    catalogDb.connect(),
     new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('db.connect timeout after 2000ms')), 2000)
     ),
@@ -300,15 +303,15 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     throw { code: -32603, message: 'Database connection timeout' };
   });
   try {
-    // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
-    // complete within 12s via GIN index; anything longer signals plan regression or
-    // pool exhaustion. Failing fast prevents cascading connection starvation.
-    await searchClient.query('SET statement_timeout = 12000');
+    // BUY-67219: keep search_products below the MCP timeout. Slow catalog plans now
+    // return a coherent unavailable payload instead of surfacing JSON-RPC -32603.
+    await searchClient.query('SET statement_timeout = 10000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
+    await searchClient.query('SET LOCAL enable_seqscan = off').catch(() => {});
     const COUNT_CAP = 1001;
     if (q) {
       const countResult = await searchClient.query(
-        `SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`,
+        `SELECT COUNT(*) FROM (SELECT 1 FROM ${tableSql} ${where} LIMIT ${COUNT_CAP}) _sub`,
         params
       );
       total = parseInt(countResult.rows[0].count, 10);
@@ -347,7 +350,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             // Hybrid: app-level RRF of FTS ranks + vector ranks
             const [ftsResult, vecResult] = await Promise.all([
               searchClient.query<{ id: string }>(
-                `SELECT id FROM products ${where} LIMIT 200`,
+                `SELECT id FROM ${tableSql} ${where} LIMIT 200`,
                 params
               ),
               // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
@@ -381,7 +384,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             const detailResult = await searchClient.query(
               `SELECT id, sku AS source, source AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code
-               FROM products WHERE id IN (${ph}) AND is_active = true`,
+               FROM ${tableSql} WHERE id IN (${ph}) AND is_active = true`,
               pageIds
             );
             // Preserve ranking order
@@ -396,7 +399,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             `SELECT * FROM (
                SELECT id, sku AS source, source AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code
-               FROM products ${where}
+               FROM ${tableSql} ${where}
                LIMIT $${params.length - 2}
              ) _candidates
              ORDER BY updated_at DESC
@@ -413,7 +416,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           `SELECT * FROM (
              SELECT id, sku AS source, source AS domain, url, title,
                     price, currency, image_url, metadata, updated_at, region, country_code
-             FROM products ${where}
+             FROM ${tableSql} ${where}
              LIMIT $${params.length - 2}
            ) _candidates
            ORDER BY updated_at DESC
@@ -456,6 +459,16 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         rows = (rawResult.rows as unknown[]).slice(offset, offset + limit);
       }
     }
+  } catch (err) {
+    const pgCode = (err as { code?: string })?.code;
+    if (pgCode === '57014') {
+      console.warn('[mcp] search_products statement timeout; returning unavailable payload', { q, country, region, limit, offset });
+      rows = [];
+      total = 0;
+      unavailable = true;
+    } else {
+      throw err;
+    }
   } finally {
     // BUY-56185: always use safe release to discard connections poisoned by statement_timeout
     releaseClientSafely(searchClient);
@@ -465,9 +478,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     buildProduct(r, currency, compact)
   );
 
-  const result = buildSearchResponse(
-    products, total!, limit, offset, Date.now() - t0, false
-  );
+  const result = {
+    ...buildSearchResponse(products, total!, limit, offset, Date.now() - t0, false),
+    ...(unavailable ? { unavailable: true, message: 'Search temporarily unavailable; please retry.' } : {}),
+  };
 
   try {
     await redis.set(cacheKey, JSON.stringify(result), 'EX', 60);
