@@ -3,6 +3,21 @@
 
 const p95Service = require('./p95');
 
+// Write guard (2026-08-08): p95/record + p95/compute were internet-exposed with
+// no auth — anyone could poison the metrics that gate deploys and fire alerts.
+// Reads stay public; writes require X-Monitoring-Token. Fail-closed if unset.
+function requireWriteToken(req, res, next) {
+  const expected = process.env.MONITORING_WRITE_TOKEN || '';
+  const got = req.get('x-monitoring-token') || '';
+  if (!expected) {
+    return res.status(503).json({ error: 'WRITE_DISABLED', message: 'Monitoring writes are not configured.' });
+  }
+  if (got !== expected) {
+    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Valid X-Monitoring-Token required for writes.' });
+  }
+  next();
+}
+
 function parseResolutionNotes(note) {
   if (!note) {
     return null;
@@ -202,7 +217,7 @@ function registerRoutes(app, pool) {
    * POST /api/monitoring/p95/record
    * Record a latency measurement (for instrumentation)
    */
-  app.post(`${apiBase}/p95/record`, async (req, res) => {
+  app.post(`${apiBase}/p95/record`, requireWriteToken, async (req, res) => {
     try {
       const { market, endpoint, latency_ms } = req.body;
 
@@ -241,7 +256,7 @@ function registerRoutes(app, pool) {
    * POST /api/monitoring/p95/compute
    * Compute and store P95 from recorded samples (for scheduled job)
    */
-  app.post(`${apiBase}/p95/compute`, async (req, res) => {
+  app.post(`${apiBase}/p95/compute`, requireWriteToken, async (req, res) => {
     try {
       const { market = 'all', endpoint = '/mcp' } = req.body;
 
