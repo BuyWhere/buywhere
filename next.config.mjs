@@ -31,11 +31,26 @@ const nextConfig = {
       { protocol: 'https', hostname: 'cdn.bestdenki.com.sg' },
     ],
   },
+  async rewrites() {
+    return {
+      fallback: [
+        {
+          source: '/api/:path*',
+          destination: 'https://api.buywhere.ai/v1/:path*',
+        },
+      ],
+    };
+  },
   async redirects() {
     return [
       {
         source: '/mcp',
-        destination: '/integrate',
+        destination: 'https://mcp.buywhere.ai/mcp',
+        permanent: true,
+      },
+      {
+        source: '/mcp/:path*',
+        destination: 'https://mcp.buywhere.ai/mcp/:path*',
         permanent: true,
       },
       {

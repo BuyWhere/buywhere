@@ -85,6 +85,29 @@ test.describe('Key pages load without error', () => {
   }
 });
 
+
+test.describe('Root-domain backend routing', () => {
+  test('/mcp redirects to the MCP service, not the frontend SEO page', async ({ request }) => {
+    const response = await request.get('/mcp', { maxRedirects: 0 });
+    expect(response.status()).toBe(308);
+    expect(response.headers().location).toBe('https://mcp.buywhere.ai/mcp');
+  });
+
+  test('/mcp/ redirects to the MCP service, not /integrate or /mcp/', async ({ request }) => {
+    const response = await request.get('/mcp/', { maxRedirects: 0 });
+    expect(response.status()).toBe(308);
+    expect(response.headers().location).toBe('https://mcp.buywhere.ai/mcp');
+  });
+
+  test('/api/get_deals reaches the API service instead of a frontend 404 page', async ({ request }) => {
+    const response = await request.get('/api/get_deals/?country=sg&limit=1', { maxRedirects: 0 });
+    expect(response.status()).toBe(401);
+    expect(response.headers()['content-type']).toContain('application/json');
+    const body = await response.json();
+    expect(body.error ?? body.message).toBeTruthy();
+  });
+});
+
 test.describe('SEO and accessibility', () => {
   test('home page has canonical URL', async ({ page }) => {
     await page.goto('/');
