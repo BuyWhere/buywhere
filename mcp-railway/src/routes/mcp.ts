@@ -625,6 +625,11 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const conditions: string[] = [
     `currency = $1`,
     `price > 0`,
+    // BUY-67289: exclude corrupt catalog sentinels (e.g. Shopify rows priced at
+    // $999999999.99) that win high-discount sorts. Also matches the partial-index
+    // predicate so the planner can use idx_products_deals_country/region and avoid
+    // the seq scan that fires the 4.5s statement_timeout (-32603) on SG/US/TH/VN.
+    `price < 100000`,
     `is_active = true`,
   ];
   if (useDiscountCol) {
