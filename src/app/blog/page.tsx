@@ -1,18 +1,21 @@
 import Link from "next/link";
-import type { Metadata } from "next";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import Schema from "@/components/Schema";
 import { getAllBlogPosts } from "@/lib/blog";
+import { buildPageMetadata } from "@/lib/page-metadata";
+import { buildWebPageSchema } from "@/lib/page-schema";
 import { toSiteUrl } from "@/lib/site-url";
 
-export const metadata: Metadata = {
-  title: "BuyWhere Blog",
-  description:
-    "Developer tutorials, launch updates, and SEO content about product APIs, shopping agents, and commerce infrastructure.",
-  alternates: {
-    canonical: toSiteUrl("/blog"),
-  },
-};
+const BLOG_TITLE = "BuyWhere Blog — Buying Guides & Price-Comparison Reviews";
+const BLOG_DESCRIPTION =
+  "Read buying guides, price-comparison reviews, launch updates, and developer tutorials for commerce AI agents.";
+
+export const metadata = buildPageMetadata({
+  title: BLOG_TITLE,
+  description: BLOG_DESCRIPTION,
+  path: "/blog",
+});
 
 function formatDate(date: string) {
   return new Intl.DateTimeFormat("en-US", {
@@ -27,9 +30,31 @@ export default function BlogIndexPage() {
   const posts = getAllBlogPosts();
   const featuredPost = posts[0];
   const remainingPosts = posts.slice(1);
+  const blogUrl = toSiteUrl("/blog");
+  const jsonLd = buildWebPageSchema({
+    path: "/blog",
+    name: BLOG_TITLE,
+    description: BLOG_DESCRIPTION,
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "Blog", path: "/blog" },
+    ],
+    extraTypes: [
+      {
+        "@type": ["Blog", "CollectionPage"],
+        "@id": `${blogUrl}#blog`,
+        url: blogUrl,
+        name: BLOG_TITLE,
+        description: BLOG_DESCRIPTION,
+        inLanguage: "en-US",
+        mainEntityOfPage: { "@id": `${blogUrl}#webpage` },
+      },
+    ],
+  });
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
+      <Schema data={jsonLd} />
       <Nav />
 
       <main id="main-content" className="flex-1">
