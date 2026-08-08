@@ -35,7 +35,12 @@ const nextConfig = {
     return [
       {
         source: '/mcp',
-        destination: '/integrate',
+        destination: 'https://mcp.buywhere.ai/mcp',
+        permanent: true,
+      },
+      {
+        source: '/mcp/:path*',
+        destination: 'https://mcp.buywhere.ai/mcp/:path*',
         permanent: true,
       },
       {
