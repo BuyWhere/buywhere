@@ -871,6 +871,13 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const region = (args.region as string) || '';
   const category = (args.category as string) || '';
   const limit = 10;
+  const tableSql = country === 'SG' ? 'products_sg' : country === 'US' ? 'products_us' : 'products';
+  const significantTokens = productName
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N} ]/gu, ' ')
+    .split(/\s+/)
+    .filter(t => t.length >= 2 && !new Set(['the', 'and', 'for', 'with', 'plus', 'pro', 'max']).has(t));
+  const accessoryPattern = '\\m(case|cases|cover|covers|screen|protector|protective|protection|bundle|sensor|camera lens|lens protector|charger|charging|cable|adapter|mount|stand|holder|skin|shell|sleeve|battery|replacement|part|parts|rear glass|midframe|assembly|housing|frame|display|lcd|digitizer|keyboard|dvr|dustproof|glass|tempered|privacy|film|flex|taptic|engine|microphone|antenna|ic|pulled|for iphone|for apple iphone)\\M';
 
   // BUY-66280: raise timeout to 30s (was 10s). Real FTS timing is 1s (warm)
   // to 60s+ (cold) for popular terms like "laptop" / "ps5". The old 10s bound
@@ -902,7 +909,13 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // filtering, we'll return the top 10 non-outliers. Must request 100 rows from
   // the DB to have enough data points for meaningful median computation.
   const CANDIDATE_POOL = 100;
-  params.push(CANDIDATE_POOL);
+  const tokenFilterParams: unknown[] = [];
+  for (const token of significantTokens.slice(0, 3)) {
+    tokenFilterParams.push(`%${token}%`);
+  }
+  const accessoryParamIndex = params.length + tokenFilterParams.length + 1;
+  const titleTokenSql = tokenFilterParams.map((_, i) => `AND title ILIKE $${params.length + i + 1}`).join('\n           ');
+  params.push(...tokenFilterParams, accessoryPattern, CANDIDATE_POOL);
   const where = `WHERE ${conditions.join(' AND ')}`;
 
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
@@ -912,12 +925,18 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   let result: { rows: Record<string, unknown>[] } = { rows: [] };
   let ftsTimedOut = false;
   try {
-    await bestPriceClient.query('SET statement_timeout = 30000');
+    // BUY-67221: keep the SQL budget under the MCP/probe timeout and convert slow
+    // catalog plans into structured empty/timed_out payloads instead of -32603.
+    await bestPriceClient.query('SET statement_timeout = 8000');
+    await bestPriceClient.query("SET work_mem = '64MB'");
+    await bestPriceClient.query('SET LOCAL enable_seqscan = off').catch(() => {});
     try {
       result = await bestPriceClient.query(
         `SELECT id, title, price, currency, source AS domain, url, image_url,
                 country_code, updated_at
-         FROM products ${where}
+         FROM ${tableSql} ${where}
+           ${titleTokenSql}
+           AND title !~* $${accessoryParamIndex}
          ORDER BY price ASC, updated_at DESC
          LIMIT $${params.length}`,
         params
@@ -1000,7 +1019,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       ...(minAllowedUsd != null ? { min_allowed_usd: Math.round(minAllowedUsd * 100) / 100 } : {}),
       country,
       response_time_ms: Date.now() - t0,
-      ...(ftsTimedOut ? { timed_out: true } : {}),
+      ...(ftsTimedOut ? { timed_out: true, unavailable: true, message: 'Best-price search temporarily unavailable; please retry.' } : {}),
     },
   };
 }
