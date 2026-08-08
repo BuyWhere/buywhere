@@ -714,6 +714,30 @@ async function handleGetDeals(args: Record<string, unknown>) {
 // Concurrent cache-misses coalesce on the same Promise instead of spawning N parallel GROUP-BY scans.
 const categoryListInflight = new Map<string, Promise<{ data: unknown[]; meta: Record<string, unknown> }>>();
 
+// BUY-66859: explicit unavailable fallback for list_categories when the DB
+// pool cannot be acquired (e.g. saturated by a non-concurrent CREATE INDEX).
+// Returns structured placeholder categories with product_count: 0 and a clear
+// unavailable flag so callers never see silent zero-count degradation and never
+// receive a raw -32603 internal error for this tool.
+function staticCategoryFallback(country: string, t0: number, unavailable: boolean) {
+  const rows = ['Electronics', 'Computers', 'Mobile Phones', 'Home', 'Fashion'].map((name) => ({
+    slug: name.toLowerCase().replace(/\s+/g, '-'),
+    name,
+    product_count: 0,
+  }));
+  const meta: Record<string, unknown> = {
+    total: rows.length,
+    country_code: country,
+    response_time_ms: Date.now() - t0,
+    cached: false,
+    unavailable,
+  };
+  if (unavailable) {
+    meta.unavailable_reason = 'category data sources unavailable (db pool exhausted or statement_timeout)';
+  }
+  return { data: rows, meta };
+}
+
 async function handleListCategories(args: Record<string, unknown>) {
   const t0 = Date.now();
   // BUY-60069: accept the public `region` alias and normalize it to the same
@@ -756,12 +780,18 @@ async function handleListCategories(args: Record<string, unknown>) {
 
   // 3. No in-flight query — start one and register it so concurrent callers coalesce
   const queryPromise = (async () => {
-    const client = await acquireMcpClient();
+    // BUY-66859: guard pool acquisition — if the shared MCP pool is exhausted
+    // (e.g. concurrent non-concurrent CREATE INDEX monopolizing connections),
+    // degrade gracefully to static defaults with unavailable=true instead of
+    // leaking a raw -32603 to the caller.
+    let client: any;
+    try {
+      client = await acquireMcpClient();
+    } catch (_) {
+      return staticCategoryFallback(country, t0, true);
+    }
     try {
       await client.query('SET statement_timeout = 8000');
-      const tableCheck = await client.query(
-        `SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`
-      );
       let rows: Array<{ slug: string; name: string; product_count: number }>;
       const MAT_VIEW_TIMEOUT_MS = 8000;
       // BUY-60096: canonical MCP must never let category fallback monopolize the shared pool.
@@ -769,16 +799,27 @@ async function handleListCategories(args: Record<string, unknown>) {
       const LIVE_TIMEOUT_MS = 1800;
       const FALLBACK_COUNTRIES = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'GB', 'PH', 'ID', 'IN', 'AU']);
       rows = [];
-      if (tableCheck.rows[0]?.tbl) {
-        const summaryResult = await client.query(
-          `SELECT slug, name, product_count
-           FROM mcp_category_summary_by_country
-           WHERE country_code = $1
-           ORDER BY product_count DESC
-           LIMIT 100`,
-          [country]
+      // BUY-66859: the mat-view existence check + lookup must be guarded so a
+      // statement_timeout (table locked by a non-concurrent index rebuild) does
+      // not escape as a raw -32603. On any error we fall through to the bounded
+      // live fallbacks, and ultimately to an explicit unavailable response.
+      try {
+        const tableCheck = await client.query(
+          `SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`
         );
-        rows = summaryResult.rows;
+        if (tableCheck.rows[0]?.tbl) {
+          const summaryResult = await client.query(
+            `SELECT slug, name, product_count
+             FROM mcp_category_summary_by_country
+             WHERE country_code = $1
+             ORDER BY product_count DESC
+             LIMIT 100`,
+            [country]
+          );
+          rows = summaryResult.rows;
+        }
+      } catch (_) {
+        // mat-view lookup timed out or errored — fall through to live fallbacks
       }
       // BUY-59768: view empty or missing for this country — fall through to a
       // bounded live GROUP BY on the country_code partition (uses partition
@@ -846,6 +887,11 @@ async function handleListCategories(args: Record<string, unknown>) {
           // recent-products fallback timed out — fall through to static category defaults
         }
       }
+      // BUY-66859: track whether we obtained real catalog-derived category
+      // counts. Only matView hits and successful live/recent fallbacks count;
+      // the static placeholder below is explicitly marked unavailable so callers
+      // never see silent zero-count degradation.
+      let realData = rows.length > 0;
       if (rows.length === 0) {
         rows = ['Electronics', 'Computers', 'Mobile Phones', 'Home', 'Fashion'].map((name) => ({
           slug: name.toLowerCase().replace(/\s+/g, '-'),
@@ -859,9 +905,19 @@ async function handleListCategories(args: Record<string, unknown>) {
         response_time_ms: 0,
         cached: false,
       };
-      meta.unavailable = false;
+      // BUY-66859: surface explicit unavailable when no real catalog data was
+      // retrieved (all data sources timed out / errored), instead of silently
+      // returning placeholder rows with product_count: 0 and unavailable=false.
+      meta.unavailable = !realData;
+      if (!realData) {
+        meta.unavailable_reason = 'category data sources unavailable (statement_timeout or empty catalog)';
+      }
       const data = { data: rows, meta };
-      redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
+      // BUY-66859: cache real category data for 10 min, but only cache an
+      // unavailable response for 30s so the tool recovers promptly once the
+      // underlying DB lock / index rebuild clears.
+      const cacheTtl = realData ? 600 : 30;
+      redis.set(cacheKey, JSON.stringify(data), 'EX', cacheTtl).catch(() => {});
       return data;
     } finally {
       releaseClientSafely(client);
