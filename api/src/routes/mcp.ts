@@ -549,6 +549,15 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // Mirrors the existing derivation in handleFindBestPrice below.
   const effectiveCountry = country || (region.toLowerCase() === 'us' ? 'US' : region.toLowerCase() === 'sea' ? 'SG' : '');
   const currency = ((args.currency as string) || (effectiveCountry ? COUNTRY_CURRENCY[effectiveCountry] : '') || 'SGD').toUpperCase();
+  // BUY-67371: derive a deals country from the currency so the query always hits
+  // the fast idx_buy64112_deals_country_products index. Without a country_code
+  // filter the query fell back to idx_products_deals_discount_pct which must
+  // traverse 200K+ SGD deals on cold Railway block storage (~74 s), blowing the
+  // statement_timeout -> MCP -32603. Scoping to the currency's home country keeps
+  // the index range tiny (sub-200 ms cold) with no behavioural change for callers
+  // that pass country_code/region/deliver_to explicitly.
+  const CURRENCY_COUNTRY: Record<string, string> = { SGD: 'SG', USD: 'US', MYR: 'MY', THB: 'TH', VND: 'VN' };
+  const dealsCountry = effectiveCountry || CURRENCY_COUNTRY[currency] || '';
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
 
@@ -589,8 +598,8 @@ async function handleGetDeals(args: Record<string, unknown>) {
     params.push(region);
     conditions.push(`region = $${params.length}`);
   }
-  if (effectiveCountry) {
-    params.push(effectiveCountry);
+  if (dealsCountry) {
+    params.push(dealsCountry);
     conditions.push(`country_code = $${params.length}`);
   }
 
