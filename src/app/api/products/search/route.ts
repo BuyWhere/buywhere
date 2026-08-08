@@ -243,6 +243,100 @@ function hasResults(data: UpstreamSearchResponse | null) {
   return Array.isArray(items) && items.length > 0;
 }
 
+// BUY-66317: when a user explicitly requests a country, drop products whose URL
+// host is a known foreign merchant (e.g. amazon.sg when country=US). The Express
+// tier path filters strictly by sp.country_code but a hotfix in the legacy archive
+// path uses `(country_code = $X OR country_code IS NULL)` (products.ts:609-611) to
+// recover recall on the 87% untagged catalog, which leaks cc=NULL rows from
+// merchants like amazon.sg into US responses. This proxy-side allowlist filters
+// without touching the SQL contract or DB schema.
+const FOREIGN_HOSTS_BY_COUNTRY: Record<string, ReadonlySet<string>> = {
+  US: new Set([
+    'amazon.sg', 'amazon.com.sg', 'lazada.sg', 'shopee.sg', 'qoo10.sg',
+    'amazon.co.jp', 'amazon.de', 'amazon.co.uk', 'amazon.fr', 'amazon.it',
+    'amazon.es', 'amazon.ca', 'amazon.com.mx', 'amazon.com.au', 'amazon.in',
+    'amazon.ae', 'amazon.sa', 'amazon.com.br',
+    'lazada.com.ph', 'lazada.co.id', 'lazada.com.my', 'lazada.co.th',
+    'lazada.vn',
+    'shopee.ph', 'shopee.co.id', 'shopee.com.my', 'shopee.co.th', 'shopee.vn',
+    'flipkart.com', 'myntra.com', 'nykaa.com', 'croma.com',
+    'reliancedigital.in', 'tatacliq.com', 'jio.com',
+    'noon.com', 'jumia.com', 'konga.com', 'takealot.com',
+    'mercadolibre.com', 'mercadolibre.com.mx', 'magazineluiza.com.br',
+    'casasbahia.com.br', 'extra.com.br',
+    'rakuten.co.jp', 'yodobashi.com', 'biccamera.com',
+  ]),
+  SG: new Set([
+    'amazon.com', 'walmart.com', 'bestbuy.com', 'target.com', 'newegg.com',
+    'homedepot.com', 'lowes.com', 'costco.com', 'ebay.com', 'wayfair.com',
+    'amazon.co.uk', 'amazon.de', 'amazon.fr', 'amazon.com.au',
+    'amazon.co.jp', 'amazon.in', 'amazon.ca', 'amazon.com.mx',
+    'flipkart.com', 'myntra.com', 'nykaa.com',
+    'lazada.com.ph', 'lazada.co.id',
+    'shopee.ph', 'shopee.co.id',
+  ]),
+};
+
+function urlHost(url: unknown): string | undefined {
+  if (typeof url !== 'string' || url.length < 8) return undefined;
+  try {
+    return new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return undefined;
+  }
+}
+
+// Returns the number of items dropped. Mutates `data` in place: rewrites
+// data.data / items / results / products and adjusts meta.total so downstream
+// rank/classify helpers see the filtered set. Caller is responsible for passing
+// `explicitCountry` — the raw `upstreamParams.get('country_code')` value, NOT
+// the `?? 'US'` display default at GET-handler line 526.
+function applyCountryHostFilter(
+  data: UpstreamSearchResponse,
+  explicitCountry: string | null,
+): number {
+  if (!explicitCountry) return 0;
+  const blocked = FOREIGN_HOSTS_BY_COUNTRY[explicitCountry.toUpperCase()];
+  if (!blocked) return 0;
+  let dropped = 0;
+  for (const key of ['data', 'items', 'results', 'products'] as const) {
+    const arr = data[key];
+    if (!Array.isArray(arr)) continue;
+    const kept: unknown[] = [];
+    for (const item of arr) {
+      const it = item as Record<string, unknown>;
+      const host = urlHost(it.url ?? it.click_url ?? it.affiliate_url);
+      if (host && blocked.has(host)) {
+        dropped += 1;
+      } else {
+        kept.push(item);
+      }
+    }
+    data[key] = kept as never;
+  }
+  const meta = data.meta as Record<string, unknown> | undefined;
+  if (meta) {
+    if (typeof meta.total === 'number') {
+      const dataArr = data.data as unknown[] | undefined;
+      meta.total = Array.isArray(dataArr) ? dataArr.length : keptLength(data);
+    }
+    meta.country_host_filter_dropped = dropped;
+    meta.country_host_filter_country = explicitCountry.toUpperCase();
+  } else if (typeof data.total === 'number') {
+    const dataArr = data.data as unknown[] | undefined;
+    data.total = Array.isArray(dataArr) ? dataArr.length : keptLength(data);
+  }
+  return dropped;
+}
+
+function keptLength(data: UpstreamSearchResponse): number {
+  for (const key of ['data', 'items', 'results', 'products'] as const) {
+    const arr = data[key];
+    if (Array.isArray(arr)) return arr.length;
+  }
+  return 0;
+}
+
 function isDegradedZero(data: UpstreamSearchResponse | null) {
   const total = data?.total ?? data?.meta?.total;
   return Boolean(data?.degraded ?? data?.meta?.degraded) && !hasResults(data) && (total === undefined || Number(total) === 0);
@@ -524,6 +618,10 @@ export async function GET(request: NextRequest) {
 
     const query = upstreamParams.get('q') ?? '';
     const countryCode = upstreamParams.get('country_code') ?? 'US';
+    // BUY-66317: drop products from known foreign merchants when an explicit
+    // country was requested. Uses raw upstreamParams (NOT the `?? 'US'` display
+    // default above) so country-less queries keep their full recall.
+    applyCountryHostFilter(data as UpstreamSearchResponse, upstreamParams.get('country_code'));
     const fallback = isDegradedZero(data) ? pickSearchFallback(query, countryCode) : null;
 
     if (fallback) {

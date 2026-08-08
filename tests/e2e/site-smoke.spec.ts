@@ -61,6 +61,66 @@ test.describe('Search', () => {
     test.skip(filledValue !== 'headphones', 'Search input fill not retained in this deployment — passes post-deploy');
     await expect(searchInput).toHaveValue('headphones');
   });
+
+  // BUY-66317: country=US must drop products whose URL host is a known foreign
+  // merchant (amazon.sg, lazada.sg, shopee.sg, etc.). Before the fix, the legacy
+  // archive path's `(country_code = $X OR country_code IS NULL)` filter admitted
+  // cc=NULL amazon.sg rows into US responses. Hits /api/products/search directly
+  // so this test passes without depending on the page's client-side fetch.
+  test('country=US search excludes amazon.sg hosts (BUY-66317)', async ({ request }) => {
+    const resp = await request.get(
+      'https://buywhere.ai/api/products/search?q=wireless+headphones&country=US&limit=20&fields=id,url'
+    );
+    expect(resp.status()).toBe(200);
+    const body = await resp.json();
+    const items = Array.isArray(body.data) ? body.data : [];
+    expect(items.length).toBeGreaterThan(0);
+    const foreignHosts = [
+      'amazon.sg', 'amazon.com.sg', 'lazada.sg', 'shopee.sg', 'qoo10.sg',
+    ];
+    const leaks = items.filter((p: { url?: string }) => {
+      const url = String(p.url ?? '');
+      try {
+        const host = new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+        return foreignHosts.includes(host);
+      } catch { return false; }
+    });
+    expect(leaks, `Expected no foreign-host products in country=US response, found ${leaks.length}`).toHaveLength(0);
+  });
+
+  // Mirror test for country=SG — must not return amazon.com / walmart.com / bestbuy.com.
+  test('country=SG search excludes US merchant hosts (BUY-66317)', async ({ request }) => {
+    const resp = await request.get(
+      'https://buywhere.ai/api/products/search?q=wireless+headphones&country=SG&limit=20&fields=id,url'
+    );
+    expect(resp.status()).toBe(200);
+    const body = await resp.json();
+    const items = Array.isArray(body.data) ? body.data : [];
+    const usHosts = [
+      'amazon.com', 'walmart.com', 'bestbuy.com', 'target.com', 'newegg.com',
+      'homedepot.com', 'lowes.com', 'costco.com', 'ebay.com',
+    ];
+    const leaks = items.filter((p: { url?: string }) => {
+      const url = String(p.url ?? '');
+      try {
+        const host = new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+        return usHosts.includes(host);
+      } catch { return false; }
+    });
+    expect(leaks, `Expected no US-merchant products in country=SG response, found ${leaks.length}`).toHaveLength(0);
+  });
+
+  // Regression: a search WITHOUT an explicit country must keep its full recall.
+  // The proxy filter must only fire when an explicit country was supplied.
+  test('search without country keeps full recall (no filter trigger)', async ({ request }) => {
+    const resp = await request.get(
+      'https://buywhere.ai/api/products/search?q=wireless+headphones&limit=20&fields=id,url'
+    );
+    expect(resp.status()).toBe(200);
+    const body = await resp.json();
+    const items = Array.isArray(body.data) ? body.data : [];
+    expect(items.length).toBeGreaterThan(0);
+  });
 });
 
 test.describe('Key pages load without error', () => {
