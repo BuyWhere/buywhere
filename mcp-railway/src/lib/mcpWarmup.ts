@@ -156,6 +156,13 @@ export async function warmupMcpCaches(): Promise<void> {
       CREATE UNIQUE INDEX IF NOT EXISTS mcp_category_summary_by_country_pk_idx
         ON mcp_category_summary_by_country (country_code, slug)
     `);
+    // BUY-67220: SG has hundreds of thousands of category rows; the PK helps
+    // REFRESH CONCURRENTLY but cannot satisfy ORDER BY product_count DESC.
+    // Keep the live route on an index scan instead of timing out on a top-N sort.
+    await queryWithWarmupBudget(client, `
+      CREATE INDEX IF NOT EXISTS mcp_category_summary_by_country_country_count_idx
+        ON mcp_category_summary_by_country (country_code, product_count DESC)
+    `);
 
     const viewCheck = await client.query(
       `SELECT to_regclass('public.mcp_category_summary') AS summary,

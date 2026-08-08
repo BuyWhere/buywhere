@@ -853,7 +853,9 @@ async function handleListCategories(args: Record<string, unknown>) {
           // recent-products fallback timed out — fall through to static category defaults
         }
       }
+      let unavailable = false;
       if (rows.length === 0) {
+        unavailable = true;
         rows = ['Electronics', 'Computers', 'Mobile Phones', 'Home', 'Fashion'].map((name) => ({
           slug: name.toLowerCase().replace(/\s+/g, '-'),
           name,
@@ -866,7 +868,7 @@ async function handleListCategories(args: Record<string, unknown>) {
         response_time_ms: 0,
         cached: false,
       };
-      meta.unavailable = rows.every((row) => Number(row.product_count) === 0);
+      meta.unavailable = unavailable || rows.every((row) => Number(row.product_count) === 0);
       const data = { data: rows, meta };
       if (!meta.unavailable) {
         redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
