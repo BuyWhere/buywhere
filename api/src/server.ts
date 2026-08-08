@@ -3,6 +3,7 @@ import cors from 'cors';
 import compression from 'compression';
 import { Sentry, sentryRequestHandler } from './sentry';
 import authRouter from './routes/auth';
+import billingRouter from './routes/billing';
 import productsRouter from './routes/products';
 import categoriesRouter from './routes/categories';
 import redirectRouter from './routes/redirect';
@@ -217,6 +218,8 @@ export function createApp() {
   app.use('/api/mcp', mcpRouter);
 
   // v1 API
+  app.use('/v1/billing/webhook', express.raw({ type: 'application/json' }));
+  app.use('/v1/billing', billingRouter);
   app.use('/v1/auth', authRouter);
   app.use('/v1/developers', authRouter);
   app.use('/v1/products', productsRouter);
