@@ -30,6 +30,19 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 // 15s; degraded-200s replace 504s below so a slow answer is still an answer.
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
 const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
+// BUY-65260 (acceptance: no 10s statement_timeout-floor for uncached searches).
+// When the handler timeout fires we already return a degraded empty 200, but
+// historically that response was NOT cached — so the next identical query
+// re-ran the full multi-second DB query and timed out again, pinning cold
+// head terms (e.g. "headphones", "blender", "monitor") to the ~10s floor
+// forever. Cache the degraded payload for a SHORT window so repeat traffic
+// gets a sub-200ms answer while the underlying slow query/path recovers,
+// instead of re-paying the timeout on every request. Short on purpose: the
+// goal is to absorb a replay burst, not to serve stale empties long-term.
+const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(
+  5,
+  Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 120
+);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
 const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v7'; // BUY-59878: disable SG freshness guardrail to fix timeouts
 
@@ -506,7 +519,7 @@ router.get(
       if (!res.headersSent) {
         // Degraded 200, not 504: a fast honest partial answer keeps BuyWhere in the
         // agent's toolchain; a 504 gets the tool dropped from rotation.
-        res.status(200).json({
+        const degradedBody = {
           data: [],
           meta: {
             total: 0,
@@ -516,7 +529,20 @@ router.get(
             cached: false,
             degraded: true,
           },
-        });
+        };
+        res.status(200).json(degradedBody);
+        // BUY-65260: cache the degraded payload for a short window so a repeat of
+        // the SAME slow query returns from Redis instead of re-running the full
+        // 10s handler timeout. `cacheKey` is declared below and initialized
+        // synchronously early in this handler, so by the time this timeout
+        // callback fires (~SEARCH_HANDLER_TIMEOUT_MS later) it is defined. Keep
+        // the TTL intentionally short to avoid poisoning results once the DB
+        // path recovers.
+        if (cacheKey) {
+          redis
+            .set(cacheKey, JSON.stringify(degradedBody), 'EX', SEARCH_DEGRADED_CACHE_TTL_SECONDS)
+            .catch(() => {});
+        }
       }
     });
     const requestStart = Date.now();
