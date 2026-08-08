@@ -871,7 +871,6 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const region = (args.region as string) || '';
   const category = (args.category as string) || '';
   const limit = 10;
-  const tableSql = country === 'SG' ? 'products_sg' : country === 'US' ? 'products_us' : 'products';
   const significantTokens = productName
     .toLowerCase()
     .replace(/[^\p{L}\p{N} ]/gu, ' ')
@@ -934,7 +933,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       result = await bestPriceClient.query(
         `SELECT id, title, price, currency, source AS domain, url, image_url,
                 country_code, updated_at
-         FROM ${tableSql} ${where}
+         FROM products ${where}
            ${titleTokenSql}
            AND title !~* $${accessoryParamIndex}
          ORDER BY price ASC, updated_at DESC
