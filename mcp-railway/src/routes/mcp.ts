@@ -740,7 +740,14 @@ async function handleListCategories(args: Record<string, unknown>) {
     const cached = await redis.get(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
-      return { ...parsed, meta: { ...parsed.meta, cached: true, response_time_ms: Date.now() - t0 } };
+      // BUY-67220: stale empty/static fallback payloads keep this endpoint silently
+      // degraded after the backing data recovers. Treat empty/all-zero cached rows
+      // as misses so the live paths can return real counts or explicit unavailable.
+      const rows: Array<{ product_count: number }> = Array.isArray(parsed.data) ? parsed.data : [];
+      const unavailable = rows.length === 0 || rows.every((r) => Number(r.product_count) === 0);
+      if (!unavailable) {
+        return { ...parsed, meta: { ...parsed.meta, cached: true, unavailable: false, response_time_ms: Date.now() - t0 } };
+      }
     }
   } catch (_) {}
 
@@ -762,8 +769,11 @@ async function handleListCategories(args: Record<string, unknown>) {
       let rows: Array<{ slug: string; name: string; product_count: number }>;
       const MAT_VIEW_TIMEOUT_MS = 8000;
       // BUY-60096: canonical MCP must never let category fallback monopolize the shared pool.
-      // If the materialized view is empty, keep fallbacks bounded so cold misses stay under 5s.
-      const LIVE_TIMEOUT_MS = 1800;
+      // BUY-67220: SG/US have dedicated partitions and live aggregates complete within
+      // the MCP budget; use them for bounded fallbacks instead of returning static
+      // zero-count placeholders when the summary view/cache is empty or stale.
+      const LIVE_TIMEOUT_MS = 6000;
+      const CATEGORY_TABLE_BY_COUNTRY: Record<string, string> = { SG: 'products_sg', US: 'products_us' };
       const FALLBACK_COUNTRIES = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'GB', 'PH', 'ID', 'IN', 'AU']);
       rows = [];
       if (tableCheck.rows[0]?.tbl) {
@@ -790,16 +800,18 @@ async function handleListCategories(args: Record<string, unknown>) {
           await client.query(`SET statement_timeout = ${LIVE_TIMEOUT_MS}`);
           await client.query(`SET work_mem = '256MB'`);
           await client.query(`SET enable_hashagg = off`);
+          const categoryTable = CATEGORY_TABLE_BY_COUNTRY[country] || 'products';
+          const countryPredicate = categoryTable === 'products' ? 'country_code = $1 AND' : '';
           const liveResult = await client.query(
             `SELECT category_path[1] AS slug, category_path[1] AS name, COUNT(*) AS product_count
-             FROM products
-             WHERE country_code = $1
-               AND category_path[1] IS NOT NULL
+             FROM ${categoryTable}
+             WHERE ${countryPredicate}
+               category_path[1] IS NOT NULL
                AND is_active = true
              GROUP BY category_path[1]
              ORDER BY COUNT(*) DESC
              LIMIT 100`,
-            [country]
+            categoryTable === 'products' ? [country] : []
           );
           if (liveResult.rows.length > 0) rows = liveResult.rows;
         } catch (_) {
@@ -817,13 +829,15 @@ async function handleListCategories(args: Record<string, unknown>) {
       if (rows.length === 0) {
         try {
           await client.query(`SET statement_timeout = ${LIVE_TIMEOUT_MS}`);
+          const categoryTable = CATEGORY_TABLE_BY_COUNTRY[country] || 'products';
+          const countryPredicate = categoryTable === 'products' ? 'country_code = $1 AND' : '';
           const recentResult = await client.query(
             `SELECT slug, slug AS name, COUNT(*)::int AS product_count
              FROM (
                SELECT category_path
-               FROM products
-               WHERE country_code = $1
-                 AND category_path[1] IS NOT NULL
+               FROM ${categoryTable}
+               WHERE ${countryPredicate}
+                 category_path[1] IS NOT NULL
                  AND is_active = true
                ORDER BY updated_at DESC
                LIMIT 50000
@@ -832,7 +846,7 @@ async function handleListCategories(args: Record<string, unknown>) {
              GROUP BY slug
              ORDER BY product_count DESC
              LIMIT 100`,
-            [country]
+            categoryTable === 'products' ? [country] : []
           );
           if (recentResult.rows.length > 0) rows = recentResult.rows;
         } catch (_) {
@@ -852,9 +866,11 @@ async function handleListCategories(args: Record<string, unknown>) {
         response_time_ms: 0,
         cached: false,
       };
-      meta.unavailable = false;
+      meta.unavailable = rows.every((row) => Number(row.product_count) === 0);
       const data = { data: rows, meta };
-      redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
+      if (!meta.unavailable) {
+        redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
+      }
       return data;
     } finally {
       releaseClientSafely(client);

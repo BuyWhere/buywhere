@@ -63,9 +63,17 @@ export async function warmupMcpCaches(): Promise<void> {
         );
         const data = {
           data: result.rows,
-          meta: { total: result.rows.length, country_code: country, response_time_ms: Date.now() - t0, cached: false },
+          meta: {
+            total: result.rows.length,
+            country_code: country,
+            response_time_ms: Date.now() - t0,
+            cached: false,
+            unavailable: result.rows.length === 0 || result.rows.every((row: { product_count: number }) => Number(row.product_count) === 0),
+          },
         };
-        await redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {});
+        if (!data.meta.unavailable) {
+          await redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {});
+        }
       }
       return;
     }
@@ -188,9 +196,17 @@ export async function warmupMcpCaches(): Promise<void> {
       );
       const data = {
         data: result.rows,
-        meta: { total: result.rows.length, country_code: country, response_time_ms: Date.now() - t0, cached: false },
+        meta: {
+          total: result.rows.length,
+          country_code: country,
+          response_time_ms: Date.now() - t0,
+          cached: false,
+          unavailable: result.rows.length === 0 || result.rows.every((row: { product_count: number }) => Number(row.product_count) === 0),
+        },
       };
-      await redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
+      if (!data.meta.unavailable) {
+        await redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
+      }
       console.log(`[mcp-warmup] list_categories ${country} cached (${result.rows.length} categories, ${Date.now() - t0}ms).`);
     }
   } finally {
@@ -229,9 +245,17 @@ export async function refreshCategorySummaries(): Promise<void> {
       );
       const data = {
         data: result.rows,
-        meta: { total: result.rows.length, country_code: country, response_time_ms: Date.now() - t0, cached: false },
+        meta: {
+          total: result.rows.length,
+          country_code: country,
+          response_time_ms: Date.now() - t0,
+          cached: false,
+          unavailable: result.rows.length === 0 || result.rows.every((row: { product_count: number }) => Number(row.product_count) === 0),
+        },
       };
-      await redis.set(`categories_mcp:top100:${country}`, JSON.stringify(data), 'EX', 600).catch(() => {});
+      if (!data.meta.unavailable) {
+        await redis.set(`categories_mcp:top100:${country}`, JSON.stringify(data), 'EX', 600).catch(() => {});
+      }
     }
     console.log('[category-refresh] materialized views and Redis caches refreshed.');
   } finally {
