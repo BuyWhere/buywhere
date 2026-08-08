@@ -145,7 +145,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
         <section className="overflow-hidden max-sm:overflow-visible bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#f59e0b_130%)] text-white">
           <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end ${config.compactCatalogCards ? "py-6" : "py-16 lg:py-24"}`}>
             <div>
-              <div className="mb-5 inline-flex items-center rounded-full border border-white/20 bg-slate-950/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-100">
+              <div className="mb-5 inline-flex items-center rounded-full border border-white/20 bg-slate-950 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-100">
                 {config.heroEyebrow}
               </div>
               <h1 className="max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl">
@@ -156,34 +156,34 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               </p>
               <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-100" aria-label="Page metadata">
                 <li className="inline-flex items-center gap-2">
-                  <span aria-hidden="true" className="text-amber-200">✓</span>
+                  <span aria-hidden="true" className="text-amber-100">✓</span>
                   <span>{buildRefreshedLabel(config, products)}</span>
                 </li>
                 <li className="inline-flex items-center gap-2">
-                  <span aria-hidden="true" className="text-amber-200">✓</span>
+                  <span aria-hidden="true" className="text-amber-100">✓</span>
                   <span>{config.country} market coverage</span>
                 </li>
                 <li className="inline-flex items-center gap-2">
-                  <span aria-hidden="true" className="text-amber-200">✓</span>
+                  <span aria-hidden="true" className="text-amber-100">✓</span>
                   <span>Live BuyWhere search results</span>
                 </li>
               </ul>
             </div>
 
-            <div className="rounded-[32px] border border-white/10 bg-slate-950/35 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur">
+            <div className="rounded-[32px] border border-white/10 bg-slate-950 p-6 shadow-2xl shadow-slate-950/30">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">Quick next step</p>
               <h2 className="mt-3 text-2xl font-semibold">{shopperCta.title}</h2>
               <p className="mt-3 text-sm leading-6 text-slate-200">{shopperCta.body}</p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href={shopperCta.href}
-                  className="inline-flex min-h-[44px] items-center rounded-full bg-amber-800 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-900"
+                  className="inline-flex min-h-[44px] items-center rounded-full bg-amber-800 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
                 >
                   {shopperCta.label}
                 </Link>
                 <Link
                   href={developerCta.href}
-                  className="inline-flex min-h-[44px] items-center rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+                  className="inline-flex min-h-[44px] items-center rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
                 >
                   {developerCta.label}
                 </Link>
