@@ -672,6 +672,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   });
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
+  let unavailable = false;
   try {
     await dealsClient.query('SET statement_timeout = 4500');
     // params already has: currency, minDiscount, [region], [country]
@@ -698,17 +699,33 @@ async function handleGetDeals(args: Record<string, unknown>) {
       buildProduct(r, currency, false)
     );
     // BUY-64112: removed keyword fallback (laptop/watch) - return empty when no deals found
+  } catch (err: unknown) {
+    const pgCode = (err as { code?: string })?.code;
+    if (pgCode === '57014') {
+      // BUY-67289: statement_timeout — return unavailable instead of surfacing -32603.
+      // The sentinel guard + bounded scan prevent this for most real queries, but
+      // slow catalog plans on sakura (305M rows, stale stats) can still time out.
+      console.warn('[mcp] get_deals statement_timeout; returning unavailable payload', {
+        currency, minDiscount, region, country, limit, offset,
+      });
+      unavailable = true;
+    } else {
+      throw err;
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);
   }
 
   const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
-  // BUY-60076: surface `unavailable:true` when the strict + regional fallback
-  // returned zero rows, mirroring api/src/routes/mcp.ts so callers can
-  // distinguish "no live deals" from "server bug".
-  if ((region || country) && products.length === 0) {
-    (result as { unavailable?: boolean }).unavailable = true;
+  // BUY-60076/BUY-67289: surface `unavailable:true` when the strict query returns
+  // zero rows or times out, mirroring api/src/routes/mcp.ts so callers can
+  // distinguish "no live deals / temporarily unavailable" from "server bug".
+  if (unavailable || ((region || country) && products.length === 0)) {
+    (result as { unavailable?: boolean; message?: string }).unavailable = true;
+    if (unavailable) {
+      (result as { message?: string }).message = 'Deals temporarily unavailable; please retry.';
+    }
   }
 
   redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
