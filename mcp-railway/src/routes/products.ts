@@ -263,8 +263,8 @@ router.get(
     // Default to SG when neither country nor region is specified (BUY-6598: prevent cross-region accessory pollution).
     const explicitCountry = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
     const countryCode = explicitCountry || (region ? undefined : 'SG');
-    const minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
-    const maxPrice = req.query.max_price ? parseFloat(req.query.max_price as string) : undefined;
+    let minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
+    let maxPrice = req.query.max_price ? parseFloat(req.query.max_price as string) : undefined;
     // Infer default currency from country_code when not explicitly provided.
     // Price filters (min_price/max_price) apply in this inferred currency.
     const currency = (req.query.currency as string) || (countryCode ? (COUNTRY_CURRENCY[countryCode] || 'SGD') : 'SGD');
@@ -280,7 +280,9 @@ router.get(
     // BUY-42589: canonicalize SG retailer brand names (harvey norman, courts, gaincity, etc.)
     // to source= filters. The retailer name is in the source field, not in product titles,
     // so FTS alone returns near-zero matches even when 10k+ products exist.
-    const { cleanedQuery, canonicalSources } = preprocessSearchQuery(rawQuery, minPrice, maxPrice);
+    const { cleanedQuery, canonicalSources, extractedMinPrice, extractedMaxPrice } = preprocessSearchQuery(rawQuery, minPrice, maxPrice);
+    if (minPrice === undefined && extractedMinPrice !== undefined) minPrice = extractedMinPrice;
+    if (maxPrice === undefined && extractedMaxPrice !== undefined) maxPrice = extractedMaxPrice;
     const q = cleanedQuery || rawQuery;
 
     // Check Redis cache for this exact query (60s TTL)

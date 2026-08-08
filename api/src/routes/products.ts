@@ -536,8 +536,8 @@ router.get(
     // Default to SG when neither country nor region is specified (BUY-6598: prevent cross-region accessory pollution).
     const explicitCountry = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
     const countryCode = explicitCountry; // hotfix(search): drop silent SG hard-filter default that excluded ~87% untagged catalog
-    const minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
-    const maxPrice = req.query.max_price ? parseFloat(req.query.max_price as string) : undefined;
+    let minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
+    let maxPrice = req.query.max_price ? parseFloat(req.query.max_price as string) : undefined;
     // Infer default currency from country_code when not explicitly provided.
     // Price filters (min_price/max_price) apply in this inferred currency.
     const currency = (req.query.currency as string) || (countryCode ? (COUNTRY_CURRENCY[countryCode] || 'SGD') : 'SGD');
@@ -557,8 +557,14 @@ router.get(
     // BUY-42589: canonicalize SG retailer brand names (harvey norman, courts, gaincity, etc.)
     // to source= filters. The retailer name is in the source field, not in product titles,
     // so FTS alone returns near-zero matches even when 10k+ products exist.
-    const { cleanedQuery, canonicalSources } = preprocessSearchQuery(rawQuery, minPrice, maxPrice);
+    const { cleanedQuery, canonicalSources, extractedMinPrice, extractedMaxPrice } = preprocessSearchQuery(rawQuery, minPrice, maxPrice);
     const q = cleanedQuery || rawQuery;
+    // BUY-2026-08-08: apply natural-language price intent ("sofa under 500", "over 1000").
+    // The preprocessor strips these phrases from the FTS text but its extracted bounds
+    // were previously discarded, so "under 500" returned ,400 results. Only fill when
+    // the caller did not pass an explicit min_price/max_price (preprocessor already guards).
+    if (minPrice === undefined && extractedMinPrice !== undefined) minPrice = extractedMinPrice;
+    if (maxPrice === undefined && extractedMaxPrice !== undefined) maxPrice = extractedMaxPrice;
 
     // Sprint C (1.4): normalize the q component of the cache key — lowercase,
     // sorted, punctuation-stripped token set — so "Running Shoes", "running shoe s"

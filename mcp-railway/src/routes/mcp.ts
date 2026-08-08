@@ -5,6 +5,7 @@ import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
+import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
@@ -210,7 +211,13 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 // Tool handlers
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const q = (args.q as string) || '';
+  const rawQ = (args.q as string) || '';
+  // NL price/query intent (2026-08-08): parse "under 500"/"over 1000" from the agent's
+  // query so it filters instead of matching literally, and strip the phrase from FTS.
+  const _pp = preprocessSearchQuery(rawQ,
+    args.min_price != null ? Number(args.min_price) : undefined,
+    args.max_price != null ? Number(args.max_price) : undefined);
+  const q = _pp.cleanedQuery || rawQ;
   const mode = (args.mode as string) || 'hybrid';
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
@@ -224,8 +231,10 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const hasExplicitCountry = !!(args.deliver_to || args.country_code || args.country);
   const country = rawCountry || (q && !region ? 'SG' : '');
   const category = (args.category as string) || '';
-  const minPrice = args.min_price != null ? Number(args.min_price) : null;
-  const maxPrice = args.max_price != null ? Number(args.max_price) : null;
+  let minPrice = args.min_price != null ? Number(args.min_price) : null;
+  let maxPrice = args.max_price != null ? Number(args.max_price) : null;
+  if (minPrice == null && _pp.extractedMinPrice !== undefined) minPrice = _pp.extractedMinPrice;
+  if (maxPrice == null && _pp.extractedMaxPrice !== undefined) maxPrice = _pp.extractedMaxPrice;
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
   const compact = args.compact === true;
