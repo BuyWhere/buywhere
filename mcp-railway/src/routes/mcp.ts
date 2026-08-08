@@ -638,7 +638,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
   try {
-    await dealsClient.query('SET statement_timeout = 10000');
+    await dealsClient.query('SET statement_timeout = 25000');
     // params already has: currency, minDiscount, [region], [country]
     // Add limit and offset
     const queryParams = [...params, Number(limit) || 20, Number(offset) || 0];

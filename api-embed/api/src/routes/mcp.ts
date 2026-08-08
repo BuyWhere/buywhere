@@ -581,7 +581,8 @@ async function handleGetDeals(args: Record<string, unknown>) {
   try {
     // BUY-64112: use the strict discount predicate directly so the planner can
     // use the production discount/country index and never return fallback rows.
-    await dealsClient.query('SET statement_timeout = 10000');
+    // BUY-66936: allow the rebuilt currency-aware index plan the documented 25s budget.
+    await dealsClient.query('SET statement_timeout = 25000');
     const dataResult = await dealsClient.query(
       `SELECT id, source, domain, url, title, price, original_price,
               currency, image_url, metadata, updated_at, region, country_code,
