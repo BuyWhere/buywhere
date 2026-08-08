@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import SearchResultsClient from './SearchResultsClient';
 import Schema from '@/components/Schema';
+import { buildPageMetadata } from '@/lib/page-metadata';
 import { buildSearchPageSchema } from '@/lib/page-schema';
 import { toSiteUrl } from '@/lib/site-url';
 
@@ -16,17 +17,27 @@ function getSearchParam(value?: string | string[]) {
   return Array.isArray(value) ? value[0] ?? '' : value ?? '';
 }
 
+const SEARCH_TITLE = 'Search Products Across Retailers | BuyWhere';
+const SEARCH_DESCRIPTION =
+  'Search products across retailers with BuyWhere, compare live prices, and discover where to buy the items you need.';
+const SEARCH_PATH = '/search';
+
 export async function generateMetadata({ searchParams }: SearchPageProps): Promise<Metadata> {
   const query = getSearchParam(searchParams?.q).trim();
-  const title = query ? `Search results for '${query}' — BuyWhere` : 'Search products — BuyWhere';
+  const metadata = buildPageMetadata({
+    title: SEARCH_TITLE,
+    description: SEARCH_DESCRIPTION,
+    path: SEARCH_PATH,
+  });
 
   return {
-    title,
+    ...metadata,
+    title: query ? `Search results for '${query}' — BuyWhere` : SEARCH_TITLE,
     robots: { index: false, follow: true },
     alternates: {
       canonical: query
         ? toSiteUrl(`/search?q=${encodeURIComponent(query)}`)
-        : toSiteUrl('/search'),
+        : toSiteUrl(SEARCH_PATH),
     },
   };
 }
