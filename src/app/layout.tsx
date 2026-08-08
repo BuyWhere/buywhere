@@ -61,8 +61,21 @@ export const metadata: Metadata = {
     images: ["/og-image.png"],
     creator: "@buywhere",
   },
+  manifest: "/manifest.webmanifest",
+  themeColor: "#4F46E5",
   icons: {
-    icon: "/favicon.svg",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    other: [
+      { rel: "mask-icon", url: "/safari-pinned-tab.svg", color: "#4F46E5" },
+    ],
+  },
+  other: {
+    "msapplication-config": "/browserconfig.xml",
+    "msapplication-TileColor": "#4F46E5",
   },
 };
 
