@@ -168,7 +168,7 @@ async function tryTierSearch(
       -- LIMIT (broad OR fallbacks time out at the 4s tier cap; same anti-pattern as
       -- the archive fix in 9e3ad8e, measured 60x there). LIMIT stops early; ts_rank
       -- below ranks the bounded candidate set.
-      -- BUY-67275-bitmap: 5000 -> 1000. `top` keeps only 200 rows, so 5000 was a 10x
+      -- BUY-67275-bitmap: 5000 -> 1000. The top CTE keeps only 200 rows, so 5000 was a 10x
       -- over-fetch that inflated the bitmap into lossy territory for head terms.
       LIMIT 1000
     ), top AS (
