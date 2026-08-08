@@ -1,9 +1,9 @@
 # BuyWhere
 
-BuyWhere is an agent-native product catalog API for AI agents and LLM applications: 288M+ structured products from 158,000+ independent storefronts worldwide, normalized into one schema, with location-aware ranking so agents only recommend products their user can actually receive.
+BuyWhere is an agent-native product catalog API for AI agents and LLM applications: 300M+ structured products from 238,000+ independent storefronts worldwide, normalized into one schema, with location-aware ranking so agents only recommend products their user can actually receive.
 
 ## Catalog Coverage
-- **288M+ products** across **158,000+ merchant storefronts** (verified live at GET /v1/catalog/stats)
+- **300M+ products** across **238,000+ merchant storefronts** (verified live at GET /v1/catalog/stats)
 - Deepest coverage: United States and Singapore; growing coverage across UK, EU, SEA, and AU — thousands of new stores added weekly
 - **Location-aware search**: pass `deliver_to=<ISO country>` (your END USER's country) and results rank deliverable-first, each carrying an `availability` label: `local` | `ships_to_you` | `unavailable` | `unknown` — backed by verified shipping policies for 28,000+ stores
 - Agent-optimized responses: `compact=true` returns structured_specs, comparison_attributes, and normalized_price_usd
