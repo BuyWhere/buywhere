@@ -258,7 +258,7 @@ router.get(
     const availability = req.query.availability as string | undefined;
     const rawFields = (req.query.fields as string) || undefined;
     const fields = rawFields ? rawFields.split(',').map(f => f.trim()).filter(Boolean) : undefined;
-    const sort = ((req.query.sort || req.query.sort_by) as string) || undefined;
+    let sort = ((req.query.sort || req.query.sort_by) as string) || undefined;
     // country_code is the canonical param; `country` is kept as a backward-compat alias.
     // Default to SG when neither country nor region is specified (BUY-6598: prevent cross-region accessory pollution).
     const explicitCountry = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
@@ -280,9 +280,15 @@ router.get(
     // BUY-42589: canonicalize SG retailer brand names (harvey norman, courts, gaincity, etc.)
     // to source= filters. The retailer name is in the source field, not in product titles,
     // so FTS alone returns near-zero matches even when 10k+ products exist.
-    const { cleanedQuery, canonicalSources, extractedMinPrice, extractedMaxPrice } = preprocessSearchQuery(rawQuery, minPrice, maxPrice);
+    const { cleanedQuery, canonicalSources, extractedMinPrice, extractedMaxPrice, sortIntent: extractedSortIntent } = preprocessSearchQuery(rawQuery, minPrice, maxPrice);
     if (minPrice === undefined && extractedMinPrice !== undefined) minPrice = extractedMinPrice;
     if (maxPrice === undefined && extractedMaxPrice !== undefined) maxPrice = extractedMaxPrice;
+    // NL sort intent (2026-08-08): "cheapest", "best", "top rated" — apply when no
+    // explicit sort passed. Extracted by the preprocessor, previously unused.
+    if (!sort && extractedSortIntent) {
+      const _sm: Record<string, string> = { price_asc: 'price_asc', price_desc: 'price_desc', rating_desc: 'highest_rated' };
+      sort = _sm[extractedSortIntent];
+    }
     const q = cleanedQuery || rawQuery;
 
     // Check Redis cache for this exact query (60s TTL)
