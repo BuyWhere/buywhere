@@ -779,6 +779,13 @@ router.get(
     // as plainto but adds quoted-phrase + '-term' support and is safe on raw input.
     const ftsAndMatch = `search_vector @@ websearch_to_tsquery('english', $${ftsParamIdx}) AND $${ftsOrParamIdx}::text IS NOT NULL`;
 
+    // BUY-67275 (2026-08-09): with `sort=` supplied we skip ts_rank, which drops the ONLY
+    // reference to the RANK bind param ($ftsParamIdx). Postgres then rejects the statement
+    // with "could not determine data type of parameter $N" and the handler 500s (confirmed
+    // in buywhere-api logs). Same trap, same remedy as the OR->AND swap above: keep the
+    // param referenced with an always-true typed no-op.
+    const ftsRankParamKeepAlive = (q && ftsParamIdx) ? ` AND $${ftsParamIdx}::text IS NOT NULL` : '';
+
     const whereClause = searchConditions.length ? `WHERE ${searchConditions.join(' AND ')}` : '';
 
     // BUY-33987: SEARCH_STATEMENT_TIMEOUT_MS and SEARCH_HANDLER_TIMEOUT_MS are
@@ -937,7 +944,7 @@ router.get(
         SELECT ${joinedColumns}
         FROM products
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-        ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
+        ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}${ftsRankParamKeepAlive}
         ORDER BY ${buildSortOrder()}
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
       `;
