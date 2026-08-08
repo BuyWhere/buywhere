@@ -956,6 +956,34 @@ async function handleListCategories(args: Record<string, unknown>) {
   }
 }
 
+// BUY-67522: minimum-USD-price floor for queries that name a premium device.
+// find_best_price uses FTS + ORDER BY price ASC, so a query like "iPhone 15"
+// matches far more cheap accessories ($1-30 lens guards, cases, buttons,
+// adhesive seals) than the actual device ($600+). The accessory deny-list and
+// the median outlier guard (BUY-63229) both fail here: the deny-list cannot
+// enumerate every accessory form ("Front Camera", "Button", "Trim", "OEM"),
+// and the candidate pool is accessory-dominated so its median is itself low.
+// Price is by far the strongest signal separating an accessory from a real
+// flagship device, so when the query strongly implies a premium device
+// category we require the row's USD-normalized price to clear a category
+// floor. Returns null for generic queries (e.g. "laptop case") so the floor
+// never suppresses legitimately cheap products.
+const DEVICE_MIN_PRICE_USD: number = 150; // flagship phones / tablets / handhelds
+const PREMIUM_LAPTOP_MIN_PRICE_USD: number = 200; // laptops, macbooks, desktops
+const CONSOLE_MIN_PRICE_USD: number = 200; // playstation, xbox, switch, steam deck
+const DEVICE_FLOOR_PATTERNS: Array<{ re: RegExp; floor: number }> = [
+  { re: /\b(mac\s*book|macbook|thinkpad|laptop|notebook|ultrabook|chromebook|desktop|imac|mac\s*mini)\b/i, floor: PREMIUM_LAPTOP_MIN_PRICE_USD },
+  { re: /\b(playstation|ps[45]\b|psp\b|xbox|nintendo|switch|steam\s*deck|oculus|quest\s*[23])\b/i, floor: CONSOLE_MIN_PRICE_USD },
+  { re: /\b(iphone|ipad|galaxy\s*s\d+|galaxy\s*note\b|galaxy\s*z|pixel\s*\d|oneplus|xiaomi\s*\d|redmi\s*note|huawei\s*p\d|nothing\s*phone|surface\s*pro)\b/i, floor: DEVICE_MIN_PRICE_USD },
+];
+function deviceMinPriceUsd(productName: string): number | null {
+  if (!productName) return null;
+  for (const { re, floor } of DEVICE_FLOOR_PATTERNS) {
+    if (re.test(productName)) return floor;
+  }
+  return null;
+}
+
 async function handleFindBestPrice(args: Record<string, unknown>) {
   const t0 = Date.now();
   const productName = (args.product_name as string) || '';
@@ -1074,32 +1102,54 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     return price * fxRate;
   };
 
+  // BUY-67522: device minimum-price floor. When the query names a premium
+  // device (flagship phone, tablet, laptop, console), require candidates to
+  // clear a category floor in USD so cheap accessories/parts ($1-30 lens
+  // guards, cases, buttons, adhesive seals) can't win the price-ASC sort.
+  // This runs BEFORE the median guard so the median is computed over real
+  // devices rather than an accessory-dominated pool (which would otherwise
+  // drag the median down and let the BUY-63229 15%-of-median floor pass a
+  // $2 accessory). If the floor would remove every candidate we keep the
+  // unfloored rows rather than return empty — the floor is a ranking
+  // preference, not a hard availability gate.
+  let guardApplied = false;
+  let medianUsd: number | null = null;
+  let minAllowedUsd: number | null = null;
+  let deviceFloorUsd = deviceMinPriceUsd(productName);
+  let deviceFloorApplied = false;
+  let finalRows = result.rows;
+  if (deviceFloorUsd != null && result.rows.length > 0) {
+    const floored = result.rows.filter(r => rowToUsd(r) >= (deviceFloorUsd as number));
+    if (floored.length > 0) {
+      deviceFloorApplied = floored.length < result.rows.length;
+      if (deviceFloorApplied) {
+        console.log(`[find_best_price] BUY-67522 device floor: rejected ${result.rows.length - floored.length}/${result.rows.length} sub-${deviceFloorUsd}-USD candidates. product="${productName}", country=${country}`);
+      }
+      finalRows = floored;
+    }
+  }
+
   // BUY-63229: median-based outlier guard. Reject candidates priced below 15%
   // of the median USD-normalized price so scam/giveaway listings (e.g. $0.97
   // Anker power bank) can't win the price-ASC sort. Needs >=3 candidates for a
   // meaningful median; with fewer, skip the guard and return as-is.
-  let guardApplied = false;
-  let medianUsd: number | null = null;
-  let minAllowedUsd: number | null = null;
-  let finalRows = result.rows;
-  if (result.rows.length >= 3) {
-    const sortedUsd = result.rows.map(rowToUsd).sort((a, b) => a - b);
+  if (finalRows.length >= 3) {
+    const sortedUsd = finalRows.map(rowToUsd).sort((a, b) => a - b);
     const mid = Math.floor(sortedUsd.length / 2);
     medianUsd = sortedUsd.length % 2 === 0
       ? (sortedUsd[mid - 1] + sortedUsd[mid]) / 2
       : sortedUsd[mid];
     minAllowedUsd = medianUsd * 0.15;
-    const filtered = result.rows.filter(r => rowToUsd(r) >= (minAllowedUsd as number));
+    const filtered = finalRows.filter(r => rowToUsd(r) >= (minAllowedUsd as number));
     if (filtered.length > 0) {
-      finalRows = filtered;
-      guardApplied = filtered.length < result.rows.length;
+      guardApplied = filtered.length < finalRows.length;
       if (guardApplied) {
-        console.log(`[find_best_price] BUY-63229 outlier guard: rejected ${result.rows.length - filtered.length}/${result.rows.length} candidates. median_usd=${medianUsd.toFixed(2)}, min_allowed_usd=${minAllowedUsd.toFixed(2)}, product="${productName}", country=${country}`);
+        console.log(`[find_best_price] BUY-63229 outlier guard: rejected ${finalRows.length - filtered.length}/${finalRows.length} candidates. median_usd=${medianUsd.toFixed(2)}, min_allowed_usd=${minAllowedUsd.toFixed(2)}, product="${productName}", country=${country}`);
       }
-    } else {
-      // All candidates below threshold — keep them (avoid returning empty on edge cases).
-      finalRows = result.rows;
+      finalRows = filtered;
     }
+    // If every remaining candidate is below 15% of median (e.g. a genuinely
+    // cheap product), keep finalRows as-is rather than return empty.
   }
 
   const data = finalRows.slice(0, 10).map((r: Record<string, unknown>) => ({
@@ -1121,6 +1171,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       guard_applied: guardApplied,
       ...(medianUsd != null ? { median_usd: Math.round(medianUsd * 100) / 100 } : {}),
       ...(minAllowedUsd != null ? { min_allowed_usd: Math.round(minAllowedUsd * 100) / 100 } : {}),
+      ...(deviceFloorUsd != null ? { device_floor_usd: deviceFloorUsd, device_floor_applied: deviceFloorApplied } : {}),
       country,
       response_time_ms: Date.now() - t0,
       ...(ftsTimedOut ? { timed_out: true, unavailable: true, message: 'Best-price search temporarily unavailable; please retry.' } : {}),
