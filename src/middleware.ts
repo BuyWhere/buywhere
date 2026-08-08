@@ -185,6 +185,18 @@ const DEAD_BLOG_SLUGS = new Set([
   "where-to-buy-steam-deck-singapore",
   "where-to-buy-xbox-series-x-singapore",
 ]);
+// BUY-56945: 6 /best-* URLs that never had blog posts and return 404.
+// Their /blog/ counterparts already return 410 Gone. These bare /best-* URLs
+// should also return 410 to cleanly de-index them.
+const DEAD_BEST_SLUGS = new Set([
+  "best-airpods-us",
+  "best-macbook-us",
+  "best-robot-vacuum-us",
+  "best-iphone-us",
+  "best-ipad-us",
+  "best-vacuum-us",
+]);
+
 
 function isDeadBlogSlug(pathname: string): boolean {
   const normalized = normalizePathname(pathname);
@@ -237,6 +249,9 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
     const slug = normalizedPath.slice(1); // strip leading slash, e.g. "best-laptop-deals-singapore"
     if (ACTIVE_BLOG_SLUGS.has(slug)) {
       return `/blog/${slug}`;
+    }
+    if (DEAD_BEST_SLUGS.has(slug)) {
+      return "__GONE__";
     }
   }
 
