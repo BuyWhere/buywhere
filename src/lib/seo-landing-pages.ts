@@ -239,6 +239,28 @@ const LOW_TRUST_REDIRECT_HOST_PATTERNS: RegExp[] = [
   /(^|\.)tvoutlet\.ca$/i,
 ];
 
+// BUY-67622 (v2): raw upstream merchant IDs whose products have repeatedly
+// leaked junk rows (Shopify dev-store fixtures, unharvested batches, and
+// scraper caches) into SEO guide live cards. The merchant field on
+// SearchApiItem is the raw ingest ID (e.g. "shopify_wellbots_com",
+// "shopify_unharvested_batch", "shopify_buy30620_stock"), so a simple
+// substring match catches the family without breaking legitimate Shopify
+// storefronts that flow through the proper downstream pipeline.
+const LOW_TRUST_MERCHANT_PATTERNS: RegExp[] = [
+  /^shopify_wellbots_com$/i,
+  /^shopify_unharvested_batch$/i,
+  /^shopify_buy30620_stock$/i,
+  /^shopify_buy30620_crate$/i,
+  /^shopify_scrape$/i,
+  /^shopify_unharvested$/i,
+];
+
+function isLowTrustMerchant(merchant: string | null | undefined): boolean {
+  if (!merchant) return false;
+  const m = merchant.toLowerCase();
+  return LOW_TRUST_MERCHANT_PATTERNS.some((re) => re.test(m));
+}
+
 function isLowTrustRedirectHost(href: string | null | undefined): boolean {
   if (!href || href === "#") return false;
   try {
@@ -299,6 +321,16 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     item.product_url,
     item.url,
   ];
+
+  // BUY-67622 (v2): reject products whose raw upstream merchant ID is a known
+  // junk source (Shopify dev-store fixtures, unharvested batches, scraper
+  // caches). The merchant field carries the raw ingest ID before normalization
+  // (e.g. "shopify_wellbots_com", "shopify_unharvested_batch"), so matching
+  // here lets us drop the rows BEFORE they ever reach the live card set,
+  // regardless of which redirect-URL field they happen to use.
+  if (isLowTrustMerchant(item.merchant)) {
+    return null;
+  }
   if (redirectCandidates.some(isLowTrustRedirectHost)) {
     return null;
   }
@@ -1578,10 +1610,12 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
     minPrice: 300,
     requiredProductTerms: ["gaming laptop", "laptop", "rog", "legion", "alienware", "omen", "predator", "tuf", "msi", "nvidia rtx"],
     // BUY-67622: hero claims "RTX 5070 & 5080 Picks". Older generation GPUs
-    // (e.g. 2020-era TUF F15 with GTX 1650 / dev6booster.myshopify.com
-    // redirect) are filtered out by this AND-style GPU token gate on top of
-    // the broader requiredProductTerms OR-gate.
-    requiredGpuTokens: ["rtx 50", "rtx 5070", "rtx 5080"],
+    // (e.g. 2020-era TUF F15 with GTX 1650, dev6booster.myshopify.com redirect,
+    // or RTX 5060 "best value" rows in the live catalog) are filtered out by
+    // this AND-style GPU token gate on top of the broader requiredProductTerms
+    // OR-gate. v2: drop "rtx 50" — it was substring-matching "RTX 5060",
+    // "RTX 5050", etc., letting 50-series-but-not-5070/5080 cards leak through.
+    requiredGpuTokens: ["rtx 5070", "rtx 5080"],
     hreflangAlternates: { "en-SG": "/best-gaming-laptop-singapore" },
     productSectionTitle: "Live gaming laptop deals across US retailers",
     comparisonSectionTitle: "Top gaming laptop picks at a glance",
@@ -1794,11 +1828,22 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
     compactCatalogCards: true,
     backupQueries: ["Eufy robot vacuum", "Roborock robot vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
     // BUY-67622: hero copy is "Best Robot Vacuums 2026 from $199" anchored to
-    // the editorial Roomba i3 EVO sale price ($199–$249). Raise the floor
-    // from $50 to $130 so clearance/sub-claim items like Tecbot S3 Pro at
-    // $129.99 never displace honest fallback products below the hero promise.
-    minPrice: 130,
-    requiredProductTerms: ["robot vacuum", "robotic vacuum", "roomba", "deebot"],
+    // the editorial Roomba i3 EVO sale price ($199–$249). v2: raise the floor
+    // from $130 to $199 — the original $130 floor let Tecbot S1 at $119.99 and
+    // Tecbot S3 Pro at $129.99 displace honest fallback products. Hero
+    // explicitly names the $199 anchor; the floor must match it.
+    minPrice: 199,
+    // v2: hero names "Roomba", "Roborock", and retailers "Amazon, Best Buy,
+    // Walmart, Costco". Tighten requiredProductTerms so the live card set
+    // actually reflects those named brands/retailers rather than Tecbot /
+    // iMass A3 / Xiaomi off-brand rows.
+    requiredProductTerms: [
+      "roomba", "irobot",
+      "roborock",
+      "eufy",
+      "shark",
+      "best buy", "walmart", "amazon", "costco",
+    ],
     hreflangAlternates: { "en-SG": "/best-robot-vacuums-singapore" },
     productSectionTitle: "Live robot vacuum deals across the US",
     comparisonSectionTitle: "Top robot vacuum & Roomba picks at a glance",

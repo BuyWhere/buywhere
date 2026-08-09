@@ -370,33 +370,51 @@ test("parseImageDimensions extracts JPEG SOF and PNG IHDR dimensions", () => {
 //      $199" hero promise.
 // ---------------------------------------------------------------------------
 
-test("BUY-67622: source declares LOW_TRUST_REDIRECT_HOST_PATTERNS + requiredGpuTokens gate", () => {
+test("BUY-67622: source declares LOW_TRUST_REDIRECT_HOST_PATTERNS + LOW_TRUST_MERCHANT_PATTERNS + requiredGpuTokens gate", () => {
   const source = readFileSync(
     new URL("./seo-landing-pages.ts", import.meta.url),
     "utf8",
   );
-  assert.match(source, /LOW_TRUST_REDIRECT_HOST_PATTERNS/, "denylist constant must exist");
+  assert.match(source, /LOW_TRUST_REDIRECT_HOST_PATTERNS/, "host denylist constant must exist");
+  assert.match(source, /LOW_TRUST_MERCHANT_PATTERNS/, "merchant denylist constant must exist (v2)");
   // Source contains literal regex source `dev6booster\.myshopify\.com` etc.;
   // the regex dot-escape sequence is stored as 2 chars (backslash + dot), so
   // match the unescaped dot form by passing the regex source string.
   assert.ok(
     source.includes("dev6booster\\.myshopify\\.com"),
-    "denylist must include dev6booster.myshopify.com",
+    "host denylist must include dev6booster.myshopify.com",
   );
   assert.ok(
     source.includes("wellbots\\.com"),
-    "denylist must include wellbots.com",
+    "host denylist must include wellbots.com",
   );
   assert.ok(
     source.includes("tvoutlet\\.ca"),
-    "denylist must include tvoutlet.ca",
+    "host denylist must include tvoutlet.ca",
+  );
+  assert.ok(
+    source.includes("shopify_wellbots_com"),
+    "merchant denylist must include shopify_wellbots_com (v2)",
+  );
+  assert.ok(
+    source.includes("shopify_unharvested_batch"),
+    "merchant denylist must include shopify_unharvested_batch (v2)",
+  );
+  assert.ok(
+    source.includes("shopify_buy30620_stock"),
+    "merchant denylist must include shopify_buy30620_stock (v2)",
   );
   assert.ok(source.includes("requiredGpuTokens?:"), "config must declare requiredGpuTokens field");
   assert.ok(source.includes("productMatchesGpuTokens"), "must define productMatchesGpuTokens filter");
-  // The denylist must be wired into the live-card filter path.
+  // The host denylist must be wired into the live-card filter path.
   assert.ok(
     source.includes("redirectCandidates.some(isLowTrustRedirectHost)"),
-    "denylist must run inside normalizeProduct",
+    "host denylist must run inside normalizeProduct",
+  );
+  // The merchant denylist must be wired into normalizeProduct (v2).
+  assert.ok(
+    source.includes("isLowTrustMerchant(item.merchant)"),
+    "merchant denylist must run inside normalizeProduct (v2)",
   );
   // The requiredGpuTokens gate must run inside the per-item loop.
   assert.ok(
@@ -405,18 +423,24 @@ test("BUY-67622: source declares LOW_TRUST_REDIRECT_HOST_PATTERNS + requiredGpuT
   );
 });
 
-test("BUY-67622: best-gaming-laptops-us config requires RTX 50-series GPU token", () => {
+test("BUY-67622: best-gaming-laptops-us config requires RTX 5070/5080 GPU token (not just 'rtx 50')", () => {
   const config = seoLandingPages["best-gaming-laptops-us"];
   assert.ok(config, "best-gaming-laptops-us config must exist");
   const tokens = config.requiredGpuTokens ?? [];
   assert.ok(
     tokens.length > 0,
-    "requiredGpuTokens must be set so older-gen GPUs (e.g. 2020 TUF F15 / GTX 1650) cannot reach the page",
+    "requiredGpuTokens must be set so older-gen GPUs (e.g. 2020 TUF F15 / GTX 1650, RTX 5060) cannot reach the page",
   );
   const flat = tokens.join(" ").toLowerCase();
+  // v2: the gate must require 5070/5080 specifically, not just "rtx 50",
+  // because "rtx 50" was matching RTX 5060 and letting non-5070/5080 cards leak.
   assert.ok(
-    flat.includes("rtx 50") || flat.includes("rtx 5070") || flat.includes("rtx 5080"),
-    `requiredGpuTokens must include an RTX 50-series token; got: ${JSON.stringify(tokens)}`,
+    flat.includes("rtx 5070") && flat.includes("rtx 5080"),
+    `requiredGpuTokens must include BOTH "rtx 5070" and "rtx 5080" to honor hero copy; got: ${JSON.stringify(tokens)}`,
+  );
+  assert.ok(
+    !flat.includes(/\brtx 50\b/.source) || flat.match(/\brtx 50\b/g)?.length === 0,
+    `requiredGpuTokens must NOT contain bare "rtx 50" — it substring-matches RTX 5060/5050; got: ${JSON.stringify(tokens)}`,
   );
   // Hero copy must still promise RTX 5070/5080 — this is the editorial promise
   // the live cards now have to match.
@@ -427,13 +451,26 @@ test("BUY-67622: best-gaming-laptops-us config requires RTX 50-series GPU token"
   );
 });
 
-test("BUY-67622: best-robot-vacuums-2026 config raises minPrice so clearance sub-claim items cannot leak", () => {
+test("BUY-67622: best-robot-vacuums-2026 config raises minPrice to >=199 so clearance sub-claim items cannot leak", () => {
   const config = seoLandingPages["best-robot-vacuums-2026"];
   assert.ok(config, "best-robot-vacuums-2026 config must exist");
+  // v2: floor must match hero's "from $199" anchor — Tecbot S1 at $119.99 and
+  // Tecbot S3 Pro at $129.99 still leaked at $130 floor.
   assert.ok(
-    typeof config.minPrice === "number" && config.minPrice >= 130,
-    `minPrice must be >= 130 to enforce the hero's "from $199" promise (Tecbot S3 Pro leak); got: ${config.minPrice}`,
+    typeof config.minPrice === "number" && config.minPrice >= 199,
+    `minPrice must be >= 199 to enforce the hero's "from $199" promise (Tecbot S1/S3 leak); got: ${config.minPrice}`,
   );
+  // v2: requiredProductTerms must constrain to named brands/retailers so
+  // Tecbot / iMass A3 / Xiaomi off-brand rows cannot displace honest
+  // Roomba/Roborock/Eufy fallbacks.
+  const terms = config.requiredProductTerms ?? [];
+  const flat = terms.join(" ").toLowerCase();
+  for (const required of ["roomba", "roborock", "eufy"]) {
+    assert.ok(
+      flat.includes(required),
+      `requiredProductTerms must include "${required}" so named brands anchor the live cards; got: ${JSON.stringify(terms)}`,
+    );
+  }
   assert.match(
     config.heroTitle,
     /from \$199/i,
