@@ -177,7 +177,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href={shopperCta.href}
-                  className="inline-flex min-h-[44px] items-center rounded-full bg-amber-800 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-900"
+                  className="inline-flex min-h-[44px] items-center rounded-full bg-amber-300 px-5 py-3 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-200 focus:outline-none focus:ring-4 focus:ring-amber-200/60"
                 >
                   {shopperCta.label}
                 </Link>
@@ -196,10 +196,10 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className={`${config.compactCatalogCards ? "mb-4" : "mb-8"} flex flex-col gap-3 md:flex-row md:items-end md:justify-between`}>
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-800">Live catalog snapshot</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-900">Live catalog snapshot</p>
                 <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
               </div>
-              <Link href={shopperCta.href} className="text-sm font-semibold text-amber-800 hover:text-amber-900">
+              <Link href={shopperCta.href} className="text-sm font-semibold text-amber-900 hover:text-amber-950 underline-offset-4 hover:underline">
                 Open full search
               </Link>
             </div>
