@@ -352,3 +352,91 @@ test("parseImageDimensions extracts JPEG SOF and PNG IHDR dimensions", () => {
   assert.equal(isSq({ w: 1000, h: 940 }), true, "1000x940 (AR 1.06) is within ±6% tolerance");
   assert.equal(isSq({ w: 1000, h: 1070 }), true, "1000x1070 (AR 0.93) is within ±6% tolerance");
 });
+
+// ---------------------------------------------------------------------------
+// BUY-67622 — SEO guide hero copy must not contradict the live card set.
+// Three regression tests:
+//
+//   1. Source-level: seo-landing-pages.ts declares the host denylist, the
+//      requiredGpuTokens config field, and uses them in the live-card filter
+//      path. This is the static guarantee — if a future refactor drops the
+//      host denylist or requiredGpuTokens gate, these tests fail before the
+//      change ships.
+//   2. Functional: the best-gaming-laptops-us config explicitly requires an
+//      RTX 50-series token in product names so the 2020-era TUF F15 (GTX
+//      1650 / dev6booster.myshopify.com) cannot reach the rendered HTML.
+//   3. Functional: best-robot-vacuums-2026 sets minPrice >= 130 so sub-claim
+//      clearance items (Tecbot S3 Pro at $129.99) cannot undercut the "from
+//      $199" hero promise.
+// ---------------------------------------------------------------------------
+
+test("BUY-67622: source declares LOW_TRUST_REDIRECT_HOST_PATTERNS + requiredGpuTokens gate", () => {
+  const source = readFileSync(
+    new URL("./seo-landing-pages.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /LOW_TRUST_REDIRECT_HOST_PATTERNS/, "denylist constant must exist");
+  // Source contains literal regex source `dev6booster\.myshopify\.com` etc.;
+  // the regex dot-escape sequence is stored as 2 chars (backslash + dot), so
+  // match the unescaped dot form by passing the regex source string.
+  assert.ok(
+    source.includes("dev6booster\\.myshopify\\.com"),
+    "denylist must include dev6booster.myshopify.com",
+  );
+  assert.ok(
+    source.includes("wellbots\\.com"),
+    "denylist must include wellbots.com",
+  );
+  assert.ok(
+    source.includes("tvoutlet\\.ca"),
+    "denylist must include tvoutlet.ca",
+  );
+  assert.ok(source.includes("requiredGpuTokens?:"), "config must declare requiredGpuTokens field");
+  assert.ok(source.includes("productMatchesGpuTokens"), "must define productMatchesGpuTokens filter");
+  // The denylist must be wired into the live-card filter path.
+  assert.ok(
+    source.includes("redirectCandidates.some(isLowTrustRedirectHost)"),
+    "denylist must run inside normalizeProduct",
+  );
+  // The requiredGpuTokens gate must run inside the per-item loop.
+  assert.ok(
+    source.includes("productMatchesGpuTokens(product, config.requiredGpuTokens)"),
+    "requiredGpuTokens gate must run on every live item",
+  );
+});
+
+test("BUY-67622: best-gaming-laptops-us config requires RTX 50-series GPU token", () => {
+  const config = seoLandingPages["best-gaming-laptops-us"];
+  assert.ok(config, "best-gaming-laptops-us config must exist");
+  const tokens = config.requiredGpuTokens ?? [];
+  assert.ok(
+    tokens.length > 0,
+    "requiredGpuTokens must be set so older-gen GPUs (e.g. 2020 TUF F15 / GTX 1650) cannot reach the page",
+  );
+  const flat = tokens.join(" ").toLowerCase();
+  assert.ok(
+    flat.includes("rtx 50") || flat.includes("rtx 5070") || flat.includes("rtx 5080"),
+    `requiredGpuTokens must include an RTX 50-series token; got: ${JSON.stringify(tokens)}`,
+  );
+  // Hero copy must still promise RTX 5070/5080 — this is the editorial promise
+  // the live cards now have to match.
+  assert.match(
+    config.heroTitle,
+    /RTX 50(70|80)/i,
+    "heroTitle must promise an RTX 50-series GPU so the filter is meaningful",
+  );
+});
+
+test("BUY-67622: best-robot-vacuums-2026 config raises minPrice so clearance sub-claim items cannot leak", () => {
+  const config = seoLandingPages["best-robot-vacuums-2026"];
+  assert.ok(config, "best-robot-vacuums-2026 config must exist");
+  assert.ok(
+    typeof config.minPrice === "number" && config.minPrice >= 130,
+    `minPrice must be >= 130 to enforce the hero's "from $199" promise (Tecbot S3 Pro leak); got: ${config.minPrice}`,
+  );
+  assert.match(
+    config.heroTitle,
+    /from \$199/i,
+    "heroTitle must still promise 'from $199' so the floor is meaningful",
+  );
+});

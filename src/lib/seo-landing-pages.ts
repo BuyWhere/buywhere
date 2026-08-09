@@ -144,6 +144,13 @@ export type SeoLandingPageConfig = {
   minPrice?: number;
   /** Terms that must appear in live search products to avoid unrelated broad-query matches */
   requiredProductTerms?: string[];
+  /**
+   * GPU tokens that MUST appear in the product name. Used by SEO landing pages
+   * that promise a specific GPU generation in the hero copy (e.g. RTX 5070/5080
+   * picks). Items missing every token are dropped, even if they pass the broader
+   * `requiredProductTerms` filter. BUY-67622.
+   */
+  requiredGpuTokens?: string[];
   /** Upstream category filter used to constrain broad catalog searches */
   searchCategory?: string;
   /** Strictly reject product parts and accessories from live catalog cards */
@@ -216,6 +223,32 @@ function normalizeExternalHref(...values: Array<string | null | undefined>) {
   return "#";
 }
 
+// BUY-67622: redirect hosts whose products routinely leak dev-store fixtures,
+// non-US fulfilment domains, or refurb/clearance resellers into SEO guide
+// live cards. Filtered at the normalizeProduct boundary so the offending rows
+// never reach the SSR HTML. Conservative: only includes hosts observed in the
+// live catalog data for BUY-67622, not trusted US retailers.
+const LOW_TRUST_REDIRECT_HOST_PATTERNS: RegExp[] = [
+  /(^|\.)dev6booster\.myshopify\.com$/i,
+  /(^|\.)aimtofind\.myshopify\.com$/i,
+  /(^|\.)kimstore-enterprise-corp\.myshopify\.com$/i,
+  /(^|\.)matrixwarehouse\.co\.za$/i,
+  /(^|\.)mhcworld\.co\.za$/i,
+  /(^|\.)itadstore\.co\.za$/i,
+  /(^|\.)wellbots\.com$/i,
+  /(^|\.)tvoutlet\.ca$/i,
+];
+
+function isLowTrustRedirectHost(href: string | null | undefined): boolean {
+  if (!href || href === "#") return false;
+  try {
+    const host = new URL(href).hostname.toLowerCase();
+    return LOW_TRUST_REDIRECT_HOST_PATTERNS.some((re) => re.test(host));
+  } catch {
+    return false;
+  }
+}
+
 function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPrice?: number): LandingProduct | null {
   // Currency guard: only keep products priced in the page's currency. The
   // upstream catalog frequently returns wrong-region rows (e.g. INR/PHP/GBP
@@ -247,6 +280,26 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
   // category, the search likely matched noise (e.g. "HP Omen" matching a $1.49
   // shearling jacket). Silently skip these rather than showing wrong products.
   if (minPrice !== undefined && numericPrice !== null && numericPrice < minPrice) {
+    return null;
+  }
+
+  // BUY-67622: reject products whose Buy link points at known low-trust
+  // Shopify dev stores or non-US fulfilment domains. The redirect URL is
+  // selected from affiliate_redirect_url / click_url / url in priority order
+  // (see normalizeExternalHref below); if any candidate host matches the
+  // denylist, the product is dropped entirely so it can never displace an
+  // honest fallback. We inspect the same candidates `normalizeExternalHref`
+  // will consider so a dev-shopify redirect URL stored on any field trips
+  // the filter.
+  const redirectCandidates = [
+    item.affiliate_redirect_url,
+    item.click_url,
+    item.affiliate_url,
+    item.buy_url,
+    item.product_url,
+    item.url,
+  ];
+  if (redirectCandidates.some(isLowTrustRedirectHost)) {
     return null;
   }
 
@@ -671,6 +724,19 @@ function productMatchesRequiredTerms(product: LandingProduct, requiredTerms?: st
   return requiredTerms.some((term) => haystack.includes(term.toLowerCase()));
 }
 
+// BUY-67622: every-token gate for hero-driven GPU claims. When the page
+// promises a specific GPU generation (e.g. "RTX 5070 & 5080 Picks"), drop any
+// product whose name doesn't mention at least one of the listed GPU tokens —
+// even if the broader `requiredProductTerms` filter would have let it pass.
+// Tokens are matched as substrings; include the regex pattern when you need
+// word boundaries (e.g. use "RTX 5070" not just "5070" to avoid matching
+// monitor model numbers).
+function productMatchesGpuTokens(product: LandingProduct, gpuTokens?: string[]): boolean {
+  if (!gpuTokens || gpuTokens.length === 0) return true;
+  const haystack = [product.name, product.brand].filter(Boolean).join(" ").toLowerCase();
+  return gpuTokens.some((token) => haystack.includes(token.toLowerCase()));
+}
+
 const PRODUCT_ACCESSORY_RE =
   /\b(?:accessor(?:y|ies)(?:\s+(?:package|kit|set))?|fabric cleaner|replacement\s+(?:battery|batteries|brush(?:es)?|dust bags?|filter(?:s)?|kit|mop pads?|motor|nozzles?|parts?|roller(?:s)?|side brush(?:es)?|water tanks?)|vacuum\s+(?:accessor(?:y|ies)|parts?|supply|supplies)|(?:\d+[- ]?pack|pack of \d+)\s+(?:replacement\s+)?(?:brush(?:es)?|dust bags?|filter(?:s)?|mop pads?|roller(?:s)?|side brush(?:es)?)|(?:brush(?:es)?|dust bags?|filter(?:s)?|mop pads?|roller(?:s)?|side brush(?:es)?)\s+(?:kit|set)\s+(?:for|compatible with))\b/i;
 const NON_FLOOR_ROBOT_VACUUM_RE = /\b(?:cordless|handheld|pool|stick|upright)\b/i;
@@ -971,6 +1037,11 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         if (!hasUsableLiveCard(product)) continue;
         if (isExcludedAccessory(product, config)) continue;
         if (!productMatchesRequiredTerms(product, config.requiredProductTerms)) continue;
+        // BUY-67622: when the page promises a specific GPU generation in the
+        // hero copy (e.g. RTX 5070/5080 picks), the live card set MUST match
+        // that promise — drop products whose name lacks every required GPU
+        // token even if they otherwise pass the requiredProductTerms OR-gate.
+        if (!productMatchesGpuTokens(product, config.requiredGpuTokens)) continue;
         if (!seenIds.has(product.id)) {
           seenIds.add(product.id);
           collected.push(product);
@@ -1506,6 +1577,11 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
 backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator laptop", "gaming laptop NVIDIA RTX"],
     minPrice: 300,
     requiredProductTerms: ["gaming laptop", "laptop", "rog", "legion", "alienware", "omen", "predator", "tuf", "msi", "nvidia rtx"],
+    // BUY-67622: hero claims "RTX 5070 & 5080 Picks". Older generation GPUs
+    // (e.g. 2020-era TUF F15 with GTX 1650 / dev6booster.myshopify.com
+    // redirect) are filtered out by this AND-style GPU token gate on top of
+    // the broader requiredProductTerms OR-gate.
+    requiredGpuTokens: ["rtx 50", "rtx 5070", "rtx 5080"],
     hreflangAlternates: { "en-SG": "/best-gaming-laptop-singapore" },
     productSectionTitle: "Live gaming laptop deals across US retailers",
     comparisonSectionTitle: "Top gaming laptop picks at a glance",
@@ -1717,7 +1793,11 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
     excludeAccessories: true,
     compactCatalogCards: true,
     backupQueries: ["Eufy robot vacuum", "Roborock robot vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
-    minPrice: 50,
+    // BUY-67622: hero copy is "Best Robot Vacuums 2026 from $199" anchored to
+    // the editorial Roomba i3 EVO sale price ($199–$249). Raise the floor
+    // from $50 to $130 so clearance/sub-claim items like Tecbot S3 Pro at
+    // $129.99 never displace honest fallback products below the hero promise.
+    minPrice: 130,
     requiredProductTerms: ["robot vacuum", "robotic vacuum", "roomba", "deebot"],
     hreflangAlternates: { "en-SG": "/best-robot-vacuums-singapore" },
     productSectionTitle: "Live robot vacuum deals across the US",
