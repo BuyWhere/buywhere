@@ -10,6 +10,55 @@ import { getCachedFxRates } from '../lib/fxRatesLoader';
 
 const router = Router();
 
+type DeviceProductType = 'phone' | 'console' | 'laptop';
+
+const PHONE_PRICE_QUERY_RE = /\b(iphone|samsung\s+galaxy|galaxy\s+s\d+|google\s+pixel|pixel\s+\d+|xiaomi|redmi|oppo|vivo|oneplus)\b/i;
+const CONSOLE_PRICE_QUERY_RE = /\b(ps5|playstation\s*5|xbox\s+(?:series\s+)?[sx]|nintendo\s+switch)\b/i;
+const LAPTOP_PRICE_QUERY_RE = /\b(macbook|thinkpad|chromebook|surface\s+laptop|laptop|notebook)\b/i;
+const ACCESSORY_QUERY_RE = /\b(case|cover|protector|film|tempered|glass|skin|decal|sticker|sleeve|pouch|cable|charger|adapter|holder|mount|strap|lanyard|accessor(?:y|ies)|game|software)\b/i;
+
+const DEVICE_TAXONOMY_PATTERNS: Record<DeviceProductType, string[]> = {
+  phone: [
+    '%mobile phone%', '%mobile phones%', '%smartphone%', '%smartphones%', '%cell phone%', '%handphone%',
+    '%telefon%', '%telefono%', '%téléphone%', '%phone%', '%phones%',
+  ],
+  console: [
+    '%game console%', '%gaming console%', '%video game console%', '%console%', '%playstation console%',
+    '%xbox console%', '%nintendo console%',
+  ],
+  laptop: [
+    '%laptop%', '%laptops%', '%notebook%', '%notebooks%', '%macbook%', '%chromebook%', '%portable computer%',
+  ],
+};
+const DEVICE_TITLE_PATTERNS: Record<DeviceProductType, string[]> = {
+  phone: ['%iphone%', '%samsung galaxy%', '%galaxy s%', '%google pixel%', '%pixel %', '%xiaomi%', '%redmi%', '%oppo%', '%vivo%', '%oneplus%'],
+  console: ['%ps5%', '%playstation 5%', '%xbox series s%', '%xbox series x%', '%nintendo switch%'],
+  laptop: ['%macbook%', '%thinkpad%', '%chromebook%', '%surface laptop%', '%laptop%', '%notebook%'],
+};
+
+const DEVICE_NEGATIVE_TAXONOMY_PATTERNS = [
+  '%accessor%', '%case%', '%casing%', '%cover%', '%protector%', '%screen protector%', '%tempered glass%',
+  '%film%', '%skin%', '%decal%', '%sticker%', '%sleeve%', '%pouch%', '%cable%', '%charger%', '%adapter%',
+  '%holder%', '%mount%', '%strap%', '%lanyard%', '%repair%', '%replacement%', '%parts%', '%spare part%',
+  '%controller%', '%gamepad%', '%kryt%', '%capa%', '%capas%', '%専用%',
+];
+const DEVICE_NEGATIVE_TITLE_PATTERNS = [
+  ...DEVICE_NEGATIVE_TAXONOMY_PATTERNS,
+  '%game%', '%games%', '%software%', '%juego%', '%juegos%', '%spiel%', '%jeux%',
+];
+
+function inferDeviceProductType(productName: string): DeviceProductType | null {
+  if (ACCESSORY_QUERY_RE.test(productName)) return null;
+  if (PHONE_PRICE_QUERY_RE.test(productName)) return 'phone';
+  if (CONSOLE_PRICE_QUERY_RE.test(productName)) return 'console';
+  if (LAPTOP_PRICE_QUERY_RE.test(productName)) return 'laptop';
+  return null;
+}
+
+function minimumPhonePrice(country: string) {
+  return country === 'SG' ? 500 : 300;
+}
+
 // BUY-56185: Detect statement_timeout poisoned connections.
 // When PostgreSQL's statement_timeout fires, the query is cancelled but the
 // connection enters PQTRANS_INERROR state. Returning such a connection to the
@@ -596,6 +645,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const discountOrder = useDiscountCol
     ? 'discount_pct DESC'
     : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
+  const discountOrderNulls = useDiscountCol ? '' : ' NULLS LAST';
 
   // Use dedicated client with bounded statement_timeout so a slow deals scan returns
   // a structured -32603 envelope to the MCP client (which drops at ~35s) instead of
@@ -630,7 +680,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
               ${discountSelect}
        FROM products
        WHERE ${whereClause}
-       ORDER BY ${discountOrder} NULLS LAST, updated_at DESC
+       ORDER BY ${discountOrder}${discountOrderNulls}, updated_at DESC
        LIMIT $${queryParams.length - 1}::int OFFSET $${queryParams.length}::int`,
       queryParams
     );
@@ -790,7 +840,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const country = (((args.country_code as string) || (args.country as string)) || regionDerived || 'SG').toUpperCase();
   const region = (args.region as string) || '';
   const category = (args.category as string) || '';
-  const limit = 10;
+  const requestedLimit = Math.max(1, Math.min(10, Number(args.limit) || 10));
+  const deviceProductType = inferDeviceProductType(productName);
+  const exactPhoneQuery = deviceProductType === 'phone';
+  const limit = deviceProductType ? Math.max(requestedLimit, 10) : requestedLimit;
 
   const CANDIDATE_POOL = Math.max(limit * 50, 500);
 
@@ -830,24 +883,34 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     // mcp-railway). Leading with FTS avoids a leading-wildcard ILIKE full scan of
     // the partition on the hot path.
     try {
-      result = await bestPriceClient.query(
-        `SELECT id, title, price, currency, source AS domain, url, image_url,
-                country_code, updated_at
-         FROM products
-         WHERE is_active = true
-           AND price > 0
-           AND country_code = $1
-           AND search_vector @@ plainto_tsquery('english', $2)
-         ORDER BY price ASC, updated_at DESC
-         LIMIT $3::int`,
-        [country, productName, limit]
-      );
-      if (result.rows.length === 0) {
-        // ILIKE fallback: FTS tokenization can miss titles where the term appears
-        // as a substring of a larger token (model numbers, compound words, or text
-        // the 'english' config doesn't stem). Fall back to a substring match within
-        // the (pruned) country partition to recover those listings.
-        const titlePattern = `%${productName}%`;
+      if (deviceProductType) {
+        const taxonomyPatterns = DEVICE_TAXONOMY_PATTERNS[deviceProductType];
+        const titlePatterns = DEVICE_TITLE_PATTERNS[deviceProductType];
+        result = await bestPriceClient.query(
+          `SELECT id, title, price, currency, source AS domain, url, image_url,
+                  country_code, updated_at, category, category_path, metadata
+           FROM products
+           WHERE is_active = true
+             AND price > 0
+             AND country_code = $1
+             AND search_vector @@ plainto_tsquery('english', $2)
+             AND ((lower(coalesce(category, '')) LIKE ANY($3::text[])
+               OR lower(array_to_string(category_path, ' ')) LIKE ANY($3::text[])
+               OR lower(coalesce(metadata->>'category', '')) LIKE ANY($3::text[])
+               OR lower(coalesce(metadata->>'product_type', '')) LIKE ANY($3::text[]))
+               OR (lower(title) LIKE ANY($4::text[])
+                 AND NOT lower(title) LIKE ANY($6::text[])))
+             AND NOT (lower(title) LIKE ANY($6::text[])
+               OR lower(coalesce(category, '')) LIKE ANY($5::text[])
+               OR lower(array_to_string(category_path, ' ')) LIKE ANY($5::text[])
+               OR lower(coalesce(metadata->>'category', '')) LIKE ANY($5::text[])
+               OR lower(coalesce(metadata->>'product_type', '')) LIKE ANY($5::text[]))
+             AND ($7::boolean = false OR price >= $8)
+           ORDER BY price ASC, updated_at DESC
+           LIMIT $9::int`,
+          [country, productName, taxonomyPatterns, titlePatterns, DEVICE_NEGATIVE_TAXONOMY_PATTERNS, DEVICE_NEGATIVE_TITLE_PATTERNS, exactPhoneQuery, minimumPhonePrice(country), limit]
+        );
+      } else {
         result = await bestPriceClient.query(
           `SELECT id, title, price, currency, source AS domain, url, image_url,
                   country_code, updated_at
@@ -855,11 +918,30 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
            WHERE is_active = true
              AND price > 0
              AND country_code = $1
-             AND title ILIKE $2
+             AND search_vector @@ plainto_tsquery('english', $2)
            ORDER BY price ASC, updated_at DESC
            LIMIT $3::int`,
-          [country, titlePattern, limit]
+          [country, productName, limit]
         );
+        if (result.rows.length === 0) {
+          // ILIKE fallback: FTS tokenization can miss titles where the term appears
+          // as a substring of a larger token (model numbers, compound words, or text
+          // the 'english' config doesn't stem). Fall back to a substring match within
+          // the (pruned) country partition to recover those listings.
+          const titlePattern = `%${productName}%`;
+          result = await bestPriceClient.query(
+            `SELECT id, title, price, currency, source AS domain, url, image_url,
+                    country_code, updated_at
+             FROM products
+             WHERE is_active = true
+               AND price > 0
+               AND country_code = $1
+               AND title ILIKE $2
+             ORDER BY price ASC, updated_at DESC
+             LIMIT $3::int`,
+            [country, titlePattern, limit]
+          );
+        }
       }
     } catch (ftsErr) {
       const ftsError = ftsErr as { code?: string };
@@ -891,10 +973,20 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     country_code: r.country_code as string,
   }));
 
+  const limitedData = data.slice(0, requestedLimit);
   return {
-    best_price: data[0] ?? null,
-    alternatives: data.slice(1),
-    meta: { total: data.length, country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'), response_time_ms: Date.now() - t0, ...(ftsTimedOut ? { timed_out: true } : {}) },
+    best_price: limitedData[0] ?? null,
+    alternatives: limitedData.slice(1),
+    meta: {
+      total: limitedData.length,
+      country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'),
+      response_time_ms: Date.now() - t0,
+      ...(ftsTimedOut ? { timed_out: true } : {}),
+      ...(deviceProductType && limitedData.length === 0 ? {
+        unavailable: true,
+        message: `No non-accessory ${deviceProductType} listings found for this exact product query.`,
+      } : {}),
+    },
   };
 }
 
