@@ -76,7 +76,6 @@ export default function robots(): MetadataRoute.Robots {
       "https://buywhere.ai/sitemap.xml",
       "https://buywhere.ai/sitemap-pages.xml",
       "https://buywhere.ai/sitemap-products.xml",
-      "https://buywhere.ai/sitemap-products-sg.xml",
       "https://buywhere.ai/sitemap-merchants.xml",
       "https://buywhere.ai/sitemap-categories.xml",
       "https://buywhere.ai/sitemap-compare.xml",

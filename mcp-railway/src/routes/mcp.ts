@@ -46,6 +46,16 @@ function releaseClientSafely(client: any) {
   }
 }
 
+// BUY-67598: timing instrumentation — separates DB pool-acquire wait from SQL
+// execution to diagnose whether sweep-time latency is pool contention or query time.
+function buildTiming(name: string, t0: number) {
+  return { name, t0, poolMs: 0, sqlMs: 0, totalMs: 0 };
+}
+function finishTiming(t: ReturnType<typeof buildTiming>) {
+  t.totalMs = Date.now() - t.t0;
+  return t;
+}
+
 // MCP tools manifest
 const TOOLS = [
   {
@@ -297,6 +307,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // BUY-57657: add connect timeout so pool exhaustion fails fast at 2s instead of
   // blocking the entire 12s statement_timeout. The DB itself is fast (70-130ms) so
   // any 8-12s MCP latency is pool-acquisition contention, not query execution.
+  // BUY-67598: add timing to separate pool-acquire from SQL execution.
+  const searchTiming = buildTiming('search_products', t0);
+  const spPoolStart = Date.now();
   const searchClient = await Promise.race([
     catalogDb.connect(),
     new Promise<never>((_, reject) =>
@@ -305,6 +318,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   ]).catch(() => {
     throw { code: -32603, message: 'Database connection timeout' };
   });
+  searchTiming.poolMs = Date.now() - spPoolStart;
   try {
     // BUY-67219: keep search_products below the MCP timeout. Slow catalog plans now
     // return a coherent unavailable payload instead of surfacing JSON-RPC -32603.
@@ -481,9 +495,12 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     buildProduct(r, currency, compact)
   );
 
+  // BUY-67598: record SQL timing and include in result
+  searchTiming.sqlMs = Date.now() - t0 - searchTiming.poolMs;
   const result = {
     ...buildSearchResponse(products, total!, limit, offset, Date.now() - t0, false),
     ...(unavailable ? { unavailable: true, message: 'Search temporarily unavailable; please retry.' } : {}),
+    timing: finishTiming(searchTiming),
   };
 
   try {
@@ -666,15 +683,33 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
   // supports direct queries that match the predicate. No candidate window needed.
   // Also removes the laptop/watch keyword fallback that masked empty results.
-  const dealsClient = await acquireMcpClient().catch((err: unknown) => {
+  // BUY-67598: add timing to separate pool-acquire from SQL execution.
+  const dealsTiming = buildTiming('get_deals', t0);
+  let dealsClient: any;
+  try {
+    const poolStart = Date.now();
+    dealsClient = await acquireMcpClient();
+    dealsTiming.poolMs = Date.now() - poolStart;
+  } catch (err: unknown) {
     console.error('[mcp] get_deals db.connect failed:', err);
-    throw { code: -32603, message: 'Database unavailable' };
-  });
+    // Structured fail-open: return unavailable instead of throwing -32603
+    return {
+      results: [],
+      total: 0,
+      unavailable: true,
+      message: 'Deals temporarily unavailable (database pool exhausted).',
+      response_time_ms: Date.now() - t0,
+      timing: finishTiming(dealsTiming),
+    };
+  }
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
   let unavailable = false;
   try {
-    await dealsClient.query('SET statement_timeout = 4500');
+    // BUY-67598: raise timeout from 4.5s to 8s to avoid sweep-triggered timeouts.
+    // Per-market: US/TH/VN get the full 8s; SG/MY use 6s (smaller catalog).
+    const DEALS_TIMEOUT_MS = (country === 'SG' || country === 'MY') ? 6000 : 8000;
+    await dealsClient.query(`SET statement_timeout = ${DEALS_TIMEOUT_MS}`);
     // params already has: currency, minDiscount, [region], [country]
     // Add limit and offset
     const queryParams = [...params, Number(limit) || 20, Number(offset) || 0];
@@ -718,6 +753,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   }
 
   const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
+  (result as any).timing = finishTiming(dealsTiming);
   // BUY-60076/BUY-67289: surface `unavailable:true` when the strict query returns
   // zero rows or times out, mirroring api/src/routes/mcp.ts so callers can
   // distinguish "no live deals / temporarily unavailable" from "server bug".
@@ -808,8 +844,11 @@ async function handleListCategories(args: Record<string, unknown>) {
     // degrade gracefully to static defaults with unavailable=true instead of
     // leaking a raw -32603 to the caller.
     let client: any;
+    let catPoolMs = 0;
     try {
+      const poolStart = Date.now();
       client = await acquireMcpClient();
+      catPoolMs = Date.now() - poolStart;
     } catch (_) {
       return staticCategoryFallback(country, t0, true);
     }
@@ -935,6 +974,8 @@ async function handleListCategories(args: Record<string, unknown>) {
       if (!realData) {
         meta.unavailable_reason = 'category data sources unavailable (statement_timeout or empty catalog)';
       }
+      meta.pool_ms = catPoolMs;
+      meta.sql_ms = Date.now() - t0 - catPoolMs;
       const data = { data: rows, meta };
       // BUY-66859: cache real category data for 10 min, but only cache an
       // unavailable response for 30s so the tool recovers promptly once the
@@ -954,6 +995,34 @@ async function handleListCategories(args: Record<string, unknown>) {
   } finally {
     categoryListInflight.delete(country);
   }
+}
+
+// BUY-67522: minimum-USD-price floor for queries that name a premium device.
+// find_best_price uses FTS + ORDER BY price ASC, so a query like "iPhone 15"
+// matches far more cheap accessories ($1-30 lens guards, cases, buttons,
+// adhesive seals) than the actual device ($600+). The accessory deny-list and
+// the median outlier guard (BUY-63229) both fail here: the deny-list cannot
+// enumerate every accessory form ("Front Camera", "Button", "Trim", "OEM"),
+// and the candidate pool is accessory-dominated so its median is itself low.
+// Price is by far the strongest signal separating an accessory from a real
+// flagship device, so when the query strongly implies a premium device
+// category we require the row's USD-normalized price to clear a category
+// floor. Returns null for generic queries (e.g. "laptop case") so the floor
+// never suppresses legitimately cheap products.
+const DEVICE_MIN_PRICE_USD: number = 150; // flagship phones / tablets / handhelds
+const PREMIUM_LAPTOP_MIN_PRICE_USD: number = 200; // laptops, macbooks, desktops
+const CONSOLE_MIN_PRICE_USD: number = 200; // playstation, xbox, switch, steam deck
+const DEVICE_FLOOR_PATTERNS: Array<{ re: RegExp; floor: number }> = [
+  { re: /\b(mac\s*book|macbook|thinkpad|laptop|notebook|ultrabook|chromebook|desktop|imac|mac\s*mini)\b/i, floor: PREMIUM_LAPTOP_MIN_PRICE_USD },
+  { re: /\b(playstation|ps[45]\b|psp\b|xbox|nintendo|switch|steam\s*deck|oculus|quest\s*[23])\b/i, floor: CONSOLE_MIN_PRICE_USD },
+  { re: /\b(iphone|ipad|galaxy\s*s\d+|galaxy\s*note\b|galaxy\s*z|pixel\s*\d|oneplus|xiaomi\s*\d|redmi\s*note|huawei\s*p\d|nothing\s*phone|surface\s*pro)\b/i, floor: DEVICE_MIN_PRICE_USD },
+];
+function deviceMinPriceUsd(productName: string): number | null {
+  if (!productName) return null;
+  for (const { re, floor } of DEVICE_FLOOR_PATTERNS) {
+    if (re.test(productName)) return floor;
+  }
+  return null;
 }
 
 async function handleFindBestPrice(args: Record<string, unknown>) {
@@ -1022,10 +1091,39 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   params.push(...tokenFilterParams, accessoryPattern, CANDIDATE_POOL);
   const where = `WHERE ${conditions.join(' AND ')}`;
 
+  // BUY-67522: when the query names a premium device, ORDER BY price ASC fetches
+  // the 100 cheapest matches — which for "iPhone 15" are ALL accessories (a real
+  // $458 phone never enters the pool, so the post-query device floor has nothing
+  // to surface and relaxes back to accessories). Two-pronged fix for device
+  // queries: (1) push a currency-aware price floor into the SQL WHERE so cheap
+  // accessories are excluded at the source and the candidate pool fills with
+  // real devices; (2) order the remaining candidates by ts_rank DESC so the most
+  // relevant real devices are retained when the pool is capped at 100. The
+  // post-query USD floor (below) is kept as a defense-in-depth backstop. Generic
+  // queries keep price ASC for the median guard.
+  const candidateDeviceFloor = deviceMinPriceUsd(productName);
+  let candidateWhere = where;
+  let candidateOrder = `price ASC, updated_at DESC`;
+  if (candidateDeviceFloor != null) {
+    // Convert the USD floor to each row's own currency (mirror CURRENCY_RATES:
+    // amount_usd = price_local * rate). Rows priced in an unknown currency use
+    // rate 1 (treated as USD), matching rowToUsd's CURRENCY_RATES ?? 1 fallback.
+    const floorUsd = candidateDeviceFloor;
+    candidateWhere = `${where} AND price * CASE UPPER(currency)
+        WHEN 'USD' THEN 1 WHEN 'SGD' THEN 0.74 WHEN 'VND' THEN 0.000039
+        WHEN 'THB' THEN 0.028 WHEN 'MYR' THEN 0.22 WHEN 'GBP' THEN 0.79
+        WHEN 'EUR' THEN 1.09 ELSE 1 END >= ${floorUsd}`;
+    candidateOrder = `ts_rank(search_vector, plainto_tsquery('english', $1)) DESC, price ASC, updated_at DESC`;
+  }
+
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
+  // BUY-67598: add timing to separate pool-acquire from SQL execution.
+  const bestPriceTiming = buildTiming('find_best_price', t0);
+  const bpPoolStart = Date.now();
   const bestPriceClient = await acquireMcpClient();
+  bestPriceTiming.poolMs = Date.now() - bpPoolStart;
   let result: { rows: Record<string, unknown>[] } = { rows: [] };
   let ftsTimedOut = false;
   try {
@@ -1038,10 +1136,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       result = await bestPriceClient.query(
         `SELECT id, title, price, currency, source AS domain, url, image_url,
                 country_code, updated_at
-         FROM products ${where}
+         FROM products ${candidateWhere}
            ${titleTokenSql}
            AND title !~* $${accessoryParamIndex}
-         ORDER BY price ASC, updated_at DESC
+         ORDER BY ${candidateOrder}
          LIMIT $${params.length}`,
         params
       );
@@ -1074,32 +1172,54 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     return price * fxRate;
   };
 
+  // BUY-67522: device minimum-price floor. When the query names a premium
+  // device (flagship phone, tablet, laptop, console), require candidates to
+  // clear a category floor in USD so cheap accessories/parts ($1-30 lens
+  // guards, cases, buttons, adhesive seals) can't win the price-ASC sort.
+  // This runs BEFORE the median guard so the median is computed over real
+  // devices rather than an accessory-dominated pool (which would otherwise
+  // drag the median down and let the BUY-63229 15%-of-median floor pass a
+  // $2 accessory). If the floor would remove every candidate we keep the
+  // unfloored rows rather than return empty — the floor is a ranking
+  // preference, not a hard availability gate.
+  let guardApplied = false;
+  let medianUsd: number | null = null;
+  let minAllowedUsd: number | null = null;
+  const deviceFloorUsd = candidateDeviceFloor;
+  let deviceFloorApplied = false;
+  let finalRows = result.rows;
+  if (deviceFloorUsd != null && result.rows.length > 0) {
+    const floored = result.rows.filter(r => rowToUsd(r) >= (deviceFloorUsd as number));
+    if (floored.length > 0) {
+      deviceFloorApplied = floored.length < result.rows.length;
+      if (deviceFloorApplied) {
+        console.log(`[find_best_price] BUY-67522 device floor: rejected ${result.rows.length - floored.length}/${result.rows.length} sub-${deviceFloorUsd}-USD candidates. product="${productName}", country=${country}`);
+      }
+      finalRows = floored;
+    }
+  }
+
   // BUY-63229: median-based outlier guard. Reject candidates priced below 15%
   // of the median USD-normalized price so scam/giveaway listings (e.g. $0.97
   // Anker power bank) can't win the price-ASC sort. Needs >=3 candidates for a
   // meaningful median; with fewer, skip the guard and return as-is.
-  let guardApplied = false;
-  let medianUsd: number | null = null;
-  let minAllowedUsd: number | null = null;
-  let finalRows = result.rows;
-  if (result.rows.length >= 3) {
-    const sortedUsd = result.rows.map(rowToUsd).sort((a, b) => a - b);
+  if (finalRows.length >= 3) {
+    const sortedUsd = finalRows.map(rowToUsd).sort((a, b) => a - b);
     const mid = Math.floor(sortedUsd.length / 2);
     medianUsd = sortedUsd.length % 2 === 0
       ? (sortedUsd[mid - 1] + sortedUsd[mid]) / 2
       : sortedUsd[mid];
     minAllowedUsd = medianUsd * 0.15;
-    const filtered = result.rows.filter(r => rowToUsd(r) >= (minAllowedUsd as number));
+    const filtered = finalRows.filter(r => rowToUsd(r) >= (minAllowedUsd as number));
     if (filtered.length > 0) {
-      finalRows = filtered;
-      guardApplied = filtered.length < result.rows.length;
+      guardApplied = filtered.length < finalRows.length;
       if (guardApplied) {
-        console.log(`[find_best_price] BUY-63229 outlier guard: rejected ${result.rows.length - filtered.length}/${result.rows.length} candidates. median_usd=${medianUsd.toFixed(2)}, min_allowed_usd=${minAllowedUsd.toFixed(2)}, product="${productName}", country=${country}`);
+        console.log(`[find_best_price] BUY-63229 outlier guard: rejected ${finalRows.length - filtered.length}/${finalRows.length} candidates. median_usd=${medianUsd.toFixed(2)}, min_allowed_usd=${minAllowedUsd.toFixed(2)}, product="${productName}", country=${country}`);
       }
-    } else {
-      // All candidates below threshold — keep them (avoid returning empty on edge cases).
-      finalRows = result.rows;
+      finalRows = filtered;
     }
+    // If every remaining candidate is below 15% of median (e.g. a genuinely
+    // cheap product), keep finalRows as-is rather than return empty.
   }
 
   const data = finalRows.slice(0, 10).map((r: Record<string, unknown>) => ({
@@ -1121,9 +1241,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       guard_applied: guardApplied,
       ...(medianUsd != null ? { median_usd: Math.round(medianUsd * 100) / 100 } : {}),
       ...(minAllowedUsd != null ? { min_allowed_usd: Math.round(minAllowedUsd * 100) / 100 } : {}),
+      ...(deviceFloorUsd != null ? { device_floor_usd: deviceFloorUsd, device_floor_applied: deviceFloorApplied } : {}),
       country,
       response_time_ms: Date.now() - t0,
       ...(ftsTimedOut ? { timed_out: true, unavailable: true, message: 'Best-price search temporarily unavailable; please retry.' } : {}),
+      timing: finishTiming(bestPriceTiming),
     },
   };
 }
@@ -1626,6 +1748,31 @@ router.get('/', (_req: Request, res: Response) => {
     auth: 'Bearer token — register at https://api.buywhere.ai/v1/auth/register',
     usage: 'POST this URL with a JSON-RPC 2.0 envelope. See https://api.buywhere.ai/docs/guides/mcp',
   });
+});
+
+// GET /mcp/debug/statement-timeout — diagnostics endpoint for Ops/Tune
+// Shows current statement_timeout for the MCP pool to confirm timeout/session
+// contamination during sweeps.
+router.get('/debug/statement-timeout', async (_req: Request, res: Response) => {
+  let client: any;
+  try {
+    client = await acquireMcpClient();
+    const timeoutResult = await client.query('SHOW statement_timeout');
+    const timeoutVal = timeoutResult.rows[0]?.statement_timeout;
+    const configResult = await client.query(
+      `SELECT setting FROM pg_settings WHERE name = 'statement_timeout'`
+    );
+    const configVal = configResult.rows[0]?.setting;
+    res.json({
+      session_statement_timeout: timeoutVal,
+      server_config_statement_timeout: configVal,
+      ts: new Date().toISOString(),
+    });
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err as Error).message || String(err) });
+  } finally {
+    if (client) releaseClientSafely(client);
+  }
 });
 
 // POST /mcp — public methods (no auth): initialize + tools/list
