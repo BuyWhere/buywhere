@@ -200,6 +200,23 @@ function hasUsableProductImage(value?: string | null) {
     if (fullUrl.includes('missing-image')) return false;
     if (fullUrl.includes('generic')) return false;
 
+    // BUY-67241: hosts that return hard 410 / 404 for every product-image
+    // path we currently ingest. Filtering at the URL layer prevents the
+    // browser from issuing the broken request (and the matching
+    // "Failed to load resource: 410" console error per card). The
+    // BrandedPlaceholder / onError fallback in the SearchCard render
+    // is the second-layer defense for unknown-host failures.
+    if (hostname === 'contents.mediadecathlon.com' || hostname === 'www.mediadecathlon.com') return false;
+    if (hostname.endsWith('.mediadecathlon.com')) return false;
+    // QA 2026-08-09T02:13Z: cdn.shopify.com URLs in the wireless-headphones
+    // catalog return a mix of 200 (JLab JBuds) and 404/410 (JBL, Sony, Beats);
+    // the broken ratio is high enough that we filter the host wholesale and
+    // render the BrandedPlaceholder instead. Also covers *.shopify.com and
+    // *.shopifycdn.com (e.g. burst.shopifycdn.com).
+    if (hostname === 'cdn.shopify.com' || hostname === 'shopify.com' || hostname === 'www.shopify.com') return false;
+    if (hostname.endsWith('.shopify.com')) return false;
+    if (hostname.endsWith('.shopifycdn.com')) return false;
+
     return true;
   } catch {
     return false;
@@ -331,10 +348,14 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
 }
 
 // BUY-65559: exported for the price-sanity regression test.
+// BUY-67241: hasUsableProductImage exported for the 410-image-host regression
+// test. Keeps the host-blocklist testable from node:test without spinning up
+// the React tree.
 export const __test__ = {
   isPlausiblePrice,
   formatPrice,
   normalizeProduct,
+  hasUsableProductImage,
   HIGH_VALUE_MIN_PRICE,
   MAX_PLAUSIBLE_PRICE,
 };
