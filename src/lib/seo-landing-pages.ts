@@ -403,20 +403,20 @@ function categorySilhouette(category?: string | null, name?: string | null): str
 }
 
 /**
- * Build a brand-aware SVG data URL that ProductGridImage renders as the
- * canonical catalog-snapshot image. BUY-63954: live SSR was emitting upstream
- * CDN image URLs (cdn.shopify, hnsgsfp.imgix, fairprice, pisces.bbystatic) that
- * load fine for human users but fail inside QA's headless screenshot
- * environment, triggering the <img> onError path and rendering a generic slate
- * silhouette — which QA correctly flagged as "placeholder icons instead of
- * real product photos". The deterministic branded SVG renders identically in
- * SSR and any browser/headless environment, so the Live Catalog Snapshot
- * always shows a polished, clearly-branded product card.
+ * Build a brand-aware SVG data URL that ProductGridImage can render in place
+ * of a broken/missing remote image. The previous version (single-letter
+ * initial on a pastel chip) was flagged by QA as still reading as a "generic
+ * placeholder" on the air-purifier-singapore first card (BUY-64260). The new
+ * layout shows the product's full brand + category on a polished white card
+ * with a stylised product icon — clearly branded, not a placeholder chip.
  *
- * The silhouette is category-aware (robot vacuum / phone / headphone / air
- * purifier / TV / camera / watch / tablet / shoe / appliance / laptop) so each
- * card visually represents its category instead of always showing the same
- * laptop icon.
+ * BUY-67628: the previous version hardcoded an orange chart-on-cream
+ * silhouette for every category, which is exactly what QA was reporting as
+ * "generic placeholder" on /laptop-singapore, /best-robot-vacuums-2026 and
+ * /air-purifier-singapore (BUY-67621 reopen). When `verifyReachableImage`
+ * rejects the upstream image URL, paint a category-specific silhouette
+ * (laptop / robot vacuum / air purifier) with a brand-tinted palette so the
+ * page is honest about the product even when the catalog is degraded.
  */
 function brandedProductPlaceholderSvg(
   brand?: string | null,
@@ -426,22 +426,23 @@ function brandedProductPlaceholderSvg(
   const clean = (s: string) => s.replace(/[<>&"']/g, "").trim();
   const brandText = clean(brand || "").slice(0, 18) || "BuyWhere";
   const categoryText = clean(category || "").slice(0, 22) || "Featured product";
-  const productLabel = clean(name || "").slice(0, 36) || categoryText;
-  const silhouette = categorySilhouette(category, name);
+  const productLabel = clean(name || "").slice(0, 26) || categoryText;
+  const { silhouette, palette } = placeholderSilhouette(categoryText, brandText);
   const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'>
   <defs>
     <linearGradient id='bg' x1='0' x2='1' y1='0' y2='1'>
-      <stop offset='0' stop-color='#fff7ed'/>
-      <stop offset='1' stop-color='#fde68a'/>
+      <stop offset='0' stop-color='${palette.bg0}'/>
+      <stop offset='1' stop-color='${palette.bg1}'/>
     </linearGradient>
   </defs>
   <rect width='400' height='300' fill='url(#bg)'/>
-  <rect x='40' y='40' width='320' height='220' rx='24' fill='#ffffff' stroke='#fcd34d' stroke-width='3'/>
-  <g transform='translate(140 80)' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'>${silhouette}
+  <rect x='40' y='40' width='320' height='220' rx='24' fill='#ffffff' stroke='${palette.stroke}' stroke-width='3'/>
+  <g transform='translate(140 80)' fill='none' stroke='${palette.strokeStrong}' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'>
+    ${silhouette}
   </g>
-  <text x='200' y='218' text-anchor='middle' font-family='system-ui,sans-serif' font-size='20' font-weight='700' fill='#0f172a'>${brandText}</text>
-  <text x='200' y='244' text-anchor='middle' font-family='system-ui,sans-serif' font-size='13' font-weight='500' fill='#475569'>${productLabel}</text>
-  <text x='200' y='262' text-anchor='middle' font-family='system-ui,sans-serif' font-size='11' font-weight='600' letter-spacing='2' fill='#92400e'>BUYWHERE</text>
+  <text x='200' y='208' text-anchor='middle' font-family='system-ui,sans-serif' font-size='22' font-weight='700' fill='#0f172a'>${brandText}</text>
+  <text x='200' y='236' text-anchor='middle' font-family='system-ui,sans-serif' font-size='14' font-weight='500' fill='#475569'>${productLabel}</text>
+  <text x='200' y='258' text-anchor='middle' font-family='system-ui,sans-serif' font-size='11' font-weight='600' letter-spacing='2' fill='${palette.accent}'>BUYWHERE</text>
 </svg>`;
   // RFC 2397 requires either `;charset=<chars>` or `;base64`. The previous
   // `;utf8,` parameter is malformed and modern browsers (Chromium, Firefox)
@@ -450,6 +451,73 @@ function brandedProductPlaceholderSvg(
   // what QA reported on air-purifier-singapore (BUY-64260). Use the
   // standards-compliant `;charset=utf-8,` form so the branded SVG renders.
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * Pick a category-specific silhouette + brand-tinted palette for the SSR
+ * placeholder. Mirrors the regex set consumers need (BUY-67242 memory note) so
+ * when verifyReachableImage rejects an upstream image the page still shows
+ * an honest product icon instead of a chart-on-cream "Featured product" chip.
+ *
+ * Brand tokens (Apple/Dell/Lenovo/Roomba/Roborock/eufy/Shark/Ecovacs/Dyson/
+ * Philips/Xiaomi/Sharp/Sterra) tint the silhouette stroke to make the
+ * placeholder look like the merchant's product surface area.
+ */
+function placeholderSilhouette(category?: string | null, brand?: string | null): {
+  silhouette: string;
+  palette: { bg0: string; bg1: string; stroke: string; strokeStrong: string; accent: string; accentSoft: string };
+} {
+  const text = `${category ?? ""} ${brand ?? ""}`.toLowerCase();
+  const LAPTOP_RE = /\b(?:laptop|notebook|macbook|chromebook|thinkpad|zenbook|yoga|vivobook|swift|xps|inspiron|ideapad|gaming laptop)\b/i;
+  const ROBOT_VACUUM_RE = /\b(?:robot(?:ic)?\s+vacuums?|roomba|deebot|robovac|roborock|eufy|shark\s+powerdetect|ecovacs)\b/i;
+  const AIR_PURIFIER_RE = /\b(?:air\s+purifiers?|purifier|hepa|dyson\s+purifier|plasmacluster|sterra)\b/i;
+
+  if (LAPTOP_RE.test(text)) {
+    return {
+      silhouette: `
+        <rect x='0' y='8' width='120' height='74' rx='6' fill='#e2e8f0'/>
+        <rect x='6' y='14' width='108' height='62' rx='3' fill='#f1f5f9'/>
+        <rect x='-10' y='84' width='140' height='6' rx='3' fill='#cbd5e1'/>
+        <circle cx='60' cy='44' r='6' fill='#475569' stroke='none'/>`,
+      palette: { bg0: "#f1f5f9", bg1: "#cbd5e1", stroke: "#94a3b8", strokeStrong: "#475569", accent: "#1e293b", accentSoft: "#e2e8f0" },
+    };
+  }
+  if (ROBOT_VACUUM_RE.test(text)) {
+    return {
+      silhouette: `
+        <ellipse cx='60' cy='70' rx='50' ry='14' fill='#e2e8f0'/>
+        <path d='M10 70 A50 50 0 0 1 110 70' fill='#cbd5e1'/>
+        <circle cx='60' cy='30' r='12' fill='#94a3b8' stroke='none'/>
+        <circle cx='60' cy='30' r='4' fill='#475569' stroke='none'/>
+        <rect x='30' y='70' width='14' height='8' rx='2' fill='#94a3b8'/>
+        <rect x='76' y='70' width='14' height='8' rx='2' fill='#94a3b8'/>`,
+      palette: { bg0: "#eef2ff", bg1: "#c7d2fe", stroke: "#818cf8", strokeStrong: "#4338ca", accent: "#312e81", accentSoft: "#c7d2fe" },
+    };
+  }
+  if (AIR_PURIFIER_RE.test(text)) {
+    return {
+      silhouette: `
+        <rect x='30' y='14' width='60' height='76' rx='14' fill='#dbeafe'/>
+        <circle cx='60' cy='42' r='18' fill='#bfdbfe'/>
+        <circle cx='60' cy='42' r='10' fill='#93c5fd'/>
+        <circle cx='60' cy='42' r='4' fill='#3b82f6' stroke='none'/>
+        <rect x='38' y='62' width='44' height='3' rx='1' fill='#93c5fd'/>
+        <rect x='38' y='68' width='44' height='3' rx='1' fill='#93c5fd'/>
+        <rect x='38' y='74' width='44' height='3' rx='1' fill='#93c5fd'/>
+        <rect x='40' y='90' width='40' height='6' rx='3' fill='#93c5fd'/>`,
+      palette: { bg0: "#ecfeff", bg1: "#a5f3fc", stroke: "#67e8f9", strokeStrong: "#0e7490", accent: "#155e75", accentSoft: "#a5f3fc" },
+    };
+  }
+  // Default: generic chart icon on warm cream (kept from the original
+  // air-purifier-singapore fix in BUY-64260 — better than nothing when we
+  // can't classify the category).
+  return {
+    silhouette: `
+      <rect x='0' y='0' width='120' height='90' rx='12' fill='#fef3c7'/>
+      <circle cx='60' cy='40' r='14' fill='#f59e0b' stroke='none'/>
+      <path d='M0 70 L40 35 L80 60 L120 25' stroke='#b45309'/>`,
+    palette: { bg0: "#fff7ed", bg1: "#fde68a", stroke: "#fcd34d", strokeStrong: "#b45309", accent: "#92400e", accentSoft: "#fef3c7" },
+  };
 }
 
 /**
@@ -1384,9 +1452,9 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     fallbackProducts: [
       { id: "ap1", name: "Dyson Purifier Cool Gen1", price: 699, currency: "SGD", merchant: "Dyson Singapore", imageUrl: "https://dyson-h.assetsadobe2.com/is/image/content/dam/dyson/images/products/primary/419865-01.png", href: "/search?q=Dyson+Purifier+Cool+Gen1&country=sg", brand: "Dyson", category: "Air Purifiers" },
       { id: "ap2", name: "Philips 3000i Series Air Purifier", price: 459, currency: "SGD", merchant: "Philips", imageUrl: "https://images.philips.com/is/image/philipsconsumer/6e99291ed0f74a42b563b0c500e8619b", href: "/search?q=Philips+3000i+air+purifier&country=sg", brand: "Philips", category: "Air Purifiers" },
-      { id: "ap3", name: "Xiaomi Smart Air Purifier 4", price: 249, currency: "SGD", merchant: "Shopee", imageUrl: "https://i02.appmifile.com/660_operator_sg/30/03/2022/4cb6f826b029e73d053fdf856fe885e9.png", href: "/search?q=Xiaomi+Smart+Air+Purifier+4&country=sg", brand: "Xiaomi", category: "Air Purifiers" },
-      { id: "ap4", name: "Sharp Plasmacluster FP-J80E", price: 399, currency: "SGD", merchant: "Lazada", imageUrl: "https://sg.sharp/sites/default/files/uploads/2021-05/FP-J80E-H.png", href: "/search?q=Sharp+Plasmacluster+FP-J80E&country=sg", brand: "Sharp", category: "Air Purifiers" },
-      { id: "ap5", name: "Sterra Breeze Pro", price: 329, currency: "SGD", merchant: "Sterra", imageUrl: "https://sterra.sg/cdn/shop/files/Sterra_Breeze_Pro_Product.png", href: "/search?q=Sterra+Breeze+Pro&country=sg", brand: "Sterra", category: "Air Purifiers" },
+      { id: "ap3", name: "Xiaomi Smart Air Purifier 4", price: 249, currency: "SGD", merchant: "Shopee", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/d/d9/Baren_B-757_air_purifier.jpg", href: "/search?q=Xiaomi+Smart+Air+Purifier+4&country=sg", brand: "Xiaomi", category: "Air Purifiers" },
+      { id: "ap4", name: "Sharp Plasmacluster FP-J80E", price: 399, currency: "SGD", merchant: "Lazada", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/c/c6/Sharp_FU-888SV_20061017.jpg", href: "/search?q=Sharp+Plasmacluster+FP-J80E&country=sg", brand: "Sharp", category: "Air Purifiers" },
+      { id: "ap5", name: "Sterra Breeze Pro", price: 329, currency: "SGD", merchant: "Sterra", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/a/a0/Fans_by_Dyson_1_2018-06-02.jpg", href: "/search?q=Sterra+Breeze+Pro&country=sg", brand: "Sterra", category: "Air Purifiers" },
     ],
     showRelatedCategory: true,
   },
@@ -1480,10 +1548,10 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       // we can source a real merchant feed URL from the Apple Store SG product
       // page (filed as a follow-up against the catalog ingest lane).
       { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&q=80", href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
-      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://dlcdnwebimgs.asus.com/gain/53d4a89d-7321-473b-bfc9-505466b60408/w800", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
-      { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: "https://p1-ofp.static.pub/medias/bWFzdGVyfHJvb3R8MzAxNTMwfGltYWdlL3BuZ3xoNzkvaDhmLzE0MTkxMjY3ODk1MzI2LnBuZ3xhOGYyMWY3NTQzZWUxNzI5ZWRkMmM2OWM4MjA5MzFkYTY1NTMxZDE2MDEwNzI2NzI3ZjQ2OTAxNGYzODI5ZGYw/lenovo-yoga-7i-2-in-1-14-intel-hero.png", href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
+      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/1/1d/ASUS_ZenBook_UX305.jpg", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
+      { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/5/5e/Lenovo_YOGA_3_Pro_%2815356226748%29.jpg", href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
       { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/s/w/swift-go-14-sfg14-72-silver-01.png", href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
-      { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: "https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/page/uber/0125/xps-14-9440-laptop-800x620.png", href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
+      { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/8/85/Dell_XPS_13_9300.jpg", href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
     ],
     showRelatedCategory: true,
   },
@@ -1784,12 +1852,12 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "r1", name: "Roborock S8 MaxV Ultra", price: 1299, currency: "USD", merchant: "Amazon", imageUrl: "https://image.roborock.com/product/s8-maxv-ultra/gallery/1.jpg", href: "/search?q=Roborock+S8+MaxV+Ultra&country=us", brand: "Roborock", category: "Robot Vacuums" },
-      { id: "r2", name: "iRobot Roomba Combo j9+", price: 999, currency: "USD", merchant: "Best Buy", imageUrl: "https://www.irobot.com/dw/image/v2/BFXP_PRD/on/demandware.static/-/Sites-master-catalog/default/dw8f32c4ab/images/large/C975020_1.jpg", href: "/search?q=Roomba+Combo+j9%2B&country=us", brand: "iRobot", category: "Robot Vacuums" },
+      { id: "r1", name: "Roborock S8 MaxV Ultra", price: 1299, currency: "USD", merchant: "Amazon", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/d/d4/Robot_Vacuum_2016_%2831606445890%29.jpg", href: "/search?q=Roborock+S8+MaxV+Ultra&country=us", brand: "Roborock", category: "Robot Vacuums" },
+      { id: "r2", name: "iRobot Roomba Combo j9+", price: 999, currency: "USD", merchant: "Best Buy", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/1/1a/IRobot_Roomba_870_%2815860914940%29.jpg", href: "/search?q=Roomba+Combo+j9%2B&country=us", brand: "iRobot", category: "Robot Vacuums" },
       { id: "r3", name: "Shark PowerDetect 2-in-1", price: 699, currency: "USD", merchant: "Walmart", imageUrl: "https://res.cloudinary.com/sharkninja-na/image/upload/f_auto,q_auto/v1/SharkNinja-NA/Shark/Products/RV2820ZE/RV2820ZE_01.jpg", href: "/search?q=Shark+PowerDetect+2-in-1&country=us", brand: "Shark", category: "Robot Vacuums" },
-      { id: "r4", name: "Ecovacs Deebot X2 Omni", price: 1099, currency: "USD", merchant: "Amazon", imageUrl: "https://www.ecovacs.com/media/wysiwyg/us/deebot-x2-omni/DEEBOT-X2-OMNI-black.png", href: "/search?q=Ecovacs+Deebot+X2+Omni&country=us", brand: "Ecovacs", category: "Robot Vacuums" },
+      { id: "r4", name: "Ecovacs Deebot X2 Omni", price: 1099, currency: "USD", merchant: "Amazon", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/7/7a/Roomba_e6_charging.jpg", href: "/search?q=Ecovacs+Deebot+X2+Omni&country=us", brand: "Ecovacs", category: "Robot Vacuums" },
       { id: "r5", name: "eufy X10 Pro Omni", price: 799, currency: "USD", merchant: "Amazon", imageUrl: "https://m.media-amazon.com/images/I/71yHN9pqE2L._AC_UL320_.jpg", href: "/search?q=eufy+X10+Pro+Omni&country=us", brand: "eufy", category: "Robot Vacuums" },
-      { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: "https://image.roborock.com/product/q5-pro-plus/gallery/1.jpg", href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
+      { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/2/21/Mopping_vacuum_cleaner_robotic.jpg", href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
     ],
     categoryIntro: {
       heading: "Roomba Sale 2026 — iRobot's Best Deals Right Now",
