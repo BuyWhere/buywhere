@@ -75,7 +75,7 @@ export function HomeProductSearch() {
                 }
               }}
               placeholder="Search products..."
-              className="search-input w-full rounded-xl border-2 border-white/50 bg-indigo-950 py-5 pl-14 pr-4 text-lg text-white placeholder-[#F5F7FF] transition-all focus:border-white focus:outline-none focus:ring-4 focus:ring-white/20"
+              className="search-input h-[60px] w-full rounded-xl border-2 border-white/50 bg-indigo-950 py-3 pl-14 pr-4 text-lg text-white placeholder-[#F5F7FF] transition-all focus:border-white focus:outline-none focus:ring-4 focus:ring-white/20 sm:h-[66px]"
               aria-label="Search products"
               aria-invalid={Boolean(error)}
               aria-describedby={error ? errorId : undefined}
@@ -89,7 +89,7 @@ export function HomeProductSearch() {
               setCountry(event.target.value as CountryValue);
               setCountryTouched(true);
             }}
-            className="h-[66px] w-full shrink-0 rounded-xl border-2 border-white/50 bg-white/10 px-4 text-base font-medium text-white transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20 sm:w-28 md:w-36"
+            className="h-[60px] w-full shrink-0 rounded-xl border-2 border-white/50 bg-indigo-950 px-4 text-base font-medium text-white transition-all focus:border-white focus:bg-indigo-900 focus:outline-none focus:ring-4 focus:ring-white/20 sm:h-[66px] sm:w-28 md:w-36"
             aria-label="Search country"
           >
             {countryOptions.map((option) => (
@@ -101,7 +101,7 @@ export function HomeProductSearch() {
 
           <button
             type="submit"
-            className="inline-flex h-[66px] shrink-0 items-center justify-center whitespace-nowrap rounded-xl bg-white px-5 text-base font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 sm:w-auto sm:min-w-[8rem] md:min-w-[10rem]"
+            className="inline-flex h-[60px] shrink-0 items-center justify-center whitespace-nowrap rounded-xl border-2 border-transparent bg-white px-5 text-base font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus:border-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 sm:h-[66px] sm:w-auto sm:min-w-[8rem] md:min-w-[10rem]"
           >
             Search catalog
           </button>
