@@ -89,7 +89,7 @@ export function HomeProductSearch() {
               setCountry(event.target.value as CountryValue);
               setCountryTouched(true);
             }}
-            className="h-[66px] w-full shrink-0 rounded-xl border-2 border-white/50 bg-white/10 px-4 text-base font-medium text-white transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20 sm:w-28 md:w-36"
+            className="h-[66px] w-full shrink-0 rounded-xl border-2 border-white/50 bg-indigo-950/60 px-4 text-base font-medium text-white transition-all focus:border-white focus:bg-indigo-950/70 focus:outline-none focus:ring-4 focus:ring-white/20 sm:w-28 md:w-36"
             aria-label="Search country"
           >
             {countryOptions.map((option) => (
@@ -113,7 +113,7 @@ export function HomeProductSearch() {
               {error}
             </p>
           ) : (
-            <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-white">
+            <div className="flex flex-wrap items-center justify-start sm:justify-center gap-2 whitespace-nowrap text-sm text-white">
               <span>Try</span>
               {exampleQueries.map((example) => (
                 <button

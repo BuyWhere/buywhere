@@ -286,9 +286,9 @@ export default function HomePage() {
       <section role="region" aria-label="Content section" className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 md:py-20 xl:py-24">
           <div className="max-w-3xl mx-auto text-center mb-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white bg-white px-3 py-1 text-sm font-bold text-indigo-900 shadow-sm mb-6">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white bg-white px-2 py-0.5 sm:px-3 sm:py-1 text-xs sm:text-sm font-bold text-indigo-900 shadow-sm mb-6">
               <span className="w-2 h-2 bg-green-600 rounded-full"></span>
-              288 million products. 158,000+ stores. One API.
+              288M+ products · 158K+ stores · One API
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
               Find the best prices across every store.
