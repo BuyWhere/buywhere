@@ -350,17 +350,9 @@ export function middleware(request: NextRequest) {
     return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
   }
 
-  // Moved content: product index pages now redirect to their country pages
-  if (normalizedForDead === "/products/us") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/us";
-    return NextResponse.redirect(url, 301);
-  }
-  if (normalizedForDead === "/products/sg") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url, 301);
-  }
+  // /products/{cc} locale landing pages: let page components render directly.
+  // (BUY-67711 — hardcoded 301 redirects were preventing /products/sg and
+  // /products/us from rendering their landing pages.)
 
   // /about now renders src/app/about/page.tsx with title + meta description
   // (see BUY-58440).  Previously this middleware returned 410 (BUY-57869), which
