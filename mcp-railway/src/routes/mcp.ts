@@ -46,6 +46,16 @@ function releaseClientSafely(client: any) {
   }
 }
 
+// BUY-67598: timing instrumentation — separates DB pool-acquire wait from SQL
+// execution to diagnose whether sweep-time latency is pool contention or query time.
+function buildTiming(name: string, t0: number) {
+  return { name, t0, poolMs: 0, sqlMs: 0, totalMs: 0 };
+}
+function finishTiming(t: ReturnType<typeof buildTiming>) {
+  t.totalMs = Date.now() - t.t0;
+  return t;
+}
+
 // MCP tools manifest
 const TOOLS = [
   {
@@ -297,6 +307,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // BUY-57657: add connect timeout so pool exhaustion fails fast at 2s instead of
   // blocking the entire 12s statement_timeout. The DB itself is fast (70-130ms) so
   // any 8-12s MCP latency is pool-acquisition contention, not query execution.
+  // BUY-67598: add timing to separate pool-acquire from SQL execution.
+  const searchTiming = buildTiming('search_products', t0);
+  const spPoolStart = Date.now();
   const searchClient = await Promise.race([
     catalogDb.connect(),
     new Promise<never>((_, reject) =>
@@ -305,6 +318,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   ]).catch(() => {
     throw { code: -32603, message: 'Database connection timeout' };
   });
+  searchTiming.poolMs = Date.now() - spPoolStart;
   try {
     // BUY-67219: keep search_products below the MCP timeout. Slow catalog plans now
     // return a coherent unavailable payload instead of surfacing JSON-RPC -32603.
@@ -481,9 +495,12 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     buildProduct(r, currency, compact)
   );
 
+  // BUY-67598: record SQL timing and include in result
+  searchTiming.sqlMs = Date.now() - t0 - searchTiming.poolMs;
   const result = {
     ...buildSearchResponse(products, total!, limit, offset, Date.now() - t0, false),
     ...(unavailable ? { unavailable: true, message: 'Search temporarily unavailable; please retry.' } : {}),
+    timing: finishTiming(searchTiming),
   };
 
   try {
@@ -666,15 +683,33 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
   // supports direct queries that match the predicate. No candidate window needed.
   // Also removes the laptop/watch keyword fallback that masked empty results.
-  const dealsClient = await acquireMcpClient().catch((err: unknown) => {
+  // BUY-67598: add timing to separate pool-acquire from SQL execution.
+  const dealsTiming = buildTiming('get_deals', t0);
+  let dealsClient: any;
+  try {
+    const poolStart = Date.now();
+    dealsClient = await acquireMcpClient();
+    dealsTiming.poolMs = Date.now() - poolStart;
+  } catch (err: unknown) {
     console.error('[mcp] get_deals db.connect failed:', err);
-    throw { code: -32603, message: 'Database unavailable' };
-  });
+    // Structured fail-open: return unavailable instead of throwing -32603
+    return {
+      results: [],
+      total: 0,
+      unavailable: true,
+      message: 'Deals temporarily unavailable (database pool exhausted).',
+      response_time_ms: Date.now() - t0,
+      timing: finishTiming(dealsTiming),
+    };
+  }
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
   let unavailable = false;
   try {
-    await dealsClient.query('SET statement_timeout = 4500');
+    // BUY-67598: raise timeout from 4.5s to 8s to avoid sweep-triggered timeouts.
+    // Per-market: US/TH/VN get the full 8s; SG/MY use 6s (smaller catalog).
+    const DEALS_TIMEOUT_MS = (country === 'SG' || country === 'MY') ? 6000 : 8000;
+    await dealsClient.query(`SET statement_timeout = ${DEALS_TIMEOUT_MS}`);
     // params already has: currency, minDiscount, [region], [country]
     // Add limit and offset
     const queryParams = [...params, Number(limit) || 20, Number(offset) || 0];
@@ -718,6 +753,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   }
 
   const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
+  (result as any).timing = finishTiming(dealsTiming);
   // BUY-60076/BUY-67289: surface `unavailable:true` when the strict query returns
   // zero rows or times out, mirroring api/src/routes/mcp.ts so callers can
   // distinguish "no live deals / temporarily unavailable" from "server bug".
@@ -808,8 +844,11 @@ async function handleListCategories(args: Record<string, unknown>) {
     // degrade gracefully to static defaults with unavailable=true instead of
     // leaking a raw -32603 to the caller.
     let client: any;
+    let catPoolMs = 0;
     try {
+      const poolStart = Date.now();
       client = await acquireMcpClient();
+      catPoolMs = Date.now() - poolStart;
     } catch (_) {
       return staticCategoryFallback(country, t0, true);
     }
@@ -935,6 +974,8 @@ async function handleListCategories(args: Record<string, unknown>) {
       if (!realData) {
         meta.unavailable_reason = 'category data sources unavailable (statement_timeout or empty catalog)';
       }
+      meta.pool_ms = catPoolMs;
+      meta.sql_ms = Date.now() - t0 - catPoolMs;
       const data = { data: rows, meta };
       // BUY-66859: cache real category data for 10 min, but only cache an
       // unavailable response for 30s so the tool recovers promptly once the
@@ -1078,7 +1119,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
+  // BUY-67598: add timing to separate pool-acquire from SQL execution.
+  const bestPriceTiming = buildTiming('find_best_price', t0);
+  const bpPoolStart = Date.now();
   const bestPriceClient = await acquireMcpClient();
+  bestPriceTiming.poolMs = Date.now() - bpPoolStart;
   let result: { rows: Record<string, unknown>[] } = { rows: [] };
   let ftsTimedOut = false;
   try {
@@ -1200,6 +1245,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       country,
       response_time_ms: Date.now() - t0,
       ...(ftsTimedOut ? { timed_out: true, unavailable: true, message: 'Best-price search temporarily unavailable; please retry.' } : {}),
+      timing: finishTiming(bestPriceTiming),
     },
   };
 }
@@ -1702,6 +1748,31 @@ router.get('/', (_req: Request, res: Response) => {
     auth: 'Bearer token — register at https://api.buywhere.ai/v1/auth/register',
     usage: 'POST this URL with a JSON-RPC 2.0 envelope. See https://api.buywhere.ai/docs/guides/mcp',
   });
+});
+
+// GET /mcp/debug/statement-timeout — diagnostics endpoint for Ops/Tune
+// Shows current statement_timeout for the MCP pool to confirm timeout/session
+// contamination during sweeps.
+router.get('/debug/statement-timeout', async (_req: Request, res: Response) => {
+  let client: any;
+  try {
+    client = await acquireMcpClient();
+    const timeoutResult = await client.query('SHOW statement_timeout');
+    const timeoutVal = timeoutResult.rows[0]?.statement_timeout;
+    const configResult = await client.query(
+      `SELECT setting FROM pg_settings WHERE name = 'statement_timeout'`
+    );
+    const configVal = configResult.rows[0]?.setting;
+    res.json({
+      session_statement_timeout: timeoutVal,
+      server_config_statement_timeout: configVal,
+      ts: new Date().toISOString(),
+    });
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err as Error).message || String(err) });
+  } finally {
+    if (client) releaseClientSafely(client);
+  }
 });
 
 // POST /mcp — public methods (no auth): initialize + tools/list
