@@ -283,6 +283,19 @@ export function createApp() {
   app.use('/c', aiCrawlerHeaders, publicCategoriesRouter); // /c/:slug — category page
   app.use('/compare', aiCrawlerHeaders, publicCompareRouter); // /compare?ids=id1,id2 — comparison page
 
+  // BUY-66004: keep the legacy API-host blog discovery path public. The full
+  // blog lives on the web app, but monitors probe api.buywhere.ai/blog and must
+  // never be intercepted by root-mounted admin auth middleware.
+  app.get('/blog', (_req, res) => {
+    res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
+    res.set('X-Robots-Tag', 'ai-index');
+    res.set('Link', '<https://buywhere.ai/blog>; rel="canonical"');
+    res.type('text/markdown; charset=utf-8').send(
+      '# BuyWhere Blog\n\n' +
+      'Read BuyWhere product comparison guides, shopping research, and AI commerce updates at https://buywhere.ai/blog\n'
+    );
+  });
+
   // Sitemaps
   app.use('/sitemap-compare.xml', sitemapCompareRouter);
 

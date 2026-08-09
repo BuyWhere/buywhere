@@ -13,6 +13,42 @@ import { buildDeviceFilter } from '../lib/deviceClassifier';
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
 
+type ExactDeviceProductType = 'phone' | 'console' | 'laptop';
+
+const DEVICE_TAXONOMY_PATTERNS: Record<ExactDeviceProductType, string[]> = {
+  phone: [
+    '%mobile phone%', '%mobile phones%', '%smartphone%', '%smartphones%', '%cell phone%', '%handphone%',
+    '%telefon%', '%telefono%', '%téléphone%', '%phone%', '%phones%',
+  ],
+  console: [
+    '%game console%', '%gaming console%', '%video game console%', '%console%', '%playstation console%',
+    '%xbox console%', '%nintendo console%',
+  ],
+  laptop: [
+    '%laptop%', '%laptops%', '%notebook%', '%notebooks%', '%macbook%', '%chromebook%', '%portable computer%',
+  ],
+};
+const DEVICE_TITLE_PATTERNS: Record<ExactDeviceProductType, string[]> = {
+  phone: ['%iphone%', '%samsung galaxy%', '%galaxy s%', '%google pixel%', '%pixel %', '%xiaomi%', '%redmi%', '%oppo%', '%vivo%', '%oneplus%'],
+  console: ['%ps5%', '%playstation 5%', '%xbox series s%', '%xbox series x%', '%nintendo switch%'],
+  laptop: ['%macbook%', '%thinkpad%', '%chromebook%', '%surface laptop%', '%laptop%', '%notebook%'],
+};
+
+const DEVICE_NEGATIVE_TAXONOMY_PATTERNS = [
+  '%accessor%', '%case%', '%casing%', '%cover%', '%protector%', '%screen protector%', '%tempered glass%',
+  '%film%', '%skin%', '%decal%', '%sticker%', '%sleeve%', '%pouch%', '%cable%', '%charger%', '%adapter%',
+  '%holder%', '%mount%', '%strap%', '%lanyard%', '%repair%', '%replacement%', '%parts%', '%spare part%',
+  '%controller%', '%gamepad%', '%kryt%', '%capa%', '%capas%', '%専用%',
+];
+const DEVICE_NEGATIVE_TITLE_PATTERNS = [
+  ...DEVICE_NEGATIVE_TAXONOMY_PATTERNS,
+  '%game%', '%games%', '%software%', '%juego%', '%juegos%', '%spiel%', '%jeux%',
+];
+
+function minimumPhonePrice(country: string) {
+  return country === 'SG' ? 500 : 300;
+}
+
 async function acquireMcpClient() {
   let timer: NodeJS.Timeout | undefined;
   try {
@@ -947,10 +983,15 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const country = market.country;
   const region = market.rawRegion;
   const category = (args.category as string) || '';
-  const limit = 10;
+  const requestedLimit = Math.max(1, Math.min(10, Number(args.limit) || 10));
 
   // BUY-67522: infer exact device-family queries and reject accessory results.
   const deviceFilter = buildDeviceFilter(productName, country);
+  const deviceProductType = (deviceFilter.type === 'phone' || deviceFilter.type === 'console' || deviceFilter.type === 'laptop')
+    ? deviceFilter.type
+    : null;
+  const exactPhoneQuery = deviceProductType === 'phone';
+  const limit = deviceProductType ? Math.max(requestedLimit, 10) : requestedLimit;
 
   const CANDIDATE_POOL = Math.max(limit * 50, 500);
 
@@ -963,6 +1004,9 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // over the whole table) times out at catalog scale (400M+ rows). Drive candidates from the
   // search_vector GIN index with a bounded LIMIT instead — same proven pattern as the
   // mcp-railway fbp handler and search_products.
+  // BUY-67554: for exact device queries (phone/console/laptop), add taxonomy+title
+  // positive/negative pattern filters in SQL so non-device rows are excluded before
+  // the price sort — before the post-query isAccessory filter catches anything missed.
   const bestPriceClient = await acquireMcpClient().catch((err) => {
     console.warn('[find_best_price] db.connect failed:', err.message);
     throw { code: -32603, message: 'Database connection timeout' };
@@ -973,37 +1017,69 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     await bestPriceClient.query('SET statement_timeout = 10000');
     const requestedCountry = country;
     const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
-    const conditions: string[] = ['is_active = true', 'price > 0'];
-    const params: unknown[] = [];
-    params.push(productName);
-    conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
-    params.push(requestedCountry);
-    conditions.push(`country_code = $${params.length}`);
-    if (minPrice > 0) {
-      params.push(minPrice);
-      conditions.push(`price >= $${params.length}`);
-    }
-    params.push(CANDIDATE_POOL);
-    const candidateWhere = conditions.join(' AND ');
-    result = await bestPriceClient.query(
-      `WITH cand AS (
-         SELECT id, price, updated_at
+
+    if (deviceProductType) {
+      // BUY-67554: taxonomy+title positive filter for exact device queries.
+      const taxonomyPatterns = DEVICE_TAXONOMY_PATTERNS[deviceProductType];
+      const titlePatterns = DEVICE_TITLE_PATTERNS[deviceProductType];
+      result = await bestPriceClient.query(
+        `SELECT id, title, price, currency, source AS domain, url, image_url,
+                country_code, updated_at, category, category_path, metadata
          FROM products
-         WHERE ${candidateWhere}
-         LIMIT $${params.length}
-       ), page_ids AS (
-         SELECT id, price, updated_at
-         FROM cand
+         WHERE is_active = true
+           AND price > 0
+           AND country_code = $1
+           AND search_vector @@ plainto_tsquery('english', $2)
+           AND ((lower(coalesce(category, '')) LIKE ANY($3::text[])
+             OR lower(array_to_string(category_path, ' ')) LIKE ANY($3::text[])
+             OR lower(coalesce(metadata->>'category', '')) LIKE ANY($3::text[])
+             OR lower(coalesce(metadata->>'product_type', '')) LIKE ANY($3::text[]))
+             OR (lower(title) LIKE ANY($4::text[])
+               AND NOT lower(title) LIKE ANY($6::text[])))
+           AND NOT (lower(title) LIKE ANY($6::text[])
+             OR lower(coalesce(category, '')) LIKE ANY($5::text[])
+             OR lower(array_to_string(category_path, ' ')) LIKE ANY($5::text[])
+             OR lower(coalesce(metadata->>'category', '')) LIKE ANY($5::text[])
+             OR lower(coalesce(metadata->>'product_type', '')) LIKE ANY($5::text[]))
+           AND ($7::boolean = false OR price >= $8)
          ORDER BY price ASC, updated_at DESC
-         LIMIT $${params.length + 1}
-       )
-       SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
-              p.country_code, p.updated_at, p.category, p.category_path, p.metadata
-       FROM page_ids pi
-       JOIN products p ON p.id = pi.id
-       ORDER BY pi.price ASC, pi.updated_at DESC`,
-      [...params, limit]
-    );
+         LIMIT $9::int`,
+        [requestedCountry, productName, taxonomyPatterns, titlePatterns, DEVICE_NEGATIVE_TAXONOMY_PATTERNS, DEVICE_NEGATIVE_TITLE_PATTERNS, exactPhoneQuery, minimumPhonePrice(requestedCountry), limit]
+      );
+    } else {
+      const conditions: string[] = ['is_active = true', 'price > 0'];
+      const params: unknown[] = [];
+      params.push(productName);
+      conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
+      params.push(requestedCountry);
+      conditions.push(`country_code = $${params.length}`);
+      if (minPrice > 0) {
+        params.push(minPrice);
+        conditions.push(`price >= $${params.length}`);
+      }
+      params.push(CANDIDATE_POOL);
+      const candidateWhere = conditions.join(' AND ');
+      result = await bestPriceClient.query(
+        `WITH cand AS (
+           SELECT id, price, updated_at
+           FROM products
+           WHERE ${candidateWhere}
+           LIMIT $${params.length}
+         ), page_ids AS (
+           SELECT id, price, updated_at
+           FROM cand
+           ORDER BY price ASC, updated_at DESC
+           LIMIT $${params.length + 1}
+         )
+         SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
+                p.country_code, p.updated_at, p.category, p.category_path, p.metadata
+         FROM page_ids pi
+         JOIN products p ON p.id = pi.id
+         ORDER BY pi.price ASC, pi.updated_at DESC`,
+        [...params, limit]
+      );
+    }
+  } catch (err: unknown) {
   } catch (err: unknown) {
     // BUY-70222: catch SQLSTATE 57014 (statement_timeout) and fail open with a
     // structured empty response instead of surfacing JSON-RPC -32603 to callers.
@@ -1088,7 +1164,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     }
   }
 
-  const data = finalRows.slice(0, 10).map((r: Record<string, unknown>) => {
+  const data = finalRows.slice(0, limit).map((r: Record<string, unknown>) => {
     const price = r.price != null ? parseFloat(r.price as string) : null;
     const curr = ((r.currency as string) || currency).toUpperCase();
     const fxRate = rates[curr] ?? CURRENCY_RATES[curr] ?? 1;
@@ -1104,17 +1180,22 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     };
   });
 
+  const limitedData = data.slice(0, requestedLimit);
   return {
-    best_price: data[0] ?? null,
-    alternatives: data.slice(1),
+    best_price: limitedData[0] ?? null,
+    alternatives: limitedData.slice(1),
     meta: {
-      total: data.length,
+      total: limitedData.length,
       guard_applied: guardApplied,
       ...(medianUsd != null ? { median_usd: Math.round(medianUsd * 100) / 100 } : {}),
       ...(minAllowedUsd != null ? { min_allowed_usd: Math.round(minAllowedUsd * 100) / 100 } : {}),
       country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'),
       response_time_ms: Date.now() - t0,
       ...(ftsTimedOut ? { timed_out: true, unavailable: true, message: 'Best-price search temporarily unavailable; please retry.' } : {}),
+      ...(deviceProductType && limitedData.length === 0 ? {
+        unavailable: true,
+        message: `No non-accessory ${deviceProductType} listings found for this exact product query.`,
+      } : {}),
     },
   };
 }

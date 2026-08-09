@@ -40,6 +40,42 @@ function formatProductForMcp(p: Record<string, unknown>): string {
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
 
+type ExactDeviceProductType = 'phone' | 'console' | 'laptop';
+
+const DEVICE_TAXONOMY_PATTERNS: Record<ExactDeviceProductType, string[]> = {
+  phone: [
+    '%mobile phone%', '%mobile phones%', '%smartphone%', '%smartphones%', '%cell phone%', '%handphone%',
+    '%telefon%', '%telefono%', '%téléphone%', '%phone%', '%phones%',
+  ],
+  console: [
+    '%game console%', '%gaming console%', '%video game console%', '%console%', '%playstation console%',
+    '%xbox console%', '%nintendo console%',
+  ],
+  laptop: [
+    '%laptop%', '%laptops%', '%notebook%', '%notebooks%', '%macbook%', '%chromebook%', '%portable computer%',
+  ],
+};
+const DEVICE_TITLE_PATTERNS: Record<ExactDeviceProductType, string[]> = {
+  phone: ['%iphone%', '%samsung galaxy%', '%galaxy s%', '%google pixel%', '%pixel %', '%xiaomi%', '%redmi%', '%oppo%', '%vivo%', '%oneplus%'],
+  console: ['%ps5%', '%playstation 5%', '%xbox series s%', '%xbox series x%', '%nintendo switch%'],
+  laptop: ['%macbook%', '%thinkpad%', '%chromebook%', '%surface laptop%', '%laptop%', '%notebook%'],
+};
+
+const DEVICE_NEGATIVE_TAXONOMY_PATTERNS = [
+  '%accessor%', '%case%', '%casing%', '%cover%', '%protector%', '%screen protector%', '%tempered glass%',
+  '%film%', '%skin%', '%decal%', '%sticker%', '%sleeve%', '%pouch%', '%cable%', '%charger%', '%adapter%',
+  '%holder%', '%mount%', '%strap%', '%lanyard%', '%repair%', '%replacement%', '%parts%', '%spare part%',
+  '%controller%', '%gamepad%', '%kryt%', '%capa%', '%capas%', '%専用%',
+];
+const DEVICE_NEGATIVE_TITLE_PATTERNS = [
+  ...DEVICE_NEGATIVE_TAXONOMY_PATTERNS,
+  '%game%', '%games%', '%software%', '%juego%', '%juegos%', '%spiel%', '%jeux%',
+];
+
+function minimumPhonePrice(country: string) {
+  return country === 'SG' ? 500 : 300;
+}
+
 async function acquireMcpClient() {
   let timer: NodeJS.Timeout | undefined;
   try {
@@ -873,10 +909,15 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const country = (((args.country_code as string) || (args.country as string)) || 'SG').toUpperCase();
   const region = (args.region as string) || '';
   const category = (args.category as string) || '';
-  const limit = 10;
+  const requestedLimit = Math.max(1, Math.min(10, Number(args.limit) || 10));
 
   // BUY-67522: infer exact device-family queries and reject accessory results.
   const deviceFilter = buildDeviceFilter(productName, country);
+  const deviceProductType = (deviceFilter.type === 'phone' || deviceFilter.type === 'console' || deviceFilter.type === 'laptop')
+    ? deviceFilter.type
+    : null;
+  const exactPhoneQuery = deviceProductType === 'phone';
+  const limit = deviceProductType ? Math.max(requestedLimit, 10) : requestedLimit;
 
   // BUY-26343: price > 0 prevents returning corrupt zero-price records
   const conditions: string[] = ['is_active = true', 'price > 0'];
@@ -937,26 +978,68 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
         // BUY-70144: enable_seqscan=off ensures the planner uses the composite GIN
         // index even on sparse-result queries (low selectivity selectivity → the
         // planner misestimates cost and picks seqscan → statement_timeout).
+        // BUY-67554: for exact device queries (phone/console/laptop), add taxonomy+title
+        // positive/negative pattern filters in SQL so non-device rows are excluded before
+        // the price sort — before the post-query isAccessory filter catches anything missed.
         await primaryClient.query('SET statement_timeout = 20000');
         await primaryClient.query('SET enable_seqscan = off');
-        result = await primaryClient.query(
-          `WITH cand AS (
-             SELECT id, price, updated_at
-             FROM products ${where}
-             LIMIT $${params.length - 1}
-           ), page_ids AS (
-             SELECT id, price, updated_at
-             FROM cand
-             ORDER BY price ASC, updated_at DESC
-             LIMIT $${params.length}
-           )
-           SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
-                  p.country_code, p.updated_at, p.category, p.category_path, p.metadata
-           FROM page_ids pi
-           JOIN products p ON p.id = pi.id
-           ORDER BY pi.price ASC, pi.updated_at DESC`,
-          params
-        );
+        if (deviceProductType) {
+          const taxonomyPatterns = DEVICE_TAXONOMY_PATTERNS[deviceProductType];
+          const titlePatterns = DEVICE_TITLE_PATTERNS[deviceProductType];
+          result = await primaryClient.query(
+            `WITH cand AS (
+               SELECT id, price, updated_at
+               FROM products
+               WHERE is_active = true
+                 AND price > 0
+                 AND country_code = $1
+                 AND search_vector @@ plainto_tsquery('english', $2)
+                 AND ((lower(coalesce(category, '')) LIKE ANY($3::text[])
+                   OR lower(array_to_string(category_path, ' ')) LIKE ANY($3::text[])
+                   OR lower(coalesce(metadata->>'category', '')) LIKE ANY($3::text[])
+                   OR lower(coalesce(metadata->>'product_type', '')) LIKE ANY($3::text[]))
+                   OR (lower(title) LIKE ANY($4::text[])
+                     AND NOT lower(title) LIKE ANY($6::text[])))
+                 AND NOT (lower(title) LIKE ANY($6::text[])
+                   OR lower(coalesce(category, '')) LIKE ANY($5::text[])
+                   OR lower(array_to_string(category_path, ' ')) LIKE ANY($5::text[])
+                   OR lower(coalesce(metadata->>'category', '')) LIKE ANY($5::text[])
+                   OR lower(coalesce(metadata->>'product_type', '')) LIKE ANY($5::text[]))
+                 AND ($7::boolean = false OR price >= $8)
+               LIMIT $9::int
+             ), page_ids AS (
+               SELECT id, price, updated_at
+               FROM cand
+               ORDER BY price ASC, updated_at DESC
+               LIMIT $10::int
+             )
+             SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
+                    p.country_code, p.updated_at, p.category, p.category_path, p.metadata
+             FROM page_ids pi
+             JOIN products p ON p.id = pi.id
+             ORDER BY pi.price ASC, pi.updated_at DESC`,
+            [country, productName, taxonomyPatterns, titlePatterns, DEVICE_NEGATIVE_TAXONOMY_PATTERNS, DEVICE_NEGATIVE_TITLE_PATTERNS, exactPhoneQuery, minimumPhonePrice(country), CANDIDATE_POOL, limit]
+          );
+        } else {
+          result = await primaryClient.query(
+            `WITH cand AS (
+               SELECT id, price, updated_at
+               FROM products ${where}
+               LIMIT $${params.length - 1}
+             ), page_ids AS (
+               SELECT id, price, updated_at
+               FROM cand
+               ORDER BY price ASC, updated_at DESC
+               LIMIT $${params.length}
+             )
+             SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
+                    p.country_code, p.updated_at, p.category, p.category_path, p.metadata
+             FROM page_ids pi
+             JOIN products p ON p.id = pi.id
+             ORDER BY pi.price ASC, pi.updated_at DESC`,
+            params
+          );
+        }
       } finally {
         // BUY-56185: discard connections poisoned by statement_timeout.
         releaseClientSafely(primaryClient);
@@ -1081,10 +1164,19 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     };
   });
 
+  const limitedData = data.slice(0, requestedLimit);
   return {
-    best_price: data[0] ?? null,
-    alternatives: data.slice(1),
-    meta: { total: data.length, country, response_time_ms: Date.now() - t0 },
+    best_price: limitedData[0] ?? null,
+    alternatives: limitedData.slice(1),
+    meta: {
+      total: limitedData.length,
+      country,
+      response_time_ms: Date.now() - t0,
+      ...(deviceProductType && limitedData.length === 0 ? {
+        unavailable: true,
+        message: `No non-accessory ${deviceProductType} listings found for this exact product query.`,
+      } : {}),
+    },
   };
 }
 
