@@ -45,6 +45,20 @@ function releaseClientSafely(client: any) {
   }
 }
 
+// BUY-67598: hard timeout wrapper — returns null when the operation exceeds deadlineMs.
+// Used by get_deals to fail-open before the probe client's 4.5s ceiling.
+async function withTimeout<T>(promise: Promise<T>, deadlineMs: number, label: string): Promise<T | null> {
+  return Promise.race([
+    promise,
+    new Promise<null>((resolve) => {
+      setTimeout(() => {
+        console.warn('[mcp]', label, 'hard timeout at', deadlineMs, 'ms — failing open');
+        resolve(null);
+      }, deadlineMs);
+    }),
+  ]);
+}
+
 // MCP tools manifest
 const TOOLS = [
   {
@@ -287,6 +301,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // BUY-57657: add connect timeout so pool exhaustion fails fast at 2s instead of
   // blocking the entire 12s statement_timeout. The DB itself is fast (70-130ms) so
   // any 8-12s MCP latency is pool-acquisition contention, not query execution.
+  const poolStart = Date.now();
   const searchClient = await Promise.race([
     db.connect(),
     new Promise<never>((_, reject) =>
@@ -295,6 +310,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   ]).catch(() => {
     throw { code: -32603, message: 'Database connection timeout' };
   });
+  const poolAcquireMs = Date.now() - poolStart;
+  const sqlStart = Date.now();
   try {
     // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
     // complete within 12s via GIN index; anything longer signals plan regression or
@@ -456,6 +473,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     buildProduct(r, currency, compact)
   );
 
+  const sqlMs = Date.now() - sqlStart;
+  console.log('[mcp] search_products pool:', poolAcquireMs, 'ms, sql:', sqlMs, 'ms, total:', Date.now() - t0, 'ms');
   const result = buildSearchResponse(
     products, total!, limit, offset, Date.now() - t0, false
   );
@@ -557,6 +576,24 @@ async function getRegionalProductSample(
 }
 
 async function handleGetDeals(args: Record<string, unknown>) {
+  // BUY-67598: hard timeout wrapper — fail-open before the probe client's 4.5s ceiling.
+  // The inner function does the real work; withTimeout ensures we never exceed 4000ms.
+  const t0 = Date.now();
+  const result = await withTimeout(handleGetDealsInner(args), 4000, 'get_deals');
+  if (result === null) {
+    // Structured fail-open: return empty results with unavailable flag instead of -32603
+    return {
+      results: [],
+      total: 0,
+      unavailable: true,
+      error: 'timeout',
+      response_time_ms: Date.now() - t0,
+    };
+  }
+  return result;
+}
+
+async function handleGetDealsInner(args: Record<string, unknown>) {
   const t0 = Date.now();
   const minDiscount = Number(args.min_discount) || 10;
   // BUY-59768: infer currency from country_code (or region) when not explicitly set.
@@ -629,7 +666,8 @@ async function handleGetDeals(args: Record<string, unknown>) {
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
   try {
-    await dealsClient.query('SET statement_timeout = 10000');
+    await dealsClient.query('SET statement_timeout = 3500'); // BUY-67598: below 4.5s probe ceiling
+    const sqlStart = Date.now();
     const dataResult = await dealsClient.query(
       `SELECT id, source, domain, url, title, price, original_price,
               currency, image_url, metadata, updated_at, region, country_code,
@@ -648,9 +686,11 @@ async function handleGetDeals(args: Record<string, unknown>) {
       [...params, limit, offset]
     );
     total = dataResult.rows.length;
+    const sqlMs = Date.now() - sqlStart;
     products = dataResult.rows.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
+    console.log('[mcp] get_deals', country || 'ALL', 'sql:', sqlMs, 'ms, total:', Date.now() - t0, 'ms');
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);
@@ -722,7 +762,9 @@ async function handleListCategories(args: Record<string, unknown>) {
 
   // 3. No in-flight query — start one and register it so concurrent callers coalesce
   const queryPromise = (async () => {
+    const poolStart = Date.now();
     const client = await acquireMcpClient();
+    const poolAcquireMs = Date.now() - poolStart;
     try {
       await client.query('SET statement_timeout = 8000');
       const tableCheck = await client.query(
@@ -795,7 +837,7 @@ async function handleListCategories(args: Record<string, unknown>) {
                  AND category_path[1] IS NOT NULL
                  AND is_active = true
                ORDER BY updated_at DESC
-               LIMIT 50000
+               LIMIT 20000
              ) _recent_categories
              CROSS JOIN LATERAL (SELECT category_path[1] AS slug) _cat
              GROUP BY slug
@@ -815,10 +857,11 @@ async function handleListCategories(args: Record<string, unknown>) {
           product_count: 0,
         }));
       }
+      console.log('[mcp] list_categories', country, 'pool:', poolAcquireMs, 'ms, total:', Date.now() - t0, 'ms');
       const meta: Record<string, unknown> = {
         total: rows.length,
         country_code: country,
-        response_time_ms: 0,
+        response_time_ms: Date.now() - t0,
         cached: false,
       };
       meta.unavailable = rows.every((row) => Number(row.product_count) === 0);
@@ -876,10 +919,13 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
+  const poolStart = Date.now();
   const bestPriceClient = await acquireMcpClient();
+  const poolAcquireMs = Date.now() - poolStart;
   let result: { rows: Record<string, unknown>[] };
   try {
     await bestPriceClient.query('SET statement_timeout = 12000');
+    const sqlStart = Date.now();
     result = await bestPriceClient.query(
       `SELECT * FROM (
          SELECT id, title, price, currency, source AS domain, url, image_url,
@@ -891,6 +937,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
        LIMIT $${params.length}`,
       params
     );
+    console.log('[mcp] find_best_price pool:', poolAcquireMs, 'ms, sql:', Date.now() - sqlStart, 'ms');
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);
@@ -1389,6 +1436,30 @@ router.get('/health/authenticated', requireApiKey, async (_req: Request, res: Re
   } catch (err: unknown) {
     res.status(503).json({
       status: 'down',
+      error: (err as Error).message || String(err),
+      ts: new Date().toISOString(),
+    });
+  }
+});
+
+// GET /mcp/debug/statement-timeout — BUY-67598: SHOW statement_timeout diagnostics
+// Exposes the current session's statement_timeout so operators can confirm whether
+// timeout/session contamination is happening during sweeps.
+router.get('/debug/statement-timeout', requireApiKey, async (_req: Request, res: Response) => {
+  try {
+    const client = await db.connect();
+    try {
+      const result = await client.query('SHOW statement_timeout');
+      const timeoutValue = result.rows[0]?.statement_timeout ?? 'unknown';
+      res.json({
+        statement_timeout: timeoutValue,
+        ts: new Date().toISOString(),
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err: unknown) {
+    res.status(500).json({
       error: (err as Error).message || String(err),
       ts: new Date().toISOString(),
     });
