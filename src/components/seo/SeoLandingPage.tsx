@@ -177,15 +177,9 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href={shopperCta.href}
-                  className="inline-flex min-h-[44px] items-center rounded-full bg-amber-800 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-900"
+                  className="inline-flex min-h-[44px] items-center rounded-full bg-amber-800 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
                 >
                   {shopperCta.label}
-                </Link>
-                <Link
-                  href={developerCta.href}
-                  className="inline-flex min-h-[44px] items-center rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
-                >
-                  {developerCta.label}
                 </Link>
               </div>
             </div>
