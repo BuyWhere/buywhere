@@ -38,6 +38,14 @@ const nextConfig = {
         destination: '/integrate',
         permanent: true,
       },
+      // BUY-67767: /affiliates is the legacy affiliate-program URL. Redirect
+      // at the routing layer so direct HTML requests get a real 308 before
+      // the App Router page stub runs.
+      {
+        source: '/affiliates',
+        destination: '/partnership',
+        permanent: true,
+      },
       {
         source: '/:path*',
         has: [
