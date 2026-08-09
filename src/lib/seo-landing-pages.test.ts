@@ -352,3 +352,117 @@ test("parseImageDimensions extracts JPEG SOF and PNG IHDR dimensions", () => {
   assert.equal(isSq({ w: 1000, h: 940 }), true, "1000x940 (AR 1.06) is within ±6% tolerance");
   assert.equal(isSq({ w: 1000, h: 1070 }), true, "1000x1070 (AR 0.93) is within ±6% tolerance");
 });
+
+test("BUY-67628: QA-sampled fallback catalogs keep at least 4 remote image URLs (not data:image/svg+xml)", async () => {
+  // The 3 QA-flagged pages each had 11/15 hardcoded CDN URLs that 404/403 by
+  // 2026-08-09T05:30Z. Even with the placeholder fallback in place, we want at
+  // least 4 cards per page to render with a real remote image so QA stops
+  // seeing identical orange placeholder icons. The mocked fetch returns 200
+  // for HEAD probes, so the trustcheck + verifyReachableImage path lets
+  // every URL through.
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({ data: [], meta: { total: 0, degraded: true } }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+
+  try {
+    const sampledSlugs = [
+      "laptop-singapore",
+      "best-robot-vacuums-2026",
+      "air-purifier-singapore",
+    ];
+
+    for (const slug of sampledSlugs) {
+      const products = await getSeoLandingProducts(seoLandingPages[slug]);
+      assert.ok(products.length >= 4, `${slug} should render at least 4 product cards`);
+      const remoteCards = products.filter(
+        (p) =>
+          p.imageUrl &&
+          p.imageUrl.startsWith("https://") &&
+          !p.imageUrl.startsWith("data:image/svg+xml"),
+      );
+      assert.ok(
+        remoteCards.length >= 4,
+        `${slug} should keep at least 4 product cards with remote (non-data:) image URLs; got ${remoteCards.length}`,
+      );
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("BUY-67628: fallback image URLs in the three QA-flagged pages resolve to non-404 hosts", () => {
+  // Regression test: every imageUrl in fallbackProducts[] for the 3 QA pages
+  // must come from a CDN that is NOT one of the historically-broken hosts
+  // (404/403 as of 2026-08-09T05:30Z: roborock.com, irobot.com, sg.sharp,
+  // sterra.sg, i02.appmifile.com, i.dell.com, p1-ofp.static.pub).
+  // This is a static source-level guard scoped to the 3 page blocks so the
+  // next audit can spot URL rot by reading the test diff instead of grepping
+  // live CDN responses.
+  const source = readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8");
+
+  const qaPageSlugs = ["laptop-singapore", "best-robot-vacuums-2026", "air-purifier-singapore"];
+  const deadHosts = [
+    "image.roborock.com",
+    "www.irobot.com",
+    "sg.sharp",
+    "sterra.sg",
+    "i02.appmifile.com",
+    "i.dell.com",
+    "p1-ofp.static.pub",
+    "store.storeimages.cdn-apple.com",
+  ];
+
+  // Extract just the 3 QA page blocks (from `"<slug>": {` to the next sibling
+  // config entry), so we don't false-positive on best-gaming-laptops-us /
+  // noise-canceling-headphones-us which also have URL rot but are out of
+  // scope for BUY-67628 (separate issue per BUY-64057 / BUY-67621 scope).
+  const qaBlocks = qaPageSlugs.map((slug) => {
+    const start = source.indexOf(`"${slug}": {`);
+    assert.notEqual(start, -1, `${slug} config should exist`);
+    const afterStart = start + slug.length + 5;
+    const tail = source.slice(afterStart);
+    const nextMatch = tail.match(/\n {2}"[a-z0-9-]+": \{/);
+    const end = nextMatch ? afterStart + tail.indexOf(nextMatch[0]) : source.length;
+    return source.slice(start, end);
+  });
+  const qaSource = qaBlocks.join("\n");
+
+  for (const host of deadHosts) {
+    assert.doesNotMatch(
+      qaSource,
+      new RegExp(`imageUrl:[^\\n]*${host.replace(/\./g, "\\.")}`),
+      `BUY-67628: one of the 3 QA pages still references dead fallback host ${host}`,
+    );
+  }
+});
+
+test("BUY-67628: brandedProductPlaceholderSvg paints a category-specific silhouette, not a chart-on-cream", () => {
+  // The previous orange-chip silhouette painted the same icon for every
+  // category, which is exactly the "generic placeholder" QA reported on
+  // /laptop-singapore, /best-robot-vacuums-2026 and /air-purifier-singapore.
+  // The new placeholder must choose a different silhouette path + palette
+  // for each category.
+  const source = readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8");
+
+  // 1. The placeholder function must exist and call into a silhouette helper.
+  assert.match(
+    source,
+    /function brandedProductPlaceholderSvg\([\s\S]*?placeholderSilhouette\(/,
+    "brandedProductPlaceholderSvg must delegate silhouette choice to placeholderSilhouette()",
+  );
+
+  // 2. The silhouette helper must recognise all three QA categories.
+  assert.match(source, /LAPTOP_RE/, "placeholderSilhouette must have a laptop regex");
+  assert.match(source, /ROBOT_VACUUM_RE/, "placeholderSilhouette must have a robot vacuum regex");
+  assert.match(source, /AIR_PURIFIER_RE/, "placeholderSilhouette must have an air purifier regex");
+
+  // 3. Category-specific silhouette tokens must exist for each shape so the
+  //    page renders a different icon per category instead of the chart-on-
+  //    cream fallback.
+  assert.match(source, /<ellipse[^>]*rx='50'/, "robot vacuum silhouette must include a circular puck shape");
+  assert.match(source, /<rect[^>]*y='14'[^>]*rx='14'/, "air purifier silhouette must include a rectangular tower");
+  assert.match(source, /<circle[^>]*r='18' fill='#bfdbfe'/, "air purifier silhouette must include a circular HEPA filter");
+});
