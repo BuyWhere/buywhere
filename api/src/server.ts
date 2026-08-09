@@ -96,7 +96,7 @@ export function createApp() {
           dbHealthColumns = [];
         }
       }
-      res.set('Cache-Control', 'public, max-age=10');
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.json({ status: 'ok', columns: dbHealthColumns || [], avg_rating_test: 'pass', ts: new Date().toISOString() });
     } catch (err: unknown) {
       res.status(500).json({ status: 'error', error: (err as Error).message || String(err), ts: new Date().toISOString() });
@@ -325,13 +325,20 @@ export function createApp() {
     );
   });
 
-  app.get('/llms.txt', (_req, res) => {
+  // Served at BOTH /llms.txt and /.well-known/llms.txt.
+  // The llmstxt convention uses the root path, but many agent crawlers probe
+  // /.well-known/ first — robots.txt above points them there via `Allow: /.well-known/`.
+  // One handler for both paths keeps the surfaces byte-identical and prevents drift.
+  // BUY-67738: /.well-known/llms.txt returned the catch-all 404 for 24+ hourly probes.
+  const sendLlmsTxt: express.RequestHandler = (_req, res) => {
     res.set('X-Robots-Tag', 'ai-index');
     res.set('Cache-Control', 'public, max-age=86400');
     res.type('text/plain').send(
       `# BuyWhere\n\nBuyWhere is a structured product catalog and price comparison API for AI agents and LLM applications. We provide real-time pricing, availability, and product data from Singapore's major e-commerce platforms (Lazada, Shopee, Best Denki, and others).\n\n## What we offer\n- REST API: GET /v1/products, GET /v1/offers, GET /v1/categories\n- MCP endpoint: https://api.buywhere.ai/mcp\n- Schema.org-compatible product data (Product, Offer, ItemList)\n- Coverage: 2M+ Singapore products across 40+ merchants\n- Use cases: price comparison agents, shopping assistants, market research tools\n\n## Documentation\n- API docs: https://docs.buywhere.ai\n- MCP guide: https://api.buywhere.ai/docs/guides/mcp\n- GitHub: https://github.com/BuyWhere/buywhere\n\n## Licensing\nFree tier: 1,000 API calls/month. Commercial plans available.\n`
     );
-  });
+  };
+  app.get('/llms.txt', sendLlmsTxt);
+  app.get('/.well-known/llms.txt', sendLlmsTxt);
 
   app.get('/agents.txt', (_req, res) => {
     res.set('X-Robots-Tag', 'ai-index');
