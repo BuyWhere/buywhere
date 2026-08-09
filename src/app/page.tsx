@@ -302,13 +302,13 @@ export default function HomePage() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
               <Link
                 href="/compare"
-                className="inline-flex items-center justify-center px-6 py-3 bg-white text-indigo-700 font-semibold rounded-xl hover:bg-indigo-50 transition-colors"
+                className="inline-flex items-center justify-center rounded-xl border border-white/80 bg-transparent px-6 py-3 font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-indigo-700"
               >
                 Browse price comparisons →
               </Link>
               <Link
                 href="/developers"
-                className="inline-flex items-center justify-center rounded-xl border border-white bg-white px-6 py-3 font-bold text-indigo-900 transition-colors hover:bg-indigo-50"
+                className="inline-flex items-center justify-center rounded-xl border border-white/80 bg-transparent px-6 py-3 font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-indigo-700"
               >
                 Developers: Get API access
               </Link>
