@@ -18,6 +18,7 @@ const ACCESSORY_NEGATIVE_TERMS = [
   'funda', 'coque', 'hülle', 'cover', '保護', 'ケース', 'カバー',
   'compatible', 'replacement', 'part', 'spare', 'repair', 'tool',
   'carcasa', 'étui', 'pouzdro', 'obal', 'etui',
+  'monitor', 'display', 'screen', 'television', 'tv', 'headset',
 ];
 
 function inferDevice(productName: string): DevicePattern {
@@ -28,7 +29,16 @@ function inferDevice(productName: string): DevicePattern {
   }
   // Consoles / controllers
   if (/\b(ps5\b|playstation\s*5|xbox\s*series\s*(s|x)\b|nintendo\s*switch\b)/.test(p)) {
-    return { type: 'console', negativeTerms: [...ACCESSORY_NEGATIVE_TERMS, 'juego', 'game', 'controller'], minPriceUsd: 150 };
+    return {
+      type: 'console',
+      negativeTerms: [
+        ...ACCESSORY_NEGATIVE_TERMS,
+        'juego', 'game', 'controller', 'dualsense', 'gamepad', 'software',
+        'monitor', 'gaming monitor', 'display', 'screen', 'インチ',
+        'fence', 'energizer', 'solar', 'patriot ps5 solar',
+      ],
+      minPriceUsd: 150,
+    };
   }
   // Laptops
   if (/\b(macbook\b|thinkpad\b|dell\s*xps|hp\s*pavilion|asus\s*zenbook|lenovo\s*thinkpad|laptop\b|notebook\b)/.test(p)) {

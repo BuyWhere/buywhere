@@ -940,12 +940,19 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     // Positive signal: the product_type/category clearly names the device family.
     const positiveSignals: string[] = [];
     if (deviceFilter.type === 'phone') positiveSignals.push('smartphone', 'mobile phone', 'mobile phones');
-    if (deviceFilter.type === 'console') positiveSignals.push('game console', 'gaming console', 'consoles');
+    if (deviceFilter.type === 'console') positiveSignals.push('game console', 'gaming console', 'consoles', 'playstation 5 console', 'ps5 console', 'xbox console');
     if (deviceFilter.type === 'laptop') positiveSignals.push('laptop', 'notebook');
     if (deviceFilter.type === 'tablet') positiveSignals.push('tablet');
     if (deviceFilter.type === 'wearable') positiveSignals.push('smart watch', 'smartwatch', 'fitness tracker');
     const hasPositive = positiveSignals.some(s => text.includes(s));
     const hasNegative = neg.some(t => text.includes(t));
+    if (deviceFilter.type === 'console') {
+      const hasConsoleTitle = /\b(playstation\s*5|sony\s+ps5|ps5\s+(console|slim|digital|disc)|xbox\s+series\s+(s|x)|nintendo\s+switch)\b/.test(text);
+      const isNonConsolePs5Sku = /\bpatriot\s+ps5\b|fence\s+energizer|solar\s+fence|electric\s+fence/.test(text);
+      if (isNonConsolePs5Sku) return true;
+      if (hasNegative) return true;
+      return !(hasPositive || hasConsoleTitle);
+    }
     // If the title explicitly contains a positive device word and no accessory word, keep it.
     if (!hasNegative && hasPositive) return false;
     // If any negative term appears, treat as accessory unless a positive signal also appears.
@@ -957,8 +964,16 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   };
 
   const candidates = result.rows.filter(r => !isAccessory(r));
+  const pricedCandidates = candidates
+    .map((r: Record<string, unknown>) => ({ row: r, usd: Number(r.price) * toUsd }))
+    .filter(({ usd }) => Number.isFinite(usd) && usd > 0);
+  const sortedUsd = pricedCandidates.map(({ usd }) => usd).sort((a, b) => a - b);
+  const medianUsd = sortedUsd.length > 0 ? sortedUsd[Math.floor(sortedUsd.length / 2)] : 0;
+  const minAllowedUsd = medianUsd > 0 ? medianUsd * 0.15 : 0;
+  const guardApplied = pricedCandidates.length >= 3 && candidates.some((r) => Number(r.price) * toUsd < minAllowedUsd);
+  const guardedCandidates = guardApplied ? candidates.filter((r) => Number(r.price) * toUsd >= minAllowedUsd) : candidates;
 
-  const data = candidates.map((r: Record<string, unknown>) => ({
+  const data = guardedCandidates.map((r: Record<string, unknown>) => ({
     id: r.id,
     title: r.title,
     price: { amount: r.price != null ? parseFloat(r.price as string) : null, currency: r.currency || currency },
@@ -972,7 +987,22 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   return {
     best_price: data[0] ?? null,
     alternatives: data.slice(1),
-    meta: { total: data.length, country, response_time_ms: Date.now() - t0 },
+    meta: {
+      total: data.length,
+      country,
+      response_time_ms: Date.now() - t0,
+      guard_applied: guardApplied,
+      ...(guardApplied ? {
+        median_usd: Math.round(medianUsd * 100) / 100,
+        min_allowed_usd: Math.round(minAllowedUsd * 100) / 100,
+      } : {}),
+      ...(deviceFilter.type && data.length === 0 ? {
+        unavailable: true,
+        reason: 'exact_device_filter_no_match',
+        product_type: deviceFilter.type,
+        message: `No non-accessory ${deviceFilter.type} listings found for this exact product query.`,
+      } : {}),
+    },
   };
 }
 
