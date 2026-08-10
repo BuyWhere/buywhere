@@ -558,7 +558,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
           >
             {product.name}
           </h2>
-          <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+          <div className="flex flex-wrap gap-2 text-xs text-slate-600">
             {product.brand ? <span>{product.brand}</span> : null}
             {product.category ? <span>{product.category}</span> : null}
           </div>
@@ -570,7 +570,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
               (previously they were disconnected: a floating pill on the image
               + the label here). */}
           <div className="flex items-baseline justify-between gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Current price</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">Current price</p>
             <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
           </div>
           <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
@@ -874,7 +874,7 @@ export default function SearchResultsClient({
         {hasActiveSearch ? (
           <h1
             data-testid="search-mobile-summary"
-            className="mx-auto block max-w-7xl truncate px-4 py-3 text-sm font-semibold text-slate-700 md:hidden"
+            className="mx-auto block max-w-7xl whitespace-normal break-words px-4 py-3 text-sm font-semibold text-slate-700 md:hidden"
           >
             <span className="text-amber-700">{activeCountry.label.toUpperCase()}</span>
             <span className="mx-2 text-slate-300">/</span>
