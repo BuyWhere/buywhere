@@ -234,7 +234,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
           <h2 className="line-clamp-2 text-lg font-semibold leading-tight text-slate-900 transition-colors group-hover:text-amber-700">
             {product.name}
           </h2>
-          <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+          <div className="flex flex-wrap gap-2 text-xs text-slate-600">
             {product.brand ? <span>{product.brand}</span> : null}
             {product.category ? <span>{product.category}</span> : null}
           </div>
@@ -242,7 +242,10 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
 
         <div className="mt-auto flex items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Current price</p>
+            {/* BUY-67976: bumped from text-slate-400 (#94a3b8, ~3.68:1) to
+                text-slate-600 (#475569, ~7.58:1) so VidMee's WCAG AA 4.5:1
+                audit passes on the white card background. */}
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-600">Current price</p>
             <p className="text-2xl font-semibold text-slate-900">{formatPrice(product.price, product.currency)}</p>
           </div>
           <span className="text-sm font-medium text-amber-700">View product</span>
@@ -674,7 +677,7 @@ export default function SearchResultsClient({
                 </label>
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-600">
                 <span>Suggested:</span>
                 {SUGGESTED_SEARCHES.map((suggestion) => (
                   <button
