@@ -31,7 +31,11 @@ router.get('/overview', apiKey_1.requireApiKey, async (req, res) => {
        COUNT(*) FILTER (WHERE is_agent = true) AS agent_queries,
        COUNT(*) FILTER (WHERE is_agent = false) AS human_queries,
        ROUND(AVG(response_time_ms)) AS avg_response_ms,
-       ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time_ms)) AS p99_response_ms
+       ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time_ms)) AS p99_response_ms,
+       CASE WHEN COUNT(*) FILTER (WHERE cache_hit IS NOT NULL) > 0
+         THEN ROUND(100.0 * COUNT(*) FILTER (WHERE cache_hit = true)
+                    / COUNT(*) FILTER (WHERE cache_hit IS NOT NULL), 1)
+         ELSE NULL END AS cache_hit_pct
      FROM query_log
      WHERE created_at >= NOW() - ($1 || ' days')::interval
      GROUP BY day
@@ -43,6 +47,7 @@ router.get('/overview', apiKey_1.requireApiKey, async (req, res) => {
         human_queries: parseInt(r.human_queries),
         avg_response_ms: r.avg_response_ms ? parseInt(r.avg_response_ms) : null,
         p99_response_ms: r.p99_response_ms ? parseInt(r.p99_response_ms) : null,
+        cache_hit_pct: r.cache_hit_pct ? parseFloat(r.cache_hit_pct) : null,
     }));
     // Summary totals
     const totals = rows.reduce((acc, r) => ({
@@ -50,6 +55,12 @@ router.get('/overview', apiKey_1.requireApiKey, async (req, res) => {
         agent_queries: acc.agent_queries + r.agent_queries,
         human_queries: acc.human_queries + r.human_queries,
     }), { total_queries: 0, agent_queries: 0, human_queries: 0 });
+    // Compute overall cache_hit_pct across the window (only from days that have data)
+    const daysWithCacheData = rows.filter((r) => r.cache_hit_pct !== null);
+    const overallCacheHitPct = daysWithCacheData.length > 0
+        ? +(daysWithCacheData.reduce((sum, r) => sum + (r.cache_hit_pct ?? 0), 0) / daysWithCacheData.length).toFixed(1)
+        : null;
+    totals.cache_hit_pct = overallCacheHitPct;
     res.json({ data: { daily: rows, totals }, meta: { days } });
 });
 // GET /v1/analytics/agents

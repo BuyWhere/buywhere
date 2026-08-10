@@ -50,7 +50,7 @@ const schemaMarkup = {
 
 export default function CategoriesPage() {
   return (
-    <div className="min-h-[60vh] py-12">
+    <main id="main-content" className="min-h-[60vh] py-12">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkup) }}
@@ -113,6 +113,6 @@ export default function CategoriesPage() {
           ))}
         </div>
       </div>
-    </div>
+    </main>
   );
 }

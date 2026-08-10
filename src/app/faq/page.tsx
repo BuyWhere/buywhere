@@ -79,6 +79,7 @@ export default function FaqPage() {
       <div className="flex flex-col min-h-screen">
         <Nav />
 
+        <main id="main-content" role="main" tabIndex={-1} aria-label="Main content">
         <section className="bg-indigo-600 text-white py-20">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="max-w-2xl">
@@ -105,6 +106,7 @@ export default function FaqPage() {
           </div>
         </section>
 
+        </main>
         <Footer />
       </div>
     </>

@@ -10,6 +10,7 @@ import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
+import { compareCategoryPairSlug, findCompareCategoryPair, type CompareCategoryPair } from "@/lib/sitemaps";
 
 const contentDir = path.join(process.cwd(), "content", "compare");
 
@@ -55,11 +56,24 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const doc = getBySlug(params.slug);
-  if (!doc) return {};
+  if (doc) {
+    return {
+      title: doc.title, description: doc.description,
+      alternates: { canonical: toSiteUrl(`/compare/${doc.slug}`) },
+      openGraph: { title: doc.title, description: doc.description, type: "website", url: toSiteUrl(`/compare/${doc.slug}`), siteName: "BuyWhere" },
+    };
+  }
+
+  const pair = params.slug.length === 1 ? await findCompareCategoryPair(params.slug[0]) : null;
+  if (!pair) return {};
+  const slug = compareCategoryPairSlug(pair);
+  const title = `${pair.left.name} vs ${pair.right.name} Price Comparison | BuyWhere`;
+  const description = `Compare ${pair.left.name.toLowerCase()} and ${pair.right.name.toLowerCase()} prices, product coverage, and shopping categories on BuyWhere.`;
   return {
-    title: doc.title, description: doc.description,
-    alternates: { canonical: toSiteUrl(`/compare/${doc.slug}`) },
-    openGraph: { title: doc.title, description: doc.description, type: "website", url: toSiteUrl(`/compare/${doc.slug}`), siteName: "BuyWhere" },
+    title,
+    description,
+    alternates: { canonical: toSiteUrl(`/compare/${slug}`) },
+    openGraph: { title, description, type: "website", url: toSiteUrl(`/compare/${slug}`), siteName: "BuyWhere" },
   };
 }
 
@@ -81,9 +95,89 @@ function buildFaqSchema(body: string) {
   return { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: entities };
 }
 
-export default function CompareContentPage({ params }: Params) {
+
+function CompareCategoryPairPage({ pair }: { pair: CompareCategoryPair }) {
+  const slug = compareCategoryPairSlug(pair);
+  const title = `${pair.left.name} vs ${pair.right.name} Price Comparison`;
+  const description = `Compare ${pair.left.name.toLowerCase()} and ${pair.right.name.toLowerCase()} across BuyWhere's populated shopping catalog. Use this landing page to jump into each category's live price comparison surface.`;
+  const canonical = toSiteUrl(`/compare/${slug}`);
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: toSiteUrl("/") },
+      { "@type": "ListItem", position: 2, name: "Compare", item: toSiteUrl("/compare") },
+      { "@type": "ListItem", position: 3, name: title, item: canonical },
+    ],
+  };
+  const itemListSchema = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: title,
+    description,
+    url: canonical,
+    itemListElement: [pair.left, pair.right].map((category, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: category.name,
+      url: toSiteUrl(`/compare/${category.slug}`),
+    })),
+  };
+
+  return (
+    <div className="flex min-h-screen flex-col bg-slate-50">
+      <Script id="compare-pair-breadcrumb-schema" type="application/ld+json" strategy="afterInteractive">{JSON.stringify(breadcrumbSchema)}</Script>
+      <Script id="compare-pair-itemlist-schema" type="application/ld+json" strategy="afterInteractive">{JSON.stringify(itemListSchema)}</Script>
+      <Nav />
+      <main id="main-content" className="flex-1">
+        <section className="border-b border-slate-200 bg-white">
+          <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+            <nav aria-label="Breadcrumb" className="mb-6 flex flex-wrap items-center gap-1 text-sm text-slate-500">
+              <Link href="/compare" className="font-medium text-indigo-600 hover:underline">Price Comparisons</Link>
+              <span aria-hidden="true">/</span>
+              <span className="text-slate-700">{title}</span>
+            </nav>
+            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">Category comparison</p>
+            <h1 className="mb-6 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">{title}</h1>
+            <p className="max-w-3xl text-lg leading-8 text-slate-600">{description}</p>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            {[pair.left, pair.right].map((category) => (
+              <Link
+                key={category.slug}
+                href={`/compare/${category.slug}`}
+                className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm transition hover:border-indigo-300 hover:shadow-md"
+              >
+                <p className="mb-2 text-sm font-medium text-indigo-600">{category.productCount.toLocaleString()} products indexed</p>
+                <h2 className="mb-3 text-2xl font-semibold text-slate-900">{category.name}</h2>
+                <p className="text-sm leading-7 text-slate-600">Browse live price coverage, retailer availability, and product listings for {category.name.toLowerCase()}.</p>
+              </Link>
+            ))}
+          </div>
+          <article className="mt-8 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <h2 className="mb-3 text-2xl font-semibold text-slate-900">How to use this comparison</h2>
+            <p className="text-base leading-8 text-slate-600">
+              Compare category depth, live catalog freshness, and retailer coverage before choosing where to shop.
+              BuyWhere keeps each category page focused on canonical, populated catalog segments so search crawlers and shoppers avoid empty comparison pages.
+            </p>
+          </article>
+        </section>
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
+export default async function CompareContentPage({ params }: Params) {
   const doc = getBySlug(params.slug);
-  if (!doc) notFound();
+  if (!doc) {
+    const pair = params.slug.length === 1 ? await findCompareCategoryPair(params.slug[0]) : null;
+    if (!pair) notFound();
+    return <CompareCategoryPairPage pair={pair} />;
+  }
 
   let body = "";
   let faqSchema = null;

@@ -36,11 +36,15 @@ export function buildProduct(
   // Validation catches two categories of data-quality failures observed in production:
   //   1. $0.00 prices — out-of-stock marker, missing price field, or parsing error
   //   2. Prices over $10,000 — feed corruption, currency conversion unit errors
+  //   3. BUY-63738: Prices under $5 — observed $1.00 laptop prices are clearly
+  //      invalid feed errors; real laptops start at ~$400. A $5 floor catches the
+  //      obvious errors while still allowing cheap accessories ($2-3 cables, etc.).
   // Legitimate high-end products (luxury watches, high-end appliances, jewelry)
   // stay under $10k. When a price fails validation the amount is nullified so
   // the FE displays nothing instead of a deceptive value.
+  const PRICE_MIN = 5;
   const PRICE_MAX = 10_000;
-  const sanitizedAmount = (amount != null && amount > 0 && amount <= PRICE_MAX)
+  const sanitizedAmount = (amount != null && amount >= PRICE_MIN && amount <= PRICE_MAX)
     ? amount
     : null;
 

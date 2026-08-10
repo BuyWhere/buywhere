@@ -1,4 +1,9 @@
 import React from 'react';
+import { stripMerchantTenantSuffix } from '@/lib/merchant-name';
+// Re-export stripMerchantTenantSuffix from the pure utility module so
+// existing imports (`from '@/components/ui/MerchantBadge'`) keep working
+// without consumers having to update their import paths. BUY-66324.
+export { stripMerchantTenantSuffix } from '@/lib/merchant-name';
 
 export interface MerchantConfig {
   icon: string;
@@ -18,6 +23,7 @@ const MERCHANT_CONFIG: Record<string, MerchantConfig> = {
   'Lowe\'s': { icon: '🏡', bgColor: 'bg-blue-50', textColor: 'text-blue-700', verified: true },
   'Nike': { icon: '👟', bgColor: 'bg-black', textColor: 'text-white', verified: true },
   'Adidas': { icon: '👟', bgColor: 'bg-gray-900', textColor: 'text-white', verified: true },
+  'Wellbots': { icon: '🛒', bgColor: 'bg-blue-50', textColor: 'text-blue-700', verified: true },
 };
 
 export function getMerchantConfig(merchant: string): MerchantConfig {
@@ -31,18 +37,20 @@ export interface MerchantBadgeProps {
 }
 
 export function MerchantBadge({ merchant, className = '', showVerified = true }: MerchantBadgeProps) {
-  const config = getMerchantConfig(merchant);
+  const cleanedMerchant = stripMerchantTenantSuffix(merchant);
+  const displayKey = cleanedMerchant.replace(/[_-]+/g, ' ');
+  const config = getMerchantConfig(displayKey);
   const isVerified = config.verified && showVerified;
 
   return (
     <div
-      className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full w-fit ${config.bgColor} ${className}`}
+      className={`inline-flex max-w-full items-center gap-1.5 self-start rounded-2xl px-2 py-1 ${config.bgColor} ${className}`}
       role="img"
-      aria-label={`${merchant}${isVerified ? ' - Verified retailer' : ''}`}
+      aria-label={`${displayKey}${isVerified ? ' - Verified retailer' : ''}`}
     >
-      <span className="text-sm flex-shrink-0">{config.icon}</span>
-      <span className={`text-xs font-medium ${config.textColor || 'text-gray-700'}`}>
-        {merchant}
+      <span className="text-sm flex-shrink-0 leading-none">{config.icon}</span>
+      <span className={`min-w-0 whitespace-normal break-words [overflow-wrap:anywhere] text-xs font-medium leading-snug ${config.textColor || 'text-gray-700'}`} title={displayKey}>
+        {displayKey}
       </span>
       {isVerified && (
         <span className="flex items-center justify-center w-4 h-4 rounded-full bg-white/80 shadow-sm" aria-hidden="true">

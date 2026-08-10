@@ -41,6 +41,7 @@ export default function USLandingPage() {
         </div>
       </header>
 
+      <main id="main-content">
       <section className="bg-white py-20 md:py-24">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center max-w-3xl mx-auto">
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight" style={{ lineHeight: 1.1 }}>
@@ -114,6 +115,7 @@ export default function USLandingPage() {
         </div>
       </section>
 
+      </main>
       <Footer />
     </div>
   </>

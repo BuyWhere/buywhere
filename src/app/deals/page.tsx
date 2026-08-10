@@ -1,4 +1,6 @@
-import type { Metadata } from 'next';
+import Schema from '@/components/Schema';
+import { buildPageMetadata } from '@/lib/page-metadata';
+import { buildCollectionPageSchema } from '@/lib/page-schema';
 
 export const revalidate = 900;
 
@@ -27,32 +29,29 @@ async function getDeals(): Promise<Deal[]> {
   }
 }
 
-export const metadata: Metadata = {
-  title: 'Today\'s Best Deals — BuyWhere AI',
-  description:
-    'Find the best deals and discounts across retailers. Compare prices and save on top products.',
-  alternates: { canonical: '/deals' },
-};
+const DEALS_TITLE = "Today's Best Deals on BuyWhere";
+const DEALS_DESCRIPTION =
+  'Find live discounts and compare prices across retailers so you can save on top products.';
+
+export const metadata = buildPageMetadata({
+  title: DEALS_TITLE,
+  description: DEALS_DESCRIPTION,
+  path: '/deals',
+});
 
 export default async function DealsPage() {
   const deals = await getDeals();
 
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'CollectionPage',
-    name: "Today's Best Deals",
-    description:
-      'Find the best deals and discounts across retailers.',
-    url: '/deals',
-  };
+  const jsonLd = buildCollectionPageSchema({
+    path: '/deals',
+    name: DEALS_TITLE,
+    description: DEALS_DESCRIPTION,
+  });
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
-      <main className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      <Schema data={jsonLd} />
+      <main id="main-content" className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <div className="container mx-auto px-4 py-16">
           <header className="mb-12">
             <h1 className="text-4xl font-bold text-blue-800 mb-4">

@@ -1,8 +1,12 @@
 const AGENT_JSON = {
-  name: 'Buywhere Product Catalog',
+  name: 'BuyWhere',
   description:
-    'Agent-native product catalog and price comparison API covering 7 merchants across Singapore and the United States. Search, compare, and discover products from Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, and Carousell.',
+    'Agent-native product catalog API for AI shopping agents: 300M+ products from 238,000+ storefronts worldwide, with location-aware deliver_to ranking and per-result availability labels.',
   url: 'https://buywhere.ai',
+  provider: {
+    organization: 'BuyWhere',
+    url: 'https://buywhere.ai',
+  },
   version: '1.0.0',
   capabilities: {
     streaming: true,
@@ -19,47 +23,66 @@ const AGENT_JSON = {
       id: 'product-search',
       name: 'Product Search',
       description:
-        'Search products by keyword, category, price range, and market across Singapore and US merchants',
-      tags: ['e-commerce', 'search', 'products'],
+        'Search 300M+ products worldwide by keyword, category, price range, merchant, country, and deliver_to for deliverable-first ranking.',
+      tags: ['e-commerce', 'search', 'products', 'availability'],
       examples: [
-        'Find Dyson hair dryer under 400 SGD in Singapore',
-        'Wireless headphones under 150 USD on Amazon US or Walmart',
+        'Find wireless earbuds under 150 USD that ship to US',
+        'Find coffee makers deliverable to Singapore with local or ships_to_you availability',
       ],
     },
     {
-      id: 'cross-border-match',
-      name: 'Cross-Border Product Matching',
+      id: 'location-aware-shopping',
+      name: 'Location-Aware Shopping',
       description:
-        'Find equivalent products across Singapore and US markets with price and spec comparison',
-      tags: ['cross-border', 'matching', 'price-comparison', 'affiliate'],
+        'Use deliver_to=<ISO country> to rank products your end user can actually receive; every result includes availability: local, ships_to_you, unavailable, or unknown.',
+      tags: ['delivery', 'availability', 'cross-border', 'ranking'],
       examples: [
-        'Compare this Shopee listing with Amazon US pricing',
-        'Find the cheapest market for iPhone 16 Pro Max across SG and US',
+        'Show laptop deals deliverable to AU and hide unavailable results',
+        'Find skincare products that ship to GB with availability labels',
       ],
     },
     {
-      id: 'price-history',
-      name: 'Price History & Alerts',
+      id: 'cross-storefront-comparison',
+      name: 'Cross-Storefront Product Comparison',
       description:
-        'Retrieve historical price data and set up price drop alerts',
-      tags: ['pricing', 'history', 'alerts'],
+        'Compare products, prices, attributes, and availability across 238,000+ independent storefronts worldwide.',
+      tags: ['comparison', 'price-comparison', 'affiliate', 'merchant'],
       examples: [
-        'Show me 30-day price history for this product',
-        'Alert me when this drops below 50 SGD',
+        'Compare iPhone 16 Pro Max prices across stores that ship to Singapore',
+        'Find equivalent robot vacuums across US and EU storefronts with best delivered price',
       ],
     },
     {
-      id: 'merchant-discovery',
-      name: 'Merchant & Affiliate Discovery',
+      id: 'deal-finder',
+      name: 'Deal Finder',
       description:
-        'Discover which of the 7 covered merchants sell a product and retrieve affiliate links',
-      tags: ['merchants', 'affiliate', 'deals'],
+        'Find discounted products and price drops across the global catalog, with filters for category, currency, country, and deliverability.',
+      tags: ['deals', 'discounts', 'pricing'],
       examples: [
-        'Which merchants sell wireless earbuds under 80 SGD?',
-        'Get affiliate link for this Lazada listing',
+        'Show the best monitor deals today that ship to CA',
+        'Find air purifier discounts deliverable to SG under 300 SGD',
       ],
     },
   ],
+  protocols: {
+    mcp: {
+      serverUrl: 'https://api.buywhere.ai/mcp',
+      transport: 'streamable-http',
+      notes:
+        'Canonical MCP endpoint for JSON-RPC over HTTP POST. The legacy SSE endpoint remains at https://api.buywhere.ai/mcp/sse for SSE clients that explicitly require it.',
+    },
+    a2a: {
+      serverUrl: 'https://api.buywhere.ai/a2a',
+      transport: 'json',
+    },
+    rest: {
+      serverUrl: 'https://api.buywhere.ai/v1',
+      transport: 'https',
+    },
+  },
+  contact: {
+    email: 'hello@buywhere.ai',
+  },
 };
 
 export function GET() {

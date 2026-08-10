@@ -4,6 +4,7 @@ const express_1 = require("express");
 const crypto_1 = require("crypto");
 const config_1 = require("../config");
 const posthog_1 = require("../analytics/posthog");
+const brokenDestinationFallbacks_1 = require("../lib/brokenDestinationFallbacks");
 function hashKey(rawKey) {
     return (0, crypto_1.createHash)('sha256').update(rawKey).digest('hex');
 }
@@ -29,6 +30,9 @@ const DEFAULT_ALLOWED_DOMAINS = [
     'carousell.sg',
     'popular.com.sg',
     'guardian.com.sg',
+    'coldstorage.com.sg',
+    'fairprice.com.sg',
+    'watsons.com.sg',
     'polypet.com.sg',
     'pupsik.sg',
     'robinsons.com.sg',
@@ -155,6 +159,11 @@ router.get('/:affiliateSlug/:productId', async (req, res) => {
     if (!destinationUrl) {
         res.redirect(302, FALLBACK_URL);
         return;
+    }
+    const brokenDestinationFallback = (0, brokenDestinationFallbacks_1.fallbackForBrokenDestination)(destinationUrl);
+    if (brokenDestinationFallback) {
+        console.warn(`[redirect] replacing confirmed broken destination for product ${productId}`);
+        destinationUrl = brokenDestinationFallback;
     }
     // Determine API key for attribution
     const authHeader = req.headers['authorization'] || '';

@@ -148,8 +148,8 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
               alt={deal.name}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              className="object-cover"
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              className="object-contain"
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
               loading={deal.id <= 4 ? 'eager' : 'lazy'}
               priority={deal.id <= 2}
             />
@@ -227,7 +227,7 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
         )}
         {deal.shipping_info && (
           <div className="flex items-center gap-1 mb-2">
-            <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
             </svg>
             <span className="text-xs text-gray-600">{deal.shipping_info}</span>
@@ -238,7 +238,7 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
             {formatUSD(deal.price)}
           </span>
           {deal.original_price && deal.original_price > deal.price && (
-            <span className="text-sm text-gray-500 line-through">
+            <span className="text-sm text-gray-600 line-through">
               {formatUSD(deal.original_price)}
             </span>
           )}

@@ -4,11 +4,11 @@
 name: buywhere
 displayName: BuyWhere MCP Server
 description: >
-  Agent-native product catalog API for Southeast Asia and US commerce. Search 1.5M+ products
-  across Shopee, Lazada, Amazon SG, Amazon US, Walmart, Carousell, FairPrice, Harvey Norman,
-  and 20+ e-commerce platforms. Compare prices across merchants, find deals, browse categories,
-  and resolve natural language product queries — all through a single MCP endpoint. No scraping,
-  no multi-API spaghetti.
+  The product catalog built for AI agents: 300M+ products from 238,000+ direct merchants
+  that want to be discovered (Shopify, WooCommerce, and independent retailers worldwide).
+  Search, compare offers across merchants, find deals, browse categories, and route buyers
+  to the merchant — all through a single MCP endpoint. Pass deliver_to (the buyer's country)
+  on every search for fast, market-scoped results.
 
 version: 1.0.0
 license: MIT
@@ -19,15 +19,16 @@ mcp:
   authentication:
     type: bearer
     description: >
-      API key required. Get a free key at https://api.buywhere.ai/v1/auth/register.
-      Free tier: 1,000 calls/month. No credit card required.
+      API key required. Get a free key at https://api.buywhere.ai/v1/auth/register
+      (POST {"agent_name": "...", "email": "..."}). Verify your email to unlock
+      200 req/min and 10,000 requests/day — free, no credit card required.
 
 tools:
   - name: search_products
     description: >
       Full-text product search with price, category, merchant, region, and rating filters.
-      Search across 1.5M+ products from Shopee, Lazada, Amazon SG, Amazon US, Walmart,
-      FairPrice, and 20+ e-commerce platforms. Supports multiple currencies (SGD, USD, MYR,
+      Search across 300M+ products from 238,000+ direct merchants worldwide. ALWAYS pass
+      deliver_to (buyer's ISO country code) for fast, market-scoped results. Supports multiple currencies (SGD, USD, MYR,
       IDR, THB, PHP, VND) and compact JSON mode for AI agents.
     inputSchema:
       type: object
@@ -268,7 +269,7 @@ regions:
   - Indonesia (ID)
 
 features:
-  - Real-time product search across 1.5M+ products
+  - Real-time product search across 300M+ products
   - Cross-merchant price comparison
   - Cheapest price lookup (find_best_price)
   - Natural language query resolution

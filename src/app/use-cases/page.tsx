@@ -22,7 +22,7 @@ const useCases = [
       "Give your AI assistant real product data to back up every recommendation. When a user asks \"find me a wireless keyboard under $80,\" your agent queries BuyWhere, receives structured SKUs with prices, specs, and purchase URLs, and returns a ranked shortlist — not a hallucinated product list. No scraping, no stale data.",
     code: `import requests
 
-API_KEY = "bw_beta_your_key_here"
+API_KEY = "bw_live_your_key_here"
 
 resp = requests.get(
     "https://api.buywhere.ai/v1/products/search",
@@ -43,7 +43,7 @@ for p in products:
       "Build an agent that compares prices across Singapore's retail landscape without maintaining integrations with ten different retailer APIs. BuyWhere normalises product data across merchants into a consistent schema — same fields, same units, same structure — so your agent can sort, filter, and present comparisons without parsing mismatched responses.",
     code: `import requests
 
-API_KEY = "bw_beta_your_key_here"
+API_KEY = "bw_live_your_key_here"
 
 resp = requests.get(
     "https://api.buywhere.ai/v1/products/search",
@@ -65,7 +65,7 @@ for item in sorted_items:
       "Context-aware gift finders need catalog depth and attribute richness, not just a list of popular items. Query BuyWhere with intent-style parameters — category, budget, recipient persona — and receive products with enough metadata for your agent to reason about fit. Purchase URLs are included so every recommendation links to a real product.",
     code: `import requests
 
-API_KEY = "bw_beta_your_key_here"
+API_KEY = "bw_live_your_key_here"
 
 # LLM resolves "gifts for tech-savvy teenager under $50"
 # → structured query to BuyWhere
@@ -94,7 +94,7 @@ recommendations = [
       "Let users ask \"is this in stock?\" and get a real answer. BuyWhere indexes availability signals alongside price and product metadata, so your agent can surface in-stock alternatives when a product is unavailable or flag restocks as they happen. No manual polling of individual merchant pages required.",
     code: `import requests
 
-API_KEY = "bw_beta_your_key_here"
+API_KEY = "bw_live_your_key_here"
 
 def find_available(product_name: str) -> list:
     resp = requests.get(
@@ -120,7 +120,7 @@ def find_available(product_name: str) -> list:
       "Build price-drop and deal notification agents without managing your own price history infrastructure. Poll BuyWhere for a product set on a schedule, compare against a stored baseline, and trigger alerts when prices move. BuyWhere handles the catalog layer; you own the notification logic.",
     code: `import requests, json, pathlib
 
-API_KEY = "bw_beta_your_key_here"
+API_KEY = "bw_live_your_key_here"
 BASELINE_FILE = pathlib.Path("price_baseline.json")
 
 def check_price_drops(queries: list[str]) -> list[dict]:
@@ -168,6 +168,7 @@ export default function UseCasesPage() {
       <div className="flex flex-col min-h-screen">
       <Nav />
 
+      <main id="main-content" tabIndex={-1}>
       {/* Hero */}
       <section className="bg-gray-900 text-white py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -236,6 +237,7 @@ export default function UseCasesPage() {
 
       <PopularComparisons variant="footer" />
 
+      </main>
       <Footer />
     </div>
   </>

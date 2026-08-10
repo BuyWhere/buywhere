@@ -98,8 +98,76 @@ function formatMerchantName(value?: string | null) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+// BUY-65559: price sanity bounds.
+//
+// The catalog ingest lane (BUY-52807 family) has historically emitted sentinel
+// prices — `amount: 1` when the Google Shopping scraper could not parse the
+// merchant's product page, and `amount: 0` from a handful of Shopify feeds.
+// Those sentinels reached the card as ordinary finite numbers and rendered as
+// "$1.00" / "$0.00", so a RTX 5050 gaming laptop was listed at a dollar.
+//
+// `isPlausiblePrice` is the render-side backstop: anything outside the bounds
+// is coerced to `null` in `normalizeProduct`, which routes it through the
+// existing "Price unavailable" copy instead of showing a fabricated number.
+// A missing price is honest; a wrong price is not.
+//
+// The guard deliberately fails OPEN — hiding a real product from search is a
+// worse failure than showing one odd price, so every bound below is set where
+// no genuine retail offer lives, and anything ambiguous keeps its price.
+const MAX_PLAUSIBLE_PRICE = 10_000_000;
+
+// Universal sentinel floor. Nothing in the catalog legitimately retails below
+// this: the cheapest real rows sampled across gaming laptops, cables,
+// keychains, stickers and screen protectors were $5.50-$6.99. Scraper
+// sentinels cluster at 0, 0.01 and 1, so this bound separates them cleanly
+// without a title heuristic that could misread a real product.
+const ABSOLUTE_MIN_PRICE = 3;
+
+// A second, narrower floor for big-ticket devices, where even $40 is clearly a
+// data error. Applied ONLY when the title is unambiguously a primary device —
+// accessories and collectibles are excluded first, because "Laptop Cooling
+// Pad" ($38) and "Pop Television Action Figure" ($9.99) are real products
+// whose titles merely borrow a high-value keyword.
+const HIGH_VALUE_PRODUCT_PATTERN =
+  /\b(laptop|notebook|macbook|desktop|imac|smartphone|iphone|television|refrigerator|dishwasher|playstation|xbox)\b/;
+const HIGH_VALUE_MIN_PRICE = 50;
+
+// Titles that borrow a high-value keyword while describing something cheap.
+// "Pop Television" is Funko's collectible line, not a TV; a "SIM card holder
+// for iPhone 13 Pro" is not an iPhone. Every entry here was observed as a real
+// live catalog row that the floor would otherwise have hidden. The trailing
+// `s?` matches plural titles ("Ponchos - iPhone") as well as singular.
+const HIGH_VALUE_FALSE_FRIEND_PATTERN =
+  /\b(action figure|figurine|funko|pop television|collectible|plush|poster|keychain|sticker|decal|magnet|mug|t-shirt|tee|toy|lego|replica|miniature|keyboard|mouse|screen protector|tempered glass|poncho|holder|mount|strap|band|grip|ring|wallet|pouch|tripod|stylus|lens|film|clip|skin|sleeve|case|cover)s?\b/;
+
+// A "for <device>" / "compatible with <device>" title is describing something
+// made FOR the device, not the device itself.
+const ACCESSORY_PREPOSITION_PATTERN = /\b(for|compatible with|fits|designed for)\b/;
+
+function isPlausiblePrice(price: number | null, product: { name: string; category: string | null }): boolean {
+  if (price === null || !Number.isFinite(price)) return false;
+
+  // Zero, negative, or absurd is never a real offer, whatever the item.
+  if (price <= 0 || price > MAX_PLAUSIBLE_PRICE) return false;
+
+  // Sentinel territory — below any genuine retail price in the catalog.
+  if (price < ABSOLUTE_MIN_PRICE) return false;
+
+  const text = `${product.name} ${product.category || ''}`.toLowerCase();
+
+  if (HIGH_VALUE_PRODUCT_PATTERN.test(text) && price < HIGH_VALUE_MIN_PRICE) {
+    // Fail open for anything that only looks like a big-ticket device.
+    if (HIGH_VALUE_FALSE_FRIEND_PATTERN.test(text)) return true;
+    if (ACCESSORY_PREPOSITION_PATTERN.test(text)) return true;
+    if (isAccessoryProduct({ name: product.name, category: product.category } as SearchCardProduct)) return true;
+    return false;
+  }
+
+  return true;
+}
+
 function formatPrice(price: number | null, currency: string) {
-  if (price === null) return 'Price unavailable';
+  if (price === null || !Number.isFinite(price)) return 'Price unavailable';
 
   try {
     return new Intl.NumberFormat(currency === 'SGD' ? 'en-SG' : 'en-US', {
@@ -138,15 +206,86 @@ function hasUsableProductImage(value?: string | null) {
   }
 }
 
-function sortProductsByImageQuality(products: SearchCardProduct[]) {
-  return [...products].sort((leftProduct, rightProduct) => {
-    const leftHasImage = leftProduct.imageUrl ? 1 : 0;
-    const rightHasImage = rightProduct.imageUrl ? 1 : 0;
+// BUY-63738: Re-rank search results for product-category queries.
+// Priorities (descending):
+//   1. Has usable image (filter out generic placeholders)
+//   2. Has valid price (not null)
+//   3. Is primary product (not accessory)
+//   4. ts_rank from API (preserved within same tier)
+const ACCESSORY_KEYWORDS = [
+  'skin', 'skins', 'decal', 'decals', 'sticker', 'stickers',
+  'sleeve', 'sleeves', 'case', 'cases', 'cover', 'covers', 'protector', 'protectors',
+  'backpack', 'backpacks', 'bag', 'bags', 'briefcase', 'briefcases', 'messenger',
+  'shell', 'shells', 'pad', 'pads', 'cooler', 'coolers',
+  'adapter', 'adapters', 'dock', 'docks', 'hub', 'hubs',
+  'lock', 'locks', 'charger', 'chargers', 'cable', 'cables',
+  'stand', 'stands', 'mat', 'mats', 'tablet',
+];
 
-    if (leftHasImage !== rightHasImage) return rightHasImage - leftHasImage;
+function isAccessoryProduct(product: SearchCardProduct): boolean {
+  const titleLower = product.name.toLowerCase();
+  const categoryLower = (product.category || '').toLowerCase();
+  const text = `${titleLower} ${categoryLower}`;
+
+  // BUY-63738: Detect accessories (backpacks, skins, sleeves, etc.).
+  // Strategy: products with accessory keywords are accessories UNLESS the title
+  // is clearly a primary laptop/notebook/macbook product.
+  const hasAccessoryKeyword = ACCESSORY_KEYWORDS.some(keyword => titleLower.includes(keyword));
+
+  if (!hasAccessoryKeyword) return false;
+
+  // If title contains "laptop" and the title STARTS with or centers on a real laptop
+  // (not an accessory for laptop), it's a laptop product.
+  // E.g., "ASUS TUF Gaming F16 Laptop Intel..." = laptop
+  // E.g., "Backpack Gaming Backpack For Laptop" = accessory
+  // E.g., "Robotic Doodle Laptop Skin" = accessory
+  // E.g., "MacBook Pro Case Cover" = accessory
+
+  // Heuristic: if accessory keyword appears BEFORE "laptop/notebook/macbook", it's an accessory
+  const accessoryIdx = ACCESSORY_KEYWORDS.reduce((minIdx, kw) => {
+    const idx = titleLower.indexOf(kw);
+    return idx >= 0 && (minIdx < 0 || idx < minIdx) ? idx : minIdx;
+  }, -1);
+
+  const laptopMatch = titleLower.match(/\b(laptop|notebook|macbook)\b/);
+  const laptopIdx = laptopMatch ? laptopMatch.index! : -1;
+
+  // Accessory word appears before laptop word = accessory (e.g., "Backpack for Laptop")
+  if (accessoryIdx >= 0 && laptopIdx >= 0 && accessoryIdx < laptopIdx) {
+    return true;
+  }
+
+  // Accessory word appears after laptop word and is a common suffix pattern
+  // E.g., "Laptop Skin", "MacBook Case" = accessory
+  if (accessoryIdx >= 0 && laptopIdx >= 0 && accessoryIdx > laptopIdx) {
+    // If the accessory keyword is within 20 chars of the laptop word, it's likely a modifier (accessory)
+    return (accessoryIdx - laptopIdx) < 25;
+  }
+
+  // Only accessory keyword (no laptop) = accessory
+  return true;
+}
+
+function rankProduct(product: SearchCardProduct): number {
+  let score = 0;
+  // Has usable image
+  if (product.imageUrl) score += 100;
+  // Has valid price
+  if (product.price !== null) score += 50;
+  // Not an accessory
+  if (!isAccessoryProduct(product)) score += 25;
+  return score;
+}
+
+function sortProductsByRelevance(products: SearchCardProduct[]) {
+  return [...products].sort((leftProduct, rightProduct) => {
+    const leftScore = rankProduct(leftProduct);
+    const rightScore = rankProduct(rightProduct);
+    if (leftScore !== rightScore) return rightScore - leftScore;
     return 0;
   });
 }
+
 
 function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): SearchCardProduct {
   const priceValue =
@@ -172,18 +311,33 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
       ? item.image || null
       : null;
 
+  const name = item.name || item.title || 'Untitled product';
+  const category = item.category || specCategory;
+  const finitePrice = Number.isFinite(numericPrice) ? numericPrice : null;
+
   return {
     id: String(item.id),
-    name: item.name || item.title || 'Untitled product',
-    price: Number.isFinite(numericPrice) ? numericPrice : null,
+    name,
+    // BUY-65559: drop implausible sentinel prices to null so the card renders
+    // "Price unavailable" instead of a fabricated "$1.00" / "$0.00".
+    price: isPlausiblePrice(finitePrice, { name, category }) ? finitePrice : null,
     currency: priceCurrency || fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
     imageUrl,
     href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.buy_url || item.url || '#',
     brand: item.brand || specBrand,
-    category: item.category || specCategory,
+    category,
   };
 }
+
+// BUY-65559: exported for the price-sanity regression test.
+export const __test__ = {
+  isPlausiblePrice,
+  formatPrice,
+  normalizeProduct,
+  HIGH_VALUE_MIN_PRICE,
+  MAX_PLAUSIBLE_PRICE,
+};
 
 function normalizeSearchHistoryQuery(value: string) {
   return value.trim().replace(/\s+/g, ' ');
@@ -245,7 +399,11 @@ function SearchInputSkeleton() {
 
 function SearchResultsSkeleton() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-hidden="true">
+    <div
+      className="grid gap-4"
+      style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', maxWidth: '1200px' }}
+      aria-hidden="true"
+    >
       {Array.from({ length: 8 }).map((_, index) => (
         <div key={index} className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
           <div className="aspect-[4/3] animate-pulse bg-slate-200" />
@@ -300,18 +458,66 @@ function SearchProgressIndicator({ startedAt }: { startedAt: number }) {
 
 
 function SearchCard({ product }: { product: SearchCardProduct }) {
+  const [imageError, setImageError] = useState(false);
+
+  // Branded placeholder for broken/missing images - shows brand + product name
+  // Similar to ProductGridImage's BrandedPlaceholder (BUY-63851 fix)
+  function BrandedPlaceholder() {
+    const brandText = (product.brand || 'BuyWhere').slice(0, 18);
+    const productLabel = product.name.slice(0, 26);
+
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 p-4">
+        <div className="mb-2 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" className="w-full max-w-[180px] drop-shadow-sm">
+            <defs>
+              <linearGradient id="searchCardBg" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0" stopColor="#fff7ed" />
+                <stop offset="1" stopColor="#fde68a" />
+              </linearGradient>
+            </defs>
+            <rect width="400" height="300" fill="url(#searchCardBg)" />
+            <rect x="40" y="40" width="320" height="220" rx="24" fill="#ffffff" stroke="#fcd34d" strokeWidth="3" />
+            <g transform="translate(140 80)" fill="none" stroke="#b45309" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="0" y="0" width="120" height="90" rx="12" fill="#fef3c7" />
+              <circle cx="60" cy="40" r="14" fill="#f59e0b" stroke="none" />
+              <path d="M0 70 L40 35 L80 60 L120 25" stroke="#b45309" />
+            </g>
+            <text x="200" y="208" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="22" fontWeight="700" fill="#0f172a">
+              {brandText}
+            </text>
+            <text x="200" y="236" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="14" fontWeight="500" fill="#475569">
+              {productLabel}
+            </text>
+            <text x="200" y="258" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="11" fontWeight="600" letterSpacing="2" fill="#92400e">
+              BUYWHERE
+            </text>
+          </svg>
+        </div>
+        {product.brand && (
+          <span className="text-xs text-slate-500">{product.brand}</span>
+        )}
+      </div>
+    );
+  }
+
   return (
     <a
+      data-testid="search-product-card"
       href={product.href}
       target="_blank"
       rel="noopener noreferrer"
-      className="group relative flex h-full flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
+      className="group relative flex h-full min-h-[460px] min-w-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
-      <div className="relative aspect-[4/3] border-b border-slate-100 bg-slate-100">
+      <div
+        className="relative w-full max-h-[220px] shrink-0 overflow-hidden border-b border-slate-100 bg-slate-100"
+        style={{ aspectRatio: '4/3', maxHeight: '220px' }}
+        data-testid="search-product-media"
+      >
         <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))] text-sm font-semibold text-slate-600">
           Product image
         </div>
-        {product.imageUrl ? (
+        {product.imageUrl && !imageError ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={product.imageUrl}
@@ -319,23 +525,28 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
             loading="lazy"
             decoding="async"
             referrerPolicy="no-referrer"
-            onError={(event) => {
-              event.currentTarget.style.display = 'none';
+            onError={() => {
+              setImageError(true);
             }}
-            className="relative z-10 h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-[1.03]"
+            // BUY-64266: drop group-hover:scale-[1.03] which pushed the rightmost
+            // card image beyond the grid column on desktop. Keep BUY-64736's
+            // max-h-[220px] / max-w-full / object-contain bounds so the image
+            // can never exceed its 220px-tall card frame.
+            className="relative z-10 block h-full w-full max-h-[220px] max-w-full object-contain p-2"
+            style={{ maxHeight: '220px', width: '100%', objectFit: 'contain' }}
           />
-        ) : (
-          <div className="relative z-10 flex h-full items-center justify-center text-4xl text-slate-600">◎</div>
-        )}
-        <div className="absolute right-2 top-2">
+        ) : imageError || !product.imageUrl ? (
+          <BrandedPlaceholder />
+        ) : null}
+        <div className="absolute right-2 top-2 z-20">
           <CompareSelectButton product={product} className="h-9 w-9" />
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-2.5 bg-white p-3.5">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-2.5 bg-white p-3.5" data-testid="search-product-details">
         <div className="flex min-h-7 items-start justify-between gap-2">
-          <MerchantBadge merchant={product.merchant} className="shrink-0" />
-          <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
+          <MerchantBadge merchant={product.merchant} className="min-w-0 flex-1 basis-0" />
+          <span className="inline-flex shrink-0 items-center gap-1 self-start rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
             Shop
             <ExternalLink className="h-3 w-3" />
           </span>
@@ -354,9 +565,13 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
         </div>
 
         <div className="mt-auto space-y-2.5 border-t border-slate-100 pt-2.5">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Current price</p>
-            <p className="mt-0.5 text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
+          {/* BUY-65455: label + price on a single baseline-aligned row so the
+              numeric price is visually adjacent to the 'Current price' label
+              (previously they were disconnected: a floating pill on the image
+              + the label here). */}
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Current price</p>
+            <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
           </div>
           <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
             View Deal
@@ -372,6 +587,8 @@ export default function SearchResultsClient({
   initialQuery = '',
   initialCountry = 'us',
 }: SearchResultsClientProps) {
+  const initialSearchQuery = initialQuery.trim();
+  const hasInitialSearchQuery = initialSearchQuery.length >= MIN_QUERY_LENGTH;
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchParamsString = searchParams?.toString() ?? '';
@@ -379,13 +596,13 @@ export default function SearchResultsClient({
   const [isNavigating, startTransition] = useTransition();
   const [query, setQuery] = useState(initialQuery);
   const [country, setCountry] = useState<CountryValue>(normalizeCountry(initialCountry));
-  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery.trim());
+  const [debouncedQuery, setDebouncedQuery] = useState(initialSearchQuery);
   const [products, setProducts] = useState<SearchCardProduct[]>([]);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
-  const [loadingInitial, setLoadingInitial] = useState(false);
+  const [loadingInitial, setLoadingInitial] = useState(hasInitialSearchQuery);
   const [searchStartTime, setSearchStartTime] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -569,7 +786,7 @@ export default function SearchResultsClient({
         setDegraded(false);
         setDegradedHint(null);
       }
-      const normalizedItems = sortProductsByImageQuality(
+      const normalizedItems = sortProductsByRelevance(
         rawItems.map((item) => normalizeProduct(item, activeCountry.currency))
       ).slice(0, PAGE_SIZE);
       const fetchedPageIsFull = rawItems.length >= SEARCH_FETCH_LIMIT;
@@ -651,16 +868,41 @@ export default function SearchResultsClient({
       <Header />
 
       <main id="main-content" className="flex-1">
-        <section className="border-b border-amber-100 bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.22),_rgba(255,247,237,0.85)_38%,_rgba(255,255,255,1)_80%)]">
+        {/* Mobile compact summary (replaces the full hero on mobile when an active search
+            is running) — keeps only a single line with country + result count + query.
+            Rendered as an <h1> for SEO semantics and tightened to ~44px above the fold. */}
+        {hasActiveSearch ? (
+          <h1
+            data-testid="search-mobile-summary"
+            className="mx-auto block max-w-7xl truncate px-4 py-3 text-sm font-semibold text-slate-700 md:hidden"
+          >
+            <span className="text-amber-700">{activeCountry.label.toUpperCase()}</span>
+            <span className="mx-2 text-slate-300">/</span>
+            <span>
+              {loadingInitial
+                ? 'Searching…'
+                : `${total.toLocaleString()} results for “${debouncedQuery}”`}
+            </span>
+          </h1>
+        ) : null}
+
+        <section className="hidden border-b border-amber-100 bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.22),_rgba(255,247,237,0.85)_38%,_rgba(255,255,255,1)_80%)] md:block">
           <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${hasActiveSearch ? 'py-5 lg:py-6' : 'py-10 lg:py-14'}`}>
             <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">Product search</p>
-              <h1 className={`${hasActiveSearch ? 'mt-2 text-3xl sm:text-4xl' : 'mt-3 text-4xl sm:text-5xl'} font-semibold tracking-tight text-slate-950`}>
-                {query.trim() ? `Search results for "${query.trim()}"` : "Find live catalog results without leaving BuyWhere"}
-              </h1>
-              <p className={`${hasActiveSearch ? 'sr-only' : 'mt-4'} max-w-2xl text-base leading-7 text-slate-600 sm:text-lg`}>
-                Search BuyWhere&apos;s product index by query and country, then jump directly to retailer listings.
-              </p>
+              {/* Hide the hero H1 + eyebrow when an active search is running so the query
+                  isn't echoed twice. The result-count heading below becomes the single,
+                  unified results header (rendered as <h1> for SEO semantics). */}
+              {hasActiveSearch ? null : (
+                <>
+                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">Product search</p>
+                  <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
+                    Find live catalog results without leaving BuyWhere
+                  </h1>
+                  <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
+                    Search BuyWhere&apos;s product index by query and country, then jump directly to retailer listings.
+                  </p>
+                </>
+              )}
             </div>
 
             <div className={`${hasActiveSearch ? 'mt-5 rounded-[28px] p-3 md:p-4' : 'mt-8 rounded-[32px] p-4 md:p-6'} border border-white/80 bg-white/80 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)] backdrop-blur`}>
@@ -826,7 +1068,7 @@ export default function SearchResultsClient({
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+        <section className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
           {showSearchPrompt ? (
             <div className="rounded-[28px] border border-dashed border-slate-300 bg-white/90 p-8 text-center shadow-sm">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-600">Start browsing</p>
@@ -845,28 +1087,25 @@ export default function SearchResultsClient({
 
           {!showSearchPrompt && !error ? (
             <div className="space-y-6">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
-                    {activeCountry.label}
-                  </p>
-                  <h2 className="mt-1 text-2xl font-semibold text-slate-950">
-                    {loadingInitial ? (
-                      <>
-                        Searching catalog...
-                        <span className="ml-2 animate-pulse text-lg leading-none">&bull;&bull;&bull;</span>
-                      </>
-                    ) : (
-                      `${total.toLocaleString()} results for “${debouncedQuery}”`
-                    )}
-                  </h2>
-                </div>
-                <Link
-                  href="/"
-                  className="inline-flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
-                >
-                  Back to homepage
-                </Link>
+              {/* BUY-63238: Removed the redundant 'Back to homepage' CTA from the
+                  results header. The sticky header logo already provides homepage
+                  navigation on every viewport, so the CTA was duplicating it in the
+                  highest-value slot and (previously) pushed product cards below the
+                  fold on mobile. Keep the result-count heading alone above the grid. */}
+              <div className="hidden md:block">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
+                  {activeCountry.label}
+                </p>
+                <h1 className="mt-1 text-2xl font-semibold text-slate-950">
+                  {loadingInitial ? (
+                    <>
+                      Searching catalog...
+                      <span className="ml-2 animate-pulse text-lg leading-none">&bull;&bull;&bull;</span>
+                    </>
+                  ) : (
+                    `${total.toLocaleString()} results for “${debouncedQuery}”`
+                  )}
+                </h1>
               </div>
 
               {loadingInitial ? (
@@ -938,7 +1177,10 @@ export default function SearchResultsClient({
 
               {!loadingInitial && products.length > 0 ? (
                 <>
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <div
+                    className="grid gap-3 sm:gap-4"
+                    style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', maxWidth: '1200px' }}
+                  >
                     {products.map((product) => (
                       <SearchCard key={product.id} product={product} />
                     ))}

@@ -557,7 +557,8 @@ router.get('/demo/search', async (req, res) => {
         res.json({ results: [], total: 0, page: { limit, offset: 0 }, response_time_ms: 0, cached: false, demo: true });
         return;
     }
-    const conditions = ['currency = $1'];
+    // BUY-60385: Exclude zero-price products (data quality guard)
+    const conditions = ['currency = $1', 'price > 0'];
     const params = [currency];
     let idx = 2;
     conditions.push(`search_vector @@ plainto_tsquery('english', $${idx})`);

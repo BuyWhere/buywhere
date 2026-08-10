@@ -35,8 +35,6 @@ const DEFAULT_DEVELOPER_CTA = {
   href: "/developers",
 };
 
-
-
 // Derive comparison rows from live products so the table always matches the product cards above.
 // Falls back to the hardcoded editorial rows only when no live products are available.
 function buildComparisonRows(config: SeoLandingPageConfig, products: LandingProduct[]): { columns: string[]; rows: Record<string, string>[] } {
@@ -54,23 +52,66 @@ function buildComparisonRows(config: SeoLandingPageConfig, products: LandingProd
   return { columns, rows };
 }
 
+// Cap on how recent a product `updatedAt` can be before we stop trusting it
+// as a proxy for "page freshness". A catalog row stamped more than this many
+// days ago (BUY-63742: 2026-05-05 entries while today is 2026-07-29, ~85
+// days) reads like a placeholder and undermines buyer trust — fall back to
+// the generic copy rather than display a misleading badge. 30 days keeps the
+// badge honest: it only renders when there is genuinely fresh activity in
+// the upstream catalog for this query.
+const STALE_CATALOG_DAYS = 30;
+
+function parseCatalogTimestamp(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const ts = Date.parse(value);
+  if (!Number.isFinite(ts)) return null;
+  return new Date(ts);
+}
+
+// Parse a refreshedLabel like "Refreshed July 25, 2026" or "Updated July 21, 2026"
+// to extract the date. Returns null if the label doesn't contain a parseable date
+// or if the date is in the future (BUY-63853: catch placeholder/future dates in hardcoded labels).
+function parseRefreshedLabelDate(label: string): Date | null {
+  // Match patterns like "Updated July 21, 2026" or "Refreshed Jan 15, 2026"
+  const match = label.match(/(?:Updated|Refreshed)\s+(\w+\s+\d{1,2},?\s+\d{4})/i);
+  if (!match) return null;
+  const ts = Date.parse(match[1]);
+  if (!Number.isFinite(ts)) return null;
+  return new Date(ts);
+}
+
 function buildRefreshedLabel(config: SeoLandingPageConfig, products: LandingProduct[]): string {
-  // If the config provides a static label, keep it for editorial pages that
-  // explicitly set a review/revision date.
+  // If the config provides a static label, validate it's not a future/placeholder date.
+  // Editorial pages may set an explicit review date, but it must be in the past
+  // to avoid the "future/placeholder-style date" false positive (BUY-63853).
   if (config.refreshedLabel) {
-    return config.refreshedLabel;
+    const labelDate = parseRefreshedLabelDate(config.refreshedLabel);
+    const now = Date.now();
+    // If we can parse a date from the label and it's in the future, fall back to dynamic
+    if (labelDate && labelDate.getTime() > now) {
+      console.warn(
+        `[seo] ${config.slug}: refreshedLabel "${config.refreshedLabel}" has future date, falling back to dynamic`
+      );
+    } else {
+      return config.refreshedLabel;
+    }
   }
 
-  // Otherwise, reflect the freshness of the live products on the page.
+  // Otherwise, reflect the freshness of the live products on the page — but
+  // only when the upstream `updated_at` is plausibly live. Skipping future
+  // dates and anything older than STALE_CATALOG_DAYS prevents a stale catalog
+  // row (BUY-63742) from rendering as a hero badge.
+  const now = Date.now();
+  const staleCutoff = now - STALE_CATALOG_DAYS * 24 * 60 * 60 * 1000;
   const latest = products
-    .map((p) => p.updatedAt)
-    .filter(Boolean)
-    .sort()
-    .pop();
+    .map((p) => parseCatalogTimestamp(p.updatedAt))
+    .filter((d): d is Date => d !== null)
+    .filter((d) => d.getTime() <= now && d.getTime() >= staleCutoff)
+    .map((d) => d.getTime())
+    .reduce<number | null>((max, ts) => (max === null || ts > max ? ts : max), null);
 
-  if (latest) {
-    const date = new Date(latest);
-    const formatted = date.toLocaleDateString("en-US", {
+  if (latest !== null) {
+    const formatted = new Date(latest).toLocaleDateString("en-US", {
       month: "long",
       day: "numeric",
       year: "numeric",
@@ -79,15 +120,11 @@ function buildRefreshedLabel(config: SeoLandingPageConfig, products: LandingProd
     return `Updated ${formatted}`;
   }
 
-  // No live products with a timestamp — use the build/date of render.
-  return `Updated ${new Date().toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  })}`;
+  return "Live prices updated regularly";
 }
 
+// Exported for the regression test in SeoLandingPage.test.tsx (BUY-63742).
+export const __test__ = { buildRefreshedLabel, STALE_CATALOG_DAYS };
 
 export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig }) {
   const shopperCta = config.shopperCta || DEFAULT_SHOPPER_CTA;
@@ -106,9 +143,9 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
 
       <main id="main-content" className="flex-1">
         <section className="overflow-hidden max-sm:overflow-visible bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#f59e0b_130%)] text-white">
-          <div className="mx-auto grid max-w-6xl gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end lg:py-24">
+          <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end ${config.compactCatalogCards ? "py-6" : "py-16 lg:py-24"}`}>
             <div>
-              <div className="mb-5 inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-200">
+              <div className="mb-5 inline-flex items-center rounded-full border border-white/20 bg-slate-950/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-100">
                 {config.heroEyebrow}
               </div>
               <h1 className="max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl">
@@ -117,11 +154,20 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-200">
                 {config.heroBody}
               </p>
-              <div className="mt-8 flex flex-wrap gap-3 text-sm text-slate-100">
-                <span className="rounded-full bg-white/10 px-3 py-1.5">{buildRefreshedLabel(config, products)}</span>
-                <span className="rounded-full bg-white/10 px-3 py-1.5">{config.country} market coverage</span>
-                <span className="rounded-full bg-white/10 px-3 py-1.5">Live BuyWhere search results</span>
-              </div>
+              <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-100" aria-label="Page metadata">
+                <li className="inline-flex items-center gap-2">
+                  <span aria-hidden="true" className="text-amber-200">✓</span>
+                  <span>{buildRefreshedLabel(config, products)}</span>
+                </li>
+                <li className="inline-flex items-center gap-2">
+                  <span aria-hidden="true" className="text-amber-200">✓</span>
+                  <span>{config.country} market coverage</span>
+                </li>
+                <li className="inline-flex items-center gap-2">
+                  <span aria-hidden="true" className="text-amber-200">✓</span>
+                  <span>Live BuyWhere search results</span>
+                </li>
+              </ul>
             </div>
 
             <div className="rounded-[32px] border border-white/10 bg-slate-950/35 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur">
@@ -131,7 +177,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href={shopperCta.href}
-                  className="inline-flex min-h-[44px] items-center rounded-full bg-amber-400 px-5 py-3 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-300"
+                  className="inline-flex min-h-[44px] items-center rounded-full bg-amber-800 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-900"
                 >
                   {shopperCta.label}
                 </Link>
@@ -146,28 +192,28 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
           </div>
         </section>
 
-        <section className="bg-slate-50 py-16">
+        <section className={`bg-slate-50 ${config.compactCatalogCards ? "py-6" : "py-16"}`}>
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div className={`${config.compactCatalogCards ? "mb-4" : "mb-8"} flex flex-col gap-3 md:flex-row md:items-end md:justify-between`}>
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">Live catalog snapshot</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-800">Live catalog snapshot</p>
                 <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
               </div>
-              <Link href={shopperCta.href} className="text-sm font-semibold text-amber-700 hover:text-amber-800">
+              <Link href={shopperCta.href} className="text-sm font-semibold text-amber-800 hover:text-amber-900">
                 Open full search
               </Link>
             </div>
 
             {products.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center col-span-full">
-                <p className="text-slate-500">
+                <p className="text-slate-600">
                   Live product data is currently unavailable for this category. Please check back shortly or use the search to find products.
                 </p>
               </div>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className={config.compactCatalogCards ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-2 xl:grid-cols-4"}>
                 {products.map((product) => (
-                  <ProductGridCard key={product.id} product={product} />
+                  <ProductGridCard key={product.id} product={product} compact={config.compactCatalogCards} />
                 ))}
               </div>
             )}
@@ -177,7 +223,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
         <section className="py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="mb-8 max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Editor summary</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-700">Editor summary</p>
               <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.comparisonSectionTitle}</h2>
             </div>
 
@@ -229,7 +275,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
           <section className="py-12">
             <div className="mx-auto max-w-6xl px-4 sm:px-6">
               <div className="max-w-3xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">{config.categoryComparisonEyebrow || "Featured models"}</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-800">{config.categoryComparisonEyebrow || "Featured models"}</p>
                 <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
                   {config.categoryComparisonTitle || "Models compared"}
                 </h2>
@@ -267,7 +313,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
         <section className="bg-[linear-gradient(180deg,#fff7ed_0%,#ffffff_100%)] py-16">
           <div className="mx-auto grid max-w-6xl gap-10 px-4 sm:px-6 lg:grid-cols-[0.95fr_1.05fr]">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">Buying signals</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-800">Buying signals</p>
               <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.highlightSectionTitle}</h2>
               <div className="mt-8 space-y-4">
                 {config.highlights.map((highlight) => (
@@ -280,13 +326,13 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
             </div>
 
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">What to check</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-700">What to check</p>
               <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.adviceSectionTitle}</h2>
               <div className="mt-8 rounded-[28px] border border-slate-200 bg-slate-900 p-8 text-slate-100 shadow-sm">
                 <ul className="space-y-4">
                   {config.advicePoints.map((point) => (
                     <li key={point} className="flex gap-3 text-sm leading-6">
-                      <span className="mt-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-semibold text-slate-950">
+                      <span className="mt-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-800 text-xs font-semibold text-white">
                         ✓
                       </span>
                       <span>{point}</span>
@@ -313,7 +359,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
         <section className="py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">FAQ</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-700">FAQ</p>
               <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.faqSectionTitle}</h2>
             </div>
             <div className="mt-8 grid gap-4">

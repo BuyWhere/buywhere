@@ -582,7 +582,12 @@ async def v1_product_search(
                 response.headers["X-Currency-Source"] = source_currency
                 response.headers["X-Currency-Target"] = target_currency
 
-    await cache.cache_set(cache_key, response.model_dump(mode="json"), ttl_seconds=600)
+    # BUY-65450: 10-minute cache on a query-driven search meant /compare kept
+    # showing "Price unavailable" rows for up to 10 min after upstream prices
+    # were corrected. Drop query-driven searches to 60s; non-query browse
+    # results still benefit from the previous 600s default.
+    cache_ttl = 60 if q else 600
+    await cache.cache_set(cache_key, response.model_dump(mode="json"), ttl_seconds=cache_ttl)
 
     return response
 
@@ -1585,18 +1590,12 @@ async def get_product_deals(
     request.state.api_key = api_key
 
     discount_threshold = min_discount_pct if min_discount_pct is not None else 10.0
-    threshold = 1.0 - (discount_threshold / 100.0)
 
     base_query = (
         select(Product)
         .where(Product.is_active == True)
-        .where(text("metadata->>'original_price' IS NOT NULL"))
-        .where(text("CAST(metadata->>'original_price' AS NUMERIC) > 0"))
-        .where(
-            text(
-                "price < :threshold * CAST(metadata->>'original_price' AS NUMERIC)"
-            ).bindparams(threshold=threshold)
-        )
+        .where(text("discount_pct IS NOT NULL"))
+        .where(text("discount_pct >= :min_pct").bindparams(min_pct=discount_threshold))
     )
 
     if category:
@@ -1605,28 +1604,14 @@ async def get_product_deals(
     if platform:
         base_query = base_query.where(Product.source == platform)
 
-    base_query = base_query.order_by(
-        text(
-            "(CAST(metadata->>'original_price' AS NUMERIC) - price) "
-            "/ NULLIF(CAST(metadata->>'original_price' AS NUMERIC), 0) DESC"
-        )
-    )
+    # Sort by discount depth (largest discount first)
+    base_query = base_query.order_by(text("discount_pct DESC"))
 
     count_q = select(func.count()).select_from(base_query.subquery())
     total = (await db.execute(count_q)).scalar_one()
 
     result = await db.execute(base_query.limit(limit).offset(offset))
     products = result.scalars().all()
-
-    product_ids = [p.id for p in products]
-    click_counts = {}
-    if product_ids:
-        click_result = await db.execute(
-            select(Click.product_id, func.count(Click.id))
-            .where(Click.product_id.in_(product_ids))
-            .group_by(Click.product_id)
-        )
-        click_counts = {row[0]: row[1] for row in click_result.all()}
 
     from app.routers.deals import _to_deal_item
     return DealsResponseBase(

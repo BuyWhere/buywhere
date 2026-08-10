@@ -8,24 +8,67 @@ const API_BASE_URL = (
 ).replace(/\/$/, '');
 
 const API_KEY = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || '';
-const ALLOWED_PARAMS = new Set(['q', 'country', 'country_code', 'limit', 'cursor', 'offset']);
-
-type SearchFallbackItem = {
-  id: string;
-  title: string;
-  name: string;
-  price: { amount: number; currency: string };
-  price_amount: number;
-  price_currency: string;
-  currency: string;
-  merchant: string;
-  merchant_name: string;
-  source: string;
-  url: string;
-  click_url: string;
-  brand: string;
-  category: string;
-};
+const ALLOWED_PARAMS = new Set(['q', 'country', 'country_code', 'category', 'limit', 'cursor', 'offset']);
+const ACCESSORY_KEYWORDS = [
+  'adapter',
+  'adhesive',
+  'armband',
+  'battery',
+  'bumper',
+  'cable',
+  'capas',
+  'case',
+  'casing',
+  'charger',
+  'charging',
+  'clip',
+  'compatible with',
+  'cord',
+  'cover',
+  'cushion',
+  'decal',
+  'decals',
+  'dock',
+  'ear pad',
+  'ear pads',
+  'ear cushion',
+  'ear cushions',
+  'earcup',
+  'earcups',
+  'filter',
+  'foam',
+  'grip',
+  'holder',
+  'housing',
+  'lens protector',
+  'mount',
+  'mousepad',
+  'mouse pad',
+  'pad',
+  'pads',
+  'part',
+  'parts',
+  'protector',
+  'replacement',
+  'ring',
+  'shell',
+  'skin',
+  'skins',
+  'sleeve',
+  'spare',
+  'stand',
+  'sticker',
+  'stickers',
+  'strap',
+  'stylus',
+  'tempered glass',
+  'tissue',
+  'usb',
+  'wrap',
+  'wristband',
+];
+const ACCESSORY_TITLE_PREFIX_PATTERN = /^(capas?|cases?|covers?|skins?|stickers?|decals?|wraps?|shells?|sleeves?|sleevings?|replacements?|spares?|filters?|adapters?|chargers?|cables?|protectors?|mounts?|holders?|stands?|clips?|grips?|bumpers?|earmuffs?|cushions?|foams?|pads?|straps?|rings?|housings?|docks?|backpacks?|bags?)\s+(for|compatible\s+with|fits|to|with|of)\b/i;
+const QUERY_STOP_WORDS = new Set(['a', 'an', 'and', 'best', 'for', 'in', 'of', 'the', 'to', 'with']);
 
 type SearchFallback = {
   slug: string;
@@ -34,6 +77,8 @@ type SearchFallback = {
   country: 'US' | 'SG';
   currency: 'USD' | 'SGD';
   keywords: string[];
+  // BUY-60872: products[] retained for slugs/guide metadata only; we no longer
+  // synthesize these as search result items (governance rule #10).
   products: Array<{
     name: string;
     price: number;
@@ -204,36 +249,17 @@ function isDegradedZero(data: UpstreamSearchResponse | null) {
 }
 
 function buildFallbackResponse(data: UpstreamSearchResponse | null, fallback: SearchFallback) {
+  // BUY-60872 (governance rule #10): when upstream is degraded with zero results,
+  // we MUST NOT synthesize invented product rows. Instead we return an honest empty
+  // result set with a degraded flag and a suggestion to browse the editorial guide.
   const fallbackUrl = `/${fallback.slug}`;
-  const countryPrefix = fallback.country === 'SG' ? 'sg' : 'us';
-  const items: SearchFallbackItem[] = fallback.products.map((product, index) => {
-    const productSlug = slugifyProductName(product.name);
-    const productUrl = `/products/${countryPrefix}/${productSlug}`;
-    return {
-      id: `fallback-${fallback.slug}-${index + 1}`,
-      title: product.name,
-      name: product.name,
-      price: { amount: product.price, currency: fallback.currency },
-      price_amount: product.price,
-      price_currency: fallback.currency,
-      currency: fallback.currency,
-      merchant: product.merchant,
-      merchant_name: product.merchant,
-      source: 'editorial_fallback',
-      url: productUrl,
-      click_url: productUrl,
-      brand: product.brand,
-      category: fallback.category,
-    };
-  });
-
   return {
     ...data,
-    data: items,
-    items,
-    results: items,
-    products: items,
-    total: items.length,
+    data: [],
+    items: [],
+    results: [],
+    products: [],
+    total: 0,
     fallback: {
       type: 'editorial',
       label: fallback.label,
@@ -242,12 +268,12 @@ function buildFallbackResponse(data: UpstreamSearchResponse | null, fallback: Se
     },
     meta: {
       ...(data?.meta ?? {}),
-      total: items.length,
+      total: 0,
       degraded: true,
       fallback: true,
       fallback_url: fallbackUrl,
     },
-    hint: `Live search is degraded, so we are showing curated ${fallback.label.toLowerCase()} picks with a populated BuyWhere guide.`,
+    hint: `Live search is currently degraded. Browse our curated ${fallback.label.toLowerCase()} guide at ${fallbackUrl} for hand-picked recommendations, or try a different search term.`,
   };
 }
 
@@ -271,6 +297,188 @@ function normalizeUpstreamItems(items: Record<string, unknown>[], countryCode: s
       click_url: productUrl,
     };
   });
+}
+
+function normalizeText(value: unknown) {
+  return typeof value === 'string' ? value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() : '';
+}
+
+function coreQueryWords(query: string) {
+  return normalizeText(query)
+    .split(/\s+/)
+    .filter((word) => word.length > 1 && !QUERY_STOP_WORDS.has(word));
+}
+
+function itemSearchText(item: Record<string, unknown>) {
+  return [item.name, item.title, item.brand, item.category].map(normalizeText).filter(Boolean).join(' ');
+}
+
+// Categories that, when present in `metadata.category`, indicate the item is an
+// accessory / peripheral for another product rather than the primary product
+// itself. The category taxonomy comes from upstream (Shopify / merchant) so it
+// is the most reliable signal — product titles are noisy because accessories
+// are often titled like the primary product ("Case for iPhone 15 Pro").
+//
+// Kept as a substring matcher (any category whose lowercased value contains
+// one of these tokens is treated as accessory) so that we catch variations
+// like "Clear Case", "MagSafe Case", "Capas iPhone 15 Pro" without enumerating
+// every possible Shopify product-type string.
+const ACCESSORY_CATEGORY_TOKENS = [
+  'case',
+  'capa',
+  'cover',
+  'protector',
+  'screen protector',
+  'lens protector',
+  'tempered glass',
+  'skin',
+  'sleeve',
+  'shell',
+  'bumper',
+  'strap',
+  'wristband',
+  'armband',
+  'mount',
+  'mounts',
+  'holder',
+  'stand',
+  'dock',
+  'grip',
+  'clip',
+  'cushion',
+  'foam',
+  'mouse pad',
+  'mousepad',
+  'mouse pads',
+  'stylus',
+  'cable',
+  'cord',
+  'charger',
+  'charging',
+  'adapter',
+  'adapters',
+  'replacement',
+  'spare',
+  'battery',
+  'battery pack',
+  'power cord',
+  'backpack',
+  'laptop bag',
+  'laptop backpack',
+  'laptop sleeve',
+  'laptop skin',
+  'ear pad',
+  'ear cushion',
+  'earcup',
+  'sticker',
+  'decal',
+  'wrap',
+  'ring',
+  'housing',
+];
+
+function categorySignalsAccessory(item: Record<string, unknown>) {
+  const metadata = item.metadata as Record<string, unknown> | null | undefined;
+  const metaCategory = typeof metadata?.category === 'string' ? metadata.category.toLowerCase().trim() : '';
+  if (metaCategory) {
+    for (const token of ACCESSORY_CATEGORY_TOKENS) {
+      if (metaCategory.includes(token)) return true;
+    }
+  }
+
+  const topLevelCategory = typeof item.category === 'string' ? item.category.toLowerCase().trim() : '';
+  if (topLevelCategory) {
+    for (const token of ACCESSORY_CATEGORY_TOKENS) {
+      if (topLevelCategory.includes(token)) return true;
+    }
+  }
+
+  return false;
+}
+
+function isAccessoryItem(item: Record<string, unknown>, queryWords: string[]) {
+  const searchText = itemSearchText(item);
+  if (!searchText) return false;
+
+  const rawTitle = (typeof item.name === 'string' && item.name) || (typeof item.title === 'string' && item.title) || '';
+  const hasAccessoryKeyword = ACCESSORY_KEYWORDS.some((keyword) => searchText.includes(keyword));
+  const hasAccessoryTitlePrefix = rawTitle ? ACCESSORY_TITLE_PREFIX_PATTERN.test(rawTitle) : false;
+  const hasAccessoryCategory = categorySignalsAccessory(item);
+
+  // Strongest signal: upstream metadata.category says it is an accessory.
+  // Trust it even if the title happens to mention the primary product (e.g.
+  // "MagSafe Silicone iPhone 15 Pro Max" classified upstream as a Case).
+  if (hasAccessoryCategory) return true;
+  if (!hasAccessoryKeyword && !hasAccessoryTitlePrefix) return false;
+  if (queryWords.length === 0) return true;
+
+  // Title-prefix signals are decisive: "Case for iPhone 15 Pro" is always an
+  // accessory even if every query word appears in the title.
+  if (hasAccessoryTitlePrefix) return true;
+
+  // Keyword present somewhere in name/title/brand/category. The accessory
+  // signal wins unless the item matches EVERY query word AND its title has
+  // no accessory keyword outside of compound phrases like "back case".
+  const matchedQueryWords = queryWords.filter((word) => searchText.includes(word)).length;
+  const matchesEveryQueryWord = matchedQueryWords === queryWords.length;
+  if (matchesEveryQueryWord && hasAccessoryKeyword) {
+    // Items like "Digital Glass Back Case (iPhone 12 Pro Till 15 Pro Max)" —
+    // title mentions the primary product but is structurally an accessory.
+    // Treat them as accessory unless they look like a primary product (their
+    // first significant word is NOT an accessory noun).
+    const firstWord = normalizeText(rawTitle).split(/\s+/).find((w) => w.length > 1) ?? '';
+    const firstWordIsAccessory = ACCESSORY_CATEGORY_TOKENS.some((token) => firstWord === token || firstWord.endsWith(token));
+    if (firstWordIsAccessory) return true;
+    // Even if the first word isn't an accessory noun, a strong keyword like
+    // "case" / "cover" / "protector" appearing in the title is decisive: the
+    // item is being sold as an accessory for the primary product.
+    const titleText = normalizeText(rawTitle);
+    if (titleText.includes(' case') || titleText.startsWith('case ') || /\b(cover|skin|sleeve|protector|charger|cable|adapter|battery|strap|stand|mount|holder|replacement|spare|sticker|decal|wrap|shell|bumper)\b/.test(titleText)) {
+      return true;
+    }
+  }
+  return matchedQueryWords / queryWords.length < 0.8;
+}
+
+function dedupeKey(item: Record<string, unknown>) {
+  const name = normalizeText(item.name || item.title);
+  const brand = normalizeText(item.brand);
+  if (!name) return '';
+
+  return `${brand}:${name}`
+    .replace(/\b(new|sale|deal|official|authentic|original)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .slice(0, 80);
+}
+
+function deduplicateItems(items: Record<string, unknown>[]) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = dedupeKey(item);
+    if (!key) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function rankAndClassifyItems(items: Record<string, unknown>[], query: string) {
+  const queryWords = coreQueryWords(query);
+  const dedupedItems = deduplicateItems(items);
+  const primaryItems: Record<string, unknown>[] = [];
+  const accessoryItems: Record<string, unknown>[] = [];
+
+  dedupedItems.forEach((item) => {
+    const isAccessory = isAccessoryItem(item, queryWords);
+    const classifiedItem = { ...item, isAccessory, product_type: isAccessory ? 'accessory' : item.product_type };
+    if (isAccessory) {
+      accessoryItems.push(classifiedItem);
+    } else {
+      primaryItems.push(classifiedItem);
+    }
+  });
+
+  return [...primaryItems, ...accessoryItems];
 }
 
 export async function GET(request: NextRequest) {
@@ -324,7 +532,7 @@ export async function GET(request: NextRequest) {
 
     const itemKey = data?.items ? 'items' : data?.results ? 'results' : data?.products ? 'products' : data?.data ? 'data' : null;
     if (itemKey && Array.isArray(data[itemKey]) && data[itemKey].length > 0) {
-      data[itemKey] = normalizeUpstreamItems(data[itemKey], countryCode);
+      data[itemKey] = rankAndClassifyItems(normalizeUpstreamItems(data[itemKey], countryCode), query);
       if (itemKey !== 'data' && data.data) data.data = data[itemKey];
       if (itemKey !== 'items' && data.items) data.items = data[itemKey];
       if (itemKey !== 'results' && data.results) data.results = data[itemKey];

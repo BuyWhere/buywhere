@@ -173,11 +173,11 @@ WHERE category_path = '{}' OR array_length(category_path, 1) = 0;
 -- GEO fields (BUY-1970, BUY-1979): columns and indexes handled at top of migration
 
 -- Comparison pages curation table (BUY-2273)
--- product_ids: array of products.id (uuid) rows that represent this SKU across retailers
+-- product_ids: array of products.id (bigint) rows that represent this SKU across retailers
 CREATE TABLE IF NOT EXISTS comparison_pages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   slug TEXT UNIQUE NOT NULL,
-  product_ids UUID[] NOT NULL DEFAULT '{}',
+  product_ids BIGINT[] NOT NULL DEFAULT '{}',
   category TEXT NOT NULL CHECK (category IN ('electronics','grocery','home','health')),
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published','archived')),
   expert_summary TEXT,
@@ -190,16 +190,23 @@ CREATE TABLE IF NOT EXISTS comparison_pages (
 
 CREATE INDEX IF NOT EXISTS idx_comparison_pages_published ON comparison_pages(status) WHERE status = 'published';
 
--- Convert existing BIGINT[] column to UUID[] if table was created before schema alignment (BUY-2270)
+-- BUY-60005: products.id is BIGINT, so comparison_pages.product_ids MUST be BIGINT[].
+-- An earlier migration (BUY-2270) aligned this column to UUID[], which silently dropped
+-- every seeded product_id (the seed inserts BIGINT[] values), leaving all rows with {}.
+-- That made /v1/compare/:slug return 404 for every comparison page. Align to BIGINT[]
+-- and recover any product_ids still stored as UUID text (best-effort cast to BIGINT).
 DO $$
 DECLARE col_type TEXT;
 BEGIN
   SELECT udt_name INTO col_type
   FROM information_schema.columns
   WHERE table_name = 'comparison_pages' AND column_name = 'product_ids';
-  IF col_type = '_int8' THEN
+  IF col_type = '_uuid' THEN
     ALTER TABLE comparison_pages ALTER COLUMN product_ids DROP DEFAULT;
-    ALTER TABLE comparison_pages ALTER COLUMN product_ids TYPE UUID[] USING '{}'::UUID[];
+    -- UUID text → BIGINT: strip non-digits and cast. Non-numeric UUIDs become NULL (dropped).
+    ALTER TABLE comparison_pages ALTER COLUMN product_ids TYPE BIGINT[]
+      USING ARRAY(SELECT CASE WHEN v ~ '^[0-9]+$' THEN v::BIGINT ELSE NULL END
+                  FROM unnest(product_ids::text[]) AS v);
     ALTER TABLE comparison_pages ALTER COLUMN product_ids SET DEFAULT '{}';
   END IF;
 END$$;
@@ -249,6 +256,7 @@ CREATE TABLE IF NOT EXISTS query_log (
   status_code INTEGER NOT NULL DEFAULT 200,
   ip_address INET,
   user_agent TEXT,
+  cache_hit BOOLEAN,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -445,6 +453,70 @@ END
 $$;
 `;
 
+function quoteIdentifier(identifier: string): string {
+  return `"${identifier.replace(/"/g, '""')}"`;
+}
+
+function quoteQualifiedIdentifier(qualifiedIdentifier: string): string {
+  return qualifiedIdentifier.split('.').map(quoteIdentifier).join('.');
+}
+
+async function ensureStrictDealsIndexes() {
+  const partitions = await db.query(
+    `SELECT c.oid::regclass::text AS table_name
+       FROM pg_inherits i
+       JOIN pg_class c ON c.oid = i.inhrelid
+      WHERE i.inhparent = 'public.products'::regclass
+      ORDER BY c.oid::regclass::text`
+  );
+  const targetTables = partitions.rows.length > 0
+    ? partitions.rows.map((row: { table_name: string }) => row.table_name)
+    : ['public.products'];
+
+  for (const tableName of targetTables) {
+    const safeSuffix = tableName.replace(/^public\./, '').replace(/[^a-zA-Z0-9_]/g, '_');
+    const quotedTableName = quoteQualifiedIdentifier(tableName);
+    const expectedIndexes = [
+      {
+        name: `idx_buy64112_deals_country_${safeSuffix}`,
+        tableName,
+        createSql: `
+          CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy64112_deals_country_${safeSuffix}
+            ON ${quotedTableName} (currency, country_code, discount_pct DESC)
+            WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
+              AND country_code IS NOT NULL
+        `,
+      },
+      {
+        name: `idx_buy64112_deals_region_${safeSuffix}`,
+        tableName,
+        createSql: `
+          CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy64112_deals_region_${safeSuffix}
+            ON ${quotedTableName} (currency, region, discount_pct DESC)
+            WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
+              AND region IS NOT NULL
+        `,
+      },
+    ];
+
+    for (const expectedIndex of expectedIndexes) {
+      try {
+        const client = await db.connect();
+        try {
+          await client.query('SET statement_timeout = 1800000');
+          await client.query('SET lock_timeout = 60000');
+          await client.query(expectedIndex.createSql);
+          console.log(`[migration] ${expectedIndex.name} verified for ${expectedIndex.tableName}.`);
+        } finally {
+          client.release();
+        }
+      } catch (err: any) {
+        console.warn(`[migration] ${expectedIndex.name} strict index verify failed (non-fatal): ${err.message?.slice(0, 200)}`);
+      }
+    }
+  }
+}
+
 export async function runMigrations() {
   console.log('Running migrations...');
 
@@ -619,6 +691,12 @@ export async function runMigrations() {
     console.warn(`[migration] Index dedup step failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
+  // BUY-64112: repair stale deal indexes before the legacy generated-column gate
+  // below. Production has a populated plain discount_pct column; even if converting
+  // it to GENERATED is deferred/fails, strict get_deals must still use the column
+  // index path instead of seq-scanning the live products table.
+  await ensureStrictDealsIndexes();
+
   // BUY-22324: discount_pct GENERATED STORED column — must detect and fix a plain
   // (non-generated) column left by a prior migration failure.
   // Uses guarded CASE with regex to prevent dirty original_price from failing inserts.
@@ -707,6 +785,17 @@ export async function runMigrations() {
     console.log('[migration] products_source_no_legacy_google_shopping constraint ensured (BUY-31040).');
   } catch (err: any) {
     console.warn(`[migration] products_source_no_legacy_google_shopping constraint failed (non-fatal): ${err.message?.slice(0, 200)}`);
+  }
+
+  // BUY-62708: ensure query_log.cache_hit exists independently of the MIGRATION block
+  // (added to CREATE TABLE inside MIGRATION, but live DBs created before BUY-62708 ran
+  // never received the ALTER because migrate.ts does not execute /migrations/*.sql
+  // standalone files; this preflight closes that gap idempotently).
+  try {
+    await db.query('ALTER TABLE query_log ADD COLUMN IF NOT EXISTS cache_hit boolean');
+    console.log('[migration] query_log.cache_hit column ensured (BUY-62708).');
+  } catch (err: any) {
+    console.warn(`[migration] query_log.cache_hit preflight failed (non-fatal): ${err.message?.slice(0, 200)}`);
   }
 
   // Separately ensure merchants tables exist — not blocked by failures above.

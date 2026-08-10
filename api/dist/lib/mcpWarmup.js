@@ -3,15 +3,40 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.warmupMcpCaches = warmupMcpCaches;
 exports.refreshCategorySummaries = refreshCategorySummaries;
 const config_1 = require("../config");
+const WARMUP_STATEMENT_TIMEOUT_MS = parseInt(process.env.MCP_WARMUP_STATEMENT_TIMEOUT_MS || '15000', 10);
+const WARMUP_LOCK_TIMEOUT_MS = parseInt(process.env.MCP_WARMUP_LOCK_TIMEOUT_MS || '1000', 10);
+const REFRESH_STATEMENT_TIMEOUT_MS = parseInt(process.env.MCP_REFRESH_STATEMENT_TIMEOUT_MS || '15000', 10);
+const REFRESH_LOCK_TIMEOUT_MS = parseInt(process.env.MCP_REFRESH_LOCK_TIMEOUT_MS || '1000', 10);
+function isTimeoutError(err) {
+    const error = err;
+    return error?.code === '57014' || /timeout|canceling statement/i.test(error?.message || '');
+}
+async function resetSessionTimeouts(client) {
+    await client.query('RESET statement_timeout');
+    await client.query('RESET lock_timeout');
+}
+async function queryWithWarmupBudget(client, sql, params) {
+    try {
+        return await client.query(sql, params);
+    }
+    catch (err) {
+        if (isTimeoutError(err)) {
+            console.warn('[mcp-warmup] skipped slow/locked warmup query:', err.message);
+            return null;
+        }
+        throw err;
+    }
+}
 async function warmupMcpCaches() {
     const client = await config_1.db.connect();
     try {
-        await client.query('SET statement_timeout = 360000'); // 6 minutes
+        await client.query(`SET statement_timeout = ${WARMUP_STATEMENT_TIMEOUT_MS}`);
+        await client.query(`SET lock_timeout = ${WARMUP_LOCK_TIMEOUT_MS}`);
         // BUY-22324: Ensure discount_pct is a GENERATED STORED column (not plain).
         const colInfo = await client.query(`SELECT is_generated FROM information_schema.columns WHERE table_name='products' AND column_name='discount_pct'`);
         if (colInfo.rows.length === 0) {
             console.log('[mcp-warmup] Adding discount_pct GENERATED column...');
-            await client.query(`
+            await queryWithWarmupBudget(client, `
         ALTER TABLE products ADD COLUMN discount_pct numeric
           GENERATED ALWAYS AS (
             CASE
@@ -23,24 +48,14 @@ async function warmupMcpCaches() {
       `);
         }
         else if (colInfo.rows[0].is_generated === 'NEVER') {
-            console.log('[mcp-warmup] Replacing plain discount_pct with GENERATED column...');
-            await client.query(`ALTER TABLE products DROP COLUMN discount_pct`);
-            await client.query(`
-        ALTER TABLE products ADD COLUMN discount_pct numeric
-          GENERATED ALWAYS AS (
-            CASE
-              WHEN (metadata->>'original_price') ~ '^[0-9]+(\\.[0-9]+)?$'
-               AND (metadata->>'original_price')::numeric > 0
-              THEN ROUND((1 - price / (metadata->>'original_price')::numeric) * 100)
-            END
-          ) STORED
-      `);
+            console.warn('[mcp-warmup] plain discount_pct column detected; skipping destructive startup DDL. Run a migration off the request service.');
         }
-        // BUY-58273: correct shape — must match the production index definition exactly.
-        await client.query(`
+        // BUY-64112: keep this shape aligned with api/src/migrate.ts so the strict
+        // discount_pct deals query can use the same index after startup warmup.
+        await queryWithWarmupBudget(client, `
       CREATE INDEX IF NOT EXISTS idx_products_deals_discount_pct
-        ON products (discount_pct)
-        WHERE discount_pct > 0
+        ON products (currency, discount_pct DESC)
+        WHERE discount_pct IS NOT NULL AND price > 0
     `);
         // BUY-56635: country-aware deals index. The plain (currency, discount_pct DESC)
         // index is not used when the MCP deals query also filters by country_code;
@@ -48,7 +63,7 @@ async function warmupMcpCaches() {
         // fires, surfacing as -32603 to Tune. A partial index keyed on
         // (currency, country_code, discount_pct DESC) lets the planner satisfy all three
         // predicates from the index alone.
-        await client.query(`
+        await queryWithWarmupBudget(client, `
       CREATE INDEX IF NOT EXISTS idx_products_deals_country
         ON products (currency, country_code, discount_pct DESC)
         WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
@@ -57,7 +72,7 @@ async function warmupMcpCaches() {
         console.log('[mcp-warmup] discount_pct column and indexes verified.');
         // BUY-21057: Use MATERIALIZED VIEW so pg_cron/pgAgent can refresh it on a schedule,
         // eliminating the 68s GROUP BY on 14M rows that caused INTERNAL_ERROR timeouts.
-        await client.query(`
+        await queryWithWarmupBudget(client, `
       CREATE MATERIALIZED VIEW IF NOT EXISTS mcp_category_summary AS
         SELECT category_path[1] AS slug,
                category_path[1] AS name,
@@ -68,11 +83,11 @@ async function warmupMcpCaches() {
         ORDER BY product_count DESC
     `);
         // Unique index required for REFRESH MATERIALIZED VIEW CONCURRENTLY (non-blocking reads during refresh)
-        await client.query(`
+        await queryWithWarmupBudget(client, `
       CREATE UNIQUE INDEX IF NOT EXISTS mcp_category_summary_slug_idx
         ON mcp_category_summary (slug)
     `);
-        await client.query(`
+        await queryWithWarmupBudget(client, `
       CREATE MATERIALIZED VIEW IF NOT EXISTS mcp_category_summary_by_country AS
         SELECT country_code,
                category_path[1] AS slug,
@@ -84,20 +99,28 @@ async function warmupMcpCaches() {
         GROUP BY country_code, category_path[1]
         ORDER BY country_code, product_count DESC
     `);
-        await client.query(`
+        await queryWithWarmupBudget(client, `
       CREATE UNIQUE INDEX IF NOT EXISTS mcp_category_summary_by_country_pk_idx
         ON mcp_category_summary_by_country (country_code, slug)
     `);
+        const viewCheck = await client.query(`SELECT to_regclass('public.mcp_category_summary') AS summary,
+              to_regclass('public.mcp_category_summary_by_country') AS country_summary`);
+        const summaryViewExists = Boolean(viewCheck.rows[0]?.summary);
+        const countrySummaryViewExists = Boolean(viewCheck.rows[0]?.country_summary);
+        if (!summaryViewExists || !countrySummaryViewExists) {
+            console.warn('[mcp-warmup] category summary views are not ready; skipping cache refresh this startup.');
+            return;
+        }
         // Check if materialized view has data (REFRESH is fast; initial population may be slow)
         const summaryCount = await client.query(`SELECT COUNT(*) AS cnt FROM mcp_category_summary`);
         const summaryHasData = parseInt(summaryCount.rows[0].cnt, 10) > 0;
         const countrySummaryCount = await client.query(`SELECT COUNT(*) AS cnt FROM mcp_category_summary_by_country`);
         const countrySummaryHasData = parseInt(countrySummaryCount.rows[0].cnt, 10) > 0;
         if (summaryHasData) {
-            await client.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary`);
+            await queryWithWarmupBudget(client, `REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary`);
         }
         if (countrySummaryHasData) {
-            await client.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary_by_country`);
+            await queryWithWarmupBudget(client, `REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary_by_country`);
         }
         for (const country of ['SG', 'US', 'VN', 'TH', 'MY']) {
             const cacheKey = `categories_mcp:top100:${country}`;
@@ -120,6 +143,7 @@ async function warmupMcpCaches() {
         }
     }
     finally {
+        await resetSessionTimeouts(client).catch(() => { });
         client.release();
     }
 }
@@ -129,11 +153,15 @@ const CATEGORY_REFRESH_COUNTRIES = ['SG', 'US', 'VN', 'TH', 'MY'];
 async function refreshCategorySummaries() {
     const client = await config_1.db.connect();
     try {
+        await client.query(`SET statement_timeout = ${REFRESH_STATEMENT_TIMEOUT_MS}`);
+        await client.query(`SET lock_timeout = ${REFRESH_LOCK_TIMEOUT_MS}`);
         const viewCheck = await client.query(`SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`);
         if (!viewCheck.rows[0]?.tbl)
             return; // view not yet created; warmup will handle it on next deploy
-        await client.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary`);
-        await client.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary_by_country`);
+        const summaryRefresh = await queryWithWarmupBudget(client, `REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary`);
+        const countrySummaryRefresh = await queryWithWarmupBudget(client, `REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary_by_country`);
+        if (!summaryRefresh || !countrySummaryRefresh)
+            return;
         for (const country of CATEGORY_REFRESH_COUNTRIES) {
             const t0 = Date.now();
             const result = await client.query(`SELECT slug, name, product_count
@@ -150,6 +178,7 @@ async function refreshCategorySummaries() {
         console.log('[category-refresh] materialized views and Redis caches refreshed.');
     }
     finally {
+        await resetSessionTimeouts(client).catch(() => { });
         client.release();
     }
 }

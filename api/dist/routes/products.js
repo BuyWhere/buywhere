@@ -13,6 +13,7 @@ const queryLog_1 = require("../middleware/queryLog");
 const response_1 = require("../lib/response");
 const compare_query_1 = require("../lib/compare-query");
 const queryPreprocessor_1 = require("../lib/queryPreprocessor");
+const shipsTo_1 = require("../lib/shipsTo");
 const instrumentation_1 = require("../lib/instrumentation");
 const embedProducts_1 = require("../jobs/embedProducts");
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
@@ -28,7 +29,7 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
 const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v6'; // bumped: invalidate pre-fix cached empties/degraded results after the ORDER BY updated_at removal
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v7'; // BUY-59878: disable SG freshness guardrail to fix timeouts
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
 // unavailable, semantic/hybrid requests fall back to the keyword path.
@@ -45,7 +46,10 @@ const HYBRID_RRF_K = 60;
 // `could not resize shared memory segment... No space left on device` (SQLSTATE 53200).
 // 4MB is enough for the 200-row top-N sort + Nested Loop pkey lookups.
 const SEARCH_WORK_MEM = '4MB';
-const SEO_SEARCH_FALLBACK_SOURCE = 'seo_search_fallback';
+// BUY-62711: Archive fallback ladder collapsed. The search tier (search_products) now serves
+// virtually all keyword traffic (~99%). Archive path is only a last-resort fallback
+// on tier errors. Dead kill-switches removed: SEARCH_OR_TOPUP, SEO_HEAD_PREEMPT.
+// Contract preserved: tier error -> archive -> degraded-200.
 const GENERAL_SEARCH_FALLBACK_TIMEOUT_MS = Math.max(250, Number(process.env.GENERAL_SEARCH_FALLBACK_TIMEOUT_MS) || 1200);
 // Express 4 doesn't catch async rejections — unhandled errors crash the process.
 // This wrapper ensures all async route handlers return 500 instead of crashing.
@@ -58,6 +62,22 @@ function asyncHandler(fn) {
             }
         });
     };
+}
+// BUY-62624: dedupe product rows by id. A LEFT JOIN on affiliate_links can fan out
+// one row per matching affiliate link (same product, multiple tracking URLs), which
+// renders identical product cards. Keep the first occurrence (highest-ranked/first in
+// the ordered result set) and drop the rest. Applied to every search result path.
+function dedupeProductRows(rows) {
+    const seen = new Set();
+    const out = [];
+    for (const row of rows) {
+        const id = String(row.id);
+        if (seen.has(id))
+            continue;
+        seen.add(id);
+        out.push(row);
+    }
+    return out;
 }
 function shiftSqlPlaceholders(sql, offset) {
     return sql.replace(/\$(\d+)/g, (_, idx) => `$${Number(idx) + offset}`);
@@ -138,6 +158,23 @@ async function tryTierSearch(req, res, p) {
     sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
+    // BUY-63738: add laptop accessory demotion and boost to tier search results.
+    // Accessories (backpacks, skins, cases, sleeves) should rank lower for laptop queries.
+    // Also boost products that contain "laptop" in title/category.
+    const laptopAccessoryPenalty = `
+    CASE
+      WHEN sp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+        OR sp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+        OR array_to_string(sp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+      THEN 0.25 ELSE 1.0
+    END`;
+    const laptopBoost = `
+    CASE
+      WHEN lower(sp.title) LIKE '%laptop%' OR lower(sp.title) LIKE '%notebook%' OR lower(sp.title) LIKE '%macbook%'
+        OR lower(sp.category) LIKE '%laptop%'
+        OR array_to_string(sp.category_path, ' ') LIKE '%laptop%'
+      THEN 2.0 ELSE 1.0
+    END`;
     const mkQuery = (match, extraFilter = '') => `
     WITH cand AS (
       SELECT id, search_vector FROM search_products sp
@@ -148,7 +185,9 @@ async function tryTierSearch(req, res, p) {
       -- below ranks the bounded candidate set.
       LIMIT 5000
     ), top AS (
-      SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) AS rank
+      SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) *
+            (${laptopBoost}) *
+            (${laptopAccessoryPenalty}) AS rank
       FROM cand ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
@@ -158,19 +197,28 @@ async function tryTierSearch(req, res, p) {
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
     const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
+    // BUY-63738: add accessory penalty to title fallback queries so accessories don't
+    // dominate results when FTS returns no matches. Uses 0.25x multiplier like mkQuery.
+    const laptopAccessoryPenaltyTitle = `
+    CASE
+      WHEN sp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+        OR sp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+        OR array_to_string(sp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+      THEN 0 ELSE 1
+    END`;
     const titleFallbackQuery = `
     SELECT ${cols}, 0 AS _fts_rank
     FROM search_products sp
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}
-    ORDER BY ${orderPrefix}sp.id DESC
+    ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     const tokenTitleFallbackQuery = `
     SELECT ${cols}, 0 AS _fts_rank
     FROM search_products sp
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}
-    ORDER BY ${orderPrefix}sp.id DESC
+    ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     let client;
     try {
@@ -277,9 +325,6 @@ function mergeRrfCandidateIds(ftsIds, semanticIds, limit) {
         .slice(0, limit)
         .map((entry) => entry.id);
 }
-function isSeoHeadQuery(query) {
-    return query.trim().split(/\s+/).filter(Boolean).length >= 2;
-}
 // deliver_to soft contract (2026-07-14): annotate availability relative to the END
 // USER's country, optionally filter to local-only, and hint agents to pass deliver_to.
 // v1 labels (merchant-country == deliver_to -> 'local', else 'unknown') until
@@ -289,10 +334,19 @@ function annotateDeliverTo(body, deliverTo, includeUnshippable, q) {
     const items = body.data || [];
     const meta = body.meta;
     if (deliverTo) {
-        for (const it of items)
-            it.availability = it.country_code === deliverTo ? 'local' : 'unknown';
+        for (const it of items) {
+            if (it.country_code === deliverTo) {
+                it.availability = 'local';
+                continue;
+            }
+            // ships-to upgrade (2026-07-15): merchant-level scope from merchant_shipping.
+            const scope = (0, shipsTo_1.shipScopeForUrl)(it.url);
+            it.availability = scope === 'worldwide' ? 'ships_to_you'
+                : scope === 'domestic' ? 'unavailable'
+                    : 'unknown';
+        }
         if (!includeUnshippable) {
-            const kept = items.filter((it) => it.availability === 'local');
+            const kept = items.filter((it) => it.availability === 'local' || it.availability === 'ships_to_you');
             body.data = kept;
             if (meta)
                 meta.total = kept.length;
@@ -303,16 +357,6 @@ function annotateDeliverTo(body, deliverTo, includeUnshippable, q) {
     else if (q && meta) {
         meta.hint = "Pass deliver_to=<ISO-3166 country of your end user, e.g. deliver_to=SG> to rank products deliverable to them first (adds an availability label per product). Add include_unshippable=false to return only same-country products.";
     }
-}
-function isLaptopSearchQuery(query) {
-    return /\b(laptop|notebook|macbook)\b/i.test(query);
-}
-function buildSearchTokens(query) {
-    return query.toLowerCase()
-        .split(/\s+/)
-        .map((token) => token.replace(/[^\p{L}\p{N}]/gu, ''))
-        .filter(Boolean)
-        .slice(0, 6);
 }
 const router = (0, express_1.Router)();
 // GET /v1/products
@@ -367,9 +411,11 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
     const orderParam = req.query.order?.toLowerCase();
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
     const cacheKey = `list:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}`;
+    res.locals.cacheHit = false;
     try {
         const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
         if (cached) {
+            res.locals.cacheHit = true;
             const parsed = JSON.parse(cached);
             parsed.pagination.response_time_ms = Date.now() - requestStart;
             (0, instrumentation_1.recordProductViewsBulk)({
@@ -523,9 +569,11 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
         || q.toLowerCase().trim();
     const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
+    res.locals.cacheHit = false;
     try {
         const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
         if (cached) {
+            res.locals.cacheHit = true;
             const parsed = JSON.parse(cached);
             const elapsed = Date.now() - requestStart;
             parsed.cached = true;
@@ -713,7 +761,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
     const useFtsRanking = (!effectiveSort || effectiveSort === 'relevance') && ftsParamIdx;
-    const useSgFreshnessGuardrail = countryCode === 'SG' && (!effectiveSort || effectiveSort === 'relevance') && Boolean(q);
+    // BUY-59878: SG freshness guardrail disabled — caused GIN scan timeouts on SG queries.
+    // Re-enable by setting to: countryCode === 'SG' && (!effectiveSort || effectiveSort === 'relevance') && Boolean(q);
+    const useSgFreshnessGuardrail = false;
     const freshSearchConditions = useSgFreshnessGuardrail
         ? [...searchConditions, `products.updated_at >= NOW() - INTERVAL '${SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS} hours'`]
         : searchConditions;
@@ -755,77 +805,12 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // replica ( MATERIALIZED CTE forces sequential scan of 50k rows, ~50ms cold).
     const RECENT_SLICE_CAP = 2000;
     const seoFallbackTerms = q.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
-    const seoFallbackConditions = baseConditions;
-    const seoFallbackParams = baseParams;
-    const seoFallbackSourceParamIdx = seoFallbackParams.length + 1;
-    const seoFallbackTermStartIdx = seoFallbackSourceParamIdx + 1;
-    const seoFallbackTermConditions = seoFallbackTerms.map((_, i) => `products.title ILIKE $${seoFallbackTermStartIdx + i}`);
-    const seoFallbackLimitParamIdx = seoFallbackTermStartIdx + seoFallbackTerms.length;
-    const seoFallbackOffsetParamIdx = seoFallbackLimitParamIdx + 1;
-    const seoFallbackWhereClause = `WHERE ${[
-        ...seoFallbackConditions,
-        `source = $${seoFallbackSourceParamIdx}`,
-        ...(seoFallbackTermConditions.length ? [`(${seoFallbackTermConditions.join(' OR ')})`] : []),
-    ].join(' AND ')}`;
-    const seoFallbackQuery = `
-      WITH fallback_ids AS (
-        SELECT id, updated_at
-        FROM products
-        ${seoFallbackWhereClause}
-        ORDER BY updated_at DESC
-        LIMIT $${seoFallbackLimitParamIdx} OFFSET $${seoFallbackOffsetParamIdx}
-      )
-      SELECT ${joinedColumns}
-      FROM fallback_ids
-      JOIN products ON products.id = fallback_ids.id
-      LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-      ORDER BY fallback_ids.updated_at DESC
-    `;
-    const seoFallbackParamsWithPage = [
-        ...seoFallbackParams,
-        SEO_SEARCH_FALLBACK_SOURCE,
-        ...seoFallbackTerms.map((term) => `%${term}%`),
-        requestedRows,
-        offset,
-    ];
-    const laptopSearchTerms = buildSearchTokens(q);
-    const isLaptopSearch = q ? isLaptopSearchQuery(q) : false;
-    const laptopPositiveTerms = laptopSearchTerms.filter((term) => !['laptop', 'notebook'].includes(term));
-    const laptopTermStartIdx = baseIdx;
-    const laptopTermConditions = laptopPositiveTerms.map((_, i) => `products.title ILIKE $${laptopTermStartIdx + i}`);
-    const laptopLimitParamIdx = laptopTermStartIdx + laptopPositiveTerms.length;
-    const laptopOffsetParamIdx = laptopLimitParamIdx + 1;
-    const laptopFallbackWhereClause = `WHERE ${[
-        ...baseConditions,
-        `(products.title ILIKE '%laptop%' OR products.title ILIKE '%notebook%' OR products.title ILIKE '%macbook%' OR products.category ILIKE '%laptop%' OR array_to_string(products.category_path, ' ') ILIKE '%laptop%')`,
-        ...(laptopTermConditions.length ? laptopTermConditions : []),
-    ].join(' AND ')}`;
-    const laptopAccessoryDemotionSql = `
-      CASE
-        WHEN products.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors)\\M'
-          OR products.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers)\\M'
-          OR array_to_string(products.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers)\\M'
-        THEN 1 ELSE 0
-      END`;
-    const laptopFallbackQuery = `
-      SELECT ${joinedColumns}, ${laptopAccessoryDemotionSql} AS _accessory_rank
-      FROM products
-      LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-      ${laptopFallbackWhereClause}
-      ORDER BY _accessory_rank ASC, products.updated_at DESC, products.id DESC
-      LIMIT $${laptopLimitParamIdx} OFFSET $${laptopOffsetParamIdx}
-    `;
-    const laptopFallbackParams = [
-        ...baseParams,
-        ...laptopPositiveTerms.map((term) => `%${term}%`),
-        requestedRows,
-        offset,
-    ];
-    const generalFallbackTermConditions = seoFallbackTerms.map((_, i) => `products.title ILIKE $${baseIdx + i}`);
+    // BUY-62711: archive fallback is ONE bounded FTS pass + ONE ILIKE last-resort.
+    const archiveFallbackTermConditions = seoFallbackTerms.map((_, i) => `products.title ILIKE $${baseIdx + i}`);
     const generalFallbackLimitParamIdx = baseIdx + seoFallbackTerms.length;
     const generalFallbackWhereClause = `WHERE ${[
         ...baseConditions,
-        ...(generalFallbackTermConditions.length ? [`(${generalFallbackTermConditions.join(' OR ')})`] : []),
+        ...(archiveFallbackTermConditions.length ? [`(${archiveFallbackTermConditions.join(' OR ')})`] : []),
     ].join(' AND ')}`;
     const generalFallbackQuery = `
       SELECT ${joinedColumns}
@@ -841,9 +826,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         requestedRows,
     ];
     const sendFallbackProducts = async (rows, source) => {
-        dataResult = { rows };
-        total = rows.length;
-        hasMore = rows.length > limit;
+        dataResult = { rows: dedupeProductRows(rows) };
+        total = dataResult.rows.length;
+        hasMore = dataResult.rows.length > limit;
         if (hasMore)
             dataResult.rows = dataResult.rows.slice(0, limit);
         const responseTimeMs = Date.now() - requestStart;
@@ -874,23 +859,18 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         ), top_ids AS (
           SELECT rh.id, rh.country_code,
                  ts_rank(rhp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
+                 -- BUY-63738: boost laptop products and penalize accessories
                  CASE
-                   WHEN lower(rhp.title) LIKE '%laptop%'
-                     AND lower(rhp.title) NOT LIKE '%sleeve%'
-                     AND lower(rhp.title) NOT LIKE '%case%'
-                     AND lower(rhp.title) NOT LIKE '%bag%'
-                     AND lower(rhp.title) NOT LIKE '%stand%'
-                     AND lower(rhp.title) NOT LIKE '%pad%'
-                     AND lower(rhp.title) NOT LIKE '%cooler%'
-                     AND lower(rhp.title) NOT LIKE '%adapter%'
-                     AND lower(rhp.title) NOT LIKE '%dock%'
-                     AND lower(rhp.title) NOT LIKE '%hub%'
-                     AND lower(rhp.title) NOT LIKE '%lock%'
-                     AND lower(rhp.title) NOT LIKE '%briefcase%'
-                     AND lower(rhp.title) NOT LIKE '%charger%'
-                     AND lower(rhp.title) NOT LIKE '%table%'
-                   THEN 2.0
-                   ELSE 1.0
+                   WHEN lower(rhp.title) LIKE '%laptop%' OR lower(rhp.title) LIKE '%notebook%' OR lower(rhp.title) LIKE '%macbook%'
+                     OR lower(rhp.category) LIKE '%laptop%'
+                     OR array_to_string(rhp.category_path, ' ') LIKE '%laptop%'
+                   THEN 2.0 ELSE 1.0
+                 END *
+                 CASE
+                   WHEN rhp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+                     OR rhp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+                     OR array_to_string(rhp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+                   THEN 0.25 ELSE 1.0
                  END AS rank
           FROM recent_hits rh
           JOIN products rhp ON rhp.id = rh.id
@@ -1075,55 +1055,10 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                         return recentSliceRes;
                     return runBoundedSgMatch(ftsOrMatch, dataParams, broadRecentSliceWhereClause);
                 }
-                // Strict AND matches rank first (precise). Sprint C: if AND under-fills
-                // the page, TOP UP from the broad OR match (dedup by id) so the page is
-                // full without losing precision-first ordering. The OR top-up is best-
-                // effort: if it times out on the memory-starved replica, serve the AND
-                // rows alone rather than discarding good results for a degraded payload.
-                if (andRes.rows.length >= requestedRows)
+                // BUY-62711: OR top-up removed. The tier now serves virtually all keyword traffic.
+                // Archive path is only a fallback on tier errors.
+                if (andRes.rows.length > 0)
                     return andRes;
-                // Budget guard: the OR top-up can cost up to a full statement timeout on a
-                // cold replica. Only attempt it when the request still has comfortable
-                // headroom inside the handler window; otherwise a thin-but-precise page
-                // NOW beats a degraded empty page at the handler timeout.
-                // KILL-SWITCH (2026-07-03): top-up DEFAULT OFF — sustained ~18/hr degraded
-                // searches traced to broad OR scans churning the 4GB replica buffers.
-                // Re-enable with SEARCH_OR_TOPUP=1 once the search tier (plan Phase 3)
-                // gives OR scans a working set that fits in RAM.
-                if (andRes.rows.length > 0 && process.env.SEARCH_OR_TOPUP !== '1')
-                    return andRes;
-                if (andRes.rows.length > 0 && Date.now() - requestStart > 2000)
-                    return andRes;
-                if (andRes.rows.length > 0) {
-                    try {
-                        let orRes = await client.query(baseQuery, dataParams);
-                        if (useSgFreshnessGuardrail && orRes.rows.length === 0) {
-                            orRes = await client.query(baseQuery.replace(freshWhereClause, whereClause), dataParams);
-                        }
-                        const seenIds = new Set(andRes.rows.map((r0) => String(r0.id)));
-                        const merged = [...andRes.rows];
-                        for (const row of orRes.rows) {
-                            if (merged.length >= requestedRows)
-                                break;
-                            const rid = String(row.id);
-                            if (!seenIds.has(rid)) {
-                                seenIds.add(rid);
-                                merged.push(row);
-                            }
-                        }
-                        return { rows: merged };
-                    }
-                    catch {
-                        // OR top-up timed out/failed — the transaction is aborted, so recover
-                        // it and serve the precise AND rows we already have.
-                        await client.query('ROLLBACK').catch(() => { });
-                        await client.query('BEGIN').catch(() => { });
-                        await client.query(`SET LOCAL work_mem = '${SEARCH_WORK_MEM}'`).catch(() => { });
-                        await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`).catch(() => { });
-                        await client.query(`SET LOCAL statement_timeout = '${SEARCH_STATEMENT_TIMEOUT_MS}'`).catch(() => { });
-                        return andRes;
-                    }
-                }
             }
             let r = await client.query(baseQuery, dataParams);
             if (useSgFreshnessGuardrail && r.rows.length === 0) {
@@ -1135,37 +1070,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         const activeVectorDb = q !== '' && searchMode !== 'keyword' && config_1.vectorDb != null && geminiKey !== ''
             ? config_1.vectorDb
             : null;
-        // BUY-60082: SEO landing head queries may have curated fallback rows even
-        // when broad multi-token FTS is too expensive. Read those rows first via a
-        // tightly bounded source/country/currency predicate so `/api/products/search`
-        // returns real product cards instead of the degraded empty timeout response.
-        // BUY-59982 / BUY-60623: laptop category queries are high-cardinality in FTS
-        // and can burn the full request budget before any fallback runs. They also
-        // matched accessory SKUs (skins/decals/sleeves) too strongly. Use a bounded
-        // product-intent path first, with accessories demoted behind actual laptops.
-        if (isLaptopSearch && countryCode === 'US' && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
-            const laptopFallbackResult = await client.query(laptopFallbackQuery, laptopFallbackParams);
-            if (laptopFallbackResult.rows.length > 0) {
-                await client.query('COMMIT');
-                client.release();
-                await sendFallbackProducts(laptopFallbackResult.rows, 'laptop_product_intent');
-                return;
-            }
-        }
-        // BUY perf 2026-07-14: this SEO-head pre-empt ran a slow title-ILIKE seq scan (~8s)
-        // BEFORE the FTS path for EVERY >=2-word query (isSeoHeadQuery = "2+ words"), returning
-        // ILIKE junk ("coffee maker" -> "Coffee Cookie Stamp"). Now that the FTS candidate gather
-        // is fast (~150ms), skip the pre-empt so FTS serves relevant results. Re-enable for
-        // curated SEO landing rows only via SEO_HEAD_PREEMPT=1.
-        if (process.env.SEO_HEAD_PREEMPT === '1' && q && isSeoHeadQuery(q) && offset === 0 && !domain && !merchantId && !canonicalSources?.length) {
-            const seoFallbackResult = await client.query(seoFallbackQuery, seoFallbackParamsWithPage);
-            if (seoFallbackResult.rows.length > 0) {
-                await client.query('COMMIT');
-                client.release();
-                await sendFallbackProducts(seoFallbackResult.rows, SEO_SEARCH_FALLBACK_SOURCE);
-                return;
-            }
-        }
+        // BUY-62711: laptop/SEO pre-empts removed - tier now serves ~99% of keyword traffic.
         if (activeVectorDb) {
             const queryVector = await getCachedQueryEmbedding(q, geminiKey);
             if (queryVector) {
@@ -1309,6 +1214,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         throw err;
     }
     client.release();
+    // BUY-62624: collapse affiliate_links fan-out duplicates before pagination
+    // math so hasMore reflects distinct results.
+    dataResult.rows = dedupeProductRows(dataResult.rows);
     if (typeof hasMore === 'undefined') {
         hasMore = dataResult.rows.length > limit;
         if (hasMore)
@@ -1400,9 +1308,11 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     const limit = Math.min(parseInt(req.query.limit || '20'), 100);
     const offset = parseInt(req.query.offset || '0');
     const cacheKey = `deals:${currency}:${countryCode || ''}:${minDiscount}:${limit}:${offset}`;
+    res.locals.cacheHit = false;
     try {
         const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
         if (cached) {
+            res.locals.cacheHit = true;
             const parsed = JSON.parse(cached);
             parsed.cached = true;
             parsed.response_time_ms = Date.now() - start;
@@ -1492,9 +1402,22 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
         // BUY-34291: cap work_mem too (same shared_buffers pressure reasoning as search)
         await dealsClient.query(`SET work_mem = '${SEARCH_WORK_MEM}'`);
         await dealsClient.query(`SET statement_timeout = ${DEALS_QUERY_TIMEOUT_MS}`);
-        // BUY-60309: bounded sampling - sample recent active candidates, filter, order, paginate
-        // This replaces the unbounded COUNT + ORDER BY over the full table
-        const sampleResult = await dealsClient.query(`SELECT id, sku AS source_id, source AS domain, url,
+        // BUY-64112: direct index-backed strict deal query.
+        // The partial index idx_products_deals_country/region supports a direct
+        // query matching its predicate (discount_pct IS NOT NULL AND price > 0
+        // AND is_active = true), so ORDER BY discount_pct DESC + LIMIT/OFFSET is
+        // sub-ms and needs no candidate window. Previously the bounded
+        // updated_at sample (LIMIT DEALS_SAMPLE_CAP) excluded deals older than
+        // the recent window, returning empty for healthy regions.
+        const dealLimitIdx = dealIdx;
+        dealParams.push(limit);
+        const dealLimitParam = `$${dealLimitIdx}`;
+        dealIdx++;
+        const dealOffsetIdx = dealIdx;
+        dealParams.push(offset);
+        const dealOffsetParam = `$${dealOffsetIdx}`;
+        dealIdx++;
+        const dealResult = await dealsClient.query(`SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
                 currency, image_url, metadata, updated_at,
                 region, country_code, created_at, description, brand, mpn, gtin,
@@ -1502,24 +1425,10 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
                 ${discountSelect}
          FROM products
          WHERE ${dealWhere}
-         ORDER BY updated_at DESC
-         LIMIT ${DEALS_SAMPLE_CAP}`, dealParams);
-        // Filter and order the bounded sample in memory (fast, no DB timeout risk)
-        const sampleDeals = sampleResult.rows
-            .filter(row => {
-            // Apply discount threshold - already in WHERE but double-check for safety
-            const discountPct = row.discount_pct;
-            return discountPct !== null && discountPct >= minDiscount;
-        })
-            .sort((a, b) => {
-            // Order by discount descending, then updated_at descending
-            const discountDiff = (b.discount_pct || 0) - (a.discount_pct || 0);
-            if (discountDiff !== 0)
-                return discountDiff;
-            return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-        })
-            .slice(offset, offset + limit);
-        total = sampleDeals.length; // Return actual count of sampled results
+         ORDER BY ${discountOrder} NULLS LAST, updated_at DESC
+         LIMIT ${dealLimitParam}::int OFFSET ${dealOffsetParam}::int`, dealParams);
+        const sampleDeals = dealResult.rows;
+        total = sampleDeals.length;
         deals = sampleDeals.map((row) => (0, response_1.buildProduct)(row, currency, false));
     }
     catch (err) {
@@ -1689,9 +1598,23 @@ router.get('/:id/prices', agentDetect_1.agentDetectMiddleware, apiKey_1.requireA
 // Latency target: p95 ≤ 200 ms under load.
 router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1.queryLogMiddleware)('products.similar'), asyncHandler(async (req, res) => {
     const start = Date.now();
+    // BUY-41137: hard ceiling so the request returns a deterministic response even
+    // if pool exhaustion (from a slow vectorDb KNN) would otherwise hang. The prior
+    // version of this hook only logged and never sent a response, leaving clients
+    // hanging until their own socket timeout. The handler now races its work against
+    // this deadline and responds 504 if it loses.
+    let timedOut = false;
+    res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, () => {
+        timedOut = true;
+        console.warn(`[products.similar] request timed out after ${SEARCH_HANDLER_TIMEOUT_MS}ms (id=${req.params.id})`);
+        if (!res.headersSent) {
+            res.status(504).json({ error: 'Find-Similar timed out', meta: { response_time_ms: Date.now() - start } });
+        }
+    });
     const { id } = req.params;
     if (!compare_query_1.PRODUCT_ID_RE.test(String(id))) {
-        res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
+        if (!timedOut && !res.headersSent)
+            res.status(400).json({ error: 'Invalid product id; id must be a positive integer' });
         return;
     }
     const limit = Math.min(parseInt(req.query.limit || '10'), 20);
@@ -1699,27 +1622,27 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
     const srcResult = await config_1.db.query(`SELECT id, title, brand, category_path, currency, country_code
        FROM products WHERE id = $1`, [id]);
     if (srcResult.rows.length === 0) {
-        res.status(404).json({ error: 'Product not found' });
+        if (!timedOut && !res.headersSent)
+            res.status(404).json({ error: 'Product not found' });
         return;
     }
     const src = srcResult.rows[0];
     // Phase 1: Try embedding-based KNN (vector store).
     // BUY-54718 / BUY-41137 / BUY-54796: use the shared vectorDb pool and the
-    // live public.product_embeddings schema so this route follows the Railway
-    // wiring instead of a separate VECTOR_STORE_DATABASE_URL.
+    // product_embeddings table (public schema via vectorDb connection).
     let similar = [];
     let similarityFallback = false;
     if (config_1.vectorDb) {
         try {
             // Fetch pre-computed embedding for this product.
-            const embResult = await config_1.vectorDb.query(`SELECT embedding FROM public.product_embeddings
+            const embResult = await config_1.vectorDb.query(`SELECT embedding FROM product_embeddings
            WHERE product_id = $1`, [id]);
             if (embResult.rows.length > 0) {
                 const embeddingStr = embResult.rows[0].embedding;
                 // KNN: rows with smallest cosine distance first.
                 const knnResult = await config_1.vectorDb.query(`SELECT product_id,
                     1 - (embedding <=> $1::vector) AS score
-             FROM public.product_embeddings
+             FROM product_embeddings
              WHERE product_id != $2
              ORDER BY embedding <=> $1::vector
              LIMIT $3`, [embeddingStr, id, limit]);
@@ -1815,6 +1738,8 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
         country_code: row.country_code || null,
         similarity: row._similarity ?? null,
     }));
+    if (timedOut || res.headersSent)
+        return;
     res.json({
         data,
         meta: {
@@ -1836,9 +1761,11 @@ router.get('/featured', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApi
     const offset = Math.max(parseInt(req.query.offset || '0'), 0);
     const compact = req.query.compact === 'true';
     const cacheKey = `featured:${countryCode}:${currency}:${limit}:${offset}:${compact ? 'c' : 'f'}`;
+    res.locals.cacheHit = false;
     try {
         const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
         if (cached) {
+            res.locals.cacheHit = true;
             const parsed = JSON.parse(cached);
             parsed.cached = true;
             parsed.response_time_ms = Date.now() - start;

@@ -1,8 +1,8 @@
 import { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { permanentRedirect } from "next/navigation";
 import USProductDetail from "@/components/USProductDetail";
 import { toSiteUrl } from "@/lib/site-url";
-import { resolveUSProductRoute } from "@/lib/us-product-route";
+import { resolveUSProductRoute, slugToSearchRedirect } from "@/lib/us-product-route";
 import { normalizeUSMerchantPrice, type USProduct, type USProductOfferApiItem } from "@/lib/us-products";
 
 interface PageProps {
@@ -11,7 +11,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedProduct = await resolveUSProductRoute(params.slug);
-  if (!resolvedProduct) return { title: "Product Not Found" };
+  if (!resolvedProduct) return { title: "Product Not Found", robots: { index: false, follow: false } };
 
   const pageUrl = toSiteUrl(`/products/us/${resolvedProduct.slug}`);
 
@@ -86,7 +86,12 @@ export default async function USProductSlugPage({ params }: PageProps) {
   const resolvedProduct = await resolveUSProductRoute(params.slug);
 
   if (!resolvedProduct) {
-    notFound();
+    // Slug is unknown OR the US product catalog is unreachable (e.g. the API
+    // now requires `BUYWHERE_API_KEY` and this deploy hasn't been provisioned
+    // with one yet). Don't drop the user on a misleading "Product Not Found"
+    // 404 — bounce them to a real search results page derived from the slug,
+    // where the merchant offer CTAs still work.
+    permanentRedirect(slugToSearchRedirect(params.slug));
   }
 
   const initialData = await fetchUSProductSSR(resolvedProduct.id);

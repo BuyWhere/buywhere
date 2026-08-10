@@ -32,6 +32,7 @@ config.redis.on = () => {};
 function makeProduct(id, overrides = {}) {
   return {
     id, sku: `src_${id}`, source: overrides.source || 'shopee_sg',
+    domain: overrides.domain || overrides.source || 'shopee_sg',
     title: overrides.title || `Product ${id}`,
     price: overrides.price ?? 99.99, currency: overrides.currency || 'SGD',
     url: `https://x.com/p${id}`, image_url: overrides.image_url || null,
@@ -133,7 +134,7 @@ describe('MCP JSON-RPC — public methods (no auth)', () => {
     assert.equal(body.result.serverInfo.version, '1.0.0');
   });
 
-  it('tools/list returns tool manifest with all 6 tools', async () => {
+  it('tools/list returns tool manifest with all 8 tools', async () => {
     const res = await fetch(`http://localhost:${port}/mcp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -147,7 +148,7 @@ describe('MCP JSON-RPC — public methods (no auth)', () => {
     assert.ok(Array.isArray(body.result.tools));
 
     const toolNames = body.result.tools.map(t => t.name);
-    const expected = ['search_products', 'get_product', 'compare_products', 'get_deals', 'list_categories', 'find_best_price'];
+    const expected = ['search_products', 'get_product', 'compare_products', 'get_deals', 'list_categories', 'find_best_price', 'find_similar', 'ingest_products'];
     for (const name of expected) {
       assert.ok(toolNames.includes(name), `Missing tool: ${name}`);
     }
@@ -190,20 +191,20 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     assert.equal(body.result.content[0].type, 'text');
 
     const data = JSON.parse(body.result.content[0].text);
-    assert.ok(Array.isArray(data.results));
-    assert.equal(data.results.length, 2);
-    assert.equal(data.results[0].title, 'Gaming Laptop');
-    assert.equal(data.results[0].price.amount, 1299);
-    assert.ok(typeof data.response_time_ms === 'number');
+    assert.ok(Array.isArray(data.data));
+    assert.equal(data.data.length, 2);
+    assert.equal(data.data[0].title, 'Gaming Laptop');
+    assert.equal(data.data[0].price.amount, 1299);
+    assert.ok(typeof data.meta.response_time_ms === 'number');
   });
 
-  it('search_products enforces SG default country_code', async () => {
+  it('search_products passes country_code filter when provided', async () => {
     await fetch(`http://localhost:${port}/mcp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
       body: JSON.stringify({
         jsonrpc: '2.0', id: 11, method: 'tools/call',
-        params: { name: 'search_products', arguments: { q: 'laptop' } },
+        params: { name: 'search_products', arguments: { q: 'laptop', country_code: 'SG' } },
       }),
     });
 
@@ -239,9 +240,9 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     });
     const body = await res.json();
     const data = JSON.parse(body.result.content[0].text);
-    assert.equal(data.results[0].canonical_id, '1');
-    assert.ok(data.results[0].normalized_price_usd != null);
-    assert.ok(Array.isArray(data.results[0].comparison_attributes));
+    assert.equal(data.data[0].canonical_id, '1');
+    assert.ok(data.data[0].normalized_price_usd != null);
+    assert.ok(Array.isArray(data.data[0].comparison_attributes));
   });
 
   it('get_product returns single product', async () => {
@@ -267,9 +268,9 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     });
     const body = await res.json();
     const data = JSON.parse(body.result.content[0].text);
-    assert.equal(data.results[0].id, 'abc-123');
-    assert.equal(data.results[0].title, 'Specific Product');
-    assert.equal(data.results[0].price.amount, 199.99);
+    assert.equal(data.data[0].id, 'abc-123');
+    assert.equal(data.data[0].title, 'Specific Product');
+    assert.equal(data.data[0].price.amount, 199.99);
   });
 
   it('get_product returns error for missing product', async () => {
@@ -323,9 +324,9 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     });
     const body = await res.json();
     const data = JSON.parse(body.result.content[0].text);
-    assert.equal(data.results.length, 2);
-    assert.equal(data.results[0].title, 'Phone A');
-    assert.equal(data.results[1].title, 'Phone B');
+    assert.equal(data.data.length, 2);
+    assert.equal(data.data[0].title, 'Phone A');
+    assert.equal(data.data[1].title, 'Phone B');
   });
 
   it('compare_products rejects fewer than 2 IDs', async () => {
@@ -420,6 +421,94 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     const body = await res.json();
     assert.ok(body.error);
     assert.equal(body.error.code, -32602);
+  });
+
+  // BUY-63229: scam-priced outliers (e.g. $0.97 giveaway junk) must not win
+  // the price-ASC sort over legitimate listings. Median-USD filter rejects
+  // candidates priced below 15% of the median USD-normalized price.
+  it('find_best_price rejects scam-priced median outliers (BUY-63229)', async () => {
+    queryMock.mock.mockImplementation((sql) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      // Mock returns rows in price-ASC order (as the real query does).
+      // Scam listings come first (cheap), then real listings.
+      return Promise.resolve({
+        rows: [
+          // Scam giveaway junk — should be REJECTED by the outlier guard.
+          { id: 'scam1', title: 'Anker 165W Power Bank giveaway', price: '0.97', currency: 'SGD', domain: 'thegiveawayguys.co.uk', url: 'https://x.com/scam1', image_url: null, country_code: 'US', updated_at: '2026-07-18' },
+          { id: 'scam2', title: 'Anker Power Bank $1 deal', price: '1.00', currency: 'SGD', domain: 'shady-store.com', url: 'https://x.com/scam2', image_url: null, country_code: 'US', updated_at: '2026-07-18' },
+          // Legitimate listings in price-ASC order.
+          { id: 'real3', title: 'Anker 325 Power Bank', price: '29.99', currency: 'SGD', domain: 'walmart.com', url: 'https://x.com/real3', image_url: null, country_code: 'US', updated_at: '2026-07-18' },
+          { id: 'real2', title: 'Anker PowerCore 20000mAh', price: '49.99', currency: 'SGD', domain: 'amazon.com', url: 'https://x.com/real2', image_url: null, country_code: 'US', updated_at: '2026-07-18' },
+          { id: 'real1', title: 'Anker 737 Power Bank 24000mAh', price: '109.99', currency: 'SGD', domain: 'bestbuy.com', url: 'https://x.com/real1', image_url: null, country_code: 'US', updated_at: '2026-07-18' },
+        ],
+      });
+    });
+
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 22, method: 'tools/call',
+        params: { name: 'find_best_price', arguments: { product_name: 'anker power bank', country_code: 'US' } },
+      }),
+    });
+    const body = await res.json();
+    const data = JSON.parse(body.result.content[0].text);
+    assert.ok(data.best_price, 'should return a best_price');
+    // The scam-priced listings must NOT be the best_price — the median of real
+    // listings is ~$30 USD, so 15% threshold = ~$4.50 USD. $0.97/$1.00 are below.
+    assert.notEqual(data.best_price.id, 'scam1', 'scam1 ($0.97) must not be best_price');
+    assert.notEqual(data.best_price.id, 'scam2', 'scam2 ($1.00) must not be best_price');
+    // The cheapest legitimate listing should be the winner (real3 at $29.99).
+    assert.equal(data.best_price.id, 'real3', 'cheapest legitimate listing should win');
+    assert.equal(data.best_price.title, 'Anker 325 Power Bank');
+    // Guard metadata should indicate the guard was applied.
+    assert.equal(data.meta.guard_applied, true);
+    assert.ok(data.meta.median_usd > 0, 'median_usd should be populated');
+    assert.ok(data.meta.min_allowed_usd > 0, 'min_allowed_usd should be populated');
+  });
+
+  // BUY-63229: with only legitimate listings (no outliers), the guard shouldn't
+  // reject anything and the cheapest legitimate listing should win.
+  it('find_best_price returns legitimate cheapest when no outliers (BUY-63229)', async () => {
+    queryMock.mock.mockImplementation((sql) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.resolve({
+        rows: [
+          // Mock returns rows in price-ASC order (as the real query does).
+          { id: 'leg4', title: 'iPhone 13', price: '599.00', currency: 'SGD', domain: 'amazon.com', url: 'https://x.com/leg4', image_url: null, country_code: 'SG', updated_at: '2026-07-18' },
+          { id: 'leg3', title: 'iPhone 14', price: '699.00', currency: 'SGD', domain: 'amazon.com', url: 'https://x.com/leg3', image_url: null, country_code: 'SG', updated_at: '2026-07-18' },
+          { id: 'leg2', title: 'iPhone 15', price: '799.00', currency: 'SGD', domain: 'bestbuy.com', url: 'https://x.com/leg2', image_url: null, country_code: 'SG', updated_at: '2026-07-18' },
+          { id: 'leg1', title: 'iPhone 15 Pro', price: '999.00', currency: 'SGD', domain: 'apple.com', url: 'https://x.com/leg1', image_url: null, country_code: 'SG', updated_at: '2026-07-18' },
+        ],
+      });
+    });
+
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 23, method: 'tools/call',
+        params: { name: 'find_best_price', arguments: { product_name: 'iphone', country_code: 'SG' } },
+      }),
+    });
+    const body = await res.json();
+    const data = JSON.parse(body.result.content[0].text);
+    assert.ok(data.best_price);
+    assert.equal(data.best_price.id, 'leg4');
+    assert.equal(data.best_price.price.amount, 599.00);
+    // With no outliers, the guard should not flag anything.
+    assert.equal(data.meta.guard_applied, false);
   });
 
   // BUY-59390 — find_similar previously surfaced -32603 raw SQL errors when given a
@@ -581,10 +670,10 @@ describe('MCP JSON-RPC — caching behavior', () => {
     const cachedResponse = {
       results: [makeProduct('cached-1', { title: 'Cached Item', price: 42 })],
       total: 1, page: { limit: 20, offset: 0 },
-      response_time_ms: 3, cached: true,
+      response_time_ms: 3, cached: false,
     };
     redisGetMock.mock.mockImplementation((key) => {
-      if (typeof key === 'string' && key.includes('fts:')) {
+      if (typeof key === 'string' && key.startsWith('fts:') && key.includes(':cached:')) {
         return Promise.resolve(JSON.stringify(cachedResponse));
       }
       return Promise.resolve(null);
@@ -683,6 +772,6 @@ describe('MCP JSON-RPC — protocol compliance', () => {
     });
     const body = await res.json();
     const data = JSON.parse(body.result.content[0].text);
-    assert.equal(data.page.limit, 100);
+    assert.equal(data.meta.limit, 100);
   });
 });

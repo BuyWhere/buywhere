@@ -41,6 +41,12 @@ async function start() {
     setInterval(() => {
         (0, mcpWarmup_1.refreshCategorySummaries)().catch((err) => console.warn('[category-refresh] failed:', err?.message));
     }, 5 * 60 * 1000);
+    // Keep the search result cache hot so broad head terms never go cold -> 15s -> 504.
+    // warmSearchCache was startup-ONLY; PG buffers on the search replica evict under load
+    // between boots. Re-warm every 4 min (< Redis 600s TTL) so entries refresh before expiry.
+    setInterval(() => {
+        (0, products_1.warmSearchCache)().catch((err) => console.warn('[cache-warm] failed:', err?.message));
+    }, 4 * 60 * 1000);
     return new Promise((resolve) => {
         const server = app.listen(config_1.PORT, () => {
             console.log(`BuyWhere API v1 listening on :${config_1.PORT}`);

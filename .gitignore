@@ -101,3 +101,6 @@ __pycache__/
 
 # Probe runtime output
 /data/mcp-health-probe/
+
+# never track DB DSNs — a tracked roundhouse DSN caused the 2026-07/08 control-DB outage
+data/.catalog_db_url

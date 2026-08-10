@@ -15,6 +15,8 @@ import { embedQuery } from '../jobs/embedProducts';
 
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
+import { normalizeQuery, semanticLookup, semanticRegister, semanticEnabled } from '../lib/semanticCache';
+
 const SEARCH_CACHE_TTL_SECONDS = 3600;
 
 // BUY-41572: bumped from 5s → 15s as a temporary measure so the 50-query hybrid
@@ -261,8 +263,8 @@ router.get(
     // Default to SG when neither country nor region is specified (BUY-6598: prevent cross-region accessory pollution).
     const explicitCountry = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
     const countryCode = explicitCountry || (region ? undefined : 'SG');
-    const minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
-    const maxPrice = req.query.max_price ? parseFloat(req.query.max_price as string) : undefined;
+    let minPrice = req.query.min_price ? parseFloat(req.query.min_price as string) : undefined;
+    let maxPrice = req.query.max_price ? parseFloat(req.query.max_price as string) : undefined;
     // Infer default currency from country_code when not explicitly provided.
     // Price filters (min_price/max_price) apply in this inferred currency.
     const currency = (req.query.currency as string) || (countryCode ? (COUNTRY_CURRENCY[countryCode] || 'SGD') : 'SGD');
@@ -278,7 +280,9 @@ router.get(
     // BUY-42589: canonicalize SG retailer brand names (harvey norman, courts, gaincity, etc.)
     // to source= filters. The retailer name is in the source field, not in product titles,
     // so FTS alone returns near-zero matches even when 10k+ products exist.
-    const { cleanedQuery, canonicalSources } = preprocessSearchQuery(rawQuery, minPrice, maxPrice);
+    const { cleanedQuery, canonicalSources, extractedMinPrice, extractedMaxPrice } = preprocessSearchQuery(rawQuery, minPrice, maxPrice);
+    if (minPrice === undefined && extractedMinPrice !== undefined) minPrice = extractedMinPrice;
+    if (maxPrice === undefined && extractedMaxPrice !== undefined) maxPrice = extractedMaxPrice;
     const q = cleanedQuery || rawQuery;
 
     // Check Redis cache for this exact query (60s TTL)
@@ -296,6 +300,28 @@ router.get(
       }
     } catch (_) {
       // Redis miss or error — fall through to DB
+    }
+
+    // Semantic cache (2026-08-06): reuse cached responses for normalized-equal or
+    // embedding-similar queries within the same (country, filters) scope.
+    const semScope = `m1:${countryCode || ''}:${domain || ''}:${region || ''}:${category || ''}:${categoryId || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${compact ? 'c' : 'f'}:${searchMode}`;
+    const semQNorm = q ? normalizeQuery(q) : '';
+    let semVec: string | null = null;
+    if (semanticEnabled() && semQNorm && offset === 0) {
+      try {
+        const gk = process.env.GEMINI_API_KEY ?? '';
+        if (gk) semVec = await getCachedQueryEmbedding(q, gk);
+        const semHit = await semanticLookup(redis, semScope, semQNorm, semVec);
+        if (semHit) {
+          const parsed = JSON.parse(semHit.body);
+          parsed.cached = true;
+          parsed.semantic_cache = true;
+          parsed.response_time_ms = Date.now() - requestStart;
+          res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
+          res.set('X-Cache', 'HIT-SEMANTIC');
+          return res.json(parsed);
+        }
+      } catch (_) { /* fall through to DB */ }
     }
 
     // BUY-33987: only active products are surfaced to API consumers; the partial
@@ -668,6 +694,9 @@ router.get(
 
     // Cache result in Redis (fire-and-forget)
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+    if (semanticEnabled() && semQNorm && offset === 0) {
+      semanticRegister(redis, semScope, semQNorm, semVec, cacheKey).catch(() => {});
+    }
 
     // Extract categories from results for analytics
     const categories = extractCategories(products);
@@ -765,12 +794,13 @@ router.get(
         );
         (router as any)._hasDiscountPct = probe.rows.length > 0 && probe.rows[0].is_generated === 'ALWAYS';
       } catch {
-        (router as any)._hasDiscountPct = false;
+        (router as any)._hasDiscountPct = true;
       }
     }
     useDiscountCol = (router as any)._hasDiscountPct;
 
     if (useDiscountCol) {
+      dealConditions.push(`discount_pct IS NOT NULL`);
       dealConditions.push(`discount_pct >= $${dealIdx}`);
     } else {
       dealConditions.push(`(metadata->>'original_price')::numeric > price`);
@@ -1042,6 +1072,18 @@ router.get(
   queryLogMiddleware('products.similar'),
   asyncHandler(async (req: Request, res: Response) => {
     const start = Date.now();
+    // BUY-41137: hard ceiling so the request returns a deterministic response even
+    // if a slow vectorDb KNN / fallback scan would otherwise hang. The hook sends a
+    // degraded 504 (kept honest via meta) instead of leaving the client to its own
+    // socket timeout. Mirrors the fix on the primary api service.
+    let timedOut = false;
+    res.setTimeout(SEARCH_HANDLER_TIMEOUT_MS, () => {
+      timedOut = true;
+      console.warn(`[products.similar] request timed out after ${SEARCH_HANDLER_TIMEOUT_MS}ms (id=${req.params.id})`);
+      if (!res.headersSent) {
+        res.status(504).json({ error: 'Find-Similar timed out', meta: { response_time_ms: Date.now() - start } });
+      }
+    });
     const { id } = req.params;
     const limit = Math.min(parseInt((req.query.limit as string) || '10'), 20);
 
@@ -1052,15 +1094,14 @@ router.get(
       [id]
     );
     if (srcResult.rows.length === 0) {
-      res.status(404).json({ error: 'Product not found' });
+      if (!timedOut && !res.headersSent) res.status(404).json({ error: 'Product not found' });
       return;
     }
     const src = srcResult.rows[0];
 
     // Phase 1: Try embedding-based KNN (vector store).
     // BUY-54718 / BUY-41137 / BUY-54796: use the shared vectorDb pool and the
-    // live public.product_embeddings schema so this route follows the Railway
-    // wiring instead of a separate VECTOR_STORE_DATABASE_URL.
+    // product_embeddings table (public schema via vectorDb connection).
     let similar: Array<Record<string, unknown>> = [];
     let similarityFallback = false;
 
@@ -1068,7 +1109,7 @@ router.get(
       try {
         // Fetch pre-computed embedding for this product.
         const embResult = await vectorDb.query<{ embedding: string }>(
-          `SELECT embedding FROM public.product_embeddings
+          `SELECT embedding FROM product_embeddings
            WHERE product_id = $1`,
           [id]
         );
@@ -1081,7 +1122,7 @@ router.get(
           }>(
             `SELECT product_id,
                     1 - (embedding <=> $1::vector) AS score
-             FROM public.product_embeddings
+             FROM product_embeddings
              WHERE product_id != $2
              ORDER BY embedding <=> $1::vector
              LIMIT $3`,
@@ -1187,6 +1228,7 @@ router.get(
       similarity: row._similarity ?? null,
     }));
 
+    if (timedOut || res.headersSent) return;
     res.json({
       data,
       meta: {
@@ -1570,7 +1612,6 @@ export async function warmSearchCache(): Promise<void> {
           SELECT id
           FROM products
           ${whereClause}
-          ORDER BY id DESC
           LIMIT ${CANDIDATE_CAP}
         )
         SELECT ${joinedColumns}

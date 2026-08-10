@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import { getSeoLandingFallbackProduct } from "@/lib/seo-landing-pages";
+import { slugToSearchRedirect } from "@/lib/us-product-route";
+
+const INTERNAL_ORIGIN =
+  process.env.BUYWHERE_INTERNAL_ORIGIN ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  "https://buywhere.ai";
 
 interface ProductDetail {
   id: string | number;
@@ -15,6 +21,31 @@ interface ProductDetail {
   merchant_id?: string;
   merchant_name?: string;
   data_updated_at?: string;
+  // Outbound CTA target. Prefer affiliate redirect, then click-through, then
+  // generic buy/product URL. The SSR PDP renders a primary action button only
+  // when one of these is present (see BUY-65451).
+  affiliate_redirect_url?: string | null;
+  click_url?: string | null;
+  affiliate_url?: string | null;
+  buy_url?: string | null;
+  product_url?: string | null;
+}
+
+function pickPrimaryCtaUrl(detail: ProductDetail | null | undefined): string | null {
+  if (!detail) return null;
+  const candidates = [
+    detail.affiliate_redirect_url,
+    detail.click_url,
+    detail.affiliate_url,
+    detail.buy_url,
+    detail.product_url,
+  ];
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim() && value.trim() !== "#") {
+      return value.trim();
+    }
+  }
+  return null;
 }
 
 function landingProductToDetail(product: ReturnType<typeof getSeoLandingFallbackProduct>): ProductDetail | null {
@@ -29,25 +60,19 @@ function landingProductToDetail(product: ReturnType<typeof getSeoLandingFallback
     category: product.category ?? undefined,
     brand: product.brand ?? undefined,
     merchant_name: product.merchant,
+    affiliate_redirect_url: null,
+    click_url: null,
+    affiliate_url: null,
+    buy_url: null,
+    product_url: null,
   };
 }
 
 async function getProduct(productId: string, merchantSlug: string): Promise<ProductDetail | null> {
-  const baseUrl =
-    process.env.BUYWHERE_API_INTERNAL_URL ||
-    process.env.NEXT_PUBLIC_BUYWHERE_API_URL ||
-    "https://api.buywhere.ai";
-  const apiKey =
-    process.env.BUYWHERE_API_KEY ||
-    process.env.NEXT_PUBLIC_BUYWHERE_API_KEY ||
-    "";
-  const headers: Record<string, string> = apiKey
-    ? { Authorization: `Bearer ${apiKey}` }
-    : {};
-
+  // Route through the internal API route which has the backend API key injected.
+  // This avoids depending on BUYWHERE_API_KEY being present in the SSR environment.
   try {
-    const res = await fetch(`${baseUrl}/v1/products/${encodeURIComponent(productId)}`, {
-      headers,
+    const res = await fetch(`${INTERNAL_ORIGIN}/api/products/${encodeURIComponent(productId)}`, {
       next: { revalidate: 3600 },
       signal: AbortSignal.timeout(5000),
     });
@@ -55,8 +80,11 @@ async function getProduct(productId: string, merchantSlug: string): Promise<Prod
       const data = (await res.json()) as ProductDetail;
       if (data?.id) return data;
     }
-  } catch {}
+  } catch (err) {
+    console.warn(`[products/us] internal API error for ${productId}:`, err);
+  }
 
+  // Fallback to curated SEO landing page fallback products
   return landingProductToDetail(getSeoLandingFallbackProduct("us", productId, merchantSlug));
 }
 
@@ -103,7 +131,13 @@ export default async function USProductDetailPage({ params }: PageProps) {
 
   const product = await getProduct(productId, merchantSlug);
   if (!product) {
-    notFound();
+    // The card on every SEO landing page links here via `product.productUrl`
+    // (built by `buildProductDetailUrl` in `seo-landing-pages.ts`). When the
+    // product id is a live catalog result not present in the curated fallback
+    // list AND the upstream `/v1/products/{id}` lookup fails, drop the user on
+    // a real search results page derived from the slug instead of a misleading
+    // 404. This matches the behaviour of `/products/us/[slug]/page.tsx`.
+    permanentRedirect(slugToSearchRedirect(merchantSlug));
   }
 
   const productName = product.name ?? product.title ?? `Product ${productId}`;
@@ -210,6 +244,36 @@ export default async function USProductDetailPage({ params }: PageProps) {
                 </span>
               </div>
             )}
+
+            {(() => {
+              const ctaUrl = pickPrimaryCtaUrl(product);
+              const fallbackHref = `/us/${merchantSlug}/products/`;
+              const targetUrl = ctaUrl ?? fallbackHref;
+              const isExternal = ctaUrl
+                ? /^https?:\/\//i.test(ctaUrl)
+                : false;
+              // BUY-65451: PDP must ship a primary action button so SEO landing
+              // cards don't dead-end on a detail page without an exit. Fall
+              // back to the merchant listing on BuyWhere when no affiliate URL
+              // is on the product record.
+              return (
+                <div className="mb-6">
+                  <a
+                    href={targetUrl}
+                    {...(isExternal
+                      ? {
+                          target: "_blank",
+                          rel: "noopener noreferrer sponsored",
+                        }
+                      : {})}
+                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                  >
+                    {ctaUrl ? `View at ${merchantName}` : `View all from ${merchantName}`}
+                    <span aria-hidden="true">→</span>
+                  </a>
+                </div>
+              );
+            })()}
 
             <p className="text-sm text-gray-600 mb-4">
               Available from{" "}

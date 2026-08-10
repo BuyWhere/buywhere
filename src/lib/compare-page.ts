@@ -15,21 +15,15 @@ export type ComparisonOffer = {
 
 type SearchLikeItem = {
   id?: string | number | null;
-  product_id?: string | number | null;
   name?: string | null;
   title?: string | null;
   price?: number | string | null;
-  current_price?: number | string | null;
   currency?: string | null;
   source?: string | null;
-  platform?: string | null;
   merchant?: string | null;
-  merchant_name?: string | null;
   image_url?: string | null;
   image?: string | null;
-  thumbnail_url?: string | null;
   url?: string | null;
-  product_url?: string | null;
   buy_url?: string | null;
   affiliate_url?: string | null;
   affiliate_redirect_url?: string | null;
@@ -37,7 +31,6 @@ type SearchLikeItem = {
   affiliateLink?: string | null;
   brand?: string | null;
   category?: string | null;
-  category_path?: string | null;
   availability?: string | null;
   stock_status?: string | null;
   in_stock?: boolean | null;
@@ -138,26 +131,17 @@ export function normalizeComparisonOffer(
   const availability = normalizeAvailability(item);
 
   return {
-    id: String(item.id ?? item.product_id ?? item.name ?? item.title ?? crypto.randomUUID()),
+    id: String(item.id ?? item.name ?? item.title ?? crypto.randomUUID()),
     name: item.name || item.title || "Untitled product",
-    merchant: formatMerchantName(item.merchant || item.merchant_name || item.source || item.platform),
-    price: normalizePrice(item.price ?? item.current_price),
+    merchant: formatMerchantName(item.merchant || item.source),
+    price: normalizePrice(item.price),
     currency: item.currency || fallbackCurrency,
-    imageUrl: item.image_url || item.thumbnail_url || item.image || null,
-    href:
-      normalizeRetailerHref(
-        item.affiliate_redirect_url,
-        item.click_url,
-        item.affiliate_url,
-        item.affiliateLink,
-        item.buy_url,
-        item.url,
-        item.product_url,
-      ) || "#",
+    imageUrl: item.image_url || item.image || null,
+    href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.affiliateLink || item.buy_url || item.url || "#",
     availability: availability.availability,
     inStock: availability.inStock,
     brand: item.brand || null,
-    category: item.category || item.category_path || null,
+    category: item.category || null,
     lastUpdated: item.last_updated || item.updated_at || null,
   };
 }

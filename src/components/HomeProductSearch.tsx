@@ -53,16 +53,16 @@ export function HomeProductSearch() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto mb-10">
+    <div className="max-w-3xl mx-auto mb-10">
       <form
         onSubmit={handleSubmit}
         className="grid gap-3"
         noValidate
       >
-        <div className="grid gap-3 md:grid-cols-[1fr_140px_auto]">
-          <div className="relative min-w-0">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-3">
+          <div className="relative min-w-0 flex-1">
             <Search
-              className="pointer-events-none absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-indigo-900"
+              className="pointer-events-none absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-white"
               aria-hidden="true"
             />
             <input
@@ -74,8 +74,8 @@ export function HomeProductSearch() {
                   setError('');
                 }
               }}
-              placeholder="Search"
-              className="w-full min-w-0 rounded-xl border-2 border-white bg-white py-5 pl-14 pr-4 text-lg text-indigo-950 placeholder:text-indigo-950 shadow-sm transition-all focus:border-white focus:outline-none focus:ring-4 focus:ring-white/40"
+              placeholder="Search products..."
+              className="search-input w-full rounded-xl border-2 border-white/50 bg-indigo-950 py-5 pl-14 pr-4 text-lg text-white placeholder-[#F5F7FF] transition-all focus:border-white focus:outline-none focus:ring-4 focus:ring-white/20"
               aria-label="Search products"
               aria-invalid={Boolean(error)}
               aria-describedby={error ? errorId : undefined}
@@ -89,7 +89,7 @@ export function HomeProductSearch() {
               setCountry(event.target.value as CountryValue);
               setCountryTouched(true);
             }}
-            className="h-[66px] rounded-xl border-2 border-white bg-white px-4 text-base font-semibold text-indigo-950 shadow-sm transition-all focus:border-white focus:outline-none focus:ring-4 focus:ring-white/40"
+            className="h-[66px] w-full shrink-0 rounded-xl border-2 border-white/50 bg-white/10 px-4 text-base font-medium text-white transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20 sm:w-28 md:w-36"
             aria-label="Search country"
           >
             {countryOptions.map((option) => (
@@ -101,7 +101,7 @@ export function HomeProductSearch() {
 
           <button
             type="submit"
-            className="inline-flex h-[66px] items-center justify-center rounded-xl bg-white px-6 text-base font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700"
+            className="inline-flex h-[66px] shrink-0 items-center justify-center whitespace-nowrap rounded-xl bg-white px-5 text-base font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 sm:w-auto sm:min-w-[8rem] md:min-w-[10rem]"
           >
             Search catalog
           </button>
@@ -113,17 +113,17 @@ export function HomeProductSearch() {
               {error}
             </p>
           ) : (
-          <div className="flex flex-wrap items-center justify-center gap-2 text-sm font-semibold text-white">
-            <span>Try</span>
-            {exampleQueries.map((example) => (
-              <button
+            <div className="flex flex-wrap items-center justify-start gap-2 text-sm text-white sm:justify-center">
+              <span>Try</span>
+              {exampleQueries.map((example) => (
+                <button
                   key={example}
                   type="button"
                   onClick={() => {
                     setQuery(example);
                     submitQuery(example);
                   }}
-                  className="rounded-full border border-indigo-900 bg-white px-3 py-1 font-semibold text-indigo-950 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-900 focus:ring-offset-2 focus:ring-offset-indigo-700"
+                  className="whitespace-nowrap rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700"
                 >
                   {example}
                 </button>

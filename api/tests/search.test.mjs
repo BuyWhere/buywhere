@@ -57,6 +57,26 @@ function hashKey(rawKey) {
   return createHash('sha256').update(rawKey).digest('hex');
 }
 
+function responseResults(body) {
+  return body.data ?? body.results ?? [];
+}
+
+function responseTotal(body) {
+  return body.meta?.total ?? body.total;
+}
+
+function responsePage(body) {
+  return body.meta ?? body.page ?? {};
+}
+
+function responseCached(body) {
+  return body.meta?.cached ?? body.cached;
+}
+
+function responseTimeMs(body) {
+  return body.meta?.response_time_ms ?? body.response_time_ms;
+}
+
 function defaultQueryHandler(sql, params) {
   if (typeof sql === 'string' && sql.includes('api_keys')) {
     return Promise.resolve({
@@ -139,16 +159,16 @@ describe('NL search queries — response correctness', () => {
     const body = await res.json();
 
     assert.equal(res.status, 200);
-    assert.equal(body.total, 2);
-    assert.equal(body.results.length, 2);
-    assert.equal(body.results[0].title, 'Gaming Laptop');
-    assert.equal(body.results[0].price.amount, 1299);
-    assert.equal(body.results[0].price.currency, 'SGD');
-    assert.equal(body.results[1].title, 'Office Laptop');
-    assert.ok(typeof body.response_time_ms === 'number');
-    assert.equal(body.cached, false);
-    assert.equal(body.page.limit, 20);
-    assert.equal(body.page.offset, 0);
+    assert.equal(responseTotal(body), 2);
+    assert.equal(responseResults(body).length, 2);
+    assert.equal(responseResults(body)[0].title, 'Gaming Laptop');
+    assert.equal(responseResults(body)[0].price.amount, 1299);
+    assert.equal(responseResults(body)[0].price.currency, 'SGD');
+    assert.equal(responseResults(body)[1].title, 'Office Laptop');
+    assert.ok(typeof responseTimeMs(body) === 'number');
+    assert.equal(responseCached(body), false);
+    assert.equal(responsePage(body).limit, 20);
+    assert.equal(responsePage(body).offset, 0);
   });
 
   it('constructs FTS query with plainto_tsquery for NL query', async () => {
@@ -174,19 +194,22 @@ describe('NL search queries — response correctness', () => {
     assert.ok(ftsCall, 'Expected query text in SQL params');
   });
 
-  it('enforces country_code=SG when no country or region is provided', async () => {
+  it('does not apply a silent SG hard filter when no country or region is provided', async () => {
     const res = await fetch(`http://localhost:${port}/v1/products/search?q=laptop`, {
       headers: { Authorization: 'Bearer test-key' },
     });
     assert.equal(res.status, 200);
 
-    const filteredQueryCall = queryMock.mock.calls.find(
+    const searchCalls = queryMock.mock.calls.filter(
       c => typeof c.arguments[0] === 'string' &&
-        c.arguments[0].includes('country_code = $') &&
-        Array.isArray(c.arguments[1]) &&
-        c.arguments[1].includes('SG')
+        c.arguments[0].includes('search_vector @@')
     );
-    assert.ok(filteredQueryCall, 'Expected SG country filter in search query');
+    assert.ok(searchCalls.length >= 1, 'Expected archive search query');
+    assert.equal(
+      searchCalls.some(c => Array.isArray(c.arguments[1]) && c.arguments[1].includes('SG')),
+      false,
+      'No country param should be injected when country/region is absent'
+    );
   });
 
   it('accepts country_code=US to override default SG', async () => {
@@ -209,7 +232,7 @@ describe('NL search queries — response correctness', () => {
     });
     const body = await res.json();
     assert.equal(res.status, 200);
-    assert.equal(body.total, 3);
+    assert.equal(responseTotal(body), 3);
   });
 
   it('uses search_products tier when requested for keyword searches', async () => {
@@ -226,8 +249,8 @@ describe('NL search queries — response correctness', () => {
       c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM search_products sp')
     );
     assert.ok(tierCall, 'Expected tier query before archive fallback');
-    assert.ok(tierCall.arguments[0].includes('sp.currency = $'));
-    assert.deepEqual(tierCall.arguments[1].slice(0, 5), ['wireless headphones', 'wireless | headphones', 'USD', 'US', 21]);
+    assert.ok(!tierCall.arguments[0].includes('sp.currency = $'), 'Currency is rank-only unless price filters are present');
+    assert.deepEqual(tierCall.arguments[1].slice(0, 4), ['wireless headphones', 'wireless | headphones', 'US', 21]);
   });
 
   it('falls back to archive search when requested tier returns no rows', async () => {
@@ -263,9 +286,9 @@ describe('NL search queries — response correctness', () => {
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('x-search-tier'), null);
     assert.notEqual(body.source, 'search_products_tier');
-    assert.equal(body.total, 1);
-    assert.equal(body.results[0].title, 'Wireless Headphones');
-    assert.equal(tierCalls, 2);
+    assert.equal(responseTotal(body), 1);
+    assert.equal(responseResults(body)[0].title, 'Wireless Headphones');
+    assert.equal(tierCalls, 3);
   });
 
   it('uses bounded laptop product-intent fallback for US laptop searches', async () => {
@@ -275,7 +298,7 @@ describe('NL search queries — response correctness', () => {
     const body = await res.json();
 
     assert.equal(res.status, 200);
-    assert.ok(body.results.length > 0);
+    assert.ok(responseResults(body).length > 0);
 
     const laptopFallbackCall = queryMock.mock.calls.find(
       c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('_accessory_rank')
@@ -283,7 +306,7 @@ describe('NL search queries — response correctness', () => {
     assert.ok(laptopFallbackCall, 'Expected bounded laptop fallback query');
     assert.ok(laptopFallbackCall.arguments[0].includes('ORDER BY _accessory_rank ASC'));
     assert.ok(laptopFallbackCall.arguments[0].includes('products.title ILIKE'));
-    assert.deepEqual(laptopFallbackCall.arguments[1], ['USD', 'US', '%asus%', '%rog%', 21, 0]);
+    assert.deepEqual(laptopFallbackCall.arguments[1], ['US', '%asus%', '%rog%', 21, 0]);
   });
 
   it('applies price range filters with NL query', async () => {
@@ -332,8 +355,8 @@ describe('NL search queries — response correctness', () => {
     });
     const body = await res.json();
     assert.equal(res.status, 200);
-    assert.equal(body.page.limit, 5);
-    assert.equal(body.page.offset, 10);
+    assert.equal(responsePage(body).limit, 5);
+    assert.equal(responsePage(body).offset, 10);
 
     const dataCall = queryMock.mock.calls.find(
       c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('LIMIT')
@@ -346,7 +369,7 @@ describe('NL search queries — response correctness', () => {
       headers: { Authorization: 'Bearer test-key' },
     });
     const body = await res.json();
-    assert.equal(body.page.limit, 100);
+    assert.equal(responsePage(body).limit, 100);
   });
 
   it('handles special characters in query', async () => {
@@ -382,11 +405,11 @@ describe('NL search queries — response correctness', () => {
     });
     const body = await res.json();
     assert.equal(res.status, 200);
-    assert.ok(body.results[0].canonical_id != null);
-    assert.ok(body.results[0].normalized_price_usd != null);
-    assert.ok(Array.isArray(body.results[0].comparison_attributes));
-    assert.equal(body.results[0].comparison_attributes[0].key, 'brand');
-    assert.equal(body.results[0].comparison_attributes[0].value, 'TestBrand');
+    assert.ok(responseResults(body)[0].canonical_id != null);
+    assert.ok(responseResults(body)[0].normalized_price_usd != null);
+    assert.ok(Array.isArray(responseResults(body)[0].comparison_attributes));
+    assert.equal(responseResults(body)[0].comparison_attributes[0].key, 'brand');
+    assert.equal(responseResults(body)[0].comparison_attributes[0].value, 'TestBrand');
   });
 
   it('returns cached response with cached=true flag', async () => {
@@ -401,8 +424,8 @@ describe('NL search queries — response correctness', () => {
     });
     const body = await res.json();
     assert.equal(res.status, 200);
-    assert.equal(body.cached, true);
-    assert.equal(body.total, 0);
+    assert.equal(responseCached(body), true);
+    assert.equal(responseTotal(body), 0);
 
     redisGetMock.mock.mockImplementation(() => Promise.resolve(null));
   });
@@ -457,7 +480,7 @@ describe('NL search queries — response correctness', () => {
     });
     const body = await res.json();
     assert.equal(res.status, 200);
-    assert.equal(body.results[0].country_code, 'MY');
+    assert.equal(responseResults(body)[0].country_code, 'MY');
 
     const filteredCall = queryMock.mock.calls.find(
       c => typeof c.arguments[0] === 'string' &&
@@ -574,7 +597,7 @@ describe('NL search queries — response correctness', () => {
     assert.equal(res.status, 200);
     assert.equal(embedQueryMock.mock.calls.length, 1);
     assert.equal(vectorQueryMock.mock.calls.length, 1);
-    assert.deepEqual(body.results.map((product) => product.id), ['2', '1']);
+    assert.deepEqual(responseResults(body).map((product) => product.id), ['2', '1']);
 
     const ftsRankingCall = queryMock.mock.calls.find(
       c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('ORDER BY ts_rank')
@@ -621,12 +644,45 @@ describe('NL search queries — response correctness', () => {
     assert.equal(res.status, 200);
     assert.equal(embedQueryMock.mock.calls.length, 1);
     assert.equal(vectorQueryMock.mock.calls.length, 1);
-    assert.deepEqual(body.results.map((product) => product.id).slice(0, 3), ['2', '1', '3']);
+    assert.deepEqual(responseResults(body).map((product) => product.id).slice(0, 3), ['2', '1', '3']);
 
     const ftsRankingCall = queryMock.mock.calls.find(
       c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('ORDER BY ts_rank(search_vector')
     );
     assert.ok(ftsRankingCall, 'Expected hybrid mode to query FTS candidates for RRF');
+  });
+
+  // BUY-52089: vector search should fall back to FTS when vector query throws (e.g., dim mismatch)
+  it('falls back to FTS when vector query throws', async () => {
+    process.env.GEMINI_API_KEY = 'test-jina-key';
+    config.vectorDb = { query: vectorQueryMock };
+    // Simulate vector query throwing (e.g., dimension mismatch error)
+    vectorQueryMock.mock.mockImplementation(() => Promise.reject(new Error('different vector dimensions 512 and 1024')));
+    queryMock.mock.mockImplementation((sql) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (typeof sql === 'string' && sql.includes('FROM products') && sql.includes('ORDER BY ts_rank')) {
+        return Promise.resolve({ rows: [{ id: '1' }] });
+      }
+      if (typeof sql === 'string' && sql.includes('WHERE products.id = ANY($1::bigint[])')) {
+        return Promise.resolve({
+          rows: [makeProduct('1', { title: 'Gaming Laptop', price: 1299 })],
+        });
+      }
+      return defaultQueryHandler(sql);
+    });
+
+    const res = await fetch(`http://localhost:${port}/v1/products/search?q=laptop&mode=semantic`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+    const body = await res.json();
+
+    assert.equal(res.status, 200, 'Should return 200 (not 500) when vector search fails');
+    assert.ok(body.data?.length >= 0, 'Should return some result (FTS fallback)');
   });
 });
 
@@ -759,6 +815,6 @@ describe('NL search — Redis caching behavior', () => {
         && c.arguments[0].includes(':keyfmt:')
     );
     assert.ok(cacheGetCalls.length >= 1);
-    assert.ok(cacheGetCalls[0].arguments[0].startsWith('fts:tier-default-v1:keyfmt:'));
+    assert.ok(cacheGetCalls[0].arguments[0].startsWith('fts:deliver-to-v6:keyfmt:'));
   });
 });

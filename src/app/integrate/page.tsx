@@ -217,6 +217,7 @@ export default function IntegratePage() {
       </Script>
       <Nav />
 
+      <main id="main-content" tabIndex={-1}>
       <section className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(79,70,229,0.12),_transparent_40%),linear-gradient(135deg,#0f172a_0%,#1e1b4b_100%)] text-white">
         <div className="mx-auto max-w-6xl px-4 py-24 sm:px-6">
           <div className="max-w-3xl">
@@ -419,6 +420,7 @@ export default function IntegratePage() {
         </div>
       </section>
 
+      </main>
       <Footer />
     </div>
   </>

@@ -52,6 +52,237 @@ const CATEGORY_PAGE_SLUGS = [
   "toys-games",
 ] as const;
 
+// BUY-65150 fallback derived from the verified 2026-07-29 /v1/categories
+// response. The endpoint currently returns at most 50 records, and the site API
+// key can hit its daily limit before a crawler requests the sitemap. Keeping the
+// normalized slugs here prevents the expanded sitemap and category-country pages
+// from collapsing to the old 28-URL set during that rate-limit window.
+const CATEGORY_API_FALLBACK_SLUGS = [
+  "accessories",
+  "appliances",
+  "audio",
+  "automotive",
+  "baby-kids",
+  "beauty-health",
+  "books-stationery",
+  "cameras",
+  "computers",
+  "electronics",
+  "fashion",
+  "food-beverages",
+  "furniture",
+  "gaming",
+  "garden-outdoor",
+  "grocery",
+  "health-wellness",
+  "home-living",
+  "home-office",
+  "household",
+  "jewelry-watches",
+  "kitchen-dining",
+  "laptops",
+  "mobile-phones",
+  "music",
+  "office-supplies",
+  "personal-care",
+  "pet-supplies",
+  "phones",
+  "photography",
+  "shoes",
+  "smart-home",
+  "software",
+  "sports-outdoors",
+  "tablets",
+  "tools-home-improvement",
+  "toys-games",
+  "travel",
+  "tv-video",
+  "video-games",
+  "wearables",
+  "women-fashion",
+  "womens-fashion",
+] as const;
+
+
+export interface ApiCategoryRecord {
+  slug: string;
+  name: string;
+  product_count?: number;
+}
+
+export const CATEGORY_SITEMAP_COUNTRIES = ["us", "sg", "my", "th", "id", "ph", "vn"] as const;
+
+export function formatCategoryName(slug: string, fallback?: string): string {
+  return (fallback || slug)
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+export interface PopulatedCompareCategory {
+  slug: string;
+  name: string;
+  productCount: number;
+}
+
+export interface CompareCategoryPair {
+  left: PopulatedCompareCategory;
+  right: PopulatedCompareCategory;
+}
+
+function normalizeCategorySlug(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function titleizeSlug(slug: string): string {
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+async function fetchCategories(currency: string): Promise<PopulatedCompareCategory[]> {
+  const baseUrl =
+    process.env.BUYWHERE_API_INTERNAL_URL ||
+    process.env.NEXT_PUBLIC_BUYWHERE_API_URL ||
+    "https://api.buywhere.ai";
+  const apiKey =
+    process.env.BUYWHERE_API_KEY ||
+    process.env.NEXT_PUBLIC_BUYWHERE_API_KEY ||
+    "";
+  const headers: Record<string, string> = apiKey
+    ? { Authorization: `Bearer ${apiKey}` }
+    : {};
+
+  try {
+    const res = await fetch(`${baseUrl}/v1/categories?currency=${currency}`, {
+      headers,
+      next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[sitemap] fetchCategories currency=${currency} base=${baseUrl} auth=${apiKey ? "yes" : "no"} status=${res.status}`
+      );
+      return [];
+    }
+    const data = (await res.json()) as { data?: ApiCategoryRecord[] };
+    return (data.data ?? [])
+      .map((category) => {
+        const slug = normalizeCategorySlug(category.slug || category.name || "");
+        return {
+          slug,
+          name: category.name || titleizeSlug(slug),
+          productCount: Number(category.product_count ?? 0),
+        };
+      })
+      .filter((category) => category.slug && category.productCount > 0);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[sitemap] fetchCategories currency=${currency} threw: ${(err as Error)?.message ?? err}`
+    );
+    return [];
+  }
+}
+
+export async function fetchApiCategories(): Promise<ApiCategoryRecord[]> {
+  const categories = (await Promise.all([fetchCategories("SGD"), fetchCategories("USD")])).flat();
+  const bySlug = new Map<string, ApiCategoryRecord>();
+
+  for (const category of categories) {
+    if (!category.slug || category.slug === "uncategorized") continue;
+    const existing = bySlug.get(category.slug);
+    if (!existing || category.productCount > (existing.product_count ?? 0)) {
+      bySlug.set(category.slug, {
+        slug: category.slug,
+        name: category.name || formatCategoryName(category.slug),
+        product_count: category.productCount,
+      });
+    }
+  }
+
+  if (bySlug.size === 0) {
+    // Keep category-country pages and the sitemap available during API rate-limit
+    // windows. These slugs come from the last verified API response and are
+    // normalized through the same path as live records.
+    for (const fallbackSlug of CATEGORY_API_FALLBACK_SLUGS) {
+      const slug = normalizeCategorySlug(fallbackSlug);
+      if (!slug || slug === "uncategorized") continue;
+      bySlug.set(slug, {
+        slug,
+        name: formatCategoryName(slug),
+      });
+    }
+  }
+
+  return Array.from(bySlug.values()).sort((a, b) => a.slug.localeCompare(b.slug));
+}
+
+export async function getApiCategoryBySlug(slug: string): Promise<ApiCategoryRecord | null> {
+  const normalizedSlug = normalizeCategorySlug(slug);
+  const categories = await fetchApiCategories();
+  return categories.find((category) => category.slug === normalizedSlug) ?? null;
+}
+
+export async function getPopulatedCompareCategories(): Promise<PopulatedCompareCategory[]> {
+  const bySlug = new Map<string, PopulatedCompareCategory>();
+  const apiCategories = (await Promise.all([fetchCategories("SGD"), fetchCategories("USD")])).flat();
+
+  for (const category of apiCategories) {
+    const existing = bySlug.get(category.slug);
+    if (!existing || category.productCount > existing.productCount) {
+      bySlug.set(category.slug, category);
+    }
+  }
+
+  if (bySlug.size === 0) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[sitemap] /v1/categories returned no populated categories; falling back to static PRODUCT_TAXONOMY compare categories"
+    );
+    for (const category of PRODUCT_TAXONOMY) {
+      bySlug.set(category.slug, {
+        slug: category.slug,
+        name: category.name,
+        productCount: 1,
+      });
+    }
+  }
+
+  return Array.from(bySlug.values()).sort((a, b) =>
+    a.slug.localeCompare(b.slug)
+  );
+}
+
+export async function getCompareCategoryPairs(): Promise<CompareCategoryPair[]> {
+  const categories = await getPopulatedCompareCategories();
+  const pairs: CompareCategoryPair[] = [];
+
+  for (let i = 0; i < categories.length; i += 1) {
+    for (let j = i + 1; j < categories.length; j += 1) {
+      pairs.push({ left: categories[i], right: categories[j] });
+    }
+  }
+
+  return pairs;
+}
+
+export function compareCategoryPairSlug(pair: CompareCategoryPair): string {
+  return `${pair.left.slug}-vs-${pair.right.slug}`;
+}
+
+export async function findCompareCategoryPair(slug: string): Promise<CompareCategoryPair | null> {
+  const pairs = await getCompareCategoryPairs();
+  return pairs.find((pair) => compareCategoryPairSlug(pair) === slug) ?? null;
+}
+
 const STATIC_SITEMAP_ROUTES = [
   { path: "/", priority: 1.0, changeFrequency: "weekly" as const },
   { path: "/docs", priority: 1.0, changeFrequency: "weekly" as const },
@@ -64,7 +295,8 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/integrate", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/api-keys", priority: 0.9, changeFrequency: "monthly" as const },
   { path: "/us", priority: 0.8, changeFrequency: "weekly" as const },
-  { path: "/us/signup", priority: 0.8, changeFrequency: "weekly" as const },
+  // BUY-65100: /us/signup canonicalizes to /us and has no dedicated route,
+  // so keep it out of sitemap-pages.xml to avoid sitemap/canonical contradiction.
   { path: "/merchants", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/partnership", priority: 0.8, changeFrequency: "weekly" as const },
   { path: "/partners", priority: 0.8, changeFrequency: "monthly" as const },
@@ -84,6 +316,12 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/challenge", priority: 0.9, changeFrequency: "daily" as const },
   { path: "/privacy", priority: 0.3, changeFrequency: "yearly" as const },
   { path: "/terms", priority: 0.3, changeFrequency: "yearly" as const },
+  // BUY-66281: ChatGPT plugin manifest. Already served at
+  // /.well-known/ai-plugin.json with HTTP 200, but zero sitemap references
+  // meant zero indexable URL graph signal. Add it here so Google + agent
+  // crawlers can find it via sitemap-pages.xml. robots.txt also declares
+  // `Plugin: /.well-known/ai-plugin.json`.
+  { path: "/.well-known/ai-plugin.json", priority: 0.8, changeFrequency: "monthly" as const },
 ] as const;
 
 function xmlEscape(value: string): string {
@@ -100,10 +338,19 @@ function formatLastMod(value: Date | string): string {
 }
 
 export function buildSitemapResponse(xml: string): Response {
+  // Why no-store (BUY-65147 follow-up):
+  //   The previous max-age=3600 / s-maxage=3600 / stale-while-revalidate=86400
+  //   policy meant Railway/Hikari edge served a stale sitemap index for up to
+  //   24h after a deploy that added/removed sub-sitemaps. That is how the
+  //   sitemap-merchants.xml registration kept silently regressing: the deploy
+  //   landed on main, the route ran with the new code, but the CDN kept
+  //   serving the cached pre-deploy XML body. Sub-sitemap files
+  //   (sitemap-pages, -products, -merchants, etc.) keep their own
+  //   per-route cache for crawl budget; the *index* must always be fresh.
   return new Response(xml, {
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
-      "Cache-Control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
+      "Cache-Control": "no-store, must-revalidate",
     },
   });
 }
@@ -241,7 +488,7 @@ export function getStaticSitemapEntries(): SitemapUrlEntry[] {
   return Array.from(byUrl.values());
 }
 
-export function getCategorySitemapEntries(): SitemapUrlEntry[] {
+export async function getCategorySitemapEntries(): Promise<SitemapUrlEntry[]> {
   const now = new Date();
   const entries = new Map<string, SitemapUrlEntry>();
 
@@ -274,10 +521,16 @@ export function getCategorySitemapEntries(): SitemapUrlEntry[] {
     addEntry(`/us/category/${slug}`, 0.8);
   }
 
+  for (const category of await fetchApiCategories()) {
+    for (const country of CATEGORY_SITEMAP_COUNTRIES) {
+      addEntry(`/categories/${category.slug}/${country}`, 0.8);
+    }
+  }
+
   return Array.from(entries.values());
 }
 
-export function getCompareSitemapEntries(): SitemapUrlEntry[] {
+export async function getCompareSitemapEntries(): Promise<SitemapUrlEntry[]> {
   const now = new Date();
   const entries = new Map<string, SitemapUrlEntry>();
 
@@ -295,6 +548,10 @@ export function getCompareSitemapEntries(): SitemapUrlEntry[] {
 
   for (const category of PRODUCT_TAXONOMY) {
     addEntry(`/compare/${category.slug}`, 0.8);
+  }
+
+  for (const pair of await getCompareCategoryPairs()) {
+    addEntry(`/compare/${compareCategoryPairSlug(pair)}`, 0.7);
   }
 
   return Array.from(entries.values());

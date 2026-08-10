@@ -16,20 +16,68 @@ function formatPrice(price: number | null, currency: string) {
   }).format(price);
 }
 
-export function ProductGridCard({ product }: { product: LandingProduct }) {
+export function ProductGridCard({ product, compact = false }: { product: LandingProduct; compact?: boolean }) {
   const isMerchantOffer =
     product.href.startsWith("http://") || product.href.startsWith("https://");
-  const detailUrl =
-    product.productUrl ||
-    `/search?q=${encodeURIComponent(product.name)}`;
+
+  // Prefer a verified internal product page, but never let the card link land
+  // on a 404-prone synthetic URL when a working external merchant URL is
+  // available. `buildUSProductSlug` appends `-<id>` and the /products route
+  // can only resolve that when the API is reachable (BUY-52332 cutover). If
+  // the card already has a merchant offer, send the click straight to it —
+  // that's the same destination the explicit "Buy at <merchant>" button uses.
+  const detailUrl = isMerchantOffer
+    ? product.href
+    : product.productUrl || `/search?q=${encodeURIComponent(product.name)}`;
+
+  function handleMerchantClick(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    window.open(product.href, "_blank", "noopener,noreferrer");
+  }
+
+  function handleMerchantKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      e.stopPropagation();
+      window.open(product.href, "_blank", "noopener,noreferrer");
+    }
+  }
 
   return (
     <Link
       href={detailUrl}
       prefetch={false}
-      className="group flex h-full flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
+      target={isMerchantOffer ? "_blank" : undefined}
+      rel={isMerchantOffer ? "noopener noreferrer" : undefined}
+      className={`group grid h-full min-w-0 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl ${
+        compact ? "grid-cols-[9rem_minmax(0,1fr)] sm:grid-cols-[11rem_minmax(0,1fr)]" : "grid-rows-[auto_1fr]"
+      }`}
     >
-      <div className="relative aspect-[4/3] overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.25),_rgba(248,250,252,0.92)_55%,_rgba(226,232,240,0.95))]">
+      {/*
+        BUY-66323: harden image wrapper so the bg never bleeds into the text column.
+
+        The live page was rendering without its CSS bundle (all /_next/static/css/*.css
+        and /_next/static/chunks/app/* return 404 at the moment), which collapses the
+        layout. Even with a stale build, an oversized source image or an aspect-ratio
+        round-up used to push the wrapper past its grid cell, letting the bg-slate-100
+        (or pre-BUY-65158 radial-gradient) bleed behind the metadata tags + title.
+
+        Belt-and-suspenders against any of those failure modes:
+          - `isolate`        -> creates a new stacking context so the bg cannot paint
+                                outside this box even when CSS is partial.
+          - `min-w-0`        -> grid items shrink-to-fit instead of stretching past the
+                                column track.
+          - `max-w-full`     -> inline width cap; redundant with min-w-0 but survives
+                                any Tailwind purge / class-not-applied case.
+          - inline `style`   -> two declarations (overflow:hidden + maxWidth:100%)
+                                apply even when the stylesheet bundle is missing,
+                                which is exactly what QA observed on /laptop-singapore.
+      */}
+      <div
+        className={`relative isolate overflow-hidden bg-slate-100 ${compact ? "aspect-[4/3] min-w-0 max-w-full rounded-l-[27px]" : "aspect-[4/3] min-w-0 max-w-full rounded-t-[27px]"}`}
+        style={{ overflow: "hidden", maxWidth: "100%" }}
+      >
         <ProductGridImage
           src={product.imageUrl || ""}
           alt={product.name}
@@ -38,7 +86,7 @@ export function ProductGridCard({ product }: { product: LandingProduct }) {
         />
       </div>
 
-      <div className="flex flex-1 flex-col gap-4 p-5">
+      <div className={`flex min-w-0 flex-1 flex-col gap-4 ${compact ? "p-4" : "p-5"}`}>
         <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
           <span className="rounded-full bg-slate-100 px-2.5 py-1">
             {product.merchant}
@@ -47,15 +95,15 @@ export function ProductGridCard({ product }: { product: LandingProduct }) {
         </div>
 
         <div className="space-y-2">
-          <h2 className="line-clamp-2 text-lg font-semibold leading-tight text-slate-900 transition-colors group-hover:text-amber-700">
+          <h2 className="line-clamp-2 text-lg font-semibold leading-tight text-slate-900 transition-colors group-hover:text-amber-800">
             {product.name}
           </h2>
           {product.brand ? (
-            <p className="text-sm text-slate-500">{product.brand}</p>
+            <p className="text-sm text-slate-600">{product.brand}</p>
           ) : null}
         </div>
 
-        <div className="mt-auto flex items-end justify-between gap-4">
+        <div className={`mt-auto ${compact ? "grid gap-3" : "flex items-end justify-between gap-4"}`}>
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-600">
               Current price
@@ -65,17 +113,17 @@ export function ProductGridCard({ product }: { product: LandingProduct }) {
             </p>
           </div>
           {isMerchantOffer ? (
-            <a
-              href={product.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center rounded-full bg-amber-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-amber-600"
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={handleMerchantClick}
+              onKeyDown={handleMerchantKeyDown}
+              className={`inline-flex min-h-11 cursor-pointer items-center justify-center rounded-full bg-amber-700 px-4 py-2.5 text-center font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 ${compact ? "w-full text-xs" : "text-sm"}`}
             >
               Buy at {product.merchant}
-            </a>
+            </span>
           ) : (
-            <span className="text-sm font-medium text-amber-700">
+            <span className="inline-flex min-h-11 items-center text-sm font-medium text-amber-800">
               View details
             </span>
           )}

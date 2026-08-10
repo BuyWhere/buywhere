@@ -9,7 +9,11 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
 
-DB_URL = "postgresql+asyncpg://buywhere:buywhere@172.18.0.4:5432/buywhere"
+import sys as _sys
+from pathlib import Path as _P
+_sys.path.insert(0, str(_P(__file__).resolve().parent))
+import catalog_guard  # fail-fast: bulk writes only ever target maglev
+DB_URL = catalog_guard.resolve_catalog_url(driver="asyncpg")
 BATCH_SIZE = 500
 
 # Map catalog platform names to DB enum values
@@ -173,6 +177,7 @@ async def ingest_file(engine, filepath):
 
 async def main():
     engine = create_async_engine(DB_URL, pool_size=5, max_overflow=5)
+    await catalog_guard.assert_catalog_async_engine(engine)
     base = Path("/home/paperclip/buywhere-api")
 
     for fname in ["catalog_mapped.ndjson", "catalog_sg_deduped.ndjson"]:
