@@ -946,8 +946,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     if (deviceFilter.type === 'wearable') positiveSignals.push('smart watch', 'smartwatch', 'fitness tracker');
     const hasPositive = positiveSignals.some(s => text.includes(s));
     const hasNegative = neg.some(t => text.includes(t));
-    // If the title explicitly contains a positive device word and no accessory word, keep it.
-    if (!hasNegative && hasPositive) return false;
+    const titleLower = String(r.title || '').toLowerCase();
+    const queryTokens = productName.toLowerCase().split(/\s+/).filter(t => t.length > 1);
+    const titleMatchesQuery = queryTokens.length > 0 && queryTokens.every(t => titleLower.includes(t));
+    // Exact device query: keep only rows that clearly are the device (positive signal or title contains full query)
+    // or that contain no accessory words and at least the core device name.
+    if (!hasNegative && (hasPositive || titleMatchesQuery)) return false;
     // If any negative term appears, treat as accessory unless a positive signal also appears.
     if (hasNegative && !hasPositive) return true;
     // Fallback: multi-model titles like "For iPhone 15 14 13 ... screen protector" are accessories.

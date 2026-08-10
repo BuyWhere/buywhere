@@ -856,7 +856,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     if (deviceFilter.type === 'wearable') positiveSignals.push('smart watch', 'smartwatch', 'fitness tracker');
     const hasPositive = positiveSignals.some(s => text.includes(s));
     const hasNegative = neg.some(t => text.includes(t));
-    if (!hasNegative && hasPositive) return false;
+    const titleLower = String(r.title || '').toLowerCase();
+    const queryTokens = productName.toLowerCase().split(/\s+/).filter(t => t.length > 1);
+    const titleMatchesQuery = queryTokens.length > 0 && queryTokens.every(t => titleLower.includes(t));
+    // Exact device query: keep only rows that clearly are the device (positive signal or title contains full query)
+    // or that contain no accessory words and at least the core device name.
+    if (!hasNegative && (hasPositive || titleMatchesQuery)) return false;
     if (hasNegative && !hasPositive) return true;
     if (/\bfor\b.*\b(iphone|galaxy|ipad|ps5|xbox|macbook)\b.*\b\d+\b.*(protector|case|cover|glass|film|cable|adapter|charger|controller|game)\b/.test(text)) return true;
     if (/\bcompatible\b/.test(text) && hasNegative) return true;
