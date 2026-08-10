@@ -1522,8 +1522,21 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         }));
       }
 
-      default:
+      // BUY-68192: backward compatibility for direct tool-name JSON-RPC methods
+      // (e.g., "search_products", "list_categories"). Some MCP clients and
+      // heartbeat probes invoke tools by name instead of wrapping them in the
+      // MCP "tools/call" envelope. Route known tool names to dispatchTool.
+      default: {
+        const knownTool = TOOLS.find((t) => t.name === method);
+        if (knownTool) {
+          res.locals.mcpToolName = method;
+          const result = await dispatchTool(method, args);
+          return res.json(jsonrpcOk(id, {
+            content: [{ type: 'text', text: JSON.stringify(result) }],
+          }));
+        }
         return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
+      }
     }
   } catch (err: unknown) {
     const e = err as { code?: number; message?: string };
