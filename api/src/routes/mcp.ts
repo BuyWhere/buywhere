@@ -11,14 +11,19 @@ import { buildDeviceFilter } from '../lib/deviceClassifier';
 
 const router = Router();
 
-// BUY-56185: Detect statement_timeout poisoned connections.
+// BUY-56185/BUY-56635: Detect statement_timeout poisoned connections.
 // When PostgreSQL's statement_timeout fires, the query is cancelled but the
-// connection enters PQTRANS_INERROR state. Returning such a connection to the
-// pool poises every subsequent query on it with "current transaction is aborted".
-// client.state returns 'error' in this state — discard instead of reusing.
+// connection enters PQTRANS_INERROR state (transactionStatus === 3). Returning such
+// a connection to the pool poisons every subsequent query with "current transaction
+// is aborted". Discard it instead of returning it to the pool.
+// NOTE: client.state tracks the socket connection state ('connected','connecting')
+// and is NOT set to 'error' for transaction-level errors — we must check
+// client.transactionStatus (pg's PQTRANS_* codes) to detect aborted transactions.
 function releaseClientSafely(client: any) {
   try {
-    if (client && typeof client.state === 'string' && client.state === 'error') {
+    // PQTRANS_INERROR = 3 — transaction aborted due to statement_timeout or other error.
+    // Discard the connection so a fresh one is acquired from the pool next time.
+    if (client && client.transactionStatus === 3) {
       client.release(true); // discard — do NOT return poisoned connection to pool
     } else {
       client.release();
@@ -850,12 +855,19 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     ].join(' ').toLowerCase();
     const positiveSignals: string[] = [];
     if (deviceFilter.type === 'phone') positiveSignals.push('smartphone', 'mobile phone', 'mobile phones');
-    if (deviceFilter.type === 'console') positiveSignals.push('game console', 'gaming console', 'consoles');
+    if (deviceFilter.type === 'console') positiveSignals.push('game console', 'gaming console', 'consoles', 'playstation 5 console', 'ps5 console', 'xbox console');
     if (deviceFilter.type === 'laptop') positiveSignals.push('laptop', 'notebook');
     if (deviceFilter.type === 'tablet') positiveSignals.push('tablet');
     if (deviceFilter.type === 'wearable') positiveSignals.push('smart watch', 'smartwatch', 'fitness tracker');
     const hasPositive = positiveSignals.some(s => text.includes(s));
     const hasNegative = neg.some(t => text.includes(t));
+    if (deviceFilter.type === 'console') {
+      const hasConsoleTitle = /\b(playstation\s*5|sony\s+ps5|ps5\s+(console|slim|digital|disc)|xbox\s+series\s+(s|x)|nintendo\s+switch)\b/.test(text);
+      const isNonConsolePs5Sku = /\bpatriot\s+ps5\b|fence\s+energizer|solar\s+fence|electric\s+fence/.test(text);
+      if (isNonConsolePs5Sku) return true;
+      if (hasNegative) return true;
+      return !(hasPositive || hasConsoleTitle);
+    }
     if (!hasNegative && hasPositive) return false;
     if (hasNegative && !hasPositive) return true;
     if (/\bfor\b.*\b(iphone|galaxy|ipad|ps5|xbox|macbook)\b.*\b\d+\b.*(protector|case|cover|glass|film|cable|adapter|charger|controller|game)\b/.test(text)) return true;
@@ -864,8 +876,16 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   };
 
   const candidates = result.rows.filter(r => !isAccessory(r));
+  const pricedCandidates = candidates
+    .map((r: Record<string, unknown>) => ({ row: r, usd: Number(r.price) * toUsd }))
+    .filter(({ usd }) => Number.isFinite(usd) && usd > 0);
+  const sortedUsd = pricedCandidates.map(({ usd }) => usd).sort((a, b) => a - b);
+  const medianUsd = sortedUsd.length > 0 ? sortedUsd[Math.floor(sortedUsd.length / 2)] : 0;
+  const minAllowedUsd = medianUsd > 0 ? medianUsd * 0.15 : 0;
+  const guardApplied = pricedCandidates.length >= 3 && candidates.some((r) => Number(r.price) * toUsd < minAllowedUsd);
+  const guardedCandidates = guardApplied ? candidates.filter((r) => Number(r.price) * toUsd >= minAllowedUsd) : candidates;
 
-  const data = candidates.map((r: Record<string, unknown>) => ({
+  const data = guardedCandidates.map((r: Record<string, unknown>) => ({
     id: r.id,
     title: r.title,
     price: { amount: r.price != null ? parseFloat(r.price as string) : null, currency: r.currency || currency },
@@ -879,7 +899,22 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   return {
     best_price: data[0] ?? null,
     alternatives: data.slice(1),
-    meta: { total: data.length, country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'), response_time_ms: Date.now() - t0 },
+    meta: {
+      total: data.length,
+      country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'),
+      response_time_ms: Date.now() - t0,
+      guard_applied: guardApplied,
+      ...(guardApplied ? {
+        median_usd: Math.round(medianUsd * 100) / 100,
+        min_allowed_usd: Math.round(minAllowedUsd * 100) / 100,
+      } : {}),
+      ...(deviceFilter.type && data.length === 0 ? {
+        unavailable: true,
+        reason: 'exact_device_filter_no_match',
+        product_type: deviceFilter.type,
+        message: `No non-accessory ${deviceFilter.type} listings found for this exact product query.`,
+      } : {}),
+    },
   };
 }
 
