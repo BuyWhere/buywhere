@@ -113,21 +113,23 @@ export function HomeProductSearch() {
               {error}
             </p>
           ) : (
-            <div className="flex flex-wrap items-center justify-start gap-2 text-sm text-white sm:justify-center">
-              <span>Try</span>
-              {exampleQueries.map((example) => (
-                <button
-                  key={example}
-                  type="button"
-                  onClick={() => {
-                    setQuery(example);
-                    submitQuery(example);
-                  }}
-                  className="whitespace-nowrap rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700"
-                >
-                  {example}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-baseline justify-center gap-x-2 gap-y-2 text-sm text-white sm:items-center">
+              <span className="shrink-0">Try</span>
+              <div className="chip-group flex flex-wrap items-baseline justify-center gap-2 sm:items-center">
+                {exampleQueries.map((example) => (
+                  <button
+                    key={example}
+                    type="button"
+                    onClick={() => {
+                      setQuery(example);
+                      submitQuery(example);
+                    }}
+                    className="rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700"
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
