@@ -558,9 +558,11 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
           >
             {product.name}
           </h2>
-          <div className="flex flex-wrap gap-2 text-xs text-slate-600">
-            {product.brand ? <span>{product.brand}</span> : null}
-            {product.category ? <span>{product.category}</span> : null}
+          {/* BUY-67977: reserve a single-line slot so cards with no brand/category
+              don't collapse to 0 height and break grid row alignment. */}
+          <div className="flex min-h-[1.25rem] flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-600">
+            {product.brand ? <span className="line-clamp-1">{product.brand}</span> : null}
+            {product.category ? <span className="line-clamp-1">{product.category}</span> : null}
           </div>
         </div>
 
