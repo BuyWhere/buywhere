@@ -5,6 +5,8 @@ import { getSGProducts, type SGProductForSitemap } from "@/lib/sg-products";
 import { toSiteUrl } from "@/lib/site-url";
 import { seoLandingPages } from "@/lib/seo-landing-pages";
 import fs from "node:fs";
+import path from "node:path";
+import matter from "gray-matter";
 
 function safeGetBlogPosts() {
   try {
@@ -51,6 +53,29 @@ const CATEGORY_PAGE_SLUGS = [
   "home-living",
   "toys-games",
 ] as const;
+
+const compareContentDir = path.join(process.cwd(), "content", "compare");
+
+type CompareFrontmatter = { slug?: string };
+
+function safeGetCompareContentSlugs(): string[] {
+  try {
+    return fs.readdirSync(compareContentDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+      .map((entry) => entry.name.replace(/\.md$/, ""))
+      .map((fallbackSlug) => {
+        try {
+          const { data } = matter(fs.readFileSync(path.join(compareContentDir, `${fallbackSlug}.md`), "utf8"));
+          return (data as CompareFrontmatter).slug || fallbackSlug;
+        } catch {
+          return fallbackSlug;
+        }
+      })
+      .filter((slug) => slug && !slug.includes("..") && !slug.includes(path.sep));
+  } catch {
+    return [];
+  }
+}
 
 const STATIC_SITEMAP_ROUTES = [
   { path: "/", priority: 1.0, changeFrequency: "weekly" as const },
@@ -295,6 +320,10 @@ export function getCompareSitemapEntries(): SitemapUrlEntry[] {
 
   for (const category of PRODUCT_TAXONOMY) {
     addEntry(`/compare/${category.slug}`, 0.8);
+  }
+
+  for (const slug of safeGetCompareContentSlugs()) {
+    addEntry(`/compare/${slug}`, 0.8);
   }
 
   return Array.from(entries.values());

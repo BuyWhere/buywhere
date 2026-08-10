@@ -25,6 +25,20 @@ test("getCompareSitemapEntries uses canonical (no trailing slash) URLs", () => {
   }
 });
 
+test("getCompareSitemapEntries includes markdown-backed compare detail pages only", () => {
+  const entries = getCompareSitemapEntries();
+  const urls = new Set(entries.map((entry) => entry.url));
+
+  assert.ok(
+    urls.has("https://buywhere.ai/compare/buywhere-vs-amazon"),
+    "expected a valid content-backed compare detail page in sitemap-compare.xml",
+  );
+  assert.ok(
+    !urls.has("https://buywhere.ai/compare/fashion-vs-beauty"),
+    "unsupported fallback pair /compare/fashion-vs-beauty should not appear in sitemap-compare.xml",
+  );
+});
+
 test("getCategorySitemapEntries excludes soft-404 slugs flagged in BUY-39762 / BUY-41940", () => {
   const entries = getCategorySitemapEntries();
   const urls = entries.map((e) => e.url);

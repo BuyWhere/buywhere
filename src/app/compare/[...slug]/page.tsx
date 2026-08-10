@@ -6,7 +6,6 @@ import remarkGfm from "remark-gfm";
 import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
-import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
@@ -49,6 +48,8 @@ function getBySlug(slugParts: string[]) {
   return getAll().find((d) => d && d.slug === slug) || null;
 }
 
+export const dynamicParams = false;
+
 export async function generateStaticParams() {
   return getAll().map((d) => ({ slug: d!.slug.split("/") })).filter(Boolean);
 }
@@ -56,10 +57,12 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const doc = getBySlug(params.slug);
   if (!doc) return {};
+  const url = toSiteUrl(`/compare/${doc.slug}`);
   return {
     title: doc.title, description: doc.description,
-    alternates: { canonical: toSiteUrl(`/compare/${doc.slug}`) },
-    openGraph: { title: doc.title, description: doc.description, type: "website", url: toSiteUrl(`/compare/${doc.slug}`), siteName: "BuyWhere" },
+    alternates: { canonical: url },
+    openGraph: { title: doc.title, description: doc.description, type: "website", url, siteName: "BuyWhere" },
+    twitter: { card: "summary_large_image", title: doc.title, description: doc.description },
   };
 }
 
@@ -81,12 +84,40 @@ function buildFaqSchema(body: string) {
   return { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: entities };
 }
 
+function buildComparePageSchema(doc: NonNullable<ReturnType<typeof getAll>[number]>) {
+  const url = toSiteUrl(`/compare/${doc.slug}`);
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "CollectionPage",
+        "@id": `${url}#webpage`,
+        url,
+        name: doc.title,
+        description: doc.description,
+        isPartOf: { "@id": `${toSiteUrl("/")}#website` },
+        breadcrumb: { "@id": `${url}#breadcrumb` },
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${url}#breadcrumb`,
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: toSiteUrl("/") },
+          { "@type": "ListItem", position: 2, name: "Price Comparisons", item: toSiteUrl("/compare") },
+          { "@type": "ListItem", position: 3, name: doc.title, item: url },
+        ],
+      },
+    ],
+  };
+}
+
 export default function CompareContentPage({ params }: Params) {
   const doc = getBySlug(params.slug);
   if (!doc) notFound();
 
   let body = "";
   let faqSchema = null;
+  const comparePageSchema = buildComparePageSchema(doc);
   try {
     const { data, content } = matter(fs.readFileSync(path.join(contentDir, `${doc.slug}.md`), "utf8"));
     body = content.trim();
@@ -101,7 +132,8 @@ export default function CompareContentPage({ params }: Params) {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
-      {faqSchema && <Script id="faq-schema" type="application/ld+json" strategy="afterInteractive">{JSON.stringify(faqSchema)}</Script>}
+      <script id="compare-page-schema" type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(comparePageSchema) }} />
+      {faqSchema && <script id="faq-schema" type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />}
       <Nav />
       <main id="main-content" className="flex-1">
         <section className="border-b border-slate-200 bg-white">
