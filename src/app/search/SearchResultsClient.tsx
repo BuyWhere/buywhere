@@ -458,7 +458,19 @@ function SearchProgressIndicator({ startedAt }: { startedAt: number }) {
 
 
 function SearchCard({ product }: { product: SearchCardProduct }) {
-  const [imageError, setImageError] = useState(false);
+  // BUY-67973: track image lifecycle so the literal "Product image" text no
+  // longer sits on top of loaded imagery. We render three mutually exclusive
+  // states:
+  //   - loading (default): subtle radial-gradient skeleton (no overlay text)
+  //   - loaded: the actual <img> with no fallback text
+  //   - error: the existing BrandedPlaceholder (no overlay text)
+  const [imageState, setImageState] = useState<'loading' | 'loaded' | 'error'>(
+    product.imageUrl ? 'loading' : 'error'
+  );
+
+  useEffect(() => {
+    setImageState(product.imageUrl ? 'loading' : 'error');
+  }, [product.imageUrl]);
 
   // Branded placeholder for broken/missing images - shows brand + product name
   // Similar to ProductGridImage's BrandedPlaceholder (BUY-63851 fix)
@@ -514,10 +526,14 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
         style={{ aspectRatio: '4/3', maxHeight: '220px' }}
         data-testid="search-product-media"
       >
-        <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))] text-sm font-semibold text-slate-600">
-          Product image
-        </div>
-        {product.imageUrl && !imageError ? (
+        {imageState === 'loading' ? (
+          <div
+            className="absolute inset-0 animate-pulse bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))]"
+            data-testid="search-product-image-loading"
+            aria-hidden="true"
+          />
+        ) : null}
+        {product.imageUrl && imageState !== 'error' ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={product.imageUrl}
@@ -525,8 +541,10 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
             loading="lazy"
             decoding="async"
             referrerPolicy="no-referrer"
-            onError={() => {
-              setImageError(true);
+            onLoad={() => setImageState('loaded')}
+            onError={(event) => {
+              event.currentTarget.removeAttribute('src');
+              setImageState('error');
             }}
             // BUY-64266: drop group-hover:scale-[1.03] which pushed the rightmost
             // card image beyond the grid column on desktop. Keep BUY-64736's
@@ -534,8 +552,9 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
             // can never exceed its 220px-tall card frame.
             className="relative z-10 block h-full w-full max-h-[220px] max-w-full object-contain p-2"
             style={{ maxHeight: '220px', width: '100%', objectFit: 'contain' }}
+            data-testid="search-product-image"
           />
-        ) : imageError || !product.imageUrl ? (
+        ) : imageState === 'error' || !product.imageUrl ? (
           <BrandedPlaceholder />
         ) : null}
         <div className="absolute right-2 top-2 z-20">
