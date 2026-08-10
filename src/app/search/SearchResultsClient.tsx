@@ -299,43 +299,119 @@ function SearchProgressIndicator({ startedAt }: { startedAt: number }) {
 }
 
 
+type SearchCardMediaState = 'loading' | 'loaded' | 'error';
+
+function SearchCardImage({
+  src,
+  alt,
+  fallbackKind,
+}: {
+  src: string | null;
+  alt: string;
+  fallbackKind: 'placeholder' | 'icon';
+}) {
+  // BUY-67973: state-driven loading / loaded / error cycle. Never render the
+  // literal "Product image" alt/text overlay on top of loaded imagery.
+  const [mediaState, setMediaState] = useState<SearchCardMediaState>(src ? 'loading' : 'error');
+
+  useEffect(() => {
+    setMediaState(src ? 'loading' : 'error');
+  }, [src]);
+
+  if (!src || mediaState === 'error') {
+    return (
+      <div
+        className="absolute inset-0 flex items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))]"
+        aria-hidden="true"
+        data-testid="search-product-media-fallback"
+        data-fallback-kind={fallbackKind}
+      >
+        {fallbackKind === 'icon' ? (
+          <span className="text-4xl text-slate-600" aria-hidden="true">◎</span>
+        ) : (
+          <ProductImageSilhouette className="h-2/5 w-2/5 text-slate-300" />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {mediaState === 'loading' ? (
+        <div
+          className="absolute inset-0 animate-pulse bg-slate-100"
+          aria-hidden="true"
+          data-testid="search-product-media-skeleton"
+        />
+      ) : null}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        referrerPolicy="no-referrer"
+        onLoad={() => setMediaState('loaded')}
+        onError={() => setMediaState('error')}
+        className="relative z-10 block h-full max-h-full w-full max-w-full object-contain p-2 transition-transform duration-300 group-hover:scale-[1.03]"
+      />
+    </>
+  );
+}
+
+function ProductImageSilhouette({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 64 64"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect x="6" y="14" width="52" height="40" rx="4" fill="currentColor" />
+      <circle cx="22" cy="26" r="6" fill="white" fillOpacity="0.85" />
+      <path
+        d="M10 50 C18 38 30 38 38 46 C42 50 50 50 54 48 L54 54 L10 54 Z"
+        fill="white"
+        fillOpacity="0.85"
+      />
+    </svg>
+  );
+}
+
 function SearchCard({ product }: { product: SearchCardProduct }) {
   return (
     <a
+      data-testid="search-product-card"
       href={product.href}
       target="_blank"
       rel="noopener noreferrer"
-      className="group relative flex h-full min-h-0 flex-col rounded-[22px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
+      className="group relative flex h-full min-h-[460px] min-w-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
-      <div className="relative aspect-[16/10] border-b border-slate-100 bg-slate-100">
-        <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))] text-sm font-semibold text-slate-600">
-          Product image
+      <div
+        className="relative aspect-[4/3] w-full shrink-0 overflow-hidden border-b border-slate-100 bg-slate-100"
+        data-testid="search-product-media"
+      >
+        <SearchCardImage
+          src={product.imageUrl}
+          alt={product.name}
+          fallbackKind={product.imageUrl ? 'placeholder' : 'icon'}
+        />
+        <div className="absolute left-2 top-2 z-20">
+          <span className="inline-flex items-center rounded-full bg-white/95 px-2.5 py-1 text-sm font-bold tracking-tight text-slate-950 shadow-md ring-1 ring-slate-200 backdrop-blur">
+            {formatPrice(product.price, product.currency)}
+          </span>
         </div>
-        {product.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={product.imageUrl}
-            alt={product.name}
-            loading="lazy"
-            decoding="async"
-            referrerPolicy="no-referrer"
-            onError={(event) => {
-              event.currentTarget.style.display = 'none';
-            }}
-            className="relative z-10 h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-[1.03]"
-          />
-        ) : (
-          <div className="relative z-10 flex h-full items-center justify-center text-4xl text-slate-600">◎</div>
-        )}
-        <div className="absolute right-2 top-2">
+        <div className="absolute right-2 top-2 z-20">
           <CompareSelectButton product={product} className="h-9 w-9" />
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-2.5 bg-white p-3.5">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-2.5 bg-white p-3.5" data-testid="search-product-details">
         <div className="flex min-h-7 items-start justify-between gap-2">
-          <MerchantBadge merchant={product.merchant} className="shrink-0" />
-          <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
+          <MerchantBadge merchant={product.merchant} className="min-w-0 flex-1 basis-0" />
+          <span className="inline-flex shrink-0 items-center gap-1 self-start rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
             Shop
             <ExternalLink className="h-3 w-3" />
           </span>
@@ -343,7 +419,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
 
         <div className="space-y-1.5">
           <h2
-            className="line-clamp-2 text-[15px] font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
+            className="line-clamp-3 text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
           >
             {product.name}
           </h2>
@@ -372,6 +448,8 @@ export default function SearchResultsClient({
   initialQuery = '',
   initialCountry = 'us',
 }: SearchResultsClientProps) {
+  const initialSearchQuery = initialQuery.trim();
+  const hasInitialSearchQuery = initialSearchQuery.length >= MIN_QUERY_LENGTH;
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchParamsString = searchParams?.toString() ?? '';
@@ -379,13 +457,13 @@ export default function SearchResultsClient({
   const [isNavigating, startTransition] = useTransition();
   const [query, setQuery] = useState(initialQuery);
   const [country, setCountry] = useState<CountryValue>(normalizeCountry(initialCountry));
-  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery.trim());
+  const [debouncedQuery, setDebouncedQuery] = useState(initialSearchQuery);
   const [products, setProducts] = useState<SearchCardProduct[]>([]);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
-  const [loadingInitial, setLoadingInitial] = useState(false);
+  const [loadingInitial, setLoadingInitial] = useState(hasInitialSearchQuery);
   const [searchStartTime, setSearchStartTime] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -651,7 +729,25 @@ export default function SearchResultsClient({
       <Header />
 
       <main id="main-content" className="flex-1">
-        <section className="border-b border-amber-100 bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.22),_rgba(255,247,237,0.85)_38%,_rgba(255,255,255,1)_80%)]">
+        {/* Mobile compact summary (replaces the full hero on mobile when an active search
+            is running) — keeps only a single line with country + result count + query.
+            Rendered as an <h1> for SEO semantics and tightened to ~44px above the fold. */}
+        {hasActiveSearch ? (
+          <h1
+            data-testid="search-mobile-summary"
+            className="mx-auto block max-w-7xl truncate px-4 py-3 text-sm font-semibold text-slate-700 md:hidden"
+          >
+            <span className="text-amber-700">{activeCountry.label.toUpperCase()}</span>
+            <span className="mx-2 text-slate-300">/</span>
+            <span>
+              {loadingInitial
+                ? 'Searching…'
+                : `${total.toLocaleString()} results for “${debouncedQuery}”`}
+            </span>
+          </h1>
+        ) : null}
+
+        <section className="hidden border-b border-amber-100 bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.22),_rgba(255,247,237,0.85)_38%,_rgba(255,255,255,1)_80%)] md:block">
           <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${hasActiveSearch ? 'py-5 lg:py-6' : 'py-10 lg:py-14'}`}>
             <div className="max-w-3xl">
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">Product search</p>
@@ -826,7 +922,7 @@ export default function SearchResultsClient({
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+        <section className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
           {showSearchPrompt ? (
             <div className="rounded-[28px] border border-dashed border-slate-300 bg-white/90 p-8 text-center shadow-sm">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-600">Start browsing</p>
@@ -846,7 +942,7 @@ export default function SearchResultsClient({
           {!showSearchPrompt && !error ? (
             <div className="space-y-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
+                <div className="hidden md:block">
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
                     {activeCountry.label}
                   </p>
@@ -863,7 +959,7 @@ export default function SearchResultsClient({
                 </div>
                 <Link
                   href="/"
-                  className="inline-flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                  className="hidden self-start rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900 sm:inline-flex sm:items-center sm:gap-2"
                 >
                   Back to homepage
                 </Link>
@@ -938,7 +1034,7 @@ export default function SearchResultsClient({
 
               {!loadingInitial && products.length > 0 ? (
                 <>
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     {products.map((product) => (
                       <SearchCard key={product.id} product={product} />
                     ))}
