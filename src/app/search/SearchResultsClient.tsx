@@ -439,7 +439,7 @@ function SearchProgressIndicator({ startedAt }: { startedAt: number }) {
 
   return (
     <div className="flex flex-col items-center gap-3 py-6" role="status" aria-live="polite">
-      <div className="flex items-center gap-2 text-sm text-slate-500">
+      <div className="flex items-center gap-2 text-sm text-slate-600">
         <span className="text-lg">{phase.icon}</span>
         <span>{phase.message}</span>
       </div>
@@ -495,7 +495,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
           </svg>
         </div>
         {product.brand && (
-          <span className="text-xs text-slate-500">{product.brand}</span>
+          <span className="text-xs text-slate-600">{product.brand}</span>
         )}
       </div>
     );
@@ -558,7 +558,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
           >
             {product.name}
           </h2>
-          <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+          <div className="flex flex-wrap gap-2 text-xs text-slate-600">
             {product.brand ? <span>{product.brand}</span> : null}
             {product.category ? <span>{product.category}</span> : null}
           </div>
@@ -568,9 +568,11 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
           {/* BUY-65455: label + price on a single baseline-aligned row so the
               numeric price is visually adjacent to the 'Current price' label
               (previously they were disconnected: a floating pill on the image
-              + the label here). */}
+              + the label here). BUY-67976: bumped label + metadata from
+              text-slate-500 (~4.76:1) to text-slate-600 (~7.58:1) so VidMee
+              passes WCAG AA 4.5:1 against the white card background. */}
           <div className="flex items-baseline justify-between gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Current price</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">Current price</p>
             <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
           </div>
           <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
@@ -869,12 +871,13 @@ export default function SearchResultsClient({
 
       <main id="main-content" className="flex-1">
         {/* Mobile compact summary (replaces the full hero on mobile when an active search
-            is running) — keeps only a single line with country + result count + query.
+            is running) — keeps the result count + query fully visible by wrapping gracefully
+            on small viewports instead of truncating with an ellipsis (BUY-67976).
             Rendered as an <h1> for SEO semantics and tightened to ~44px above the fold. */}
         {hasActiveSearch ? (
           <h1
             data-testid="search-mobile-summary"
-            className="mx-auto block max-w-7xl truncate px-4 py-3 text-sm font-semibold text-slate-700 md:hidden"
+            className="mx-auto block max-w-7xl px-4 py-3 text-sm font-semibold leading-snug text-slate-700 [overflow-wrap:anywhere] md:hidden"
           >
             <span className="text-amber-700">{activeCountry.label.toUpperCase()}</span>
             <span className="mx-2 text-slate-300">/</span>
@@ -1051,7 +1054,7 @@ export default function SearchResultsClient({
                 </label>
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-600">
                 <span>Suggested:</span>
                 {SUGGESTED_SEARCHES.map((suggestion) => (
                   <button
