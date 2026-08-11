@@ -960,7 +960,6 @@ export default function SearchResultsClient({
           <h1
             data-testid="search-mobile-summary"
 
-            className="mx-auto block max-w-7xl px-4 py-3 text-sm font-semibold leading-snug text-slate-700 [overflow-wrap:anywhere] md:hidden"
 
             className="mx-auto block max-w-7xl whitespace-normal break-words px-4 py-3 text-sm font-semibold text-slate-700 md:hidden"
 
