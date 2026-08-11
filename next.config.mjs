@@ -33,9 +33,16 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      // BUY-68319/BUY-67102: keep root-domain MCP clients on the
+      // canonical API-host MCP endpoint instead of the human docs page.
       {
         source: '/mcp',
-        destination: '/integrate',
+        destination: 'https://api.buywhere.ai/mcp',
+        permanent: true,
+      },
+      {
+        source: '/mcp/:path*',
+        destination: 'https://api.buywhere.ai/mcp/:path*',
         permanent: true,
       },
       {
