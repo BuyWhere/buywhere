@@ -92,6 +92,29 @@ const nextConfig = {
         destination: '/blog/rss.xml',
         permanent: true,
       },
+      // BUY-68536: plausible developer/account aliases should recover to the
+      // canonical private dashboard or API-key acquisition page instead of the
+      // generic shopping 404 shell.
+      {
+        source: '/developer-dashboard',
+        destination: '/dashboard',
+        permanent: true,
+      },
+      {
+        source: '/developers/dashboard',
+        destination: '/dashboard',
+        permanent: true,
+      },
+      {
+        source: '/account/api-keys',
+        destination: '/api-keys',
+        permanent: true,
+      },
+      {
+        source: '/developers/api-keys',
+        destination: '/api-keys',
+        permanent: true,
+      },
       // BUY-68422: surface existing status page infrastructure at apex domain
       {
         source: '/status',
