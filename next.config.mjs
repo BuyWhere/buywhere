@@ -45,6 +45,34 @@ const nextConfig = {
         destination: 'https://api.buywhere.ai/mcp/:path*',
         permanent: true,
       },
+      // BUY-68368: high-intent developer/API aliases should not fall through
+      // to homepage-branded 404 HTML shells. Route them to canonical docs/API
+      // resources before the App Router renders the generic not-found page.
+      {
+        source: '/developer',
+        destination: '/developers',
+        permanent: true,
+      },
+      {
+        source: '/api-docs',
+        destination: '/docs',
+        permanent: true,
+      },
+      {
+        source: '/developers/docs',
+        destination: '/docs',
+        permanent: true,
+      },
+      {
+        source: '/developers/api',
+        destination: '/docs/api-reference/search',
+        permanent: true,
+      },
+      {
+        source: '/swagger.json',
+        destination: 'https://api.buywhere.ai/openapi.json',
+        permanent: true,
+      },
       {
         source: '/:path*',
         has: [
