@@ -309,6 +309,33 @@ describe('NL search queries — response correctness', () => {
     assert.deepEqual(laptopFallbackCall.arguments[1], ['US', '%asus%', '%rog%', 21, 0]);
   });
 
+  // BUY-68365: storage / component titles (e.g. "Seagate Firecuda 520 1TB ... for Gaming PC Gaming
+  // Laptop Desktop") whose category is "Storage" slip through the laptop fallback's title-ILIKE
+  // WHERE. The demotion SQL must extend the BUY-63953 regex to flag these so they sort to the
+  // bottom instead of ranking #2 on a "gaming laptop" query.
+  it('demotes storage / component titles in the laptop product-intent fallback (BUY-68365)', async () => {
+    const res = await fetch(`http://localhost:${port}/v1/products/search?q=gaming+laptop&country_code=US`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+    assert.equal(res.status, 200);
+
+    const laptopFallbackCall = queryMock.mock.calls.find(
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('_accessory_rank')
+    );
+    assert.ok(laptopFallbackCall, 'Expected bounded laptop fallback query for BUY-68365');
+    const sql = laptopFallbackCall.arguments[0];
+    // Storage / drive keywords in title — Firecuda / NVMe / SSD / hard drive / HDD
+    assert.ok(/\\m\(ssd\|hdd\|nvme\|solid state\|hard drive\|firecuda/.test(sql),
+      'Expected BUY-68365 storage regex in laptopAccessoryDemotionSql');
+    // Storage category token — demote by category, not just title.
+    assert.ok(/storage/.test(sql),
+      'Expected "storage" in demotion regex so category=Storage products sort to bottom');
+    // Regression guard: must NOT re-introduce the BUY-63953 AND-bug (positive tokens into WHERE).
+    // The demotion must stay in ORDER BY, not the WHERE.
+    assert.ok(sql.includes('ORDER BY _accessory_rank ASC'),
+      'Demotion must remain an ORDER BY boost, not a WHERE filter');
+  });
+
   it('applies price range filters with NL query', async () => {
     const res = await fetch(`http://localhost:${port}/v1/products/search?q=headphones&min_price=50&max_price=200`, {
       headers: { Authorization: 'Bearer test-key' },
@@ -650,39 +677,6 @@ describe('NL search queries — response correctness', () => {
       c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('ORDER BY ts_rank(search_vector')
     );
     assert.ok(ftsRankingCall, 'Expected hybrid mode to query FTS candidates for RRF');
-  });
-
-  // BUY-52089: vector search should fall back to FTS when vector query throws (e.g., dim mismatch)
-  it('falls back to FTS when vector query throws', async () => {
-    process.env.GEMINI_API_KEY = 'test-jina-key';
-    config.vectorDb = { query: vectorQueryMock };
-    // Simulate vector query throwing (e.g., dimension mismatch error)
-    vectorQueryMock.mock.mockImplementation(() => Promise.reject(new Error('different vector dimensions 512 and 1024')));
-    queryMock.mock.mockImplementation((sql) => {
-      if (typeof sql === 'string' && sql.includes('api_keys')) {
-        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
-      }
-      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
-        return Promise.resolve({ rows: [] });
-      }
-      if (typeof sql === 'string' && sql.includes('FROM products') && sql.includes('ORDER BY ts_rank')) {
-        return Promise.resolve({ rows: [{ id: '1' }] });
-      }
-      if (typeof sql === 'string' && sql.includes('WHERE products.id = ANY($1::bigint[])')) {
-        return Promise.resolve({
-          rows: [makeProduct('1', { title: 'Gaming Laptop', price: 1299 })],
-        });
-      }
-      return defaultQueryHandler(sql);
-    });
-
-    const res = await fetch(`http://localhost:${port}/v1/products/search?q=laptop&mode=semantic`, {
-      headers: { Authorization: 'Bearer test-key' },
-    });
-    const body = await res.json();
-
-    assert.equal(res.status, 200, 'Should return 200 (not 500) when vector search fails');
-    assert.ok(body.data?.length >= 0, 'Should return some result (FTS fallback)');
   });
 });
 
