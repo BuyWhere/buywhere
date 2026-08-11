@@ -48,6 +48,27 @@ export default function BlogIndexPage() {
         description: BLOG_DESCRIPTION,
         inLanguage: "en-US",
         mainEntityOfPage: { "@id": `${blogUrl}#webpage` },
+        blogPost: posts.slice(0, 10).map((post) => ({
+          "@type": "BlogPosting",
+          "@id": toSiteUrl(`/blog/${post.slug}`),
+          url: toSiteUrl(`/blog/${post.slug}`),
+          headline: post.title,
+          description: post.description,
+          datePublished: post.publishedAt,
+          author: { "@type": "Person", name: post.author },
+          mainEntityOfPage: toSiteUrl(`/blog/${post.slug}`),
+        })),
+      },
+      {
+        "@type": "ItemList",
+        "@id": `${blogUrl}#itemlist`,
+        name: `${BLOG_TITLE} — Recent Posts`,
+        itemListElement: posts.slice(0, 10).map((post, index) => ({
+          "@type": "ListItem",
+          position: index + 1,
+          url: toSiteUrl(`/blog/${post.slug}`),
+          name: post.title,
+        })),
       },
     ],
   });
