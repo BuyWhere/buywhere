@@ -137,11 +137,25 @@ async function warmupMcpCaches() {
         ON mcp_category_summary_by_country (country_code, slug)
     `);
 
-    // BUY-60397: Use CONCURRENTLY so reads are never blocked during refresh.
+    // BUY-60397/BUY-65682: Use CONCURRENTLY so reads are never blocked during refresh.
     // Unique index must exist on each view for CONCURRENTLY to work.
+    // When the view is EMPTY (never populated or truncated), CONCURRENTLY fails
+    // with "CONCURRENTLY cannot be used when the materialized view is not populated".
+    // Do a blocking REFRESH first to populate it, then switch to CONCURRENTLY.
     const summaryCount = await client.query(`SELECT COUNT(*) AS cnt FROM mcp_category_summary_by_country`);
-    const summaryHasData = parseInt(summaryCount.rows[0].cnt, 10) > 0;
-    if (summaryHasData) {
+    let summaryHasData = parseInt(summaryCount.rows[0].cnt, 10) > 0;
+    if (!summaryHasData) {
+      console.log('[mcp-warmup] mcp_category_summary views are empty — populating with blocking REFRESH...');
+      try {
+        await client.query(`REFRESH MATERIALIZED VIEW mcp_category_summary`);
+        await client.query(`REFRESH MATERIALIZED VIEW mcp_category_summary_by_country`);
+        const recount = await client.query(`SELECT COUNT(*) AS cnt FROM mcp_category_summary_by_country`);
+        summaryHasData = parseInt(recount.rows[0].cnt, 10) > 0;
+        console.log(`[mcp-warmup] category views populated (${recount.rows[0].cnt} rows).`);
+      } catch (e: any) {
+        console.warn('[mcp-warmup] blocking category view refresh failed:', e.message);
+      }
+    } else {
       await client.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary`);
       await client.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary_by_country`);
     }

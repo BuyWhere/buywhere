@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { db, redis, vectorDb } from '../config';
+import { db, redis, vectorDb, catalogDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -13,7 +13,7 @@ async function acquireMcpClient() {
   let timer: NodeJS.Timeout | undefined;
   try {
     return await Promise.race([
-      db.connect(),
+      catalogDb.connect(),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error('mcp_db_pool_acquire_timeout')), MCP_DB_ACQUIRE_TIMEOUT_MS);
       }),
@@ -207,7 +207,7 @@ let _hasDiscountPct: boolean | undefined = true;
 
 async function probeDiscountPctColumn(): Promise<boolean> {
   try {
-    const probe = await db.query(
+    const probe = await catalogDb.query(
       `SELECT c.is_generated, EXISTS (
          SELECT 1 FROM products
          WHERE is_active = true AND price > 0 AND discount_pct > 0
@@ -230,7 +230,7 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
   const q = (args.q as string) || '';
-  const mode = (args.mode as string) || 'hybrid';
+  const mode = (args.mode as string) || 'keyword';
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
   const domain = (args.domain as string) || '';
@@ -303,7 +303,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // any 8-12s MCP latency is pool-acquisition contention, not query execution.
   const poolStart = Date.now();
   const searchClient = await Promise.race([
-    db.connect(),
+    catalogDb.connect(),
     new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('db.connect timeout after 2000ms')), 2000)
     ),
@@ -496,7 +496,7 @@ async function handleGetProduct(args: Record<string, unknown>) {
 
   let result;
   try {
-    result = await db.query(
+    result = await catalogDb.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price, currency, image_url, brand, category_path,
               avg_rating AS rating, review_count, metadata, updated_at, region, country_code
@@ -530,7 +530,7 @@ async function handleCompareProducts(args: Record<string, unknown>) {
   const placeholders = validIds.map((_, i) => `$${i + 1}`).join(',');
   let result;
   try {
-    result = await db.query(
+    result = await catalogDb.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price, currency, image_url, brand, category_path,
               avg_rating AS rating, review_count, metadata, updated_at, region, country_code
@@ -552,7 +552,7 @@ async function getRegionalProductSample(
   t0: number,
 ) {
   try {
-    const result = await db.query(
+    const result = await catalogDb.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price, NULL::numeric AS original_price, currency, image_url,
               metadata, updated_at, region, country_code, 0::numeric AS discount_pct
@@ -631,13 +631,13 @@ async function handleGetDealsInner(args: Record<string, unknown>) {
   ];
   if (useDiscountCol) {
     conditions.push(`discount_pct IS NOT NULL`);
-    conditions.push(`discount_pct >= $2`);
+    conditions.push(`discount_pct >= $2::numeric`);
   } else {
     // Guard: only consider rows where original_price is a valid numeric string.
     // Matches the partial index predicate on idx_products_deals_country/region.
     conditions.push(`metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'`);
     conditions.push(`(metadata->>'original_price')::numeric > price`);
-    conditions.push(`((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) >= $2`);
+    conditions.push(`((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) >= $2::numeric`);
   }
   const params: unknown[] = [currency, minDiscount];
 
@@ -912,9 +912,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     conditions.push(`category ILIKE $${params.length}`);
   }
 
-  const CANDIDATE_POOL = Math.max(limit * 50, 500);
-  params.push(CANDIDATE_POOL, limit);
-  const where = `WHERE ${conditions.join(' AND ')}`;
+  // (BUY-65682: CANDIDATE_POOL/where replaced by FTS + ILIKE fallback below)
 
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
@@ -925,18 +923,47 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   let result: { rows: Record<string, unknown>[] };
   try {
     await bestPriceClient.query('SET statement_timeout = 12000');
+    await bestPriceClient.query("SET work_mem = '64MB'");
+    const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
+    const ftsTokens = productName.replace(/[^\p{L}\p{N} ]/gu, '').trim();
     const sqlStart = Date.now();
+    // BUY-65682: FTS match via GIN index, bounded to 2000 candidate rows, then price-sort.
     result = await bestPriceClient.query(
-      `SELECT * FROM (
-         SELECT id, title, price, currency, source AS domain, url, image_url,
-                country_code, updated_at
-         FROM products ${where}
-         LIMIT $${params.length - 1}
-       ) _candidates
+      `SELECT id, title, price, currency, source AS domain, url, image_url,
+              country_code, updated_at
+       FROM (
+         SELECT id, title, price, currency, source, url, image_url,
+                country_code, updated_at,
+                ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
+         FROM products
+         WHERE is_active = true AND price > 0
+           AND search_vector @@ plainto_tsquery('english', $1)
+           AND country_code = $2
+         ORDER BY rank DESC
+         LIMIT 2000
+       ) _fts_matches
        ORDER BY price ASC, updated_at DESC
-       LIMIT $${params.length}`,
-      params
+       LIMIT $3`,
+      [ftsTokens, requestedCountry, limit]
     );
+    if (result.rows.length === 0) {
+      // BUY-65682: ILIKE fallback for terms that the FTS parser strips (model numbers, short codes)
+      result = await bestPriceClient.query(
+        `SELECT * FROM (
+           SELECT id, title, price, currency, source AS domain, url, image_url,
+                  country_code, updated_at
+           FROM products
+           WHERE is_active = true AND price > 0
+             AND country_code = $1
+           ORDER BY updated_at DESC
+           LIMIT $2
+         ) _candidates
+         WHERE title ILIKE $3
+         ORDER BY price ASC, updated_at DESC
+         LIMIT $4`,
+        [requestedCountry, 20000, `%${productName}%`, limit]
+      );
+    }
     console.log('[mcp] find_best_price pool:', poolAcquireMs, 'ms, sql:', Date.now() - sqlStart, 'ms');
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
@@ -1276,7 +1303,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   // Step 3: fetch product details from main DB
   const nearIds = nearResult.rows.map(r => r.product_id);
   const ph = nearIds.map((_, i) => `$${i + 1}`).join(',');
-  const detailResult = await db.query(
+  const detailResult = await catalogDb.query(
     `SELECT id, title, price, currency, source AS domain, url, image_url
      FROM products WHERE id IN (${ph}) AND is_active = true`,
     nearIds
@@ -1423,7 +1450,7 @@ router.get('/health', async (_req: Request, res: Response) => {
 router.get('/health/authenticated', requireApiKey, async (_req: Request, res: Response) => {
   try {
     const [countResult, pong] = await Promise.all([
-      db.query('SELECT reltuples::bigint AS count FROM pg_class WHERE relname = \'products\''),
+      catalogDb.query('SELECT reltuples::bigint AS count FROM pg_class WHERE relname = \'products\''),
       redis.ping(),
     ]);
     res.json({
