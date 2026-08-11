@@ -70,6 +70,57 @@ const ACCESSORY_KEYWORDS = [
 const ACCESSORY_TITLE_PREFIX_PATTERN = /^(capas?|cases?|covers?|skins?|stickers?|decals?|wraps?|shells?|sleeves?|sleevings?|replacements?|spares?|filters?|adapters?|chargers?|cables?|protectors?|mounts?|holders?|stands?|clips?|grips?|bumpers?|earmuffs?|cushions?|foams?|pads?|straps?|rings?|housings?|docks?|backpacks?|bags?)\s+(for|compatible\s+with|fits|to|with|of)\b/i;
 const QUERY_STOP_WORDS = new Set(['a', 'an', 'and', 'best', 'for', 'in', 'of', 'the', 'to', 'with']);
 
+const COMPLETE_DEVICE_TOKENS: Array<{ token: RegExp; allowedCategories: string[] }> = [
+  {
+    token: /\b(laptops?|notebooks?|macbooks?|chromebooks?|gaming\s+laptops?|ultrabooks?)\b/i,
+    allowedCategories: [
+      'laptops', 'laptop', 'notebooks', 'notebook', 'macbooks', 'macbook',
+      'chromebooks', 'chromebook', 'ultrabooks', 'ultrabook', 'gaming laptops',
+      'computers', 'computer', 'pc laptops', '2-in-1 laptops',
+    ],
+  },
+  {
+    token: /\b(phones?|smartphones?|iphones?|android\s+phones?|cell\s+phones?)\b/i,
+    allowedCategories: [
+      'smartphones', 'smartphone', 'mobile phones', 'mobile phone', 'cell phones',
+      'cell phone', 'phones', 'phone', 'iphones', 'iphone', 'android phones',
+      'unlocked phones', 'telephones',
+    ],
+  },
+  {
+    token: /\b(monitors?|displays?|computer\s+monitors?)\b/i,
+    allowedCategories: [
+      'monitors', 'monitor', 'computer monitors', 'computer monitor',
+      'displays', 'display', 'monitors & displays',
+    ],
+  },
+  {
+    token: /\b(televisions?|tvs?|smart\s+tvs?)\b/i,
+    allowedCategories: [
+      'televisions', 'television', 'tvs', 'tv', 'smart tvs', 'smart tv',
+      'tv, video & home audio',
+    ],
+  },
+  {
+    token: /\b(playstations?|xbox(es)?|nintendo\s+switch|consoles?)\b/i,
+    allowedCategories: [
+      'playstation', 'xbox', 'nintendo switch', 'nintendo', 'video game consoles',
+      'game consoles', 'consoles',
+    ],
+  },
+  {
+    token: /\b(refrigerators?|fridges?|freezers?)\b/i,
+    allowedCategories: [
+      'refrigerators', 'refrigerator', 'fridges', 'freezers', 'freezer',
+      'appliances', 'major appliances',
+    ],
+  },
+  {
+    token: /\b(dishwashers?)\b/i,
+    allowedCategories: ['dishwashers', 'dishwasher', 'appliances', 'major appliances'],
+  },
+];
+
 type SearchFallback = {
   slug: string;
   label: string;
@@ -462,23 +513,68 @@ function deduplicateItems(items: Record<string, unknown>[]) {
   });
 }
 
+function categoryFromItem(item: Record<string, unknown>) {
+  const directCategory = item.category;
+  if (typeof directCategory === 'string') return directCategory;
+
+  const structuredSpecs = item.structured_specs;
+  if (structuredSpecs && typeof structuredSpecs === 'object' && !Array.isArray(structuredSpecs)) {
+    const category = (structuredSpecs as Record<string, unknown>).category;
+    if (typeof category === 'string') return category;
+  }
+
+  const metadata = item.metadata;
+  if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
+    const category = (metadata as Record<string, unknown>).category;
+    if (typeof category === 'string') return category;
+  }
+
+  return '';
+}
+
+function isCategoryMismatchedForDeviceQuery(query: string, item: Record<string, unknown>) {
+  const category = categoryFromItem(item);
+  if (!category) return false;
+
+  const normalizedQuery = query.toLowerCase();
+  const normalizedCategory = category.toLowerCase();
+
+  for (const { token, allowedCategories } of COMPLETE_DEVICE_TOKENS) {
+    if (!token.test(normalizedQuery)) continue;
+    if (!allowedCategories.some((allowedCategory) => normalizedCategory.includes(allowedCategory))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function rankAndClassifyItems(items: Record<string, unknown>[], query: string) {
   const queryWords = coreQueryWords(query);
   const dedupedItems = deduplicateItems(items);
   const primaryItems: Record<string, unknown>[] = [];
+  const mismatchItems: Record<string, unknown>[] = [];
   const accessoryItems: Record<string, unknown>[] = [];
 
   dedupedItems.forEach((item) => {
     const isAccessory = isAccessoryItem(item, queryWords);
-    const classifiedItem = { ...item, isAccessory, product_type: isAccessory ? 'accessory' : item.product_type };
+    const isCategoryMismatch = isCategoryMismatchedForDeviceQuery(query, item);
+    const classifiedItem = {
+      ...item,
+      isAccessory,
+      product_type: isAccessory ? 'accessory' : item.product_type,
+    };
+
     if (isAccessory) {
       accessoryItems.push(classifiedItem);
+    } else if (isCategoryMismatch) {
+      mismatchItems.push(classifiedItem);
     } else {
       primaryItems.push(classifiedItem);
     }
   });
 
-  return [...primaryItems, ...accessoryItems];
+  return [...primaryItems, ...mismatchItems, ...accessoryItems];
 }
 
 export async function GET(request: NextRequest) {
