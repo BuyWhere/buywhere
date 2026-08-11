@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import Schema from "@/components/Schema";
 import { toSiteUrl } from "@/lib/site-url";
 import {
   CATALOG_STATS_FALLBACK_LABEL,
@@ -10,43 +10,67 @@ import {
   formatCompactProductCount,
 } from "@/lib/catalog-stats";
 
+const ROUTE_TITLE =
+  "MCP for Ecommerce: The Complete Guide to Product Search MCP Servers (2026)";
+const ROUTE_DESCRIPTION =
+  "Learn how AI agents search real products, compare prices, and discover deals using MCP for ecommerce. Complete guide with setup instructions and real-world use cases.";
+
 export const metadata: Metadata = {
-  title: "MCP for Ecommerce: The Complete Guide to Product Search MCP Servers (2026)",
-  description:
-    "Learn how AI agents search real products, compare prices, and discover deals using MCP for ecommerce. Complete guide with setup instructions and real-world use cases.",
+  title: ROUTE_TITLE,
+  description: ROUTE_DESCRIPTION,
   alternates: {
     canonical: toSiteUrl("/mcp-ecommerce"),
   },
+  twitter: {
+    card: "summary_large_image",
+    title: ROUTE_TITLE,
+    description: ROUTE_DESCRIPTION,
+    images: [toSiteUrl("/og/mcp-ecommerce.png")],
+  },
   openGraph: {
-    title: "MCP for Ecommerce: The Complete Guide to Product Search MCP Servers (2026)",
-    description:
-      "Learn how AI agents search real products, compare prices, and discover deals using MCP for ecommerce. Complete guide with setup instructions and real-world use cases.",
+    title: ROUTE_TITLE,
+    description: ROUTE_DESCRIPTION,
     type: "article",
     url: toSiteUrl("/mcp-ecommerce"),
+    images: [{ url: toSiteUrl("/og/mcp-ecommerce.png") }],
   },
 };
 
 function buildStructuredData(productCountPhrase: string) {
   return {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "Article",
-      "@id": "https://buywhere.ai/mcp-ecommerce#article",
-      headline: "MCP for Ecommerce: The Complete Guide to Product Search MCP Servers (2026)",
-      description:
-        "Learn how AI agents search real products, compare prices, and discover deals using MCP for ecommerce. Complete guide with setup instructions and real-world use cases.",
-      url: "https://buywhere.ai/mcp-ecommerce",
-      mainEntityOfPage: {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
         "@type": "WebPage",
         "@id": "https://buywhere.ai/mcp-ecommerce",
+        url: "https://buywhere.ai/mcp-ecommerce",
+        name: ROUTE_TITLE,
+        headline: ROUTE_TITLE,
+        description: ROUTE_DESCRIPTION,
+        isPartOf: { "@id": "https://buywhere.ai/#website" },
+        primaryImageOfPage: { "@id": "https://buywhere.ai/og/mcp-ecommerce.png" },
+        breadcrumb: { "@id": "https://buywhere.ai/mcp-ecommerce#breadcrumb" },
+        mainEntity: { "@id": "https://buywhere.ai/mcp-ecommerce#article" },
+        about: { "@id": "https://buywhere.ai/#software" },
+        inLanguage: "en",
       },
-      author: { "@type": "Organization", "@id": "https://buywhere.ai/#organization", name: "BuyWhere", url: "https://buywhere.ai" },
-      publisher: { "@type": "Organization", "@id": "https://buywhere.ai/#organization", name: "BuyWhere", url: "https://buywhere.ai" },
-      datePublished: "2026-05-04",
-      dateModified: "2026-05-04",
-      inLanguage: "en",
-    },
+      {
+        "@type": "Article",
+        "@id": "https://buywhere.ai/mcp-ecommerce#article",
+        headline: ROUTE_TITLE,
+        description: ROUTE_DESCRIPTION,
+        url: "https://buywhere.ai/mcp-ecommerce",
+        image: "https://buywhere.ai/og/mcp-ecommerce.png",
+        mainEntityOfPage: {
+          "@type": "WebPage",
+          "@id": "https://buywhere.ai/mcp-ecommerce",
+        },
+        author: { "@type": "Organization", "@id": "https://buywhere.ai/#organization", name: "BuyWhere", url: "https://buywhere.ai" },
+        publisher: { "@type": "Organization", "@id": "https://buywhere.ai/#organization", name: "BuyWhere", url: "https://buywhere.ai" },
+        datePublished: "2026-05-04",
+        dateModified: "2026-08-11",
+        inLanguage: "en",
+      },
     {
       "@type": "SoftwareApplication",
       "@id": "https://buywhere.ai/#software",
@@ -86,6 +110,14 @@ function buildStructuredData(productCountPhrase: string) {
         target: { "@type": "EntryPoint", urlTemplate: "https://api.buywhere.ai/v1/products/search?q={search_term_string}" },
         "query-input": "required name=search_term_string",
       },
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://buywhere.ai/mcp-ecommerce#breadcrumb",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: "https://buywhere.ai/" },
+        { "@type": "ListItem", position: 2, name: "MCP for Ecommerce", item: "https://buywhere.ai/mcp-ecommerce" },
+      ],
     },
     {
       "@type": "FAQPage",
@@ -154,11 +186,10 @@ export default async function McpEcommercePage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
-      <Script id="structured-data" type="application/ld+json" strategy="afterInteractive">
-        {JSON.stringify(structuredData)}
-      </Script>
+      <Schema data={structuredData} />
       <Nav />
 
+      <main id="main-content">
       <section className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(79,70,229,0.12),_transparent_40%),linear-gradient(135deg,#0f172a_0%,#1e1b4b_100%)] text-white">
         <div className="mx-auto max-w-6xl px-4 py-24 sm:px-6">
           <div className="max-w-3xl">
@@ -422,6 +453,7 @@ Sony WH-1000XM5 (US)        — $329.99 @ Amazon US`}</pre>
           </p>
         </div>
       </section>
+      </main>
 
       <Footer />
     </div>
