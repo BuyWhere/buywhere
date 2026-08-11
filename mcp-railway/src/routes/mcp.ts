@@ -281,6 +281,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
 
   let rows: unknown[];
   let total: number;
+  const approximateTotalFromPage = (pageRows: unknown[]) =>
+    offset + pageRows.length + (pageRows.length === limit ? 1 : 0);
 
   // BUY-57657: add connect timeout so pool exhaustion fails fast at 2s instead of
   // blocking the entire 12s statement_timeout. The DB itself is fast (70-130ms) so
@@ -299,13 +301,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // pool exhaustion. Failing fast prevents cascading connection starvation.
     await searchClient.query('SET statement_timeout = 12000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
-    const COUNT_CAP = 1001;
     if (q) {
-      const countResult = await searchClient.query(
-        `SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`,
-        params
-      );
-      total = parseInt(countResult.rows[0].count, 10);
+      // BUY-68293: do not run the preflight COUNT for keyword searches. In prod
+      // the COUNT can consume the whole 12s statement_timeout before the fast
+      // page fetch runs, so derive a cheap lower-bound total from the returned page.
+      total = offset;
 
       // BUY-31962 / BUY-41138: hybrid search (RRF) or keyword FTS fallback.
       // Hybrid and semantic paths embed the query via Jina AI, query the vector DB
@@ -403,6 +403,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
               params
             );
             rows = result.rows;
+            total = approximateTotalFromPage(rows);
           }
         } else {
           // Embed failed — fall through to keyword FTS
@@ -420,6 +421,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             params
           );
           rows = result.rows;
+          total = approximateTotalFromPage(rows);
         }
       } else {
         // Keyword (FTS) path — BUY-31962 subquery pattern
@@ -437,6 +439,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           params
         );
         rows = result.rows;
+        total = approximateTotalFromPage(rows);
       }
     } else {
       // No FTS — browse mode. Use reltuples for approximate total and fetch
