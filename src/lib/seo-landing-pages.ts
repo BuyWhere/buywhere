@@ -300,12 +300,129 @@ function isUsableProductImage(imageUrl?: string | null) {
 }
 
 /**
+ * Build a small, category-specific SVG silhouette group for the branded
+ * placeholder. BUY-68366 reopened because every card on
+ * /best-robot-vacuums-2026, /laptop-singapore, and /air-purifier-singapore
+ * rendered the same hardcoded laptop-shaped SVG — so a robot vacuum card on
+ * the robot-vacuum landing page showed a laptop. This helper returns a
+ * category-matched `<g>` block (drawn inside a 400x300 viewBox, centred near
+ * 140,80) so the placeholder reads as the right product family. Unknown
+ * categories fall through to the generic laptop shape.
+ *
+ * Exported so `ProductGridImage` can reuse the same silhouettes client-side
+ * when the remote <img> onError fires after hydration.
+ */
+export function categorySilhouette(category: string | null | undefined): string {
+  const c = String(category || "").toLowerCase();
+  if (c.includes("robot") || c.includes("vacuum") || c.includes("roomba") || c.includes("deebot") || c.includes("roborock")) {
+    // Round puck on a base — top-down robot vacuum with dock nub.
+    return `<g transform='translate(140 80)' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'>
+      <ellipse cx='60' cy='50' rx='58' ry='18' fill='#fef3c7'/>
+      <ellipse cx='60' cy='42' rx='58' ry='18' fill='#fde68a' stroke='#b45309'/>
+      <circle cx='60' cy='42' r='10' fill='#f59e0b' stroke='none'/>
+      <rect x='-10' y='60' width='160' height='8' rx='3' fill='#b45309'/>
+    </g>`;
+  }
+  if (c.includes("air purifier") || c.includes("purifier")) {
+    // Tall tower with vent slats and rising-air waves.
+    return `<g transform='translate(140 70)' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'>
+      <rect x='30' y='10' width='60' height='100' rx='10' fill='#fef3c7' stroke='#b45309'/>
+      <line x1='40' y1='30' x2='80' y2='30' stroke='#b45309'/>
+      <line x1='40' y1='45' x2='80' y2='45' stroke='#b45309'/>
+      <line x1='40' y1='60' x2='80' y2='60' stroke='#b45309'/>
+      <circle cx='60' cy='90' r='6' fill='#f59e0b' stroke='none'/>
+      <path d='M15 5 Q22 -5 30 5' stroke='#b45309'/>
+      <path d='M90 5 Q97 -5 105 5' stroke='#b45309'/>
+    </g>`;
+  }
+  if (c.includes("laptop") || c.includes("notebook") || c.includes("macbook") || c.includes("chromebook")) {
+    // Open laptop with hinge and screen.
+    return `<g transform='translate(140 80)' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'>
+      <rect x='0' y='0' width='120' height='80' rx='8' fill='#fef3c7' stroke='#b45309'/>
+      <rect x='10' y='10' width='100' height='60' rx='2' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
+      <rect x='-10' y='80' width='140' height='8' rx='3' fill='#b45309'/>
+      <rect x='50' y='88' width='20' height='4' rx='2' fill='#b45309'/>
+    </g>`;
+  }
+  if (c.includes("headphone") || c.includes("earbud")) {
+    return `<g transform='translate(140 80)' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'>
+      <path d='M10 50 Q60 -10 110 50' fill='none'/>
+      <rect x='0' y='40' width='22' height='40' rx='8' fill='#fef3c7' stroke='#b45309'/>
+      <rect x='98' y='40' width='22' height='40' rx='8' fill='#fef3c7' stroke='#b45309'/>
+    </g>`;
+  }
+  if (c.includes("phone") || c.includes("iphone") || c.includes("smartphone")) {
+    return `<g transform='translate(150 70)' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'>
+      <rect x='0' y='0' width='50' height='100' rx='8' fill='#fef3c7' stroke='#b45309'/>
+      <rect x='6' y='12' width='38' height='76' rx='3' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
+    </g>`;
+  }
+  if (c.includes("tv") || c.includes("television") || c.includes("monitor")) {
+    return `<g transform='translate(140 80)' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'>
+      <rect x='0' y='0' width='120' height='70' rx='6' fill='#fef3c7' stroke='#b45309'/>
+      <rect x='6' y='6' width='108' height='58' rx='3' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
+      <rect x='50' y='70' width='20' height='10' fill='#b45309'/>
+      <rect x='30' y='80' width='60' height='4' rx='2' fill='#b45309'/>
+    </g>`;
+  }
+  if (c.includes("camera")) {
+    return `<g transform='translate(140 80)' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'>
+      <rect x='0' y='20' width='120' height='60' rx='8' fill='#fef3c7' stroke='#b45309'/>
+      <rect x='50' y='10' width='20' height='14' rx='3' fill='#fef3c7' stroke='#b45309'/>
+      <circle cx='60' cy='50' r='18' fill='#fde68a' stroke='#b45309'/>
+      <circle cx='60' cy='50' r='8' fill='#f59e0b' stroke='none'/>
+    </g>`;
+  }
+  if (c.includes("watch") || c.includes("wearable")) {
+    return `<g transform='translate(160 60)' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'>
+      <rect x='0' y='0' width='40' height='50' rx='8' fill='#fef3c7' stroke='#b45309'/>
+      <rect x='-6' y='-12' width='52' height='14' rx='3' fill='#fef3c7' stroke='#b45309'/>
+      <rect x='-6' y='48' width='52' height='14' rx='3' fill='#fef3c7' stroke='#b45309'/>
+      <circle cx='20' cy='22' r='6' fill='#f59e0b' stroke='none'/>
+    </g>`;
+  }
+  if (c.includes("tablet") || c.includes("ipad")) {
+    return `<g transform='translate(140 60)' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'>
+      <rect x='0' y='0' width='120' height='100' rx='10' fill='#fef3c7' stroke='#b45309'/>
+      <rect x='8' y='10' width='104' height='80' rx='3' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
+      <circle cx='60' cy='96' r='3' fill='#b45309' stroke='none'/>
+    </g>`;
+  }
+  if (c.includes("shoe") || c.includes("sneaker") || c.includes("footwear")) {
+    return `<g transform='translate(120 80)' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'>
+      <path d='M0 60 Q10 30 50 30 L100 40 L150 50 L160 70 L0 70 Z' fill='#fef3c7' stroke='#b45309'/>
+      <line x1='30' y1='40' x2='35' y2='55' stroke='#b45309'/>
+      <line x1='50' y1='40' x2='55' y2='55' stroke='#b45309'/>
+      <line x1='70' y1='40' x2='75' y2='55' stroke='#b45309'/>
+    </g>`;
+  }
+  if (c.includes("appliance") || c.includes("refrigerator") || c.includes("washer") || c.includes("dryer")) {
+    return `<g transform='translate(150 60)' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'>
+      <rect x='0' y='0' width='80' height='120' rx='6' fill='#fef3c7' stroke='#b45309'/>
+      <line x1='0' y1='40' x2='80' y2='40' stroke='#b45309'/>
+      <rect x='60' y='14' width='6' height='14' rx='1' fill='#b45309'/>
+      <rect x='60' y='60' width='6' height='20' rx='1' fill='#b45309'/>
+    </g>`;
+  }
+  // Default: laptop shape (preserves previous behaviour for unknown categories).
+  return `<g transform='translate(140 80)' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'>
+    <rect x='0' y='0' width='120' height='80' rx='8' fill='#fef3c7' stroke='#b45309'/>
+    <rect x='10' y='10' width='100' height='60' rx='2' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
+    <rect x='-10' y='80' width='140' height='8' rx='3' fill='#b45309'/>
+    <rect x='50' y='88' width='20' height='4' rx='2' fill='#b45309'/>
+  </g>`;
+}
+
+/**
  * Build a brand-aware SVG data URL that ProductGridImage can render in place
  * of a broken/missing remote image. The previous version (single-letter
  * initial on a pastel chip) was flagged by QA as still reading as a "generic
- * placeholder" on the air-purifier-singapore first card (BUY-64260). The new
- * layout shows the product's full brand + category on a polished white card
- * with a stylised product icon — clearly branded, not a placeholder chip.
+ * placeholder" on the air-purifier-singapore first card (BUY-64260). BUY-68366
+ * later re-opened because the placeholder was the same laptop-shaped SVG on
+ * every category, so a robot vacuum card on the robot-vacuum landing page
+ * still showed a laptop. The current version draws a category-specific
+ * silhouette via `categorySilhouette(category)` instead of the single
+ * hardcoded laptop glyph.
  */
 function brandedProductPlaceholderSvg(
   brand?: string | null,
@@ -316,6 +433,7 @@ function brandedProductPlaceholderSvg(
   const brandText = clean(brand || "").slice(0, 18) || "BuyWhere";
   const categoryText = clean(category || "").slice(0, 22) || "Featured product";
   const productLabel = clean(name || "").slice(0, 26) || categoryText;
+  const icon = categorySilhouette(category);
   const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'>
   <defs>
     <linearGradient id='bg' x1='0' x2='1' y1='0' y2='1'>
@@ -325,11 +443,7 @@ function brandedProductPlaceholderSvg(
   </defs>
   <rect width='400' height='300' fill='url(#bg)'/>
   <rect x='40' y='40' width='320' height='220' rx='24' fill='#ffffff' stroke='#fcd34d' stroke-width='3'/>
-  <g transform='translate(140 80)' fill='none' stroke='#b45309' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'>
-    <rect x='0' y='0' width='120' height='90' rx='12' fill='#fef3c7'/>
-    <circle cx='60' cy='40' r='14' fill='#f59e0b' stroke='none'/>
-    <path d='M0 70 L40 35 L80 60 L120 25' stroke='#b45309'/>
-  </g>
+  ${icon}
   <text x='200' y='208' text-anchor='middle' font-family='system-ui,sans-serif' font-size='22' font-weight='700' fill='#0f172a'>${brandText}</text>
   <text x='200' y='236' text-anchor='middle' font-family='system-ui,sans-serif' font-size='14' font-weight='500' fill='#475569'>${productLabel}</text>
   <text x='200' y='258' text-anchor='middle' font-family='system-ui,sans-serif' font-size='11' font-weight='600' letter-spacing='2' fill='#92400e'>BUYWHERE</text>

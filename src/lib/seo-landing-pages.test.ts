@@ -5,6 +5,7 @@ import {
   getSeoLandingProducts,
   isCompleteRobotVacuum,
   seoLandingPages,
+  categorySilhouette,
   type LandingProduct,
 } from "@/lib/seo-landing-pages";
 
@@ -244,6 +245,58 @@ test("branded SVG placeholder data URL uses RFC-2397 charset form (BUY-64260)", 
       `data URL must use RFC-2397 form, got: ${url.slice(0, 60)}…`,
     );
   }
+});
+
+// BUY-68366: the branded SVG placeholder was the same hardcoded laptop glyph
+// on every category, so a robot vacuum card on /best-robot-vacuums-2026 still
+// showed a laptop. categorySilhouette() now keys the icon to the product's
+// category, so we lock the three QA-flagged families to distinct silhouettes.
+test("categorySilhouette renders distinct shapes for robot vacuum, air purifier, and laptop (BUY-68366)", () => {
+  const robot = categorySilhouette("Robot Vacuums");
+  const purifier = categorySilhouette("Air Purifiers");
+  const laptop = categorySilhouette("Laptops");
+  const unknown = categorySilhouette("Unknown Gizmos");
+
+  // Robot vacuum gets the puck/dock shape.
+  assert.match(robot, /<ellipse/, "robot-vacuum silhouette should include an ellipse (puck top-down)");
+  assert.match(robot, /rx='58'/);
+  // Air purifier gets a tall tower with vent slats.
+  assert.match(purifier, /<line/, "air-purifier silhouette should include vent slats");
+  assert.doesNotMatch(purifier, /<ellipse/, "air-purifier silhouette must not share the robot puck shape");
+  // Laptop gets an open notebook shape.
+  assert.match(laptop, /<rect x='0' y='0' width='120' height='80'/);
+  // The three QA-flagged families must produce different SVG strings, otherwise
+  // a robot vacuum card on the robot-vacuum landing page would still show a
+  // laptop — which is exactly what QA reopened this ticket for.
+  assert.notEqual(robot, laptop, "robot-vacuum silhouette must differ from laptop silhouette");
+  assert.notEqual(robot, purifier, "robot-vacuum silhouette must differ from air-purifier silhouette");
+  assert.notEqual(purifier, laptop, "air-purifier silhouette must differ from laptop silhouette");
+  // Unknown category falls back to the laptop glyph (previous default).
+  assert.equal(unknown, laptop, "unknown category should reuse the laptop fallback");
+  // No user-controlled text is interpolated — only static tags, so the
+  // helper is safe to dangerouslySetInnerHTML.
+  for (const s of [robot, purifier, laptop, unknown]) {
+    assert.doesNotMatch(s, /<text|<script/i, "silhouette must not contain text or script elements");
+  }
+});
+
+test("ProductGridImage wires category through to BrandedPlaceholder (BUY-68366)", () => {
+  const imageSource = readFileSync(
+    new URL("../components/seo/ProductGridImage.tsx",
+      import.meta.url),
+    "utf8",
+  );
+  const cardSource = readFileSync(
+    new URL("../components/seo/ProductGridCard.tsx",
+      import.meta.url),
+    "utf8",
+  );
+  // The component must accept a category prop and forward it to
+  // BrandedPlaceholder so the placeholder matches the product family.
+  assert.match(imageSource, /category\?: string \| null/, "ProductGridImage must declare a category prop");
+  assert.match(imageSource, /category=\{category\}/, "ProductGridImage must forward category to BrandedPlaceholder");
+  assert.match(imageSource, /categorySilhouette\(category\)/, "ProductGridImage must call categorySilhouette(category)");
+  assert.match(cardSource, /category=\{product\.category\}/, "ProductGridCard must pass product.category through");
 });
 
 // BUY-63507: parseImageDimensions + isSquareAspect guard against the live
