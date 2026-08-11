@@ -10,7 +10,10 @@ export default function DocsRedirect() {
   }, [router]);
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-white text-gray-900 px-4">
-      <p className="text-sm text-gray-500">Redirecting to documentation…</p>
+      <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+        Documentation
+      </h1>
+      <p className="mt-3 text-sm text-gray-500">Redirecting to documentation…</p>
     </main>
   );
 }
