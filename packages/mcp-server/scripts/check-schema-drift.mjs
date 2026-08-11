@@ -70,6 +70,11 @@ async function packageTools() {
   });
 
   let buf = '';
+  let stderr = '';
+  let timer;
+  child.stderr.on('data', chunk => {
+    stderr += chunk.toString();
+  });
   const tools = new Promise((resolve, reject) => {
     child.stdout.on('data', chunk => {
       buf += chunk.toString();
@@ -87,32 +92,61 @@ async function packageTools() {
       }
     });
     child.on('error', reject);
-    setTimeout(() => reject(new Error('timed out reading tools/list from local server')), 20_000);
+    // If the local server dies before answering (most commonly because
+    // dist/index.js has not been built yet), fail immediately with its stderr
+    // instead of stalling until the timeout with an opaque message.
+    child.on('close', code => {
+      const lines = stderr.trim().split('\n').map(l => l.trim()).filter(Boolean);
+      const detail =
+        lines.find(l => /cannot find module|error:|err_/i.test(l)) ?? lines[0] ?? '';
+      reject(
+        new Error(
+          `local server exited (code ${code}) before answering tools/list` +
+            (detail ? ` — ${detail}` : ''),
+        ),
+      );
+    });
+    timer = setTimeout(
+      () => reject(new Error('timed out reading tools/list from local server')),
+      20_000,
+    );
   });
+  // Mark as handled now: the awaits below yield to the event loop, and an early
+  // child exit during that window would otherwise be an unhandled rejection
+  // that crashes the process before our caller's try/catch can report it.
+  tools.catch(() => {});
 
-  child.stdin.write(
-    JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2024-11-05',
-        capabilities: {},
-        clientInfo: { name: 'drift-check', version: '1.0.0' },
-      },
-    }) + '\n',
-  );
+  // The child may already be gone (e.g. dist/index.js missing); writing to its
+  // stdin would then raise EPIPE and mask the real 'close' diagnostic above.
+  child.stdin.on('error', () => {});
+  const send = payload => {
+    if (child.exitCode === null && child.signalCode === null && child.stdin.writable) {
+      child.stdin.write(JSON.stringify(payload) + '\n');
+    }
+  };
+
+  send({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2024-11-05',
+      capabilities: {},
+      clientInfo: { name: 'drift-check', version: '1.0.0' },
+    },
+  });
   await new Promise(r => setTimeout(r, 300));
-  child.stdin.write(
-    JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }) + '\n',
-  );
-  child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }) + '\n');
+  send({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} });
+  send({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
 
   try {
     return await tools;
   } finally {
-    child.kill();
-    await once(child, 'close').catch(() => {});
+    clearTimeout(timer);
+    if (child.exitCode === null && child.signalCode === null) {
+      child.kill();
+      await once(child, 'close').catch(() => {});
+    }
   }
 }
 
