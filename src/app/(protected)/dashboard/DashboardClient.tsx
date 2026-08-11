@@ -502,9 +502,9 @@ export default function DashboardPage() {
               <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-indigo-100">
                 Developer dashboard
               </div>
-              <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
+              <p role="heading" aria-level={1} className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
                 Manage your BuyWhere key without leaving the product.
-              </h1>
+              </p>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-indigo-100 sm:text-base">
                 Rotate credentials safely, watch quota pressure build, and keep integration resources close at hand.
               </p>

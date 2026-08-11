@@ -1,8 +1,24 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { toSiteUrl } from "@/lib/site-url";
 
 import DashboardClient from "./DashboardClient";
+
+function buildJsonLd(copy: { h1: string; body: string }, tab?: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: copy.h1,
+    description: copy.body,
+    url: toSiteUrl(`/dashboard${tab ? `?tab=${tab}` : ""}`),
+    publisher: {
+      "@type": "Organization",
+      name: "BuyWhere",
+      url: "https://buywhere.ai",
+    },
+  };
+}
 
 const destinationCopy = {
   dashboard: {
@@ -19,13 +35,23 @@ const destinationCopy = {
     h1: "Sign in to manage API keys",
     body: "This recovery URL will return you to the API-key tab after sign-in so you can copy, rotate, or troubleshoot credentials.",
   },
+  billing: {
+    title: "Sign in to manage dashboard billing | BuyWhere",
+    description:
+      "Sign in to recover the BuyWhere dashboard billing tab, plan status, and quota details for your developer account.",
+    h1: "Sign in to manage dashboard billing",
+    body: "This recovery URL will return you to the billing tab after sign-in so you can review plan status, quota, and subscription next steps.",
+  },
 } as const;
 
 type DestinationKey = keyof typeof destinationCopy;
 
 function destinationFromTab(tab?: string | string[]): DestinationKey {
   const value = Array.isArray(tab) ? tab[0] : tab;
-  return value === "api-keys" ? "apiKeys" : "dashboard";
+
+  if (value === "api-keys") return "apiKeys";
+  if (value === "billing") return "billing";
+  return "dashboard";
 }
 
 function metadataForDestination(destination: DestinationKey): Metadata {
@@ -94,15 +120,20 @@ export default function DashboardPage({
   const copy = destinationCopy[destination];
   const returnPath = buildReturnPath(searchParams);
   const loginHref = `/login?next=${encodeURIComponent(returnPath)}`;
+  const tab = Array.isArray(searchParams?.tab) ? searchParams?.tab[0] : searchParams?.tab;
 
   return (
     <>
-      <main id="main-content" tabIndex={-1} className="sr-only">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildJsonLd(copy, tab)) }}
+      />
+      <section aria-label="Dashboard recovery summary" className="sr-only">
         <h1>{copy.h1}</h1>
         <p>{copy.body}</p>
         <Link href={loginHref}>Sign in with API key</Link>
         <Link href="/api-keys">Create API key</Link>
-      </main>
+      </section>
       <Suspense fallback={null}>
         <DashboardClient />
       </Suspense>

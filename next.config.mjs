@@ -119,6 +119,31 @@ const nextConfig = {
       // should recover to the noindex private account shell with a route-aware
       // tab hint instead of serving the generic homepage-branded 404 shell.
       {
+        source: '/billing/portal',
+        destination: '/account?tab=billing',
+        permanent: true,
+      },
+      {
+        source: '/portal-session',
+        destination: '/account?tab=billing',
+        permanent: true,
+      },
+      {
+        source: '/portal-session/create',
+        destination: '/account?tab=billing',
+        permanent: true,
+      },
+      {
+        source: '/checkout/session',
+        destination: '/account?tab=billing',
+        permanent: true,
+      },
+      {
+        source: '/billing/portal-session',
+        destination: '/account?tab=billing',
+        permanent: true,
+      },
+      {
         source: '/saved-payment',
         destination: '/account?tab=payment-methods',
         permanent: true,

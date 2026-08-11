@@ -1,7 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { toSiteUrl } from "@/lib/site-url";
 
 import AccountClient from "./AccountClient";
+
+function buildJsonLd(copy: { h1: string; body: string }, tab?: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: copy.h1,
+    description: copy.body,
+    url: toSiteUrl(`/account${tab ? `?tab=${tab}` : ""}`),
+    publisher: {
+      "@type": "Organization",
+      name: "BuyWhere",
+      url: "https://buywhere.ai",
+    },
+  };
+}
 
 const destinationCopy = {
   account: {
@@ -127,15 +143,20 @@ export default function AccountPage({
   const copy = destinationCopy[destination];
   const returnPath = buildReturnPath(searchParams);
   const loginHref = `/login?next=${encodeURIComponent(returnPath)}`;
+  const tab = Array.isArray(searchParams?.tab) ? searchParams?.tab[0] : searchParams?.tab;
 
   return (
     <>
-      <main id="main-content" tabIndex={-1} className="sr-only">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildJsonLd(copy, tab)) }}
+      />
+      <section aria-label="Account recovery summary" className="sr-only">
         <h1>{copy.h1}</h1>
         <p>{copy.body}</p>
         <Link href={loginHref}>Sign in with API key</Link>
         <Link href="/api-keys">Create API key</Link>
-      </main>
+      </section>
       <AccountClient />
     </>
   );
