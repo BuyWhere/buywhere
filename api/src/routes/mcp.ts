@@ -301,30 +301,54 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         }
 
         if (queryVec && vectorDb) {
-          let candidateIds: string[];
+          let candidateIds: string[] = [];
+          let vectorCandidateIds: string[] | null = null;
 
           if (mode === 'semantic') {
             // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
-            const vecRows = await vectorDb.query<{ product_id: string }>(
-              `SELECT product_id FROM product_embeddings
-               ORDER BY embedding <=> $1::vector LIMIT 200`,
-              [queryVec]
-            );
-            candidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
+            try {
+              // BUY-68327: api.buywhere.ai/mcp can still point at a mixed-dimension
+              // vector table. Restrict to the 512-dim Gemini model and fail open to
+              // keyword FTS if pgvector still rejects the query.
+              const vecRows = await vectorDb.query<{ product_id: string }>(
+                `SELECT product_id FROM product_embeddings
+                 WHERE model_ver = 'gemini-embedding-001@512'
+                 ORDER BY embedding <=> $1::vector LIMIT 200`,
+                [queryVec]
+              );
+              vectorCandidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
+            } catch (vecErr) {
+              console.warn('[search] vector query failed, falling back to FTS:', (vecErr as Error).message);
+              vectorCandidateIds = null;
+            }
           } else {
             // Hybrid: app-level RRF of FTS ranks + vector ranks
-            const [ftsResult, vecResult] = await Promise.all([
-              searchClient.query<{ id: string }>(
+            let vecRows: { product_id: string }[] = [];
+            let ftsRows: { id: string }[] = [];
+            try {
+              // BUY-68327: keep vector failures (including 512/1024 dimension
+              // mismatch) from rejecting the whole hybrid request.
+              const vecResult = await vectorDb.query<{ product_id: string }>(
+                `SELECT product_id FROM product_embeddings
+                 WHERE model_ver = 'gemini-embedding-001@512'
+                 ORDER BY embedding <=> $1::vector LIMIT 200`,
+                [queryVec]
+              );
+              vecRows = vecResult.rows;
+            } catch (vecErr) {
+              console.warn('[search] hybrid vector query failed, FTS only:', (vecErr as Error).message);
+            }
+            try {
+              const ftsResult = await searchClient.query<{ id: string }>(
                 `SELECT id FROM products ${where} LIMIT 200`,
                 params
-              ),
-              vectorDb.query<{ product_id: string }>(
-                `SELECT product_id FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT 200`,
-                [queryVec]
-              ),
-            ]);
-            const ftsRank = new Map(ftsResult.rows.map((r, i) => [r.id, i + 1]));
-            const vecRank = new Map(vecResult.rows.map((r, i) => [r.product_id, i + 1]));
+              );
+              ftsRows = ftsResult.rows;
+            } catch (ftsErr) {
+              console.warn('[search] hybrid FTS query failed:', (ftsErr as Error).message);
+            }
+            const ftsRank = new Map(ftsRows.map((r, i) => [r.id, i + 1]));
+            const vecRank = new Map(vecRows.map((r, i) => [r.product_id, i + 1]));
             const allIds = new Set([...ftsRank.keys(), ...vecRank.keys()]);
             candidateIds = [...allIds]
               .map(id => ({
@@ -336,6 +360,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
               .map(s => s.id);
           }
 
+          if (vectorCandidateIds !== null) {
+            candidateIds = vectorCandidateIds;
+          }
           total = candidateIds.length;
           const pageIds = candidateIds.slice(offset, offset + limit);
 
