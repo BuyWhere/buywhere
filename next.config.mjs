@@ -115,6 +115,59 @@ const nextConfig = {
         destination: '/api-keys',
         permanent: true,
       },
+      // BUY-68551: common account payment, invoice, and subscription aliases
+      // should recover to the noindex private account shell with a route-aware
+      // tab hint instead of serving the generic homepage-branded 404 shell.
+      {
+        source: '/saved-payment',
+        destination: '/account?tab=payment-methods',
+        permanent: true,
+      },
+      {
+        source: '/saved-payments',
+        destination: '/account?tab=payment-methods',
+        permanent: true,
+      },
+      {
+        source: '/payment-methods',
+        destination: '/account?tab=payment-methods',
+        permanent: true,
+      },
+      {
+        source: '/account/payment-methods',
+        destination: '/account?tab=payment-methods',
+        permanent: true,
+      },
+      {
+        source: '/invoices',
+        destination: '/account?tab=invoices',
+        permanent: true,
+      },
+      {
+        source: '/billing/invoices',
+        destination: '/account?tab=invoices',
+        permanent: true,
+      },
+      {
+        source: '/account/invoices',
+        destination: '/account?tab=invoices',
+        permanent: true,
+      },
+      {
+        source: '/subscription-management',
+        destination: '/account?tab=subscription',
+        permanent: true,
+      },
+      {
+        source: '/manage-subscription',
+        destination: '/account?tab=subscription',
+        permanent: true,
+      },
+      {
+        source: '/account/subscription',
+        destination: '/account?tab=subscription',
+        permanent: true,
+      },
       // BUY-68422: surface existing status page infrastructure at apex domain
       {
         source: '/status',

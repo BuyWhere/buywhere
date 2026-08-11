@@ -25,6 +25,27 @@ const destinationCopy = {
     h1: "Sign in to manage billing",
     body: "This account recovery URL preserves the billing destination so you can continue to plan and payment settings after sign-in.",
   },
+  paymentMethods: {
+    title: "Sign in to manage payment methods | BuyWhere",
+    description:
+      "Sign in to recover BuyWhere payment-method settings for your developer account.",
+    h1: "Sign in to manage payment methods",
+    body: "This account recovery URL preserves the payment-method destination so you can continue to saved-card and billing settings after sign-in.",
+  },
+  invoices: {
+    title: "Sign in to view invoices | BuyWhere",
+    description:
+      "Sign in to recover BuyWhere invoice and billing-history settings for your developer account.",
+    h1: "Sign in to view invoices",
+    body: "This account recovery URL preserves the invoice destination so you can continue to billing history after sign-in.",
+  },
+  subscription: {
+    title: "Sign in to manage subscription | BuyWhere",
+    description:
+      "Sign in to recover BuyWhere subscription and plan-management settings for your developer account.",
+    h1: "Sign in to manage subscription",
+    body: "This account recovery URL preserves the subscription destination so you can continue to plan management after sign-in.",
+  },
 } as const;
 
 type DestinationKey = keyof typeof destinationCopy;
@@ -34,6 +55,9 @@ function destinationFromTab(tab?: string | string[]): DestinationKey {
 
   if (value === "api-keys") return "apiKeys";
   if (value === "billing") return "billing";
+  if (value === "payment-methods") return "paymentMethods";
+  if (value === "invoices") return "invoices";
+  if (value === "subscription") return "subscription";
   return "account";
 }
 
