@@ -92,6 +92,38 @@ const nextConfig = {
         destination: '/blog/rss.xml',
         permanent: true,
       },
+      // BUY-68422: surface existing status page infrastructure at apex domain
+      {
+        source: '/status',
+        destination: 'https://status.buywhere.ai/',
+        permanent: true,
+      },
+      // BUY-68422: redirect help/support routes to docs
+      {
+        source: '/help',
+        destination: '/docs',
+        permanent: true,
+      },
+      {
+        source: '/support',
+        destination: '/docs',
+        permanent: true,
+      },
+      {
+        source: '/help-center',
+        destination: '/docs',
+        permanent: true,
+      },
+      {
+        source: '/knowledge-base',
+        destination: '/docs',
+        permanent: true,
+      },
+      {
+        source: '/kb',
+        destination: '/docs',
+        permanent: true,
+      },
       {
         source: '/:path*',
         has: [
