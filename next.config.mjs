@@ -73,6 +73,25 @@ const nextConfig = {
         destination: 'https://api.buywhere.ai/openapi.json',
         permanent: true,
       },
+      // BUY-68406: common feed-discovery aliases at the site root previously
+      // fell through to the homepage HTML 404 shell. Redirect them to the
+      // canonical blog feed (which serves real RSS 2.0 XML) so feed readers
+      // and crawlers get a machine-readable response on any of these paths.
+      {
+        source: '/rss.xml',
+        destination: '/blog/rss.xml',
+        permanent: true,
+      },
+      {
+        source: '/feed.xml',
+        destination: '/blog/rss.xml',
+        permanent: true,
+      },
+      {
+        source: '/atom.xml',
+        destination: '/blog/rss.xml',
+        permanent: true,
+      },
       {
         source: '/:path*',
         has: [
