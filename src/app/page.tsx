@@ -308,7 +308,7 @@ export default function HomePage() {
               </Link>
               <Link
                 href="/developers"
-                className="inline-flex items-center justify-center rounded-xl border border-white bg-white px-6 py-3 font-bold text-indigo-900 transition-colors hover:bg-indigo-50"
+                className="inline-flex items-center justify-center rounded-xl border border-white/40 bg-transparent px-6 py-3 font-bold text-white transition-colors hover:bg-white/10"
               >
                 Developers: Get API access
               </Link>
