@@ -400,8 +400,7 @@ function SearchInputSkeleton() {
 function SearchResultsSkeleton() {
   return (
     <div
-      className="grid gap-4"
-      style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', maxWidth: '1200px' }}
+      className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
       aria-hidden="true"
     >
       {Array.from({ length: 8 }).map((_, index) => (
@@ -554,7 +553,7 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
 
         <div className="space-y-1.5">
           <h2
-            className="line-clamp-3 text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
+            className="line-clamp-2 text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
           >
             {product.name}
           </h2>
@@ -1181,8 +1180,7 @@ export default function SearchResultsClient({
               {!loadingInitial && products.length > 0 ? (
                 <>
                   <div
-                    className="grid gap-3 sm:gap-4"
-                    style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', maxWidth: '1200px' }}
+                    className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
                   >
                     {products.map((product) => (
                       <SearchCard key={product.id} product={product} />
