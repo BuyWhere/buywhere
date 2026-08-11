@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { db, redis, vectorDb } from '../config';
+import { db, redis, vectorDb, catalogDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -55,6 +55,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         q: { type: 'string', description: 'Keyword search query' },
+        query: { type: 'string', description: 'Alias for q (legacy keyword search query)' },
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
@@ -65,7 +66,7 @@ const TOOLS = [
         offset: { type: 'integer', description: 'Pagination offset', default: 0 },
         compact: { type: 'boolean', description: 'Return agent-optimized compact shape: structured_specs, comparison_attributes, normalized_price_usd. Reduces response size ~40%. Recommended for agent tool-use.', default: false },
         category: { type: 'string', description: 'Filter by product category name (e.g. "Laptops", "Smartphones", "Televisions"). Use to exclude accessories and get actual products.' },
-        mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector (default). Falls back to keyword if vector DB or GEMINI_API_KEY unavailable.', default: 'hybrid' },
+        mode: { type: 'string', enum: ['keyword', 'semantic', 'hybrid'], description: 'Search mode: keyword=FTS only, semantic=vector only, hybrid=RRF blend of FTS+vector. Defaults to keyword to keep public MCP probes on bounded FTS; vector modes fall back to keyword if vector DB, GEMINI_API_KEY, or vector dimensions are incompatible.', default: 'keyword' },
       },
     },
   },
@@ -208,8 +209,12 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 // Tool handlers
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const q = (args.q as string) || '';
-  const mode = (args.mode as string) || 'hybrid';
+  // BUY-68170: support legacy `query` alias from the original MCP contract.
+  // Normalize before default/browse logic so `query` takes the same FTS path as `q`.
+  const q = ((args.q as string) || (args.query as string) || '').trim();
+  // BUY-68292: default public MCP search to bounded keyword FTS. Hybrid remains
+  // opt-in and falls back to FTS when legacy/stored vector dimensions disagree.
+  const mode = (args.mode as string) || 'keyword';
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
   const domain = (args.domain as string) || '';
@@ -281,9 +286,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // blocking the entire 12s statement_timeout. The DB itself is fast (70-130ms) so
   // any 8-12s MCP latency is pool-acquisition contention, not query execution.
   const searchClient = await Promise.race([
-    db.connect(),
+    catalogDb.connect(),
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('db.connect timeout after 2000ms')), 2000)
+      setTimeout(() => reject(new Error('catalogDb.connect timeout after 2000ms')), 2000)
     ),
   ]).catch(() => {
     throw { code: -32603, message: 'Database connection timeout' };
@@ -320,57 +325,84 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         }
 
         if (queryVec && vectorDb) {
-          let candidateIds: string[];
+          try {
+            let candidateIds: string[];
 
-          if (mode === 'semantic') {
-            // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
-            const vecRows = await vectorDb.query<{ product_id: string }>(
-              `SELECT product_id FROM product_embeddings
-               ORDER BY embedding <=> $1::vector LIMIT 200`,
-              [queryVec]
-            );
-            candidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
-          } else {
-            // Hybrid: app-level RRF of FTS ranks + vector ranks
-            const [ftsResult, vecResult] = await Promise.all([
-              searchClient.query<{ id: string }>(
-                `SELECT id FROM products ${where} LIMIT 200`,
-                params
-              ),
-              vectorDb.query<{ product_id: string }>(
-                `SELECT product_id FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT 200`,
+            if (mode === 'semantic') {
+              // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details.
+              // BUY-68292: guard KNN by vector_dims so legacy 1024-dim rows cannot be
+              // compared with current 512-dim query embeddings.
+              const vecRows = await vectorDb.query<{ product_id: string }>(
+                `SELECT product_id FROM product_embeddings
+                 WHERE model_ver = 'gemini-embedding-001@512'
+                   AND vector_dims(embedding) = vector_dims($1::vector)
+                 ORDER BY embedding <=> $1::vector LIMIT 200`,
                 [queryVec]
-              ),
-            ]);
-            const ftsRank = new Map(ftsResult.rows.map((r, i) => [r.id, i + 1]));
-            const vecRank = new Map(vecResult.rows.map((r, i) => [r.product_id, i + 1]));
-            const allIds = new Set([...ftsRank.keys(), ...vecRank.keys()]);
-            candidateIds = [...allIds]
-              .map(id => ({
-                id,
-                score: 1 / (60 + (ftsRank.get(id) ?? 201)) + 1 / (60 + (vecRank.get(id) ?? 201)),
-              }))
-              .sort((a, b) => b.score - a.score)
-              .slice(0, limit + offset)
-              .map(s => s.id);
-          }
+              );
+              candidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
+            } else {
+              // Hybrid: app-level RRF of FTS ranks + vector ranks
+              const [ftsResult, vecResult] = await Promise.all([
+                searchClient.query<{ id: string }>(
+                  `SELECT id FROM products ${where} LIMIT 200`,
+                  params
+                ),
+                // BUY-68292: same dimensions guard as semantic mode; if vector
+                // schema/data are incompatible, catch below and return FTS rows.
+                vectorDb.query<{ product_id: string }>(
+                  `SELECT product_id FROM product_embeddings
+                   WHERE model_ver = 'gemini-embedding-001@512'
+                     AND vector_dims(embedding) = vector_dims($1::vector)
+                   ORDER BY embedding <=> $1::vector LIMIT 200`,
+                  [queryVec]
+                ),
+              ]);
+              const ftsRank = new Map(ftsResult.rows.map((r, i) => [r.id, i + 1]));
+              const vecRank = new Map(vecResult.rows.map((r, i) => [r.product_id, i + 1]));
+              const allIds = new Set([...ftsRank.keys(), ...vecRank.keys()]);
+              candidateIds = [...allIds]
+                .map(id => ({
+                  id,
+                  score: 1 / (60 + (ftsRank.get(id) ?? 201)) + 1 / (60 + (vecRank.get(id) ?? 201)),
+                }))
+                .sort((a, b) => b.score - a.score)
+                .slice(0, limit + offset)
+                .map(s => s.id);
+            }
 
-          total = candidateIds.length;
-          const pageIds = candidateIds.slice(offset, offset + limit);
+            total = candidateIds.length;
+            const pageIds = candidateIds.slice(offset, offset + limit);
 
-          if (pageIds.length === 0) {
-            rows = [];
-          } else {
-            const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
-            const detailResult = await searchClient.query(
-              `SELECT id, sku AS source, source AS domain, url, title,
-                      price, currency, image_url, metadata, updated_at, region, country_code
-               FROM products WHERE id IN (${ph}) AND is_active = true`,
-              pageIds
+            if (pageIds.length === 0) {
+              rows = [];
+            } else {
+              const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
+              const detailResult = await searchClient.query(
+                `SELECT id, sku AS source, source AS domain, url, title,
+                        price, currency, image_url, metadata, updated_at, region, country_code
+                 FROM products WHERE id IN (${ph}) AND is_active = true`,
+                pageIds
+              );
+              // Preserve ranking order
+              const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
+              rows = pageIds.map(id => byId.get(id)).filter(Boolean) as Record<string, unknown>[];
+            }
+          } catch (vectorErr) {
+            console.warn('[search] vector search failed, falling back to FTS:', (vectorErr as Error).message);
+            const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
+            params.push(CANDIDATE_LIMIT, limit, offset);
+            const result = await searchClient.query(
+              `SELECT * FROM (
+                 SELECT id, sku AS source, source AS domain, url, title,
+                        price, currency, image_url, metadata, updated_at, region, country_code
+                 FROM products ${where}
+                 LIMIT $${params.length - 2}
+               ) _candidates
+               ORDER BY updated_at DESC
+               LIMIT $${params.length - 1} OFFSET $${params.length}`,
+              params
             );
-            // Preserve ranking order
-            const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
-            rows = pageIds.map(id => byId.get(id)).filter(Boolean) as Record<string, unknown>[];
+            rows = result.rows;
           }
         } else {
           // Embed failed — fall through to keyword FTS
