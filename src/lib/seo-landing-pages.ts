@@ -1169,7 +1169,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
               availability: "https://schema.org/InStock",
               sellers: group.map((p) => ({
                 "@type": "Organization",
-                name: p.merchant,
+                name: formatMerchantName(p.merchant),
               })),
             }
           : {
@@ -1273,7 +1273,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
                       seller: {
                         "@type": "Organization",
                         "@id": `${BASE_URL}/#organization`,
-                        name: product.merchant,
+                        name: formatMerchantName(product.merchant),
                       },
                       url: product.productUrl || product.href,
                     }
@@ -1701,11 +1701,11 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
   },
   "best-robot-vacuums-2026": {
     slug: "best-robot-vacuums-2026",
-    title: "Best Robot Vacuums 2026 from $199 — Roomba, Roborock",
+    title: "Best Robot Vacuums 2026 — Roomba, Roborock",
     description:
       "Robot vacuum prices 2026: Roomba j9+ from $999, Roborock Q5 Pro+ from $499, eufy X10 from $799. Live deals across Amazon, Best Buy, Walmart.",
     heroEyebrow: "US Home Guide",
-    heroTitle: "Best Robot Vacuums 2026 from $199 — Roomba & Roborock Deals",
+    heroTitle: "Best Robot Vacuums 2026 — Roomba & Roborock Deals",
     heroBody:
       "Looking for the best Roomba sale in 2026? iRobot Roomba models — from the j7+ to the Combo j9+ — regularly drop 15–40% during Prime Day, Black Friday, and holiday events. This page tracks live Roomba and robot vacuum deals across Amazon, Best Buy, Walmart, and Costco so you never miss a discount.",
     canonicalPath: "/best-robot-vacuums-2026",

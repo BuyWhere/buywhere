@@ -59,7 +59,7 @@ export function HomeProductSearch() {
         className="grid gap-3"
         noValidate
       >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-3">
+        <div className="flex flex-col gap-3 md:flex-row md:items-stretch md:gap-3">
           <div className="relative min-w-0 flex-1">
             <Search
               className="pointer-events-none absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-white"
@@ -113,21 +113,23 @@ export function HomeProductSearch() {
               {error}
             </p>
           ) : (
-            <div className="flex flex-wrap items-center justify-start gap-2 text-sm text-white sm:justify-center">
-              <span>Try</span>
-              {exampleQueries.map((example) => (
-                <button
-                  key={example}
-                  type="button"
-                  onClick={() => {
-                    setQuery(example);
-                    submitQuery(example);
-                  }}
-                  className="whitespace-nowrap rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700"
-                >
-                  {example}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-baseline justify-center gap-x-2 gap-y-2 text-sm text-white sm:items-center">
+              <span className="shrink-0">Try</span>
+              <div className="chip-group flex flex-wrap items-baseline justify-center gap-2 sm:items-center">
+                {exampleQueries.map((example) => (
+                  <button
+                    key={example}
+                    type="button"
+                    onClick={() => {
+                      setQuery(example);
+                      submitQuery(example);
+                    }}
+                    className="rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700"
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>

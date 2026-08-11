@@ -180,6 +180,19 @@ function formatPrice(price: number | null, currency: string) {
   }
 }
 
+// BUY-68364: synthetic / unreachable hosts whose images surface as
+// ERR_NAME_NOT_RESOLVED or ERR_BLOCKED_BY_ORB in the browser console.
+// A pre-filter here keeps the bad URL out of the <img src={...}> request
+// entirely, so the broken network request never happens. Substring match
+// against the hostname so subdomain variants are caught.
+const BLOCKED_IMAGE_HOSTNAMES = [
+  'images.example.sg',     // RFC 2606 reserved test domain — never resolves
+  'example.sg',
+  'example.com',
+  'example.net',
+  'example.org',
+];
+
 function hasUsableProductImage(value?: string | null) {
   if (!value) return false;
 
@@ -189,6 +202,17 @@ function hasUsableProductImage(value?: string | null) {
     const pathname = imageUrl.pathname.toLowerCase();
     const search = imageUrl.search.toLowerCase();
     const fullUrl = `${hostname}${pathname}${search}`;
+
+    // BUY-68364: reject any hostname in the synthetic / test-domain deny-list.
+    // Substring (not exact) match so subdomain variants like foo.example.sg
+    // are caught without enumerating every conceivable prefix.
+    for (const blocked of BLOCKED_IMAGE_HOSTNAMES) {
+      if (hostname === blocked || hostname.endsWith(`.${blocked}`)) return false;
+    }
+    // BUY-68364: reject synthetic seed URLs whose path carries an obvious
+    // "this is a fixture" marker. These came from a one-time ingest seed
+    // and slip past hostname filters because the host was a real domain.
+    if (pathname.includes('/synth_')) return false;
 
     if (hostname.includes('source.unsplash.com') || fullUrl.includes('source.unsplash.com')) return false;
     if (hostname.includes('images.unsplash.com') || fullUrl.includes('images.unsplash.com')) return false;
