@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Schema from "@/components/Schema";
@@ -11,11 +12,27 @@ const BLOG_TITLE = "BuyWhere Blog — Buying Guides & Price-Comparison Reviews";
 const BLOG_DESCRIPTION =
   "Read buying guides, price-comparison reviews, launch updates, and developer tutorials for commerce AI agents.";
 
-export const metadata = buildPageMetadata({
-  title: BLOG_TITLE,
-  description: BLOG_DESCRIPTION,
-  path: "/blog",
-});
+export const metadata: Metadata = {
+  ...buildPageMetadata({
+    title: BLOG_TITLE,
+    description: BLOG_DESCRIPTION,
+    path: "/blog",
+  }),
+  // BUY-69024: advertise the RSS/Atom feeds so feed readers and crawlers can
+  // discover them from the blog index. Mirrors the routes served by
+  // src/app/blog/rss.xml/route.ts and src/app/blog/feed.xml/route.ts.
+  alternates: {
+    canonical: toSiteUrl("/blog"),
+    types: {
+      "application/rss+xml": [
+        { url: toSiteUrl("/blog/rss.xml"), title: `${BLOG_TITLE} — RSS` },
+      ],
+      "application/atom+xml": [
+        { url: toSiteUrl("/blog/feed.xml"), title: `${BLOG_TITLE} — Atom` },
+      ],
+    },
+  },
+};
 
 function formatDate(date: string) {
   return new Intl.DateTimeFormat("en-US", {
