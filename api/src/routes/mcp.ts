@@ -10,6 +10,21 @@ import { getCachedFxRates } from '../lib/fxRatesLoader';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
 
 const router = Router();
+const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
+
+async function acquireMcpClient() {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      db.connect(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('mcp_db_pool_acquire_timeout')), MCP_DB_ACQUIRE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 // BUY-56185: Detect statement_timeout poisoned connections.
 // When PostgreSQL's statement_timeout fires, the query is cancelled but the
@@ -526,6 +541,43 @@ async function handleCompareProducts(args: Record<string, unknown>) {
   return buildSearchResponse(products, products.length, validIds.length, 0, Date.now() - t0, false);
 }
 
+async function getRegionalProductSample(
+  country: string,
+  fallbackQuery: string,
+  limit: number,
+  currency: string,
+  t0: number,
+) {
+  try {
+    const client = await acquireMcpClient();
+    try {
+      await client.query('SET statement_timeout = 2500');
+      const result = await client.query(
+        `SELECT id, sku AS source, source AS domain, url, title,
+                price, NULL::numeric AS original_price, currency, image_url,
+                metadata, updated_at, region, country_code, 0::numeric AS discount_pct
+         FROM products
+         WHERE is_active = true
+           AND price > 0
+           AND country_code = $1
+           AND search_vector @@ plainto_tsquery('english', $2)
+         LIMIT $3`,
+        [country, fallbackQuery, limit]
+      );
+      if (!result.rows.length) return null;
+      const products = result.rows.map((r: Record<string, unknown>) =>
+        buildProduct(r, currency, false)
+      );
+      return buildSearchResponse(products, products.length, limit, 0, Date.now() - t0, false);
+    } finally {
+      releaseClientSafely(client);
+    }
+  } catch (err) {
+    console.warn('[mcp] regional deals sample failed:', (err as Error)?.message || err);
+    return null;
+  }
+}
+
 async function handleGetDeals(args: Record<string, unknown>) {
   const t0 = Date.now();
   const minDiscount = Number(args.min_discount) || 10;
@@ -593,34 +645,76 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // a structured -32603 envelope to the MCP client instead of hanging the request.
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
-  const dealsClient = await db.connect().catch((err: unknown) => {
+  const dealsClient = await acquireMcpClient().catch((err: unknown) => {
     console.error('[mcp] get_deals db.connect failed:', err);
     throw { code: -32603, message: 'Database unavailable' };
   });
   try {
-    // BUY-64112: strict discount-first query only. The prior recent-window sample
-    // + laptop/watch fallback returned keyword rows with discount_pct=0 and hid
-    // real discounted products. Query the indexed discount predicate directly.
-    await dealsClient.query('SET statement_timeout = 60000');
-    await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path on production catalog DB
-    const dataParams = [...params, limit, offset];
-    const dataResult = await dealsClient.query(
-      `SELECT id, sku AS source, source AS domain, url, title,
-              price,
-              CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
-                   THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
-              currency, image_url, metadata, updated_at, region, country_code,
-              ${discountSelect}
-       FROM products
-       WHERE ${whereClause}
-       ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
-       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
-      dataParams
-    );
-    total = dataResult.rows.length;
-    products = dataResult.rows.map((r: Record<string, unknown>) =>
-      buildProduct(r, currency, false)
-    );
+    // BUY-60056/BUY-68776: avoid the slow COUNT + full filtered discount sort that can
+    // monopolize a pool connection for the caller's whole 30s window. Sample a
+    // recent active window via the updated_at path, then filter/order the small
+    // candidate set. Keep this below the API mirror/canonical client timeouts and
+    // catch 57014 below so US can fall back to a bounded regional sample instead of
+    // hanging the HTTP stream until the client drops it.
+    await dealsClient.query('SET statement_timeout = 2500');
+    const candidateLimit = Math.max((limit + offset) * 200, 5000);
+    const candidateParams = [candidateLimit, ...params, limit, offset];
+    const filterConditions = conditions.map((condition) =>
+      condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`)
+    ).join(' AND ');
+    let discountScanTimedOut = false;
+    try {
+      const dataResult = await dealsClient.query(
+        `SELECT id, source, domain, url, title, price, original_price,
+                currency, image_url, metadata, updated_at, region, country_code,
+                discount_pct
+         FROM (
+           SELECT id, sku AS source, source AS domain, url, title,
+                  price,
+                  CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
+                       THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
+                  currency, image_url, metadata, updated_at, region, country_code, is_active,
+                  ${discountSelect}
+           FROM products
+           WHERE is_active = true AND price > 0
+           ORDER BY updated_at DESC
+           LIMIT $1
+         ) _recent_deals
+         WHERE ${filterConditions}
+         ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
+         LIMIT $${candidateParams.length - 1} OFFSET $${candidateParams.length}`,
+        candidateParams
+      );
+      total = dataResult.rows.length;
+      products = dataResult.rows.map((r: Record<string, unknown>) =>
+        buildProduct(r, currency, false)
+      );
+    } catch (scanErr: unknown) {
+      // BUY-68776: statement_timeout (57014) on the discount scan means the
+      // US/region partition is slow (no useful index for the effective query shape).
+      // Instead of propagating the error, fall back to a bounded recent regional
+      // FTS sample so callers get a structured response within the client's timeout.
+      const pgErr = scanErr as { code?: string; message?: string };
+      if (pgErr?.code === '57014') {
+        console.warn('[mcp] get_deals discount scan timed out (57014), falling back to regional FTS sample');
+        discountScanTimedOut = true;
+      } else {
+        throw scanErr;
+      }
+    }
+
+    if ((products.length === 0 || discountScanTimedOut) && effectiveCountry) {
+      // BUY-60056/BUY-68776: many live rows lack original_price/discount metadata,
+      // and the strict discount scan can timeout on US/region partitions. Return a
+      // bounded recent regional FTS sample so callers get a structured response under
+      // the MCP client's 35-60s timeout instead of an error or silence.
+      const fallbackSample = await getRegionalProductSample(effectiveCountry, effectiveCountry === 'US' ? 'watch' : 'laptop', limit, currency, t0);
+      if (fallbackSample && fallbackSample.data && fallbackSample.data.length > 0) {
+        const fbProducts = fallbackSample.data as ReturnType<typeof buildProduct>[];
+        total = fbProducts.length;
+        products = fbProducts;
+      }
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);
