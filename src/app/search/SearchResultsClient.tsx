@@ -330,11 +330,78 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
   };
 }
 
+// BUY-68736: collapse near-identical placeholder products.
+//
+// QA reproduced a "gaming laptop" search where the same synthetic row appeared
+// six times under tier-suffixed titles:
+//   "Gaming Laptop RTX 4060 144Hz 16GB RAM 1TB SSD"
+//   "Gaming Laptop RTX 4060 144Hz 16GB RAM 1TB SSD Premium"
+//   "Gaming Laptop RTX 4060 144Hz 16GB RAM 1TB SSD Plus"
+//   "Gaming Laptop RTX 4060 144Hz 16GB RAM 1TB SSD Elite"
+//   "Gaming Laptop RTX 4060 144Hz 16GB RAM 1TB SSD Max"
+//   "Gaming Laptop RTX 4060 144Hz 16GB RAM 1TB SSD Pro"
+//
+// Every variant carried the same merchant, currency, image, and
+// `metadata: null` — seeded inventory the catalog ingest lane emits when it
+// can't distinguish individual offers. Showing all six makes the page look
+// fake; QA scored this P1 conversion/trust.
+//
+// Strategy: build a normalized cluster key per product (lowercase, drop the
+// tier-suffix tokens, collapse whitespace) and within each cluster keep only
+// the highest-scoring representative. Real products with genuinely different
+// specs ("RTX 4060" vs "RTX 5060", "16GB RAM" vs "32GB RAM") keep distinct
+// keys and are NOT collapsed. This is a render-side backstop that composes
+// with the existing rankProduct tier (image > price > accessory).
+const PLACEHOLDER_TIER_SUFFIX_PATTERN =
+  /^(premium|plus|elite|max|pro|standard|basic|ultra|signature|limited|edition|plus\+?|xl|xs)\b[+\s-]*$/i;
+
+function normalizeTitleForCluster(title: string): string {
+  const stripped = title
+    .toLowerCase()
+    .replace(/[®™©]/g, '')
+    .split(/[\s/_\-–—+]+/)
+    .filter(Boolean);
+  // Drop trailing tier-suffix tokens (Premium / Plus / Elite / Max / Pro …)
+  // repeatedly so a stack like "Pro Plus Elite" still collapses.
+  const tokens: string[] = [];
+  for (const token of stripped) {
+    if (PLACEHOLDER_TIER_SUFFIX_PATTERN.test(token)) continue;
+    tokens.push(token);
+  }
+  return tokens.join(' ');
+}
+
+function dedupeByTitleCluster(products: SearchCardProduct[]): SearchCardProduct[] {
+  const order: string[] = [];
+  const clusterOf = new Map<string, { representative: SearchCardProduct; representativeScore: number }>();
+
+  for (const product of products) {
+    const key = normalizeTitleForCluster(product.name);
+    const score = rankProduct(product);
+    const existing = clusterOf.get(key);
+    if (!existing) {
+      order.push(key);
+      clusterOf.set(key, { representative: product, representativeScore: score });
+      continue;
+    }
+    if (score > existing.representativeScore) {
+      existing.representative = product;
+      existing.representativeScore = score;
+    }
+  }
+
+  return order.map((key) => clusterOf.get(key)!.representative);
+}
+
 // BUY-65559: exported for the price-sanity regression test.
+// BUY-68736: also exports the placeholder-cluster dedup helpers for the
+// regression test that pins the QA-reported collapse.
 export const __test__ = {
   isPlausiblePrice,
   formatPrice,
   normalizeProduct,
+  normalizeTitleForCluster,
+  dedupeByTitleCluster,
   HIGH_VALUE_MIN_PRICE,
   MAX_PLAUSIBLE_PRICE,
 };
@@ -789,7 +856,7 @@ export default function SearchResultsClient({
         setDegradedHint(null);
       }
       const normalizedItems = sortProductsByRelevance(
-        rawItems.map((item) => normalizeProduct(item, activeCountry.currency))
+        dedupeByTitleCluster(rawItems.map((item) => normalizeProduct(item, activeCountry.currency)))
       ).slice(0, PAGE_SIZE);
       const fetchedPageIsFull = rawItems.length >= SEARCH_FETCH_LIMIT;
 
