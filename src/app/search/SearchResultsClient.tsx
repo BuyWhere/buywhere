@@ -625,12 +625,13 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
       </div>
 
       <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-2.5 bg-white p-3.5" data-testid="search-product-details">
-        <div className="flex min-h-7 items-start justify-between gap-2">
-          <MerchantBadge merchant={product.merchant} className="min-w-0 flex-1 basis-0" />
-          <span className="inline-flex shrink-0 items-center gap-1 self-start rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
-            Shop
-            <ExternalLink className="h-3 w-3" />
-          </span>
+        {/* BUY-68743: drop the redundant "Shop ↗" pill — the merchant name
+            and verified checkmark are already conveyed by MerchantBadge on the
+            left, and the whole card wraps the deal URL, so a second visual CTA
+            at the top competed with the primary "View Deal" button below.
+            Keep MerchantBadge informational and View Deal the single CTA. */}
+        <div className="flex min-h-7 items-center">
+          <MerchantBadge merchant={product.merchant} className="min-w-0" />
         </div>
 
         <div className="space-y-1.5">
