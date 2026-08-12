@@ -294,6 +294,14 @@ async def _handle_get_deals(args: dict[str, Any]) -> CallToolResult:
     params = {"min_discount_pct": min_discount_pct, "limit": limit}
     if args.get("category"):
         params["category"] = args["category"]
+    if args.get("country_code"):
+        params["country_code"] = str(args["country_code"]).upper()
+    elif args.get("country"):
+        params["country_code"] = str(args["country"]).upper()
+    elif args.get("region"):
+        region = str(args["region"]).lower()
+        if region in {"sg", "us", "my", "th", "vn", "ph"}:
+            params["country_code"] = region.upper()
 
     try:
         data = await _api_get("/v1/deals", params)
