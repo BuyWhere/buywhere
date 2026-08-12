@@ -1516,8 +1516,8 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
         // Some MCP clients call methods directly (e.g., method:"search_products"
         // with params as the tool args) instead of using the tools/call envelope.
         // Normalize to tools/call format before dispatch.
-        let toolName;
-        let toolArgs;
+        let toolName = undefined;
+        let toolArgs = {};
         if (method === 'tools/call') {
             toolName = args.name;
             toolArgs = (args.arguments && typeof args.arguments === 'object') ? args.arguments : {};
@@ -1526,7 +1526,7 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                 return res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
             }
         }
-        else if (typeof method === 'string' && ['search_products','get_product','compare_products','get_deals','list_categories','find_best_price','find_similar','ingest_products'].includes(method)) {
+        else if (typeof method === 'string' && TOOLS.some(t => t.name === method)) {
             // Direct tool method call - treat params as the tool arguments
             toolName = method;
             toolArgs = args;

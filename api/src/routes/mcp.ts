@@ -1657,8 +1657,8 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
     // Some MCP clients call methods directly (e.g., method:"search_products"
     // with params as the tool args) instead of using the tools/call envelope.
     // Normalize to tools/call format before dispatch.
-    let toolName: string | undefined;
-    let toolArgs: Record<string, unknown>;
+    let toolName: string | undefined = undefined;
+    let toolArgs: Record<string, unknown> = {};
     if (method === 'tools/call') {
       toolName = args.name as string;
       toolArgs = (args.arguments && typeof args.arguments === 'object') ? args.arguments as Record<string, unknown> : {};
