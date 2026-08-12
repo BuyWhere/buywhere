@@ -405,38 +405,40 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         rows = result.rows;
       }
     } else {
-      // No FTS — browse mode. Use reltuples for approximate total and fetch
-      // recent products via idx_products_updated_at (3ms for 500 rows).
-      // If user explicitly passed country_code/region, overfetch and filter
-      // in-application (no composite index on country_code+updated_at).
-      const approxResult = await searchClient.query(
-        `SELECT reltuples::bigint AS estimate FROM pg_class WHERE relname = 'products'`
-      );
-      total = parseInt(approxResult.rows[0]?.estimate ?? '0', 10);
+      // No FTS — browse mode (BUY-62788 / BUY-68287 fix).
+      // Push region/country into SQL WHERE so the filter applies on the
+      // read path; bound the reported total to COUNT_CEIL so we never return
+      // the global pg_class.reltuples estimate.
+      const COUNT_CEIL = 100001;
+      const browseParams: unknown[] = [];
+      const browseConditions: string[] = ['is_active = true'];
+      if (country) {
+        browseParams.push(country.toUpperCase());
+        browseConditions.push(`country_code = $${browseParams.length}`);
+      }
+      if (region) {
+        browseParams.push(region.toLowerCase());
+        browseConditions.push(`LOWER(region) = $${browseParams.length}`);
+      }
+      const browseWhere = `WHERE ${browseConditions.join(' AND ')}`;
 
-      const needsFilter = !!(country || region);
-      const fetchLimit = needsFilter ? Math.min((limit + offset) * 20, 5000) : limit + offset;
+      const countResult = await searchClient.query(
+        `SELECT LEAST(COUNT(*), $${browseParams.length + 1})::bigint AS estimate FROM products ${browseWhere}`,
+        [...browseParams, COUNT_CEIL]
+      );
+      total = parseInt(countResult.rows[0]?.estimate ?? '0', 10);
+
+      browseParams.push(limit, offset);
       const rawResult = await searchClient.query(
         `SELECT id, sku AS source, source AS domain, url, title,
                 price, currency, image_url, metadata, updated_at,
                 region, country_code
-         FROM products
+         FROM products ${browseWhere}
          ORDER BY updated_at DESC
-         LIMIT $1`,
-        [fetchLimit]
+         LIMIT $${browseParams.length - 1} OFFSET $${browseParams.length}`,
+        browseParams
       );
-      if (needsFilter) {
-        let filtered = rawResult.rows as Record<string, unknown>[];
-        if (country) {
-          filtered = filtered.filter(r => (r.country_code as string || '').toUpperCase() === country);
-        }
-        if (region) {
-          filtered = filtered.filter(r => (r.region as string || '').toLowerCase() === region.toLowerCase());
-        }
-        rows = filtered.slice(offset, offset + limit);
-      } else {
-        rows = (rawResult.rows as unknown[]).slice(offset, offset + limit);
-      }
+      rows = rawResult.rows;
     }
     } catch (err: unknown) {
       const e = err as { code?: number | string; message?: string };
