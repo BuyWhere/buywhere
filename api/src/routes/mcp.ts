@@ -550,11 +550,10 @@ async function handleGetDeals(args: Record<string, unknown>) {
     }
   } catch (_) {}
 
-  let useDiscountCol = _hasDiscountPct;
-  if (useDiscountCol === undefined) {
-    useDiscountCol = await probeDiscountPctColumn();
-    _hasDiscountPct = useDiscountCol;
-  }
+  // BUY-68615: hardcode true — production catalog DB has discount_pct GENERATED ALWAYS column.
+  // The probe can mis-detect on cold pool connections; bypass it to use the fast indexed path.
+  const useDiscountCol = true;
+  
 
   const conditions: string[] = [
     `currency = $1`,
