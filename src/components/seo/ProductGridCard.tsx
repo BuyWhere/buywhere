@@ -19,16 +19,8 @@ function formatPrice(price: number | null, currency: string) {
 export function ProductGridCard({ product, compact = false }: { product: LandingProduct; compact?: boolean }) {
   const isMerchantOffer =
     product.href.startsWith("http://") || product.href.startsWith("https://");
-
-  // Prefer a verified internal product page, but never let the card link land
-  // on a 404-prone synthetic URL when a working external merchant URL is
-  // available. `buildUSProductSlug` appends `-<id>` and the /products route
-  // can only resolve that when the API is reachable (BUY-52332 cutover). If
-  // the card already has a merchant offer, send the click straight to it —
-  // that's the same destination the explicit "Buy at <merchant>" button uses.
-  const detailUrl = isMerchantOffer
-    ? product.href
-    : product.productUrl || `/search?q=${encodeURIComponent(product.name)}`;
+  const detailUrl =
+    product.productUrl || `/search?q=${encodeURIComponent(product.name)}`;
 
   function handleMerchantClick(e: React.MouseEvent) {
     e.preventDefault();
@@ -48,41 +40,17 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
     <Link
       href={detailUrl}
       prefetch={false}
-      target={isMerchantOffer ? "_blank" : undefined}
-      rel={isMerchantOffer ? "noopener noreferrer" : undefined}
-      className={`group grid h-full min-w-0 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl ${
+      className={`group grid h-full min-w-0 rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl ${
         compact ? "grid-cols-[9rem_minmax(0,1fr)] sm:grid-cols-[11rem_minmax(0,1fr)]" : "grid-rows-[auto_1fr]"
       }`}
     >
-      {/*
-        BUY-66323: harden image wrapper so the bg never bleeds into the text column.
-
-        The live page was rendering without its CSS bundle (all /_next/static/css/*.css
-        and /_next/static/chunks/app/* return 404 at the moment), which collapses the
-        layout. Even with a stale build, an oversized source image or an aspect-ratio
-        round-up used to push the wrapper past its grid cell, letting the bg-slate-100
-        (or pre-BUY-65158 radial-gradient) bleed behind the metadata tags + title.
-
-        Belt-and-suspenders against any of those failure modes:
-          - `isolate`        -> creates a new stacking context so the bg cannot paint
-                                outside this box even when CSS is partial.
-          - `min-w-0`        -> grid items shrink-to-fit instead of stretching past the
-                                column track.
-          - `max-w-full`     -> inline width cap; redundant with min-w-0 but survives
-                                any Tailwind purge / class-not-applied case.
-          - inline `style`   -> two declarations (overflow:hidden + maxWidth:100%)
-                                apply even when the stylesheet bundle is missing,
-                                which is exactly what QA observed on /laptop-singapore.
-      */}
-      <div
-        className={`relative isolate overflow-hidden bg-slate-100 ${compact ? "aspect-[4/3] min-w-0 max-w-full rounded-l-[27px]" : "aspect-[4/3] min-w-0 max-w-full rounded-t-[27px]"}`}
-        style={{ overflow: "hidden", maxWidth: "100%" }}
-      >
+      <div className={`relative overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.25),_rgba(248,250,252,0.92)_55%,_rgba(226,232,240,0.95))] ${compact ? "min-h-64 rounded-l-[27px]" : "aspect-[4/3] rounded-t-[27px]"}`}>
         <ProductGridImage
           src={product.imageUrl || ""}
           alt={product.name}
           brand={product.brand}
           merchant={product.merchant}
+          category={product.category}
         />
       </div>
 
@@ -95,11 +63,11 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
         </div>
 
         <div className="space-y-2">
-          <h2 className="line-clamp-2 text-lg font-semibold leading-tight text-slate-900 transition-colors group-hover:text-amber-800">
+          <h2 className="line-clamp-2 text-lg font-semibold leading-tight text-slate-900 transition-colors group-hover:text-amber-700">
             {product.name}
           </h2>
           {product.brand ? (
-            <p className="text-sm text-slate-600">{product.brand}</p>
+            <p className="text-sm text-slate-500">{product.brand}</p>
           ) : null}
         </div>
 
@@ -123,7 +91,7 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
               Buy at {product.merchant}
             </span>
           ) : (
-            <span className="inline-flex min-h-11 items-center text-sm font-medium text-amber-800">
+            <span className="inline-flex min-h-11 items-center text-sm font-medium text-amber-700">
               View details
             </span>
           )}

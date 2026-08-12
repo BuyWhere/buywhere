@@ -352,3 +352,41 @@ test("parseImageDimensions extracts JPEG SOF and PNG IHDR dimensions", () => {
   assert.equal(isSq({ w: 1000, h: 940 }), true, "1000x940 (AR 1.06) is within ±6% tolerance");
   assert.equal(isSq({ w: 1000, h: 1070 }), true, "1000x1070 (AR 0.93) is within ±6% tolerance");
 });
+
+test("ProductGridImage placeholder picks a category-aware silhouette (BUY-67242)", () => {
+  const imageSource = readFileSync(
+    new URL("../components/seo/ProductGridImage.tsx", import.meta.url),
+    "utf8",
+  );
+  const cardSource = readFileSync(
+    new URL("../components/seo/ProductGridCard.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // BrandedPlaceholder must accept a category prop and route the silhouette
+  // through a regex set that includes "robot vacuum" so the QA-flagged
+  // laptop/monitor icon never renders on a robot vacuum card.
+  assert.match(
+    imageSource,
+    /function placeholderSilhouette\(category\?: string \| null, alt\?: string \| null\)/,
+    "placeholderSilhouette helper must accept category + alt",
+  );
+  assert.match(
+    imageSource,
+    /\\brobot\\s\*vacuum\|roomba\|deebot\|robovac/,
+    "placeholderSilhouette must include robot-vacuum regex branch (BUY-67242)",
+  );
+  assert.match(
+    imageSource,
+    /function BrandedPlaceholder\(\{ alt, brand, merchant, category \}/,
+    "BrandedPlaceholder must accept category",
+  );
+
+  // ProductGridCard must thread product.category into ProductGridImage so
+  // the placeholder can pick the right silhouette when imageUrl is empty.
+  assert.match(
+    cardSource,
+    /category=\{product\.category\}/,
+    "ProductGridCard must pass product.category to ProductGridImage",
+  );
+});
