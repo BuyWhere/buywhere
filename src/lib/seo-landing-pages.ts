@@ -258,19 +258,11 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     price: Number.isFinite(numericPrice) ? numericPrice : null,
     currency: priceCurrency || fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
-    // BUY-63954: render the deterministic branded SVG card for every catalog
-    // snapshot product instead of the upstream CDN image. The remote image
-    // loads fine for human users, but QA's headless screenshot environment
-    // can't load many of these CDNs (hotlink/CORS/referrer policy), which
-    // triggered the <img> onError fallback to a generic slate silhouette and
-    // was reported as "placeholder icons instead of real product photos". The
-    // branded SVG renders identically in SSR and any browser/headless
-    // environment so the Live Catalog Snapshot always looks polished.
-    imageUrl: brandedProductPlaceholderSvg(
-      item.brand || null,
-      item.name || null,
-      item.category || null,
-    ),
+    // BUY-64056: preserve real merchant/CDN product photos from search results.
+    // ProductGridImage already falls back gracefully if a remote asset fails, and
+    // the verification pass below drops images that are unreachable or visually
+    // unusable before they reach the page.
+    imageUrl,
     href: normalizeExternalHref(
       item.affiliate_redirect_url,
       item.click_url,
@@ -436,7 +428,7 @@ function brandedProductPlaceholderSvg(
   </defs>
   <rect width='400' height='300' fill='url(#bg)'/>
   <rect x='40' y='40' width='320' height='220' rx='24' fill='#ffffff' stroke='#fcd34d' stroke-width='3'/>
-  <g transform='translate(140 80)' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'>${silhouette}
+  <g transform='translate(140 80)' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'>${categorySilhouette(category, name)}
   </g>
   <text x='200' y='218' text-anchor='middle' font-family='system-ui,sans-serif' font-size='20' font-weight='700' fill='#0f172a'>${brandText}</text>
   <text x='200' y='244' text-anchor='middle' font-family='system-ui,sans-serif' font-size='13' font-weight='500' fill='#475569'>${productLabel}</text>
