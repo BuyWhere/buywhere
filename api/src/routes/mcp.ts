@@ -76,6 +76,20 @@ function releaseClientSafely(client: any) {
   }
 }
 
+const MCP_DEALS_WALL_DEADLINE_MS = Number(process.env.MCP_DEALS_WALL_DEADLINE_MS) || 8000;
+
+function withToolDeadline<T>(promise: Promise<T>, ms: number, toolName: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`tool_deadline_exceeded: ${toolName} (budget ${ms}ms)`)), ms);
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 // MCP tools manifest
 const TOOLS = [
   {
@@ -1447,7 +1461,21 @@ async function dispatchTool(name: string, args: Record<string, unknown>) {
     case 'search_products':  return handleSearchProducts(args);
     case 'get_product':      return handleGetProduct(args);
     case 'compare_products': return handleCompareProducts(args);
-    case 'get_deals':        return handleGetDeals(args);
+    case 'get_deals': {
+      try {
+        return await withToolDeadline(handleGetDeals(args), MCP_DEALS_WALL_DEADLINE_MS, 'get_deals');
+      } catch (err) {
+        if (err instanceof Error && err.message.includes('tool_deadline_exceeded')) {
+          console.error(`[mcp] ${err.message} — returning degraded empty result`);
+          const limit = Number(args.limit) || 20;
+          const offset = Number(args.offset) || 0;
+          const result = buildSearchResponse([], 0, limit, offset, MCP_DEALS_WALL_DEADLINE_MS, false);
+          (result as unknown as Record<string, unknown>).unavailable = true;
+          return result;
+        }
+        throw err;
+      }
+    }
     case 'list_categories':  return handleListCategories(args);
     case 'find_best_price':  return handleFindBestPrice(args);
     case 'ingest_products':  return handleIngestProducts(args);
@@ -1625,25 +1653,36 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
   const args = (params && typeof params === 'object' && !Array.isArray(params)) ? params : {};
 
   try {
-    switch (method) {
-      case 'tools/call': {
-        const toolName = args.name as string;
-        const toolArgs = (args.arguments && typeof args.arguments === 'object') ? args.arguments as Record<string, unknown> : {};
-        if (!toolName) {
-          return res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
-        }
-        // BUY-22733: surface tool name to queryLog middleware so the finish
-        // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
-        res.locals.mcpToolName = toolName;
-        const result = await dispatchTool(toolName, toolArgs);
-        return res.json(jsonrpcOk(id, {
-          content: [{ type: 'text', text: JSON.stringify(result) }],
-        }));
+    // BUY-68843: Support direct tool method calls as aliases for tools/call.
+    // Some MCP clients call methods directly (e.g., method:"search_products"
+    // with params as the tool args) instead of using the tools/call envelope.
+    // Normalize to tools/call format before dispatch.
+    let toolName: string | undefined;
+    let toolArgs: Record<string, unknown>;
+    if (method === 'tools/call') {
+      toolName = args.name as string;
+      toolArgs = (args.arguments && typeof args.arguments === 'object') ? args.arguments as Record<string, unknown> : {};
+      // Validate tool name for tools/call envelope
+      if (!toolName) {
+        return res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
       }
-
-      default:
-        return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
+    } else if (typeof method === 'string' && TOOLS.some(t => t.name === method)) {
+      // Direct tool method call - treat params as the tool arguments
+      toolName = method;
+      toolArgs = args as Record<string, unknown>;
     }
+
+    if (toolName) {
+      // BUY-22733: surface tool name to queryLog middleware so the finish
+      // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
+      res.locals.mcpToolName = toolName;
+      const result = await dispatchTool(toolName, toolArgs);
+      return res.json(jsonrpcOk(id, {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+      }));
+    }
+
+    return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
   } catch (err: unknown) {
     const e = err as { code?: number | string; message?: string };
     // BUY-57370: handle both numeric tool-error codes (e.g. -32603) and

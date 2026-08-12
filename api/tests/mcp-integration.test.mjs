@@ -214,6 +214,27 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     assert.ok(calls.length >= 1, 'Expected country_code filter');
   });
 
+  it('BUY-68843 accepts direct named method calls as tools/call aliases', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 110, method: 'search_products',
+        params: { q: 'laptop', country_code: 'SG' },
+      }),
+    });
+    const body = await res.json();
+
+    assert.equal(res.status, 200);
+    assert.equal(body.jsonrpc, '2.0');
+    assert.equal(body.id, 110);
+    assert.ok(body.result, JSON.stringify(body));
+    assert.ok(Array.isArray(body.result.content));
+    const data = JSON.parse(body.result.content[0].text);
+    assert.ok(Array.isArray(data.data));
+    assert.equal(data.data.length, 2);
+  });
+
   it('search_products with compact=true returns compact fields', async () => {
     queryMock.mock.mockImplementation((sql) => {
       if (typeof sql === 'string' && sql.includes('api_keys')) {
@@ -308,8 +329,8 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
       }
       return Promise.resolve({
         rows: [
-          makeProduct('p1', { title: 'Phone A', price: 999 }),
-          makeProduct('p2', { title: 'Phone B', price: 799 }),
+          makeProduct('1', { title: 'Phone A', price: 999 }),
+          makeProduct('2', { title: 'Phone B', price: 799 }),
         ],
       });
     });
@@ -319,7 +340,7 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
       body: JSON.stringify({
         jsonrpc: '2.0', id: 15, method: 'tools/call',
-        params: { name: 'compare_products', arguments: { ids: ['p1', 'p2'] } },
+        params: { name: 'compare_products', arguments: { ids: ['1', '2'] } },
       }),
     });
     const body = await res.json();

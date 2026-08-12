@@ -74,6 +74,19 @@ function releaseClientSafely(client) {
         // Swallow release errors — pool will remove the bad client anyway.
     }
 }
+const MCP_DEALS_WALL_DEADLINE_MS = Number(process.env.MCP_DEALS_WALL_DEADLINE_MS) || 8000;
+function withToolDeadline(promise, ms, toolName) {
+    let timer;
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`tool_deadline_exceeded: ${toolName} (budget ${ms}ms)`)), ms);
+        }),
+    ]).finally(() => {
+        if (timer)
+            clearTimeout(timer);
+    });
+}
 // MCP tools manifest
 const TOOLS = [
     {
@@ -1316,7 +1329,22 @@ async function dispatchTool(name, args) {
         case 'search_products': return handleSearchProducts(args);
         case 'get_product': return handleGetProduct(args);
         case 'compare_products': return handleCompareProducts(args);
-        case 'get_deals': return handleGetDeals(args);
+        case 'get_deals': {
+            try {
+                return await withToolDeadline(handleGetDeals(args), MCP_DEALS_WALL_DEADLINE_MS, 'get_deals');
+            }
+            catch (err) {
+                if (err instanceof Error && err.message.includes('tool_deadline_exceeded')) {
+                    console.error(`[mcp] ${err.message} — returning degraded empty result`);
+                    const limit = Number(args.limit) || 20;
+                    const offset = Number(args.offset) || 0;
+                    const result = (0, response_1.buildSearchResponse)([], 0, limit, offset, MCP_DEALS_WALL_DEADLINE_MS, false);
+                    result.unavailable = true;
+                    return result;
+                }
+                throw err;
+            }
+        }
         case 'list_categories': return handleListCategories(args);
         case 'find_best_price': return handleFindBestPrice(args);
         case 'ingest_products': return handleIngestProducts(args);
@@ -1484,24 +1512,35 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
     const { id, method, params } = body;
     const args = (params && typeof params === 'object' && !Array.isArray(params)) ? params : {};
     try {
-        switch (method) {
-            case 'tools/call': {
-                const toolName = args.name;
-                const toolArgs = (args.arguments && typeof args.arguments === 'object') ? args.arguments : {};
-                if (!toolName) {
-                    return res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
-                }
-                // BUY-22733: surface tool name to queryLog middleware so the finish
-                // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
-                res.locals.mcpToolName = toolName;
-                const result = await dispatchTool(toolName, toolArgs);
-                return res.json(jsonrpcOk(id, {
-                    content: [{ type: 'text', text: JSON.stringify(result) }],
-                }));
+        // BUY-68843: Support direct tool method calls as aliases for tools/call.
+        // Some MCP clients call methods directly (e.g., method:"search_products"
+        // with params as the tool args) instead of using the tools/call envelope.
+        // Normalize to tools/call format before dispatch.
+        let toolName;
+        let toolArgs;
+        if (method === 'tools/call') {
+            toolName = args.name;
+            toolArgs = (args.arguments && typeof args.arguments === 'object') ? args.arguments : {};
+            // Validate tool name for tools/call envelope
+            if (!toolName) {
+                return res.json(jsonrpcErr(id, -32602, 'Missing tool name'));
             }
-            default:
-                return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
         }
+        else if (typeof method === 'string' && ['search_products','get_product','compare_products','get_deals','list_categories','find_best_price','find_similar','ingest_products'].includes(method)) {
+            // Direct tool method call - treat params as the tool arguments
+            toolName = method;
+            toolArgs = args;
+        }
+        if (toolName) {
+            // BUY-22733: surface tool name to queryLog middleware so the finish
+            // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
+            res.locals.mcpToolName = toolName;
+            const result = await dispatchTool(toolName, toolArgs);
+            return res.json(jsonrpcOk(id, {
+                content: [{ type: 'text', text: JSON.stringify(result) }],
+            }));
+        }
+        return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
     }
     catch (err) {
         const e = err;
