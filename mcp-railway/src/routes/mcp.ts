@@ -518,37 +518,6 @@ async function handleCompareProducts(args: Record<string, unknown>) {
   return buildSearchResponse(products, products.length, validIds.length, 0, Date.now() - t0, false);
 }
 
-async function getRegionalProductSample(
-  country: string,
-  fallbackQuery: string,
-  limit: number,
-  currency: string,
-  t0: number,
-) {
-  try {
-    const result = await db.query(
-      `SELECT id, sku AS source, source AS domain, url, title,
-              price, NULL::numeric AS original_price, currency, image_url,
-              metadata, updated_at, region, country_code, 0::numeric AS discount_pct
-       FROM products
-       WHERE is_active = true
-         AND price > 0
-         AND country_code = $1
-         AND search_vector @@ plainto_tsquery('english', $2)
-       LIMIT $3`,
-      [country, fallbackQuery, limit]
-    );
-    if (!result.rows.length) return null;
-    const products = result.rows.map((r: Record<string, unknown>) =>
-      buildProduct(r, currency, false)
-    );
-    return buildSearchResponse(products, products.length, limit, 0, Date.now() - t0, false);
-  } catch (err) {
-    console.warn('[mcp] regional deals sample failed:', (err as Error)?.message || err);
-    return null;
-  }
-}
-
 async function handleGetDeals(args: Record<string, unknown>) {
   const t0 = Date.now();
   const minDiscount = Number(args.min_discount) || 10;
@@ -608,11 +577,11 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const discountSelect = useDiscountCol
     ? 'discount_pct'
     : `ROUND(((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)::numeric, 1) AS discount_pct`;
-  // BUY-60076: bring the canonical mcp.buywhere.ai handleGetDeals in line with
-  // the api/ service (BUY-60056): bound the deals scan with a recent-window
-  // candidate set so the slow `SELECT COUNT(*)` over the filtered deals range
-  // (which monopolised the pool connection for 60s under cold cache) is
-  // replaced with a bounded 5k-row candidate inner scan. Mirrors api/src/routes/mcp.ts:574-635.
+  const whereClause = conditions.join(' AND ');
+
+  // BUY-64112: strict discount-first query only. The prior recent-window sample
+  // + laptop/watch fallback returned keyword rows with discount_pct=0 and hid
+  // real discounted products. Query the indexed discount predicate directly.
   const dealsClient = await acquireMcpClient().catch((err: unknown) => {
     console.error('[mcp] get_deals db.connect failed:', err);
     throw { code: -32603, message: 'Database unavailable' };
@@ -621,60 +590,24 @@ async function handleGetDeals(args: Record<string, unknown>) {
   let total = 0;
   try {
     await dealsClient.query('SET statement_timeout = 4500');
-    const candidateLimit = Math.max((limit + offset) * 200, 5000);
-    const candidateParams = [candidateLimit, ...params, limit, offset];
-    const filterConditions = conditions.map((condition) =>
-      condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`)
-    ).join(' AND ');
+    const dataParams = [...params, limit, offset];
     const dataResult = await dealsClient.query(
-      `SELECT id, source, domain, url, title, price, original_price,
+      `SELECT id, sku AS source, source AS domain, url, title,
+              price,
+              CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
+                   THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
               currency, image_url, metadata, updated_at, region, country_code,
-              discount_pct
-       FROM (
-         SELECT id, sku AS source, source AS domain, url, title,
-                price,
-                CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
-                     THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
-                currency, image_url, metadata, updated_at, region, country_code, is_active,
-                ${discountSelect}
-         FROM products
-         WHERE is_active = true AND price > 0
-         ORDER BY updated_at DESC
-         LIMIT $1
-       ) _recent_deals
-       WHERE ${filterConditions}
+              ${discountSelect}
+       FROM products
+       WHERE ${whereClause}
        ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
-       LIMIT $${candidateParams.length - 1} OFFSET $${candidateParams.length}`,
-      candidateParams
+       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+      dataParams
     );
     total = dataResult.rows.length;
     products = dataResult.rows.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
-    if (products.length === 0 && country) {
-      // BUY-60056/BUY-60076: many live rows lack original_price/discount
-      // metadata, so the strict discount filter can be empty even while the
-      // regional catalog is healthy. Fall back to a bounded FTS sample so
-      // callers get a structured response under the 5s budget instead of a
-      // 60s MONITOR_TIMEOUT.
-      const fallbackQuery = country === 'US' ? 'watch' : 'laptop';
-      const fallbackResult = await dealsClient.query(
-        `SELECT id, sku AS source, source AS domain, url, title,
-                price, NULL::numeric AS original_price, currency, image_url,
-                metadata, updated_at, region, country_code, 0::numeric AS discount_pct
-         FROM products
-         WHERE is_active = true
-           AND price > 0
-           AND country_code = $1
-           AND search_vector @@ plainto_tsquery('english', $2)
-         LIMIT $3`,
-        [country, fallbackQuery, limit]
-      );
-      total = fallbackResult.rows.length;
-      products = fallbackResult.rows.map((r: Record<string, unknown>) =>
-        buildProduct(r, currency, false)
-      );
-    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);
