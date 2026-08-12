@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { dropFabricatedItems } from './fabricatedRows';
 
 const API_BASE_URL = (
   process.env.BUYWHERE_API_INTERNAL_URL ||
@@ -551,7 +552,7 @@ function isCategoryMismatchedForDeviceQuery(query: string, item: Record<string, 
 
 function rankAndClassifyItems(items: Record<string, unknown>[], query: string) {
   const queryWords = coreQueryWords(query);
-  const dedupedItems = deduplicateItems(items);
+  const dedupedItems = deduplicateItems(dropFabricatedItems(items));
   const primaryItems: Record<string, unknown>[] = [];
   const mismatchItems: Record<string, unknown>[] = [];
   const accessoryItems: Record<string, unknown>[] = [];
