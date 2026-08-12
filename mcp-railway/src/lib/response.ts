@@ -107,12 +107,15 @@ export function buildSearchResponse(
   offset: number,
   responseTimeMs: number,
   cached: boolean,
+  unavailable = false,
 ): SearchResponse {
-  return {
+  const response: SearchResponse = {
     results: products,
     total,
     page: { limit, offset },
     response_time_ms: responseTimeMs,
     cached,
   };
+  if (unavailable) response.meta = { unavailable: true };
+  return response;
 }

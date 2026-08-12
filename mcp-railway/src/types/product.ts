@@ -45,4 +45,5 @@ export interface SearchResponse {
   page: { limit: number; offset: number };
   response_time_ms: number;
   cached: boolean;
+  meta?: { unavailable?: boolean; hint?: string };
 }
