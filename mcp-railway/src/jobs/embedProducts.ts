@@ -2,7 +2,7 @@ import { Pool } from 'pg';
 import { createHash } from 'crypto';
 
 // BUY-52466: switch query + embed-worker paths from Cohere/Jina to Google
-// Gemini `gemini-embedding-001` with `outputDimensionality=512`. Direction
+// Gemini `gemini-embedding-001` with `outputDimensionality=1024`. Direction
 // per Rich (comment f5773f92 on BUY-52089): the Jina key is INVALID and the
 // previous Cohere spec (BUY-51459) is obsolete. This module is the single
 // call site for both:
@@ -14,8 +14,8 @@ import { createHash } from 'crypto';
 // change which env var they read.
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001';
-const MODEL_VER      = 'gemini-embedding-001@512';
-const EMBED_DIM      = 512;   // outputDimensionality
+const MODEL_VER      = 'gemini-embedding-001@1024';
+const EMBED_DIM      = 1024;   // outputDimensionality
 const BATCH_SIZE     = 64;    // BUY-41133 requirement: batch size 64 per API call
 const MAX_TEXT_CHARS = 8000;  // gemini-embedding-001 input limit is 2k tokens; ~8k chars safe
 
@@ -70,7 +70,7 @@ async function fetchDocumentEmbeddings(texts: string[], apiKey: string): Promise
  * string suitable for pgvector's `<=>` cosine-distance operator.
  *
  * Single-text path — Gemini `embedContents` is the documented shape for
- * one input. We still set outputDimensionality=512 to match the index.
+ * one input. We still set outputDimensionality=1024 to match the production vector(1024) index.
  */
 async function fetchQueryEmbedding(text: string, apiKey: string): Promise<number[]> {
   const url = `${GEMINI_API_URL}:embedContent?key=${encodeURIComponent(apiKey)}`;
@@ -102,7 +102,7 @@ async function fetchQueryEmbedding(text: string, apiKey: string): Promise<number
  * Priority: highest-value (price DESC) products are embedded first, so the most
  * commercially relevant embeddings are always fresh.
  *
- * Per BUY-52466: Uses Google gemini-embedding-001 with 512-dim vectors,
+ * Per BUY-52466: Uses Google gemini-embedding-001 with 1024-dim vectors,
  * taskType=RETRIEVAL_DOCUMENT, batch size 64.
  */
 export async function runEmbedBatch(

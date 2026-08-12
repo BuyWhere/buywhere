@@ -309,7 +309,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
             const vecRows = await vectorDb.query<{ product_id: string }>(
               `SELECT product_id FROM product_embeddings
-               WHERE model_ver = 'gemini-embedding-001@512'
+               WHERE model_ver = 'gemini-embedding-001@1024'
                ORDER BY embedding <=> $1::vector LIMIT 200`,
               [queryVec]
             );
@@ -324,7 +324,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
               // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
               vectorDb.query<{ product_id: string }>(
                 `SELECT product_id FROM product_embeddings
-                 WHERE model_ver = 'gemini-embedding-001@512'
+                 WHERE model_ver = 'gemini-embedding-001@1024'
                  ORDER BY embedding <=> $1::vector LIMIT 200`,
                 [queryVec]
               ),
@@ -706,18 +706,22 @@ async function handleListCategories(args: Record<string, unknown>) {
         );
         rows = fallbackResult.rows;
       }
-      if (rows.length === 0) {
+      const isStaticFallback = rows.length === 0;
+      if (isStaticFallback) {
         rows = ['Electronics', 'Computers', 'Mobile Phones', 'Home', 'Fashion'].map((name) => ({
           slug: name.toLowerCase().replace(/\s+/g, '-'),
           name,
           product_count: 0,
         }));
       }
+      const hasLiveCounts = rows.some((row) => Number(row.product_count) > 0);
       const data = {
         data: rows,
-        meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false, unavailable: false },
+        meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false, unavailable: !hasLiveCounts },
       };
-      redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
+      // Do not cache fabricated/all-zero categories as healthy data. A short TTL
+      // prevents stampedes while allowing the next materialized-view refresh to recover quickly.
+      redis.set(cacheKey, JSON.stringify(data), 'EX', hasLiveCounts ? 600 : 30).catch(() => {});
       return data;
     } finally {
       releaseClientSafely(client);
@@ -1122,7 +1126,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   try {
     refResult = await vectorDb.query<{ embedding: string }>(
       `SELECT embedding::text FROM product_embeddings
-       WHERE product_id = $1 AND model_ver = 'gemini-embedding-001@512'`,
+       WHERE product_id = $1 AND model_ver = 'gemini-embedding-001@1024'`,
       [productId]
     );
   } catch {
@@ -1140,7 +1144,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     nearResult = await vectorDb.query<{ product_id: string; distance: number }>(
       `SELECT product_id, (embedding <=> $1::vector)::float AS distance
        FROM product_embeddings
-       WHERE product_id != $2 AND model_ver = 'gemini-embedding-001@512'
+       WHERE product_id != $2 AND model_ver = 'gemini-embedding-001@1024'
        ORDER BY distance LIMIT $3`,
       [refEmbedding, productId, limit]
     );

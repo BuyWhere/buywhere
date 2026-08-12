@@ -70,7 +70,7 @@ describe('embedding.getPipelineState', () => {
         if (sql.includes('FROM embedding_pipeline_state')) {
           return Promise.resolve({
             rows: [
-              { key: 'model', value: 'gemini-embedding-001@512', updated_at: new Date() },
+              { key: 'model', value: 'gemini-embedding-001@1024', updated_at: new Date() },
             ],
           });
         }
@@ -86,7 +86,7 @@ describe('embedding.getPipelineState', () => {
     assert.equal(res.products_embedded, 12345);
     assert.equal(res.products_embedded_24h, 900);
     assert.equal(res.distinct_models, 1);
-    assert.equal(res.pipeline_state.model.value, 'gemini-embedding-001@512');
+    assert.equal(res.pipeline_state.model.value, 'gemini-embedding-001@1024');
   });
 
   it('tolerates missing embedding_pipeline_state table', async () => {

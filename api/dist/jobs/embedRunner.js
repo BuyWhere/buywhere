@@ -7,7 +7,7 @@
  * priority-ordered by price DESC.
  *
  * BUY-52466: switched from Cohere embed-multilingual-v3.0 (1024-dim) to Google
- * `gemini-embedding-001` with `outputDimensionality=512` and
+ * `gemini-embedding-001` with `outputDimensionality=1024` and
  * `taskType=RETRIEVAL_DOCUMENT`. The Cohere spec (BUY-51459) is obsolete —
  * the live Cohere key was producing 401/403 (same Jina-key bug pattern),
  * and Rich's 2026-06-16 direction supersedes it.
@@ -71,7 +71,7 @@ function schedule() {
 }
 async function main() {
     console.log(`[embed-runner] Starting — interval=${Math.round(INTERVAL_MS / 60000)}m batch=${BATCH_LIMIT}`);
-    console.log('[embed-runner] Using Google gemini-embedding-001 (512-dim, taskType=RETRIEVAL_DOCUMENT)');
+    console.log('[embed-runner] Using Google gemini-embedding-001 (1024-dim, taskType=RETRIEVAL_DOCUMENT)');
     const shutdown = async (sig) => {
         console.log(`[embed-runner] Received ${sig}, shutting down`);
         await config_1.db.end().catch(() => { });

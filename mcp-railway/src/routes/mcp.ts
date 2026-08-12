@@ -326,7 +326,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
             const vecRows = await vectorDb.query<{ product_id: string }>(
               `SELECT product_id FROM product_embeddings
-               WHERE model_ver = 'gemini-embedding-001@512'
+               WHERE model_ver = 'gemini-embedding-001@1024'
                ORDER BY embedding <=> $1::vector LIMIT 200`,
               [queryVec]
             );
@@ -341,7 +341,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
               // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
               vectorDb.query<{ product_id: string }>(
                 `SELECT product_id FROM product_embeddings
-                 WHERE model_ver = 'gemini-embedding-001@512'
+                 WHERE model_ver = 'gemini-embedding-001@1024'
                  ORDER BY embedding <=> $1::vector LIMIT 200`,
                 [queryVec]
               ),
@@ -621,15 +621,16 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const discountSelect = useDiscountCol
     ? 'discount_pct'
     : `ROUND(((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)::numeric, 1) AS discount_pct`;
-  // BUY-60076: bring the canonical mcp.buywhere.ai handleGetDeals in line with
-  // the api/ service (BUY-60056): bound the deals scan with a recent-window
-  // candidate set so the slow `SELECT COUNT(*)` over the filtered deals range
-  // (which monopolised the pool connection for 60s under cold cache) is
-  // replaced with a bounded 5k-row candidate inner scan. Mirrors api/src/routes/mcp.ts:574-635.
-  // BUY-65298: the subquery must filter by country INSIDE the ordered scan so
-  // the 50k-row window is relevant to the requested region. Previously the
-  // unfiltered subquery returned recent GLOBAL products whose currency did not
-  // match, resulting in empty results and cascading timeouts for every region.
+  const discountOrder = useDiscountCol
+    ? 'discount_pct DESC'
+    : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
+  const whereClause = conditions.join(' AND ');
+  // BUY-64112: use direct index-backed strict deal query.
+  // The partial index idx_products_deals_country/region on
+  // (country_code, region, discount_pct DESC) with predicate
+  // WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
+  // supports direct queries that match the predicate. No candidate window needed.
+  // Also removes the laptop/watch keyword fallback that masked empty results.
   const dealsClient = await acquireMcpClient().catch((err: unknown) => {
     console.error('[mcp] get_deals db.connect failed:', err);
     throw { code: -32603, message: 'Database unavailable' };
@@ -638,71 +639,24 @@ async function handleGetDeals(args: Record<string, unknown>) {
   let total = 0;
   try {
     await dealsClient.query('SET statement_timeout = 4500');
-    const candidateLimit = Math.max((limit + offset) * 200, 5000);
-    // Build the inner (subquery) WHERE — includes country filter so the
-    // updated_at scan is scoped to the requested region, not random recent rows.
-    const innerConditions = ['is_active = true', 'price > 0'];
-    if (country) {
-      innerConditions.push(`country_code = $1`);
-    }
-    const innerWhere = innerConditions.join(' AND ');
-    const innerParams: unknown[] = country ? [country] : [];
-    // Build the outer WHERE from the discount/currency conditions with re-indexed
-    // positional parameters ($1..$N inside → $N+1.. in the outer query).
-    const outerParamsStart = innerParams.length + 1;
-    const outerConditions = conditions.map((condition) =>
-      condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + outerParamsStart}`)
-    );
-    const outerParams = [...innerParams, ...params, Number(limit) || 20, Number(offset) || 0];
+    // params already has: currency, minDiscount, [region], [country]
+    // Add limit and offset
+    const queryParams = [...params, Number(limit) || 20, Number(offset) || 0];
     const dataResult = await dealsClient.query(
       `SELECT id, source, domain, url, title, price, original_price,
               currency, image_url, metadata, updated_at, region, country_code,
-              discount_pct
-       FROM (
-         SELECT id, sku AS source, source AS domain, url, title,
-                price,
-                CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
-                     THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
-                currency, image_url, metadata, updated_at, region, country_code, is_active,
-                ${discountSelect}
-         FROM products
-         WHERE ${innerWhere}
-         ORDER BY updated_at DESC
-         LIMIT $${innerParams.length + 1}
-       ) _recent_deals
-       WHERE ${outerConditions.join(' AND ')}
-       ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
-       LIMIT $${outerParams.length - 1} OFFSET $${outerParams.length}`,
-      outerParams
+              ${discountSelect}
+       FROM products
+       WHERE ${whereClause}
+       ORDER BY ${discountOrder} NULLS LAST, updated_at DESC
+       LIMIT $${queryParams.length - 1}::int OFFSET $${queryParams.length}::int`,
+      queryParams
     );
     total = dataResult.rows.length;
     products = dataResult.rows.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
-    if (products.length === 0 && country) {
-      // BUY-60056/BUY-60076: many live rows lack original_price/discount
-      // metadata, so the strict discount filter can be empty even while the
-      // regional catalog is healthy. Fall back to a bounded FTS sample so
-      // callers get a structured response under the 5s budget instead of a
-      // 60s MONITOR_TIMEOUT.
-      const fallbackQuery = country === 'US' ? 'watch' : 'laptop';
-      const fallbackResult = await dealsClient.query(
-        `SELECT id, sku AS source, source AS domain, url, title,
-                price, NULL::numeric AS original_price, currency, image_url,
-                metadata, updated_at, region, country_code, 0::numeric AS discount_pct
-         FROM products
-         WHERE is_active = true
-           AND price > 0
-           AND country_code = $1
-           AND search_vector @@ plainto_tsquery('english', $2)
-         LIMIT $3`,
-        [country, fallbackQuery, Number(limit) || 20]
-      );
-      total = fallbackResult.rows.length;
-      products = fallbackResult.rows.map((r: Record<string, unknown>) =>
-        buildProduct(r, currency, false)
-      );
-    }
+    // BUY-64112: removed keyword fallback (laptop/watch) - return empty when no deals found
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);
@@ -857,22 +811,26 @@ async function handleListCategories(args: Record<string, unknown>) {
           // recent-products fallback timed out — fall through to static category defaults
         }
       }
-      if (rows.length === 0) {
+      const isStaticFallback = rows.length === 0;
+      if (isStaticFallback) {
         rows = ['Electronics', 'Computers', 'Mobile Phones', 'Home', 'Fashion'].map((name) => ({
           slug: name.toLowerCase().replace(/\s+/g, '-'),
           name,
           product_count: 0,
         }));
       }
+      const hasLiveCounts = rows.some((row) => Number(row.product_count) > 0);
       const meta: Record<string, unknown> = {
         total: rows.length,
         country_code: country,
         response_time_ms: 0,
         cached: false,
+        unavailable: !hasLiveCounts,
       };
-      meta.unavailable = false;
       const data = { data: rows, meta };
-      redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
+      // Do not cache fabricated/all-zero categories as healthy data. A short TTL
+      // prevents stampedes while allowing the next materialized-view refresh to recover quickly.
+      redis.set(cacheKey, JSON.stringify(data), 'EX', hasLiveCounts ? 600 : 30).catch(() => {});
       return data;
     } finally {
       releaseClientSafely(client);
@@ -909,8 +867,14 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const category = (args.category as string) || '';
   const limit = 10;
 
+  // BUY-66280: raise timeout to 30s (was 10s). Real FTS timing is 1s (warm)
+  // to 60s+ (cold) for popular terms like "laptop" / "ps5". The old 10s bound
+  // turned cold-cache lookups into statement_timeout. Also cap price <= 10000
+  // so feed-corruption rows (e.g. $0.01) can't win the price-ASC sort.
+  const PRICE_MAX = 10_000;
+
   // BUY-26343: price > 0 prevents returning corrupt zero-price records
-  const conditions: string[] = ['is_active = true', 'price > 0'];
+  const conditions: string[] = ['is_active = true', 'price > 0', `price <= ${PRICE_MAX}`];
   const params: unknown[] = [];
 
   params.push(productName);
@@ -937,20 +901,35 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
   const bestPriceClient = await acquireMcpClient();
-  let result: { rows: Record<string, unknown>[] };
+  let result: { rows: Record<string, unknown>[] } = { rows: [] };
+  let ftsTimedOut = false;
   try {
-    await bestPriceClient.query('SET statement_timeout = 10000');
-    result = await bestPriceClient.query(
-      `SELECT * FROM (
-         SELECT id, title, price, currency, source AS domain, url, image_url,
-                country_code, updated_at
-         FROM products ${where}
-         LIMIT $${params.length - 1}
-       ) _candidates
-       ORDER BY price ASC, updated_at DESC
-       LIMIT $${params.length}`,
-      params
-    );
+    await bestPriceClient.query('SET statement_timeout = 30000');
+    try {
+      result = await bestPriceClient.query(
+        `SELECT * FROM (
+           SELECT id, title, price, currency, source AS domain, url, image_url,
+                  country_code, updated_at
+           FROM products ${where}
+           LIMIT $${params.length - 1}
+         ) _candidates
+         ORDER BY price ASC, updated_at DESC
+         LIMIT $${params.length}`,
+        params
+      );
+    } catch (ftsErr) {
+      const ftsError = ftsErr as { code?: string };
+      // BUY-66280: SQLSTATE 57014 = statement_timeout (query cancelled).
+      // Fail open — return an empty result instead of a 500 so the MCP
+      // tool surfaces "no price found" rather than an error to the caller.
+      if (ftsError.code === '57014') {
+        console.warn('[find_best_price] FTS timed out for country=', country, 'product=', productName);
+        ftsTimedOut = true;
+        result = { rows: [] };
+      } else {
+        throw ftsErr;
+      }
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);
@@ -973,7 +952,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   return {
     best_price: data[0] ?? null,
     alternatives: data.slice(1),
-    meta: { total: data.length, country, response_time_ms: Date.now() - t0 },
+    meta: {
+      total: data.length,
+      country,
+      response_time_ms: Date.now() - t0,
+      ...(ftsTimedOut ? { timed_out: true } : {}),
+    },
   };
 }
 
@@ -1269,7 +1253,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
   const refResult = await vectorDb.query<{ embedding: string }>(
     `SELECT embedding::text FROM product_embeddings
-     WHERE product_id = $1 AND model_ver = 'gemini-embedding-001@512'`,
+     WHERE product_id = $1 AND model_ver = 'gemini-embedding-001@1024'`,
     [productId]
   );
   if (!refResult.rows.length) {
@@ -1282,7 +1266,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   const nearResult = await vectorDb.query<{ product_id: string; distance: number }>(
     `SELECT product_id, (embedding <=> $1::vector)::float AS distance
      FROM product_embeddings
-     WHERE product_id != $2 AND model_ver = 'gemini-embedding-001@512'
+     WHERE product_id != $2 AND model_ver = 'gemini-embedding-001@1024'
      ORDER BY distance LIMIT $3`,
     [refEmbedding, productId, limit]
   );
