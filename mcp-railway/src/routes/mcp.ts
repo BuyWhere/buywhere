@@ -589,7 +589,8 @@ async function handleGetDeals(args: Record<string, unknown>) {
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
   try {
-    await dealsClient.query('SET statement_timeout = 4500');
+    await dealsClient.query('SET statement_timeout = 15000');
+    await dealsClient.query('SET LOCAL enable_seqscan = off').catch(() => {}); // BUY-68615: force index path on production catalog DB
     const dataParams = [...params, limit, offset];
     const dataResult = await dealsClient.query(
       `SELECT id, sku AS source, source AS domain, url, title,
