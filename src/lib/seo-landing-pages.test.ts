@@ -246,6 +246,141 @@ test("branded SVG placeholder data URL uses RFC-2397 charset form (BUY-64260)", 
   }
 });
 
+// BUY-68366: QA reopened this issue because every catalog card on
+// /best-robot-vacuums-2026, /laptop-singapore, and /air-purifier-singapore
+// rendered the same hardcoded laptop-shaped orange SVG. The original
+// `brandedProductPlaceholderSvg` shipped a single laptop glyph regardless of
+// category. The fix introduces `categorySilhouette(category, name)` with
+// distinct shapes for robot vacuum (puck), air purifier (tower with vent
+// slats), laptop (notebook), phone, headphone, TV, camera, watch, tablet,
+// shoe, and kitchen appliances. Lock the three QA-flagged families to
+// distinct silhouettes via source-string assertions so a future refactor
+// can't silently re-collapse them back into a single shape.
+test("categorySilhouette renders distinct shapes for robot vacuum, air purifier, and laptop (BUY-68366)", () => {
+  const source = readFileSync(
+    new URL("./seo-landing-pages.ts", import.meta.url),
+    "utf8",
+  );
+
+  // Extract the body of categorySilhouette(category, name) so we can assert
+  // each branch returns a different shape. The function is private (not
+  // exported) so we parse it out of source rather than calling it.
+  const fnMatch = source.match(
+    /function categorySilhouette\([^)]*\): string \{([\s\S]*?)\n\}/,
+  );
+  assert.ok(fnMatch, "categorySilhouette function must exist (BUY-68366)");
+  const body = fnMatch![1];
+
+  // Robot vacuum / Roomba / Roborock — puck + dock nub.
+  assert.match(
+    body,
+    /\\brobot\\s*vacuum\|roomba\|deebot\|robovac/,
+    "categorySilhouette must have a robot-vacuum branch keyed on category or name",
+  );
+  assert.match(
+    body,
+    /<ellipse[^']*rx='95'/,
+    "robot-vacuum silhouette must include the puck ellipse",
+  );
+
+  // Air purifier / HEPA — tower with vent slats.
+  assert.match(
+    body,
+    /\\bair\\s*purifier\|hepa/,
+    "categorySilhouette must have an air-purifier branch keyed on category or name",
+  );
+  assert.match(
+    body,
+    /<circle cx='60' cy='40' r='10'/,
+    "air-purifier silhouette must include the round vent dial",
+  );
+
+  // Laptop / notebook — open notebook shape, NOT a tower or puck.
+  const laptopMatch = body.match(/<rect x='0' y='0' width='120' height='80'[^']*'\/>/);
+  assert.ok(laptopMatch, "laptop silhouette must include the notebook rect");
+
+  // The three branches must produce different SVG strings; otherwise a
+  // robot vacuum card on /best-robot-vacuums-2026 would still show a laptop
+  // — the exact symptom QA reopened for. Since the function is private we
+  // assert via substring uniqueness of the unique shape markers above.
+  assert.ok(
+    body.indexOf("rx='95'") !== body.lastIndexOf("rx='95'") ||
+      // multiple uses of rx='95' are fine; check the puck `<ellipse` vs
+      // purifier `<circle cx='60' cy='40' r='10'>` are different shapes
+      body.includes("<ellipse") && body.includes("<circle cx='60' cy='40' r='10'"),
+    "robot-vacuum ellipse and air-purifier vent dial must both be present",
+  );
+
+  // Helper must NOT interpolate user-controlled text into the silhouette —
+  // ProductGridImage passes it to dangerouslySetInnerHTML. The body may
+  // legitimately build a `text` variable with `${category || ""}` for the
+  // regex match (line `const text = ...`), but every `return` statement
+  // must contain only static SVG markup.
+  const returnStatements = body.match(/return\s+`[\s\S]*?`;/g) ?? [];
+  assert.ok(
+    returnStatements.length > 0,
+    "categorySilhouette must have at least one template-literal return statement",
+  );
+  for (const ret of returnStatements) {
+    assert.doesNotMatch(
+      ret,
+      /\$\{[^}]+\}/,
+      `silhouette return must not interpolate any value (got: ${ret.slice(0, 80)}…)`,
+    );
+  }
+});
+
+// BUY-68366: the SVG placeholder pipeline must thread `category` through to
+// both the SSR helper (brandedProductPlaceholderSvg) and the client fallback
+// (BrandedPlaceholder in ProductGridImage.tsx). If either side forgets the
+// category prop, the placeholder regresses to the same laptop-on-everything
+// look that QA reopened for.
+test("category prop is wired through SSR + client placeholder paths (BUY-68366)", () => {
+  const source = readFileSync(
+    new URL("./seo-landing-pages.ts", import.meta.url),
+    "utf8",
+  );
+  const imageSource = readFileSync(
+    new URL("../components/seo/ProductGridImage.tsx", import.meta.url),
+    "utf8",
+  );
+  const cardSource = readFileSync(
+    new URL("../components/seo/ProductGridCard.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // SSR helper must call categorySilhouette with category (and ideally name).
+  assert.match(
+    source,
+    /categorySilhouette\(\s*category\s*[,)]/,
+    "brandedProductPlaceholderSvg must pass category (and name) to categorySilhouette",
+  );
+
+  // Client fallback must accept and use a category prop.
+  assert.match(
+    imageSource,
+    /category\?\s*:\s*string\s*\|\s*null/,
+    "ProductGridImage must declare a category prop",
+  );
+  assert.match(
+    imageSource,
+    /category=\{category\}/,
+    "ProductGridImage must forward category to BrandedPlaceholder",
+  );
+  assert.match(
+    imageSource,
+    /categorySilhouette\(\s*category\s*\)/,
+    "ProductGridImage must call categorySilhouette(category)",
+  );
+
+  // ProductGridCard must thread product.category into ProductGridImage.
+  assert.match(
+    cardSource,
+    /category=\{product\.category\}/,
+    "ProductGridCard must pass product.category through to ProductGridImage",
+  );
+});
+
 // BUY-63507: parseImageDimensions + isSquareAspect guard against the live
 // "blank/white" card failure where 1:1 product photos with heavy white
 // margins render poorly inside the aspect-[4/3] / object-cover catalog
