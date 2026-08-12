@@ -1,0 +1,247 @@
+import type { Metadata } from "next";
+import { toSiteUrl } from "@/lib/site-url";
+
+export type CountryConfig = {
+  code: string;
+  name: string;
+  flag: string;
+  h1: string;
+  description: string;
+  heroEyebrow: string;
+  heroBody: string;
+  inLanguage: string;
+  ogLocale: string;
+  searchCountryParam: string;
+};
+
+export const countryLandings: Record<string, CountryConfig> = {
+  uk: {
+    code: "uk",
+    name: "United Kingdom",
+    flag: "🇬🇧",
+    h1: "United Kingdom Prices | BuyWhere",
+    description: "Compare product prices across leading United Kingdom retailers with BuyWhere's AI-powered product discovery and catalog API.",
+    heroEyebrow: "BuyWhere United Kingdom",
+    heroBody: "Search, compare, and discover products across United Kingdom stores so you can find the best price before you buy.",
+    inLanguage: "en-GB",
+    ogLocale: "en_GB",
+    searchCountryParam: "uk",
+  },
+  gb: {
+    code: "gb",
+    name: "Great Britain",
+    flag: "🇬🇧",
+    h1: "Great Britain Prices | BuyWhere",
+    description: "Compare product prices across Great Britain retailers with BuyWhere's AI-powered product discovery and catalog API.",
+    heroEyebrow: "BuyWhere Great Britain",
+    heroBody: "Search, compare, and discover products across Great Britain stores so you can find the best price before you buy.",
+    inLanguage: "en-GB",
+    ogLocale: "en_GB",
+    searchCountryParam: "gb",
+  },
+  ca: {
+    code: "ca",
+    name: "Canada",
+    flag: "🇨🇦",
+    h1: "Canada Prices | BuyWhere",
+    description: "Compare product prices across Canadian retailers with BuyWhere's AI-powered product discovery and catalog API.",
+    heroEyebrow: "BuyWhere Canada",
+    heroBody: "Search, compare, and discover products across Canadian stores so you can find the best price before you buy.",
+    inLanguage: "en-CA",
+    ogLocale: "en_CA",
+    searchCountryParam: "ca",
+  },
+  au: {
+    code: "au",
+    name: "Australia",
+    flag: "🇦🇺",
+    h1: "Australia Prices | BuyWhere",
+    description: "Compare product prices across Australian retailers with BuyWhere's AI-powered product discovery and catalog API.",
+    heroEyebrow: "BuyWhere Australia",
+    heroBody: "Search, compare, and discover products across Australian stores so you can find the best price before you buy.",
+    inLanguage: "en-AU",
+    ogLocale: "en_AU",
+    searchCountryParam: "au",
+  },
+  de: {
+    code: "de",
+    name: "Germany",
+    flag: "🇩🇪",
+    h1: "Germany Prices | BuyWhere",
+    description: "Compare product prices across German retailers with BuyWhere's AI-powered product discovery and catalog API.",
+    heroEyebrow: "BuyWhere Germany",
+    heroBody: "Search, compare, and discover products across German stores so you can find the best price before you buy.",
+    inLanguage: "en-DE",
+    ogLocale: "en_DE",
+    searchCountryParam: "de",
+  },
+  fr: {
+    code: "fr",
+    name: "France",
+    flag: "🇫🇷",
+    h1: "France Prices | BuyWhere",
+    description: "Compare product prices across French retailers with BuyWhere's AI-powered product discovery and catalog API.",
+    heroEyebrow: "BuyWhere France",
+    heroBody: "Search, compare, and discover products across French stores so you can find the best price before you buy.",
+    inLanguage: "en-FR",
+    ogLocale: "en_FR",
+    searchCountryParam: "fr",
+  },
+  in: {
+    code: "in",
+    name: "India",
+    flag: "🇮🇳",
+    h1: "India Prices | BuyWhere",
+    description: "Compare product prices across Indian retailers with BuyWhere's AI-powered product discovery and catalog API.",
+    heroEyebrow: "BuyWhere India",
+    heroBody: "Search, compare, and discover products across Indian stores so you can find the best price before you buy.",
+    inLanguage: "en-IN",
+    ogLocale: "en_IN",
+    searchCountryParam: "in",
+  },
+  eu: {
+    code: "eu",
+    name: "Europe",
+    flag: "🇪🇺",
+    h1: "Europe Prices | BuyWhere",
+    description: "Compare product prices across European retailers with BuyWhere's AI-powered product discovery and catalog API.",
+    heroEyebrow: "BuyWhere Europe",
+    heroBody: "Search, compare, and discover products across European stores so you can find the best price before you buy.",
+    inLanguage: "en-EU",
+    ogLocale: "en_150",
+    searchCountryParam: "eu",
+  },
+  ae: {
+    code: "ae",
+    name: "United Arab Emirates",
+    flag: "🇦🇪",
+    h1: "United Arab Emirates Prices | BuyWhere",
+    description: "Compare product prices across United Arab Emirates retailers with BuyWhere's AI-powered product discovery and catalog API.",
+    heroEyebrow: "BuyWhere United Arab Emirates",
+    heroBody: "Search, compare, and discover products across United Arab Emirates stores so you can find the best price before you buy.",
+    inLanguage: "en-AE",
+    ogLocale: "en_AE",
+    searchCountryParam: "ae",
+  },
+  nz: {
+    code: "nz",
+    name: "New Zealand",
+    flag: "🇳🇿",
+    h1: "New Zealand Prices | BuyWhere",
+    description: "Compare product prices across New Zealand retailers with BuyWhere's AI-powered product discovery and catalog API.",
+    heroEyebrow: "BuyWhere New Zealand",
+    heroBody: "Search, compare, and discover products across New Zealand stores so you can find the best price before you buy.",
+    inLanguage: "en-NZ",
+    ogLocale: "en_NZ",
+    searchCountryParam: "nz",
+  },
+  jp: {
+    code: "jp",
+    name: "Japan",
+    flag: "🇯🇵",
+    h1: "Japan Prices | BuyWhere",
+    description: "Compare product prices across Japanese retailers with BuyWhere's AI-powered product discovery and catalog API.",
+    heroEyebrow: "BuyWhere Japan",
+    heroBody: "Search, compare, and discover products across Japanese stores so you can find the best price before you buy.",
+    inLanguage: "en-JP",
+    ogLocale: "en_JP",
+    searchCountryParam: "jp",
+  },
+  kr: {
+    code: "kr",
+    name: "South Korea",
+    flag: "🇰🇷",
+    h1: "South Korea Prices | BuyWhere",
+    description: "Compare product prices across South Korean retailers with BuyWhere's AI-powered product discovery and catalog API.",
+    heroEyebrow: "BuyWhere South Korea",
+    heroBody: "Search, compare, and discover products across South Korean stores so you can find the best price before you buy.",
+    inLanguage: "en-KR",
+    ogLocale: "en_KR",
+    searchCountryParam: "kr",
+  },
+  br: {
+    code: "br",
+    name: "Brazil",
+    flag: "🇧🇷",
+    h1: "Brazil Prices | BuyWhere",
+    description: "Compare product prices across Brazilian retailers with BuyWhere's AI-powered product discovery and catalog API.",
+    heroEyebrow: "BuyWhere Brazil",
+    heroBody: "Search, compare, and discover products across Brazilian stores so you can find the best price before you buy.",
+    inLanguage: "en-BR",
+    ogLocale: "en_BR",
+    searchCountryParam: "br",
+  },
+  mx: {
+    code: "mx",
+    name: "Mexico",
+    flag: "🇲🇽",
+    h1: "Mexico Prices | BuyWhere",
+    description: "Compare product prices across Mexican retailers with BuyWhere's AI-powered product discovery and catalog API.",
+    heroEyebrow: "BuyWhere Mexico",
+    heroBody: "Search, compare, and discover products across Mexican stores so you can find the best price before you buy.",
+    inLanguage: "en-MX",
+    ogLocale: "en_MX",
+    searchCountryParam: "mx",
+  },
+  za: {
+    code: "za",
+    name: "South Africa",
+    flag: "🇿🇦",
+    h1: "South Africa Prices | BuyWhere",
+    description: "Compare product prices across South African retailers with BuyWhere's AI-powered product discovery and catalog API.",
+    heroEyebrow: "BuyWhere South Africa",
+    heroBody: "Search, compare, and discover products across South African stores so you can find the best price before you buy.",
+    inLanguage: "en-ZA",
+    ogLocale: "en_ZA",
+    searchCountryParam: "za",
+  },
+};
+
+export function buildCountryLandingMetadata(path: string, config: CountryConfig): Metadata {
+  const url = toSiteUrl(path);
+  const title = `${config.name} Prices | BuyWhere`;
+
+  return {
+    metadataBase: new URL("https://buywhere.ai"),
+    title,
+    description: config.description,
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-video-preview": -1,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+      },
+    },
+    alternates: {
+      canonical: url,
+    },
+    openGraph: {
+      type: "website",
+      locale: config.ogLocale,
+      url,
+      siteName: "BuyWhere",
+      title,
+      description: config.description,
+      images: [
+        {
+          url: `/og-image.png?country=${config.code}`,
+          width: 1200,
+          height: 630,
+          alt: `BuyWhere ${config.name} - compare product prices`,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description: config.description,
+      images: [`/og-image.png?country=${config.code}`],
+      site: "@buywhere",
+      creator: "@buywhere",
+    },
+  };
+}

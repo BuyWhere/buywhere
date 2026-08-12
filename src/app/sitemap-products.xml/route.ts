@@ -12,5 +12,16 @@ export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
   const usEntries = await getProductSitemapEntries();
+
+  if (usEntries.length === 0) {
+    return new Response("sitemap-products.xml temporarily unavailable: no product URLs available", {
+      status: 503,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store, must-revalidate",
+      },
+    });
+  }
+
   return buildSitemapResponse(renderUrlSet(usEntries));
 }
