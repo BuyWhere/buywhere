@@ -601,8 +601,8 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // BUY-64112: strict discount-first query only. The prior recent-window sample
     // + laptop/watch fallback returned keyword rows with discount_pct=0 and hid
     // real discounted products. Query the indexed discount predicate directly.
-    await dealsClient.query('SET statement_timeout = 15000');
-    await dealsClient.query('SET LOCAL enable_seqscan = off').catch(() => {}); // BUY-68615: force index path on production catalog DB
+    await dealsClient.query('SET statement_timeout = 60000');
+    await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path on production catalog DB
     const dataParams = [...params, limit, offset];
     const dataResult = await dealsClient.query(
       `SELECT id, sku AS source, source AS domain, url, title,
