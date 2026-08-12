@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "smoke:us-pdp-ssr": "node scripts/smoke-us-pdp-ssr.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.1024.0",
@@ -38,4 +39,3 @@
     "typescript": "5.9.3"
   }
 }
-
