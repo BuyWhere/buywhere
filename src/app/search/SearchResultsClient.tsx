@@ -1139,6 +1139,9 @@ export default function SearchResultsClient({
                 </label>
               </div>
 
+              {/* BUY-68744: WCAG-AAA-compliant pill colors. Previous amber-50/amber-800
+                  pairing computed to 6.37:1 — passes AA but VidMee flagged low
+                  legibility and recommended darker text / neutral background. */}
               <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-600">
                 <span>Suggested:</span>
                 {SUGGESTED_SEARCHES.map((suggestion) => (
@@ -1146,7 +1149,7 @@ export default function SearchResultsClient({
                     key={suggestion}
                     type="button"
                     onClick={() => runSearch(suggestion)}
-                    className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 font-medium text-amber-800 transition hover:border-amber-300 hover:bg-amber-100"
+                    className="rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 font-medium text-slate-900 transition hover:border-slate-400 hover:bg-slate-200"
                   >
                     {suggestion}
                   </button>
