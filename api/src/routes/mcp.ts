@@ -59,14 +59,14 @@ function minimumPhonePrice(country: string) {
   return country === 'SG' ? 500 : 300;
 }
 
-// BUY-56185: Detect statement_timeout poisoned connections.
+// BUY-56185/BUY-68788: Detect statement_timeout poisoned connections.
 // When PostgreSQL's statement_timeout fires, the query is cancelled but the
 // connection enters PQTRANS_INERROR state. Returning such a connection to the
-// pool poises every subsequent query on it with "current transaction is aborted".
-// client.state returns 'error' in this state — discard instead of reusing.
+// pool poisons every subsequent query on it with "current transaction is aborted".
+// pg exposes this as transactionStatus === 3; client.state only tracks socket state.
 function releaseClientSafely(client: any) {
   try {
-    if (client && typeof client.state === 'string' && client.state === 'error') {
+    if (client && (client.transactionStatus === 3 || client.state === 'error')) {
       client.release(true); // discard — do NOT return poisoned connection to pool
     } else {
       client.release();
@@ -85,6 +85,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         q: { type: 'string', description: 'Keyword search query' },
+        query: { type: 'string', description: 'Alias for q (legacy keyword search query)' },
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
@@ -238,7 +239,9 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 // Tool handlers
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const q = (args.q as string) || '';
+  // BUY-68170: support legacy `query` alias from the original MCP contract.
+  // Normalize before default/browse logic so `query` takes the same FTS path as `q`.
+  const q = ((args.q as string) || (args.query as string) || '').trim();
   const mode = (args.mode as string) || 'hybrid';
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
@@ -259,7 +262,16 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const compact = args.compact === true;
   const currency = country ? (COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
 
-  const cacheKey = `fts:v7:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
+  // BUY-68652: track the actual execution path for cache key hygiene.
+  // When embedding fails and we fall back to keyword FTS, the cache key suffix
+  // must say 'kw' so keyword results never pollute the semantic/hybrid cache.
+  // When semantic returns real vector results (mode='semantic'), keep that suffix.
+  // When hybrid returns RRF results, keep 'hybrid'.
+  // Tracked as 'kw' until proven otherwise — safe defaults prevent cache pollution.
+  let executionMode: string = mode === 'semantic' ? 'semantic' : (useVector ? mode : 'kw');
+  const cacheKeyForMode = (modeForCache: string) =>
+    `fts:v8:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${modeForCache}`;
+  let cacheKey = cacheKeyForMode(executionMode);
   try {
     const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
     if (cached) {
@@ -325,11 +337,23 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
     const COUNT_CAP = 1001;
     if (q) {
-      const countResult = await searchClient.query(
-        `SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`,
-        params
-      );
-      total = parseInt(countResult.rows[0].count, 10);
+      // BUY-67784: do not let the capped total-count consume the whole MCP
+      // statement_timeout on a cold/loaded DB. The result fetch below is the user-
+      // visible contract; total is already capped/approximate at 1001, so fail open
+      // to the cap and preserve search availability.
+      try {
+        await searchClient.query('SET statement_timeout = 750');
+        const countResult = await searchClient.query(
+          `SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`,
+          params
+        );
+        total = parseInt(countResult.rows[0].count, 10);
+      } catch (countErr) {
+        console.warn('[search_products] capped count failed, using approximate total:', (countErr as Error).message);
+        total = COUNT_CAP;
+      } finally {
+        await searchClient.query('SET statement_timeout = 12000');
+      }
 
       // BUY-31962 / BUY-41138: hybrid search (RRF) or keyword FTS fallback.
       // Hybrid and semantic paths embed the query via Jina AI, query the vector DB
@@ -427,8 +451,20 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
             rows = pageIds.map(id => byId.get(id)).filter(Boolean) as Record<string, unknown>[];
           }
+          if (mode === 'semantic') {
+            // BUY-68652/BUY-68453: semantic candidate IDs may be from a not-yet-aligned
+            // vector DB. Report actual resolvable semantic rows, never catalog/keyword total.
+            total = (rows as unknown[]).length;
+          }
+        } else if (mode === 'semantic') {
+          // BUY-68652: semantic must not silently become keyword when embeddings are
+          // unavailable. Keep recovery blocked on BUY-68453 and return a truthful zero.
+          rows = [];
+          total = 0;
         } else {
-          // Embed failed — fall through to keyword FTS
+          // BUY-68652: embedding or vector DB failed mid-flight. We are actually
+          // executing keyword FTS now, so the cache slot must downgrade to 'kw'.
+          executionMode = 'kw';
           const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
           params.push(CANDIDATE_LIMIT, limit, offset);
           const result = await searchClient.query(
@@ -444,6 +480,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           );
           rows = result.rows;
         }
+      } else if (mode === 'semantic') {
+        // BUY-68652: if vector search is disabled before execution, semantic is
+        // unavailable; never satisfy it from keyword FTS.
+        rows = [];
+        total = 0;
       } else {
         // Keyword (FTS) path — BUY-31962 subquery pattern
         const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
@@ -508,6 +549,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     products, total!, limit, offset, Date.now() - t0, false
   );
 
+  cacheKey = cacheKeyForMode(executionMode);
   try {
     await redis.set(cacheKey, JSON.stringify(result), 'EX', 60);
   } catch (_) { /* cache write failure is non-fatal */ }
@@ -592,6 +634,15 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // Mirrors the existing derivation in handleFindBestPrice below.
   const effectiveCountry = country || (region.toLowerCase() === 'us' ? 'US' : region.toLowerCase() === 'sea' ? 'SG' : '');
   const currency = ((args.currency as string) || (effectiveCountry ? COUNTRY_CURRENCY[effectiveCountry] : '') || 'SGD').toUpperCase();
+  // BUY-68231: derive a deals country from the currency so the query always hits
+  // the fast idx_buy64112_deals_country_products index. Without a country_code
+  // filter the query falls back to idx_products_deals_discount_pct which must
+  // traverse 200K+ SGD deals on cold Railway block storage (~74s), blowing the
+  // statement_timeout -> MCP -32603. Scoping to the currency's home country keeps
+  // the index range tiny (sub-200ms cold) with no behavioural change for callers
+  // that pass country_code/region/deliver_to explicitly.
+  const CURRENCY_COUNTRY: Record<string, string> = { SGD: 'SG', USD: 'US', MYR: 'MY', THB: 'TH', VND: 'VN' };
+  const dealsCountry = effectiveCountry || CURRENCY_COUNTRY[currency] || '';
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
 
@@ -632,8 +683,8 @@ async function handleGetDeals(args: Record<string, unknown>) {
     params.push(region);
     conditions.push(`region = $${params.length}`);
   }
-  if (effectiveCountry) {
-    params.push(effectiveCountry);
+  if (dealsCountry) {
+    params.push(dealsCountry);
     conditions.push(`country_code = $${params.length}`);
   }
 
@@ -673,22 +724,52 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // row.domain / row.original_price, so alias them — mirroring the REST
     // /v1/products/deals SELECT (products.ts). The prior bare-column form threw
     // `column "domain" does not exist`.
-    const dataResult = await dealsClient.query(
-      `SELECT id, source AS domain, url, title, price,
-              (metadata->>'original_price')::numeric AS original_price,
-              currency, image_url, metadata, updated_at, region, country_code,
-              ${discountSelect}
-       FROM products
-       WHERE ${whereClause}
-       ORDER BY ${discountOrder}${discountOrderNulls}, updated_at DESC
-       LIMIT $${queryParams.length - 1}::int OFFSET $${queryParams.length}::int`,
-      queryParams
-    );
-    total = dataResult.rows.length;
-    products = dataResult.rows.map((r: Record<string, unknown>) =>
-      buildProduct(r, currency, false)
-    );
-    // BUY-64112: removed keyword fallback (laptop/watch) - return empty when no deals found
+    let queryDeadlineHit = false;
+    try {
+      const queryPromise = dealsClient.query(
+        `SELECT id, source AS domain, url, title, price,
+                (metadata->>'original_price')::numeric AS original_price,
+                currency, image_url, metadata, updated_at, region, country_code,
+                ${discountSelect}
+         FROM products
+         WHERE ${whereClause}
+         ORDER BY ${discountOrder}${discountOrderNulls}, updated_at DESC
+         LIMIT $${queryParams.length - 1}::int OFFSET $${queryParams.length}::int`,
+        queryParams
+      );
+      queryPromise.catch(() => {});
+      let deadline: NodeJS.Timeout | undefined;
+      const dataResult = await Promise.race([
+        queryPromise,
+        new Promise<never>((_, reject) => {
+          deadline = setTimeout(() => {
+            queryDeadlineHit = true;
+            const err = new Error('get_deals query deadline exceeded');
+            (err as { code?: string }).code = 'MCP_QUERY_DEADLINE';
+            reject(err);
+          }, 6000);
+        }),
+      ]);
+      if (deadline) clearTimeout(deadline);
+      total = dataResult.rows.length;
+      products = dataResult.rows.map((r: Record<string, unknown>) =>
+        buildProduct(r, currency, false)
+      );
+      // BUY-64112: removed keyword fallback (laptop/watch) - return empty when no deals found
+    } catch (queryErr: unknown) {
+      const qe = queryErr as { code?: string; message?: string };
+      if (qe.code === '57014' || qe.code === 'MCP_QUERY_DEADLINE' || /statement timeout|query deadline/i.test(qe.message || '')) {
+        console.warn('[mcp] get_deals unavailable:', { currency, region, dealsCountry, minDiscount, reason: qe.code || qe.message });
+      } else {
+        throw queryErr;
+      }
+    } finally {
+      // BUY-68757: if the application deadline wins, destroy the still-busy socket
+      // instead of returning it to the pool and letting it poison later MCP calls.
+      if (queryDeadlineHit) {
+        dealsClient.release(true);
+      }
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);
@@ -800,9 +881,11 @@ async function handleListCategories(args: Record<string, unknown>) {
         }));
       }
       const isFallback = rows.length > 0 && rows.every(r => r.product_count === 0);
+      // BUY-68656: unavailable must be true when categories are all-zero (isFallback),
+      // not just when rows.length === 0.
       const data = {
         data: rows,
-        meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false, unavailable: rows.length === 0 },
+        meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false, unavailable: rows.length === 0 || isFallback },
       };
       // BUY-65474: use shorter TTL for empty/fallback data (60s) vs real data (600s)
       const cacheTtl = isFallback ? 60 : 600;
