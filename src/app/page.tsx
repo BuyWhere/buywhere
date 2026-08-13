@@ -284,11 +284,11 @@ export default function HomePage() {
       <main id="main-content" role="main" tabIndex={-1} aria-label="Main content">
       {/* Hero */}
       <section role="region" aria-label="Content section" className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 md:py-20 xl:py-24">
-          <div className="max-w-3xl mx-auto text-center mb-4">
-            <div className="inline-flex max-w-full items-center gap-2 rounded-xl border border-white bg-white px-3 py-1 text-center text-xs font-bold text-indigo-900 shadow-sm mb-6 sm:rounded-full sm:gap-2 sm:px-3 sm:py-1 sm:text-sm">
-              <span className="w-2 h-2 bg-green-600 rounded-full"></span>
-              288 million products. 238,000+ direct merchants. One API.
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-20 md:pt-20 md:pb-24 xl:pt-24 xl:pb-28">
+          <div className="max-w-3xl mx-auto text-center mb-6">
+            <div className="mx-auto inline-flex max-w-[20rem] items-start gap-x-2 rounded-2xl border border-white bg-white px-4 py-1.5 text-left text-xs font-bold text-indigo-900 shadow-sm sm:max-w-none sm:items-center sm:rounded-full sm:px-3 sm:py-1 sm:text-sm">
+              <span className="mt-[7px] inline-block h-2 w-2 shrink-0 rounded-full bg-green-600 sm:mt-0" aria-hidden="true"></span>
+              <span className="text-center leading-snug sm:text-left">288 million products. 238,000+ direct merchants. One API.</span>
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
               Find the best prices across every store.
@@ -299,16 +299,16 @@ export default function HomePage() {
           </div>
           <HomeProductSearch />
           <div className="max-w-3xl mx-auto text-center mt-8">
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
+            <div className="flex flex-col gap-3 justify-center mb-6 sm:flex-row sm:gap-4">
               <Link
                 href="/compare"
-                className="inline-flex items-center justify-center px-6 py-3 bg-white text-indigo-700 font-semibold rounded-xl hover:bg-indigo-50 transition-colors"
+                className="inline-flex w-full items-center justify-center px-6 py-3 bg-white text-indigo-700 font-semibold rounded-xl hover:bg-indigo-50 transition-colors sm:w-auto"
               >
                 Browse price comparisons →
               </Link>
               <Link
                 href="/developers"
-                className="inline-flex items-center justify-center rounded-xl border border-white bg-white px-6 py-3 font-bold text-indigo-900 transition-colors hover:bg-indigo-50"
+                className="inline-flex w-full items-center justify-center rounded-xl border-2 border-white/80 bg-white/5 px-6 py-3 font-bold text-white shadow-sm transition-colors hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 sm:w-auto"
               >
                 Developers: Get API access
               </Link>
@@ -326,7 +326,7 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Who BuyWhere is for</h2>
-            <p className="text-lg text-gray-500 max-w-2xl mx-auto">
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               A two-sided infrastructure layer connecting AI-powered demand with merchant supply.
             </p>
           </div>
@@ -338,7 +338,7 @@ export default function HomePage() {
               >
                 <div className="text-3xl mb-4">{a.icon}</div>
                 <h3 className="font-semibold text-gray-900 mb-2">{a.title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed flex-1 mb-4">{a.desc}</p>
+                <p className="text-sm text-gray-600 leading-relaxed flex-1 mb-4">{a.desc}</p>
                 <Link
                   href={a.ctaHref}
                   className="text-sm text-indigo-600 font-medium hover:text-indigo-700 transition-colors"
@@ -356,7 +356,7 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">How BuyWhere works</h2>
-            <p className="text-lg text-gray-500 max-w-2xl mx-auto">
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               A neutral, agent-native product layer connecting merchant catalogs to AI-driven demand.
             </p>
           </div>
@@ -372,7 +372,7 @@ export default function HomePage() {
                   {s.step}
                 </div>
                 <h3 className="font-semibold text-gray-900 mb-2">{s.title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{s.desc}</p>
+                <p className="text-sm text-gray-600 leading-relaxed">{s.desc}</p>
               </div>
             ))}
           </div>
@@ -417,7 +417,7 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Why developers use BuyWhere</h2>
-            <p className="text-lg text-gray-500 max-w-2xl mx-auto">
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               The approved developer-first positioning, translated directly into the live landing page.
             </p>
           </div>
@@ -431,7 +431,7 @@ export default function HomePage() {
                   0{index + 1}
                 </div>
                 <h3 className="font-semibold text-gray-900 mb-3">{f.title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{f.desc}</p>
+                <p className="text-sm text-gray-600 leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -464,7 +464,7 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="max-w-3xl mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">FAQ for agent builders</h2>
-            <p className="text-lg text-gray-500">
+            <p className="text-lg text-gray-600">
               Answer-engine friendly questions and answers based on the approved AEO plan.
             </p>
           </div>
@@ -484,7 +484,7 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="max-w-3xl mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-3">Price comparison guides</h2>
-            <p className="text-gray-500 leading-relaxed">
+            <p className="text-gray-600 leading-relaxed">
               Compare prices across merchants for the most searched products in Singapore, the US, and Southeast Asia.
             </p>
             <p className="mt-3 text-xs uppercase tracking-[0.22em] text-indigo-600">

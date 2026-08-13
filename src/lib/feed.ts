@@ -58,6 +58,36 @@ function renderItem(post: BlogPost): string {
   ].join("\n");
 }
 
+function toIsoDate(dateStr: string): string {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  if (!year || !month || !day) {
+    return dateStr;
+  }
+  return new Date(Date.UTC(year, month - 1, day)).toISOString();
+}
+
+function renderAtomEntry(post: BlogPost): string {
+  const link = `${SITE_ORIGIN}/blog/${post.slug}`;
+  const updated = toIsoDate(post.lastUpdatedAt ?? post.publishedAt);
+  const description = post.description.replace(/\s+/g, " ").trim();
+
+  return [
+    "  <entry>",
+    `    <title>${escapeXml(post.title)}</title>`,
+    `    <link href="${escapeXml(link)}" />`,
+    `    <id>${escapeXml(link)}</id>`,
+    `    <updated>${escapeXml(updated)}</updated>`,
+    `    <summary>${escapeXml(description)}</summary>`,
+    "    <author>",
+    `      <name>${escapeXml(post.author)}</name>`,
+    "    </author>",
+    ...post.tags.slice(0, 8).map(
+      (tag) => `    <category term="${escapeXml(tag)}" />`,
+    ),
+    "  </entry>",
+  ].join("\n");
+}
+
 /**
  * Renders the BuyWhere blog as an RSS 2.0 document. Returns a minimal but valid
  * feed even when no blog posts are available (e.g. content dir absent at build
@@ -101,6 +131,46 @@ export function buildBlogRssResponse(): Response {
   return new Response(xml, {
     headers: {
       "Content-Type": "application/rss+xml; charset=utf-8",
+      "Cache-Control": "public, max-age=3600",
+      "X-Robots-Tag": "noindex",
+    },
+  });
+}
+
+/**
+ * Renders the BuyWhere blog as an Atom 1.0 document for readers that prefer the
+ * conventional /atom.xml root-level discovery URL.
+ */
+export function renderBlogAtomFeed(): string {
+  const posts = getAllBlogPosts().slice(0, MAX_FEED_ITEMS);
+  const updated =
+    posts.length > 0
+      ? toIsoDate(posts[0].lastUpdatedAt ?? posts[0].publishedAt)
+      : new Date(Date.UTC(1970, 0, 1)).toISOString();
+  const entries = posts.length > 0 ? posts.map(renderAtomEntry).join("\n") : "";
+
+  return [
+    `<?xml version="1.0" encoding="UTF-8"?>`,
+    `<feed xmlns="http://www.w3.org/2005/Atom">`,
+    `  <title>${escapeXml(FEED_TITLE)}</title>`,
+    `  <link href="${escapeXml(SITE_ORIGIN + "/blog")}" />`,
+    `  <link href="${escapeXml(SITE_ORIGIN + "/atom.xml")}" rel="self" type="application/atom+xml" />`,
+    `  <id>${escapeXml(SITE_ORIGIN + "/blog")}</id>`,
+    `  <updated>${escapeXml(updated)}</updated>`,
+    `  <subtitle>${escapeXml(FEED_DESCRIPTION)}</subtitle>`,
+    entries,
+    `</feed>`,
+    "",
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
+}
+
+export function buildBlogAtomResponse(): Response {
+  const xml = renderBlogAtomFeed();
+  return new Response(xml, {
+    headers: {
+      "Content-Type": "application/atom+xml; charset=utf-8",
       "Cache-Control": "public, max-age=3600",
       "X-Robots-Tag": "noindex",
     },

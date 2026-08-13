@@ -869,7 +869,9 @@ router.get(
     }
 
     const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false);
-    redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+    // BUY-2026-08-13 (#36): cache empty deals for 60s only — a transient empty/timeout
+    // window must not poison the 1h cache (fossilized-empty bug).
+    redis.set(cacheKey, JSON.stringify(responseBody), 'EX', deals.length === 0 ? 60 : SEARCH_CACHE_TTL_SECONDS).catch(() => {});
 
     // BUY-52474: log a product_view per deals card so /v1/products/deals drives
     // product_views growth alongside /search and /:id.

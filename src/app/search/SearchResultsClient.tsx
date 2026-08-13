@@ -266,7 +266,79 @@ function isAccessoryProduct(product: SearchCardProduct): boolean {
   return true;
 }
 
-function rankProduct(product: SearchCardProduct): number {
+// BUY-68365: Detect category-vs-query mismatch for complete-device queries.
+// "Gaming laptop" should rank complete laptops, not "for Gaming PC Gaming Laptop"
+// SSDs / cables / sleeves. The product's `category` field is the source of truth;
+// the title is polluted by marketing copy that targets FTS tokens.
+// Map each device-shaped query token to the canonical category strings that
+// cover the device itself. A product whose category is set and does NOT match
+// any of the allowed strings is considered a category mismatch.
+const COMPLETE_DEVICE_TOKENS: Array<{ token: RegExp; allowedCategories: string[] }> = [
+  {
+    token: /\b(laptops?|notebooks?|macbooks?|chromebooks?|gaming\s+laptops?|ultrabooks?)\b/i,
+    allowedCategories: [
+      'laptops', 'laptop', 'notebooks', 'notebook', 'macbooks', 'macbook',
+      'chromebooks', 'chromebook', 'ultrabooks', 'ultrabook', 'gaming laptops',
+      'computers', 'computer', 'pc laptops', '2-in-1 laptops',
+    ],
+  },
+  {
+    token: /\b(phones?|smartphones?|iphones?|android\s+phones?|cell\s+phones?)\b/i,
+    allowedCategories: [
+      'smartphones', 'smartphone', 'mobile phones', 'mobile phone', 'cell phones',
+      'cell phone', 'phones', 'phone', 'iphones', 'iphone', 'android phones',
+      'unlocked phones', 'telephones',
+    ],
+  },
+  {
+    token: /\b(monitors?|displays?|computer\s+monitors?)\b/i,
+    allowedCategories: [
+      'monitors', 'monitor', 'computer monitors', 'computer monitor',
+      'displays', 'display', 'monitors & displays',
+    ],
+  },
+  {
+    token: /\b(televisions?|tvs?|smart\s+tvs?)\b/i,
+    allowedCategories: [
+      'televisions', 'television', 'tvs', 'tv', 'smart tvs', 'smart tv',
+      'tv, video & home audio',
+    ],
+  },
+  {
+    token: /\b(playstations?|xbox(es)?|nintendo\s+switch|consoles?)\b/i,
+    allowedCategories: [
+      'playstation', 'xbox', 'nintendo switch', 'nintendo', 'video game consoles',
+      'game consoles', 'consoles',
+    ],
+  },
+  {
+    token: /\b(refrigerators?|fridges?|freezers?)\b/i,
+    allowedCategories: [
+      'refrigerators', 'refrigerator', 'fridges', 'freezers', 'freezer',
+      'appliances', 'major appliances',
+    ],
+  },
+  {
+    token: /\b(dishwashers?)\b/i,
+    allowedCategories: [
+      'dishwashers', 'dishwasher', 'appliances', 'major appliances',
+    ],
+  },
+];
+
+function isCategoryMismatchedForDeviceQuery(query: string, product: SearchCardProduct): boolean {
+  if (!product.category) return false; // empty category → no penalty; let other heuristics decide
+  const queryLower = query.toLowerCase();
+  const categoryLower = product.category.toLowerCase();
+  for (const { token, allowedCategories } of COMPLETE_DEVICE_TOKENS) {
+    if (!token.test(queryLower)) continue;
+    const match = allowedCategories.some((allowed) => categoryLower.includes(allowed));
+    if (!match) return true;
+  }
+  return false;
+}
+
+function rankProduct(product: SearchCardProduct, query: string = ''): number {
   let score = 0;
   // Has usable image
   if (product.imageUrl) score += 100;
@@ -274,13 +346,17 @@ function rankProduct(product: SearchCardProduct): number {
   if (product.price !== null) score += 50;
   // Not an accessory
   if (!isAccessoryProduct(product)) score += 25;
+  // BUY-68365: Demote category-vs-query mismatches on complete-device queries.
+  // A "Storage" SSD must not rank among the top "gaming laptop" results even
+  // when the marketing title contains "for Gaming PC Gaming Laptop Desktop".
+  if (query && isCategoryMismatchedForDeviceQuery(query, product)) score -= 500;
   return score;
 }
 
-function sortProductsByRelevance(products: SearchCardProduct[]) {
+function sortProductsByRelevance(products: SearchCardProduct[], query: string = '') {
   return [...products].sort((leftProduct, rightProduct) => {
-    const leftScore = rankProduct(leftProduct);
-    const rightScore = rankProduct(rightProduct);
+    const leftScore = rankProduct(leftProduct, query);
+    const rightScore = rankProduct(rightProduct, query);
     if (leftScore !== rightScore) return rightScore - leftScore;
     return 0;
   });
@@ -331,10 +407,15 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
 }
 
 // BUY-65559: exported for the price-sanity regression test.
+// BUY-68365: also exported for the category-mismatch regression test.
 export const __test__ = {
   isPlausiblePrice,
   formatPrice,
   normalizeProduct,
+  rankProduct,
+  sortProductsByRelevance,
+  isAccessoryProduct,
+  isCategoryMismatchedForDeviceQuery,
   HIGH_VALUE_MIN_PRICE,
   MAX_PLAUSIBLE_PRICE,
 };
@@ -400,8 +481,7 @@ function SearchInputSkeleton() {
 function SearchResultsSkeleton() {
   return (
     <div
-      className="grid gap-4"
-      style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', maxWidth: '1200px' }}
+      className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
       aria-hidden="true"
     >
       {Array.from({ length: 8 }).map((_, index) => (
@@ -544,17 +624,18 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
       </div>
 
       <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-2.5 bg-white p-3.5" data-testid="search-product-details">
-        <div className="flex min-h-7 items-start justify-between gap-2">
-          <MerchantBadge merchant={product.merchant} className="min-w-0 flex-1 basis-0" />
-          <span className="inline-flex shrink-0 items-center gap-1 self-start rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
-            Shop
-            <ExternalLink className="h-3 w-3" />
-          </span>
+        {/* BUY-68743: drop the redundant "Shop ↗" pill — the merchant name
+            and verified checkmark are already conveyed by MerchantBadge on the
+            left, and the whole card wraps the deal URL, so a second visual CTA
+            at the top competed with the primary "View Deal" button below.
+            Keep MerchantBadge informational and View Deal the single CTA. */}
+        <div className="flex min-h-7 items-center">
+          <MerchantBadge merchant={product.merchant} className="min-w-0" />
         </div>
 
         <div className="space-y-1.5">
           <h2
-            className="line-clamp-3 text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
+            className="line-clamp-2 text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
           >
             {product.name}
           </h2>
@@ -789,7 +870,8 @@ export default function SearchResultsClient({
         setDegradedHint(null);
       }
       const normalizedItems = sortProductsByRelevance(
-        rawItems.map((item) => normalizeProduct(item, activeCountry.currency))
+        rawItems.map((item) => normalizeProduct(item, activeCountry.currency)),
+        query
       ).slice(0, PAGE_SIZE);
       const fetchedPageIsFull = rawItems.length >= SEARCH_FETCH_LIMIT;
 
@@ -877,7 +959,10 @@ export default function SearchResultsClient({
         {hasActiveSearch ? (
           <h1
             data-testid="search-mobile-summary"
-            className="mx-auto block max-w-7xl px-4 py-3 text-sm font-semibold leading-snug text-slate-700 [overflow-wrap:anywhere] md:hidden"
+
+
+            className="mx-auto block max-w-7xl whitespace-normal break-words px-4 py-3 text-sm font-semibold text-slate-700 md:hidden"
+
           >
             <span className="text-amber-700">{activeCountry.label.toUpperCase()}</span>
             <span className="mx-2 text-slate-300">/</span>
@@ -1054,6 +1139,9 @@ export default function SearchResultsClient({
                 </label>
               </div>
 
+              {/* BUY-68744: WCAG-AAA-compliant pill colors. Previous amber-50/amber-800
+                  pairing computed to 6.37:1 — passes AA but VidMee flagged low
+                  legibility and recommended darker text / neutral background. */}
               <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-600">
                 <span>Suggested:</span>
                 {SUGGESTED_SEARCHES.map((suggestion) => (
@@ -1061,7 +1149,7 @@ export default function SearchResultsClient({
                     key={suggestion}
                     type="button"
                     onClick={() => runSearch(suggestion)}
-                    className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 font-medium text-amber-800 transition hover:border-amber-300 hover:bg-amber-100"
+                    className="rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 font-medium text-slate-900 transition hover:border-slate-400 hover:bg-slate-200"
                   >
                     {suggestion}
                   </button>
@@ -1181,8 +1269,7 @@ export default function SearchResultsClient({
               {!loadingInitial && products.length > 0 ? (
                 <>
                   <div
-                    className="grid gap-3 sm:gap-4"
-                    style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', maxWidth: '1200px' }}
+                    className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
                   >
                     {products.map((product) => (
                       <SearchCard key={product.id} product={product} />

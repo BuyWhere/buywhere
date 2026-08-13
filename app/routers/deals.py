@@ -113,6 +113,9 @@ def _to_deal_item(p: Product) -> DealItem:
 async def get_deals(
     request: Request,
     category: Optional[str] = Query(None, description="Filter by product category"),
+    country_code: Optional[str] = Query(None, description="Filter by ISO country code (SG, US, MY, TH, VN, PH)"),
+    country: Optional[str] = Query(None, description="Alias for country_code"),
+    currency: Optional[str] = Query(None, description="Filter by currency (SGD, USD, etc.)"),
     min_discount_pct: float = Query(default=10.0, ge=0, le=100, description="Minimum discount % (default 10)"),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
@@ -123,6 +126,17 @@ async def get_deals(
     request.state.api_key = api_key
 
     threshold_pct = min_discount_pct
+    market = (country_code or country or "").upper() or None
+    if market and not currency:
+        currency = {
+            "SG": "SGD",
+            "US": "USD",
+            "MY": "MYR",
+            "TH": "THB",
+            "VN": "VND",
+            "PH": "PHP",
+        }.get(market)
+    currency = currency.upper() if currency else None
 
     # BUY-59774 fix: use the generated discount_pct column which is covered by the
     # existing idx_products_partitioned_deals_partial index (partial on discount_pct
@@ -137,6 +151,10 @@ async def get_deals(
 
     if category:
         base_query = base_query.where(Product.category.ilike(f"%{category}%"))
+    if market:
+        base_query = base_query.where(Product.country_code == market)
+    if currency:
+        base_query = base_query.where(Product.currency == currency)
 
     # Sort by discount depth (largest discount first)
     base_query = base_query.order_by(text("discount_pct DESC"))

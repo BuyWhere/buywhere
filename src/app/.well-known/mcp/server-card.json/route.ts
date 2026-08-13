@@ -1,4 +1,4 @@
-const serverCard = {
+export const serverCard = {
   name: "buywhere-catalog",
   title: "BuyWhere Catalog MCP Server",
   description: "Agent-native product catalog API. Search, compare, and retrieve products from 300M+ products across 238,000+ storefronts worldwide. Use deliver_to to rank products your end user can receive, with availability labels on every result.",

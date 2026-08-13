@@ -1,5 +1,76 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// BUY-69058: Baseline browser security/privacy headers applied to public HTML routes.
+const BASELINE_SECURITY_HEADERS: [string, string][] = [
+  // HSTS: Railway terminates TLS at the edge, so we can safely set max-age=1 year with preload.
+  // includeSubDomains ensures all subdomains (api, mcp, docs, status) also use HTTPS.
+  ["Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload"],
+  // Prevent MIME-sniffing attacks: browsers must respect the declared Content-Type.
+  ["X-Content-Type-Options", "nosniff"],
+  // Clickjacking protection: only allow the site to frame itself.
+  ["X-Frame-Options", "SAMEORIGIN"],
+  // Referrer privacy: send full URL only on same-origin, origin-only on cross-origin.
+  ["Referrer-Policy", "strict-origin-when-cross-origin"],
+  // Disable unused browser features that could be abused.
+  [
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=(), payment=(), usb=(), vr=()",
+  ],
+  // Content Security Policy: lock down script/style sources while allowing necessary third parties.
+  // - 'self' for own origin
+  // - 'unsafe-inline' for Next.js hydration and inline JSON-LD schema scripts
+  // - Plausible analytics (plausible.io)
+  // - Microsoft Clarity (clarity.ms)
+  // - Google Tag Manager / Analytics (googletagmanager.com)
+  // - PostHog analytics (us.i.posthog.com)
+  // - Image CDNs: picsum.photos, unsplash, shopify, amazon, and the full remotePatterns list
+  // - connect-src: API endpoints and analytics ingestion
+  // - frame-ancestors: prevent embedding in arbitrary iframes
+  [
+    "Content-Security-Policy",
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://plausible.io https://www.clarity.ms https://us-assets.i.posthog.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      // img-src: allow any HTTPS image (merchant product images come from many CDNs)
+      "img-src 'self' data: https:",
+      // connect-src: API calls, analytics
+      "connect-src 'self' https://api.buywhere.ai https://us.i.posthog.com https://us-assets.i.posthog.com https://plausible.io https://www.clarity.ms",
+      // frame-ancestors: prevent clickjacking - only self iframing allowed
+      "frame-ancestors 'self'",
+      // object-src: disable Flash/Java plugins entirely
+      "object-src 'none'",
+      // base-uri: restrict <base> to self to prevent relative URL hijacking
+      "base-uri 'self'",
+      // form-action: restrict where forms can submit
+      "form-action 'self'",
+    ].join("; "),
+  ],
+];
+
+function isHtmlRequest(request: NextRequest): boolean {
+  const accept = request.headers.get("accept") ?? "";
+  return accept.includes("text/html") || accept.includes("application/xhtml+xml");
+}
+
+function applyBaselineSecurityHeaders(response: NextResponse): NextResponse {
+  for (const [key, value] of BASELINE_SECURITY_HEADERS) {
+    response.headers.set(key, value);
+  }
+  return response;
+}
+
+function withBaselineSecurityHeaders(
+  request: NextRequest,
+  response: NextResponse
+): NextResponse {
+  if (isHtmlRequest(request)) {
+    applyBaselineSecurityHeaders(response);
+  }
+  return response;
+}
+
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY ?? "phc_B3cS3aNdwTfr2UMykvuShWNnnTaPf5sfHLUQ8FkNHqCc";
 const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com";
 
@@ -84,6 +155,52 @@ const DISCOVERY_LINK =
   '<https://buywhere.ai/.well-known/api-catalog>; rel="service-desc"; type="application/json", ' +
   '<https://buywhere.ai/.well-known/mcp/server-card.json>; rel="service-desc"; type="application/json", ' +
   '<https://buywhere.ai/openapi.json>; rel="service-desc"; type="application/json"';
+
+const OPTIONAL_METADATA_MISSES: Record<string, { body: string; contentType: string }> = {
+  "/security.txt": {
+    body: "security.txt is not published for this site.\n",
+    contentType: "text/plain; charset=utf-8",
+  },
+  "/.well-known/security.txt": {
+    body: "security.txt is not published for this site.\n",
+    contentType: "text/plain; charset=utf-8",
+  },
+  "/ads.txt": {
+    body: "ads.txt is not published for this site.\n",
+    contentType: "text/plain; charset=utf-8",
+  },
+  "/app-ads.txt": {
+    body: "app-ads.txt is not published for this site.\n",
+    contentType: "text/plain; charset=utf-8",
+  },
+  "/apple-app-site-association": {
+    body: '{"error":"apple-app-site-association is not published for this site."}\n',
+    contentType: "application/json; charset=utf-8",
+  },
+  "/.well-known/apple-app-site-association": {
+    body: '{"error":"apple-app-site-association is not published for this site."}\n',
+    contentType: "application/json; charset=utf-8",
+  },
+  "/browserconfig.xml": {
+    body: '<?xml version="1.0" encoding="utf-8"?>\n<browserconfig><msapplication /></browserconfig>\n',
+    contentType: "application/xml; charset=utf-8",
+  },
+};
+
+function optionalMetadataMiss(pathname: string): NextResponse | null {
+  const miss = OPTIONAL_METADATA_MISSES[pathname];
+  if (!miss) return null;
+
+  return new NextResponse(miss.body, {
+    status: 404,
+    headers: {
+      "Content-Type": miss.contentType,
+      "Cache-Control": "public, max-age=300",
+      "X-Robots-Tag": "noindex",
+    },
+  });
+}
+
 
 const ACTIVE_DOC_PATHS = new Set([
   "/docs",
@@ -213,10 +330,6 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
     return "/docs";
   }
 
-  if (normalizedPath === "/api-reference" || normalizedPath.startsWith("/api-reference/")) {
-    return "/docs";
-  }
-
   // BUY-64258: legacy robot-vacuum aliases should resolve to the canonical
   // SEO landing page instead of falling through to the generic 404.
   const robotVacuumAlias = {
@@ -342,6 +455,11 @@ export function middleware(request: NextRequest) {
     pathname === "/developers/robots" ||
     pathname === "/developers/sitemap.xml" ||
     pathname === "/developers/sitemap";
+  const metadataMiss = optionalMetadataMiss(pathname);
+  if (metadataMiss) {
+    return metadataMiss;
+  }
+
   if (
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/api/") ||
@@ -350,6 +468,30 @@ export function middleware(request: NextRequest) {
     pathname === "/.well-known/"
   ) {
     return NextResponse.next();
+  }
+
+  // BUY-69260: Next.js 14.2.35 throws
+  //   "The router state header was sent but could not be parsed."
+  // when an RSC navigation request carries a populated Next-Router-State-Tree
+  // header. The app-page runtime rejects the request with HTTP 500 before any
+  // user code runs — error.tsx can't catch it. PR #473 originally added this
+  // strip in commit 27113c030 but the merge into main (12bcfd452) dropped it
+  // from src/middleware.ts; live still 500s on the populated __PAGE__ shape
+  // that VidMee + BUY-66904 measured. For RSC navigation requests to /search
+  // and /compare, strip the Next-Router-State-Tree header so Next.js falls
+  // back to a fresh route render (still 200, still the intended content). The
+  // route is force-dynamic + has per-route error.tsx + Promise<searchParams>,
+  // so a fresh render is safe.
+  const rscFlag = request.headers.get("rsc");
+  const routerStateHeader = request.headers.get("next-router-state-tree");
+  if (
+    rscFlag === "1" &&
+    routerStateHeader &&
+    (pathname === "/search" || pathname === "/compare")
+  ) {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.delete("next-router-state-tree");
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   // BUY-65437: Rewrite /developers/robots.txt -> /robots.txt and /developers/sitemap.xml -> /sitemap.xml
@@ -498,7 +640,7 @@ export function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/search";
     url.search = `q=${encodeURIComponent(query.replace(/-/g, " "))}&country=${encodeURIComponent(location)}`;
-    return NextResponse.rewrite(url);
+    return withBaselineSecurityHeaders(request, NextResponse.rewrite(url));
   }
 
   const cheapestMatch = pathname.match(/^\/cheapest\/([^/]+)\/([^/]+)\/?$/);
@@ -508,7 +650,7 @@ export function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/search";
     url.search = `q=${encodeURIComponent(query.replace(/-/g, " "))}&country=${encodeURIComponent(location)}`;
-    return NextResponse.rewrite(url);
+    return withBaselineSecurityHeaders(request, NextResponse.rewrite(url));
   }
 
   // BUY-65437: /developers/* and /us/robots/* routes regressed to 404 after
@@ -566,10 +708,10 @@ export function middleware(request: NextRequest) {
     if (docsCanonicalLink) linkParts.push(docsCanonicalLink);
     response.headers.set("Link", linkParts.join(", "));
     if (isDiscoveryRoute) response.headers.set("Vary", "Accept");
-    return response;
+    return withBaselineSecurityHeaders(request, response);
   }
 
-  return NextResponse.next();
+  return withBaselineSecurityHeaders(request, NextResponse.next());
 }
 
 export const config = {

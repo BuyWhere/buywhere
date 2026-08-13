@@ -671,7 +671,11 @@ router.get(
     // single-table archive constraints because it falls through unchanged on any
     // tier error, and SEARCH_USE_TIER=0 remains a runtime kill switch.
     const useSearchTier = req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0');
-    if (q && searchMode === 'keyword' && useSearchTier) {
+    // BUY-67275 (#29, 2026-08-13): the tier has its own ORDER BY (rank/accessory
+    // penalty) and ignores `sort`. When the caller asks for a real sort, skip the
+    // tier so the archive path (which honors buildSortOrder) serves it ordered.
+    const sortRequested = !!(sort && sort !== 'relevance');
+    if (q && searchMode === 'keyword' && useSearchTier && !sortRequested) {
       const handled = await tryTierSearch(req, res, {
         q, countryCode, currency, limit, offset, minPrice, maxPrice,
         category, brand, domain, compact, requestStart, cacheKey,
@@ -1607,7 +1611,13 @@ router.get(
     }
 
     const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false, degraded);
-    redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
+    // BUY-2026-08-13 (#36): NEVER cache a degraded (timed-out) deals payload — one slow
+    // moment froze an empty response into the 1h cache and every later call re-served it
+    // (the fossilized response_time_ms 4519/4554 signature). Cache real-but-empty briefly.
+    if (!degraded) {
+      const dealsTtl = deals.length === 0 ? 60 : SEARCH_CACHE_TTL_SECONDS;
+      redis.set(cacheKey, JSON.stringify(responseBody), 'EX', dealsTtl).catch(() => {});
+    }
 
     // BUY-52474: log a product_view per deals card so /v1/products/deals drives
     // product_views growth alongside /search and /:id.
