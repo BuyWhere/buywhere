@@ -5,11 +5,10 @@ const config_1 = require("../config");
 const embedProducts_1 = require("../jobs/embedProducts");
 const apiKey_1 = require("../middleware/apiKey");
 const queryLog_1 = require("../middleware/queryLog");
-const cacheStats_1 = require("../monitoring/cacheStats");
 const errors_1 = require("../middleware/errors");
 const response_1 = require("../lib/response");
-const fxRatesLoader_1 = require("../lib/fxRatesLoader");
 const router = (0, express_1.Router)();
+const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
 const PHONE_PRICE_QUERY_RE = /\b(iphone|samsung\s+galaxy|galaxy\s+s\d+|google\s+pixel|pixel\s+\d+|xiaomi|redmi|oppo|vivo|oneplus)\b/i;
 const CONSOLE_PRICE_QUERY_RE = /\b(ps5|playstation\s*5|xbox\s+(?:series\s+)?[sx]|nintendo\s+switch)\b/i;
 const LAPTOP_PRICE_QUERY_RE = /\b(macbook|thinkpad|chromebook|surface\s+laptop|laptop|notebook)\b/i;
@@ -56,14 +55,41 @@ function inferDeviceProductType(productName) {
 function minimumPhonePrice(country) {
     return country === 'SG' ? 500 : 300;
 }
-// BUY-56185/BUY-68788: Detect statement_timeout poisoned connections.
+async function acquireMcpClient(pool = config_1.db) {
+    let timer;
+    try {
+        return await Promise.race([
+            pool.connect(),
+            new Promise((_, reject) => {
+                timer = setTimeout(() => reject(new Error('mcp_db_pool_acquire_timeout')), MCP_DB_ACQUIRE_TIMEOUT_MS);
+            }),
+        ]);
+    }
+    finally {
+        if (timer)
+            clearTimeout(timer);
+    }
+}
+const STATIC_ZERO_CATEGORY_SLUGS = new Set(['electronics', 'computers', 'mobile-phones', 'home', 'fashion']);
+function isStaticZeroCategoryPayload(value) {
+    const rows = value?.data;
+    return Array.isArray(rows)
+        && rows.length === STATIC_ZERO_CATEGORY_SLUGS.size
+        && rows.every((row) => STATIC_ZERO_CATEGORY_SLUGS.has(String(row.slug || '')) && Number(row.product_count) === 0);
+}
+// BUY-56185/BUY-56635: Detect statement_timeout poisoned connections.
 // When PostgreSQL's statement_timeout fires, the query is cancelled but the
-// connection enters PQTRANS_INERROR state. Returning such a connection to the
-// pool poisons every subsequent query on it with "current transaction is aborted".
-// pg exposes this as transactionStatus === 3; client.state only tracks socket state.
+// connection enters PQTRANS_INERROR state (transactionStatus === 3). Returning such
+// a connection to the pool poisons every subsequent query with "current transaction
+// is aborted". Discard it instead of returning it to the pool.
+// NOTE: client.state tracks the socket connection state ('connected','connecting')
+// and is NOT set to 'error' for transaction-level errors — we must check
+// client.transactionStatus (pg's PQTRANS_* codes) to detect aborted transactions.
 function releaseClientSafely(client) {
     try {
-        if (client && (client.transactionStatus === 3 || client.state === 'error')) {
+        // PQTRANS_INERROR = 3 — transaction aborted due to statement_timeout or other error.
+        // Discard the connection so a fresh one is acquired from the pool next time.
+        if (client && client.transactionStatus === 3) {
             client.release(true); // discard — do NOT return poisoned connection to pool
         }
         else {
@@ -75,7 +101,6 @@ function releaseClientSafely(client) {
     }
 }
 const MCP_DEALS_WALL_DEADLINE_MS = Number(process.env.MCP_DEALS_WALL_DEADLINE_MS) || 8000;
-const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '2000', 10);
 function withToolDeadline(promise, ms, toolName) {
     let timer;
     return Promise.race([
@@ -162,9 +187,9 @@ const TOOLS = [
         inputSchema: {
             type: 'object',
             properties: {
-                region: { type: 'string', enum: ['us', 'sg', 'my', 'gb', 'in', 'au'], description: 'Region alias mapped to ISO country code.' },
                 country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY', 'GB', 'IN', 'AU'], description: 'Filter by ISO country code. Defaults to SG.' },
                 country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+                region: { type: 'string', description: 'Alias for country_code/market (us→US, sg→SG, my→MY, gb→GB, in→IN, au→AU).' },
             },
         },
     },
@@ -246,9 +271,11 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 // Tool handlers
 async function handleSearchProducts(args) {
     const t0 = Date.now();
-    // BUY-68170: support legacy `query` alias from the original MCP contract.
-    // Normalize before default/browse logic so `query` takes the same FTS path as `q`.
-    const q = (args.q || args.query || '').trim();
+    // BUY-69075: normalize legacy `query` alias to `q` BEFORE cache lookup.
+    // Without this, `query=laptop` creates cache key `fts:v8::...` (empty q),
+    // which collides with browse mode and returns stale empty results.
+    const _rawQuery = (args.q || args.query || '').trim();
+    const q = _rawQuery;
     const mode = args.mode || 'hybrid';
     const geminiKey = process.env.GEMINI_API_KEY ?? '';
     const useVector = config_1.vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
@@ -278,7 +305,7 @@ async function handleSearchProducts(args) {
     const cacheKeyForMode = (modeForCache) => `fts:v8:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${modeForCache}`;
     let cacheKey = cacheKeyForMode(executionMode);
     try {
-        const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
+        const cached = await config_1.redis.get(cacheKey);
         if (cached) {
             const parsed = JSON.parse(cached);
             if (parsed.results) {
@@ -320,15 +347,14 @@ async function handleSearchProducts(args) {
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     let rows;
     let total;
-    // BUY-57370: catch pool exhaustion fast — under concurrent load (e.g. Tune
-    // automated testing), the 50-connection pool can saturate when US-partition
-    // queries hold connections for 5-12s. Without .catch(), the raw pg PoolError
-    // (string code like '57P01') escapes to the outer handler which checks
-    // typeof code === 'number' — fails for string codes — and returns the
-    // opaque -32603 "Internal error" that Tune detected.
-    const searchClient = await config_1.db.connect().catch((err) => {
-        console.warn('[search_products] db.connect failed:', err.message);
-        throw { code: -32603, message: 'Database connection timeout — pool may be exhausted' };
+    // BUY-57657: add connect timeout so pool exhaustion fails fast at 2s instead of
+    // blocking the entire 12s statement_timeout. The DB itself is fast (70-130ms) so
+    // any 8-12s MCP latency is pool-acquisition contention, not query execution.
+    const searchClient = await Promise.race([
+        config_1.db.connect(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('db.connect timeout after 2000ms')), 2000)),
+    ]).catch(() => {
+        throw { code: -32603, message: 'Database connection timeout' };
     });
     try {
         // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
@@ -338,22 +364,8 @@ async function handleSearchProducts(args) {
         await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
         const COUNT_CAP = 1001;
         if (q) {
-            // BUY-67784: do not let the capped total-count consume the whole MCP
-            // statement_timeout on a cold/loaded DB. The result fetch below is the user-
-            // visible contract; total is already capped/approximate at 1001, so fail open
-            // to the cap and preserve search availability.
-            try {
-                await searchClient.query('SET statement_timeout = 750');
-                const countResult = await searchClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`, params);
-                total = parseInt(countResult.rows[0].count, 10);
-            }
-            catch (countErr) {
-                console.warn('[search_products] capped count failed, using approximate total:', countErr.message);
-                total = COUNT_CAP;
-            }
-            finally {
-                await searchClient.query('SET statement_timeout = 12000');
-            }
+            const countResult = await searchClient.query(`SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`, params);
+            total = parseInt(countResult.rows[0].count, 10);
             // BUY-31962 / BUY-41138: hybrid search (RRF) or keyword FTS fallback.
             // Hybrid and semantic paths embed the query via Jina AI, query the vector DB
             // separately, then merge in application code (two separate PG instances).
@@ -362,7 +374,7 @@ async function handleSearchProducts(args) {
                 let queryVec = null;
                 try {
                     const embedKey = `qembed:${Buffer.from(q).toString('base64').slice(0, 48)}`;
-                    queryVec = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, embedKey, () => config_1.redis.get(embedKey));
+                    queryVec = await config_1.redis.get(embedKey).catch(() => null);
                     if (!queryVec) {
                         queryVec = await (0, embedProducts_1.embedQuery)(q, geminiKey);
                         await config_1.redis.set(embedKey, queryVec, 'EX', 60).catch(() => { });
@@ -372,47 +384,26 @@ async function handleSearchProducts(args) {
                     console.warn('[search] embed query failed, falling back to FTS:', embedErr.message);
                 }
                 if (queryVec && config_1.vectorDb) {
-                    let candidateIds = [];
-                    let vectorCandidateIds = null;
+                    let candidateIds;
                     if (mode === 'semantic') {
                         // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
-                        try {
-                            // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
-                            const vecRows = await config_1.vectorDb.query(`SELECT product_id FROM product_embeddings
-                 WHERE model_ver = 'gemini-embedding-001@512'
-                 ORDER BY embedding <=> $1::vector LIMIT 200`, [queryVec]);
-                            vectorCandidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
-                        }
-                        catch (vecErr) {
-                            // BUY-65474: dimension mismatch or other error — fall through to FTS
-                            console.warn('[search] vector query failed, falling back to FTS:', vecErr.message);
-                            vectorCandidateIds = null;
-                        }
+                        // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
+                        const vecRows = await config_1.vectorDb.query(`SELECT product_id FROM product_embeddings
+               WHERE model_ver = 'gemini-embedding-001@512'
+               ORDER BY embedding <=> $1::vector LIMIT 200`, [queryVec]);
+                        candidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
                     }
                     else {
                         // Hybrid: app-level RRF of FTS ranks + vector ranks
-                        let vecRows = [];
-                        let ftsRows = [];
-                        try {
+                        const [ftsResult, vecResult] = await Promise.all([
+                            searchClient.query(`SELECT id FROM products ${where} LIMIT 200`, params),
                             // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
-                            const vecResult = await config_1.vectorDb.query(`SELECT product_id FROM product_embeddings
+                            config_1.vectorDb.query(`SELECT product_id FROM product_embeddings
                  WHERE model_ver = 'gemini-embedding-001@512'
-                 ORDER BY embedding <=> $1::vector LIMIT 200`, [queryVec]);
-                            vecRows = vecResult.rows;
-                        }
-                        catch (vecErr) {
-                            // BUY-65474: dimension mismatch — use FTS only
-                            console.warn('[search] hybrid vector query failed, FTS only:', vecErr.message);
-                        }
-                        try {
-                            const ftsResult = await searchClient.query(`SELECT id FROM products ${where} LIMIT 200`, params);
-                            ftsRows = ftsResult.rows;
-                        }
-                        catch (ftsErr) {
-                            console.warn('[search] hybrid FTS query failed:', ftsErr.message);
-                        }
-                        const ftsRank = new Map(ftsRows.map((r, i) => [r.id, i + 1]));
-                        const vecRank = new Map(vecRows.map((r, i) => [r.product_id, i + 1]));
+                 ORDER BY embedding <=> $1::vector LIMIT 200`, [queryVec]),
+                        ]);
+                        const ftsRank = new Map(ftsResult.rows.map((r, i) => [r.id, i + 1]));
+                        const vecRank = new Map(vecResult.rows.map((r, i) => [r.product_id, i + 1]));
                         const allIds = new Set([...ftsRank.keys(), ...vecRank.keys()]);
                         candidateIds = [...allIds]
                             .map(id => ({
@@ -422,10 +413,6 @@ async function handleSearchProducts(args) {
                             .sort((a, b) => b.score - a.score)
                             .slice(0, limit + offset)
                             .map(s => s.id);
-                    }
-                    // BUY-65474: use vector results if available, else fall through to FTS
-                    if (vectorCandidateIds !== null) {
-                        candidateIds = vectorCandidateIds;
                     }
                     const pageIds = candidateIds.slice(offset, offset + limit);
                     if (pageIds.length === 0) {
@@ -462,10 +449,10 @@ async function handleSearchProducts(args) {
                SELECT id, sku AS source, source AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code
                FROM products ${where}
-               LIMIT $${params.length - 2}::int
+               LIMIT $${params.length - 2}
              ) _candidates
              ORDER BY updated_at DESC
-             LIMIT $${params.length - 1}::int OFFSET $${params.length}::int`, params);
+             LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
                     rows = result.rows;
                 }
             }
@@ -483,10 +470,10 @@ async function handleSearchProducts(args) {
              SELECT id, sku AS source, source AS domain, url, title,
                     price, currency, image_url, metadata, updated_at, region, country_code
              FROM products ${where}
-             LIMIT $${params.length - 2}::int
+             LIMIT $${params.length - 2}
            ) _candidates
            ORDER BY updated_at DESC
-           LIMIT $${params.length - 1}::int OFFSET $${params.length}::int`, params);
+           LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
                 rows = result.rows;
             }
         }
@@ -504,7 +491,7 @@ async function handleSearchProducts(args) {
                 region, country_code
          FROM products
          ORDER BY updated_at DESC
-         LIMIT $1::int`, [fetchLimit]);
+         LIMIT $1`, [fetchLimit]);
             if (needsFilter) {
                 let filtered = rawResult.rows;
                 if (country) {
@@ -593,25 +580,38 @@ async function handleCompareProducts(args) {
     const products = result.rows.map((r) => (0, response_1.buildProduct)(r, 'SGD', false));
     return (0, response_1.buildSearchResponse)(products, products.length, validIds.length, 0, Date.now() - t0, false);
 }
+async function getRegionalProductSample(country, fallbackQuery, limit, currency, t0) {
+    try {
+        const result = await config_1.db.query(`SELECT id, sku AS source, source AS domain, url, title,
+              price, NULL::numeric AS original_price, currency, image_url,
+              metadata, updated_at, region, country_code, 0::numeric AS discount_pct
+       FROM products
+       WHERE is_active = true
+         AND price > 0
+         AND country_code = $1
+         AND search_vector @@ plainto_tsquery('english', $2)
+       LIMIT $3`, [country, fallbackQuery, Number(limit) || 20]);
+        if (!result.rows.length)
+            return null;
+        const products = result.rows.map((r) => (0, response_1.buildProduct)(r, currency, false));
+        return (0, response_1.buildSearchResponse)(products, products.length, limit, 0, Date.now() - t0, false);
+    }
+    catch (err) {
+        console.warn('[mcp] regional deals sample failed:', err?.message || err);
+        return null;
+    }
+}
 async function handleGetDeals(args) {
     const t0 = Date.now();
     const minDiscount = Number(args.min_discount) || 10;
-    const region = args.region || '';
-    const country = (args.country_code || args.country || '').toUpperCase();
-    // BUY-60068: when only `region` is supplied (no `country_code`), derive country
-    // from region so the currency filter and country-specific fallback both fire.
-    // Mirrors the existing derivation in handleFindBestPrice below.
-    const effectiveCountry = country || (region.toLowerCase() === 'us' ? 'US' : region.toLowerCase() === 'sea' ? 'SG' : '');
-    const currency = (args.currency || (effectiveCountry ? response_1.COUNTRY_CURRENCY[effectiveCountry] : '') || 'SGD').toUpperCase();
-    // BUY-68231: derive a deals country from the currency so the query always hits
-    // the fast idx_buy64112_deals_country_products index. Without a country_code
-    // filter the query falls back to idx_products_deals_discount_pct which must
-    // traverse 200K+ SGD deals on cold Railway block storage (~74s), blowing the
-    // statement_timeout -> MCP -32603. Scoping to the currency's home country keeps
-    // the index range tiny (sub-200ms cold) with no behavioural change for callers
-    // that pass country_code/region/deliver_to explicitly.
-    const CURRENCY_COUNTRY = { SGD: 'SG', USD: 'US', MYR: 'MY', THB: 'TH', VND: 'VN' };
-    const dealsCountry = effectiveCountry || CURRENCY_COUNTRY[currency] || '';
+    // BUY-59768: infer currency from country_code (or region) when not explicitly set.
+    const REGION_TO_COUNTRY = { sg: 'SG', us: 'US', my: 'MY', th: 'TH', vn: 'VN', gb: 'GB' };
+    const explicitCurrency = (args.currency || '').toUpperCase();
+    const regionArg = (args.region || '').toLowerCase();
+    const dealsCountry = (args.country_code || args.country || REGION_TO_COUNTRY[regionArg] || '').toUpperCase();
+    const currency = explicitCurrency || (dealsCountry ? (response_1.COUNTRY_CURRENCY[dealsCountry] || 'SGD') : 'SGD');
+    const region = regionArg;
+    const country = dealsCountry;
     const limit = Math.min(Number(args.limit) || 20, 100);
     const offset = Number(args.offset) || 0;
     const cacheKey = `deals_mcp:${currency}:${minDiscount}:${region}:${country}:${limit}:${offset}`;
@@ -647,38 +647,39 @@ async function handleGetDeals(args) {
     }
     const params = [currency, minDiscount];
     if (region) {
-        params.push(region);
-        conditions.push(`region = $${params.length}`);
+        if (country) {
+            params.push(country.toUpperCase());
+            conditions.push(`country_code = $${params.length}`);
+        }
+        else {
+            params.push(region);
+            conditions.push(`region ILIKE $${params.length}`);
+        }
     }
-    if (dealsCountry) {
-        params.push(dealsCountry);
+    else if (country) {
+        params.push(country.toUpperCase());
         conditions.push(`country_code = $${params.length}`);
     }
-    const whereClause = conditions.join(' AND ');
     const discountSelect = useDiscountCol
         ? 'discount_pct'
         : `ROUND(((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)::numeric, 1) AS discount_pct`;
     const discountOrder = useDiscountCol
         ? 'discount_pct DESC'
         : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
-    const discountOrderNulls = useDiscountCol ? '' : ' NULLS LAST';
-    // Use dedicated client with bounded statement_timeout so a slow deals scan returns
-    // a structured -32603 envelope to the MCP client (which drops at ~35s) instead of
-    // hanging the connection until the 5-min default. The deals query is index-backed
-    // (idx_products_deals_country/region) for both paths; 25s is more than enough.
-    let products = [];
-    let total = 0;
-    const dealsClient = await config_1.db.connect().catch((err) => {
+    const whereClause = conditions.join(' AND ');
+    // BUY-64112: use direct index-backed strict deal query.
+    // The partial index idx_products_deals_country/region on
+    // (country_code, region, discount_pct DESC) with predicate
+    // WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
+    // supports direct queries that match the predicate. No candidate window needed.
+    // Also removes the laptop/watch keyword fallback that masked empty results.
+    const dealsClient = await acquireMcpClient().catch((err) => {
         console.error('[mcp] get_deals db.connect failed:', err);
         throw { code: -32603, message: 'Database unavailable' };
     });
+    let products = [];
+    let total = 0;
     try {
-        // BUY-64112: use direct index-backed strict deal query.
-        // The partial index idx_products_deals_country/region on
-        // (country_code, region, discount_pct DESC) with predicate
-        // WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
-        // supports direct queries that match the predicate. No candidate window needed.
-        // Also removes the laptop/watch keyword fallback that masked empty results.
         await dealsClient.query('SET statement_timeout = 4500');
         // params already has: currency, minDiscount, [region], [country]
         // Add limit and offset
@@ -696,8 +697,10 @@ async function handleGetDeals(args) {
                 ${discountSelect}
          FROM products
          WHERE ${whereClause}
-         ORDER BY ${discountOrder}${discountOrderNulls}, updated_at DESC
+         ORDER BY ${discountOrder} NULLS LAST, updated_at DESC
          LIMIT $${queryParams.length - 1}::int OFFSET $${queryParams.length}::int`, queryParams);
+            // Detach the underlying pg.Client error so it doesn't surface as an
+            // unhandled rejection after the application-level deadline fires.
             queryPromise.catch(() => { });
             let deadline;
             const dataResult = await Promise.race([
@@ -720,7 +723,7 @@ async function handleGetDeals(args) {
         catch (queryErr) {
             const qe = queryErr;
             if (qe.code === '57014' || qe.code === 'MCP_QUERY_DEADLINE' || /statement timeout|query deadline/i.test(qe.message || '')) {
-                console.warn('[mcp] get_deals unavailable:', { currency, region, dealsCountry, minDiscount, reason: qe.code || qe.message });
+                console.warn('[mcp] get_deals timed out; returning degraded empty result');
             }
             else {
                 throw queryErr;
@@ -730,7 +733,10 @@ async function handleGetDeals(args) {
             // BUY-68757: if the application deadline wins, destroy the still-busy socket
             // instead of returning it to the pool and letting it poison later MCP calls.
             if (queryDeadlineHit) {
-                dealsClient.release(true);
+                try {
+                    dealsClient.release(true);
+                }
+                catch { /* ignore */ }
             }
         }
     }
@@ -739,9 +745,9 @@ async function handleGetDeals(args) {
         releaseClientSafely(dealsClient);
     }
     const result = (0, response_1.buildSearchResponse)(products, total, limit, offset, Date.now() - t0, false);
-    // BUY-60068: surface `meta.unavailable:true` when both the strict discount filter
-    // and the regional fallback returned zero rows for the requested region/country,
-    // so callers can distinguish "no live deals" from "server bug".
+    // BUY-60076: surface `unavailable:true` when the strict + regional fallback
+    // returned zero rows, mirroring api/src/routes/mcp.ts so callers can
+    // distinguish "no live deals" from "server bug".
     if ((region || country) && products.length === 0) {
         result.unavailable = true;
     }
@@ -753,24 +759,37 @@ async function handleGetDeals(args) {
 const categoryListInflight = new Map();
 async function handleListCategories(args) {
     const t0 = Date.now();
-    const regionCountry = {
-        us: 'US',
+    // BUY-60069: accept the public `region` alias and normalize it to the same
+    // ISO-2 country code used by the cache key and materialized-view lookup.
+    const REGION_TO_COUNTRY = {
         sg: 'SG',
+        us: 'US',
         my: 'MY',
+        th: 'TH',
+        vn: 'VN',
         gb: 'GB',
         uk: 'GB',
         in: 'IN',
         au: 'AU',
+        sea: 'SG',
     };
-    const region = (args.region || '').toLowerCase();
-    const country = ((args.country_code || args.country || regionCountry[region]) || 'SG').toUpperCase();
+    const normalizeCountry = (value) => {
+        const raw = String(value || '').trim();
+        if (!raw)
+            return '';
+        return REGION_TO_COUNTRY[raw.toLowerCase()] || raw.toUpperCase();
+    };
+    const country = normalizeCountry(args.country_code || args.country || args.region) || 'SG';
     const cacheKey = `categories_mcp:top100:${country}`;
     // 1. Redis fast path
     try {
         const cached = await config_1.redis.get(cacheKey);
         if (cached) {
             const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed.data) && parsed.data.length > 0) {
+            if (isStaticZeroCategoryPayload(parsed)) {
+                config_1.redis.del(cacheKey).catch(() => { });
+            }
+            else {
                 return { ...parsed, meta: { ...parsed.meta, cached: true, response_time_ms: Date.now() - t0 } };
             }
         }
@@ -784,14 +803,19 @@ async function handleListCategories(args) {
     }
     // 3. No in-flight query — start one and register it so concurrent callers coalesce
     const queryPromise = (async () => {
-        const client = await config_1.db.connect().catch((err) => {
-            console.warn('[list_categories] db.connect failed:', err.message);
-            throw { code: -32603, message: 'Database connection timeout — pool may be exhausted' };
-        });
+        // BUY-68328: category summaries are catalog data. The canonical matview lives
+        // on the primary catalog DB, not the auth/write Railway Postgres behind `db`.
+        const client = await acquireMcpClient(config_1.categoryDb);
         try {
             await client.query('SET statement_timeout = 8000');
             const tableCheck = await client.query(`SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`);
-            let rows = [];
+            let rows;
+            const MAT_VIEW_TIMEOUT_MS = 8000;
+            // BUY-60096: canonical MCP must never let category fallback monopolize the shared pool.
+            // If the materialized view is empty, keep fallbacks bounded so cold misses stay under 5s.
+            const LIVE_TIMEOUT_MS = 1800;
+            const FALLBACK_COUNTRIES = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'GB', 'PH', 'ID', 'IN', 'AU']);
+            rows = [];
             if (tableCheck.rows[0]?.tbl) {
                 const summaryResult = await client.query(`SELECT slug, name, product_count
            FROM mcp_category_summary_by_country
@@ -800,27 +824,70 @@ async function handleListCategories(args) {
            LIMIT 100`, [country]);
                 rows = summaryResult.rows;
             }
+            // BUY-59768: view empty or missing for this country — fall through to a
+            // bounded live GROUP BY on the country_code partition (uses partition
+            // pruning on the LIST-partitioned `products` table so US 30M rows stay
+            // tractable). This runs with a separate timeout and only for countries
+            // known to have a partition (US excluded — its 30M-row scan still
+            // exceeds the timeout budget even with partition pruning).
+            if (rows.length === 0 && FALLBACK_COUNTRIES.has(country)) {
+                try {
+                    // BUY-59768: deployed Railway Postgres has small work_mem; force the planner
+                    // to use a memory-frugal sort-based aggregate instead of HashAggregate.
+                    await client.query(`SET statement_timeout = ${LIVE_TIMEOUT_MS}`);
+                    await client.query(`SET work_mem = '256MB'`);
+                    await client.query(`SET enable_hashagg = off`);
+                    const liveResult = await client.query(`SELECT category_path[1] AS slug, category_path[1] AS name, COUNT(*) AS product_count
+             FROM products
+             WHERE country_code = $1
+               AND category_path[1] IS NOT NULL
+               AND is_active = true
+             GROUP BY category_path[1]
+             ORDER BY COUNT(*) DESC
+             LIMIT 100`, [country]);
+                    if (liveResult.rows.length > 0)
+                        rows = liveResult.rows;
+                }
+                catch (_) {
+                    // Live GROUP BY timed out or failed — leave rows empty and surface unavailable
+                }
+                finally {
+                    await client.query(`SET statement_timeout = ${MAT_VIEW_TIMEOUT_MS}`);
+                }
+            }
+            // BUY-60170/BUY-60200: third fallback — sample recent products via updated_at
+            // index, then GROUP BY category. Probe #36 showed cold cache misses returning
+            // unavailable because a global 50K sample may contain zero rows for the requested
+            // country during ingestion skew. Keep the bounded updated_at scan, but push the
+            // country/category predicates into the inner query so each market gets its own
+            // recent sample before grouping.
+            // BUY-65477: Also check `category` column as fallback since category_path
+            // may be empty but category column is populated.
             if (rows.length === 0) {
-                // BUY-60056: materialized view is empty/stale in production. Instead of
-                // returning unavailable or running a full-table GROUP BY, sample recent
-                // products through the updated_at path and derive a bounded category list.
-                // BUY-65477: Also check `category` column as fallback since category_path
-                // may be empty but category column is populated.
-                const fallbackResult = await client.query(`SELECT slug, slug AS name, COUNT(*)::int AS product_count
-           FROM (
-               SELECT category_path, category, country_code
+                try {
+                    await client.query(`SET statement_timeout = ${LIVE_TIMEOUT_MS}`);
+                    const recentResult = await client.query(`SELECT slug, slug AS name, COUNT(*)::int AS product_count
+             FROM (
+               SELECT category_path, category
                FROM products
+               WHERE country_code = $1
+                 AND is_active = true
                ORDER BY updated_at DESC
                LIMIT 50000
-           ) _recent_categories
-           CROSS JOIN LATERAL (
+             ) _recent_categories
+             CROSS JOIN LATERAL (
                SELECT COALESCE(category_path[1], NULLIF(lower(regexp_replace(category, '\\s+', '-', 'g')), '')) AS slug
-           ) _cat
-           WHERE country_code = $1 AND slug IS NOT NULL AND slug <> ''
-           GROUP BY slug
-           ORDER BY product_count DESC
-           LIMIT 100`, [country]);
-                rows = fallbackResult.rows;
+             ) _cat
+             WHERE slug IS NOT NULL AND slug <> ''
+             GROUP BY slug
+             ORDER BY product_count DESC
+             LIMIT 100`, [country]);
+                    if (recentResult.rows.length > 0)
+                        rows = recentResult.rows;
+                }
+                catch (_) {
+                    // recent-products fallback timed out — fall through to static category defaults
+                }
             }
             if (rows.length === 0) {
                 rows = ['Electronics', 'Computers', 'Mobile Phones', 'Home', 'Fashion'].map((name) => ({
@@ -829,16 +896,15 @@ async function handleListCategories(args) {
                     product_count: 0,
                 }));
             }
-            const isFallback = rows.length > 0 && rows.every(r => r.product_count === 0);
-            // BUY-68656: unavailable must be true when categories are all-zero (isFallback),
-            // not just when rows.length === 0.
-            const data = {
-                data: rows,
-                meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false, unavailable: rows.length === 0 || isFallback },
+            const meta = {
+                total: rows.length,
+                country_code: country,
+                response_time_ms: 0,
+                cached: false,
             };
-            // BUY-65474: use shorter TTL for empty/fallback data (60s) vs real data (600s)
-            const cacheTtl = isFallback ? 60 : 600;
-            config_1.redis.set(cacheKey, JSON.stringify(data), 'EX', cacheTtl).catch(() => { });
+            meta.unavailable = false;
+            const data = { data: rows, meta };
+            config_1.redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => { }); // 10 min TTL
             return data;
         }
         finally {
@@ -859,126 +925,101 @@ async function handleFindBestPrice(args) {
     const productName = args.product_name || '';
     if (!productName)
         throw { code: -32602, message: 'product_name is required' };
-    // BUY-65298: derive country from region when only region is supplied. The
-    // previous code hard-fell back to SG for any region other than 'us' or for
-    // callers omitting country_code, causing region=us callers to sometimes get
-    // SG rows/SGD prices depending on how the request was serialized.
+    // BUY-65298: derive the country from the region alias when only region is
+    // supplied (mirrors the canonical mcp route). Previously this fell through to
+    // the default 'SG' for any region-only caller, e.g. region='us' would have
+    // returned Singapore rows and SGD prices.
     const REGION_TO_COUNTRY = {
         us: 'US',
         sea: 'SG',
     };
     const regionRaw = (args.region || '').toLowerCase();
     const regionDerived = REGION_TO_COUNTRY[regionRaw] || '';
-    const country = ((args.country_code || args.country) || regionDerived || 'SG').toUpperCase();
+    const explicitCountry = (args.country_code || args.country || '').toUpperCase();
+    const country = explicitCountry || regionDerived || 'SG';
     const region = args.region || '';
     const category = args.category || '';
     const requestedLimit = Math.max(1, Math.min(10, Number(args.limit) || 10));
     const deviceProductType = inferDeviceProductType(productName);
     const exactPhoneQuery = deviceProductType === 'phone';
     const limit = deviceProductType ? Math.max(requestedLimit, 10) : requestedLimit;
+    // BUY-66280: raise timeout to 30s (was 10s). Real FTS timing is 1s (warm)
+    // to 60s+ (cold) for popular terms like "laptop" / "ps5". The old 10s bound
+    // turned cold-cache lookups into statement_timeout. Also cap price <= 10000
+    // so feed-corruption rows (e.g. $0.01) can't win the price-ASC sort.
+    const PRICE_MAX = 10000;
+    // BUY-26343: price > 0 prevents returning corrupt zero-price records
+    const conditions = ['is_active = true', 'price > 0', `price <= ${PRICE_MAX}`];
+    const params = [];
+    params.push(productName);
+    conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
+    if (country) {
+        params.push(country);
+        conditions.push(`country_code = $${params.length}`);
+    }
+    if (region && !regionDerived) {
+        params.push(region);
+        conditions.push(`region = $${params.length}`);
+    }
+    if (category) {
+        params.push(`%${category}%`);
+        conditions.push(`category ILIKE $${params.length}`);
+    }
     const CANDIDATE_POOL = Math.max(limit * 50, 500);
+    params.push(CANDIDATE_POOL, limit);
+    const where = `WHERE ${conditions.join(' AND ')}`;
     // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
     // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
     // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
-    // BUY-69075: add acquire timeout so pool exhaustion fails fast (mirrors
-    // acquireMcpClient() in mcp-railway). Without this, a saturated pool causes
-    // db.connect() to block indefinitely, which cascades to 30s timeouts.
-    let bestPriceTimer;
-    const bestPriceClient = await Promise.race([
-        config_1.db.connect(),
-        new Promise((_, reject) => {
-            bestPriceTimer = setTimeout(() => reject(new Error('[find_best_price] db.connect timeout')), MCP_DB_ACQUIRE_TIMEOUT_MS);
-        }),
-    ]).catch((err) => {
-        if (bestPriceTimer)
-            clearTimeout(bestPriceTimer);
-        console.warn('[find_best_price] db.connect failed:', err.message);
-        throw { code: -32603, message: 'Database connection timeout' };
-    });
-    if (bestPriceTimer)
-        clearTimeout(bestPriceTimer);
+    const bestPriceClient = await acquireMcpClient();
     let result = { rows: [] };
     let ftsTimedOut = false;
     try {
-        // BUY-66280: 4.5s was too tight for GIN FTS on maglev (~127M rows); raise to 30s
-        // and fail open on SQLSTATE 57014 so a slow FTS returns empty instead of 500.
-        await bestPriceClient.query('SET statement_timeout = 30000'); // BUY-66280
-        await bestPriceClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS
-        // BUY-65971: the country filter MUST be inside the candidate subquery, not
-        // applied in the outer query. `products` is LIST-partitioned by country_code,
-        // so `country_code = $N` in the WHERE clause triggers partition pruning and
-        // scans only the target country's partition. The previous structure selected
-        // the 50,000 most-recently-updated rows GLOBALLY (no country filter in the
-        // inner query), a window dominated by SG (the highest-volume ingest market),
-        // then filtered by country in the outer query — which yielded an empty
-        // candidate set for US/MY/TH/VN and made find_best_price return
-        // best_price:null / total:0 for every market except SG. Filtering by country
-        // first (mirroring search_products and mcp-railway's find_best_price) bounds
-        // the candidate window to the right partition, where the title match +
-        // price-ASC sort then resolves correctly.
-        // BUY-65474: no fallback to UNRELATED products. If the title has no match at
-        // all, return an empty result rather than misleading cheapest products (e.g.
-        // bike hardware for an "iphone" query). The ILIKE fallback below is still a
-        // title match (substring), not an unrelated-product fallback.
-        // Primary path: GIN-indexed FTS (fast; same path as search_products and
-        // mcp-railway). Leading with FTS avoids a leading-wildcard ILIKE full scan of
-        // the partition on the hot path.
+        await bestPriceClient.query('SET statement_timeout = 30000');
         try {
             if (deviceProductType) {
                 const taxonomyPatterns = DEVICE_TAXONOMY_PATTERNS[deviceProductType];
                 const titlePatterns = DEVICE_TITLE_PATTERNS[deviceProductType];
-                result = await bestPriceClient.query(`SELECT id, title, price, currency, source AS domain, url, image_url,
-                  country_code, updated_at, category, category_path, metadata
-           FROM products
-           WHERE is_active = true
-             AND price > 0
-             AND country_code = $1
-             AND search_vector @@ plainto_tsquery('english', $2)
-             AND ((lower(coalesce(category, '')) LIKE ANY($3::text[])
-               OR lower(array_to_string(category_path, ' ')) LIKE ANY($3::text[])
-               OR lower(coalesce(metadata->>'category', '')) LIKE ANY($3::text[])
-               OR lower(coalesce(metadata->>'product_type', '')) LIKE ANY($3::text[]))
-               OR (lower(title) LIKE ANY($4::text[])
-                 AND NOT lower(title) LIKE ANY($6::text[])))
-             AND NOT (lower(title) LIKE ANY($6::text[])
-               OR lower(coalesce(category, '')) LIKE ANY($5::text[])
-               OR lower(array_to_string(category_path, ' ')) LIKE ANY($5::text[])
-               OR lower(coalesce(metadata->>'category', '')) LIKE ANY($5::text[])
-               OR lower(coalesce(metadata->>'product_type', '')) LIKE ANY($5::text[]))
-             AND ($7::boolean = false OR price >= $8)
+                result = await bestPriceClient.query(`SELECT * FROM (
+             SELECT id, title, price, currency, source AS domain, url, image_url,
+                    country_code, updated_at, category, category_path, metadata
+             FROM products
+             WHERE is_active = true AND price > 0 AND price <= ${PRICE_MAX}
+               AND search_vector @@ plainto_tsquery('english', $1)
+               AND country_code = $2
+               AND ((lower(coalesce(category, '')) LIKE ANY($3::text[])
+                 OR lower(array_to_string(category_path, ' ')) LIKE ANY($3::text[])
+                 OR lower(coalesce(metadata->>'category', '')) LIKE ANY($3::text[])
+                 OR lower(coalesce(metadata->>'product_type', '')) LIKE ANY($3::text[]))
+                 OR (lower(title) LIKE ANY($4::text[])
+                   AND NOT lower(title) LIKE ANY($6::text[])))
+               AND NOT (lower(title) LIKE ANY($6::text[])
+                 OR lower(coalesce(category, '')) LIKE ANY($5::text[])
+                 OR lower(array_to_string(category_path, ' ')) LIKE ANY($5::text[])
+                 OR lower(coalesce(metadata->>'category', '')) LIKE ANY($5::text[])
+                 OR lower(coalesce(metadata->>'product_type', '')) LIKE ANY($5::text[]))
+               AND ($7::boolean = false OR price >= $8)
+             LIMIT $9
+           ) _candidates
            ORDER BY price ASC, updated_at DESC
-           LIMIT $9::int`, [country, productName, taxonomyPatterns, titlePatterns, DEVICE_NEGATIVE_TAXONOMY_PATTERNS, DEVICE_NEGATIVE_TITLE_PATTERNS, exactPhoneQuery, minimumPhonePrice(country), limit]);
+           LIMIT $10`, [productName, country, taxonomyPatterns, titlePatterns, DEVICE_NEGATIVE_TAXONOMY_PATTERNS, DEVICE_NEGATIVE_TITLE_PATTERNS, exactPhoneQuery, minimumPhonePrice(country), CANDIDATE_POOL, limit]);
             }
             else {
-                result = await bestPriceClient.query(`SELECT id, title, price, currency, source AS domain, url, image_url,
-                  country_code, updated_at
-           FROM products
-           WHERE is_active = true
-             AND price > 0
-             AND country_code = $1
-             AND search_vector @@ plainto_tsquery('english', $2)
-           ORDER BY price ASC, updated_at DESC
-           LIMIT $3::int`, [country, productName, limit]);
-                if (result.rows.length === 0) {
-                    // ILIKE fallback: FTS tokenization can miss titles where the term appears
-                    // as a substring of a larger token (model numbers, compound words, or text
-                    // the 'english' config doesn't stem). Fall back to a substring match within
-                    // the (pruned) country partition to recover those listings.
-                    const titlePattern = `%${productName}%`;
-                    result = await bestPriceClient.query(`SELECT id, title, price, currency, source AS domain, url, image_url,
+                result = await bestPriceClient.query(`SELECT * FROM (
+             SELECT id, title, price, currency, source AS domain, url, image_url,
                     country_code, updated_at
-             FROM products
-             WHERE is_active = true
-               AND price > 0
-               AND country_code = $1
-               AND title ILIKE $2
-             ORDER BY price ASC, updated_at DESC
-             LIMIT $3::int`, [country, titlePattern, limit]);
-                }
+             FROM products ${where}
+             LIMIT $${params.length - 1}
+           ) _candidates
+           ORDER BY price ASC, updated_at DESC
+           LIMIT $${params.length}`, params);
             }
         }
         catch (ftsErr) {
             const ftsError = ftsErr;
+            // BUY-66280: SQLSTATE 57014 = statement_timeout (query cancelled).
+            // Fail open — return an empty result instead of a 500 so the MCP
+            // tool surfaces "no price found" rather than an error to the caller.
             if (ftsError.code === '57014') {
                 console.warn('[find_best_price] FTS timed out for country=', country, 'product=', productName);
                 ftsTimedOut = true;
@@ -994,8 +1035,7 @@ async function handleFindBestPrice(args) {
         releaseClientSafely(bestPriceClient);
     }
     const currency = response_1.COUNTRY_CURRENCY[country] || 'SGD';
-    const rates = (0, fxRatesLoader_1.getCachedFxRates)();
-    const toUsd = rates[currency] ?? response_1.CURRENCY_RATES[currency] ?? 1;
+    const toUsd = response_1.CURRENCY_RATES[currency] ?? 1;
     const data = result.rows.map((r) => ({
         id: r.id,
         title: r.title,
@@ -1012,7 +1052,7 @@ async function handleFindBestPrice(args) {
         alternatives: limitedData.slice(1),
         meta: {
             total: limitedData.length,
-            country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'),
+            country,
             response_time_ms: Date.now() - t0,
             ...(ftsTimedOut ? { timed_out: true } : {}),
             ...(deviceProductType && limitedData.length === 0 ? {
@@ -1265,41 +1305,23 @@ async function handleFindSimilar(args) {
     if (!productId) {
         throw { code: -32602, message: 'missing required parameter: product_id' };
     }
-    // product_embeddings.product_id is bigint; reject non-numeric IDs upfront so the
-    // SQL parameter doesn't blow up with "invalid input syntax for type bigint".
-    // BUY-59390 — previously the handler exposed -32603 raw SQL errors.
-    if (!/^\d+$/.test(productId)) {
-        throw { code: -32602, message: `Invalid product_id format: expected numeric ID, got "${productId}"` };
-    }
     if (!config_1.vectorDb) {
         throw { code: -32001, message: 'Vector search not available — vector DB not configured' };
     }
     // Step 1: get reference embedding from vector DB
-    let refResult;
-    try {
-        // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
-        refResult = await config_1.vectorDb.query(`SELECT embedding::text FROM product_embeddings
-       WHERE product_id = $1 AND model_ver = 'gemini-embedding-001@512'`, [productId]);
-    }
-    catch {
-        throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
-    }
+    // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
+    const refResult = await config_1.vectorDb.query(`SELECT embedding::text FROM product_embeddings
+     WHERE product_id = $1 AND model_ver = 'gemini-embedding-001@512'`, [productId]);
     if (!refResult.rows.length) {
         throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
     }
     const refEmbedding = refResult.rows[0].embedding;
     // Step 2: find nearest neighbours in vector DB (excluding source product)
     // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
-    let nearResult;
-    try {
-        nearResult = await config_1.vectorDb.query(`SELECT product_id, (embedding <=> $1::vector)::float AS distance
-       FROM product_embeddings
-       WHERE product_id != $2 AND model_ver = 'gemini-embedding-001@512'
-       ORDER BY distance LIMIT $3::int`, [refEmbedding, productId, limit]);
-    }
-    catch {
-        throw { code: -32001, message: 'No similar products found' };
-    }
+    const nearResult = await config_1.vectorDb.query(`SELECT product_id, (embedding <=> $1::vector)::float AS distance
+     FROM product_embeddings
+     WHERE product_id != $2 AND model_ver = 'gemini-embedding-001@512'
+     ORDER BY distance LIMIT $3`, [refEmbedding, productId, limit]);
     if (!nearResult.rows.length) {
         throw { code: -32001, message: 'No similar products found' };
     }
@@ -1556,24 +1578,14 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
     }
     catch (err) {
         const e = err;
-        // BUY-57370: handle both numeric tool-error codes (e.g. -32603) and
-        // PostgreSQL string error codes (e.g. '57014' for statement_timeout).
-        // Without this, PG errors (string codes) always fall through to -32603,
-        // masking the real cause from monitoring/Tune.
         if (typeof e.code === 'number' && e.message) {
             const envelopeCode = e.code === -32001 ? errors_1.ErrorCode.NOT_FOUND
                 : e.code === -32602 ? errors_1.ErrorCode.INVALID_PARAMETER
                     : errors_1.ErrorCode.INTERNAL_ERROR;
             return res.json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
         }
-        if (typeof e.code === 'string' && e.message) {
-            // PostgreSQL error — log the real code for diagnostics, return -32603 for MCP compat
-            console.error(`[mcp] pg error (code=${e.code}):`, e.message);
-            return res.json(jsonrpcErr(id, -32603, `Internal error: ${e.message.slice(0, 120)}`, undefined, errors_1.ErrorCode.INTERNAL_ERROR));
-        }
         console.error('[mcp] error:', err);
         return res.json(jsonrpcErr(id, -32603, 'Internal error', undefined, errors_1.ErrorCode.INTERNAL_ERROR));
     }
 });
 exports.default = router;
-// BUY-65474: LIMIT ::int cast deployed (probe #332). Force-redeploy marker.

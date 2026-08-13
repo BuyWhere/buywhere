@@ -77,6 +77,7 @@ function releaseClientSafely(client: any) {
 }
 
 const MCP_DEALS_WALL_DEADLINE_MS = Number(process.env.MCP_DEALS_WALL_DEADLINE_MS) || 8000;
+const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '2000', 10);
 
 function withToolDeadline<T>(promise: Promise<T>, ms: number, toolName: string): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
@@ -947,12 +948,21 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
-  // BUY-57258: add connect timeout so pool exhaustion fails fast; reduce statement_timeout
-  // to 5s to prevent cascading connection starvation during contention.
-  const bestPriceClient = await db.connect().catch((err) => {
+  // BUY-69075: add acquire timeout so pool exhaustion fails fast (mirrors
+  // acquireMcpClient() in mcp-railway). Without this, a saturated pool causes
+  // db.connect() to block indefinitely, which cascades to 30s timeouts.
+  let bestPriceTimer: NodeJS.Timeout | undefined;
+  const bestPriceClient = await Promise.race([
+    db.connect(),
+    new Promise<never>((_, reject) => {
+      bestPriceTimer = setTimeout(() => reject(new Error('[find_best_price] db.connect timeout')), MCP_DB_ACQUIRE_TIMEOUT_MS);
+    }),
+  ]).catch((err) => {
+    if (bestPriceTimer) clearTimeout(bestPriceTimer);
     console.warn('[find_best_price] db.connect failed:', err.message);
     throw { code: -32603, message: 'Database connection timeout' };
   });
+  if (bestPriceTimer) clearTimeout(bestPriceTimer);
   let result: { rows: Record<string, unknown>[] } = { rows: [] };
   let ftsTimedOut = false;
   try {

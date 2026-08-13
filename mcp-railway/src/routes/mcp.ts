@@ -280,9 +280,11 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 // Tool handlers
 async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
-  // BUY-68170: support legacy `query` alias from the original MCP contract.
-  // Normalize before default/browse logic so `query` takes the same FTS path as `q`.
-  const q = ((args.q as string) || (args.query as string) || '').trim();
+  // BUY-69075: normalize legacy `query` alias to `q` BEFORE cache lookup.
+  // Without this, `query=laptop` creates cache key `fts:v8::...` (empty q),
+  // which collides with browse mode and returns stale empty results.
+  const _rawQuery = ((args.q as string) || (args.query as string) || '').trim();
+  const q = _rawQuery;
   const mode = (args.mode as string) || 'hybrid';
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
@@ -672,13 +674,8 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const regionArg = ((args.region as string) || '').toLowerCase();
   const dealsCountry = ((args.country_code as string) || (args.country as string) || REGION_TO_COUNTRY[regionArg] || '').toUpperCase();
   const currency = explicitCurrency || (dealsCountry ? (COUNTRY_CURRENCY[dealsCountry] || 'SGD') : 'SGD');
-  // BUY-68231: derive country from currency when no explicit country is passed.
-  // Without this, default get_deals (no country) falls back to SGD with no country filter,
-  // causing a full table scan of 200K+ deals which times out on cold Railway storage.
-  const CURRENCY_COUNTRY: Record<string, string> = { SGD: 'SG', USD: 'US', MYR: 'MY', THB: 'TH', VND: 'VN' };
-  const effectiveCountry = dealsCountry || CURRENCY_COUNTRY[currency] || '';
   const region = regionArg;
-  const country = effectiveCountry;
+  const country = dealsCountry;
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
 
@@ -716,10 +713,14 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const params: unknown[] = [currency, minDiscount];
 
   if (region) {
-    params.push(region);
-    conditions.push(`region = $${params.length}`);
-  }
-  if (country) {
+    if (country) {
+      params.push(country.toUpperCase());
+      conditions.push(`country_code = $${params.length}`);
+    } else {
+      params.push(region);
+      conditions.push(`region ILIKE $${params.length}`);
+    }
+  } else if (country) {
     params.push(country.toUpperCase());
     conditions.push(`country_code = $${params.length}`);
   }
@@ -743,7 +744,6 @@ async function handleGetDeals(args: Record<string, unknown>) {
   });
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
-  let dealsTimedOut = false;
   try {
     await dealsClient.query('SET statement_timeout = 4500');
     // params already has: currency, minDiscount, [region], [country]
@@ -779,7 +779,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
             const err = new Error('get_deals query deadline exceeded');
             (err as { code?: string }).code = 'MCP_QUERY_DEADLINE';
             reject(err);
-          }, 5500);
+          }, 6000);
         }),
       ]);
       if (deadline) clearTimeout(deadline);
@@ -791,8 +791,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     } catch (queryErr: unknown) {
       const qe = queryErr as { code?: string; message?: string };
       if (qe.code === '57014' || qe.code === 'MCP_QUERY_DEADLINE' || /statement timeout|query deadline/i.test(qe.message || '')) {
-        console.warn('[mcp] get_deals unavailable:', { currency, region, country, minDiscount, reason: qe.code || qe.message });
-        dealsTimedOut = true;
+        console.warn('[mcp] get_deals timed out; returning degraded empty result');
       } else {
         throw queryErr;
       }
@@ -808,11 +807,6 @@ async function handleGetDeals(args: Record<string, unknown>) {
     releaseClientSafely(dealsClient);
   }
 
-  if (dealsTimedOut) {
-    const unavailableResult = buildSearchResponse([], 0, limit, offset, Date.now() - t0, false);
-    (unavailableResult as { unavailable?: boolean }).unavailable = true;
-    return unavailableResult;
-  }
 
   const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
   // BUY-60076: surface `unavailable:true` when the strict + regional fallback
@@ -1706,8 +1700,8 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
     // Some MCP clients call methods directly (e.g., method:"search_products"
     // with params as the tool args) instead of using the tools/call envelope.
     // Normalize to tools/call format before dispatch.
-    let toolName: string | undefined;
-    let toolArgs: Record<string, unknown>;
+    let toolName: string | undefined = undefined;
+    let toolArgs: Record<string, unknown> = {};
     if (method === 'tools/call') {
       toolName = args.name as string;
       toolArgs = (args.arguments && typeof args.arguments === 'object') ? args.arguments as Record<string, unknown> : {};
