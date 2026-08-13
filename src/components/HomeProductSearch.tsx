@@ -75,7 +75,7 @@ export function HomeProductSearch() {
                 }
               }}
               placeholder="Search products..."
-              className="search-input w-full rounded-lg border border-transparent bg-white py-4 pl-14 pr-4 text-lg text-slate-900 placeholder:!text-slate-500 transition-colors focus:border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              className="search-input w-full rounded-lg border border-slate-200 bg-white py-4 pl-14 pr-4 text-lg text-slate-900 placeholder:!text-slate-500 transition-colors focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
               aria-label="Search products"
               aria-invalid={Boolean(error)}
               aria-describedby={error ? errorId : undefined}
@@ -89,7 +89,7 @@ export function HomeProductSearch() {
               setCountry(event.target.value as CountryValue);
               setCountryTouched(true);
             }}
-            className="h-[58px] w-full shrink-0 rounded-lg border border-transparent bg-white px-4 text-base font-medium text-slate-900 transition-colors focus:border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 lg:w-32 xl:w-36"
+            className="h-[58px] w-full shrink-0 rounded-lg border border-slate-200 bg-white px-4 text-base font-medium text-slate-900 transition-colors focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 lg:w-32 xl:w-36"
             aria-label="Search country"
           >
             {countryOptions.map((option) => (
@@ -115,7 +115,7 @@ export function HomeProductSearch() {
           ) : (
             <div className="flex flex-col items-start gap-2 text-sm text-white sm:flex-row sm:items-center sm:justify-center sm:gap-x-3">
               <span className="inline-flex items-center self-center rounded-full border border-white/30 bg-white/10 px-2.5 py-0.5 font-semibold text-white shadow-sm sm:shrink-0">Try</span>
-              <div className="flex flex-1 flex-wrap items-center justify-start gap-2 sm:justify-center">
+              <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-center">
                 {exampleQueries.map((example) => (
                   <button
                     key={example}
