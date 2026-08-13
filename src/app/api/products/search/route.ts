@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dropFabricatedItems } from './fabricatedRows';
 
 const API_BASE_URL = (
   process.env.BUYWHERE_API_INTERNAL_URL ||
@@ -10,117 +9,72 @@ const API_BASE_URL = (
 
 const API_KEY = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || '';
 const ALLOWED_PARAMS = new Set(['q', 'country', 'country_code', 'category', 'limit', 'cursor', 'offset']);
+// Categories that are storage components — these are mismatch candidates when the query
+// is a device type (laptop/desktop/phone/tablet) that does NOT appear in the category name
+const STORAGE_CATEGORIES = new Set(['Storage', 'Hard Drives', 'Solid State Drives', 'External Storage']);
+
+// For device-type queries, demote items whose category is a storage component but whose
+// category name does not include the device type (e.g. Storage for "gaming laptop")
+function isStorageMismatchForDeviceQuery(item: Record<string, unknown>, deviceQuery: string) {
+  const normalizedDevice = deviceQuery.toLowerCase();
+  if (!['laptop', 'desktop', 'phone', 'tablet'].includes(normalizedDevice)) return false;
+
+  const category = normalizeText(item.category);
+  if (!category) return false;
+
+  // If the category itself mentions the device type, it's not a mismatch
+  if (category.includes(normalizedDevice)) return false;
+
+  // Demote known storage categories
+  return Array.from(STORAGE_CATEGORIES).some((cat) => category.includes(cat.toLowerCase()));
+}
+
 const ACCESSORY_KEYWORDS = [
   'adapter',
-  'adhesive',
-  'armband',
   'battery',
-  'bumper',
   'cable',
-  'capas',
   'case',
-  'casing',
   'charger',
   'charging',
-  'clip',
-  'compatible with',
-  'cord',
   'cover',
-  'cushion',
-  'decal',
-  'decals',
-  'dock',
   'ear pad',
   'ear pads',
   'ear cushion',
   'ear cushions',
   'earcup',
   'earcups',
-  'filter',
   'foam',
-  'grip',
   'holder',
-  'housing',
-  'lens protector',
   'mount',
-  'mousepad',
-  'mouse pad',
   'pad',
   'pads',
   'part',
   'parts',
   'protector',
   'replacement',
-  'ring',
-  'shell',
-  'skin',
-  'skins',
   'sleeve',
-  'spare',
   'stand',
-  'sticker',
-  'stickers',
   'strap',
-  'stylus',
-  'tempered glass',
-  'tissue',
   'usb',
-  'wrap',
-  'wristband',
 ];
-const ACCESSORY_TITLE_PREFIX_PATTERN = /^(capas?|cases?|covers?|skins?|stickers?|decals?|wraps?|shells?|sleeves?|sleevings?|replacements?|spares?|filters?|adapters?|chargers?|cables?|protectors?|mounts?|holders?|stands?|clips?|grips?|bumpers?|earmuffs?|cushions?|foams?|pads?|straps?|rings?|housings?|docks?|backpacks?|bags?)\s+(for|compatible\s+with|fits|to|with|of)\b/i;
 const QUERY_STOP_WORDS = new Set(['a', 'an', 'and', 'best', 'for', 'in', 'of', 'the', 'to', 'with']);
 
-const COMPLETE_DEVICE_TOKENS: Array<{ token: RegExp; allowedCategories: string[] }> = [
-  {
-    token: /\b(laptops?|notebooks?|macbooks?|chromebooks?|gaming\s+laptops?|ultrabooks?)\b/i,
-    allowedCategories: [
-      'laptops', 'laptop', 'notebooks', 'notebook', 'macbooks', 'macbook',
-      'chromebooks', 'chromebook', 'ultrabooks', 'ultrabook', 'gaming laptops',
-      'computers', 'computer', 'pc laptops', '2-in-1 laptops',
-    ],
-  },
-  {
-    token: /\b(phones?|smartphones?|iphones?|android\s+phones?|cell\s+phones?)\b/i,
-    allowedCategories: [
-      'smartphones', 'smartphone', 'mobile phones', 'mobile phone', 'cell phones',
-      'cell phone', 'phones', 'phone', 'iphones', 'iphone', 'android phones',
-      'unlocked phones', 'telephones',
-    ],
-  },
-  {
-    token: /\b(monitors?|displays?|computer\s+monitors?)\b/i,
-    allowedCategories: [
-      'monitors', 'monitor', 'computer monitors', 'computer monitor',
-      'displays', 'display', 'monitors & displays',
-    ],
-  },
-  {
-    token: /\b(televisions?|tvs?|smart\s+tvs?)\b/i,
-    allowedCategories: [
-      'televisions', 'television', 'tvs', 'tv', 'smart tvs', 'smart tv',
-      'tv, video & home audio',
-    ],
-  },
-  {
-    token: /\b(playstations?|xbox(es)?|nintendo\s+switch|consoles?)\b/i,
-    allowedCategories: [
-      'playstation', 'xbox', 'nintendo switch', 'nintendo', 'video game consoles',
-      'game consoles', 'consoles',
-    ],
-  },
-  {
-    token: /\b(refrigerators?|fridges?|freezers?)\b/i,
-    allowedCategories: [
-      'refrigerators', 'refrigerator', 'fridges', 'freezers', 'freezer',
-      'appliances', 'major appliances',
-    ],
-  },
-  {
-    token: /\b(dishwashers?)\b/i,
-    allowedCategories: ['dishwashers', 'dishwasher', 'appliances', 'major appliances'],
-  },
-];
+type SearchFallbackItem = {
+  id: string;
+  title: string;
+  name: string;
+  price: { amount: number; currency: string };
+  price_amount: number;
+  price_currency: string;
+  currency: string;
+  merchant: string;
+  merchant_name: string;
+  source: string;
+  url: string;
+  click_url: string;
+  brand: string;
+  category: string;
+};
 
 type SearchFallback = {
   slug: string;
@@ -129,8 +83,6 @@ type SearchFallback = {
   country: 'US' | 'SG';
   currency: 'USD' | 'SGD';
   keywords: string[];
-  // BUY-60872: products[] retained for slugs/guide metadata only; we no longer
-  // synthesize these as search result items (governance rule #10).
   products: Array<{
     name: string;
     price: number;
@@ -301,17 +253,36 @@ function isDegradedZero(data: UpstreamSearchResponse | null) {
 }
 
 function buildFallbackResponse(data: UpstreamSearchResponse | null, fallback: SearchFallback) {
-  // BUY-60872 (governance rule #10): when upstream is degraded with zero results,
-  // we MUST NOT synthesize invented product rows. Instead we return an honest empty
-  // result set with a degraded flag and a suggestion to browse the editorial guide.
   const fallbackUrl = `/${fallback.slug}`;
+  const countryPrefix = fallback.country === 'SG' ? 'sg' : 'us';
+  const items: SearchFallbackItem[] = fallback.products.map((product, index) => {
+    const productSlug = slugifyProductName(product.name);
+    const productUrl = `/products/${countryPrefix}/${productSlug}`;
+    return {
+      id: `fallback-${fallback.slug}-${index + 1}`,
+      title: product.name,
+      name: product.name,
+      price: { amount: product.price, currency: fallback.currency },
+      price_amount: product.price,
+      price_currency: fallback.currency,
+      currency: fallback.currency,
+      merchant: product.merchant,
+      merchant_name: product.merchant,
+      source: 'editorial_fallback',
+      url: productUrl,
+      click_url: productUrl,
+      brand: product.brand,
+      category: fallback.category,
+    };
+  });
+
   return {
     ...data,
-    data: [],
-    items: [],
-    results: [],
-    products: [],
-    total: 0,
+    data: items,
+    items,
+    results: items,
+    products: items,
+    total: items.length,
     fallback: {
       type: 'editorial',
       label: fallback.label,
@@ -320,12 +291,12 @@ function buildFallbackResponse(data: UpstreamSearchResponse | null, fallback: Se
     },
     meta: {
       ...(data?.meta ?? {}),
-      total: 0,
+      total: items.length,
       degraded: true,
       fallback: true,
       fallback_url: fallbackUrl,
     },
-    hint: `Live search is currently degraded. Browse our curated ${fallback.label.toLowerCase()} guide at ${fallbackUrl} for hand-picked recommendations, or try a different search term.`,
+    hint: `Live search is degraded, so we are showing curated ${fallback.label.toLowerCase()} picks with a populated BuyWhere guide.`,
   };
 }
 
@@ -365,131 +336,16 @@ function itemSearchText(item: Record<string, unknown>) {
   return [item.name, item.title, item.brand, item.category].map(normalizeText).filter(Boolean).join(' ');
 }
 
-// Categories that, when present in `metadata.category`, indicate the item is an
-// accessory / peripheral for another product rather than the primary product
-// itself. The category taxonomy comes from upstream (Shopify / merchant) so it
-// is the most reliable signal — product titles are noisy because accessories
-// are often titled like the primary product ("Case for iPhone 15 Pro").
-//
-// Kept as a substring matcher (any category whose lowercased value contains
-// one of these tokens is treated as accessory) so that we catch variations
-// like "Clear Case", "MagSafe Case", "Capas iPhone 15 Pro" without enumerating
-// every possible Shopify product-type string.
-const ACCESSORY_CATEGORY_TOKENS = [
-  'case',
-  'capa',
-  'cover',
-  'protector',
-  'screen protector',
-  'lens protector',
-  'tempered glass',
-  'skin',
-  'sleeve',
-  'shell',
-  'bumper',
-  'strap',
-  'wristband',
-  'armband',
-  'mount',
-  'mounts',
-  'holder',
-  'stand',
-  'dock',
-  'grip',
-  'clip',
-  'cushion',
-  'foam',
-  'mouse pad',
-  'mousepad',
-  'mouse pads',
-  'stylus',
-  'cable',
-  'cord',
-  'charger',
-  'charging',
-  'adapter',
-  'adapters',
-  'replacement',
-  'spare',
-  'battery',
-  'battery pack',
-  'power cord',
-  'backpack',
-  'laptop bag',
-  'laptop backpack',
-  'laptop sleeve',
-  'laptop skin',
-  'ear pad',
-  'ear cushion',
-  'earcup',
-  'sticker',
-  'decal',
-  'wrap',
-  'ring',
-  'housing',
-];
-
-function categorySignalsAccessory(item: Record<string, unknown>) {
-  const metadata = item.metadata as Record<string, unknown> | null | undefined;
-  const metaCategory = typeof metadata?.category === 'string' ? metadata.category.toLowerCase().trim() : '';
-  if (metaCategory) {
-    for (const token of ACCESSORY_CATEGORY_TOKENS) {
-      if (metaCategory.includes(token)) return true;
-    }
-  }
-
-  const topLevelCategory = typeof item.category === 'string' ? item.category.toLowerCase().trim() : '';
-  if (topLevelCategory) {
-    for (const token of ACCESSORY_CATEGORY_TOKENS) {
-      if (topLevelCategory.includes(token)) return true;
-    }
-  }
-
-  return false;
-}
-
 function isAccessoryItem(item: Record<string, unknown>, queryWords: string[]) {
   const searchText = itemSearchText(item);
   if (!searchText) return false;
 
-  const rawTitle = (typeof item.name === 'string' && item.name) || (typeof item.title === 'string' && item.title) || '';
   const hasAccessoryKeyword = ACCESSORY_KEYWORDS.some((keyword) => searchText.includes(keyword));
-  const hasAccessoryTitlePrefix = rawTitle ? ACCESSORY_TITLE_PREFIX_PATTERN.test(rawTitle) : false;
-  const hasAccessoryCategory = categorySignalsAccessory(item);
-
-  // Strongest signal: upstream metadata.category says it is an accessory.
-  // Trust it even if the title happens to mention the primary product (e.g.
-  // "MagSafe Silicone iPhone 15 Pro Max" classified upstream as a Case).
-  if (hasAccessoryCategory) return true;
-  if (!hasAccessoryKeyword && !hasAccessoryTitlePrefix) return false;
+  if (!hasAccessoryKeyword) return false;
   if (queryWords.length === 0) return true;
 
-  // Title-prefix signals are decisive: "Case for iPhone 15 Pro" is always an
-  // accessory even if every query word appears in the title.
-  if (hasAccessoryTitlePrefix) return true;
-
-  // Keyword present somewhere in name/title/brand/category. The accessory
-  // signal wins unless the item matches EVERY query word AND its title has
-  // no accessory keyword outside of compound phrases like "back case".
   const matchedQueryWords = queryWords.filter((word) => searchText.includes(word)).length;
-  const matchesEveryQueryWord = matchedQueryWords === queryWords.length;
-  if (matchesEveryQueryWord && hasAccessoryKeyword) {
-    // Items like "Digital Glass Back Case (iPhone 12 Pro Till 15 Pro Max)" —
-    // title mentions the primary product but is structurally an accessory.
-    // Treat them as accessory unless they look like a primary product (their
-    // first significant word is NOT an accessory noun).
-    const firstWord = normalizeText(rawTitle).split(/\s+/).find((w) => w.length > 1) ?? '';
-    const firstWordIsAccessory = ACCESSORY_CATEGORY_TOKENS.some((token) => firstWord === token || firstWord.endsWith(token));
-    if (firstWordIsAccessory) return true;
-    // Even if the first word isn't an accessory noun, a strong keyword like
-    // "case" / "cover" / "protector" appearing in the title is decisive: the
-    // item is being sold as an accessory for the primary product.
-    const titleText = normalizeText(rawTitle);
-    if (titleText.includes(' case') || titleText.startsWith('case ') || /\b(cover|skin|sleeve|protector|charger|cable|adapter|battery|strap|stand|mount|holder|replacement|spare|sticker|decal|wrap|shell|bumper)\b/.test(titleText)) {
-      return true;
-    }
-  }
-  return matchedQueryWords / queryWords.length < 0.8;
+  return matchedQueryWords / queryWords.length < 0.5;
 }
 
 function dedupeKey(item: Record<string, unknown>) {
@@ -514,64 +370,32 @@ function deduplicateItems(items: Record<string, unknown>[]) {
   });
 }
 
-function categoryFromItem(item: Record<string, unknown>) {
-  const directCategory = item.category;
-  if (typeof directCategory === 'string') return directCategory;
-
-  const structuredSpecs = item.structured_specs;
-  if (structuredSpecs && typeof structuredSpecs === 'object' && !Array.isArray(structuredSpecs)) {
-    const category = (structuredSpecs as Record<string, unknown>).category;
-    if (typeof category === 'string') return category;
-  }
-
-  const metadata = item.metadata;
-  if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
-    const category = (metadata as Record<string, unknown>).category;
-    if (typeof category === 'string') return category;
-  }
-
-  return '';
-}
-
-function isCategoryMismatchedForDeviceQuery(query: string, item: Record<string, unknown>) {
-  const category = categoryFromItem(item);
-  if (!category) return false;
-
-  const normalizedQuery = query.toLowerCase();
-  const normalizedCategory = category.toLowerCase();
-
-  for (const { token, allowedCategories } of COMPLETE_DEVICE_TOKENS) {
-    if (!token.test(normalizedQuery)) continue;
-    if (!allowedCategories.some((allowedCategory) => normalizedCategory.includes(allowedCategory))) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 function rankAndClassifyItems(items: Record<string, unknown>[], query: string) {
   const queryWords = coreQueryWords(query);
-  const dedupedItems = deduplicateItems(dropFabricatedItems(items));
+  const normalizedQuery = normalizeText(query);
+  const dedupedItems = deduplicateItems(items);
   const primaryItems: Record<string, unknown>[] = [];
   const accessoryItems: Record<string, unknown>[] = [];
 
-  dedupedItems.forEach((item) => {
-    const isAccessory = isAccessoryItem(item, queryWords);
-    const isCategoryMismatch = isCategoryMismatchedForDeviceQuery(query, item);
-    // Complete-device queries (e.g. "gaming laptop", "iphone") must surface
-    // only items in the device's own category. Items whose metadata category
-    // is clearly off-topic (e.g. a Storage SSD for "gaming laptop") are
-    // dropped rather than demoted — otherwise a narrow result set with a
-    // single mismatch still exposes the wrong category at the tail. This is
-    // the BUY-69166 fix that closes the BUY-68365 demote-still-surfaces gap.
-    if (isCategoryMismatch) return;
-    const classifiedItem = {
-      ...item,
-      isAccessory,
-      product_type: isAccessory ? 'accessory' : item.product_type,
-    };
+  // Detect short device-type queries (1-2 words dominated by a single device type)
+  // e.g. "laptop", "gaming laptop", "desktop" — but NOT "laptop ssd" or "laptop stand"
+  const deviceQuery = (() => {
+    const words = normalizedQuery.split(/\s+/).filter((w) => w.length > 1 && !QUERY_STOP_WORDS.has(w));
+    if (words.length === 1 && ['laptop', 'desktop', 'phone', 'tablet'].includes(words[0])) return words[0];
+    if (words.length === 2 && ['laptop', 'desktop', 'phone', 'tablet'].includes(words[0])) return words[0];
+    return null;
+  })();
 
+  dedupedItems.forEach((item) => {
+    const isAccessoryByKeyword = isAccessoryItem(item, queryWords);
+    const itemSearchText = itemSearchText(item);
+
+    // Additional check: for short device-type queries, demote storage devices that don't
+    // explicitly mention the device type in their text (e.g. Firecuda SSD for "gaming laptop")
+    const isStorageMismatch = deviceQuery ? isStorageMismatchForDeviceQuery(item, deviceQuery) : false;
+
+    const isAccessory = isAccessoryByKeyword || isStorageMismatch;
+    const classifiedItem = { ...item, isAccessory, product_type: isAccessory ? 'accessory' : item.product_type };
     if (isAccessory) {
       accessoryItems.push(classifiedItem);
     } else {
