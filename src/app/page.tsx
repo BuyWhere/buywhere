@@ -286,9 +286,9 @@ export default function HomePage() {
       <section role="region" aria-label="Content section" className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-20 md:pt-20 md:pb-24 xl:pt-24 xl:pb-28">
           <div className="max-w-3xl mx-auto text-center mb-6">
-            <div className="mx-auto inline-flex max-w-full items-baseline gap-x-2 rounded-2xl border border-white bg-white px-4 py-1.5 text-xs font-bold text-indigo-900 shadow-sm sm:rounded-full sm:px-3 sm:py-1 sm:text-sm">
-              <span className="inline-block h-2 w-2 shrink-0 translate-y-[1px] self-center rounded-full bg-green-600 sm:translate-y-0" aria-hidden="true"></span>
-              <span className="text-center leading-snug">288 million products. 238,000+ direct merchants. One API.</span>
+            <div className="mx-auto inline-flex max-w-[20rem] items-start gap-x-2 rounded-2xl border border-white bg-white px-4 py-1.5 text-left text-xs font-bold text-indigo-900 shadow-sm sm:max-w-none sm:items-center sm:rounded-full sm:px-3 sm:py-1 sm:text-sm">
+              <span className="mt-[7px] inline-block h-2 w-2 shrink-0 rounded-full bg-green-600 sm:mt-0" aria-hidden="true"></span>
+              <span className="text-center leading-snug sm:text-left">288 million products. 238,000+ direct merchants. One API.</span>
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
               Find the best prices across every store.

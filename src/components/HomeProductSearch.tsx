@@ -113,9 +113,9 @@ export function HomeProductSearch() {
               {error}
             </p>
           ) : (
-            <div className="flex flex-col items-start gap-2 text-sm text-white sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-3 sm:gap-y-2">
-              <span className="font-semibold text-white sm:self-center">Try</span>
-              <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-center">
+            <div className="flex flex-col items-start gap-2 text-sm text-white sm:flex-row sm:items-center sm:justify-center sm:gap-x-3">
+              <span className="font-semibold text-white sm:self-center sm:shrink-0">Try</span>
+              <div className="flex flex-1 flex-wrap items-center justify-start gap-2 sm:justify-center">
                 {exampleQueries.map((example) => (
                   <button
                     key={example}
