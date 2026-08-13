@@ -14,6 +14,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!resolvedProduct) return { title: "Product Not Found", robots: { index: false, follow: false } };
 
   const pageUrl = toSiteUrl(`/products/us/${resolvedProduct.slug}`);
+  const socialImage = `/api/og-image?title=${encodeURIComponent(resolvedProduct.name)}`;
 
   return {
     title: `${resolvedProduct.name} - BuyWhere`,
@@ -28,19 +29,25 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       type: "website",
       images: [
         {
-          url: "/og-image.png",
+          url: socialImage,
           width: 1200,
           height: 630,
           alt: `${resolvedProduct.name} - Compare prices on BuyWhere US`,
         },
       ],
     },
+    twitter: {
+      card: "summary_large_image",
+      title: `${resolvedProduct.name} - BuyWhere`,
+      description: `Compare prices for ${resolvedProduct.name} across Amazon, Walmart, Target, and Best Buy.`,
+      images: [socialImage],
+    },
   };
 }
 
 async function fetchUSProductSSR(productId: string): Promise<USProduct | undefined> {
   const baseUrl = process.env.BUYWHERE_API_INTERNAL_URL || process.env.NEXT_PUBLIC_BUYWHERE_API_URL || "https://api.buywhere.ai";
-  const apiKey = process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
+  const apiKey = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
   const numericId = parseInt(productId.replace(/[^0-9]/g, ""), 10) || 1;
 
   try {
@@ -82,6 +89,36 @@ function resolvedProductName(productId: string): string {
   return `Product ${productId}`;
 }
 
+function buildResolvedProductFallback(resolvedProduct: Awaited<ReturnType<typeof resolveUSProductRoute>>): USProduct | undefined {
+  if (!resolvedProduct) return undefined;
+
+  return {
+    id: resolvedProduct.id,
+    name: resolvedProduct.name,
+    image: "/og-image.png",
+    description: `Compare current catalog offers and merchant options for ${resolvedProduct.name} on BuyWhere US.`,
+    specs: {
+      Region: "United States",
+      "Catalog source": "BuyWhere US product sitemap",
+    },
+    prices: [
+      {
+        merchant: "BuyWhere Catalog",
+        price: null,
+        url: slugToSearchRedirect(resolvedProduct.slug),
+        inStock: true,
+        lastUpdated: resolvedProduct.lastUpdated,
+        price_missing_reason: "retailer_unavailable",
+      },
+    ],
+    overallRating: 0,
+    reviewCount: 0,
+    brand: "",
+    sku: `SKU-${resolvedProduct.id}`,
+    lastUpdated: resolvedProduct.lastUpdated,
+  };
+}
+
 export default async function USProductSlugPage({ params }: PageProps) {
   const resolvedProduct = await resolveUSProductRoute(params.slug);
 
@@ -94,7 +131,7 @@ export default async function USProductSlugPage({ params }: PageProps) {
     permanentRedirect(slugToSearchRedirect(params.slug));
   }
 
-  const initialData = await fetchUSProductSSR(resolvedProduct.id);
+  const initialData = await fetchUSProductSSR(resolvedProduct.id) ?? buildResolvedProductFallback(resolvedProduct);
 
   return <USProductDetail productId={resolvedProduct.id} initialData={initialData} />;
 }
