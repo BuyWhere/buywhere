@@ -16,58 +16,15 @@
 // fix is to strip the offending header at the HTTP entrypoint, before
 // Next sees the request.
 //
-// How: monkey-patch `http.createServer` so when the auto-generated
-// `startServer` from `next/dist/server/lib/start-server` calls
-// `http.createServer(listener)`, our wrapper intercepts the listener,
-// wraps it to delete `next-router-state-tree` on /search and /compare,
-// and then calls the original listener. This stays compatible with the
-// `output: 'standalone'` build (same `next start` code path, same
-// node_modules layout) and only adds the header-strip layer at the
-// HTTP-entrypoint boundary.
+// How: this file is just a thin shim around Next's standalone
+// `startServer` from `next/dist/server/lib/start-server` (same API the
+// auto-generated standalone server.js uses). The actual header stripping
+// happens in `preload-rsc-strip.cjs`, which is loaded via `--require`
+// in NODE_OPTIONS BEFORE any other module is evaluated — so by the
+// time `startServer` calls `http.createServer`, the monkey-patch is
+// already in place. See site.Dockerfile for the NODE_OPTIONS wiring.
 
 const path = require('node:path');
-const http = require('node:http');
-
-// Routes whose Next-Router-State-Tree header is incompatible with the
-// 14.2.35 router-state parser. Add here if QA finds another route that
-// 500s on Chrome RSC nav with a populated __PAGE__ shape.
-const RSTRIPPED_PREFIXES = ['/search', '/compare'];
-
-// Header to strip. Case-insensitive — Node lowercases incoming header keys.
-const RSTATE_HEADER = 'next-router-state-tree';
-
-// Wrap http.createServer BEFORE requiring next so the patch is in place
-// when startServer calls createServer internally.
-const originalCreateServer = http.createServer.bind(http);
-http.createServer = function patchedCreateServer(requestListener, options) {
-  // If a requestListener was provided, wrap it. Otherwise return the
-  // original (no-op) server, the caller can attach listeners later.
-  if (typeof requestListener === 'function') {
-    const wrapped = function wrappedRequestListener(req, res) {
-      try {
-        const url = req.url || '/';
-        const pathname = url.split('?', 1)[0] || '/';
-        if (
-          RSTRIPPED_PREFIXES.some(
-            (p) => pathname === p || pathname.startsWith(p + '/'),
-          ) &&
-          req.headers[RSTATE_HEADER]
-        ) {
-          delete req.headers[RSTATE_HEADER];
-        }
-      } catch (e) {
-        // Never let the strip wrapper itself take down a request.
-      }
-      return requestListener.call(this, req, res);
-    };
-    return originalCreateServer(wrapped, options);
-  }
-  return originalCreateServer(requestListener, options);
-};
-
-// Now delegate to Next 14.2.35's standard `startServer`. The monkey-
-// patched http.createServer above will wrap the listener that startServer
-// installs, adding the header-strip layer transparently.
 const dir = path.join(__dirname);
 process.env.NODE_ENV = 'production';
 process.chdir(dir);
