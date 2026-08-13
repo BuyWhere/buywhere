@@ -22,6 +22,8 @@ export async function GET(): Promise<NextResponse> {
       status: 200,
       headers: {
         "Cache-Control": "no-store, no-cache, must-revalidate",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
       },
     },
   );

@@ -352,3 +352,135 @@ test("parseImageDimensions extracts JPEG SOF and PNG IHDR dimensions", () => {
   assert.equal(isSq({ w: 1000, h: 940 }), true, "1000x940 (AR 1.06) is within ±6% tolerance");
   assert.equal(isSq({ w: 1000, h: 1070 }), true, "1000x1070 (AR 0.93) is within ±6% tolerance");
 });
+
+test("BUY-69167: page-level searchCategory becomes the fallback category when upstream items omit category", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  // The upstream search API returns items with no `category` field set
+  // (mirrors the real-world repro: 16 cards on /laptop-singapore and
+  // /best-robot-vacuums-2026 all came back with category=null). Without the
+  // fix, every branded SVG falls through to the default laptop silhouette
+  // and shows "BuyWhere / Featured product".
+  globalThis.fetch = async (input) => {
+    requestedUrl = String(input);
+    return new Response(
+      JSON.stringify({
+        data: [
+          // Robot vacuum page — should pick up "Robot Vacuums" fallback.
+          { id: "rv1", title: "Roborock S8 MaxV Ultra", price_amount: 1299, price_currency: "USD", merchant_name: "Amazon", click_url: "https://x/r1" },
+          { id: "rv2", title: "iRobot Roomba Combo j9+",  price_amount: 999,  price_currency: "USD", merchant_name: "Best Buy", click_url: "https://x/r2" },
+        ],
+        meta: { total: 2, degraded: false },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  };
+
+  try {
+    const products = await getSeoLandingProducts(seoLandingPages["best-robot-vacuums-2026"]);
+    assert.ok(requestedUrl.includes("category=robot_vacuums"));
+    assert.equal(products.length, 2);
+    for (const product of products) {
+      assert.equal(product.category, "Robot Vacuums", `${product.name} should inherit page-level category`);
+      assert.ok(product.imageUrl && product.imageUrl.startsWith("data:image/svg+xml"), "branded SVG placeholder present");
+      // Silhouette: robot-vac shape uses ellipse cx='60' cy='110'. The default
+      // laptop shape uses rect 0,0 120x80. We assert the SVG embeds the robot
+      // silhouette and NOT the laptop default.
+      assert.match(product.imageUrl!, /ellipse cx='60' cy='110'/, `${product.name} SVG should use robot-vacuum silhouette`);
+      assert.doesNotMatch(product.imageUrl!, /rect x='0' y='0' width='120' height='80' rx='8'/, `${product.name} SVG must not be the generic laptop fallback`);
+      assert.doesNotMatch(product.imageUrl!, /Featured product/, `${product.name} SVG must not show "Featured product" placeholder text`);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  // Now flip the same fixture to laptop-singapore and assert the laptop
+  // silhouette wins (regex: /\blaptop|notebook|macbook|chromebook/).
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        data: [
+          { id: "lp1", title: "MacBook Air 13 M3", price_amount: 1499, price_currency: "SGD", merchant_name: "Apple Store", click_url: "https://x/l1" },
+        ],
+        meta: { total: 1, degraded: false },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+
+  try {
+    const products = await getSeoLandingProducts(seoLandingPages["laptop-singapore"]);
+    assert.equal(products.length, 1);
+    assert.equal(products[0].category, "Laptops");
+    assert.match(products[0].imageUrl!, /rect x='0' y='0' width='120' height='80' rx='8'/, "laptop silhouette should be embedded");
+    assert.match(products[0].imageUrl!, /rect x='-10' y='80' width='140'/, "laptop silhouette base should be embedded");
+    assert.doesNotMatch(products[0].imageUrl!, /Featured product/, "should not show Featured product text");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  // And the gaming-laptops variant — distinct silhouette with the wavy
+  // speaker grille / monitor line (path d='M20 30 L40 45 ...').
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        data: [
+          { id: "gp1", title: "ASUS ROG Zephyrus G16", price_amount: 1999, price_currency: "USD", merchant_name: "Best Buy", click_url: "https://x/g1" },
+        ],
+        meta: { total: 1, degraded: false },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+
+  try {
+    const products = await getSeoLandingProducts(seoLandingPages["best-gaming-laptops-us"]);
+    assert.equal(products.length, 1);
+    assert.equal(products[0].category, "Gaming Laptops");
+    assert.match(products[0].imageUrl!, /M20 30 L40 45 L60 25 L80 50 L100 30/, "gaming-laptop speaker-grille path should be embedded");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("BUY-69167: client ProductGridImage placeholder is category-aware and ProductGridCard passes category through", () => {
+  const imageSource = readFileSync(
+    new URL("../components/seo/ProductGridImage.tsx", import.meta.url),
+    "utf8",
+  );
+  const cardSource = readFileSync(
+    new URL("../components/seo/ProductGridCard.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // The client-side BrandedPlaceholder must include a category-aware
+  // silhouette picker (mirrors categorySilhouette in seo-landing-pages.ts)
+  // and must accept a `category` prop.
+  assert.match(imageSource, /category\?:\s*string\s*\|\s*null/, "ProductGridImage must accept a category prop");
+  assert.match(imageSource, /clientCategorySilhouette/, "ProductGridImage must have a category-aware silhouette helper");
+  assert.match(imageSource, /\\brobot\\s\*vacuum\|roomba\|deebot\|robovac/, "client silhouette must recognise robot-vacuum terms");
+  assert.match(imageSource, /\\blaptop\|notebook\|macbook\|chromebook/, "client silhouette must recognise laptop terms");
+
+  // ProductGridCard must thread category={product.category} into the image.
+  assert.match(cardSource, /category=\{product\.category\}/, "ProductGridCard must pass category to ProductGridImage");
+});
+
+test("BUY-69167: normalizeProduct accepts a categoryFallback and resolves category from upstream first", () => {
+  const source = readFileSync(
+    new URL("./seo-landing-pages.ts", import.meta.url),
+    "utf8",
+  );
+  // The new normalizeProduct signature has the optional 4th arg.
+  assert.match(source, /function normalizeProduct\(\s*item: SearchApiItem,[\s\S]*?categoryFallback\?: string \| null/m);
+  // searchCategoryToLabel helper maps the three known enum tokens.
+  assert.match(source, /function searchCategoryToLabel/);
+  assert.match(source, /case "robot_vacuums":/);
+  assert.match(source, /case "gaming_laptops":/);
+  assert.match(source, /case "laptops":/);
+  // Call site must thread the page-level category.
+  assert.match(source, /searchCategoryToLabel\(config\.searchCategory\)/);
+  // Resolved category flows into the placeholder SVG + LandingProduct.
+  assert.match(source, /imageUrl: brandedProductPlaceholderSvg\([\s\S]*?resolvedCategory/);
+  assert.match(source, /category: resolvedCategory/);
+  // New explicit laptop/gaming-laptop regex branches.
+  assert.match(source, /\\bgaming\\s\*laptop\|gaming\\s\*notebook/);
+  assert.match(source, /\\blaptop\|notebook\|macbook\|chromebook/);
+});

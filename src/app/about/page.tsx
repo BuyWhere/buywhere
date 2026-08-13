@@ -1,16 +1,22 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
-import type { Metadata } from "next";
+
 import Schema from "@/components/Schema";
 import { buildWebPageSchema } from "@/lib/page-schema";
 import { buildPageMetadata } from "@/lib/page-metadata";
-export const metadata = buildPageMetadata({
-  title: "About BuyWhere — AI-Powered Product Catalog",
-  description:
-    "Learn about BuyWhere's mission to build the neutral product catalog layer for AI agents in Southeast Asia.",
-  path: "/about/",
-});
+export const metadata = {
+  ...buildPageMetadata({
+    title: "About BuyWhere — AI-Powered Product Catalog",
+    description:
+      "Learn about BuyWhere's mission to build the neutral product catalog layer for AI agents in Southeast Asia.",
+    path: "/about/",
+  }),
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
 
 const values = [
   {
