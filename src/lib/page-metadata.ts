@@ -29,6 +29,12 @@ export function buildPageMetadata(input: BuildPageMetadataInput): Metadata {
     alternates: {
       canonical,
     },
+    // Explicit robots directive for SEO auditability — landing/marketing pages
+    // are all indexable. BUY-68808.
+    robots: {
+      index: true,
+      follow: true,
+    },
     openGraph: {
       title: input.title,
       description: input.description,
