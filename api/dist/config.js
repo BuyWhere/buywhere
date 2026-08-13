@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.vectorDb = exports.TIER_LIMITS = exports.FREE_TIER = exports.API_BASE_URL = exports.PORT = exports.redis = exports.catalogDb = exports.replicaDb = exports.db = void 0;
+exports.VECTOR_DB_TIMEOUT_MS = exports.vectorDb = exports.TIER_LIMITS = exports.FREE_TIER = exports.API_BASE_URL = exports.PORT = exports.redis = exports.catalogDb = exports.replicaDb = exports.db = void 0;
 const pg_1 = require("pg");
 const ioredis_1 = __importDefault(require("ioredis"));
 // BUY-51454: a missing DATABASE_URL used to silently fall back to localhost:5432, which
@@ -132,13 +132,23 @@ exports.TIER_LIMITS = {
 // (brand/category + FTS) then executes promptly on the main db pool.
 // 10 s is generous for an HNSW-approximate nearest-neighbour scan with <=1000 rows.
 const vectorStatementTimeout = parseInt(process.env.VECTOR_STATEMENT_TIMEOUT || '10000');
+// BUY-63230: hybrid/semantic search must FAIL OPEN to keyword when vector-db is
+// unreachable (e.g. idle-sleeping Railway service). The previous 10s
+// connectionTimeoutMillis meant a cold/unreachable vector-db held an agent's
+// request for the full window before the catch fired — and a slow KNN scan could
+// run another 10s of statement_timeout. Bound connection establishment to
+// ~1.5s and expose VECTOR_DB_TIMEOUT_MS as the overall call budget so the
+// search_products tool degrades within the deadline instead of returning
+// Internal error. Connection establishment is the dominant cost when the service
+// is down; statement_timeout still caps an in-progress scan once connected.
+const vectorConnectionTimeout = parseInt(process.env.VECTOR_CONNECTION_TIMEOUT || '1500');
 exports.vectorDb = process.env.VECTOR_DB_URL
     ? (() => {
         const pool = new pg_1.Pool({
             connectionString: process.env.VECTOR_DB_URL,
             max: 5,
             idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 10000,
+            connectionTimeoutMillis: vectorConnectionTimeout,
         });
         pool.on('connect', (client) => {
             client.query(`SET statement_timeout = ${vectorStatementTimeout}`).catch(() => { });
@@ -146,3 +156,8 @@ exports.vectorDb = process.env.VECTOR_DB_URL
         return pool;
     })()
     : null;
+// BUY-63230: explicit overall bound for vector-db calls (connection + query).
+// Consumers wrap vectorDb.query(...) in withVectorTimeout() so that even a slow
+// connection handshake cannot exceed the fail-open budget. Defaults to 1500ms;
+// override via VECTOR_DB_TIMEOUT_MS.
+exports.VECTOR_DB_TIMEOUT_MS = Number(process.env.VECTOR_DB_TIMEOUT_MS || 1500);

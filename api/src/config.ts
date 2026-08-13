@@ -147,13 +147,24 @@ export const TIER_LIMITS: Record<string, { rpm: number; daily: number; monthlyCa
 // 10 s is generous for an HNSW-approximate nearest-neighbour scan with <=1000 rows.
 const vectorStatementTimeout = parseInt(process.env.VECTOR_STATEMENT_TIMEOUT || '10000');
 
+// BUY-63230: hybrid/semantic search must FAIL OPEN to keyword when vector-db is
+// unreachable (e.g. idle-sleeping Railway service). The previous 10s
+// connectionTimeoutMillis meant a cold/unreachable vector-db held an agent's
+// request for the full window before the catch fired — and a slow KNN scan could
+// run another 10s of statement_timeout. Bound connection establishment to
+// ~1.5s and expose VECTOR_DB_TIMEOUT_MS as the overall call budget so the
+// search_products tool degrades within the deadline instead of returning
+// Internal error. Connection establishment is the dominant cost when the service
+// is down; statement_timeout still caps an in-progress scan once connected.
+const vectorConnectionTimeout = parseInt(process.env.VECTOR_CONNECTION_TIMEOUT || '1500');
+
 export const vectorDb: Pool | null = process.env.VECTOR_DB_URL
   ? (() => {
       const pool = new Pool({
         connectionString: process.env.VECTOR_DB_URL!,
         max: 5,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 10000,
+        connectionTimeoutMillis: vectorConnectionTimeout,
       });
       pool.on('connect', (client) => {
         client.query(`SET statement_timeout = ${vectorStatementTimeout}`).catch(() => {});
@@ -161,3 +172,9 @@ export const vectorDb: Pool | null = process.env.VECTOR_DB_URL
       return pool;
     })()
   : null;
+
+// BUY-63230: explicit overall bound for vector-db calls (connection + query).
+// Consumers wrap vectorDb.query(...) in withVectorTimeout() so that even a slow
+// connection handshake cannot exceed the fail-open budget. Defaults to 1500ms;
+// override via VECTOR_DB_TIMEOUT_MS.
+export const VECTOR_DB_TIMEOUT_MS = Number(process.env.VECTOR_DB_TIMEOUT_MS || 1500);

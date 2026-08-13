@@ -8,14 +8,21 @@ const require = createRequire(import.meta.url);
 process.env.NODE_ENV = 'test';
 process.env.REDIS_HOST = '127.0.0.1';
 process.env.REDIS_PORT = '6379';
+process.env.GEMINI_API_KEY = 'test-gemini-key';
+process.env.VECTOR_DB_URL = 'postgresql://vector:test@127.0.0.1:65535/vector';
+process.env.VECTOR_DB_TIMEOUT_MS = '25';
+process.env.VECTOR_CONNECTION_TIMEOUT = '25';
 
 const queryMock = mock.fn();
+const vectorQueryMock = mock.fn(() => Promise.reject(new Error('connect ECONNREFUSED vector-db')));
 const redisGetMock = mock.fn(() => Promise.resolve(null));
 const redisSetMock = mock.fn(() => Promise.resolve('OK'));
 const redisIncrMock = mock.fn(() => Promise.resolve(1));
 const redisExpireMock = mock.fn(() => Promise.resolve(1));
 
 const config = require('../dist/config');
+const embedProducts = require('../dist/jobs/embedProducts');
+embedProducts.embedQuery = mock.fn(() => Promise.resolve('[0.01,0.02,0.03]'));
 // Mock client returned by db.connect() — the route uses db.connect() for search queries
 const mockClient = {
   query: queryMock,
@@ -23,6 +30,7 @@ const mockClient = {
 };
 config.db.query = queryMock;
 config.db.connect = mock.fn(() => Promise.resolve(mockClient));
+if (config.vectorDb) config.vectorDb.query = vectorQueryMock;
 config.redis.get = redisGetMock;
 config.redis.set = redisSetMock;
 config.redis.incr = redisIncrMock;
@@ -66,9 +74,11 @@ function defaultQueryHandler(sql, params) {
 
 function setupDefaultMocks() {
   queryMock.mock.resetCalls();
+  vectorQueryMock.mock.resetCalls();
   redisGetMock.mock.resetCalls();
   redisSetMock.mock.resetCalls();
   queryMock.mock.mockImplementation(defaultQueryHandler);
+  vectorQueryMock.mock.mockImplementation(() => Promise.reject(new Error('connect ECONNREFUSED vector-db')));
   redisGetMock.mock.mockImplementation(() => Promise.resolve(null));
 }
 
@@ -95,6 +105,7 @@ after(() => {
   // Disconnect Redis and Pool to prevent event-loop hang
   try { config.redis.disconnect(); } catch {}
   try { config.db.end(); } catch {}
+  try { config.vectorDb?.end(); } catch {}
 });
 beforeEach(() => { setupDefaultMocks(); });
 
@@ -264,6 +275,54 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     assert.equal(data.data[0].canonical_id, '1');
     assert.ok(data.data[0].normalized_price_usd != null);
     assert.ok(Array.isArray(data.data[0].comparison_attributes));
+  });
+
+  // BUY-63230: hybrid search must fail open to keyword FTS when vector-db is unreachable.
+  // When vectorDb.query() rejects (connection refused / timeout), queryVectorDb returns
+  // null, hybrid degrades to FTS-only RRF, and the tool returns keyword results instead
+  // of an Internal error. Semantic mode must return a truthful zero (not keyword results).
+  it('BUY-63230 hybrid mode=default falls back to keyword when vector-db is down', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 99, method: 'tools/call',
+        params: { name: 'search_products', arguments: { q: 'laptop' } },
+        // mode defaults to 'hybrid'
+      }),
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200, JSON.stringify(body));
+    assert.equal(body.jsonrpc, '2.0');
+    assert.ok(body.result, JSON.stringify(body));
+    assert.equal(body.result.content[0].type, 'text');
+    const data = JSON.parse(body.result.content[0].text);
+    // Must return actual results via FTS, not Internal error
+    assert.ok(Array.isArray(data.data), 'hybrid fallback should return array, not error');
+    assert.equal(data.data.length, 2, 'hybrid should return FTS results');
+    assert.equal(data.data[0].title, 'Gaming Laptop');
+    // Verify vector path was attempted and failed
+    assert.ok(
+      vectorQueryMock.mock.calls.length > 0,
+      'vectorDb.query should have been called',
+    );
+  });
+
+  it('BUY-63230 semantic mode returns zero results (not keyword) when vector-db is down', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 98, method: 'tools/call',
+        params: { name: 'search_products', arguments: { q: 'laptop', mode: 'semantic' } },
+      }),
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200, JSON.stringify(body));
+    const data = JSON.parse(body.result.content[0].text);
+    // Semantic must NOT silently become keyword — truthful zero on vector failure
+    assert.equal(data.data.length, 0, 'semantic must return zero, not keyword fallback');
+    assert.equal(data.meta.total, 0);
   });
 
   it('get_product returns single product', async () => {

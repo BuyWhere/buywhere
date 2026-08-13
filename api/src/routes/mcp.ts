@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { db, redis, vectorDb } from '../config';
+import type { QueryResultRow } from 'pg';
+import { db, redis, vectorDb, VECTOR_DB_TIMEOUT_MS } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -89,6 +90,53 @@ function withToolDeadline<T>(promise: Promise<T>, ms: number, toolName: string):
   ]).finally(() => {
     if (timer) clearTimeout(timer);
   });
+}
+
+// BUY-63230: race a vector-db call against an overall budget so hybrid search
+// FAILS OPEN to keyword when vector-db is unreachable or slow. The pool's
+// connectionTimeoutMillis caps socket establishment, but a slow KNN scan or a
+// hung handshake can still exceed it; this race is the hard backstop. On timeout
+// or any connection error, callers degrade via their existing fallback behavior
+// (hybrid => FTS-only; semantic => truthful empty set) instead of surfacing
+// Internal error to the agent.
+function withVectorTimeout<T>(
+  promise: Promise<T>,
+  ms: number = VECTOR_DB_TIMEOUT_MS,
+  label = 'vector-db',
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`${label}_timeout (budget ${ms}ms)`)),
+        ms,
+      );
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+// BUY-63230: convenience wrapper for vectorDb.query() that applies the fail-open
+// budget. Returns null on timeout or any connection/query error so callers can
+// treat vector-db unavailability uniformly and degrade to keyword results.
+async function queryVectorDb<T extends QueryResultRow>(
+  text: string,
+  values: unknown[],
+  label = 'vector-db',
+): Promise<{ rows: T[] } | null> {
+  if (!vectorDb) return null;
+  try {
+    return await withVectorTimeout(
+      vectorDb.query<T>(text, values as unknown as never[]),
+      VECTOR_DB_TIMEOUT_MS,
+      label,
+    );
+  } catch (err) {
+    console.warn(`[search] ${label} unavailable, failing open to keyword:`, (err as Error)?.message || err);
+    return null;
+  }
 }
 
 // MCP tools manifest
@@ -392,38 +440,36 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           let vectorCandidateIds: string[] | null = null;
 
           if (mode === 'semantic') {
-            // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
-            try {
-              // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
-              const vecRows = await vectorDb.query<{ product_id: string }>(
-                `SELECT product_id FROM product_embeddings
-                 WHERE model_ver = 'gemini-embedding-001@512'
-                 ORDER BY embedding <=> $1::vector LIMIT 200`,
-                [queryVec]
-              );
-              vectorCandidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
-            } catch (vecErr) {
-              // BUY-65474: dimension mismatch or other error — fall through to FTS
-              console.warn('[search] vector query failed, falling back to FTS:', (vecErr as Error).message);
-              vectorCandidateIds = null;
-            }
+            // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details.
+            // BUY-63230: queryVectorDb bounds the call to VECTOR_DB_TIMEOUT_MS and
+            // returns null on timeout/connection error so semantic fails open via
+            // the existing truthful-empty path instead of surfacing Internal error.
+            // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors.
+            const vecRows = await queryVectorDb<{ product_id: string }>(
+              `SELECT product_id FROM product_embeddings
+               WHERE model_ver = 'gemini-embedding-001@512'
+               ORDER BY embedding <=> $1::vector LIMIT 200`,
+              [queryVec],
+              'semantic-vector',
+            );
+            vectorCandidateIds = vecRows
+              ? vecRows.rows.map(r => r.product_id).slice(0, limit + offset)
+              : null;
           } else {
-            // Hybrid: app-level RRF of FTS ranks + vector ranks
+            // Hybrid: app-level RRF of FTS ranks + vector ranks.
+            // BUY-63230: queryVectorDb bounds the call (fails open → empty vecRows on
+            // timeout/error), so hybrid degrades to FTS-only RRF when vector-db is down.
             let vecRows: { product_id: string }[] = [];
             let ftsRows: { id: string }[] = [];
-            try {
-              // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
-              const vecResult = await vectorDb.query<{ product_id: string }>(
-                `SELECT product_id FROM product_embeddings
-                 WHERE model_ver = 'gemini-embedding-001@512'
-                 ORDER BY embedding <=> $1::vector LIMIT 200`,
-                [queryVec]
-              );
-              vecRows = vecResult.rows;
-            } catch (vecErr) {
-              // BUY-65474: dimension mismatch — use FTS only
-              console.warn('[search] hybrid vector query failed, FTS only:', (vecErr as Error).message);
-            }
+            // BUY-65476: filter by model_ver to avoid legacy 1024-dim vectors
+            const vecResult = await queryVectorDb<{ product_id: string }>(
+              `SELECT product_id FROM product_embeddings
+               WHERE model_ver = 'gemini-embedding-001@512'
+               ORDER BY embedding <=> $1::vector LIMIT 200`,
+              [queryVec],
+              'hybrid-vector',
+            );
+            vecRows = vecResult ? vecResult.rows : [];
             try {
               const ftsResult = await searchClient.query<{ id: string }>(
                 `SELECT id FROM products ${where} LIMIT 200`,
