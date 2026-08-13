@@ -8,7 +8,56 @@ const API_BASE_URL = (
 ).replace(/\/$/, '');
 
 const API_KEY = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || '';
-const ALLOWED_PARAMS = new Set(['q', 'country', 'country_code', 'limit', 'cursor', 'offset']);
+const ALLOWED_PARAMS = new Set(['q', 'country', 'country_code', 'category', 'limit', 'cursor', 'offset']);
+// Categories that are storage components — these are mismatch candidates when the query
+// is a device type (laptop/desktop/phone/tablet) that does NOT appear in the category name
+const STORAGE_CATEGORIES = new Set(['Storage', 'Hard Drives', 'Solid State Drives', 'External Storage']);
+
+// For device-type queries, demote items whose category is a storage component but whose
+// category name does not include the device type (e.g. Storage for "gaming laptop")
+function isStorageMismatchForDeviceQuery(item: Record<string, unknown>, deviceQuery: string) {
+  const normalizedDevice = deviceQuery.toLowerCase();
+  if (!['laptop', 'desktop', 'phone', 'tablet'].includes(normalizedDevice)) return false;
+
+  const category = normalizeText(item.category);
+  if (!category) return false;
+
+  // If the category itself mentions the device type, it's not a mismatch
+  if (category.includes(normalizedDevice)) return false;
+
+  // Demote known storage categories
+  return Array.from(STORAGE_CATEGORIES).some((cat) => category.includes(cat.toLowerCase()));
+}
+
+const ACCESSORY_KEYWORDS = [
+  'adapter',
+  'battery',
+  'cable',
+  'case',
+  'charger',
+  'charging',
+  'cover',
+  'ear pad',
+  'ear pads',
+  'ear cushion',
+  'ear cushions',
+  'earcup',
+  'earcups',
+  'foam',
+  'holder',
+  'mount',
+  'pad',
+  'pads',
+  'part',
+  'parts',
+  'protector',
+  'replacement',
+  'sleeve',
+  'stand',
+  'strap',
+  'usb',
+];
+const QUERY_STOP_WORDS = new Set(['a', 'an', 'and', 'best', 'for', 'in', 'of', 'the', 'to', 'with']);
 
 type SearchFallbackItem = {
   id: string;
@@ -173,6 +222,17 @@ const SEARCH_FALLBACKS: SearchFallback[] = [
   },
 ];
 
+function slugifyProductName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-');
+}
+
 function pickSearchFallback(query: string, countryCode: string) {
   const normalizedQuery = query.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   if (!normalizedQuery) return null;
@@ -194,22 +254,27 @@ function isDegradedZero(data: UpstreamSearchResponse | null) {
 
 function buildFallbackResponse(data: UpstreamSearchResponse | null, fallback: SearchFallback) {
   const fallbackUrl = `/${fallback.slug}`;
-  const items: SearchFallbackItem[] = fallback.products.map((product, index) => ({
-    id: `fallback-${fallback.slug}-${index + 1}`,
-    title: product.name,
-    name: product.name,
-    price: { amount: product.price, currency: fallback.currency },
-    price_amount: product.price,
-    price_currency: fallback.currency,
-    currency: fallback.currency,
-    merchant: product.merchant,
-    merchant_name: product.merchant,
-    source: 'editorial_fallback',
-    url: fallbackUrl,
-    click_url: fallbackUrl,
-    brand: product.brand,
-    category: fallback.category,
-  }));
+  const countryPrefix = fallback.country === 'SG' ? 'sg' : 'us';
+  const items: SearchFallbackItem[] = fallback.products.map((product, index) => {
+    const productSlug = slugifyProductName(product.name);
+    const productUrl = `/products/${countryPrefix}/${productSlug}`;
+    return {
+      id: `fallback-${fallback.slug}-${index + 1}`,
+      title: product.name,
+      name: product.name,
+      price: { amount: product.price, currency: fallback.currency },
+      price_amount: product.price,
+      price_currency: fallback.currency,
+      currency: fallback.currency,
+      merchant: product.merchant,
+      merchant_name: product.merchant,
+      source: 'editorial_fallback',
+      url: productUrl,
+      click_url: productUrl,
+      brand: product.brand,
+      category: fallback.category,
+    };
+  });
 
   return {
     ...data,
@@ -233,6 +298,112 @@ function buildFallbackResponse(data: UpstreamSearchResponse | null, fallback: Se
     },
     hint: `Live search is degraded, so we are showing curated ${fallback.label.toLowerCase()} picks with a populated BuyWhere guide.`,
   };
+}
+
+function normalizeUpstreamItems(items: Record<string, unknown>[], countryCode: string): Record<string, unknown>[] {
+  if (items.length <= 1) return items;
+
+  const countryPrefix = countryCode.toUpperCase() === 'SG' ? 'sg' : 'us';
+  const urls = items.map((item) => item.url || item.click_url).filter(Boolean);
+  const allSameUrl = urls.length > 1 && new Set(urls).size === 1;
+
+  if (!allSameUrl) return items;
+
+  return items.map((item) => {
+    const name = (typeof item.name === 'string' && item.name) || (typeof item.title === 'string' && item.title) || '';
+    if (!name) return item;
+    const productSlug = slugifyProductName(name);
+    const productUrl = `/products/${countryPrefix}/${productSlug}`;
+    return {
+      ...item,
+      url: productUrl,
+      click_url: productUrl,
+    };
+  });
+}
+
+function normalizeText(value: unknown) {
+  return typeof value === 'string' ? value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() : '';
+}
+
+function coreQueryWords(query: string) {
+  return normalizeText(query)
+    .split(/\s+/)
+    .filter((word) => word.length > 1 && !QUERY_STOP_WORDS.has(word));
+}
+
+function itemSearchText(item: Record<string, unknown>) {
+  return [item.name, item.title, item.brand, item.category].map(normalizeText).filter(Boolean).join(' ');
+}
+
+function isAccessoryItem(item: Record<string, unknown>, queryWords: string[]) {
+  const searchText = itemSearchText(item);
+  if (!searchText) return false;
+
+  const hasAccessoryKeyword = ACCESSORY_KEYWORDS.some((keyword) => searchText.includes(keyword));
+  if (!hasAccessoryKeyword) return false;
+  if (queryWords.length === 0) return true;
+
+  const matchedQueryWords = queryWords.filter((word) => searchText.includes(word)).length;
+  return matchedQueryWords / queryWords.length < 0.5;
+}
+
+function dedupeKey(item: Record<string, unknown>) {
+  const name = normalizeText(item.name || item.title);
+  const brand = normalizeText(item.brand);
+  if (!name) return '';
+
+  return `${brand}:${name}`
+    .replace(/\b(new|sale|deal|official|authentic|original)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .slice(0, 80);
+}
+
+function deduplicateItems(items: Record<string, unknown>[]) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = dedupeKey(item);
+    if (!key) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function rankAndClassifyItems(items: Record<string, unknown>[], query: string) {
+  const queryWords = coreQueryWords(query);
+  const normalizedQuery = normalizeText(query);
+  const dedupedItems = deduplicateItems(items);
+  const primaryItems: Record<string, unknown>[] = [];
+  const accessoryItems: Record<string, unknown>[] = [];
+
+  // Detect short device-type queries (1-2 words dominated by a single device type)
+  // e.g. "laptop", "gaming laptop", "desktop" — but NOT "laptop ssd" or "laptop stand"
+  const deviceQuery = (() => {
+    const words = normalizedQuery.split(/\s+/).filter((w) => w.length > 1 && !QUERY_STOP_WORDS.has(w));
+    if (words.length === 1 && ['laptop', 'desktop', 'phone', 'tablet'].includes(words[0])) return words[0];
+    if (words.length === 2 && ['laptop', 'desktop', 'phone', 'tablet'].includes(words[0])) return words[0];
+    return null;
+  })();
+
+  dedupedItems.forEach((item) => {
+    const isAccessoryByKeyword = isAccessoryItem(item, queryWords);
+    const itemSearchText = itemSearchText(item);
+
+    // Additional check: for short device-type queries, demote storage devices that don't
+    // explicitly mention the device type in their text (e.g. Firecuda SSD for "gaming laptop")
+    const isStorageMismatch = deviceQuery ? isStorageMismatchForDeviceQuery(item, deviceQuery) : false;
+
+    const isAccessory = isAccessoryByKeyword || isStorageMismatch;
+    const classifiedItem = { ...item, isAccessory, product_type: isAccessory ? 'accessory' : item.product_type };
+    if (isAccessory) {
+      accessoryItems.push(classifiedItem);
+    } else {
+      primaryItems.push(classifiedItem);
+    }
+  });
+
+  return [...primaryItems, ...accessoryItems];
 }
 
 export async function GET(request: NextRequest) {
@@ -282,6 +453,15 @@ export async function GET(request: NextRequest) {
 
     if (fallback) {
       return NextResponse.json(buildFallbackResponse(data, fallback));
+    }
+
+    const itemKey = data?.items ? 'items' : data?.results ? 'results' : data?.products ? 'products' : data?.data ? 'data' : null;
+    if (itemKey && Array.isArray(data[itemKey]) && data[itemKey].length > 0) {
+      data[itemKey] = rankAndClassifyItems(normalizeUpstreamItems(data[itemKey], countryCode), query);
+      if (itemKey !== 'data' && data.data) data.data = data[itemKey];
+      if (itemKey !== 'items' && data.items) data.items = data[itemKey];
+      if (itemKey !== 'results' && data.results) data.results = data[itemKey];
+      if (itemKey !== 'products' && data.products) data.products = data[itemKey];
     }
 
     return NextResponse.json(data);
