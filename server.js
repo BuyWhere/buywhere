@@ -16,30 +16,13 @@
 // fix is to strip the offending header at the HTTP entrypoint, before
 // Next sees the request.
 //
-// How: this file is just a thin shim around Next's standalone
-// `startServer` from `next/dist/server/lib/start-server` (same API the
-// auto-generated standalone server.js uses). The actual header stripping
-// happens in `preload-rsc-strip.cjs`, which is loaded via `--require`
-// in NODE_OPTIONS BEFORE any other module is evaluated — so by the
-// time `startServer` calls `http.createServer`, the monkey-patch is
-// already in place. See site.Dockerfile for the NODE_OPTIONS wiring.
+// How: this file delegates to the auto-generated standalone server.js
+// (copied to /app/.next-deploy-original/server.js by the Dockerfile so
+// the auto-generated file isn't clobbered by my COPY). The actual
+// header stripping happens in `preload-rsc-strip.cjs`, which is
+// loaded via `--require` in NODE_OPTIONS BEFORE any other module is
+// evaluated — so by the time `startServer` calls `http.createServer`,
+// the monkey-patch is already in place. See site.Dockerfile for the
+// wiring.
 
-const path = require('node:path');
-const dir = path.join(__dirname);
-process.env.NODE_ENV = 'production';
-process.chdir(dir);
-
-const { startServer } = require('next/dist/server/lib/start-server');
-
-startServer({
-  dir,
-  isDev: false,
-  port: parseInt(process.env.PORT, 10) || 3000,
-  hostname: process.env.HOSTNAME || '0.0.0.0',
-  allowRetry: false,
-  keepAliveTimeout: undefined,
-  selfSignedCertificate: undefined,
-}).catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+require('./.next-deploy-original/server.js');
