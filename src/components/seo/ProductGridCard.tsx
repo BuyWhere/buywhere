@@ -83,6 +83,10 @@ export function ProductGridCard({ product, compact = false }: { product: Landing
           alt={product.name}
           brand={product.brand}
           merchant={product.merchant}
+          // BUY-69167: thread the page-resolved category through to the
+          // client fallback so the onError placeholder matches the data-
+          // layer branded SVG silhouette for the same product.
+          category={product.category}
         />
       </div>
 

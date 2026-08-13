@@ -216,7 +216,35 @@ function normalizeExternalHref(...values: Array<string | null | undefined>) {
   return "#";
 }
 
-function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPrice?: number): LandingProduct | null {
+/**
+ * Map a `searchCategory` enum (the internal API token used by
+ * `SeoLandingPageConfig.searchCategory`) to a human-readable category label.
+ * Used as the fallback `category` when individual items from the upstream
+ * search API omit their own `category` field — without this fallback, every
+ * catalog card on /best-robot-vacuums-2026 and /laptop-singapore renders with
+ * an empty `category`, the silhouette regex falls through to the default
+ * laptop icon, and the QA-visible "generic/wrong placeholder" report is
+ * produced (BUY-69167).
+ */
+function searchCategoryToLabel(searchCategory?: string | null): string | null {
+  switch ((searchCategory || "").toLowerCase()) {
+    case "robot_vacuums":
+      return "Robot Vacuums";
+    case "gaming_laptops":
+      return "Gaming Laptops";
+    case "laptops":
+      return "Laptops";
+    default:
+      return null;
+  }
+}
+
+function normalizeProduct(
+  item: SearchApiItem,
+  fallbackCurrency: string,
+  minPrice?: number,
+  categoryFallback?: string | null,
+): LandingProduct | null {
   // Currency guard: only keep products priced in the page's currency. The
   // upstream catalog frequently returns wrong-region rows (e.g. INR/PHP/GBP
   // "laptop" listings for an SG page) that would otherwise displace honest
@@ -252,6 +280,16 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
 
   const imageUrl = item.image_url || item.image || null;
 
+  // BUY-69167: prefer the upstream `category` field, but fall back to the
+  // page-level `categoryFallback` when the item omits it. The upstream search
+  // API routinely returns products with empty `category` even on category-
+  // scoped queries (e.g. all 16 items on /laptop-singapore and
+  // /best-robot-vacuums-2026 came back with category=null). Without this
+  // fallback the placeholder SVG fell through to the generic laptop icon
+  // and showed "BuyWhere / Featured product" on every card — QA reported
+  // this as "generic/wrong placeholder graphics instead of product photos".
+  const resolvedCategory = item.category || categoryFallback || null;
+
   return {
     id: String(item.id),
     name: item.name || item.title || "Untitled product",
@@ -269,7 +307,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     imageUrl: brandedProductPlaceholderSvg(
       item.brand || null,
       item.name || null,
-      item.category || null,
+      resolvedCategory,
     ),
     href: normalizeExternalHref(
       item.affiliate_redirect_url,
@@ -280,7 +318,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
       item.url,
     ),
     brand: item.brand || null,
-    category: item.category || null,
+    category: resolvedCategory,
     updatedAt: item.updated_at || null,
   };
 }
@@ -394,7 +432,27 @@ function categorySilhouette(category?: string | null, name?: string | null): str
       <circle cx='60' cy='100' r='22' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
       <path d='M110 60 Q135 60 135 90 Q135 115 110 115' fill='none' stroke='#b45309' stroke-width='4'/>`;
   }
-  // default: laptop (BUY-63954 evidence shows laptops on the affected pages)
+  if (/\bgaming\s*laptop|gaming\s*notebook/.test(text)) {
+    return `
+      <rect x='0' y='0' width='120' height='70' rx='6' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
+      <rect x='10' y='8' width='100' height='54' rx='2' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
+      <rect x='-10' y='70' width='140' height='8' rx='3' fill='#b45309'/>
+      <rect x='50' y='78' width='20' height='4' rx='2' fill='#b45309'/>
+      <path d='M20 30 L40 45 L60 25 L80 50 L100 30' fill='none' stroke='#b45309' stroke-width='3'/>`;
+  }
+  if (/\blaptop|notebook|macbook|chromebook/.test(text)) {
+    return `
+      <rect x='0' y='0' width='120' height='80' rx='8' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
+      <rect x='10' y='10' width='100' height='60' rx='2' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
+      <rect x='-10' y='80' width='140' height='8' rx='3' fill='#b45309'/>
+      <rect x='50' y='88' width='20' height='4' rx='2' fill='#b45309'/>`;
+  }
+  // default: laptop (BUY-63954 evidence shows laptops on the affected pages
+  // and this is the most common generic-product fallback for the live catalog
+  // snapshot on /laptop-singapore + /best-gaming-laptops-us). BUY-69167: this
+  // default only fires for items that match none of the regex branches above,
+  // so /best-robot-vacuums-2026 cards no longer collapse to this shape once
+  // their `category` is resolved from the page-level searchCategory.
   return `
     <rect x='0' y='0' width='120' height='80' rx='8' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
     <rect x='10' y='10' width='100' height='60' rx='2' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
@@ -966,7 +1024,15 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       }
 
       for (const item of items) {
-        const product = normalizeProduct(item, config.currency, config.minPrice);
+        const product = normalizeProduct(
+          item,
+          config.currency,
+          config.minPrice,
+          // BUY-69167: pass the page-level searchCategory-derived label so
+          // items that omit `category` still get the page-appropriate
+          // silhouette + category chip.
+          searchCategoryToLabel(config.searchCategory),
+        );
         if (!product) continue;
         if (!hasUsableLiveCard(product)) continue;
         if (isExcludedAccessory(product, config)) continue;
