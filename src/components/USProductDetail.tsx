@@ -224,6 +224,12 @@ const MERCHANT_INFO: Record<string, { color: string; bgColor: string; accentColo
     accentColor: "border-blue-300",
     icon: "🏪",
   },
+  "BuyWhere Catalog": {
+    color: "text-indigo-700",
+    bgColor: "bg-indigo-50",
+    accentColor: "border-indigo-200",
+    icon: "🔎",
+  },
 };
 
 function formatPrice(price: string | null, isZeroPrice?: boolean): string {
@@ -274,7 +280,7 @@ function USRetailerCard({
   productInCompare?: boolean;
   onToggleCompare?: () => void;
 }) {
-  const info = MERCHANT_INFO[price.merchant];
+  const info = MERCHANT_INFO[price.merchant] || MERCHANT_INFO["BuyWhere Catalog"];
 
   return (
     <div
@@ -708,7 +714,7 @@ export default function USProductDetail({ productId, initialData }: USProductDet
   const inCompare = product ? isInCompare(product.id) : false;
   const availablePrices = product?.prices.filter((p) => p.price !== null) ?? [];
   const productSlug = product ? (product.slug || buildUSProductSlug(product)) : null;
-  const verifiedRetailerCount = product?.prices.filter((price) => MERCHANT_INFO[price.merchant]).length ?? 0;
+  const verifiedRetailerCount = product?.prices.filter((price) => Boolean(MERCHANT_INFO[price.merchant])).length ?? 0;
   const lowestPrice = availablePrices.length > 0
     ? availablePrices.reduce((min, p) => {
         const minVal = parseFloat(min.price!);
@@ -801,12 +807,16 @@ export default function USProductDetail({ productId, initialData }: USProductDet
         }
       }
     } catch {
-      setError(true);
+      if (!product) {
+        setError(true);
+      }
       setLoading(false);
       return;
     }
 
-    setNotFound(true);
+    if (!product) {
+      setNotFound(true);
+    }
     setLoading(false);
   };
 
