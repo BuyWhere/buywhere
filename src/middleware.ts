@@ -358,14 +358,20 @@ export function middleware(request: NextRequest) {
   const isBuywherePopulatedRoute =
     (pathname === "/search" || pathname === "/compare") && isRscRequest && !!routerState && /__PAGE__/.test(routerState);
   if (isBuywherePopulatedRoute) {
-    const rewriteUrl = request.nextUrl.clone();
-    rewriteUrl.pathname = pathname === "/search" ? "/rsc-rewrite/search" : "/rsc-rewrite/compare";
-    const cleanedHeaders = new Headers(request.headers);
-    cleanedHeaders.delete("next-router-state-tree");
-    cleanedHeaders.delete("Next-Router-State-Tree");
-    const response = NextResponse.rewrite(rewriteUrl, { request: { headers: cleanedHeaders } });
-    response.headers.set("x-buywhere-69260-rewrite", "1");
-    return response;
+    // Return a synthetic 200 RSC payload directly.  This bypasses the App
+    // Router entirely so Next 14.2.35's router-state parser never sees the
+    // populated __PAGE__ shape.  Chrome's app-router client receives the 200
+    // and falls back to URL-derived state for the visible page.
+    const emptyRsc = "0:[]\n";
+    return new NextResponse(emptyRsc, {
+      status: 200,
+      headers: {
+        "content-type": "text/x-component",
+        "x-buywhere-69260-rewrite": "1",
+        vary: "RSC, Next-Router-State-Tree, Next-Router-Prefetch, Accept-Encoding",
+        "cache-control": "private, no-cache, no-store, max-age=0, must-revalidate",
+      },
+    });
   }
 
   // Bypass all middleware for static files
