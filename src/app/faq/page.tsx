@@ -3,11 +3,36 @@ import Footer from "@/components/Footer";
 import type { Metadata } from "next";
 import { toSiteUrl } from "@/lib/site-url";
 
+const FAQ_TITLE = "FAQ — BuyWhere";
+const FAQ_DESCRIPTION = "Top 10 questions about BuyWhere — how it works, what's covered, how accurate prices are, and more.";
+const FAQ_CANONICAL_URL = toSiteUrl("/faq");
+
 export const metadata: Metadata = {
-  title: "FAQ — BuyWhere",
-  description: "Top 10 questions about BuyWhere — how it works, what's covered, how accurate prices are, and more.",
+  title: FAQ_TITLE,
+  description: FAQ_DESCRIPTION,
   alternates: {
-    canonical: toSiteUrl("/faq/"),
+    canonical: FAQ_CANONICAL_URL,
+  },
+  openGraph: {
+    title: FAQ_TITLE,
+    description: FAQ_DESCRIPTION,
+    url: FAQ_CANONICAL_URL,
+    type: "website",
+    siteName: "BuyWhere",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: FAQ_TITLE,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: FAQ_TITLE,
+    description: FAQ_DESCRIPTION,
+    images: ["/og-image.png"],
   },
 };
 

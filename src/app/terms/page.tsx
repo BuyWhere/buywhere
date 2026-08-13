@@ -1,19 +1,59 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import type { Metadata } from "next";
+import Schema from "@/components/Schema";
 import { toSiteUrl } from "@/lib/site-url";
+import { buildWebPageSchema } from "@/lib/page-schema";
+
+const TERMS_TITLE = "Terms of Service — BuyWhere";
+const TERMS_DESCRIPTION = "BuyWhere Terms of Service";
+const TERMS_CANONICAL_URL = toSiteUrl("/terms");
 
 export const metadata: Metadata = {
-  title: "Terms of Service — BuyWhere",
-  description: "BuyWhere Terms of Service",
+  title: TERMS_TITLE,
+  description: TERMS_DESCRIPTION,
   alternates: {
-    canonical: toSiteUrl("/terms/"),
+    canonical: TERMS_CANONICAL_URL,
+  },
+  // BUY-68808: explicit index/follow for legal landing pages.
+  robots: { index: true, follow: true },
+  openGraph: {
+    title: TERMS_TITLE,
+    description: TERMS_DESCRIPTION,
+    url: TERMS_CANONICAL_URL,
+    type: "website",
+    siteName: "BuyWhere",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: TERMS_TITLE,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TERMS_TITLE,
+    description: TERMS_DESCRIPTION,
+    images: ["/og-image.png"],
   },
 };
+
+const jsonLd = buildWebPageSchema({
+  path: "/terms",
+  name: "Terms of Service — BuyWhere",
+  description: "BuyWhere Terms of Service",
+  breadcrumb: [
+    { name: "Home", path: "/" },
+    { name: "Terms of Service", path: "/terms" },
+  ],
+});
 
 export default function TermsPage() {
   return (
     <div className="flex flex-col min-h-screen">
+      <Schema data={jsonLd} />
       <Nav />
 
       <main id="main-content" className="flex-1 py-16">

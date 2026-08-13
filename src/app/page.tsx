@@ -6,9 +6,34 @@ import { TrustLayer } from "@/components/TrustLayer";
 import { PopularComparisons } from "@/components/PopularComparisons";
 import { HomeProductSearch } from "@/components/HomeProductSearch";
 
+const HOME_URL = "https://buywhere.ai/";
+
 export const metadata: Metadata = {
   alternates: {
-    canonical: "/",
+    canonical: HOME_URL,
+  },
+  openGraph: {
+    title: "BuyWhere — MCP Server and Product Catalog API for AI Agents",
+    description:
+      "BuyWhere is the MCP server and product catalog API for AI agents: real-time search, price comparison, and merchant handoff across Southeast Asia and the US.",
+    url: HOME_URL,
+    type: "website",
+    siteName: "BuyWhere",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "BuyWhere API — Product Catalog for AI Shopping Agents",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "BuyWhere — MCP Server and Product Catalog API for AI Agents",
+    description:
+      "BuyWhere is the MCP server and product catalog API for AI agents: real-time search, price comparison, and merchant handoff across Southeast Asia and the US.",
+    images: ["/og-image.png"],
   },
 };
 
