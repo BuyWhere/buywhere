@@ -96,7 +96,8 @@ export default function BillingPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(BILLING_JSON_LD) }}
       />
 
-      <section className="flex-1 bg-slate-50 py-20">
+      <main id="main-content" tabIndex={-1} className="flex-1">
+        <section className="bg-slate-50 py-20">
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <div className="rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
             <div className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
@@ -135,7 +136,8 @@ export default function BillingPage({
             </div>
           </div>
         </div>
-      </section>
+        </section>
+      </main>
 
       <Footer />
     </div>
