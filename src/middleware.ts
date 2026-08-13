@@ -352,6 +352,30 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // BUY-69260: Next.js 14.2.35 throws
+  //   "The router state header was sent but could not be parsed."
+  // when an RSC navigation request carries a populated Next-Router-State-Tree
+  // header. The app-page runtime rejects the request with HTTP 500 before any
+  // user code runs — error.tsx can't catch it. PR #473 originally added this
+  // strip in commit 27113c030 but the merge into main (12bcfd452) dropped it
+  // from src/middleware.ts; live still 500s on the populated __PAGE__ shape
+  // that VidMee + BUY-66904 measured. For RSC navigation requests to /search
+  // and /compare, strip the Next-Router-State-Tree header so Next.js falls
+  // back to a fresh route render (still 200, still the intended content). The
+  // route is force-dynamic + has per-route error.tsx + Promise<searchParams>,
+  // so a fresh render is safe.
+  const rscFlag = request.headers.get("rsc");
+  const routerStateHeader = request.headers.get("next-router-state-tree");
+  if (
+    rscFlag === "1" &&
+    routerStateHeader &&
+    (pathname === "/search" || pathname === "/compare")
+  ) {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.delete("next-router-state-tree");
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
   // BUY-65437: Rewrite /developers/robots.txt -> /robots.txt and /developers/sitemap.xml -> /sitemap.xml
   // The Next.js file-based routing matches .txt/.xml extensions before middleware can rewrite,
   // so we need explicit rewrites for these legacy routes that were working before.
