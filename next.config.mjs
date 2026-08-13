@@ -79,6 +79,34 @@ const nextConfig = {
         source: '/mcp',
         destination: 'https://mcp.buywhere.ai/mcp',
       },
+      // BUY-69260: Chrome RSC navigation sends `Next-Router-State-Tree` carrying
+      // a populated `__PAGE__` segment, which trips Next 14.2.35's router-state
+      // parser and returns HTTP 500 before any page handler runs.  Verified that
+      // middleware DOES NOT run on App Router RSC requests (NextResponse.rewrite
+      // and NextResponse.next({ request: { headers } }) have no effect).
+      //
+      // Workaround: rewrite the request to an internal sibling route
+      // (`/rsc-rewrite/[slug]`) when the `RSC: 1` AND
+      // `Next-Router-State-Tree: ...__PAGE__...` headers are both present on
+      // /search and /compare.  The rewrite target returns a 200 with an empty
+      // RSC payload so Chrome's app-router client falls back to URL-derived
+      // state (which already matches the user's URL bar).
+      {
+        source: '/search',
+        has: [
+          { type: 'header', key: 'rsc', value: '1' },
+          { type: 'header', key: 'next-router-state-tree', value: '(?=.*__PAGE__).*' },
+        ],
+        destination: '/rsc-rewrite/search',
+      },
+      {
+        source: '/compare',
+        has: [
+          { type: 'header', key: 'rsc', value: '1' },
+          { type: 'header', key: 'next-router-state-tree', value: '(?=.*__PAGE__).*' },
+        ],
+        destination: '/rsc-rewrite/compare',
+      },
     ];
   },
 };
