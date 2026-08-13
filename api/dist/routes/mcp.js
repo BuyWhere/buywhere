@@ -927,27 +927,30 @@ async function handleFindBestPrice(args) {
             if (deviceProductType) {
                 const taxonomyPatterns = DEVICE_TAXONOMY_PATTERNS[deviceProductType];
                 const titlePatterns = DEVICE_TITLE_PATTERNS[deviceProductType];
-                result = await bestPriceClient.query(`SELECT id, title, price, currency, source AS domain, url, image_url,
-                  country_code, updated_at, category, category_path, metadata
-           FROM products
-           WHERE is_active = true
-             AND price > 0
-             AND country_code = $1
-             AND search_vector @@ plainto_tsquery('english', $2)
-             AND ((lower(coalesce(category, '')) LIKE ANY($3::text[])
-               OR lower(array_to_string(category_path, ' ')) LIKE ANY($3::text[])
-               OR lower(coalesce(metadata->>'category', '')) LIKE ANY($3::text[])
-               OR lower(coalesce(metadata->>'product_type', '')) LIKE ANY($3::text[]))
-               OR (lower(title) LIKE ANY($4::text[])
-                 AND NOT lower(title) LIKE ANY($6::text[])))
-             AND NOT (lower(title) LIKE ANY($6::text[])
-               OR lower(coalesce(category, '')) LIKE ANY($5::text[])
-               OR lower(array_to_string(category_path, ' ')) LIKE ANY($5::text[])
-               OR lower(coalesce(metadata->>'category', '')) LIKE ANY($5::text[])
-               OR lower(coalesce(metadata->>'product_type', '')) LIKE ANY($5::text[]))
-             AND ($7::boolean = false OR price >= $8)
+                result = await bestPriceClient.query(`SELECT * FROM (
+             SELECT id, title, price, currency, source AS domain, url, image_url,
+                    country_code, updated_at, category, category_path, metadata
+             FROM products
+             WHERE is_active = true
+               AND price > 0
+               AND country_code = $1
+               AND search_vector @@ plainto_tsquery('english', $2)
+               AND ((lower(coalesce(category, '')) LIKE ANY($3::text[])
+                 OR lower(array_to_string(category_path, ' ')) LIKE ANY($3::text[])
+                 OR lower(coalesce(metadata->>'category', '')) LIKE ANY($3::text[])
+                 OR lower(coalesce(metadata->>'product_type', '')) LIKE ANY($3::text[]))
+                 OR (lower(title) LIKE ANY($4::text[])
+                   AND NOT lower(title) LIKE ANY($6::text[])))
+               AND NOT (lower(title) LIKE ANY($6::text[])
+                 OR lower(coalesce(category, '')) LIKE ANY($5::text[])
+                 OR lower(array_to_string(category_path, ' ')) LIKE ANY($5::text[])
+                 OR lower(coalesce(metadata->>'category', '')) LIKE ANY($5::text[])
+                 OR lower(coalesce(metadata->>'product_type', '')) LIKE ANY($5::text[]))
+               AND ($7::boolean = false OR price >= $8)
+             LIMIT $9::int
+           ) _candidates
            ORDER BY price ASC, updated_at DESC
-           LIMIT $9::int`, [country, productName, taxonomyPatterns, titlePatterns, DEVICE_NEGATIVE_TAXONOMY_PATTERNS, DEVICE_NEGATIVE_TITLE_PATTERNS, exactPhoneQuery, minimumPhonePrice(country), limit]);
+           LIMIT $10::int`, [country, productName, taxonomyPatterns, titlePatterns, DEVICE_NEGATIVE_TAXONOMY_PATTERNS, DEVICE_NEGATIVE_TITLE_PATTERNS, exactPhoneQuery, minimumPhonePrice(country), CANDIDATE_POOL, limit]);
             }
             else {
                 result = await bestPriceClient.query(`SELECT id, title, price, currency, source AS domain, url, image_url,
