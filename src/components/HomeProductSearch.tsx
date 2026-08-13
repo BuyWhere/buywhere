@@ -59,7 +59,7 @@ export function HomeProductSearch() {
         className="grid gap-3"
         noValidate
       >
-        <div className="flex flex-col gap-2 rounded-xl bg-white p-2 shadow-lg ring-1 ring-black/5 sm:flex-row sm:items-stretch sm:gap-2">
+        <div className="flex flex-col gap-2 rounded-xl bg-white p-2 shadow-lg ring-1 ring-black/5 md:flex-row md:items-stretch md:gap-2">
           <div className="relative min-w-0 flex-1">
             <Search
               className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-500"
@@ -89,7 +89,7 @@ export function HomeProductSearch() {
               setCountry(event.target.value as CountryValue);
               setCountryTouched(true);
             }}
-            className="h-[58px] w-full shrink-0 rounded-lg border border-transparent bg-white px-4 text-base font-medium text-slate-900 transition-colors focus:border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 sm:w-28 md:w-36"
+            className="h-[58px] w-full shrink-0 rounded-lg border border-transparent bg-white px-4 text-base font-medium text-slate-900 transition-colors focus:border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 md:w-32 lg:w-36"
             aria-label="Search country"
           >
             {countryOptions.map((option) => (
@@ -101,7 +101,7 @@ export function HomeProductSearch() {
 
           <button
             type="submit"
-            className="inline-flex h-[58px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-indigo-600 px-5 text-base font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white sm:w-auto sm:min-w-[8rem] md:min-w-[10rem]"
+            className="inline-flex h-[58px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-indigo-600 px-5 text-base font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white md:w-auto md:min-w-[8rem] lg:min-w-[10rem]"
           >
             Search catalog
           </button>
@@ -113,21 +113,23 @@ export function HomeProductSearch() {
               {error}
             </p>
           ) : (
-            <div className="flex flex-wrap items-center justify-start gap-2 text-sm text-white sm:justify-center">
-              <span>Try</span>
-              {exampleQueries.map((example) => (
-                <button
-                  key={example}
-                  type="button"
-                  onClick={() => {
-                    setQuery(example);
-                    submitQuery(example);
-                  }}
-                  className="whitespace-nowrap rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700"
-                >
-                  {example}
-                </button>
-              ))}
+            <div className="flex flex-col items-start gap-2 text-sm text-white sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-3 sm:gap-y-2">
+              <span className="font-semibold text-white sm:self-center">Try</span>
+              <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-center">
+                {exampleQueries.map((example) => (
+                  <button
+                    key={example}
+                    type="button"
+                    onClick={() => {
+                      setQuery(example);
+                      submitQuery(example);
+                    }}
+                    className="whitespace-nowrap rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700"
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
