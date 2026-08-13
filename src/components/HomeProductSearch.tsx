@@ -115,7 +115,7 @@ export function HomeProductSearch() {
           ) : (
             <div className="flex flex-col items-start gap-2 text-sm text-white sm:flex-row sm:items-center sm:justify-center sm:gap-x-3">
               <span className="inline-flex items-center self-center rounded-full border border-white/60 bg-white/10 px-2.5 py-0.5 font-semibold text-white shadow-sm sm:shrink-0">Try</span>
-              <div className="flex flex-wrap items-center justify-center gap-2">
+              <div className="chip-group flex flex-wrap items-center justify-center gap-2">
                 {exampleQueries.map((example) => (
                   <button
                     key={example}
