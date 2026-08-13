@@ -388,7 +388,13 @@ function rankAndClassifyItems(items: Record<string, unknown>[], query: string) {
 
   dedupedItems.forEach((item) => {
     const isAccessoryByKeyword = isAccessoryItem(item, queryWords);
-    const itemSearchText = itemSearchText(item);
+    // BUY-69167: drop the local `const itemSearchText = itemSearchText(item)`
+    // that the previous PR introduced — it shadowed the module-scope
+    // `itemSearchText()` helper, was unused downstream, and tripped
+    // `next build` (TypeScript "implicitly has type 'any' ... referenced
+    // directly or indirectly in its own initializer"), auto-rolling the
+    // deploy back to HEAD~1 and blocking BUY-69167's category-aware
+    // placeholder fix.
 
     // Additional check: for short device-type queries, demote storage devices that don't
     // explicitly mention the device type in their text (e.g. Firecuda SSD for "gaming laptop")
