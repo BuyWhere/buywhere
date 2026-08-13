@@ -92,4 +92,44 @@ test.describe('BUY-67036 RSC navigation requests', () => {
     expect(response.status()).toBe(200);
     await ctx.dispose();
   });
+
+  // The two tests below cover the *exact* Next-Router-State-Tree shape
+  // that real Chrome sends during the second-tap navigation in production
+  // — the shape the canonical Reed heartbeat probe used through
+  // 2026-08-13T05:14Z, which produced HTTP 500 on live even when the
+  // simpler `(layout) → __PAGE__: {}` shape above returned 200. This is
+  // the shape BUY-67036 was filed against; without coverage here, the
+  // shape-A tests above pass on the broken code path.
+  const POPULATED_PAGE_TREE =
+    '%5B%22%22%2C%7B%22children%22%3A%5B%22search%22%2C%7B%22children%22%3A%5B%5B%22slug%22%2C%22gaming%2Blaptop%22%2C%22c%22%5D%2C%7B%22q%22%3A%22gaming%20laptop%22%2C%22country%22%3A%22us%22%7D%5D%7D%5D%7D%5D';
+
+  test('/search populated __PAGE__ shape returns 200 (heartbeat probe shape)', async ({ baseURL }) => {
+    const ctx = await request.newContext({
+      baseURL,
+      extraHTTPHeaders: {
+        'User-Agent': CHROME_UA,
+        Accept: 'text/x-component',
+        RSC: '1',
+        'Next-Router-State-Tree': POPULATED_PAGE_TREE,
+      },
+    });
+    const response = await ctx.get('/search?q=gaming%20laptop&country=us');
+    expect(response.status()).toBe(200);
+    await ctx.dispose();
+  });
+
+  test('/compare populated __PAGE__ shape returns 200 (heartbeat probe shape)', async ({ baseURL }) => {
+    const ctx = await request.newContext({
+      baseURL,
+      extraHTTPHeaders: {
+        'User-Agent': CHROME_UA,
+        Accept: 'text/x-component',
+        RSC: '1',
+        'Next-Router-State-Tree': POPULATED_PAGE_TREE,
+      },
+    });
+    const response = await ctx.get('/compare?ids=a-b&q=gaming%20laptop');
+    expect(response.status()).toBe(200);
+    await ctx.dispose();
+  });
 });
