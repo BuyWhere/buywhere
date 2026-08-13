@@ -68,6 +68,11 @@ function extractResultCount(body: unknown, statusCode: number): number | null {
     return null;
   }
 
+  // Timeout/degraded empty responses are NOT true zero-result searches —
+  // logging them as 0 poisons the zero-result KPI. Log null instead.
+  // (Ported from api/ 215777d on 2026-08-13 — this tree was missed: duplicate-tree trap.)
+  const meta = b.meta as Record<string, unknown> | undefined;
+  if (meta && meta.degraded === true && Array.isArray(b.data) && b.data.length === 0) return null;
   if (Array.isArray(b.data)) return b.data.length;
   if (Array.isArray(b.results)) return b.results.length;
   if (b.data && typeof b.data === 'object') return 1;

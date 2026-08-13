@@ -59,10 +59,10 @@ export function HomeProductSearch() {
         className="grid gap-3"
         noValidate
       >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-3">
+        <div className="flex flex-col gap-2 rounded-xl bg-white p-2 shadow-lg ring-1 ring-black/5 lg:flex-row lg:items-stretch lg:gap-2">
           <div className="relative min-w-0 flex-1">
             <Search
-              className="pointer-events-none absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-white"
+              className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-500"
               aria-hidden="true"
             />
             <input
@@ -75,7 +75,7 @@ export function HomeProductSearch() {
                 }
               }}
               placeholder="Search products..."
-              className="search-input w-full rounded-xl border-2 border-white/50 bg-indigo-950 py-5 pl-14 pr-4 text-lg text-white placeholder-[#F5F7FF] transition-all focus:border-white focus:outline-none focus:ring-4 focus:ring-white/20"
+              className="search-input w-full rounded-lg border border-slate-200 bg-white py-4 pl-14 pr-4 text-lg text-slate-900 placeholder:!text-slate-500 transition-colors focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
               aria-label="Search products"
               aria-invalid={Boolean(error)}
               aria-describedby={error ? errorId : undefined}
@@ -89,7 +89,7 @@ export function HomeProductSearch() {
               setCountry(event.target.value as CountryValue);
               setCountryTouched(true);
             }}
-            className="h-[66px] w-full shrink-0 rounded-xl border-2 border-white/50 bg-white/10 px-4 text-base font-medium text-white transition-all focus:border-white focus:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20 sm:w-28 md:w-36"
+            className="h-[58px] w-full shrink-0 rounded-lg border border-slate-200 bg-white px-4 text-base font-medium text-slate-900 transition-colors focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 lg:w-32 xl:w-36"
             aria-label="Search country"
           >
             {countryOptions.map((option) => (
@@ -101,7 +101,7 @@ export function HomeProductSearch() {
 
           <button
             type="submit"
-            className="inline-flex h-[66px] shrink-0 items-center justify-center whitespace-nowrap rounded-xl bg-white px-5 text-base font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 sm:w-auto sm:min-w-[8rem] md:min-w-[10rem]"
+            className="inline-flex h-[58px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-indigo-600 px-5 text-base font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white lg:w-auto lg:min-w-[8rem] xl:min-w-[10rem]"
           >
             Search catalog
           </button>
@@ -113,21 +113,23 @@ export function HomeProductSearch() {
               {error}
             </p>
           ) : (
-            <div className="flex flex-wrap items-center justify-start gap-2 text-sm text-white sm:justify-center">
-              <span>Try</span>
-              {exampleQueries.map((example) => (
-                <button
-                  key={example}
-                  type="button"
-                  onClick={() => {
-                    setQuery(example);
-                    submitQuery(example);
-                  }}
-                  className="whitespace-nowrap rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700"
-                >
-                  {example}
-                </button>
-              ))}
+            <div className="flex flex-col items-start gap-2 text-sm text-white sm:flex-row sm:items-center sm:justify-center sm:gap-x-3">
+              <span className="inline-flex items-center self-center rounded-full border border-white/30 bg-white/10 px-2.5 py-0.5 font-semibold text-white shadow-sm sm:shrink-0">Try</span>
+              <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-center">
+                {exampleQueries.map((example) => (
+                  <button
+                    key={example}
+                    type="button"
+                    onClick={() => {
+                      setQuery(example);
+                      submitQuery(example);
+                    }}
+                    className="whitespace-nowrap rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700"
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>

@@ -550,11 +550,10 @@ async function handleGetDeals(args: Record<string, unknown>) {
     }
   } catch (_) {}
 
-  let useDiscountCol = _hasDiscountPct;
-  if (useDiscountCol === undefined) {
-    useDiscountCol = await probeDiscountPctColumn();
-    _hasDiscountPct = useDiscountCol;
-  }
+  // BUY-68615: hardcode true — production catalog DB has discount_pct GENERATED ALWAYS column.
+  // The probe can mis-detect on cold pool connections; bypass it to use the fast indexed path.
+  const useDiscountCol = true;
+  
 
   const conditions: string[] = [
     `currency = $1`,
@@ -591,9 +590,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
     : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
 
   // Use dedicated client with bounded statement_timeout so a slow deals scan returns
-  // a structured -32603 envelope to the MCP client (which drops at ~35s) instead of
-  // hanging the connection until the 5-min default. The deals query is index-backed
-  // (idx_products_deals_country/region) for both paths; 25s is more than enough.
+  // a structured -32603 envelope to the MCP client instead of hanging the request.
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
   const dealsClient = await db.connect().catch((err: unknown) => {
@@ -601,67 +598,29 @@ async function handleGetDeals(args: Record<string, unknown>) {
     throw { code: -32603, message: 'Database unavailable' };
   });
   try {
-    // BUY-60056: avoid the slow COUNT + full filtered discount sort that can
-    // monopolize a pool connection for the caller's whole 30s window. Sample a
-    // recent active window via the updated_at path, then filter/order the small
-    // candidate set. Acceptance needs non-empty regional deals under 5s, not an
-    // exact global count.
-    await dealsClient.query('SET statement_timeout = 4500');
-    const candidateLimit = Math.max((limit + offset) * 200, 5000);
-    const candidateParams = [candidateLimit, ...params, limit, offset];
-    const filterConditions = conditions.map((condition) =>
-      condition.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 1}`)
-    ).join(' AND ');
+    // BUY-64112: strict discount-first query only. The prior recent-window sample
+    // + laptop/watch fallback returned keyword rows with discount_pct=0 and hid
+    // real discounted products. Query the indexed discount predicate directly.
+    await dealsClient.query('SET statement_timeout = 60000');
+    await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path on production catalog DB
+    const dataParams = [...params, limit, offset];
     const dataResult = await dealsClient.query(
-      `SELECT id, source, domain, url, title, price, original_price,
+      `SELECT id, sku AS source, source AS domain, url, title,
+              price,
+              CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
+                   THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
               currency, image_url, metadata, updated_at, region, country_code,
-              discount_pct
-       FROM (
-         SELECT id, sku AS source, source AS domain, url, title,
-                price,
-                CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
-                     THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
-                currency, image_url, metadata, updated_at, region, country_code, is_active,
-                ${discountSelect}
-         FROM products
-         WHERE is_active = true AND price > 0
-         ORDER BY updated_at DESC
-         LIMIT $1
-       ) _recent_deals
-       WHERE ${filterConditions}
+              ${discountSelect}
+       FROM products
+       WHERE ${whereClause}
        ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
-       LIMIT $${candidateParams.length - 1} OFFSET $${candidateParams.length}`,
-      candidateParams
+       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+      dataParams
     );
     total = dataResult.rows.length;
     products = dataResult.rows.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
-    if (products.length === 0 && effectiveCountry) {
-      // BUY-60056: many live rows lack original_price/discount metadata, so the
-      // strict discount filter can be empty even while the regional catalog is
-      // healthy. Return a bounded recent regional sample instead of a timeout or
-      // empty response; callers still get product/country metadata under 5s.
-      // BUY-60068: extend the fallback to fire whenever a region-derived country
-      // exists, not only when country_code is explicitly passed.
-      const fallbackQuery = effectiveCountry === 'US' ? 'watch' : 'laptop';
-      const fallbackResult = await dealsClient.query(
-        `SELECT id, sku AS source, source AS domain, url, title,
-                price, NULL::numeric AS original_price, currency, image_url,
-                metadata, updated_at, region, country_code, 0::numeric AS discount_pct
-         FROM products
-         WHERE is_active = true
-           AND price > 0
-           AND country_code = $1
-           AND search_vector @@ plainto_tsquery('english', $2)
-         LIMIT $3`,
-        [effectiveCountry, fallbackQuery, limit]
-      );
-      total = fallbackResult.rows.length;
-      products = fallbackResult.rows.map((r: Record<string, unknown>) =>
-        buildProduct(r, currency, false)
-      );
-    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);

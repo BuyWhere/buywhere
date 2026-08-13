@@ -1,7 +1,81 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { toSiteUrl } from "@/lib/site-url";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+
+const BILLING_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  name: "Billing & Subscription Management | BuyWhere",
+  description:
+    "Manage your BuyWhere billing, subscription, and payment settings. View invoices, update payment methods, and control your plan tier.",
+  url: toSiteUrl("/billing"),
+  publisher: {
+    "@type": "Organization",
+    name: "BuyWhere",
+    url: "https://buywhere.ai",
+  },
+  mainEntity: {
+    "@type": "Thing",
+    name: "BuyWhere Billing",
+    description: "Subscription and billing management for BuyWhere API services.",
+  },
+  breadcrumb: {
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: "https://buywhere.ai/",
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Billing",
+        item: "https://buywhere.ai/billing",
+      },
+    ],
+  },
+};
+
+export const metadata: Metadata = {
+  title: "Billing & Subscription Management | BuyWhere",
+  description:
+    "Manage your BuyWhere billing, subscription, and payment settings. View invoices, update payment methods, and control your plan tier.",
+  alternates: {
+    canonical: toSiteUrl("/billing"),
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    title: "Billing & Subscription Management | BuyWhere",
+    description:
+      "Manage your BuyWhere billing, subscription, and payment settings. View invoices, update payment methods, and control your plan tier.",
+    url: toSiteUrl("/billing"),
+    type: "website",
+    siteName: "BuyWhere",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "BuyWhere Billing & Subscription Management",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Billing & Subscription Management | BuyWhere",
+    description:
+      "Manage your BuyWhere billing, subscription, and payment settings. View invoices, update payment methods, and control your plan tier.",
+    images: ["/og-image.png"],
+  },
+};
 
 export default function BillingPage({
   searchParams,
@@ -17,6 +91,10 @@ export default function BillingPage({
   return (
     <div className="flex min-h-screen flex-col">
       <Nav />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(BILLING_JSON_LD) }}
+      />
 
       <section className="flex-1 bg-slate-50 py-20">
         <div className="mx-auto max-w-3xl px-4 sm:px-6">

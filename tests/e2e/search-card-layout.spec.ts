@@ -20,8 +20,11 @@ test.describe('Search result card layout', () => {
       await expect(media).toHaveCSS('overflow', 'hidden');
       await expect(details.getByRole('heading')).toBeVisible();
       await expect(details.getByRole('img')).toBeVisible();
-      await expect(details.getByText('Shop', { exact: true })).toBeVisible();
+      // BUY-68743: the redundant "Shop ↗" pill at the top of the card was
+      // dropped so the merchant badge is the only top label and "View Deal"
+      // is the sole CTA at the bottom of the card.
       await expect(details.getByText('View Deal', { exact: true })).toBeVisible();
+      await expect(details.getByText('Shop', { exact: true })).toHaveCount(0);
 
       const imageCount = await image.count();
       const [mediaBox, detailsBox, imageBox] = await Promise.all([

@@ -96,15 +96,20 @@ export function AffiliateLink({
  */
 function useEnhancedHrefWithUTM(url: string, utmParams: Record<string, string>): string {
   try {
-    const urlObj = new URL(url, window.location.origin);
-    
+    // BUY-67036: Next 14.2.35 RSC navigation re-render pre-renders client
+    // components server-side. window is not defined there. Pass an empty
+    // string as base so URL() derives from the absolute URL.
+    const urlObj = typeof window !== "undefined"
+      ? new URL(url, window.location.origin)
+      : new URL(url);
+
     // Add UTM parameters
     Object.entries(utmParams).forEach(([key, value]) => {
       if (value) {
         urlObj.searchParams.set(key, value);
       }
     });
-    
+
     return urlObj.toString();
   } catch (e) {
     // If URL parsing fails, return original URL

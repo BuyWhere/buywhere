@@ -36,6 +36,8 @@ export default function Footer() {
               <li role="listitem"><Link href="/about" className="hover:text-indigo-600">About</Link></li>
               <li><Link href="/use-cases" className="hover:text-indigo-600">Use Cases</Link></li>
               <li><Link href="/contact" className="hover:text-indigo-600">Contact</Link></li>
+              <li><Link href="/docs" className="hover:text-indigo-600">Help &amp; Support</Link></li>
+              <li><a href="https://status.buywhere.ai" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600">System Status</a></li>
             </ul>
           </div>
 

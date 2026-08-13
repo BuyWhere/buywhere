@@ -73,6 +73,158 @@ const nextConfig = {
         destination: 'https://api.buywhere.ai/openapi.json',
         permanent: true,
       },
+      // BUY-68406: common feed-discovery aliases at the site root previously
+      // fell through to the homepage HTML 404 shell. Redirect them to the
+      // canonical blog feed (which serves real RSS 2.0 XML) so feed readers
+      // and crawlers get a machine-readable response on any of these paths.
+      {
+        source: '/rss.xml',
+        destination: '/blog/rss.xml',
+        permanent: true,
+      },
+      {
+        source: '/feed.xml',
+        destination: '/blog/rss.xml',
+        permanent: true,
+      },
+      {
+        source: '/atom.xml',
+        destination: '/blog/rss.xml',
+        permanent: true,
+      },
+      // BUY-68536: plausible developer/account aliases should recover to the
+      // canonical private dashboard or API-key acquisition page instead of the
+      // generic shopping 404 shell.
+      {
+        source: '/developer-dashboard',
+        destination: '/dashboard',
+        permanent: true,
+      },
+      {
+        source: '/developers/dashboard',
+        destination: '/dashboard',
+        permanent: true,
+      },
+      {
+        source: '/account/api-keys',
+        destination: '/api-keys',
+        permanent: true,
+      },
+      {
+        source: '/developers/api-keys',
+        destination: '/api-keys',
+        permanent: true,
+      },
+      // BUY-68551: common account payment, invoice, and subscription aliases
+      // should recover to the noindex private account shell with a route-aware
+      // tab hint instead of serving the generic homepage-branded 404 shell.
+      {
+        source: '/billing/portal',
+        destination: '/account?tab=billing',
+        permanent: true,
+      },
+      {
+        source: '/portal-session',
+        destination: '/account?tab=billing',
+        permanent: true,
+      },
+      {
+        source: '/portal-session/create',
+        destination: '/account?tab=billing',
+        permanent: true,
+      },
+      {
+        source: '/checkout/session',
+        destination: '/account?tab=billing',
+        permanent: true,
+      },
+      {
+        source: '/billing/portal-session',
+        destination: '/account?tab=billing',
+        permanent: true,
+      },
+      {
+        source: '/saved-payment',
+        destination: '/account?tab=payment-methods',
+        permanent: true,
+      },
+      {
+        source: '/saved-payments',
+        destination: '/account?tab=payment-methods',
+        permanent: true,
+      },
+      {
+        source: '/payment-methods',
+        destination: '/account?tab=payment-methods',
+        permanent: true,
+      },
+      {
+        source: '/account/payment-methods',
+        destination: '/account?tab=payment-methods',
+        permanent: true,
+      },
+      {
+        source: '/invoices',
+        destination: '/account?tab=invoices',
+        permanent: true,
+      },
+      {
+        source: '/billing/invoices',
+        destination: '/account?tab=invoices',
+        permanent: true,
+      },
+      {
+        source: '/account/invoices',
+        destination: '/account?tab=invoices',
+        permanent: true,
+      },
+      {
+        source: '/subscription-management',
+        destination: '/account?tab=subscription',
+        permanent: true,
+      },
+      {
+        source: '/manage-subscription',
+        destination: '/account?tab=subscription',
+        permanent: true,
+      },
+      {
+        source: '/account/subscription',
+        destination: '/account?tab=subscription',
+        permanent: true,
+      },
+      // BUY-68422: surface existing status page infrastructure at apex domain
+      {
+        source: '/status',
+        destination: 'https://status.buywhere.ai/',
+        permanent: true,
+      },
+      // BUY-68422: redirect help/support routes to docs
+      {
+        source: '/help',
+        destination: '/docs',
+        permanent: true,
+      },
+      {
+        source: '/support',
+        destination: '/docs',
+        permanent: true,
+      },
+      {
+        source: '/help-center',
+        destination: '/docs',
+        permanent: true,
+      },
+      {
+        source: '/knowledge-base',
+        destination: '/docs',
+        permanent: true,
+      },
+      {
+        source: '/kb',
+        destination: '/docs',
+        permanent: true,
+      },
       {
         source: '/:path*',
         has: [
