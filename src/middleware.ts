@@ -340,20 +340,31 @@ export function middleware(request: NextRequest) {
   // 500 with `page: "/_error"` BEFORE the page handler runs, so route-level
   // fixes (force-dynamic, Promise<searchParams>, error.tsx) cannot recover.
   //
-  // The URL already carries the full search params (?q=, ?country=), so the
-  // populated `__PAGE__` segment is redundant for our routes.  Strip the
-  // `Next-Router-State-Tree` header on RSC:1 requests to /search and /compare
-  // so the App Router parses a clean URL-derived searchParams view instead.
-  // Verified: empty `__PAGE__: {}` already returns 200 on the same routes.
+  // Verified: `NextResponse.next({ request: { headers } })` does NOT strip
+  // Next-Router-State-Tree in Next 14.2.35's Edge runtime — the header
+  // remains on the App Router request (see live evidence: deploy f2c15918
+  // shipped this strip but live still 500'd at 2026-08-13T12:30Z with buildId
+  // `Qvn8Yo3foncPplGNOJOwa`).
+  //
+  // Workaround: rewrite the request to an internal sibling path
+  // (`/_rsc/search` or `/_rsc/compare`) that has its own clean route.  We
+  // create src/app/_rsc/[slug]/page.tsx that simply forwards URL searchParams
+  // to a server component which renders the same search/compare UI but with
+  // no router-state involvement.  Chrome's app-router client then receives
+  // a 200 RSC payload keyed off the URL state.
   const isRscRequest = request.headers.get("rsc") === "1" || request.headers.get("RSC") === "1";
   const routerState = request.headers.get("next-router-state-tree");
   const isBuywherePopulatedRoute =
-    (pathname === "/search" || pathname === "/compare") && isRscRequest && routerState && /__PAGE__/.test(routerState);
+    (pathname === "/search" || pathname === "/compare") && isRscRequest && !!routerState && /__PAGE__/.test(routerState);
   if (isBuywherePopulatedRoute) {
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = pathname === "/search" ? "/_rsc/search" : "/_rsc/compare";
     const cleanedHeaders = new Headers(request.headers);
     cleanedHeaders.delete("next-router-state-tree");
     cleanedHeaders.delete("Next-Router-State-Tree");
-    return NextResponse.next({ request: { headers: cleanedHeaders } });
+    const response = NextResponse.rewrite(rewriteUrl, { request: { headers: cleanedHeaders } });
+    response.headers.set("x-buywhere-69260-rewrite", "1");
+    return response;
   }
 
   // Bypass all middleware for static files
