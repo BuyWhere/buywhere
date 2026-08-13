@@ -347,18 +347,19 @@ export function middleware(request: NextRequest) {
   // `Qvn8Yo3foncPplGNOJOwa`).
   //
   // Workaround: rewrite the request to an internal sibling path
-  // (`/_rsc/search` or `/_rsc/compare`) that has its own clean route.  We
-  // create src/app/_rsc/[slug]/page.tsx that simply forwards URL searchParams
-  // to a server component which renders the same search/compare UI but with
-  // no router-state involvement.  Chrome's app-router client then receives
-  // a 200 RSC payload keyed off the URL state.
+  // (`/rsc-rewrite/search` or `/rsc-rewrite/compare`) that has its own clean
+  // route. We create src/app/rsc-rewrite/[slug]/page.tsx that simply returns
+  // a 200 with an empty RSC payload, so the Chrome client receives a
+  // successful response and falls back to URL-derived state. The visible
+  // /search and /compare pages are unaffected because middleware rewrites
+  // are server-internal only.
   const isRscRequest = request.headers.get("rsc") === "1" || request.headers.get("RSC") === "1";
   const routerState = request.headers.get("next-router-state-tree");
   const isBuywherePopulatedRoute =
     (pathname === "/search" || pathname === "/compare") && isRscRequest && !!routerState && /__PAGE__/.test(routerState);
   if (isBuywherePopulatedRoute) {
     const rewriteUrl = request.nextUrl.clone();
-    rewriteUrl.pathname = pathname === "/search" ? "/_rsc/search" : "/_rsc/compare";
+    rewriteUrl.pathname = pathname === "/search" ? "/rsc-rewrite/search" : "/rsc-rewrite/compare";
     const cleanedHeaders = new Headers(request.headers);
     cleanedHeaders.delete("next-router-state-tree");
     cleanedHeaders.delete("Next-Router-State-Tree");
