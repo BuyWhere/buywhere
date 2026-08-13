@@ -41,7 +41,7 @@ export function TrustLayer() {
             <h2 id="trust-heading" className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
               Built for Reliability
             </h2>
-            <p className="text-gray-500 mb-8 leading-relaxed">
+            <p className="text-gray-600 mb-8 leading-relaxed">
               BuyWhere is production-ready infrastructure. We provide predictable latency, high uptime, and transparent versioning so your agents always know what to expect.
             </p>
             <div className="flex flex-col sm:flex-row gap-6">
