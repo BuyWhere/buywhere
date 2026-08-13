@@ -62,7 +62,7 @@ export function HomeProductSearch() {
         <div className="flex flex-col gap-2 rounded-xl bg-white p-2 shadow-lg ring-1 ring-black/5 sm:flex-row sm:items-stretch sm:gap-2">
           <div className="relative min-w-0 flex-1">
             <Search
-              className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-400"
+              className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-500"
               aria-hidden="true"
             />
             <input
@@ -75,7 +75,7 @@ export function HomeProductSearch() {
                 }
               }}
               placeholder="Search products..."
-              className="search-input w-full rounded-lg border border-transparent bg-white py-4 pl-14 pr-4 text-lg text-slate-900 placeholder:!text-slate-400 transition-colors focus:border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              className="search-input w-full rounded-lg border border-transparent bg-white py-4 pl-14 pr-4 text-lg text-slate-900 placeholder:!text-slate-500 transition-colors focus:border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
               aria-label="Search products"
               aria-invalid={Boolean(error)}
               aria-describedby={error ? errorId : undefined}
