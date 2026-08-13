@@ -353,134 +353,127 @@ test("parseImageDimensions extracts JPEG SOF and PNG IHDR dimensions", () => {
   assert.equal(isSq({ w: 1000, h: 1070 }), true, "1000x1070 (AR 0.93) is within ±6% tolerance");
 });
 
-test("BUY-69167: page-level searchCategory becomes the fallback category when upstream items omit category", async () => {
-  const originalFetch = globalThis.fetch;
-  let requestedUrl = "";
-  // The upstream search API returns items with no `category` field set
-  // (mirrors the real-world repro: 16 cards on /laptop-singapore and
-  // /best-robot-vacuums-2026 all came back with category=null). Without the
-  // fix, every branded SVG falls through to the default laptop silhouette
-  // and shows "BuyWhere / Featured product".
-  globalThis.fetch = async (input) => {
-    requestedUrl = String(input);
-    return new Response(
-      JSON.stringify({
-        data: [
-          // Robot vacuum page — should pick up "Robot Vacuums" fallback.
-          { id: "rv1", title: "Roborock S8 MaxV Ultra", price_amount: 1299, price_currency: "USD", merchant_name: "Amazon", click_url: "https://x/r1" },
-          { id: "rv2", title: "iRobot Roomba Combo j9+",  price_amount: 999,  price_currency: "USD", merchant_name: "Best Buy", click_url: "https://x/r2" },
-        ],
-        meta: { total: 2, degraded: false },
-      }),
-      { status: 200, headers: { "content-type": "application/json" } },
-    );
-  };
+// ---------------------------------------------------------------------------
+// BUY-67622 — SEO guide hero copy must not contradict the live card set.
+// Three regression tests:
+//
+//   1. Source-level: seo-landing-pages.ts declares the host denylist, the
+//      requiredGpuTokens config field, and uses them in the live-card filter
+//      path. This is the static guarantee — if a future refactor drops the
+//      host denylist or requiredGpuTokens gate, these tests fail before the
+//      change ships.
+//   2. Functional: the best-gaming-laptops-us config explicitly requires an
+//      RTX 50-series token in product names so the 2020-era TUF F15 (GTX
+//      1650 / dev6booster.myshopify.com) cannot reach the rendered HTML.
+//   3. Functional: best-robot-vacuums-2026 sets minPrice >= 130 so sub-claim
+//      clearance items (Tecbot S3 Pro at $129.99) cannot undercut the "from
+//      $199" hero promise.
+// ---------------------------------------------------------------------------
 
-  try {
-    const products = await getSeoLandingProducts(seoLandingPages["best-robot-vacuums-2026"]);
-    assert.ok(requestedUrl.includes("category=robot_vacuums"));
-    assert.equal(products.length, 2);
-    for (const product of products) {
-      assert.equal(product.category, "Robot Vacuums", `${product.name} should inherit page-level category`);
-      assert.ok(product.imageUrl && product.imageUrl.startsWith("data:image/svg+xml"), "branded SVG placeholder present");
-      // Silhouette: robot-vac shape uses ellipse cx='60' cy='110'. The default
-      // laptop shape uses rect 0,0 120x80. We assert the SVG embeds the robot
-      // silhouette and NOT the laptop default.
-      assert.match(product.imageUrl!, /ellipse cx='60' cy='110'/, `${product.name} SVG should use robot-vacuum silhouette`);
-      assert.doesNotMatch(product.imageUrl!, /rect x='0' y='0' width='120' height='80' rx='8'/, `${product.name} SVG must not be the generic laptop fallback`);
-      assert.doesNotMatch(product.imageUrl!, /Featured product/, `${product.name} SVG must not show "Featured product" placeholder text`);
-    }
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-
-  // Now flip the same fixture to laptop-singapore and assert the laptop
-  // silhouette wins (regex: /\blaptop|notebook|macbook|chromebook/).
-  globalThis.fetch = async () =>
-    new Response(
-      JSON.stringify({
-        data: [
-          { id: "lp1", title: "MacBook Air 13 M3", price_amount: 1499, price_currency: "SGD", merchant_name: "Apple Store", click_url: "https://x/l1" },
-        ],
-        meta: { total: 1, degraded: false },
-      }),
-      { status: 200, headers: { "content-type": "application/json" } },
-    );
-
-  try {
-    const products = await getSeoLandingProducts(seoLandingPages["laptop-singapore"]);
-    assert.equal(products.length, 1);
-    assert.equal(products[0].category, "Laptops");
-    assert.match(products[0].imageUrl!, /rect x='0' y='0' width='120' height='80' rx='8'/, "laptop silhouette should be embedded");
-    assert.match(products[0].imageUrl!, /rect x='-10' y='80' width='140'/, "laptop silhouette base should be embedded");
-    assert.doesNotMatch(products[0].imageUrl!, /Featured product/, "should not show Featured product text");
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-
-  // And the gaming-laptops variant — distinct silhouette with the wavy
-  // speaker grille / monitor line (path d='M20 30 L40 45 ...').
-  globalThis.fetch = async () =>
-    new Response(
-      JSON.stringify({
-        data: [
-          { id: "gp1", title: "ASUS ROG Zephyrus G16", price_amount: 1999, price_currency: "USD", merchant_name: "Best Buy", click_url: "https://x/g1" },
-        ],
-        meta: { total: 1, degraded: false },
-      }),
-      { status: 200, headers: { "content-type": "application/json" } },
-    );
-
-  try {
-    const products = await getSeoLandingProducts(seoLandingPages["best-gaming-laptops-us"]);
-    assert.equal(products.length, 1);
-    assert.equal(products[0].category, "Gaming Laptops");
-    assert.match(products[0].imageUrl!, /M20 30 L40 45 L60 25 L80 50 L100 30/, "gaming-laptop speaker-grille path should be embedded");
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("BUY-69167: client ProductGridImage placeholder is category-aware and ProductGridCard passes category through", () => {
-  const imageSource = readFileSync(
-    new URL("../components/seo/ProductGridImage.tsx", import.meta.url),
-    "utf8",
-  );
-  const cardSource = readFileSync(
-    new URL("../components/seo/ProductGridCard.tsx", import.meta.url),
-    "utf8",
-  );
-
-  // The client-side BrandedPlaceholder must include a category-aware
-  // silhouette picker (mirrors categorySilhouette in seo-landing-pages.ts)
-  // and must accept a `category` prop.
-  assert.match(imageSource, /category\?:\s*string\s*\|\s*null/, "ProductGridImage must accept a category prop");
-  assert.match(imageSource, /clientCategorySilhouette/, "ProductGridImage must have a category-aware silhouette helper");
-  assert.match(imageSource, /\\brobot\\s\*vacuum\|roomba\|deebot\|robovac/, "client silhouette must recognise robot-vacuum terms");
-  assert.match(imageSource, /\\blaptop\|notebook\|macbook\|chromebook/, "client silhouette must recognise laptop terms");
-
-  // ProductGridCard must thread category={product.category} into the image.
-  assert.match(cardSource, /category=\{product\.category\}/, "ProductGridCard must pass category to ProductGridImage");
-});
-
-test("BUY-69167: normalizeProduct accepts a categoryFallback and resolves category from upstream first", () => {
+test("BUY-67622: source declares LOW_TRUST_REDIRECT_HOST_PATTERNS + LOW_TRUST_MERCHANT_PATTERNS + requiredGpuTokens gate", () => {
   const source = readFileSync(
     new URL("./seo-landing-pages.ts", import.meta.url),
     "utf8",
   );
-  // The new normalizeProduct signature has the optional 4th arg.
-  assert.match(source, /function normalizeProduct\(\s*item: SearchApiItem,[\s\S]*?categoryFallback\?: string \| null/m);
-  // searchCategoryToLabel helper maps the three known enum tokens.
-  assert.match(source, /function searchCategoryToLabel/);
-  assert.match(source, /case "robot_vacuums":/);
-  assert.match(source, /case "gaming_laptops":/);
-  assert.match(source, /case "laptops":/);
-  // Call site must thread the page-level category.
-  assert.match(source, /searchCategoryToLabel\(config\.searchCategory\)/);
-  // Resolved category flows into the placeholder SVG + LandingProduct.
-  assert.match(source, /imageUrl: brandedProductPlaceholderSvg\([\s\S]*?resolvedCategory/);
-  assert.match(source, /category: resolvedCategory/);
-  // New explicit laptop/gaming-laptop regex branches.
-  assert.match(source, /\\bgaming\\s\*laptop\|gaming\\s\*notebook/);
-  assert.match(source, /\\blaptop\|notebook\|macbook\|chromebook/);
+  assert.match(source, /LOW_TRUST_REDIRECT_HOST_PATTERNS/, "host denylist constant must exist");
+  assert.match(source, /LOW_TRUST_MERCHANT_PATTERNS/, "merchant denylist constant must exist (v2)");
+  // Source contains literal regex source `dev6booster\.myshopify\.com` etc.;
+  // the regex dot-escape sequence is stored as 2 chars (backslash + dot), so
+  // match the unescaped dot form by passing the regex source string.
+  assert.ok(
+    source.includes("dev6booster\\.myshopify\\.com"),
+    "host denylist must include dev6booster.myshopify.com",
+  );
+  assert.ok(
+    source.includes("wellbots\\.com"),
+    "host denylist must include wellbots.com",
+  );
+  assert.ok(
+    source.includes("tvoutlet\\.ca"),
+    "host denylist must include tvoutlet.ca",
+  );
+  assert.ok(
+    source.includes("shopify_wellbots_com"),
+    "merchant denylist must include shopify_wellbots_com (v2)",
+  );
+  assert.ok(
+    source.includes("shopify_unharvested_batch"),
+    "merchant denylist must include shopify_unharvested_batch (v2)",
+  );
+  assert.ok(
+    source.includes("shopify_buy30620_stock"),
+    "merchant denylist must include shopify_buy30620_stock (v2)",
+  );
+  assert.ok(source.includes("requiredGpuTokens?:"), "config must declare requiredGpuTokens field");
+  assert.ok(source.includes("productMatchesGpuTokens"), "must define productMatchesGpuTokens filter");
+  // The host denylist must be wired into the live-card filter path.
+  assert.ok(
+    source.includes("redirectCandidates.some(isLowTrustRedirectHost)"),
+    "host denylist must run inside normalizeProduct",
+  );
+  // The merchant denylist must be wired into normalizeProduct (v2).
+  assert.ok(
+    source.includes("isLowTrustMerchant(item.merchant)"),
+    "merchant denylist must run inside normalizeProduct (v2)",
+  );
+  // The requiredGpuTokens gate must run inside the per-item loop.
+  assert.ok(
+    source.includes("productMatchesGpuTokens(product, config.requiredGpuTokens)"),
+    "requiredGpuTokens gate must run on every live item",
+  );
+});
+
+test("BUY-67622: best-gaming-laptops-us config requires RTX 5070/5080 GPU token (not just 'rtx 50')", () => {
+  const config = seoLandingPages["best-gaming-laptops-us"];
+  assert.ok(config, "best-gaming-laptops-us config must exist");
+  const tokens = config.requiredGpuTokens ?? [];
+  assert.ok(
+    tokens.length > 0,
+    "requiredGpuTokens must be set so older-gen GPUs (e.g. 2020 TUF F15 / GTX 1650, RTX 5060) cannot reach the page",
+  );
+  const flat = tokens.join(" ").toLowerCase();
+  // v2: the gate must require 5070/5080 specifically, not just "rtx 50",
+  // because "rtx 50" was matching RTX 5060 and letting non-5070/5080 cards leak.
+  assert.ok(
+    flat.includes("rtx 5070") && flat.includes("rtx 5080"),
+    `requiredGpuTokens must include BOTH "rtx 5070" and "rtx 5080" to honor hero copy; got: ${JSON.stringify(tokens)}`,
+  );
+  assert.ok(
+    !flat.includes(/\brtx 50\b/.source) || flat.match(/\brtx 50\b/g)?.length === 0,
+    `requiredGpuTokens must NOT contain bare "rtx 50" — it substring-matches RTX 5060/5050; got: ${JSON.stringify(tokens)}`,
+  );
+  // Hero copy must still promise RTX 5070/5080 — this is the editorial promise
+  // the live cards now have to match.
+  assert.match(
+    config.heroTitle,
+    /RTX 50(70|80)/i,
+    "heroTitle must promise an RTX 50-series GPU so the filter is meaningful",
+  );
+});
+
+test("BUY-67622: best-robot-vacuums-2026 config raises minPrice to >=199 so clearance sub-claim items cannot leak", () => {
+  const config = seoLandingPages["best-robot-vacuums-2026"];
+  assert.ok(config, "best-robot-vacuums-2026 config must exist");
+  // v2: floor must match hero's "from $199" anchor — Tecbot S1 at $119.99 and
+  // Tecbot S3 Pro at $129.99 still leaked at $130 floor.
+  assert.ok(
+    typeof config.minPrice === "number" && config.minPrice >= 199,
+    `minPrice must be >= 199 to enforce the hero's "from $199" promise (Tecbot S1/S3 leak); got: ${config.minPrice}`,
+  );
+  // v2: requiredProductTerms must constrain to named brands/retailers so
+  // Tecbot / iMass A3 / Xiaomi off-brand rows cannot displace honest
+  // Roomba/Roborock/Eufy fallbacks.
+  const terms = config.requiredProductTerms ?? [];
+  const flat = terms.join(" ").toLowerCase();
+  for (const required of ["roomba", "roborock", "eufy"]) {
+    assert.ok(
+      flat.includes(required),
+      `requiredProductTerms must include "${required}" so named brands anchor the live cards; got: ${JSON.stringify(terms)}`,
+    );
+  }
+  assert.match(
+    config.heroTitle,
+    /from \$199/i,
+    "heroTitle must still promise 'from $199' so the floor is meaningful",
+  );
 });

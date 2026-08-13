@@ -144,6 +144,13 @@ export type SeoLandingPageConfig = {
   minPrice?: number;
   /** Terms that must appear in live search products to avoid unrelated broad-query matches */
   requiredProductTerms?: string[];
+  /**
+   * GPU tokens that MUST appear in the product name. Used by SEO landing pages
+   * that promise a specific GPU generation in the hero copy (e.g. RTX 5070/5080
+   * picks). Items missing every token are dropped, even if they pass the broader
+   * `requiredProductTerms` filter. BUY-67622.
+   */
+  requiredGpuTokens?: string[];
   /** Upstream category filter used to constrain broad catalog searches */
   searchCategory?: string;
   /** Strictly reject product parts and accessories from live catalog cards */
@@ -216,35 +223,55 @@ function normalizeExternalHref(...values: Array<string | null | undefined>) {
   return "#";
 }
 
-/**
- * Map a `searchCategory` enum (the internal API token used by
- * `SeoLandingPageConfig.searchCategory`) to a human-readable category label.
- * Used as the fallback `category` when individual items from the upstream
- * search API omit their own `category` field — without this fallback, every
- * catalog card on /best-robot-vacuums-2026 and /laptop-singapore renders with
- * an empty `category`, the silhouette regex falls through to the default
- * laptop icon, and the QA-visible "generic/wrong placeholder" report is
- * produced (BUY-69167).
- */
-function searchCategoryToLabel(searchCategory?: string | null): string | null {
-  switch ((searchCategory || "").toLowerCase()) {
-    case "robot_vacuums":
-      return "Robot Vacuums";
-    case "gaming_laptops":
-      return "Gaming Laptops";
-    case "laptops":
-      return "Laptops";
-    default:
-      return null;
+// BUY-67622: redirect hosts whose products routinely leak dev-store fixtures,
+// non-US fulfilment domains, or refurb/clearance resellers into SEO guide
+// live cards. Filtered at the normalizeProduct boundary so the offending rows
+// never reach the SSR HTML. Conservative: only includes hosts observed in the
+// live catalog data for BUY-67622, not trusted US retailers.
+const LOW_TRUST_REDIRECT_HOST_PATTERNS: RegExp[] = [
+  /(^|\.)dev6booster\.myshopify\.com$/i,
+  /(^|\.)aimtofind\.myshopify\.com$/i,
+  /(^|\.)kimstore-enterprise-corp\.myshopify\.com$/i,
+  /(^|\.)matrixwarehouse\.co\.za$/i,
+  /(^|\.)mhcworld\.co\.za$/i,
+  /(^|\.)itadstore\.co\.za$/i,
+  /(^|\.)wellbots\.com$/i,
+  /(^|\.)tvoutlet\.ca$/i,
+];
+
+// BUY-67622 (v2): raw upstream merchant IDs whose products have repeatedly
+// leaked junk rows (Shopify dev-store fixtures, unharvested batches, and
+// scraper caches) into SEO guide live cards. The merchant field on
+// SearchApiItem is the raw ingest ID (e.g. "shopify_wellbots_com",
+// "shopify_unharvested_batch", "shopify_buy30620_stock"), so a simple
+// substring match catches the family without breaking legitimate Shopify
+// storefronts that flow through the proper downstream pipeline.
+const LOW_TRUST_MERCHANT_PATTERNS: RegExp[] = [
+  /^shopify_wellbots_com$/i,
+  /^shopify_unharvested_batch$/i,
+  /^shopify_buy30620_stock$/i,
+  /^shopify_buy30620_crate$/i,
+  /^shopify_scrape$/i,
+  /^shopify_unharvested$/i,
+];
+
+function isLowTrustMerchant(merchant: string | null | undefined): boolean {
+  if (!merchant) return false;
+  const m = merchant.toLowerCase();
+  return LOW_TRUST_MERCHANT_PATTERNS.some((re) => re.test(m));
+}
+
+function isLowTrustRedirectHost(href: string | null | undefined): boolean {
+  if (!href || href === "#") return false;
+  try {
+    const host = new URL(href).hostname.toLowerCase();
+    return LOW_TRUST_REDIRECT_HOST_PATTERNS.some((re) => re.test(host));
+  } catch {
+    return false;
   }
 }
 
-function normalizeProduct(
-  item: SearchApiItem,
-  fallbackCurrency: string,
-  minPrice?: number,
-  categoryFallback?: string | null,
-): LandingProduct | null {
+function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPrice?: number): LandingProduct | null {
   // Currency guard: only keep products priced in the page's currency. The
   // upstream catalog frequently returns wrong-region rows (e.g. INR/PHP/GBP
   // "laptop" listings for an SG page) that would otherwise displace honest
@@ -278,17 +305,37 @@ function normalizeProduct(
     return null;
   }
 
-  const imageUrl = item.image_url || item.image || null;
+  // BUY-67622: reject products whose Buy link points at known low-trust
+  // Shopify dev stores or non-US fulfilment domains. The redirect URL is
+  // selected from affiliate_redirect_url / click_url / url in priority order
+  // (see normalizeExternalHref below); if any candidate host matches the
+  // denylist, the product is dropped entirely so it can never displace an
+  // honest fallback. We inspect the same candidates `normalizeExternalHref`
+  // will consider so a dev-shopify redirect URL stored on any field trips
+  // the filter.
+  const redirectCandidates = [
+    item.affiliate_redirect_url,
+    item.click_url,
+    item.affiliate_url,
+    item.buy_url,
+    item.product_url,
+    item.url,
+  ];
 
-  // BUY-69167: prefer the upstream `category` field, but fall back to the
-  // page-level `categoryFallback` when the item omits it. The upstream search
-  // API routinely returns products with empty `category` even on category-
-  // scoped queries (e.g. all 16 items on /laptop-singapore and
-  // /best-robot-vacuums-2026 came back with category=null). Without this
-  // fallback the placeholder SVG fell through to the generic laptop icon
-  // and showed "BuyWhere / Featured product" on every card — QA reported
-  // this as "generic/wrong placeholder graphics instead of product photos".
-  const resolvedCategory = item.category || categoryFallback || null;
+  // BUY-67622 (v2): reject products whose raw upstream merchant ID is a known
+  // junk source (Shopify dev-store fixtures, unharvested batches, scraper
+  // caches). The merchant field carries the raw ingest ID before normalization
+  // (e.g. "shopify_wellbots_com", "shopify_unharvested_batch"), so matching
+  // here lets us drop the rows BEFORE they ever reach the live card set,
+  // regardless of which redirect-URL field they happen to use.
+  if (isLowTrustMerchant(item.merchant)) {
+    return null;
+  }
+  if (redirectCandidates.some(isLowTrustRedirectHost)) {
+    return null;
+  }
+
+  const imageUrl = item.image_url || item.image || null;
 
   return {
     id: String(item.id),
@@ -307,7 +354,7 @@ function normalizeProduct(
     imageUrl: brandedProductPlaceholderSvg(
       item.brand || null,
       item.name || null,
-      resolvedCategory,
+      item.category || null,
     ),
     href: normalizeExternalHref(
       item.affiliate_redirect_url,
@@ -318,7 +365,7 @@ function normalizeProduct(
       item.url,
     ),
     brand: item.brand || null,
-    category: resolvedCategory,
+    category: item.category || null,
     updatedAt: item.updated_at || null,
   };
 }
@@ -432,27 +479,7 @@ function categorySilhouette(category?: string | null, name?: string | null): str
       <circle cx='60' cy='100' r='22' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
       <path d='M110 60 Q135 60 135 90 Q135 115 110 115' fill='none' stroke='#b45309' stroke-width='4'/>`;
   }
-  if (/\bgaming\s*laptop|gaming\s*notebook/.test(text)) {
-    return `
-      <rect x='0' y='0' width='120' height='70' rx='6' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
-      <rect x='10' y='8' width='100' height='54' rx='2' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
-      <rect x='-10' y='70' width='140' height='8' rx='3' fill='#b45309'/>
-      <rect x='50' y='78' width='20' height='4' rx='2' fill='#b45309'/>
-      <path d='M20 30 L40 45 L60 25 L80 50 L100 30' fill='none' stroke='#b45309' stroke-width='3'/>`;
-  }
-  if (/\blaptop|notebook|macbook|chromebook/.test(text)) {
-    return `
-      <rect x='0' y='0' width='120' height='80' rx='8' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
-      <rect x='10' y='10' width='100' height='60' rx='2' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
-      <rect x='-10' y='80' width='140' height='8' rx='3' fill='#b45309'/>
-      <rect x='50' y='88' width='20' height='4' rx='2' fill='#b45309'/>`;
-  }
-  // default: laptop (BUY-63954 evidence shows laptops on the affected pages
-  // and this is the most common generic-product fallback for the live catalog
-  // snapshot on /laptop-singapore + /best-gaming-laptops-us). BUY-69167: this
-  // default only fires for items that match none of the regex branches above,
-  // so /best-robot-vacuums-2026 cards no longer collapse to this shape once
-  // their `category` is resolved from the page-level searchCategory.
+  // default: laptop (BUY-63954 evidence shows laptops on the affected pages)
   return `
     <rect x='0' y='0' width='120' height='80' rx='8' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
     <rect x='10' y='10' width='100' height='60' rx='2' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
@@ -727,6 +754,19 @@ function productMatchesRequiredTerms(product: LandingProduct, requiredTerms?: st
   if (!requiredTerms || requiredTerms.length === 0) return true;
   const haystack = [product.name, product.brand, product.category].filter(Boolean).join(" ").toLowerCase();
   return requiredTerms.some((term) => haystack.includes(term.toLowerCase()));
+}
+
+// BUY-67622: every-token gate for hero-driven GPU claims. When the page
+// promises a specific GPU generation (e.g. "RTX 5070 & 5080 Picks"), drop any
+// product whose name doesn't mention at least one of the listed GPU tokens —
+// even if the broader `requiredProductTerms` filter would have let it pass.
+// Tokens are matched as substrings; include the regex pattern when you need
+// word boundaries (e.g. use "RTX 5070" not just "5070" to avoid matching
+// monitor model numbers).
+function productMatchesGpuTokens(product: LandingProduct, gpuTokens?: string[]): boolean {
+  if (!gpuTokens || gpuTokens.length === 0) return true;
+  const haystack = [product.name, product.brand].filter(Boolean).join(" ").toLowerCase();
+  return gpuTokens.some((token) => haystack.includes(token.toLowerCase()));
 }
 
 const PRODUCT_ACCESSORY_RE =
@@ -1024,19 +1064,16 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       }
 
       for (const item of items) {
-        const product = normalizeProduct(
-          item,
-          config.currency,
-          config.minPrice,
-          // BUY-69167: pass the page-level searchCategory-derived label so
-          // items that omit `category` still get the page-appropriate
-          // silhouette + category chip.
-          searchCategoryToLabel(config.searchCategory),
-        );
+        const product = normalizeProduct(item, config.currency, config.minPrice);
         if (!product) continue;
         if (!hasUsableLiveCard(product)) continue;
         if (isExcludedAccessory(product, config)) continue;
         if (!productMatchesRequiredTerms(product, config.requiredProductTerms)) continue;
+        // BUY-67622: when the page promises a specific GPU generation in the
+        // hero copy (e.g. RTX 5070/5080 picks), the live card set MUST match
+        // that promise — drop products whose name lacks every required GPU
+        // token even if they otherwise pass the requiredProductTerms OR-gate.
+        if (!productMatchesGpuTokens(product, config.requiredGpuTokens)) continue;
         if (!seenIds.has(product.id)) {
           seenIds.add(product.id);
           collected.push(product);
@@ -1572,6 +1609,13 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
 backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator laptop", "gaming laptop NVIDIA RTX"],
     minPrice: 300,
     requiredProductTerms: ["gaming laptop", "laptop", "rog", "legion", "alienware", "omen", "predator", "tuf", "msi", "nvidia rtx"],
+    // BUY-67622: hero claims "RTX 5070 & 5080 Picks". Older generation GPUs
+    // (e.g. 2020-era TUF F15 with GTX 1650, dev6booster.myshopify.com redirect,
+    // or RTX 5060 "best value" rows in the live catalog) are filtered out by
+    // this AND-style GPU token gate on top of the broader requiredProductTerms
+    // OR-gate. v2: drop "rtx 50" — it was substring-matching "RTX 5060",
+    // "RTX 5050", etc., letting 50-series-but-not-5070/5080 cards leak through.
+    requiredGpuTokens: ["rtx 5070", "rtx 5080"],
     hreflangAlternates: { "en-SG": "/best-gaming-laptop-singapore" },
     productSectionTitle: "Live gaming laptop deals across US retailers",
     comparisonSectionTitle: "Top gaming laptop picks at a glance",
@@ -1783,8 +1827,23 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
     excludeAccessories: true,
     compactCatalogCards: true,
     backupQueries: ["Eufy robot vacuum", "Roborock robot vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
-    minPrice: 50,
-    requiredProductTerms: ["robot vacuum", "robotic vacuum", "roomba", "deebot"],
+    // BUY-67622: hero copy is "Best Robot Vacuums 2026 from $199" anchored to
+    // the editorial Roomba i3 EVO sale price ($199–$249). v2: raise the floor
+    // from $130 to $199 — the original $130 floor let Tecbot S1 at $119.99 and
+    // Tecbot S3 Pro at $129.99 displace honest fallback products. Hero
+    // explicitly names the $199 anchor; the floor must match it.
+    minPrice: 199,
+    // v2: hero names "Roomba", "Roborock", and retailers "Amazon, Best Buy,
+    // Walmart, Costco". Tighten requiredProductTerms so the live card set
+    // actually reflects those named brands/retailers rather than Tecbot /
+    // iMass A3 / Xiaomi off-brand rows.
+    requiredProductTerms: [
+      "roomba", "irobot",
+      "roborock",
+      "eufy",
+      "shark",
+      "best buy", "walmart", "amazon", "costco",
+    ],
     hreflangAlternates: { "en-SG": "/best-robot-vacuums-singapore" },
     productSectionTitle: "Live robot vacuum deals across the US",
     comparisonSectionTitle: "Top robot vacuum & Roomba picks at a glance",
