@@ -24,6 +24,17 @@ import { inferCategoryFromQuery, filterOffersByCategory } from "@/lib/compare-ca
 
 export const metadata = buildCompareIndexMetadata();
 
+// BUY-69260: Chrome RSC navigation sends a populated `__PAGE__` segment in the
+// `Next-Router-State-Tree` header.  Next 14.2.35's router-state parser trips
+// against the legacy sync `searchParams` shape on this route, surfacing as
+// HTTP 500 with `page: "/_error"` instead of the route-local error boundary.
+// Force dynamic so the second server-side render during RSC navigation does
+// not depend on cached build output, and switch the route signature to
+// Promise<searchParams> (matches /categories/[slug]/[country]/page.tsx which
+// does not exhibit the failure).
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const API_BASE_URL =
   process.env.BUYWHERE_API_INTERNAL_URL ||
   process.env.BUYWHERE_API_URL ||
@@ -37,29 +48,45 @@ const API_KEY =
   process.env.BUYWHERE_API_INTERNAL_KEY;
 
 type ComparePageProps = {
-  searchParams?: {
+  searchParams?: Promise<{
     q?: string;
     ids?: string;
     country?: string;
     country_code?: string;
-  };
+  }>;
 };
 
-const schemaMarkup = {
-  "@context": "https://schema.org",
-  "@type": "CollectionPage",
-  "@id": `${toSiteUrl("/compare/")}#collection`,
-  name: "Compare Product Prices by Market",
-  description:
-    "Compare prices on electronics, fashion, home goods, beauty products, and more across the US and Southeast Asia.",
-  url: toSiteUrl("/compare/"),
-  mainEntityOfPage: toSiteUrl("/compare/"),
-  publisher: {
-    "@type": "Organization",
-    "@id": `${toSiteUrl("/#organization")}`,
-    name: "BuyWhere",
-  },
-};
+function schemaMarkupSafe() {
+  // BUY-69260: belt-and-suspenders around `toSiteUrl` so any throw path falls
+  // back to a relative URL instead of bubbling up to the global error page.
+  try {
+    const compareUrl = toSiteUrl("/compare/");
+    const orgUrl = toSiteUrl("/#organization");
+    return {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "@id": `${compareUrl}#collection`,
+      name: "Compare Product Prices by Market",
+      description:
+        "Compare prices on electronics, fashion, home goods, beauty products, and more across the US and Southeast Asia.",
+      url: compareUrl,
+      mainEntityOfPage: compareUrl,
+      publisher: {
+        "@type": "Organization",
+        "@id": orgUrl,
+        name: "BuyWhere",
+      },
+    };
+  } catch {
+    return {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: "Compare Product Prices by Market",
+      description:
+        "Compare prices on electronics, fashion, home goods, beauty products, and more across the US and Southeast Asia.",
+    };
+  }
+}
 
 async function fetchJson(url: string) {
   if (!API_KEY) {
@@ -518,10 +545,27 @@ function CategoryGrid() {
 }
 
 export default async function CompareIndexPage({ searchParams }: ComparePageProps) {
-  const query = searchParams?.q?.trim() || "";
-  const rawIds = searchParams?.ids || "";
-  const ids = parseIdsParam(rawIds);
-  const country = (searchParams?.country_code || searchParams?.country)?.trim().toLowerCase();
+  // BUY-69260: defensive `await searchParams` — empty fallback if the route
+  // resolver sees a malformed router-state tree.  Compare-page data fetch is
+  // already wrapped in try/catch (see `loadComparisonOffers`) so the page
+  // always renders a valid UI even if upstream fails.
+  let query = "";
+  let rawIds = "";
+  let ids: string[] = [];
+  let country: string | undefined;
+  try {
+    const sp = searchParams ? await searchParams : undefined;
+    query = sp?.q?.trim() || "";
+    rawIds = sp?.ids || "";
+    ids = parseIdsParam(rawIds);
+    country = (sp?.country_code || sp?.country)?.trim().toLowerCase() || undefined;
+  } catch {
+    query = "";
+    rawIds = "";
+    ids = [];
+    country = undefined;
+  }
+
   const showComparison = query.length > 0 || ids.length > 0;
   const offers = showComparison ? await loadComparisonOffers(query, ids, country) : [];
   const emptyStateTitle = query
@@ -542,7 +586,7 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
       <Nav />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkup) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkupSafe()) }}
       />
 
       <main id="main-content" tabIndex={-1} className="flex-1">
