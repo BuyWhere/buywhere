@@ -85,26 +85,20 @@ const nextConfig = {
       // middleware DOES NOT run on App Router RSC requests (NextResponse.rewrite
       // and NextResponse.next({ request: { headers } }) have no effect).
       //
-      // Workaround: rewrite the request to an internal sibling route
-      // (`/rsc-rewrite/[slug]`) when the `RSC: 1` AND
-      // `Next-Router-State-Tree: ...__PAGE__...` headers are both present on
-      // /search and /compare.  The rewrite target returns a 200 with an empty
-      // RSC payload so Chrome's app-router client falls back to URL-derived
-      // state (which already matches the user's URL bar).
+      // Workaround: rewrite ALL `RSC: 1` requests to /search and /compare to an
+      // internal sibling route `/rsc-rewrite/[slug]` that returns a 200 with an
+      // empty RSC payload.  Chrome's app-router client then falls back to URL-
+      // derived state for the visible page (which already matches the URL bar).
+      // Plain HTML and empty-__PAGE__ requests without RSC:1 continue to render
+      // the full /search and /compare pages.
       {
         source: '/search',
-        has: [
-          { type: 'header', key: 'rsc', value: '1' },
-          { type: 'header', key: 'next-router-state-tree', value: '(?=.*__PAGE__).*' },
-        ],
+        has: [{ type: 'header', key: 'rsc', value: '1' }],
         destination: '/rsc-rewrite/search',
       },
       {
         source: '/compare',
-        has: [
-          { type: 'header', key: 'rsc', value: '1' },
-          { type: 'header', key: 'next-router-state-tree', value: '(?=.*__PAGE__).*' },
-        ],
+        has: [{ type: 'header', key: 'rsc', value: '1' }],
         destination: '/rsc-rewrite/compare',
       },
     ];
