@@ -174,7 +174,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">Quick next step</p>
               <h2 className="mt-3 text-2xl font-semibold">{shopperCta.title}</h2>
               <p className="mt-3 text-sm leading-6 text-slate-200">{shopperCta.body}</p>
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-6">
                 <Link
                   href={shopperCta.href}
                   prefetch={false}
@@ -182,14 +182,17 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 >
                   {shopperCta.label}
                 </Link>
+              </div>
+              <p className="mt-4 text-xs leading-5 text-slate-300">
+                Building a deal feed? {" "}
                 <Link
                   href={developerCta.href}
                   prefetch={false}
-                  className="inline-flex min-h-[44px] items-center rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+                  className="font-semibold text-amber-200 underline-offset-4 hover:text-amber-100 hover:underline"
                 >
-                  {developerCta.label}
+                  {developerCta.label} →
                 </Link>
-              </div>
+              </p>
             </div>
           </div>
         </section>
