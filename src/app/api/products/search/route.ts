@@ -554,12 +554,18 @@ function rankAndClassifyItems(items: Record<string, unknown>[], query: string) {
   const queryWords = coreQueryWords(query);
   const dedupedItems = deduplicateItems(dropFabricatedItems(items));
   const primaryItems: Record<string, unknown>[] = [];
-  const mismatchItems: Record<string, unknown>[] = [];
   const accessoryItems: Record<string, unknown>[] = [];
 
   dedupedItems.forEach((item) => {
     const isAccessory = isAccessoryItem(item, queryWords);
     const isCategoryMismatch = isCategoryMismatchedForDeviceQuery(query, item);
+    // Complete-device queries (e.g. "gaming laptop", "iphone") must surface
+    // only items in the device's own category. Items whose metadata category
+    // is clearly off-topic (e.g. a Storage SSD for "gaming laptop") are
+    // dropped rather than demoted — otherwise a narrow result set with a
+    // single mismatch still exposes the wrong category at the tail. This is
+    // the BUY-69166 fix that closes the BUY-68365 demote-still-surfaces gap.
+    if (isCategoryMismatch) return;
     const classifiedItem = {
       ...item,
       isAccessory,
@@ -568,14 +574,12 @@ function rankAndClassifyItems(items: Record<string, unknown>[], query: string) {
 
     if (isAccessory) {
       accessoryItems.push(classifiedItem);
-    } else if (isCategoryMismatch) {
-      mismatchItems.push(classifiedItem);
     } else {
       primaryItems.push(classifiedItem);
     }
   });
 
-  return [...primaryItems, ...mismatchItems, ...accessoryItems];
+  return [...primaryItems, ...accessoryItems];
 }
 
 export async function GET(request: NextRequest) {
