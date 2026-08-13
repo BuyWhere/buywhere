@@ -334,6 +334,28 @@ export function middleware(request: NextRequest) {
   const accept = request.headers.get("accept") ?? "";
   const wantsMarkdown = accept.includes("text/markdown");
 
+  // BUY-69260: Chrome RSC navigation sends `Next-Router-State-Tree` carrying
+  // a populated `__PAGE__` segment (e.g. ["__PAGE__", {"q":"...", "country":"..."}]).
+  // Next 14.2.35's router-state parser trips on this shape and returns HTTP
+  // 500 with `page: "/_error"` BEFORE the page handler runs, so route-level
+  // fixes (force-dynamic, Promise<searchParams>, error.tsx) cannot recover.
+  //
+  // The URL already carries the full search params (?q=, ?country=), so the
+  // populated `__PAGE__` segment is redundant for our routes.  Strip the
+  // `Next-Router-State-Tree` header on RSC:1 requests to /search and /compare
+  // so the App Router parses a clean URL-derived searchParams view instead.
+  // Verified: empty `__PAGE__: {}` already returns 200 on the same routes.
+  const isRscRequest = request.headers.get("rsc") === "1" || request.headers.get("RSC") === "1";
+  const routerState = request.headers.get("next-router-state-tree");
+  const isBuywherePopulatedRoute =
+    (pathname === "/search" || pathname === "/compare") && isRscRequest && routerState && /__PAGE__/.test(routerState);
+  if (isBuywherePopulatedRoute) {
+    const cleanedHeaders = new Headers(request.headers);
+    cleanedHeaders.delete("next-router-state-tree");
+    cleanedHeaders.delete("Next-Router-State-Tree");
+    return NextResponse.next({ request: { headers: cleanedHeaders } });
+  }
+
   // Bypass all middleware for static files
   // Exception: /developers/robots.txt and /developers/sitemap.xml must reach the rewrite
   // logic below (BUY-65437) — they contain "." but are not real static files.
