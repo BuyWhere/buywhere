@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Schema from "@/components/Schema";
@@ -11,11 +12,25 @@ const BLOG_TITLE = "BuyWhere Blog — Buying Guides & Price-Comparison Reviews";
 const BLOG_DESCRIPTION =
   "Read buying guides, price-comparison reviews, launch updates, and developer tutorials for commerce AI agents.";
 
-export const metadata = buildPageMetadata({
-  title: BLOG_TITLE,
-  description: BLOG_DESCRIPTION,
-  path: "/blog",
-});
+// BUY-68406: advertise the blog RSS feed via <link rel="alternate"
+// type="application/rss+xml"> so feed readers and agent-discovery consumers can
+// autodiscover the canonical feed URL from /blog. Layered on top of the shared
+// page-metadata helper to add the feed alternate without changing every caller.
+export const metadata: Metadata = {
+  ...buildPageMetadata({
+    title: BLOG_TITLE,
+    description: BLOG_DESCRIPTION,
+    path: "/blog",
+  }),
+  alternates: {
+    canonical: toSiteUrl("/blog"),
+    types: {
+      "application/rss+xml": [
+        { url: toSiteUrl("/blog/rss.xml"), title: BLOG_TITLE },
+      ],
+    },
+  },
+};
 
 function formatDate(date: string) {
   return new Intl.DateTimeFormat("en-US", {
@@ -48,6 +63,27 @@ export default function BlogIndexPage() {
         description: BLOG_DESCRIPTION,
         inLanguage: "en-US",
         mainEntityOfPage: { "@id": `${blogUrl}#webpage` },
+        blogPost: posts.slice(0, 10).map((post) => ({
+          "@type": "BlogPosting",
+          "@id": toSiteUrl(`/blog/${post.slug}`),
+          url: toSiteUrl(`/blog/${post.slug}`),
+          headline: post.title,
+          description: post.description,
+          datePublished: post.publishedAt,
+          author: { "@type": "Person", name: post.author },
+          mainEntityOfPage: toSiteUrl(`/blog/${post.slug}`),
+        })),
+      },
+      {
+        "@type": "ItemList",
+        "@id": `${blogUrl}#itemlist`,
+        name: `${BLOG_TITLE} — Recent Posts`,
+        itemListElement: posts.slice(0, 10).map((post, index) => ({
+          "@type": "ListItem",
+          position: index + 1,
+          url: toSiteUrl(`/blog/${post.slug}`),
+          name: post.title,
+        })),
       },
     ],
   });

@@ -29,6 +29,10 @@ export function buildPageMetadata(input: BuildPageMetadataInput): Metadata {
     alternates: {
       canonical,
     },
+    robots: {
+      index: true,
+      follow: true,
+    },
     openGraph: {
       title: input.title,
       description: input.description,
