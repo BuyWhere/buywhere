@@ -684,37 +684,51 @@ async function handleListCategories(args) {
         });
         try {
             await client.query('SET statement_timeout = 8000');
-            const tableCheck = await client.query(`SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`);
+            // BUY-69472: set lock_timeout so concurrent matview refresh / long-held
+            // ACCESS EXCLUSIVE locks degrade to fallback instead of hard -32603.
+            await client.query('SET lock_timeout = 5000');
             let rows = [];
-            if (tableCheck.rows[0]?.tbl) {
-                const summaryResult = await client.query(`SELECT slug, name, product_count
-           FROM mcp_category_summary_by_country
-           WHERE country_code = $1
-           ORDER BY product_count DESC
-           LIMIT 100`, [country]);
-                rows = summaryResult.rows;
-            }
-            if (rows.length === 0) {
-                // BUY-60056: materialized view is empty/stale in production. Instead of
-                // returning unavailable or running a full-table GROUP BY, sample recent
-                // products through the updated_at path and derive a bounded category list.
-                // BUY-65477: Also check `category` column as fallback since category_path
-                // may be empty but category column is populated.
-                const fallbackResult = await client.query(`SELECT slug, slug AS name, COUNT(*)::int AS product_count
-           FROM (
-               SELECT category_path, category, country_code
-               FROM products
-               ORDER BY updated_at DESC
-               LIMIT 50000
-           ) _recent_categories
-           CROSS JOIN LATERAL (
-               SELECT COALESCE(category_path[1], NULLIF(lower(regexp_replace(category, '\\s+', '-', 'g')), '')) AS slug
-           ) _cat
-           WHERE country_code = $1 AND slug IS NOT NULL AND slug <> ''
-           GROUP BY slug
-           ORDER BY product_count DESC
-           LIMIT 100`, [country]);
-                rows = fallbackResult.rows;
+            try {
+                const tableCheck = await client.query(`SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`);
+                if (tableCheck.rows[0]?.tbl) {
+                    const summaryResult = await client.query(`SELECT slug, name, product_count
+               FROM mcp_category_summary_by_country
+               WHERE country_code = $1
+               ORDER BY product_count DESC
+               LIMIT 100`, [country]);
+                    rows = summaryResult.rows;
+                }
+                if (rows.length === 0) {
+                    // BUY-60056: materialized view is empty/stale in production. Instead of
+                    // returning unavailable or running a full-table GROUP BY, sample recent
+                    // products through the updated_at path and derive a bounded category list.
+                    // BUY-65477: Also check `category` column as fallback since category_path
+                    // may be empty but category column is populated.
+                    const fallbackResult = await client.query(`SELECT slug, slug AS name, COUNT(*)::int AS product_count
+               FROM (
+                   SELECT category_path, category, country_code
+                   FROM products
+                   ORDER BY updated_at DESC
+                   LIMIT 50000
+               ) _recent_categories
+               CROSS JOIN LATERAL (
+                   SELECT COALESCE(category_path[1], NULLIF(lower(regexp_replace(category, '\\s+', '-', 'g')), '')) AS slug
+               ) _cat
+               WHERE country_code = $1 AND slug IS NOT NULL AND slug <> ''
+               GROUP BY slug
+               ORDER BY product_count DESC
+               LIMIT 100`, [country]);
+                    rows = fallbackResult.rows;
+                }
+            } catch (dbErr) {
+                // BUY-69472: lock_timeout (55P03) or statement_timeout (57014) —
+                // degrade to hardcoded fallback instead of hard -32603.
+                const pgCode = dbErr?.code;
+                if (pgCode === '55P03' || pgCode === '57014') {
+                    console.warn(`[list_categories] DB lock/statement timeout for ${country} (code=${pgCode}), falling back to hardcoded categories`);
+                } else {
+                    throw dbErr;
+                }
             }
             if (rows.length === 0) {
                 rows = ['Electronics', 'Computers', 'Mobile Phones', 'Home', 'Fashion'].map((name) => ({
