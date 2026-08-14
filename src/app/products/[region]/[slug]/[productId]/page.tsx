@@ -9,6 +9,17 @@ const INTERNAL_ORIGIN =
   process.env.NEXT_PUBLIC_SITE_URL ||
   "https://buywhere.ai";
 
+// BUY-69630: call the API service directly via the Railway internal URL with
+// the SSR-held API key. The Next.js site has a /api/* rewrite that proxies
+// all /api/* to api.buywhere.ai/v1/* (next.config.mjs), which shadows the
+// internal /api/products/[id] route handler. Calling the API service directly
+// bypasses the rewrite and the SSR runtime already holds BUYWHERE_API_KEY.
+const API_INTERNAL_URL = (
+  process.env.BUYWHERE_API_INTERNAL_URL ||
+  "https://api.buywhere.ai"
+).replace(/\/$/, "");
+const API_KEY = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
+
 // Static us/sg directories take priority over this [region] catch-all.
 // This page handles product detail pages for all other regions: my, th, id, ph, vn.
 const REGION_CONFIG: Record<string, { currency: string; countryName: string }> = {
@@ -39,6 +50,48 @@ interface ProductDetail {
   affiliate_url?: string | null;
   buy_url?: string | null;
   product_url?: string | null;
+}
+
+interface ApiProductItem {
+  id: string | number;
+  name?: string | null;
+  title?: string | null;
+  price?: number | { amount?: number | string | null; currency?: string | null } | null;
+  image_url?: string | null;
+  category?: string | null;
+  brand?: string | null;
+  merchant?: string | null;
+  merchant_name?: string | null;
+  updated_at?: string | null;
+  click_url?: string | null;
+  affiliate_redirect_url?: string | null;
+  affiliate_url?: string | null;
+  buy_url?: string | null;
+  url?: string | null;
+  product_url?: string | null;
+}
+
+function mapApiProduct(item: ApiProductItem): ProductDetail {
+  const priceValue =
+    typeof item.price === "object" && item.price !== null
+      ? item.price.amount
+      : (item.price as number | undefined);
+  return {
+    id: item.id,
+    name: item.name ?? item.title ?? undefined,
+    title: item.title ?? item.name ?? undefined,
+    price: priceValue != null ? Number(priceValue) : undefined,
+    image_url: item.image_url ?? null,
+    category: item.category ?? undefined,
+    brand: item.brand ?? undefined,
+    merchant_name: item.merchant ?? item.merchant_name ?? undefined,
+    data_updated_at: item.updated_at ?? undefined,
+    affiliate_redirect_url: item.affiliate_redirect_url ?? null,
+    click_url: item.click_url ?? null,
+    affiliate_url: item.affiliate_url ?? null,
+    buy_url: item.buy_url ?? null,
+    product_url: item.url ?? item.product_url ?? null,
+  };
 }
 
 function pickPrimaryCtaUrl(detail: ProductDetail | null | undefined): string | null {
@@ -77,21 +130,29 @@ function landingProductToDetail(product: LandingProduct): ProductDetail {
 }
 
 async function getProduct(productId: string): Promise<ProductDetail | null> {
-  // Route through the internal API route which has the backend API key injected.
-  // This avoids depending on BUYWHERE_API_KEY being present in the SSR environment.
-  try {
-    const res = await fetch(`${INTERNAL_ORIGIN}/api/products/${encodeURIComponent(productId)}`, {
-      next: { revalidate: 3600 },
-      signal: AbortSignal.timeout(5000),
-    });
-    if (res.ok) {
-      const json = await res.json() as { data?: ProductDetail[] };
-      // API response wraps products in {data: [ProductDetail]}
-      const data = json?.data?.[0];
-      if (data?.id != null) return data;
+  // BUY-69630: fetch the live catalog record directly from the internal API
+  // service using the SSR-held API key. The site's /api/* rewrite shadows the
+  // internal Next.js route handler, so SSR calls the API service directly.
+  if (API_KEY) {
+    try {
+      const res = await fetch(`${API_INTERNAL_URL}/v1/products/${encodeURIComponent(productId)}`, {
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${API_KEY}`,
+        },
+        next: { revalidate: 3600 },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        const payload = (await res.json()) as ProductDetail | { data?: ApiProductItem[] };
+        const item = Array.isArray((payload as { data?: ApiProductItem[] }).data)
+          ? (payload as { data: ApiProductItem[] }).data[0]
+          : (payload as ProductDetail);
+        if (item?.id) return mapApiProduct(item as ApiProductItem);
+      }
+    } catch (err) {
+      console.warn(`[products/region] internal API error for ${productId}:`, err);
     }
-  } catch (err) {
-    console.warn(`[products/region] internal API error for ${productId}:`, err);
   }
 
   return null;
