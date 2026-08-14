@@ -272,8 +272,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     params.push(maxPrice);
     conditions.push(`price <= $${params.length}`);
   }
-  if (region) {
-    params.push(region);
+  if (market.dbRegion) {
+    params.push(market.dbRegion);
     conditions.push(`region = $${params.length}`);
   }
   if (country) {
@@ -401,11 +401,22 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             rows = [];
           } else {
             const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
+            const detailParams: unknown[] = [...pageIds];
+            const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
+            const detailConditions = [`id IN (${ph})`, 'is_active = true'];
+            if (country) {
+              detailParams.push(country.toUpperCase());
+              detailConditions.push(`country_code = $${detailParams.length}`);
+            }
+            if (market.dbRegion) {
+              detailParams.push(market.dbRegion);
+              detailConditions.push(`region = $${detailParams.length}`);
+            }
             const detailResult = await searchClient.query(
               `SELECT id, sku AS source, source AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code
-               FROM products WHERE id IN (${ph}) AND is_active = true`,
-              pageIds
+               FROM products WHERE ${detailConditions.join(' AND ')}`,
+              detailParams
             );
             // Preserve ranking order
             const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
@@ -602,8 +613,8 @@ async function handleGetDeals(args: Record<string, unknown>) {
   }
   const params: unknown[] = [currency, minDiscount];
 
-  if (region) {
-    params.push(region);
+  if (market.dbRegion) {
+    params.push(market.dbRegion);
     conditions.push(`region = $${params.length}`);
   }
   if (effectiveCountry) {
