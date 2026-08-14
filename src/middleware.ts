@@ -314,6 +314,17 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
   const normalizedPath = normalizePathname(pathname);
   const isDocsHost = host === "docs.buywhere.ai";
 
+  // BUY-31b6ae66: legal/auth aliases should redirect before the App Router
+  // homepage-branded 404 shell can render. Keep here because middleware is the
+  // established production redirect path for this app.
+  if (normalizedPath === "/legal") {
+    return "/privacy";
+  }
+
+  if (normalizedPath === "/sign-up") {
+    return "/register";
+  }
+
   if (normalizedPath === "/api-keys-keys") {
     return "/api-keys";
   }
