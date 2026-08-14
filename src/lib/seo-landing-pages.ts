@@ -132,6 +132,15 @@ export type SeoLandingPageConfig = {
   description: string;
   heroEyebrow: string;
   heroTitle: string;
+  /**
+   * Optional template for the hero <h1> that gets the live catalog floor price
+   * substituted at render time. Use {floorPrice} as the placeholder. When set,
+   * the rendered headline, JSON-LD article headline, breadcrumb name, and
+   * CollectionPage name all use the substituted string (so they stay in sync
+   * with whatever the live product snapshot shows). When omitted, falls back to
+   * the static heroTitle. (BUY-66320)
+   */
+  heroTitleTemplate?: string;
   heroBody: string;
   canonicalPath: string;
   country: "US" | "SG";
@@ -194,6 +203,35 @@ function formatMerchantName(value?: string | null) {
   // tables, or JSON-LD seller names. stripMerchantTenantSuffix is the same
   // helper MerchantBadge uses, so the public render is identical.
   return stripMerchantTenantSuffix(value);
+}
+
+/**
+ * Resolve the rendered hero <h1> text. When a config provides a template with a
+ * {floorPrice} placeholder, substitute the live catalog's lowest price (from
+ * the snapshot used to render the page). Falls back to the static heroTitle
+ * when no template is set, or when the live catalog is empty (e.g. transient
+ * upstream outage). (BUY-66320)
+ */
+export function resolveHeroTitle(
+  config: Pick<SeoLandingPageConfig, "heroTitle" | "heroTitleTemplate" | "currency">,
+  products: LandingProduct[]
+): string {
+  if (!config.heroTitleTemplate) return config.heroTitle;
+
+  const prices = products
+    .map((p) => (p.price !== null && p.price !== undefined ? Number(p.price) : null))
+    .filter((n): n is number => n !== null && Number.isFinite(n) && n > 0);
+
+  if (prices.length === 0) return config.heroTitle;
+
+  const floor = Math.min(...prices);
+  const formatted = new Intl.NumberFormat(config.currency === "SGD" ? "en-SG" : "en-US", {
+    style: "currency",
+    currency: config.currency,
+    maximumFractionDigits: 0,
+  }).format(floor);
+
+  return config.heroTitleTemplate.replace(/\{floorPrice\}/g, formatted);
 }
 
 function normalizeExternalHref(...values: Array<string | null | undefined>) {
@@ -1176,6 +1214,11 @@ export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata 
 
 export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: LandingProduct[]) {
   const canonical = toSiteUrl(config.canonicalPath);
+  // BUY-66320: resolve the same hero title the page renders so the JSON-LD
+  // article headline, breadcrumb, and CollectionPage name stay in sync with
+  // the live catalog floor (the previous static heroTitle drifted when the
+  // upstream catalog changed).
+  const resolvedHeroTitle = resolveHeroTitle(config, products);
 
   // Deduplicate products by name so each distinct product becomes a top-level
   // Product node with an AggregateOffer summarising every merchant listing it.
@@ -1250,7 +1293,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
   const articleNode = {
     "@type": "Article",
     "@id": `${canonical}#article`,
-    headline: config.heroTitle,
+    headline: resolvedHeroTitle,
     description: config.description,
     image: `${BASE_URL}/og-image.png`,
     inLanguage: config.locale.replace("_", "-"),
@@ -1289,7 +1332,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
           {
             "@type": "ListItem",
             position: 2,
-            name: config.heroTitle,
+            name: resolvedHeroTitle,
             item: canonical,
           },
         ],
@@ -1297,7 +1340,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
       {
         "@type": "CollectionPage",
         "@id": `${canonical}#collection`,
-        name: config.heroTitle,
+        name: resolvedHeroTitle,
         description: config.description,
         url: canonical,
         mainEntityOfPage: canonical,
@@ -1772,6 +1815,10 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       "Robot vacuum prices 2026: Roomba j9+ from $999, Roborock Q5 Pro+ from $499, eufy X10 from $799. Live deals across Amazon, Best Buy, Walmart.",
     heroEyebrow: "US Home Guide",
     heroTitle: "Best Robot Vacuums 2026 from $199 — Roomba & Roborock Deals",
+    // BUY-66320: render the headline floor from the live catalog snapshot so
+    // the H1 / JSON-LD / breadcrumb all match the lowest visible price. The
+    // static heroTitle above is the fallback when the live catalog is empty.
+    heroTitleTemplate: "Best Robot Vacuums 2026 from {floorPrice} — Roomba & Roborock Deals",
     heroBody:
       "Looking for the best Roomba sale in 2026? iRobot Roomba models — from the j7+ to the Combo j9+ — regularly drop 15–40% during Prime Day, Black Friday, and holiday events. This page tracks live Roomba and robot vacuum deals across Amazon, Best Buy, Walmart, and Costco so you never miss a discount.",
     canonicalPath: "/best-robot-vacuums-2026",

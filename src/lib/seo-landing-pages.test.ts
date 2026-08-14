@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   getSeoLandingProducts,
   isCompleteRobotVacuum,
+  resolveHeroTitle,
   seoLandingPages,
   type LandingProduct,
 } from "@/lib/seo-landing-pages";
@@ -483,4 +484,74 @@ test("BUY-69167: normalizeProduct accepts a categoryFallback and resolves catego
   // New explicit laptop/gaming-laptop regex branches.
   assert.match(source, /\\bgaming\\s\*laptop\|gaming\\s\*notebook/);
   assert.match(source, /\\blaptop\|notebook\|macbook\|chromebook/);
+});
+
+// BUY-66320: resolveHeroTitle must substitute the live catalog floor price
+// into the template, fall back to the static heroTitle when no template is
+// provided, and fall back when the live catalog is empty.
+test("resolveHeroTitle substitutes {floorPrice} from live catalog", () => {
+  const config = {
+    heroTitle: "Best Robot Vacuums 2026 from $199 — Roomba & Roborock Deals",
+    heroTitleTemplate: "Best Robot Vacuums 2026 from {floorPrice} — Roomba & Roborock Deals",
+    currency: "USD" as const,
+  };
+  const products: LandingProduct[] = [
+    { ...makeLandingProduct("Roborock S8 MaxV Ultra"), id: "r1", price: 1299, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/x" },
+    { ...makeLandingProduct("Roomba Combo j9+"), id: "r2", price: 999, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/x" },
+    { ...makeLandingProduct("Roborock Q5 Pro+"), id: "r3", price: 560, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/x" },
+  ];
+  const resolved = resolveHeroTitle(config, products);
+  assert.equal(
+    resolved,
+    "Best Robot Vacuums 2026 from $560 — Roomba & Roborock Deals",
+    "floorPrice should be the lowest live price ($560), not the stale $199"
+  );
+});
+
+test("resolveHeroTitle falls back to static heroTitle when no template", () => {
+  const config = {
+    heroTitle: "Best Air Purifiers in Singapore",
+    currency: "SGD" as const,
+  };
+  const products: LandingProduct[] = [
+    { ...makeLandingProduct("X"), id: "1", price: 100, currency: "SGD", merchant: "M", imageUrl: null, href: "/x" },
+  ];
+  assert.equal(resolveHeroTitle(config, products), "Best Air Purifiers in Singapore");
+});
+
+test("resolveHeroTitle falls back to static heroTitle when live catalog is empty (BUY-66320 hardens against upstream outages)", () => {
+  const config = {
+    heroTitle: "Best Robot Vacuums 2026 from $199 — Roomba & Roborock Deals",
+    heroTitleTemplate: "Best Robot Vacuums 2026 from {floorPrice} — Roomba & Roborock Deals",
+    currency: "USD" as const,
+  };
+  assert.equal(
+    resolveHeroTitle(config, []),
+    "Best Robot Vacuums 2026 from $199 — Roomba & Roborock Deals"
+  );
+});
+
+test("resolveHeroTitle ignores null prices and zero prices", () => {
+  const config = {
+    heroTitle: "fallback",
+    heroTitleTemplate: "from {floorPrice}",
+    currency: "USD" as const,
+  };
+  const products: LandingProduct[] = [
+    { ...makeLandingProduct("X"), id: "1", price: null, currency: "USD", merchant: "M", imageUrl: null, href: "/x" },
+    { ...makeLandingProduct("Y"), id: "2", price: 0, currency: "USD", merchant: "M", imageUrl: null, href: "/x" },
+    { ...makeLandingProduct("Z"), id: "3", price: 250, currency: "USD", merchant: "M", imageUrl: null, href: "/x" },
+  ];
+  assert.equal(resolveHeroTitle(config, products), "from $250");
+});
+
+test("best-robot-vacuums-2026 declares heroTitleTemplate so the headline stays in sync with the live catalog (BUY-66320)", () => {
+  const config = seoLandingPages["best-robot-vacuums-2026"];
+  assert.ok(config, "best-robot-vacuums-2026 config must exist");
+  assert.ok(
+    config.heroTitleTemplate && config.heroTitleTemplate.includes("{floorPrice}"),
+    "best-robot-vacuums-2026 must declare a heroTitleTemplate with {floorPrice}"
+  );
+  // The static heroTitle is the fallback when the live catalog is empty.
+  assert.match(config.heroTitle, /Roomba/);
 });
