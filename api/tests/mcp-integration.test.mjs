@@ -308,8 +308,8 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
       }
       return Promise.resolve({
         rows: [
-          makeProduct('p1', { title: 'Phone A', price: 999 }),
-          makeProduct('p2', { title: 'Phone B', price: 799 }),
+          makeProduct('1', { title: 'Phone A', price: 999 }),
+          makeProduct('2', { title: 'Phone B', price: 799 }),
         ],
       });
     });
@@ -319,7 +319,7 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
       body: JSON.stringify({
         jsonrpc: '2.0', id: 15, method: 'tools/call',
-        params: { name: 'compare_products', arguments: { ids: ['p1', 'p2'] } },
+        params: { name: 'compare_products', arguments: { ids: ['1', '2'] } },
       }),
     });
     const body = await res.json();
