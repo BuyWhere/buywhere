@@ -98,6 +98,10 @@ def get_mcp_server() -> Server:
                                     "type": "string",
                                     "description": "Product name or search query.",
                                 },
+                                "q": {
+                                    "type": "string",
+                                    "description": "Alias for product_name (deprecated, use product_name).",
+                                },
                                 "category": {
                                     "type": "string",
                                     "description": "Optional category to narrow the search.",
@@ -249,6 +253,8 @@ async def _handle_get_product(args: dict[str, Any]) -> CallToolResult:
 
 async def _handle_find_best_price(args: dict[str, Any]) -> CallToolResult:
     product_name = str(args.get("product_name", "")).strip()
+    if not product_name:
+        product_name = str(args.get("q", "")).strip()
     if not product_name:
         return CallToolResult(
             content=[TextContent(type="text", text="Error: product_name is required")],

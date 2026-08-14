@@ -133,6 +133,7 @@ const TOOLS = [
       required: ['product_name'],
       properties: {
         product_name: { type: 'string', description: 'Product name to find best price for (e.g., "iphone 15 pro 256gb", "samsung galaxy s24")' },
+        q: { type: 'string', description: 'Alias for product_name (deprecated, use product_name).' },
         category: { type: 'string', description: 'Category to filter by (e.g., "electronics", "fashion")' },
         country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG). Alias: country.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
@@ -804,7 +805,7 @@ async function handleListCategories(args: Record<string, unknown>) {
 
 async function handleFindBestPrice(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const productName = (args.product_name as string) || '';
+  const productName = ((args.product_name as string) || (args.q as string) || '').trim();
   if (!productName) throw { code: -32602, message: 'product_name is required' };
 
   const country = (((args.country_code as string) || (args.country as string)) || 'SG').toUpperCase();
