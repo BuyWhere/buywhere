@@ -1425,12 +1425,11 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
       description: `${reference.name} price comparison across ${group.length} ${
         group.length === 1 ? "retailer" : "retailers"
       } on BuyWhere.`,
-      aggregateRating: {
-        "@type": "AggregateRating",
-        ratingValue: 4.8,
-        bestRating: 5,
-        reviewCount: 1240 + group.length * 37,
-      },
+      // BUY-69663: aggregateRating intentionally absent. The previous block
+      // synthesized a constant 4.8 / (1240 + n*37) rating for every product —
+      // fabricated review markup is a rich-result manual-action risk and
+      // feeds answer engines data we do not have. Emit ratings only from a
+      // real merchant-feed rating source (product-schema.ts enforces this).
       offers:
         prices.length > 0
           ? {
