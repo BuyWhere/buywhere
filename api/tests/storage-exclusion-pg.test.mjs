@@ -81,7 +81,7 @@ describe_or_skip('BUY-69727 storage-exclusion real-PG regression', { skip: !TEST
   });
 
   // Returns an array of { id, category } from the top-N results for the given query.
-  async function topResults(q, countryCode = 'US', limit = 10) {
+  async function topResults(q, countryCode = 'US', controlLimit = 10) {
     // Replicate the tier search logic using deviceStorageExclusionFragment.
     // This runs the ACTUAL exclusion SQL against the seeded DB — not a mock.
     const { deviceStorageExclusionFragment } = await import('../dist/lib/searchRelevanceTaxonomy.js');
@@ -90,32 +90,34 @@ describe_or_skip('BUY-69727 storage-exclusion real-PG regression', { skip: !TEST
     const lexemes = q.trim().split(/\s+/).map(w => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
     const tsOr = lexemes.join(' | ');
 
+    // BUY-69753: the fragment references the `sp` alias and the `products` table
+    // (EXISTS fallback for metadata->>'category'), so this harness must mirror the
+    // production tier query shape: search_products AS sp.
     const sql = `
       WITH cand AS (
-        SELECT id, search_vector
-        FROM products
-        WHERE search_vector @@ to_tsquery('english', $1)
-          AND country_code = $2
-          AND is_active = true
-          AND price > 0
+        SELECT sp.id, sp.search_vector
+        FROM search_products sp
+        WHERE sp.search_vector @@ to_tsquery('english', $1)
+          AND sp.country_code = $2
+          AND sp.price > 0
           ${storageExcl}
         LIMIT 5000
       ), top AS (
         SELECT id, ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
         FROM cand
         ORDER BY rank DESC
-        LIMIT ${limit}
+        LIMIT ${controlLimit}
       )
-      SELECT top.id, p.category, p.metadata
+      SELECT top.id, sp.category, p.metadata->>'category' AS meta_category
       FROM top
-      JOIN products p ON p.id = top.id::bigint
+      JOIN search_products sp ON sp.id = top.id
+      LEFT JOIN products p ON p.id = top.id
     `;
     const res = await pool.query(sql, [tsOr, countryCode]);
     return res.rows.map(r => ({
       id: String(r.id),
       category: r.category ?? '',
-      // BUY-69727: also extract metadata->>'category' for the archive-path fallback check
-      metaCategory: r.metadata && typeof r.metadata === 'object' ? (r.metadata.category ?? '') : '',
+      metaCategory: r.meta_category ?? '',
     }));
   }
 
@@ -193,9 +195,10 @@ describe_or_skip('BUY-69727 storage-exclusion real-PG regression', { skip: !TEST
     const { deviceStorageExclusionFragment } = await import('../dist/lib/searchRelevanceTaxonomy.js');
 
     const gamingFragment = deviceStorageExclusionFragment('gaming laptop');
+    // BUY-69753: Fragment may contain OR EXISTS, so check for NOT, ILIKE ANY, and metadata separately
     assert.ok(
-      /NOT\s+\(lower\(coalesce\(/i.test(gamingFragment),
-      `Device query fragment must contain NOT+coalesce: ${gamingFragment}`,
+      /NOT/i.test(gamingFragment) && /ILIKE\s+ANY/i.test(gamingFragment),
+      `Device query fragment must contain NOT and ILIKE ANY: ${gamingFragment}`,
     );
 
     const ssdFragment = deviceStorageExclusionFragment('ssd');

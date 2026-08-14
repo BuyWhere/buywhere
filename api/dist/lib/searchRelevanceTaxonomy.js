@@ -63,7 +63,15 @@ exports.STORAGE_QUERY_TOKENS = new Set([
 // mentions "1TB SSD" stays eligible. Substring match (not word-boundary)
 // because stored categories are inconsistent ("Internal SSD", "Solid State
 // Drives", "Computer Components & Storage", …) and the spec allows substring.
-// BUY-69727 FIX: metadata->>'category' fallback for the products table (archive
+//
+// BUY-69727 FIX: Switched from ~* POSIX-regex to ILIKE ANY after confirmed
+// live leak: Firecuda 520 SSD (cat="Storage") ranked #2 for "gaming laptop".
+// Root cause: ~* with space-containing ERE alternations ('storage|internal ssd|…')
+// can silently under-match on live catalog data. ILIKE ANY(ARRAY[...]) is
+// unambiguous for substring containment and bypasses all regex ambiguity.
+//
+// FAIL-OPEN contract: NULL/empty category never matches → product is kept.
+// BUY-69727 FIX: added metadata->>'category' fallback for the products table (archive
 // path), where some products have NULL category but store it in the JSONB metadata column.
 const STORAGE_CATEGORY_SUBSTRINGS = [
     'storage',
@@ -78,8 +86,24 @@ const STORAGE_CATEGORY_SUBSTRINGS = [
     'memory card',
 ];
 // ILIKE ANY — unambiguous, no regex parsing issues with spaces.
-const STORAGE_CATEGORY_SQL = `(lower(coalesce(sp.category,'')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
-const STORAGE_CATEGORY_SQL_PRODUCTS = `(lower(coalesce(category, metadata->>'category', '')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
+// Category-only match (NEVER title): laptop titles routinely contain "1TB SSD"
+// ("GIGABYTE GAMING A16 ... 1TB SSD with 16GB DDR5 RAM"), so a title ILIKE
+// '%ssd%' would hard-exclude real laptops from "gaming laptop" and destroy the
+// acceptance criteria. The exclusion must rely on the CATEGORY truth source.
+const STORAGE_CATEGORY_MATCH = `(lower(coalesce(sp.category,'')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
+// BUY-69753: check category and metadata->>'category' INDEPENDENTLY (OR), never
+// coalesce. The shipped BUY-69727 form `coalesce(category, metadata->>'category','')`
+// returns 'home-living' for Firecuda because category is NON-NULL — the metadata
+// fallback ('Storage') never fires and the row leaks through both paths. Same for
+// the EXISTS lookup from the tier table below.
+const STORAGE_CATEGORY_MATCH_PRODUCTS = `((lower(coalesce(p.category,'')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[])) OR (lower(coalesce(p.metadata->>'category','')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[])))`;
+// BUY-69753: search_products has no metadata column, while live response/category
+// truth comes from products.metadata->>'category' for rows like Firecuda 520
+// (search_products.category='home-living', products.metadata.category='Storage').
+// Use an id-keyed EXISTS fallback to the products table so the tier path filters
+// against the same category truth source the API exposes, without title matching.
+const STORAGE_CATEGORY_SQL = `(${STORAGE_CATEGORY_MATCH} OR EXISTS (SELECT 1 FROM products p WHERE p.id = sp.id AND ${STORAGE_CATEGORY_MATCH_PRODUCTS}))`;
+const STORAGE_CATEGORY_SQL_PRODUCTS = `((lower(coalesce(category,'')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[])) OR (lower(coalesce(metadata->>'category','')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[])))`;
 function normalizeQueryTokens(q) {
     return new Set(q
         .toLowerCase()
