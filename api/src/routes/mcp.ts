@@ -10,6 +10,21 @@ import { getCachedFxRates } from '../lib/fxRatesLoader';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
 
 const router = Router();
+const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
+
+async function acquireMcpClient() {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      db.connect(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('mcp_db_pool_acquire_timeout')), MCP_DB_ACQUIRE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 // BUY-56185/BUY-69684: Detect statement_timeout poisoned connections.
 // When PostgreSQL's statement_timeout fires, the query is cancelled but the
@@ -300,9 +315,12 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // (string code like '57P01') escapes to the outer handler which checks
   // typeof code === 'number' — fails for string codes — and returns the
   // opaque -32603 "Internal error" that Tune detected.
-  const searchClient = await db.connect().catch((err) => {
+  // BUY-69823: bound pool acquisition separately from statement_timeout so
+  // api.buywhere.ai/mcp fails fast with a standardized envelope under contention
+  // instead of consuming the whole 12s query budget before the handler starts.
+  const searchClient = await acquireMcpClient().catch((err) => {
     console.warn('[search_products] db.connect failed:', err.message);
-    throw { code: -32603, message: 'Database connection timeout — pool may be exhausted' };
+    throw { code: -32603, message: 'Database connection timeout' };
   });
   try {
     // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
@@ -702,6 +720,16 @@ async function handleGetDeals(args: Record<string, unknown>) {
 // Concurrent cache-misses coalesce on the same Promise instead of spawning N parallel GROUP-BY scans.
 const categoryListInflight = new Map<string, Promise<{ data: unknown[]; meta: Record<string, unknown> }>>();
 
+function buildHardcodedCategories() {
+  return [
+    { slug: 'electronics', name: 'Electronics', product_count: 0 },
+    { slug: 'computers', name: 'Computers', product_count: 0 },
+    { slug: 'mobile-phones', name: 'Mobile Phones', product_count: 0 },
+    { slug: 'home', name: 'Home', product_count: 0 },
+    { slug: 'fashion', name: 'Fashion', product_count: 0 },
+  ];
+}
+
 async function handleListCategories(args: Record<string, unknown>) {
   const t0 = Date.now();
   const country = normalizeMcpMarket(args, 'SG').country;
@@ -726,10 +754,16 @@ async function handleListCategories(args: Record<string, unknown>) {
   }
 
   // 3. No in-flight query — start one and register it so concurrent callers coalesce
+  // BUY-69823: wrap the whole queryPromise in a hard wall-clock timeout so pool
+  // contention + slow queries never exceed ~6s. If timeout fires, return hardcoded
+  // categories rather than a hard 5xx.
+  const MAT_VIEW_TIMEOUT_MS = 8000;
+  const LIVE_TIMEOUT_MS = 1800;
+  const HARD_TIMEOUT_MS = 6000;
   const queryPromise = (async () => {
-    const client = await db.connect().catch((err) => {
+    const client = await acquireMcpClient().catch((err) => {
       console.warn('[list_categories] db.connect failed:', err.message);
-      throw { code: -32603, message: 'Database connection timeout — pool may be exhausted' };
+      throw { code: -32603, message: 'Database connection timeout' };
     });
     try {
       await client.query('SET statement_timeout = 8000');
@@ -752,26 +786,59 @@ async function handleListCategories(args: Record<string, unknown>) {
           );
           rows = summaryResult.rows;
         }
+        // BUY-69823: if matview empty, try a bounded live GROUP BY with a tighter
+        // per-query timeout — prevents a 50K-row scan from burning the full 8s.
+        if (rows.length === 0) {
+          try {
+            await client.query(`SET statement_timeout = ${LIVE_TIMEOUT_MS}`);
+            await client.query(`SET work_mem = '256MB'`);
+            await client.query(`SET enable_hashagg = off`);
+            const liveResult = await client.query(
+              `SELECT category_path[1] AS slug, category_path[1] AS name, COUNT(*) AS product_count
+               FROM products
+               WHERE country_code = $1
+                 AND category_path[1] IS NOT NULL
+                 AND is_active = true
+               GROUP BY category_path[1]
+               ORDER BY COUNT(*) DESC
+               LIMIT 100`,
+              [country]
+            );
+            if (liveResult.rows.length > 0) rows = liveResult.rows;
+          } catch (_) {
+            // live GROUP BY timed out — fall through to recent-products fallback
+          } finally {
+            await client.query(`SET statement_timeout = ${MAT_VIEW_TIMEOUT_MS}`);
+          }
+        }
         if (rows.length === 0) {
           // BUY-60056: materialized view is empty/stale in production. Instead of
           // returning unavailable or running a full-table GROUP BY, sample recent
           // products through the updated_at path and derive a bounded category list.
-          const fallbackResult = await client.query(
-            `SELECT slug, slug AS name, COUNT(*)::int AS product_count
-             FROM (
-               SELECT category_path, country_code
-               FROM products
-               ORDER BY updated_at DESC
-               LIMIT 50000
-             ) _recent_categories
-             CROSS JOIN LATERAL (SELECT category_path[1] AS slug) _cat
-             WHERE country_code = $1 AND slug IS NOT NULL
-             GROUP BY slug
-             ORDER BY product_count DESC
-             LIMIT 100`,
-            [country]
-          );
-          rows = fallbackResult.rows;
+          // BUY-69823: use LIVE_TIMEOUT_MS so a 50K-row scan never exceeds 1.8s.
+          try {
+            await client.query(`SET statement_timeout = ${LIVE_TIMEOUT_MS}`);
+            const fallbackResult = await client.query(
+              `SELECT slug, slug AS name, COUNT(*)::int AS product_count
+               FROM (
+                 SELECT category_path, country_code
+                 FROM products
+                 WHERE country_code = $1
+                   AND category_path[1] IS NOT NULL
+                   AND is_active = true
+                 ORDER BY updated_at DESC
+                 LIMIT 50000
+               ) _recent_categories
+               CROSS JOIN LATERAL (SELECT category_path[1] AS slug) _cat
+               GROUP BY slug
+               ORDER BY product_count DESC
+               LIMIT 100`,
+              [country]
+            );
+            rows = fallbackResult.rows;
+          } catch (_) {
+            // recent-products fallback timed out — fall through to hardcoded
+          }
         }
       } catch (dbErr: any) {
         // BUY-69472: lock_timeout (55P03) or statement_timeout (57014) —
@@ -801,10 +868,39 @@ async function handleListCategories(args: Record<string, unknown>) {
     }
   })();
 
+  // BUY-69823: hard wall-clock timeout prevents pool contention + slow queries
+  // from burning the entire request budget. Race the queryPromise against a
+  // timeout; if timeout wins, return hardcoded categories instead of a 5xx.
+  const hardTimeoutPromise = new Promise<ReturnType<typeof buildHardcodedCategories>>((resolve) => {
+    setTimeout(() => {
+      resolve([
+        { slug: 'electronics', name: 'Electronics', product_count: 0 },
+        { slug: 'computers', name: 'Computers', product_count: 0 },
+        { slug: 'mobile-phones', name: 'Mobile Phones', product_count: 0 },
+        { slug: 'home', name: 'Home', product_count: 0 },
+        { slug: 'fashion', name: 'Fashion', product_count: 0 },
+      ]);
+    }, HARD_TIMEOUT_MS);
+  });
+
   categoryListInflight.set(country, queryPromise);
   try {
-    const result = await queryPromise;
-    return { ...result, meta: { ...result.meta, response_time_ms: Date.now() - t0 } };
+    const rows = await Promise.race([queryPromise.then(r => r.data), hardTimeoutPromise]);
+    const result = { data: rows, meta: { total: rows.length, country_code: country, response_time_ms: Date.now() - t0, cached: false, unavailable: false } };
+    return result;
+  } catch (err) {
+    // If the promise rejects, return hardcoded categories with a warning
+    console.warn('[list_categories] unexpected error, returning hardcoded:', err);
+    return {
+      data: [
+        { slug: 'electronics', name: 'Electronics', product_count: 0 },
+        { slug: 'computers', name: 'Computers', product_count: 0 },
+        { slug: 'mobile-phones', name: 'Mobile Phones', product_count: 0 },
+        { slug: 'home', name: 'Home', product_count: 0 },
+        { slug: 'fashion', name: 'Fashion', product_count: 0 },
+      ],
+      meta: { total: 5, country_code: country, response_time_ms: Date.now() - t0, cached: false, unavailable: false },
+    };
   } finally {
     categoryListInflight.delete(country);
   }
@@ -835,7 +931,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // over the whole table) times out at catalog scale (400M+ rows). Drive candidates from the
   // search_vector GIN index with a bounded LIMIT instead — same proven pattern as the
   // mcp-railway fbp handler and search_products.
-  const bestPriceClient = await db.connect().catch((err) => {
+  const bestPriceClient = await acquireMcpClient().catch((err) => {
     console.warn('[find_best_price] db.connect failed:', err.message);
     throw { code: -32603, message: 'Database connection timeout' };
   });
