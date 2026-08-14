@@ -17,6 +17,16 @@ const SEARCH_HISTORY_KEY = 'bw_search_history';
 const SEARCH_HISTORY_LIMIT = 8;
 const SUGGESTED_SEARCHES = ['wireless headphones', 'running shoes', 'espresso machine', 'gaming laptop'];
 
+// Exclude the currently-active query from the suggested-chips set so users
+// never see a chip that would just resubmit the same search (dead-end UX).
+// BUY-69618: case-insensitive + trim so "Gaming Laptop" / "  gaming laptop "
+// both match a chip labeled "gaming laptop".
+function filterSuggestedSearches(activeQuery: string): string[] {
+  const needle = activeQuery.trim().toLowerCase();
+  if (!needle) return SUGGESTED_SEARCHES;
+  return SUGGESTED_SEARCHES.filter((suggestion) => suggestion.toLowerCase() !== needle);
+}
+
 const COUNTRY_OPTIONS = [
   { value: 'us', label: 'United States', apiValue: 'US', currency: 'USD' },
   { value: 'sg', label: 'Singapore', apiValue: 'SG', currency: 'SGD' },
@@ -1295,7 +1305,7 @@ export default function SearchResultsClient({
                   legibility and recommended darker text / neutral background. */}
               <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-600">
                 <span>Suggested:</span>
-                {SUGGESTED_SEARCHES.map((suggestion) => (
+                {filterSuggestedSearches(debouncedQuery).map((suggestion) => (
                   <button
                     key={suggestion}
                     type="button"
@@ -1406,7 +1416,7 @@ export default function SearchResultsClient({
                     Try a broader term, switch countries, or start with one of these popular searches.
                   </p>
                   <div className="mt-5 flex flex-wrap gap-2">
-                    {SUGGESTED_SEARCHES.map((suggestion) => (
+                    {filterSuggestedSearches(debouncedQuery).map((suggestion) => (
                       <button
                         key={suggestion}
                         type="button"
