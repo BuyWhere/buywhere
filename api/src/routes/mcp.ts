@@ -571,17 +571,14 @@ async function handleCompareProducts(args: Record<string, unknown>) {
 async function handleGetDeals(args: Record<string, unknown>) {
   const t0 = Date.now();
   const minDiscount = Number(args.min_discount) || 10;
-  const region = (args.region as string) || '';
-  const country = ((args.country_code as string) || (args.country as string) || '').toUpperCase();
-  // BUY-60068: when only `region` is supplied (no `country_code`), derive country
-  // from region so the currency filter and country-specific fallback both fire.
-  // Mirrors the existing derivation in handleFindBestPrice below.
-  const effectiveCountry = country || (region.toLowerCase() === 'us' ? 'US' : region.toLowerCase() === 'sea' ? 'SG' : '');
+  const market = normalizeMcpMarket(args);
+  const region = market.rawRegion;
+  const effectiveCountry = market.country;
   const currency = ((args.currency as string) || (effectiveCountry ? COUNTRY_CURRENCY[effectiveCountry] : '') || 'SGD').toUpperCase();
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
 
-  const cacheKey = `deals_mcp:${currency}:${minDiscount}:${region}:${country}:${limit}:${offset}`;
+  const cacheKey = `deals_mcp:v2:${currency}:${minDiscount}:${region}:${market.dbRegion}:${effectiveCountry}:${limit}:${offset}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -672,7 +669,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // BUY-60068: surface `meta.unavailable:true` when both the strict discount filter
   // and the regional fallback returned zero rows for the requested region/country,
   // so callers can distinguish "no live deals" from "server bug".
-  if ((region || country) && products.length === 0) {
+  if ((region || effectiveCountry) && products.length === 0) {
     (result as { unavailable?: boolean }).unavailable = true;
   }
 
@@ -687,17 +684,7 @@ const categoryListInflight = new Map<string, Promise<{ data: unknown[]; meta: Re
 
 async function handleListCategories(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const regionCountry: Record<string, string> = {
-    us: 'US',
-    sg: 'SG',
-    my: 'MY',
-    gb: 'GB',
-    uk: 'GB',
-    in: 'IN',
-    au: 'AU',
-  };
-  const region = ((args.region as string) || '').toLowerCase();
-  const country = (((args.country_code as string) || (args.country as string) || regionCountry[region]) || 'SG').toUpperCase();
+  const country = normalizeMcpMarket(args, 'SG').country;
   const cacheKey = `categories_mcp:top100:${country}`;
 
   // 1. Redis fast path
@@ -794,8 +781,9 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const productName = (args.product_name as string) || '';
   if (!productName) throw { code: -32602, message: 'product_name is required' };
 
-  const country = (((args.country_code as string) || (args.country as string)) || 'SG').toUpperCase();
-  const region = (args.region as string) || '';
+  const market = normalizeMcpMarket(args, 'SG');
+  const country = market.country;
+  const region = market.rawRegion;
   const category = (args.category as string) || '';
   const limit = 10;
 
@@ -819,7 +807,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     // BUY-60056: fetch a bounded FTS candidate set first, then apply the
     // requested country filter in the outer query. This avoids the slow
     // country+FTS plan that timed out for US, while preserving region metadata.
-    const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
+    const requestedCountry = country;
     const titlePattern = `%${productName}%`;
     const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
     result = await bestPriceClient.query(
@@ -860,7 +848,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     releaseClientSafely(bestPriceClient);
   }
 
-  const currency = COUNTRY_CURRENCY[country || (region.toLowerCase() === 'us' ? 'US' : 'SG')] || 'SGD';
+  const currency = COUNTRY_CURRENCY[country] || 'SGD';
   const rates = getCachedFxRates();
   const toUsd = rates[currency] ?? CURRENCY_RATES[currency] ?? 1;
 
