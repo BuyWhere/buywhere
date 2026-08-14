@@ -28,6 +28,37 @@ function releaseClientSafely(client: any) {
   }
 }
 
+type McpMarket = { country: string; dbRegion: string; rawRegion: string };
+
+function normalizeMcpMarket(args: Record<string, unknown>, defaultCountry = ''): McpMarket {
+  const rawRegion = String(args.region || '').trim();
+  const regionLower = rawRegion.toLowerCase();
+  const explicitCountry = String(
+    (args.deliver_to as string) || (args.country_code as string) || (args.country as string) || ''
+  ).trim().toUpperCase();
+  const regionCountry: Record<string, string> = {
+    us: 'US',
+    sea: 'SG',
+    sg: 'SG',
+    my: 'MY',
+    th: 'TH',
+    vn: 'VN',
+    ph: 'PH',
+    id: 'ID',
+    gb: 'GB',
+    uk: 'GB',
+    in: 'IN',
+    au: 'AU',
+  };
+  const regionLooksIso = /^[A-Z]{2}$/.test(rawRegion);
+  const regionCountryCode = regionCountry[regionLower] || (regionLooksIso ? rawRegion : '');
+  return {
+    country: explicitCountry || regionCountryCode || defaultCountry,
+    dbRegion: rawRegion && !regionLooksIso ? regionLower : '',
+    rawRegion,
+  };
+}
+
 // MCP tools manifest
 const TOOLS = [
   {
