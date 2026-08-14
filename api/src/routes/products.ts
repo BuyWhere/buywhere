@@ -563,6 +563,9 @@ router.get(
     const rawFields = (req.query.fields as string) || undefined;
     const fields = rawFields ? rawFields.split(',').map(f => f.trim()).filter(Boolean) : undefined;
     const sort = ((req.query.sort || req.query.sort_by) as string) || undefined;
+    // BUY-67275 (#29, 2026-08-14): a real sort must survive the whole pipeline.
+    // Whitelist mirrors VALID_SORT below (defined later in this scope).
+    const sortRequested = !!(sort && ['price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed'].includes(sort));
     // country_code is the canonical param; `country` is kept as a backward-compat alias.
     // Default to SG when neither country nor region is specified (BUY-6598: prevent cross-region accessory pollution).
     const explicitCountry = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
@@ -579,7 +582,10 @@ router.get(
     const sourcePage = req.query.source_page as string | undefined;
     const compact = req.query.compact === 'true';
     const rawMode = (req.query.mode as string | undefined)?.toLowerCase();
-    const searchMode = rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE;
+    // BUY-67275 (#29): an explicit sort forces the keyword path — the hybrid
+    // vector/RRF rerank overrides SQL ORDER BY, so sorted+hybrid can never be
+    // correct. Keyword archive path honors buildSortOrder end-to-end.
+    const searchMode = sortRequested ? 'keyword' : (rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE);
     // deliver_to soft contract (2026-07-14): the END USER's country. Ranks local-first
     // and labels availability; never hard-filters (country_code remains the hard filter).
     const deliverTo = ((req.query.deliver_to as string) || '').toUpperCase() || undefined;
@@ -674,7 +680,6 @@ router.get(
     // BUY-67275 (#29, 2026-08-13): the tier has its own ORDER BY (rank/accessory
     // penalty) and ignores `sort`. When the caller asks for a real sort, skip the
     // tier so the archive path (which honors buildSortOrder) serves it ordered.
-    const sortRequested = !!(sort && sort !== 'relevance');
     if (q && searchMode === 'keyword' && useSearchTier && !sortRequested) {
       const handled = await tryTierSearch(req, res, {
         q, countryCode, currency, limit, offset, minPrice, maxPrice,
@@ -829,6 +834,10 @@ router.get(
 
     // Top-N candidates ranked by ts_rank before joining full rows.
     const CANDIDATE_CAP = 200;
+    // BUY-67275 (#29): bounded slice for explicit-sort queries — big enough that
+    // "cheapest X" sorts a meaningful pool, small enough that the GIN bitmap
+    // fetch early-stops well inside the statement timeout.
+    const SORT_CANDIDATE_CAP = 1000;
 
     const specColumns = `created_at, description, brand, mpn, gtin, category_path, category, merchant_id, avg_rating, review_count`;
     const specColumnsJoined = `products.created_at, products.description, products.brand, products.mpn, products.gtin, products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
@@ -856,8 +865,8 @@ router.get(
     function buildSortOrder(): string {
       if (!effectiveSort || effectiveSort === 'relevance') return 'products.updated_at DESC';
       switch (effectiveSort) {
-        case 'price_asc': return 'products.price ASC, products.updated_at DESC';
-        case 'price_desc': return 'products.price DESC, products.updated_at DESC';
+        case 'price_asc': return 'products.price ASC NULLS LAST, products.updated_at DESC';
+        case 'price_desc': return 'products.price DESC NULLS LAST, products.updated_at DESC';
         case 'newest': return 'products.updated_at DESC';
         case 'highest_rated': return 'products.avg_rating DESC NULLS LAST, products.updated_at DESC';
         case 'most_reviewed': return 'products.review_count DESC NULLS LAST, products.updated_at DESC';
@@ -975,7 +984,26 @@ router.get(
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
       `;
     } else {
-      dataQuery = `
+      // BUY-67275 (#29, 2026-08-14): never ORDER BY over the full FTS match set —
+      // sorting millions of matched rows blew the statement timeout and every cold
+      // sorted query answered degraded/empty. Same remedy as the ranked branch:
+      // bound candidates first (LIMIT early-stop, no ORDER BY inside the CTE),
+      // then sort only that slice. Sorted results are "best N of the first
+      // SORT_CANDIDATE_CAP matches", the same trade the relevance path makes.
+      dataQuery = q ? `
+        WITH sort_hits AS MATERIALIZED (
+          SELECT id
+          FROM products
+          ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}${ftsRankParamKeepAlive}
+          LIMIT ${SORT_CANDIDATE_CAP}
+        )
+        SELECT ${joinedColumns}
+        FROM sort_hits
+        JOIN products ON products.id = sort_hits.id
+        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+        ORDER BY ${buildSortOrder()}
+        LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
+      ` : `
         SELECT ${joinedColumns}
         FROM products
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id

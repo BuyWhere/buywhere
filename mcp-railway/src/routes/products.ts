@@ -259,6 +259,8 @@ router.get(
     const rawFields = (req.query.fields as string) || undefined;
     const fields = rawFields ? rawFields.split(',').map(f => f.trim()).filter(Boolean) : undefined;
     const sort = ((req.query.sort || req.query.sort_by) as string) || undefined;
+    // BUY-67275 (#29, 2026-08-14): parity with api/ — see that tree for rationale.
+    const sortRequested = !!(sort && ['price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed'].includes(sort));
     // country_code is the canonical param; `country` is kept as a backward-compat alias.
     // Default to SG when neither country nor region is specified (BUY-6598: prevent cross-region accessory pollution).
     const explicitCountry = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
@@ -275,7 +277,8 @@ router.get(
     const sourcePage = req.query.source_page as string | undefined;
     const compact = req.query.compact === 'true';
     const rawMode = (req.query.mode as string | undefined)?.toLowerCase();
-    const searchMode = rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE;
+    // BUY-67275 (#29): explicit sort forces keyword — hybrid rerank overrides ORDER BY.
+    const searchMode = sortRequested ? 'keyword' : (rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE);
 
     // BUY-42589: canonicalize SG retailer brand names (harvey norman, courts, gaincity, etc.)
     // to source= filters. The retailer name is in the source field, not in product titles,
@@ -431,6 +434,10 @@ router.get(
 
     // Top-N candidates ranked by ts_rank before joining full rows.
     const CANDIDATE_CAP = 200;
+    // BUY-67275 (#29): bounded slice for explicit-sort queries — big enough that
+    // "cheapest X" sorts a meaningful pool, small enough that the GIN bitmap
+    // fetch early-stops well inside the statement timeout.
+    const SORT_CANDIDATE_CAP = 1000;
 
     const specColumns = `created_at, description, brand, mpn, gtin, category_path, category, merchant_id, avg_rating, review_count`;
     const specColumnsJoined = `products.created_at, products.description, products.brand, products.mpn, products.gtin, products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
@@ -446,8 +453,8 @@ router.get(
     function buildSortOrder(): string {
       if (!effectiveSort || effectiveSort === 'relevance') return 'products.updated_at DESC';
       switch (effectiveSort) {
-        case 'price_asc': return 'products.price ASC, products.updated_at DESC';
-        case 'price_desc': return 'products.price DESC, products.updated_at DESC';
+        case 'price_asc': return 'products.price ASC NULLS LAST, products.updated_at DESC';
+        case 'price_desc': return 'products.price DESC NULLS LAST, products.updated_at DESC';
         case 'newest': return 'products.updated_at DESC';
         case 'highest_rated': return 'products.avg_rating DESC NULLS LAST, products.updated_at DESC';
         case 'most_reviewed': return 'products.review_count DESC NULLS LAST, products.updated_at DESC';
@@ -498,7 +505,22 @@ router.get(
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
       `;
     } else {
-      dataQuery = `
+      // BUY-67275 (#29, 2026-08-14): bound sorted queries — ORDER BY over the full
+      // FTS match set times out cold (see api/ tree for the full note).
+      dataQuery = q ? `
+        WITH sort_hits AS MATERIALIZED (
+          SELECT id
+          FROM products
+          ${whereClause}
+          LIMIT ${SORT_CANDIDATE_CAP}
+        )
+        SELECT ${joinedColumns}
+        FROM sort_hits
+        JOIN products ON products.id = sort_hits.id
+        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+        ORDER BY ${buildSortOrder()}
+        LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
+      ` : `
         SELECT ${joinedColumns}
         FROM products
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
