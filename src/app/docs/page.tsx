@@ -22,6 +22,21 @@ export function generateMetadata(): Metadata {
       index: true,
       follow: true,
     },
+    openGraph: {
+      title: "Documentation — BuyWhere",
+      description:
+        "BuyWhere developer documentation: MCP server, product catalog API, quickstart, rate limits, and operational runbooks.",
+      url: toSiteUrl("/docs"),
+      type: "website",
+      images: [
+        {
+          url: "/og-image.png",
+          width: 1200,
+          height: 630,
+          alt: "BuyWhere developer documentation",
+        },
+      ],
+    },
   };
 }
 

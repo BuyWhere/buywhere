@@ -193,12 +193,6 @@ const nextConfig = {
         destination: '/account?tab=subscription',
         permanent: true,
       },
-      // BUY-68422: surface existing status page infrastructure at apex domain
-      {
-        source: '/status',
-        destination: 'https://status.buywhere.ai/',
-        permanent: true,
-      },
       // BUY-68422: redirect help/support routes to docs
       {
         source: '/help',

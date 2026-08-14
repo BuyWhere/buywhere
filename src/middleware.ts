@@ -528,6 +528,20 @@ export function middleware(request: NextRequest) {
     return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
   }
 
+  // BUY-69713: indexable compare aliases must not serve 200 generic/not-found shells.
+  // Redirect known utility comparison paths to their canonical, structured pages.
+  if (normalizedForDead === "/compare/us/electronics") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/compare/electronics";
+    return NextResponse.redirect(url, 301);
+  }
+  if (normalizedForDead === "/compare/us/amazon/walmart") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/compare";
+    url.search = "country_code=us&q=amazon%20walmart";
+    return NextResponse.redirect(url, 301);
+  }
+
   // Moved content: product index pages now redirect to their country pages
   if (normalizedForDead === "/products/us") {
     const url = request.nextUrl.clone();
