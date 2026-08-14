@@ -110,6 +110,15 @@ async function tryTierSearch(req, res, p) {
     // queries (`ssd`, `nvme`) and non-device queries. Uses `sp.` alias (tier
     // path reads from search_products sp). See lib/searchRelevanceTaxonomy.
     const storageExcl = (0, searchRelevanceTaxonomy_1.deviceStorageExclusionFragment)(p.q);
+    // BUY-69727: search_products.category can be mis-tagged at ingest (newegg_us
+    // writes 'home-living' for electronics) while products.metadata carries the
+    // true category. The cand-CTE exclusion above cannot see metadata; this
+    // post-rank join filter runs over the bounded top set (≤200 rows) only, so
+    // the PK join to products is cheap. It fires for the same query set as
+    // storageExcl (both derive from the same device/storage gates).
+    const storageJoinFilter = (0, searchRelevanceTaxonomy_1.tierStorageExclusionNeeded)(p.q)
+        ? ` JOIN products m ON m.id = sp.id AND NOT ${searchRelevanceTaxonomy_1.STORAGE_CATEGORY_SQL_TIER_JOIN}`
+        : '';
     const conds = [];
     const params = [];
     let i = 1;
@@ -210,7 +219,7 @@ async function tryTierSearch(req, res, p) {
       FROM cand ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
-    FROM top JOIN search_products sp ON sp.id = top.id
+    FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}top.rank DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -235,7 +244,7 @@ async function tryTierSearch(req, res, p) {
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -246,7 +255,7 @@ async function tryTierSearch(req, res, p) {
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
