@@ -1419,6 +1419,10 @@ export function buildSeoLandingMetadata(
       description: config.description,
       images: ["/og-image.png"],
     },
+    robots: {
+      index: true,
+      follow: true,
+    },
   };
 }
 

@@ -45,9 +45,14 @@ const nextConfig = {
         destination: 'https://api.buywhere.ai/mcp/:path*',
         permanent: true,
       },
-      // BUY-68368: high-intent developer/API aliases should not fall through
-      // to homepage-branded 404 HTML shells. Route them to canonical docs/API
+      // BUY-68368/BUY-69843: high-intent developer/API/auth aliases should not
+      // fall through to homepage-branded 404 HTML shells. Route them to canonical
       // resources before the App Router renders the generic not-found page.
+      {
+        source: '/signup',
+        destination: '/login',
+        permanent: true,
+      },
       {
         source: '/developer',
         destination: '/developers',
@@ -56,6 +61,11 @@ const nextConfig = {
       {
         source: '/api-docs',
         destination: '/docs',
+        permanent: true,
+      },
+      {
+        source: '/api-reference',
+        destination: '/docs/api-reference/search',
         permanent: true,
       },
       {
@@ -68,10 +78,15 @@ const nextConfig = {
         destination: '/docs/api-reference/search',
         permanent: true,
       },
-      // BUY-69805: legacy /docs/api-reference aliases that previously 410'd
-      // now reconcile to the canonical live endpoint pages so users and
-      // crawlers don't hit gone URLs.  Next.js redirects are evaluated
-      // before middleware, so these win over the middleware's __GONE__.
+      // BUY-69805/BUY-69843: legacy docs/API guide aliases that previously
+      // 410'd now reconcile to canonical live docs pages so users and crawlers
+      // don't hit gone URLs.  Next.js redirects are evaluated before middleware,
+      // so these win over the middleware's __GONE__.
+      {
+        source: '/docs/guides',
+        destination: '/docs',
+        permanent: true,
+      },
       {
         source: '/docs/api-reference',
         destination: '/docs/api-reference/search',
@@ -95,6 +110,14 @@ const nextConfig = {
       {
         source: '/swagger.json',
         destination: 'https://api.buywhere.ai/openapi.json',
+        permanent: true,
+      },
+      // BUY-69843: top-level product index is intentionally consolidated into
+      // the compare hub. Configure the redirect here (not page.tsx) so production
+      // probes receive a true redirect instead of an App Router shell.
+      {
+        source: '/products',
+        destination: '/compare',
         permanent: true,
       },
       // BUY-68406: common feed-discovery aliases at the site root previously
