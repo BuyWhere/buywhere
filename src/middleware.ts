@@ -389,6 +389,16 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
     return ACTIVE_BLOG_SLUGS.has(slug) ? `/blog/${slug}` : "__DEAD_BLOG_SLUG__";
   }
 
+  const apiReferenceAlias = {
+    "/docs/api-reference": "/docs/api-reference/search",
+    "/docs/api-reference/search-products": "/docs/api-reference/search",
+    "/docs/api-reference/find-best-price": "/docs/api-reference/search",
+    "/docs/api-reference/get-deals": "/docs/api-reference/deals",
+  }[normalizedPath];
+  if (apiReferenceAlias) {
+    return apiReferenceAlias;
+  }
+
   if (
     normalizedPath === "/docs/api" ||
     normalizedPath === "/docs/api/reference" ||

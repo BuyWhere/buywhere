@@ -193,7 +193,7 @@ await agent.text('Find gaming chairs in Malaysia under MYR 800');
 
 ## Resources
 
-- [BuyWhere API Reference](https://buywhere.ai/api-reference)
+- [BuyWhere API Reference](https://buywhere.ai/docs/api-reference/search)
 - [Mastra Documentation](https://mastra.ai/docs)
 - [BuyWhere MCP Guide](./mcp-integration.md)
 - [Example repository](https://github.com/BuyWhere/buywhere-mastra-example)

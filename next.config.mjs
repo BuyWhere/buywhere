@@ -68,6 +68,30 @@ const nextConfig = {
         destination: '/docs/api-reference/search',
         permanent: true,
       },
+      // BUY-69805: legacy /docs/api-reference aliases that previously 410'd
+      // now reconcile to the canonical live endpoint pages so users and
+      // crawlers don't hit gone URLs.  Next.js redirects are evaluated
+      // before middleware, so these win over the middleware's __GONE__.
+      {
+        source: '/docs/api-reference',
+        destination: '/docs/api-reference/search',
+        permanent: true,
+      },
+      {
+        source: '/docs/api-reference/search-products',
+        destination: '/docs/api-reference/search',
+        permanent: true,
+      },
+      {
+        source: '/docs/api-reference/find-best-price',
+        destination: '/docs/api-reference/search',
+        permanent: true,
+      },
+      {
+        source: '/docs/api-reference/get-deals',
+        destination: '/docs/api-reference/deals',
+        permanent: true,
+      },
       {
         source: '/swagger.json',
         destination: 'https://api.buywhere.ai/openapi.json',
