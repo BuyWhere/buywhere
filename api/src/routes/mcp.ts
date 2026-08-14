@@ -813,52 +813,43 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
   // BUY-57258: add connect timeout so pool exhaustion fails fast; reduce statement_timeout
   // to 5s to prevent cascading connection starvation during contention.
+  // BUY-69646: the prior heap-scan candidate window (`ORDER BY updated_at DESC LIMIT 50000`
+  // over the whole table) times out at catalog scale (400M+ rows). Drive candidates from the
+  // search_vector GIN index with a bounded LIMIT instead — same proven pattern as the
+  // mcp-railway fbp handler and search_products.
   const bestPriceClient = await db.connect().catch((err) => {
     console.warn('[find_best_price] db.connect failed:', err.message);
     throw { code: -32603, message: 'Database connection timeout' };
   });
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 4500');
-    // BUY-60056: fetch a bounded FTS candidate set first, then apply the
-    // requested country filter in the outer query. This avoids the slow
-    // country+FTS plan that timed out for US, while preserving region metadata.
+    await bestPriceClient.query('SET statement_timeout = 10000');
     const requestedCountry = country;
-    const titlePattern = `%${productName}%`;
     const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
+    const conditions: string[] = ['is_active = true', 'price > 0'];
+    const params: unknown[] = [];
+    params.push(productName);
+    conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
+    params.push(requestedCountry);
+    conditions.push(`country_code = $${params.length}`);
+    if (minPrice > 0) {
+      params.push(minPrice);
+      conditions.push(`price >= $${params.length}`);
+    }
+    params.push(CANDIDATE_POOL);
+    const candidateWhere = conditions.join(' AND ');
     result = await bestPriceClient.query(
       `SELECT * FROM (
          SELECT id, title, price, currency, source AS domain, url, image_url,
                 country_code, updated_at, category, category_path, metadata
          FROM products
-         WHERE is_active = true AND price > 0
-           ${minPrice > 0 ? `AND price >= $${5}` : ''}
-         ORDER BY updated_at DESC
-         LIMIT $1
+         WHERE ${candidateWhere}
+         LIMIT $${params.length}
        ) _candidates
-       WHERE country_code = $2
-         AND title ILIKE $3
        ORDER BY price ASC, updated_at DESC
-       LIMIT $4`,
-      minPrice > 0 ? [50000, requestedCountry, titlePattern, limit, minPrice] : [50000, requestedCountry, titlePattern, limit]
+       LIMIT $${params.length + 1}`,
+      [...params, limit]
     );
-    if (result.rows.length === 0) {
-      result = await bestPriceClient.query(
-        `SELECT * FROM (
-           SELECT id, title, price, currency, source AS domain, url, image_url,
-                  country_code, updated_at, category, category_path, metadata
-           FROM products
-           WHERE is_active = true AND price > 0
-             ${minPrice > 0 ? `AND price >= $${4}` : ''}
-           ORDER BY updated_at DESC
-           LIMIT $1
-         ) _candidates
-         WHERE country_code = $2
-         ORDER BY price ASC, updated_at DESC
-         LIMIT $3`,
-        minPrice > 0 ? [50000, requestedCountry, limit, minPrice] : [50000, requestedCountry, limit]
-      );
-    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);
