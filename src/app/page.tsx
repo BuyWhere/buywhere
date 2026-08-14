@@ -302,15 +302,15 @@ export default function HomePage() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
               <Link
                 href="/compare"
-                className="inline-flex items-center justify-center px-6 py-3 bg-white text-indigo-700 font-semibold rounded-xl hover:bg-indigo-50 transition-colors"
+                className="inline-flex items-center justify-center px-8 py-4 bg-white text-indigo-700 font-bold text-lg rounded-xl shadow-sm hover:bg-indigo-50 transition-colors"
               >
                 Browse price comparisons →
               </Link>
               <Link
                 href="/developers"
-                className="inline-flex items-center justify-center rounded-xl border border-white bg-white px-6 py-3 font-bold text-indigo-900 transition-colors hover:bg-indigo-50"
+                className="inline-flex items-center justify-center px-3 py-2 text-sm underline text-white/90 hover:text-white transition-colors"
               >
-                Developers: Get API access
+                For developers →
               </Link>
             </div>
             <p className="text-sm font-semibold text-white">
