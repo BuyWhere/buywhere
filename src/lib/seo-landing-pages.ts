@@ -840,6 +840,59 @@ function compareHeroFeatured(
   return 0;
 }
 
+// BUY-66320 (v4): identify the product that substantiates the hero's
+// "from {floorPrice}" claim — i.e. the same lowest positive price that
+// resolveHeroTitle formats into the <h1>. Kept deliberately in lockstep with
+// resolveHeroTitle's price filter (positive, finite) so the headline and the
+// promoted card can never disagree.
+export function findFloorPriceProductId(products: LandingProduct[]): string | null {
+  let bestId: string | null = null;
+  let bestPrice = Number.POSITIVE_INFINITY;
+  for (const p of products) {
+    const n = p.price !== null && p.price !== undefined ? Number(p.price) : null;
+    if (n === null || !Number.isFinite(n) || n <= 0) continue;
+    if (n < bestPrice) {
+      bestPrice = n;
+      bestId = p.id;
+    }
+  }
+  return bestId;
+}
+
+// BUY-66320 (v4): reconciles two rules that previously fought each other on
+// /best-robot-vacuums-2026 and caused a reopen loop:
+//
+//   * BUY-66320 made the hero read "from {floorPrice}" off the live catalog
+//     minimum ($560 Shark Navigator).
+//   * BUY-67622 (v3) then re-sorted hero-named brands (Roomba/Roborock) to the
+//     front, burying that $560 card at position 3 behind $1,299 and $999.
+//
+// Net effect: the headline advertised a price the shopper could not see in the
+// first cards. The fix scopes the two rules to disjoint slots rather than
+// flipping one off (which would just reopen the other ticket):
+//
+//   1. The single floor-price card leads, so the "from $X" claim is provable at
+//      position 1.
+//   2. Among every OTHER card, hero-named brands still rank first — BUY-67622's
+//      intent is preserved for the rest of the grid.
+//
+// Because the two rules no longer overlap, this ordering is deterministic and
+// cannot oscillate between the two tickets.
+export function compareLandingCardOrder(
+  a: LandingProduct,
+  b: LandingProduct,
+  heroFeaturedBrands: string[] | undefined,
+  floorProductId: string | null,
+): number {
+  if (floorProductId) {
+    const aFloor = a.id === floorProductId;
+    const bFloor = b.id === floorProductId;
+    if (aFloor && !bFloor) return -1;
+    if (bFloor && !aFloor) return 1;
+  }
+  return compareHeroFeatured(a, b, heroFeaturedBrands);
+}
+
 const PRODUCT_ACCESSORY_RE =
   /\b(?:accessor(?:y|ies)(?:\s+(?:package|kit|set))?|fabric cleaner|replacement\s+(?:battery|batteries|brush(?:es)?|dust bags?|filter(?:s)?|kit|mop pads?|motor|nozzles?|parts?|roller(?:s)?|side brush(?:es)?|water tanks?)|vacuum\s+(?:accessor(?:y|ies)|parts?|supply|supplies)|(?:\d+[- ]?pack|pack of \d+)\s+(?:replacement\s+)?(?:brush(?:es)?|dust bags?|filter(?:s)?|mop pads?|roller(?:s)?|side brush(?:es)?)|(?:brush(?:es)?|dust bags?|filter(?:s)?|mop pads?|roller(?:s)?|side brush(?:es)?)\s+(?:kit|set)\s+(?:for|compatible with))\b/i;
 const NON_FLOOR_ROBOT_VACUUM_RE = /\b(?:cordless|handheld|pool|stick|upright)\b/i;
@@ -1206,8 +1259,13 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     // BUY-67622 (v3): stable-sort so hero-promised brands lead. Without this,
     // a Shark card can land at position 1 on a page whose hero promises
     // "Roomba & Roborock Deals".
+    // BUY-66320 (v4): but the card backing the hero's "from {floorPrice}" claim
+    // leads ahead of them, so the advertised price is visible at position 1.
+    // Computing the floor over the pre-slice set also guarantees that card
+    // survives slice(0, 8) — so the rendered floor always equals the hero floor.
+    const floorId = findFloorPriceProductId(verifiedProducts);
     const featured = [...verifiedProducts].sort((a, b) =>
-      compareHeroFeatured(a, b, config.heroFeaturedBrands),
+      compareLandingCardOrder(a, b, config.heroFeaturedBrands, floorId),
     );
     return featured.slice(0, 8).map((p) => withLiveProductDetailUrl(p, config.country));
   }
@@ -1224,8 +1282,10 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       }
     }
     // BUY-67622 (v3): keep hero-promised brands at the front of the partial top-up too.
+    // BUY-66320 (v4): floor-price card still leads (see compareLandingCardOrder).
+    const topUpFloorId = findFloorPriceProductId(topUp);
     const featuredTopUp = [...topUp].sort((a, b) =>
-      compareHeroFeatured(a, b, config.heroFeaturedBrands),
+      compareLandingCardOrder(a, b, config.heroFeaturedBrands, topUpFloorId),
     );
     return featuredTopUp.slice(0, 8).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
   }
@@ -1235,8 +1295,14 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   // page. These are honest editorial picks, not empty skeleton cards.
   // BUY-67622 (v3): when falling back entirely, still promote heroFeaturedBrands
   // matches so the page top still reflects the hero promise.
-  if (config.heroFeaturedBrands && config.heroFeaturedBrands.length > 0 && fallback.length > 1) {
-    const featuredFallback = [...fallback].sort((a, b) => compareHeroFeatured(a, b, config.heroFeaturedBrands));
+  // BUY-66320 (v4): and lead with the floor-price card. This branch is no longer
+  // gated on heroFeaturedBrands — the "from {floorPrice}" promise must hold on
+  // curated-fallback renders too, where resolveHeroTitle reads the same list.
+  if (fallback.length > 1) {
+    const fallbackFloorId = findFloorPriceProductId(fallback);
+    const featuredFallback = [...fallback].sort((a, b) =>
+      compareLandingCardOrder(a, b, config.heroFeaturedBrands, fallbackFloorId),
+    );
     return featuredFallback.slice(0, 8).map((fb) => withFallbackDetailUrl(fb, config.country));
   }
   return fallback.slice(0, 8).map((fb) => withFallbackDetailUrl(fb, config.country));
