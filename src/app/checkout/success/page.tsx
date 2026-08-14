@@ -6,7 +6,6 @@ import { useSearchParams } from "next/navigation";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { persistDeveloperSession } from "@/lib/developer-session";
-import Script from "next/script";
 
 interface SubscriptionSummary {
   tier: string;
@@ -84,21 +83,6 @@ export default function CheckoutSuccessPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
-      <Script id="checkout-success-jsonld" type="application/ld+json" strategy="beforeInteractive">
-        {JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "WebPage",
-          name: "Checkout Successful — BuyWhere",
-          description: "Your BuyWhere subscription has been activated successfully. View your plan details and manage your developer account.",
-          url: "https://buywhere.ai/checkout/success",
-          inLanguage: "en-US",
-          isPartOf: {
-            "@type": "WebSite",
-            name: "BuyWhere",
-            url: "https://buywhere.ai",
-          },
-        })}
-      </Script>
       <Nav />
 
       <section className="flex-1 py-16">

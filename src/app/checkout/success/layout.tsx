@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 
 export const metadata: Metadata = {
   title: "Checkout Successful — BuyWhere Developer Dashboard",
@@ -29,10 +30,33 @@ export const metadata: Metadata = {
   },
 };
 
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  name: "Checkout Successful — BuyWhere",
+  description: "Your BuyWhere subscription has been activated successfully. View your plan details and manage your developer account.",
+  url: "https://buywhere.ai/checkout/success",
+  inLanguage: "en-US",
+  isPartOf: {
+    "@type": "WebSite",
+    name: "BuyWhere",
+    url: "https://buywhere.ai",
+  },
+};
+
 export default function CheckoutSuccessLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return children;
+  return (
+    <>
+      <Script
+        id="checkout-success-jsonld"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      {children}
+    </>
+  );
 }
