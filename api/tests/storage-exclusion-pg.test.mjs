@@ -56,9 +56,9 @@ const { Pool } = pg;
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 
-const describe_or_skip = TEST_DATABASE_URL ? describe : (...args, fn) => {
+const describe_or_skip = TEST_DATABASE_URL ? describe : (name, fn) => {
   // node:test doesn't support dynamic describe.skip elegantly; register a no-op describe
-  describe.skip(args[0] ?? args, () => {});
+  describe.skip(name, fn);
 };
 
 // Seeded product IDs — must match the INSERT above.
