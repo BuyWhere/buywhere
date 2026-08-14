@@ -12,6 +12,7 @@ import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/resp
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { shipScopeForUrl } from '../lib/shipsTo';
+import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts } from '../lib/searchRelevanceTaxonomy';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
 import { embedQuery } from '../jobs/embedProducts';
 
@@ -120,6 +121,11 @@ async function tryTierSearch(
   const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
   if (lexemes.length === 0) return false;
   const tsOr = lexemes.join(' | ');
+  // BUY-69621: HARD-exclude storage/SSD categories when the query targets a
+  // device family (laptop/phone/tablet/…). No-op (fail-open) for storage
+  // queries (`ssd`, `nvme`) and non-device queries. Uses `sp.` alias (tier
+  // path reads from search_products sp). See lib/searchRelevanceTaxonomy.
+  const storageExcl = deviceStorageExclusionFragment(p.q);
 
   const conds: string[] = [];
   const params: unknown[] = [];
@@ -168,7 +174,7 @@ async function tryTierSearch(
   const mkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
       SELECT id, search_vector FROM search_products sp
-      WHERE ${match}${filterSql}${extraFilter}
+      WHERE ${match}${filterSql}${extraFilter}${storageExcl}
       -- perf: no ORDER BY — sorting forces enumeration of the FULL match set before
       -- LIMIT (broad OR fallbacks time out at the 4s tier cap; same anti-pattern as
       -- the archive fix in 9e3ad8e, measured 60x there). LIMIT stops early; ts_rank
@@ -205,7 +211,7 @@ async function tryTierSearch(
   const titleFallbackQuery = `
     WITH tcand AS (
       SELECT sp.id FROM search_products sp
-      WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}
+      WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}${storageExcl}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
@@ -216,7 +222,7 @@ async function tryTierSearch(
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
       SELECT sp.id FROM search_products sp
-      WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}
+      WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}${storageExcl}
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
@@ -701,6 +707,13 @@ router.get(
     }
 
     const baseConditions: string[] = ['is_active = true', 'price > 0'];
+    // BUY-69621: HARD-exclude storage/SSD categories from device-typed queries
+    // (laptop/phone/…). Flows through baseConditions into every archive + hybrid
+    // candidate WHERE (recent_hits, non-FTS branch, fts_cand, semantic
+    // vectorFilterQuery). No-op (fail-open) for storage queries and non-device
+    // queries. Unqualified `category` matches the unaliased `products` table.
+    const storageExclProducts = deviceStorageExclusionFragmentProducts(q);
+    if (storageExclProducts) baseConditions.push(`1 = 1${storageExclProducts}`);
     const baseParams: unknown[] = [];
     let baseIdx = 1;
     if (minPrice !== undefined || maxPrice !== undefined) {
@@ -1254,11 +1267,18 @@ router.get(
             let rankedCandidateIds = filteredSemanticIds;
             if (searchMode === 'hybrid') {
               const ftsCandidates = await client.query<{ id: string }>(
-                `SELECT id
-                 FROM products
-                ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
-                 ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
-                 LIMIT 200`,
+                `WITH fts_cand AS MATERIALIZED (
+                   SELECT id, search_vector
+                   FROM products
+                  ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
+                   LIMIT ${CANDIDATE_CAP}
+                 ), fts_top AS (
+                   SELECT id
+                   FROM fts_cand
+                   ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
+                   LIMIT 200
+                 )
+                 SELECT id FROM fts_top`,
                 searchParams
               );
               rankedCandidateIds = mergeRrfCandidateIds(

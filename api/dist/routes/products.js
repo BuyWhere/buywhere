@@ -14,10 +14,12 @@ const response_1 = require("../lib/response");
 const compare_query_1 = require("../lib/compare-query");
 const queryPreprocessor_1 = require("../lib/queryPreprocessor");
 const shipsTo_1 = require("../lib/shipsTo");
+const searchRelevanceTaxonomy_1 = require("../lib/searchRelevanceTaxonomy");
 const instrumentation_1 = require("../lib/instrumentation");
 const embedProducts_1 = require("../jobs/embedProducts");
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
+const semanticCache_1 = require("../lib/semanticCache");
 const SEARCH_CACHE_TTL_SECONDS = 3600;
 // BUY-41572: bumped from 5s → 15s as a temporary measure so the 50-query hybrid
 // eval (BUY-41140) can complete against the live DB. Roundhouse EXPLAIN happy
@@ -28,6 +30,10 @@ const SEARCH_CACHE_TTL_SECONDS = 3600;
 // 15s; degraded-200s replace 504s below so a slow answer is still an answer.
 const SEARCH_STATEMENT_TIMEOUT_MS = Math.max(1000, Number(process.env.SEARCH_STATEMENT_TIMEOUT_MS) || 8000);
 const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDLER_TIMEOUT_MS) || 10000);
+// BUY-65260: slow cold misses can hit the handler timeout before any successful
+// payload exists in Redis. Cache the degraded 200 briefly so replay bursts do not
+// pay the same 10s timeout floor on every identical query.
+const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
 const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v7'; // BUY-59878: disable SG freshness guardrail to fix timeouts
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
@@ -45,7 +51,13 @@ const HYBRID_RRF_K = 60;
 // under concurrent load with PostgreSQL errors
 // `could not resize shared memory segment... No space left on device` (SQLSTATE 53200).
 // 4MB is enough for the 200-row top-N sort + Nested Loop pkey lookups.
-const SEARCH_WORK_MEM = '4MB';
+// BUY-67275-bitmap (2026-08-09): raised 4MB -> 32MB. At 4MB the FTS bitmap for a
+// head term (laptop = 277k TIDs) goes LOSSY: 4,915 lossy heap blocks + 37,550 row
+// rechecks = 30,691 buffers / ~9s cold. Exact bitmap = 586 buffers. The old 4MB was
+// chosen for SQLSTATE 53200, which is a PARALLEL bitmap DSM failure — both search
+// paths already set max_parallel_workers_per_gather=0, so this is single-process
+// work_mem and never touches shared memory.
+const SEARCH_WORK_MEM = '32MB';
 // BUY-62711: Archive fallback ladder collapsed. The search tier (search_products) now serves
 // virtually all keyword traffic (~99%). Archive path is only a last-resort fallback
 // on tier errors. Dead kill-switches removed: SEARCH_OR_TOPUP, SEO_HEAD_PREEMPT.
@@ -93,6 +105,11 @@ async function tryTierSearch(req, res, p) {
     if (lexemes.length === 0)
         return false;
     const tsOr = lexemes.join(' | ');
+    // BUY-69621: HARD-exclude storage/SSD categories when the query targets a
+    // device family (laptop/phone/tablet/…). No-op (fail-open) for storage
+    // queries (`ssd`, `nvme`) and non-device queries. Uses `sp.` alias (tier
+    // path reads from search_products sp). See lib/searchRelevanceTaxonomy.
+    const storageExcl = (0, searchRelevanceTaxonomy_1.deviceStorageExclusionFragment)(p.q);
     const conds = [];
     const params = [];
     let i = 1;
@@ -178,12 +195,14 @@ async function tryTierSearch(req, res, p) {
     const mkQuery = (match, extraFilter = '') => `
     WITH cand AS (
       SELECT id, search_vector FROM search_products sp
-      WHERE ${match}${filterSql}${extraFilter}
+      WHERE ${match}${filterSql}${extraFilter}${storageExcl}
       -- perf: no ORDER BY — sorting forces enumeration of the FULL match set before
       -- LIMIT (broad OR fallbacks time out at the 4s tier cap; same anti-pattern as
       -- the archive fix in 9e3ad8e, measured 60x there). LIMIT stops early; ts_rank
       -- below ranks the bounded candidate set.
-      LIMIT 5000
+      -- BUY-67275-bitmap: 5000 -> 1000. The top CTE keeps only 200 rows, so 5000 was a 10x
+      -- over-fetch that inflated the bitmap into lossy territory for head terms.
+      LIMIT 1000
     ), top AS (
       SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) *
             (${laptopBoost}) *
@@ -206,18 +225,29 @@ async function tryTierSearch(req, res, p) {
         OR array_to_string(sp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
       THEN 0 ELSE 1
     END`;
+    // BUY-67275 (#37, 2026-08-14): bound the fallback candidates BEFORE ordering —
+    // the orderPrefix/penalty ORDER BY otherwise enumerates every LIKE match
+    // (same full-sort anti-pattern as mkQuery pre-cand and the archive path).
     const titleFallbackQuery = `
+    WITH tcand AS (
+      SELECT sp.id FROM search_products sp
+      WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}${storageExcl}
+      LIMIT 1000
+    )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM search_products sp
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}
     ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     const tokenTitleFallbackQuery = `
+    WITH tcand AS (
+      SELECT sp.id FROM search_products sp
+      WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}${storageExcl}
+      LIMIT 1000
+    )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM search_products sp
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}
     ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     let client;
@@ -232,9 +262,18 @@ async function tryTierSearch(req, res, p) {
         await client.query(`SET LOCAL statement_timeout = '4000'`);
         await client.query(`SET LOCAL gin_fuzzy_search_limit = 0`); // fuzzy sampling breaks multi-word AND
         await client.query(`SET LOCAL max_parallel_workers_per_gather = 0`);
-        let rows = lexemes.length === 1 ? (await client.query(titleFallbackQuery, params)).rows : [];
+        // BUY-67275-headterm (2026-08-09): do NOT lead with titleFallbackQuery for
+        // single-lexeme queries. `lower(sp.title) LIKE lower($1||'%')` cannot use
+        // idx_sp_trgm (the lower() wrapper defeats it; that index has idx_scan=0), so
+        // it seq-scans 119M rows and ALWAYS blows the 4s tier timeout — killing the
+        // tier for precisely the head terms (laptop/macbook/dyson/airpods/ps5) and
+        // eating 4s of the 10s handler budget before the archive even starts. FTS
+        // first (idx_sp_fts); the title-prefix scan stays below as a 0-result fallback.
+        let rows = (await client.query(mkQuery(andMatch), params)).rows;
+        if (rows.length === 0 && lexemes.length === 1) {
+            rows = (await client.query(titleFallbackQuery, params)).rows;
+        }
         if (rows.length === 0) {
-            rows = (await client.query(mkQuery(andMatch), params)).rows;
             if (rows.length === 0 && lexemes.length > 1) {
                 rows = (await client.query(mkQuery(orMatch), params)).rows; // recall fallback
             }
@@ -278,6 +317,10 @@ async function tryTierSearch(req, res, p) {
         responseBody.source = 'search_products_tier';
         annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
         config_1.redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => { });
+        if ((0, semanticCache_1.semanticEnabled)() && p.offset === 0) {
+            const rp = p.cacheKey.split(':');
+            (0, semanticCache_1.semanticRegister)(config_1.redis, `a1:${rp[1]}|${rp.slice(3).join(':')}`, rp[2], res.locals.semVec ?? null, p.cacheKey).catch(() => { });
+        }
         res.set('X-Search-Tier', '1');
         res.json(responseBody);
         return true;
@@ -508,7 +551,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         if (!res.headersSent) {
             // Degraded 200, not 504: a fast honest partial answer keeps BuyWhere in the
             // agent's toolchain; a 504 gets the tool dropped from rotation.
-            res.status(200).json({
+            const degradedBody = {
                 data: [],
                 meta: {
                     total: 0,
@@ -518,7 +561,15 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                     cached: false,
                     degraded: true,
                 },
-            });
+            };
+            res.status(200).json(degradedBody);
+            // BUY-65260: cache the degraded payload for a short window so a repeat of
+            // an always-slow query returns from Redis instead of re-running the 10s
+            // handler timeout. Keep the TTL intentionally short to avoid poisoning
+            // results once the DB path recovers.
+            if (cacheKey) {
+                config_1.redis.set(cacheKey, JSON.stringify(degradedBody), 'EX', SEARCH_DEGRADED_CACHE_TTL_SECONDS).catch(() => { });
+            }
         }
     });
     const requestStart = Date.now();
@@ -534,12 +585,15 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const rawFields = req.query.fields || undefined;
     const fields = rawFields ? rawFields.split(',').map(f => f.trim()).filter(Boolean) : undefined;
     const sort = (req.query.sort || req.query.sort_by) || undefined;
+    // BUY-67275 (#29, 2026-08-14): a real sort must survive the whole pipeline.
+    // Whitelist mirrors VALID_SORT below (defined later in this scope).
+    const sortRequested = !!(sort && ['price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed'].includes(sort));
     // country_code is the canonical param; `country` is kept as a backward-compat alias.
     // Default to SG when neither country nor region is specified (BUY-6598: prevent cross-region accessory pollution).
     const explicitCountry = (req.query.country_code || req.query.country)?.toUpperCase() || undefined;
     const countryCode = explicitCountry; // hotfix(search): drop silent SG hard-filter default that excluded ~87% untagged catalog
-    const minPrice = req.query.min_price ? parseFloat(req.query.min_price) : undefined;
-    const maxPrice = req.query.max_price ? parseFloat(req.query.max_price) : undefined;
+    let minPrice = req.query.min_price ? parseFloat(req.query.min_price) : undefined;
+    let maxPrice = req.query.max_price ? parseFloat(req.query.max_price) : undefined;
     // Infer default currency from country_code when not explicitly provided.
     // Price filters (min_price/max_price) apply in this inferred currency.
     const currency = req.query.currency || (countryCode ? (response_1.COUNTRY_CURRENCY[countryCode] || 'SGD') : 'SGD');
@@ -550,7 +604,10 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const sourcePage = req.query.source_page;
     const compact = req.query.compact === 'true';
     const rawMode = req.query.mode?.toLowerCase();
-    const searchMode = rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE;
+    // BUY-67275 (#29): an explicit sort forces the keyword path — the hybrid
+    // vector/RRF rerank overrides SQL ORDER BY, so sorted+hybrid can never be
+    // correct. Keyword archive path honors buildSortOrder end-to-end.
+    const searchMode = sortRequested ? 'keyword' : (rawMode && VALID_SEARCH_MODES.has(rawMode) ? rawMode : DEFAULT_SEARCH_MODE);
     // deliver_to soft contract (2026-07-14): the END USER's country. Ranks local-first
     // and labels availability; never hard-filters (country_code remains the hard filter).
     const deliverTo = (req.query.deliver_to || '').toUpperCase() || undefined;
@@ -558,8 +615,16 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // BUY-42589: canonicalize SG retailer brand names (harvey norman, courts, gaincity, etc.)
     // to source= filters. The retailer name is in the source field, not in product titles,
     // so FTS alone returns near-zero matches even when 10k+ products exist.
-    const { cleanedQuery, canonicalSources } = (0, queryPreprocessor_1.preprocessSearchQuery)(rawQuery, minPrice, maxPrice);
+    const { cleanedQuery, canonicalSources, extractedMinPrice, extractedMaxPrice } = (0, queryPreprocessor_1.preprocessSearchQuery)(rawQuery, minPrice, maxPrice);
     const q = cleanedQuery || rawQuery;
+    // BUY-2026-08-08: apply natural-language price intent ("sofa under 500", "over 1000").
+    // The preprocessor strips these phrases from the FTS text but its extracted bounds
+    // were previously discarded, so "under 500" returned ,400 results. Only fill when
+    // the caller did not pass an explicit min_price/max_price (preprocessor already guards).
+    if (minPrice === undefined && extractedMinPrice !== undefined)
+        minPrice = extractedMinPrice;
+    if (maxPrice === undefined && extractedMaxPrice !== undefined)
+        maxPrice = extractedMaxPrice;
     // Sprint C (1.4): normalize the q component of the cache key — lowercase,
     // sorted, punctuation-stripped token set — so "Running Shoes", "running shoe s"
     // orderings and casings share one cache entry (AND/OR matching is order-
@@ -591,6 +656,31 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             res.set('X-Cache', 'HIT');
             return res.json(parsed);
         }
+        // Semantic cache (2026-08-06): vector-similar reuse within the same scope.
+        // Scope = cacheKey minus the qNorm segment (qNorm can contain no colons).
+        if ((0, semanticCache_1.semanticEnabled)() && q && offset === 0) {
+            const semParts = cacheKey.split(':');
+            const semScope = `a1:${semParts[1]}|${semParts.slice(3).join(':')}`;
+            let semVec = null;
+            const semGk = process.env.GEMINI_API_KEY ?? '';
+            if (semGk)
+                semVec = await getCachedQueryEmbedding(q, semGk);
+            const semHit = await (0, semanticCache_1.semanticLookup)(config_1.redis, semScope, qNorm, semVec);
+            res.locals.semScope = semScope;
+            res.locals.semQNorm = qNorm;
+            res.locals.semVec = semVec;
+            res.locals.semCacheKey = cacheKey;
+            if (semHit) {
+                res.locals.cacheHit = true;
+                const semParsed = JSON.parse(semHit.body);
+                semParsed.cached = true;
+                semParsed.semantic_cache = true;
+                semParsed.response_time_ms = Date.now() - requestStart;
+                res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
+                res.set('X-Cache', 'HIT-SEMANTIC');
+                return res.json(semParsed);
+            }
+        }
     }
     catch (_) {
         // Redis miss or error — fall through to DB
@@ -610,7 +700,10 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // single-table archive constraints because it falls through unchanged on any
     // tier error, and SEARCH_USE_TIER=0 remains a runtime kill switch.
     const useSearchTier = req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0');
-    if (q && searchMode === 'keyword' && useSearchTier) {
+    // BUY-67275 (#29, 2026-08-13): the tier has its own ORDER BY (rank/accessory
+    // penalty) and ignores `sort`. When the caller asks for a real sort, skip the
+    // tier so the archive path (which honors buildSortOrder) serves it ordered.
+    if (q && searchMode === 'keyword' && useSearchTier && !sortRequested) {
         const handled = await tryTierSearch(req, res, {
             q, countryCode, currency, limit, offset, minPrice, maxPrice,
             category, brand, domain, compact, requestStart, cacheKey,
@@ -620,6 +713,14 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             return;
     }
     const baseConditions = ['is_active = true', 'price > 0'];
+    // BUY-69621: HARD-exclude storage/SSD categories from device-typed queries
+    // (laptop/phone/…). Flows through baseConditions into every archive + hybrid
+    // candidate WHERE (recent_hits, non-FTS branch, fts_cand, semantic
+    // vectorFilterQuery). No-op (fail-open) for storage queries and non-device
+    // queries. Unqualified `category` matches the unaliased `products` table.
+    const storageExclProducts = (0, searchRelevanceTaxonomy_1.deviceStorageExclusionFragmentProducts)(q);
+    if (storageExclProducts)
+        baseConditions.push(`1 = 1${storageExclProducts}`);
     const baseParams = [];
     let baseIdx = 1;
     if (minPrice !== undefined || maxPrice !== undefined) {
@@ -746,12 +847,22 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // Sprint A 1.1-delta: strict pass uses websearch_to_tsquery — same AND semantics
     // as plainto but adds quoted-phrase + '-term' support and is safe on raw input.
     const ftsAndMatch = `search_vector @@ websearch_to_tsquery('english', $${ftsParamIdx}) AND $${ftsOrParamIdx}::text IS NOT NULL`;
+    // BUY-67275 (2026-08-09): with `sort=` supplied we skip ts_rank, which drops the ONLY
+    // reference to the RANK bind param ($ftsParamIdx). Postgres then rejects the statement
+    // with "could not determine data type of parameter $N" and the handler 500s (confirmed
+    // in buywhere-api logs). Same trap, same remedy as the OR->AND swap above: keep the
+    // param referenced with an always-true typed no-op.
+    const ftsRankParamKeepAlive = (q && ftsParamIdx) ? ` AND $${ftsParamIdx}::text IS NOT NULL` : '';
     const whereClause = searchConditions.length ? `WHERE ${searchConditions.join(' AND ')}` : '';
     // BUY-33987: SEARCH_STATEMENT_TIMEOUT_MS and SEARCH_HANDLER_TIMEOUT_MS are
     // declared at the top of the file so res.setTimeout() (above) can reference
     // them by lexical scope.
     // Top-N candidates ranked by ts_rank before joining full rows.
     const CANDIDATE_CAP = 200;
+    // BUY-67275 (#29): bounded slice for explicit-sort queries — big enough that
+    // "cheapest X" sorts a meaningful pool, small enough that the GIN bitmap
+    // fetch early-stops well inside the statement timeout.
+    const SORT_CANDIDATE_CAP = 1000;
     const specColumns = `created_at, description, brand, mpn, gtin, category_path, category, merchant_id, avg_rating, review_count`;
     const specColumnsJoined = `products.created_at, products.description, products.brand, products.mpn, products.gtin, products.category_path, products.category, products.merchant_id, products.avg_rating, products.review_count`;
     const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
@@ -777,8 +888,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         if (!effectiveSort || effectiveSort === 'relevance')
             return 'products.updated_at DESC';
         switch (effectiveSort) {
-            case 'price_asc': return 'products.price ASC, products.updated_at DESC';
-            case 'price_desc': return 'products.price DESC, products.updated_at DESC';
+            case 'price_asc': return 'products.price ASC NULLS LAST, products.updated_at DESC';
+            case 'price_desc': return 'products.price DESC NULLS LAST, products.updated_at DESC';
             case 'newest': return 'products.updated_at DESC';
             case 'highest_rated': return 'products.avg_rating DESC NULLS LAST, products.updated_at DESC';
             case 'most_reviewed': return 'products.review_count DESC NULLS LAST, products.updated_at DESC';
@@ -833,7 +944,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             dataResult.rows = dataResult.rows.slice(0, limit);
         const responseTimeMs = Date.now() - requestStart;
         const fallbackProducts = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
-        const responseBody = (0, response_1.buildSearchResponse)(fallbackProducts, total, limit, offset, responseTimeMs, hasMore);
+        const responseBody = (0, response_1.buildSearchResponse)(fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore);
         annotateDeliverTo(responseBody, deliverTo, includeUnshippable, q);
         config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
         res.set('X-Search-Fallback', source);
@@ -885,11 +996,30 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
       `;
     }
     else {
-        dataQuery = `
+        // BUY-67275 (#29, 2026-08-14): never ORDER BY over the full FTS match set —
+        // sorting millions of matched rows blew the statement timeout and every cold
+        // sorted query answered degraded/empty. Same remedy as the ranked branch:
+        // bound candidates first (LIMIT early-stop, no ORDER BY inside the CTE),
+        // then sort only that slice. Sorted results are "best N of the first
+        // SORT_CANDIDATE_CAP matches", the same trade the relevance path makes.
+        dataQuery = q ? `
+        WITH sort_hits AS MATERIALIZED (
+          SELECT id
+          FROM products
+          ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}${ftsRankParamKeepAlive}
+          LIMIT ${SORT_CANDIDATE_CAP}
+        )
+        SELECT ${joinedColumns}
+        FROM sort_hits
+        JOIN products ON products.id = sort_hits.id
+        LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+        ORDER BY ${buildSortOrder()}
+        LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
+      ` : `
         SELECT ${joinedColumns}
         FROM products
         LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-        ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
+        ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}${ftsRankParamKeepAlive}
         ORDER BY ${buildSortOrder()}
         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
       `;
@@ -945,7 +1075,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                 // BUY-61117: the previous bounded SG path materialized a 2000-row slice of
                 // ALL fresh SG products (no FTS in the CTE WHERE) then applied the FTS
                 // filter after materialization. Without a (country_code, updated_at)
-                // index, scanning 1.5M+ fresh SG rows took seconds per query, and the
+                // index, scanning 300M+ fresh SG rows took seconds per query, and the
                 // 10-query fallback ladder exceeded the handler timeout → degraded 0-result
                 // responses. Fix: include the FTS match IN the CTE WHERE so the GIN index
                 // (idx_products_search_country) bounds the scan to matching products only,
@@ -1060,6 +1190,16 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                 if (andRes.rows.length > 0)
                     return andRes;
             }
+            // BUY-67275 (#29): sorted queries skip the ranked ladders but still paid
+            // the broad OR bitmap (Postgres builds the FULL union bitmap before LIMIT
+            // can stop the heap fetch — 'cast iron skillet' SG timed out at 8s). Try
+            // strict AND candidates first (small bitmap, better relevance for an
+            // explicit sort anyway); fall back to broad OR only when AND is empty.
+            if (!useFtsRanking && ftsIsMultiWord && q) {
+                const andFirst = await client.query(baseQuery.split(ftsOrMatch).join(ftsAndMatch), dataParams);
+                if (andFirst.rows.length > 0)
+                    return andFirst;
+            }
             let r = await client.query(baseQuery, dataParams);
             if (useSgFreshnessGuardrail && r.rows.length === 0) {
                 r = await client.query(baseQuery.replace(freshWhereClause, whereClause), dataParams);
@@ -1074,54 +1214,82 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         if (activeVectorDb) {
             const queryVector = await getCachedQueryEmbedding(q, geminiKey);
             if (queryVector) {
-                const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
-                const semanticCandidates = await activeVectorDb.query(`SELECT product_id FROM product_embeddings
-             ORDER BY embedding <=> $1::vector
-             LIMIT $2`, [queryVector, candidateCap]);
-                const rawSemanticIds = semanticCandidates.rows.map((row) => row.product_id);
-                let filteredSemanticIds = [];
-                if (rawSemanticIds.length > 0) {
-                    const vectorFilterQuery = `
-              SELECT id
-              FROM products
-              WHERE id = ANY($1::bigint[]) AND ${baseConditions.map((condition) => shiftSqlPlaceholders(condition, 1)).join(' AND ')}
-            `;
-                    const vectorFilterResult = await client.query(vectorFilterQuery, [rawSemanticIds, ...baseParams]);
-                    const allowedIds = new Set(vectorFilterResult.rows.map((row) => row.id));
-                    filteredSemanticIds = rawSemanticIds.filter((id) => allowedIds.has(id));
+                try {
+                    // BUY-63271: mark a savepoint before any local (client) queries so a statement
+                    // timeout in the hybrid FTS candidate query does not leave the transaction
+                    // in ABORTED state and break the fail-open FTS fallback.
+                    await client.query('SAVEPOINT before_vector');
+                    const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
+                    // BUY-65476 + BUY-52089: filter by model_ver to avoid legacy 1024-dim vectors.
+                    // The query embedding is 512-dim (gemini-embedding-001) - only match rows with same dimension.
+                    // Note: When 0 results return (embed worker blocked on proxy outage), we do NOT fall back
+                    // to FTS silently — that would make semantic = keyword (the original bug). Instead,
+                    // we return 0 results, which at least makes semantic DIFFERENT from keyword.
+                    const semanticCandidates = await activeVectorDb.query(`SELECT product_id FROM product_embeddings
+               WHERE model_ver = 'gemini-embedding-001@512'
+               ORDER BY embedding <=> $1::vector
+               LIMIT $2`, [queryVector, candidateCap]);
+                    const rawSemanticIds = semanticCandidates.rows.map((row) => row.product_id);
+                    let filteredSemanticIds = [];
+                    if (rawSemanticIds.length > 0) {
+                        const vectorFilterQuery = `
+                SELECT id
+                FROM products
+                WHERE id = ANY($1::bigint[]) AND ${baseConditions.map((condition) => shiftSqlPlaceholders(condition, 1)).join(' AND ')}
+              `;
+                        const vectorFilterResult = await client.query(vectorFilterQuery, [rawSemanticIds, ...baseParams]);
+                        const allowedIds = new Set(vectorFilterResult.rows.map((row) => row.id));
+                        filteredSemanticIds = rawSemanticIds.filter((id) => allowedIds.has(id));
+                    }
+                    let rankedCandidateIds = filteredSemanticIds;
+                    if (searchMode === 'hybrid') {
+                        const ftsCandidates = await client.query(`WITH fts_cand AS MATERIALIZED (
+                   SELECT id, search_vector
+                   FROM products
+                  ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
+                   LIMIT ${CANDIDATE_CAP}
+                 ), fts_top AS (
+                   SELECT id
+                   FROM fts_cand
+                   ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
+                   LIMIT 200
+                 )
+                 SELECT id FROM fts_top`, searchParams);
+                        rankedCandidateIds = mergeRrfCandidateIds(ftsCandidates.rows.map((row) => row.id), filteredSemanticIds, candidateCap);
+                    }
+                    total = rankedCandidateIds.length;
+                    hasMore = total > offset + limit;
+                    if (total === 0) {
+                        dataResult = { rows: [] };
+                    }
+                    else if (!effectiveSort || effectiveSort === 'relevance') {
+                        const pageIds = rankedCandidateIds.slice(offset, offset + requestedRows);
+                        const detailResult = await client.query(`SELECT ${joinedColumns}
+                 FROM products
+                 LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+                 WHERE products.id = ANY($1::bigint[])`, [pageIds]);
+                        const byId = new Map(detailResult.rows.map((row) => [row.id, row]));
+                        dataResult = {
+                            rows: pageIds.map((id) => byId.get(id)).filter(Boolean),
+                        };
+                    }
+                    else {
+                        dataResult = await client.query(`SELECT ${joinedColumns}
+                 FROM products
+                 LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+                 WHERE products.id = ANY($1::bigint[])
+                 ORDER BY ${buildSortOrder()}
+                 LIMIT $2 OFFSET $3`, [rankedCandidateIds, requestedRows, offset]);
+                    }
                 }
-                let rankedCandidateIds = filteredSemanticIds;
-                if (searchMode === 'hybrid') {
-                    const ftsCandidates = await client.query(`SELECT id
-               FROM products
-              ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
-               ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
-               LIMIT 200`, searchParams);
-                    rankedCandidateIds = mergeRrfCandidateIds(ftsCandidates.rows.map((row) => row.id), filteredSemanticIds, candidateCap);
-                }
-                total = rankedCandidateIds.length;
-                hasMore = total > offset + limit;
-                if (total === 0) {
-                    dataResult = { rows: [] };
-                }
-                else if (!effectiveSort || effectiveSort === 'relevance') {
-                    const pageIds = rankedCandidateIds.slice(offset, offset + requestedRows);
-                    const detailResult = await client.query(`SELECT ${joinedColumns}
-               FROM products
-               LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-               WHERE products.id = ANY($1::bigint[])`, [pageIds]);
-                    const byId = new Map(detailResult.rows.map((row) => [row.id, row]));
-                    dataResult = {
-                        rows: pageIds.map((id) => byId.get(id)).filter(Boolean),
-                    };
-                }
-                else {
-                    dataResult = await client.query(`SELECT ${joinedColumns}
-               FROM products
-               LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-               WHERE products.id = ANY($1::bigint[])
-               ORDER BY ${buildSortOrder()}
-               LIMIT $2 OFFSET $3`, [rankedCandidateIds, requestedRows, offset]);
+                catch (vectorErr) {
+                    // BUY-52089: vector infra may be unavailable (e.g., dimension mismatch BUY-63231)
+                    // Fall back to FTS so the public API returns results instead of 500.
+                    // BUY-63271: roll back to the savepoint so an aborted local transaction does not
+                    // poison the fail-open fallback and surface as a 500.
+                    await client.query('ROLLBACK TO SAVEPOINT before_vector').catch(() => { });
+                    console.warn('[search] vector search failed, falling back to FTS:', vectorErr?.message || vectorErr);
+                    dataResult = await execFtsQuery(dataQuery);
                 }
             }
             else {
@@ -1254,7 +1422,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             });
         }
     }
-    const responseBody = (0, response_1.buildSearchResponse)(filteredProducts, total, limit, offset, responseTimeMs, hasMore ?? false);
+    const responseBody = (0, response_1.buildSearchResponse)(filteredProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore ?? false);
     annotateDeliverTo(responseBody, deliverTo, includeUnshippable, q);
     // Cache result in Redis (fire-and-forget)
     config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
@@ -1389,6 +1557,15 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     const discountOrder = useDiscountCol
         ? 'discount_pct DESC'
         : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
+    // BUY-69340 (#36, 2026-08-14): with the generated column, ORDER BY must match
+    // idx_products_deals_discount_pct (currency, discount_pct DESC) EXACTLY —
+    // adding NULLS LAST / updated_at tiebreaks forces a Sort node over every
+    // matching row (live EXPLAIN: 23K-cost sort -> 4.6s -> degraded empty),
+    // while the bare index order early-stops at LIMIT in single-digit ms.
+    // NULLS LAST is dead weight anyway: discount_pct >= min excludes NULLs.
+    const dealOrderBy = useDiscountCol
+        ? discountOrder
+        : `${discountOrder} NULLS LAST, updated_at DESC`;
     // BUY-60309: removed COUNT query and added bounded sampling.
     // Sample recent active candidates, then filter/order that bounded slice.
     // BUY-45692: deals is a heavy aggregate rollup — route to the read replica
@@ -1425,7 +1602,7 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
                 ${discountSelect}
          FROM products
          WHERE ${dealWhere}
-         ORDER BY ${discountOrder} NULLS LAST, updated_at DESC
+         ORDER BY ${dealOrderBy}
          LIMIT ${dealLimitParam}::int OFFSET ${dealOffsetParam}::int`, dealParams);
         const sampleDeals = dealResult.rows;
         total = sampleDeals.length;
@@ -1448,7 +1625,13 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
         dealsClient.release();
     }
     const responseBody = (0, response_1.buildSearchResponse)(deals, total, limit, offset, Date.now() - start, false, degraded);
-    config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
+    // BUY-2026-08-13 (#36): NEVER cache a degraded (timed-out) deals payload — one slow
+    // moment froze an empty response into the 1h cache and every later call re-served it
+    // (the fossilized response_time_ms 4519/4554 signature). Cache real-but-empty briefly.
+    if (!degraded) {
+        const dealsTtl = deals.length === 0 ? 60 : SEARCH_CACHE_TTL_SECONDS;
+        config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', dealsTtl).catch(() => { });
+    }
     // BUY-52474: log a product_view per deals card so /v1/products/deals drives
     // product_views growth alongside /search and /:id.
     (0, instrumentation_1.recordProductViewsBulk)({
@@ -2097,9 +2280,16 @@ async function warmSearchCache() {
             const limit = 20;
             const offset = 0;
             // Must match the handler's cacheKey exactly:
-            // fts:q:domain:region:country:category:catId:catPath:brand:merchantId:avail:currency:minP:maxP:limit:offset:sort:fields:compact
-            // With all defaults empty: fts:q:::country:::::::currency:::limit:offset:::f
-            const cacheKey = `fts:${q}:::${country}:::::::${currency}:::${limit}:${offset}:::f`;
+            // BUY-67275 (#37, 2026-08-14): this key must byte-match the live search
+            // handler's cacheKey (VER prefix + normalized q + trailing
+            // searchMode/deliverTo/includeUnshippable segments) or every warm write is
+            // dead weight the handler never reads — which is exactly what happened
+            // after the key format grew. Defaults: compact=f, mode=DEFAULT_SEARCH_MODE,
+            // deliver_to='', include_unshippable=1.
+            const qNorm = q.toLowerCase().trim().split(/\s+/)
+                .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
+                || q.toLowerCase().trim();
+            const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:::${country}:::::::${currency}:::${limit}:${offset}:::f:${DEFAULT_SEARCH_MODE}::1`;
             const existing = await config_1.redis.get(cacheKey).catch(() => null);
             if (existing) {
                 skipped++;
@@ -2141,7 +2331,6 @@ async function warmSearchCache() {
           SELECT id, country_code
           FROM products
           ${whereClause}
-          ORDER BY id DESC
           LIMIT ${CANDIDATE_CAP}
         )
         SELECT ${joinedColumns}
@@ -2158,7 +2347,7 @@ async function warmSearchCache() {
                 result.rows.pop();
             const total = result.rows.length + (hasMore ? 1 : 0);
             const products = result.rows.map((row) => (0, response_1.buildProduct)(row, currency, false));
-            const responseBody = (0, response_1.buildSearchResponse)(products, total, limit, offset, 0, hasMore);
+            const responseBody = (0, response_1.buildSearchResponse)(products, total, limit, offset, 0, false, undefined, hasMore);
             await config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS);
             warmed++;
         }
