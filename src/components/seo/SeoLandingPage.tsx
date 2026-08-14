@@ -5,6 +5,7 @@ import Footer from "@/components/Footer";
 import {
   buildSeoLandingSchema,
   getSeoLandingProducts,
+  resolveHeroTitle,
   type LandingProduct,
   type SeoLandingPageConfig,
 } from "@/lib/seo-landing-pages";
@@ -132,6 +133,10 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
   const products = await getSeoLandingProducts(config);
   const comparison = buildComparisonRows(config, products);
   const schema = buildSeoLandingSchema(config, products);
+  // BUY-66320: render the hero headline from the live catalog floor (when the
+  // config provides a template) so the H1, JSON-LD headline, and breadcrumb
+  // all match the lowest visible price.
+  const heroTitle = resolveHeroTitle(config, products);
 
   return (
     <div className="flex min-h-screen flex-col bg-white text-slate-900">
@@ -149,7 +154,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 {config.heroEyebrow}
               </div>
               <h1 className="max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl">
-                {config.heroTitle}
+                {heroTitle}
               </h1>
               <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-200">
                 {config.heroBody}
