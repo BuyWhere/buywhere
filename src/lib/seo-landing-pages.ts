@@ -605,15 +605,6 @@ export async function verifyReachableImage(imageUrl: string | null, timeoutMs = 
     // even when the HEAD probe is green. Skip the probe and mark them
     // unreachable so the branded placeholder path takes over.
     if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
-    // Treat these hosts as always-reachable; probing them at SSR is wasteful
-    // and Amazon's CDN often blocks non-browser UAs.
-    if (
-      url.hostname === "m.media-amazon.com" ||
-      url.hostname.endsWith(".media-amazon.com") ||
-      url.hostname === "images-na.ssl-images-amazon.com"
-    ) {
-      return true;
-    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -708,6 +699,8 @@ function parseImageDimensions(buffer: ArrayBuffer | Uint8Array): { w: number; h:
 
 const SQUARE_ASPECT_TOLERANCE = 0.06; // |AR - 1| <= 0.06 → treat as square
 const SQUARE_FILE_SIZE_THRESHOLD = 250 * 1024; // < 250 KB square product photos are likely centered-on-white
+const MIN_PRODUCT_IMAGE_DIMENSION = 32; // Reject tracking pixels / tiny CDN placeholders.
+const MIN_PRODUCT_IMAGE_BYTES = 512; // Philips 1×1 JPEG from BUY-69757 is 269 bytes.
 
 function isSquareAspect(dims: { w: number; h: number }): boolean {
   const ar = dims.w / dims.h;
@@ -733,7 +726,9 @@ function isSquareAspect(dims: { w: number; h: number }): boolean {
 async function verifyUsableImageContent(
   imageUrl: string,
   timeoutMs = 3000,
+  opts: { applySquareCropHeuristic?: boolean } = {},
 ): Promise<boolean> {
+  const { applySquareCropHeuristic = true } = opts;
   try {
     const url = new URL(imageUrl);
     // BUY-63954: data: URIs (our deterministic branded SVG card) bypass the
@@ -741,14 +736,6 @@ async function verifyUsableImageContent(
     // SVG already renders identically in every browser/headless environment.
     if (url.protocol === "data:") return true;
     if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
-    // Amazon CDN: known good landscape product photos — skip the probe.
-    if (
-      url.hostname === "m.media-amazon.com" ||
-      url.hostname.endsWith(".media-amazon.com") ||
-      url.hostname === "images-na.ssl-images-amazon.com"
-    ) {
-      return true;
-    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -788,13 +775,31 @@ async function verifyUsableImageContent(
       }
       const dims = parseImageDimensions(buf);
       if (!dims) return true; // unknown format — pass through, the existing onError fallback handles failures
+
+      const contentLength = Number(res.headers.get("content-length") || "0");
+      const observedBytes = contentLength > 0 ? contentLength : total;
+      // BUY-69757: a real 200 image/* can still be unusable. Philips returned a
+      // 1×1 JPEG (269 bytes) that passed the old reachable check and rendered a
+      // blank card; reject tiny dimensions / tiny payload before they reach PDPs.
+      // Layout-independent, so it runs for landing cards AND PDP fallback rows.
+      if (
+        dims.w < MIN_PRODUCT_IMAGE_DIMENSION ||
+        dims.h < MIN_PRODUCT_IMAGE_DIMENSION ||
+        observedBytes < MIN_PRODUCT_IMAGE_BYTES
+      ) {
+        return false;
+      }
+
+      // BUY-69757: the square-crop heuristic protects the 4:3 object-cover
+      // landing cards. PDP fallback rows render object-contain, where a square
+      // photo is fine — only the dead/tiny checks apply there.
+      if (!applySquareCropHeuristic) return true;
       if (!isSquareAspect(dims)) return true; // non-square → safe to keep
       // Square: keep only when the file is rich enough that the subject likely
       // fills the frame. Small square JPEGs are the high-risk "blank/white"
       // case (BUY-63507: 1500x1500 @ 127KB Gigabyte A16, 1200x1200 @ 120KB
       // Zephyrus G16). Large square JPEGs (e.g. 1200x1200 @ 968KB ProArt P16)
       // have enough detail to render correctly.
-      const contentLength = Number(res.headers.get("content-length") || "0");
       if (contentLength > 0 && contentLength < SQUARE_FILE_SIZE_THRESHOLD) {
         return false;
       }
@@ -1057,6 +1062,33 @@ function withFallbackDetailUrl(product: LandingProduct, country: string): Landin
   return { ...product, productUrl: buildProductDetailUrl(product, country) };
 }
 
+// Shared repair path for curated fallback rows. BUY-69736 introduced the
+// probe for PDP lookups but left two gaps that the BUY-69752 audit caught:
+// null imageUrls passed through untouched (rendering an image-less PDP), and
+// probe-passing URLs could still be unusable (1×1 tracking pixels) or
+// auto-trusted wrong images (m.media-amazon.com). The square-crop heuristic
+// is off here — PDPs render object-contain, so square photos are fine.
+async function repairFallbackProductImage(
+  product: LandingProduct,
+  context: string,
+  opts: { applySquareCropHeuristic?: boolean } = {},
+): Promise<LandingProduct> {
+  if (!product.imageUrl) {
+    return { ...product, imageUrl: brandedProductPlaceholderSvg(product.brand, product.name, product.category) };
+  }
+
+  const reachable = await verifyReachableImage(product.imageUrl);
+  const usable = reachable
+    ? await verifyUsableImageContent(product.imageUrl, 3000, opts)
+    : false;
+  if (usable) return product;
+
+  console.warn(
+    `[seo] replacing unusable fallback image for product ${product.id} on ${context}: ${product.imageUrl}`
+  );
+  return { ...product, imageUrl: brandedProductPlaceholderSvg(product.brand, product.name, product.category) };
+}
+
 
 function buildProductDetailUrl(product: LandingProduct, country: string): string {
   const region = country.toLowerCase();
@@ -1095,26 +1127,14 @@ export async function getSeoLandingFallbackProduct(
       // Offer.url slugs are derived from upstream merchant product titles.
       // BUY-69630: relax the strict byte-equality guard to allow PDPs to
       // render for catalog productIds even when the URL slug is mangled.
-      const detailUrl = buildProductDetailUrl(product, config.country);
-
-      // BUY-69736: probe the curated image; replace with the branded SVG
-      // placeholder when the URL is dead/blocked/serves HTML.
-      let imageUrl = product.imageUrl;
-      if (imageUrl) {
-        const reachable = await verifyReachableImage(imageUrl);
-        if (!reachable) {
-          console.warn(
-            `[seo] replacing unreachable fallback image for product ${product.id} on PDP: ${imageUrl}`
-          );
-          imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
-        }
-      }
-
-      return {
-        ...product,
-        imageUrl,
-        productUrl: detailUrl,
-      };
+      // BUY-69757: shared repair path also covers null imageUrls (the
+      // 824 curated rows without a photo) so a fallback PDP never renders
+      // an empty image column.
+      return withFallbackDetailUrl(
+        // PDP renders object-contain: square photos are fine (BUY-69757).
+        await repairFallbackProductImage(product, "PDP", { applySquareCropHeuristic: false }),
+        config.country,
+      );
     }
   }
 
@@ -1135,22 +1155,11 @@ export async function getSeoLandingFallbackProductBySlug(
     for (const product of config.fallbackProducts) {
       if (buildLandingProductSlug(product) !== normalizedSlug) continue;
 
-      let imageUrl = product.imageUrl;
-      if (imageUrl) {
-        const reachable = await verifyReachableImage(imageUrl);
-        if (!reachable) {
-          console.warn(
-            `[seo] replacing unreachable fallback image for product ${product.id} on PDP: ${imageUrl}`
-          );
-          imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
-        }
-      }
-
-      return {
-        ...product,
-        imageUrl,
-        productUrl: buildProductDetailUrl(product, config.country),
-      };
+      return withFallbackDetailUrl(
+        // PDP renders object-contain: square photos are fine (BUY-69757).
+        await repairFallbackProductImage(product, "PDP", { applySquareCropHeuristic: false }),
+        config.country,
+      );
     }
   }
 
@@ -1165,17 +1174,9 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   // generic placeholder icon when live products are unavailable (BUY-64729).
   const trustedFallback = config.fallbackProducts.filter(isTrustedFallbackProduct);
   const fallback = await Promise.all(
-    trustedFallback.map(async (fb) => {
-      if (!fb.imageUrl) {
-        return { ...fb, imageUrl: brandedProductPlaceholderSvg(fb.brand, fb.name, fb.category) };
-      }
-      const reachable = await verifyReachableImage(fb.imageUrl);
-      if (reachable) return fb;
-      console.warn(
-        `[seo] replacing unreachable fallback image for product ${fb.id} on ${config.slug}: ${fb.imageUrl}`
-      );
-      return { ...fb, imageUrl: brandedProductPlaceholderSvg(fb.brand, fb.name, fb.category) };
-    }),
+    // Landing cards keep the full BUY-63507 square-crop heuristic: they render
+    // 4:3 object-cover, where small square photos bleed white margins.
+    trustedFallback.map((fb) => repairFallbackProductImage(fb, config.slug, { applySquareCropHeuristic: true })),
   );
 
   // Try the broad query first, then progressively fall back to brand-specific

@@ -289,16 +289,16 @@ export default async function RegionProductDetailPage({ params }: PageProps) {
         </nav>
 
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          {product.image_url && (
-            <div className="aspect-square max-h-64 overflow-hidden bg-gray-50">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={product.image_url}
-                alt={productName}
-                className="w-full h-full object-contain p-4"
-              />
-            </div>
-          )}
+          {/* BUY-69757: always render a product visual block — see the US PDP
+              twin for rationale. */}
+          <div className="aspect-square max-h-64 overflow-hidden bg-gray-50">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={product.image_url || "/brand/product-placeholder.svg"}
+              alt={productName}
+              className="w-full h-full object-contain p-4"
+            />
+          </div>
 
           <div className="p-6">
             <h1 className="text-2xl font-bold text-gray-900 mb-2">{productName}</h1>

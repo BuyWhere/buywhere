@@ -866,3 +866,216 @@ test("getSeoLandingFallbackProduct replaces a dead curated URL with the branded 
     globalThis.fetch = originalFetch;
   }
 });
+
+// ---------------------------------------------------------------------------
+// BUY-69757 — fallback PDPs must always receive an image. Two audit gaps in
+// the BUY-69736 repair pipeline:
+//
+//   1. Curated rows with imageUrl: null (824 of 851 fallback rows, e.g. the
+//      SG gaming laptops g1-g5 and the US QLED q1-q5) rendered PDPs with NO
+//      <img> at all — the page.tsx image block was gated on truthiness.
+//   2. URLs that pass the reachability probe can still be unusable: the
+//      Philips 3000i row serves a 269-byte 1×1 JPEG, and m.media-amazon.com
+//      was auto-trusted without any probe, letting wrong-but-reachable images
+//      through (the original g6 Acer Nitro-on-ASUS-TUF defect class).
+// ---------------------------------------------------------------------------
+
+test("getSeoLandingFallbackProduct returns the branded SVG for null imageUrl rows (BUY-69757)", async () => {
+  // SG gaming laptops ship imageUrl: null — no probe fires, so a broken fetch
+  // stub would also catch accidental probing.
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    throw new Error("null imageUrl rows must not be probed");
+  }) as typeof globalThis.fetch;
+
+  try {
+    const product = await getSeoLandingFallbackProduct("sg", "g5");
+    assert.ok(product, "sg g5 (ASUS TUF Gaming A15) fallback row must resolve");
+    assert.ok(
+      (product!.imageUrl ?? "").startsWith("data:image/svg+xml;"),
+      `null imageUrl must be replaced by the branded SVG, got: ${product!.imageUrl}`,
+    );
+    const decoded = decodeURIComponent(product!.imageUrl ?? "");
+    assert.match(decoded, /ASUS/);
+    assert.match(decoded, /TUF/);
+
+    // US QLED rows are null too (q2 = Samsung QN85D from the audit).
+    const tv = await getSeoLandingFallbackProduct("us", "q2");
+    assert.ok(tv, "us q2 fallback row must resolve");
+    assert.match(
+      decodeURIComponent(tv!.imageUrl ?? ""),
+      /Samsung/,
+      "branded SVG must name the row's brand",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("getSeoLandingFallbackProduct rejects a probe-passing 1×1 tiny image (BUY-69757 Philips negative control)", async () => {
+  const originalFetch = globalThis.fetch;
+
+  function buildPng(w: number, h: number): Uint8Array {
+    const buf = new Uint8Array(24);
+    buf[0] = 0x89; buf[1] = 0x50; buf[2] = 0x4e; buf[3] = 0x47;
+    buf[8] = 0; buf[9] = 0; buf[10] = 0; buf[11] = 13;
+    buf[12] = 0x49; buf[13] = 0x48; buf[14] = 0x44; buf[15] = 0x52;
+    buf[16] = (w >>> 24) & 0xff; buf[17] = (w >>> 16) & 0xff; buf[18] = (w >>> 8) & 0xff; buf[19] = w & 0xff;
+    buf[20] = (h >>> 24) & 0xff; buf[21] = (h >>> 16) & 0xff; buf[22] = (h >>> 8) & 0xff; buf[23] = h & 0xff;
+    return buf;
+  }
+
+  // HEAD pass → reachable; GET serves a 1×1 PNG header (the Philips defect:
+  // 200 + image/jpeg + a 269-byte 1×1 payload).
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const method = init?.method ?? "GET";
+    if (method === "HEAD") {
+      return new Response("", { status: 200, headers: { "content-type": "image/png" } });
+    }
+    const bytes = buildPng(1, 1);
+    return new Response(new Uint8Array(bytes), {
+      status: 200,
+      headers: { "content-type": "image/png", "content-length": String(bytes.length) },
+    });
+  }) as typeof globalThis.fetch;
+
+  try {
+    const product = await getSeoLandingFallbackProduct("sg", "ap2");
+    assert.ok(product, "sg ap2 (Philips 3000i) fallback row must resolve");
+    assert.ok(
+      (product!.imageUrl ?? "").startsWith("data:image/svg+xml;"),
+      `a 1×1 image must be replaced by the branded SVG, got: ${product!.imageUrl}`,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("verifyReachableImage probes m.media-amazon.com instead of auto-trusting it (BUY-69757)", async () => {
+  const originalFetch = globalThis.fetch;
+  const probed: string[] = [];
+
+  // The old code short-circuited Amazon hosts to `true` before any fetch —
+  // so a wrong-but-reachable Amazon image bypassed every check. Now a 400
+  // text/plain response (what Amazon actually serves for bogus image ids)
+  // must be treated as unreachable.
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    probed.push(String(input));
+    return new Response("BadRequest", {
+      status: 400,
+      headers: { "content-type": "text/plain" },
+    });
+  }) as typeof globalThis.fetch;
+
+  try {
+    const reachable = await verifyReachableImage("https://m.media-amazon.com/images/I/91WRONGID123._AC_SL1500_.jpg");
+    assert.equal(probed.length, 1, "the Amazon CDN URL must actually be probed, not auto-trusted");
+    assert.equal(reachable, false, "a 400 text/plain Amazon response must not count as a reachable image");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("PDP image blocks are no longer gated on image_url truthiness (BUY-69757)", () => {
+  // Source-level regression: the audit found 8 fallback PDPs rendering zero
+  // <img> tags because the visual block was conditionally omitted.
+  const pdpSources = [
+    readFileSync(new URL("../app/products/us/[slug]/[productId]/page.tsx", import.meta.url), "utf8"),
+    readFileSync(new URL("../app/products/sg/[slug]/[productId]/page.tsx", import.meta.url), "utf8"),
+    readFileSync(new URL("../app/products/[region]/[slug]/[productId]/page.tsx", import.meta.url), "utf8"),
+  ];
+  for (let i = 0; i < pdpSources.length; i++) {
+    const source = pdpSources[i];
+    assert.doesNotMatch(
+      source,
+      /\{product\.image_url\s*&&\s*\(/,
+      `PDP #${i} must not conditionally omit the image block`,
+    );
+    assert.match(
+      source,
+      /product\.image_url\s*\|\|\s*"\/brand\/product-placeholder\.svg"/,
+      `PDP #${i} must fall back to the static placeholder, not omit the <img>`,
+    );
+  }
+});
+
+test("PDP fallback keeps square photos; landing cards keep the square-crop heuristic (BUY-69757)", async () => {
+  // The BUY-69736-curated gaming-laptop photos are 732×732 / 800×800 squares
+  // under 250KB. The landing-card path (4:3 object-cover) correctly replaces
+  // them with the branded SVG (BUY-63507), but the PDP path renders
+  // object-contain where a square is fine — replacing them regressed
+  // /best-gaming-laptops-us PDPs back to placeholders.
+  function buildSquarePng(): Uint8Array {
+    const buf = new Uint8Array(24);
+    buf[0] = 0x89; buf[1] = 0x50; buf[2] = 0x4e; buf[3] = 0x47;
+    buf[4] = 0x0d; buf[5] = 0x0a; buf[6] = 0x1a; buf[7] = 0x0a;
+    buf[8] = 0; buf[9] = 0; buf[10] = 0; buf[11] = 13;
+    buf[12] = 0x49; buf[13] = 0x48; buf[14] = 0x44; buf[15] = 0x52;
+    buf[16] = 0x00; buf[17] = 0x00; buf[18] = 0x03; buf[19] = 0x20; // w = 800
+    buf[20] = 0x00; buf[21] = 0x00; buf[22] = 0x03; buf[23] = 0x20; // h = 800
+    return buf;
+  }
+
+  const square = buildSquarePng();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const method = init?.method ?? "GET";
+    if (method === "HEAD") {
+      return new Response("", { status: 200, headers: { "content-type": "image/png" } });
+    }
+    return new Response(new Uint8Array(square), {
+      status: 200,
+      headers: { "content-type": "image/png", "content-length": "99000" },
+    });
+  }) as typeof globalThis.fetch;
+
+  try {
+    // PDP lookup (g2 = Lenovo Legion Pro 7i, a real BUY-69736-curated square
+    // photo): must keep the real URL.
+    const pdpProduct = await getSeoLandingFallbackProduct("us", "g2");
+    assert.ok(pdpProduct, "g2 fallback row must resolve");
+    assert.match(
+      pdpProduct!.imageUrl || "",
+      /^https?:\/\//,
+      `PDP fallback must keep the square curated photo, got: ${(pdpProduct!.imageUrl || "").slice(0, 50)}`,
+    );
+
+    // Landing-card path must still drop the same square (BUY-63507). With the
+    // stubbed search API returning no live results, the page renders the
+    // curated fallback set — where g2's square photo must become the SVG.
+    const originalJsonFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/products/search")) {
+        return new Response(JSON.stringify({ data: [], meta: { total: 0, degraded: true } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      const method = init?.method ?? "GET";
+      if (method === "HEAD") {
+        return new Response("", { status: 200, headers: { "content-type": "image/jpeg" } });
+      }
+      return new Response(new Uint8Array(square), {
+        status: 200,
+        headers: { "content-type": "image/jpeg", "content-length": "99000" },
+      });
+    }) as typeof globalThis.fetch;
+
+    try {
+      const landing = await getSeoLandingProducts(seoLandingPages["best-gaming-laptops-us"]);
+      const g2OnLanding = landing.find((p) => p.id === "g2");
+      if (g2OnLanding) {
+        assert.match(
+          g2OnLanding.imageUrl || "",
+          /^data:image\/svg\+xml;/,
+          "landing fallback cards must still replace small square photos with the branded SVG (BUY-63507)",
+        );
+      }
+    } finally {
+      globalThis.fetch = originalJsonFetch;
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
