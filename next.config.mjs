@@ -233,6 +233,48 @@ const nextConfig = {
         destination: '/partnership',
         permanent: true,
       },
+      // BUY-69692: developer-intent route aliases should redirect to canonical pages
+      // or return branded 404/410 with recovery hints instead of thin/empty shells.
+      {
+        source: '/api-reference/pricing',
+        destination: '/pricing',
+        permanent: true,
+      },
+      {
+        source: '/developers/pricing',
+        destination: '/pricing',
+        permanent: true,
+      },
+      {
+        source: '/sdk',
+        destination: '/developers',
+        permanent: true,
+      },
+      {
+        source: '/ai-agents',
+        destination: '/agents',
+        permanent: true,
+      },
+      {
+        source: '/llms',
+        destination: '/developers',
+        permanent: true,
+      },
+      {
+        source: '/docs/pricing',
+        destination: '/pricing',
+        permanent: true,
+      },
+      {
+        source: '/docs/sdk',
+        destination: '/developers',
+        permanent: true,
+      },
+      {
+        source: '/docs/mcp',
+        destination: '/docs',
+        permanent: true,
+      },
       {
         source: '/:path*',
         has: [
