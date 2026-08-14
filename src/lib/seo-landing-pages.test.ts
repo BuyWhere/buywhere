@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
   getSeoLandingProducts,
+  getSeoLandingFallbackProduct,
   isCompleteRobotVacuum,
   resolveHeroTitle,
   seoLandingPages,
@@ -354,6 +355,7 @@ test("parseImageDimensions extracts JPEG SOF and PNG IHDR dimensions", () => {
   assert.equal(isSq({ w: 1000, h: 1070 }), true, "1000x1070 (AR 0.93) is within ±6% tolerance");
 });
 
+<<<<<<< HEAD
 // ---------------------------------------------------------------------------
 // BUY-67622 — SEO guide hero copy must not contradict the live card set.
 // Three regression tests:
@@ -547,4 +549,32 @@ test("best-robot-vacuums-2026 declares heroTitleTemplate so the headline stays i
   );
   // The static heroTitle is the fallback when the live catalog is empty.
   assert.match(config.heroTitle, /Roomba/);
+});
+
+// BUY-69630: slug-match guard relaxation for catalog productIds
+test("getSeoLandingFallbackProduct matches by productId and region, ignoring slug (BUY-69630)", () => {
+  // Grab a real fallback product from the config
+  const usConfig = seoLandingPages["best-gaming-laptops-us"];
+  const fallbackProduct = usConfig?.fallbackProducts?.[0];
+  assert.ok(fallbackProduct, "expected a fallback product in best-gaming-laptops-us config");
+
+  const productId = fallbackProduct.id;
+  const correctSlug = fallbackProduct.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+
+  // Verify it matches with the correct slug
+  const matchWithCorrectSlug = getSeoLandingFallbackProduct("us", productId, correctSlug);
+  assert.ok(matchWithCorrectSlug, "should match with correct slug");
+  assert.equal(matchWithCorrectSlug.id, productId);
+
+  // The regression: slug derived from upstream merchant title doesn't match
+  // buildLandingProductSlug(product.name). PDPs must render for catalog
+  // productIds regardless of slug (slug is informational only).
+  const mangledSlug = "some-random-mangled-slug-from-upstream-merchant";
+  const matchWithMangledSlug = getSeoLandingFallbackProduct("us", productId, mangledSlug);
+  assert.ok(matchWithMangledSlug, "should match with mangled slug (BUY-69630)");
+  assert.equal(matchWithMangledSlug.id, productId);
+
+  // Region still matters — wrong region should not match
+  const matchWithWrongRegion = getSeoLandingFallbackProduct("sg", productId, mangledSlug);
+  assert.ok(!matchWithWrongRegion, "should NOT match with wrong region");
 });
