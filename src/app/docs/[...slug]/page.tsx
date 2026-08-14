@@ -141,10 +141,24 @@ export async function generateMetadata({ params }: DocRouteParams): Promise<Meta
       type: "website",
       url: toSiteUrl(`/docs/${doc.slug}`),
       siteName: "BuyWhere Documentation",
+      images: [
+        {
+          url: toSiteUrl("/og-image.png"),
+          width: 1200,
+          height: 630,
+          alt: doc.title,
+        },
+      ],
     },
     robots: {
       index: true,
       follow: true,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: doc.title,
+      description: doc.description,
+      images: [toSiteUrl("/og-image.png")],
     },
   };
 }
