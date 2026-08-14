@@ -1,7 +1,9 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import Schema from "@/components/Schema";
 import type { Metadata } from "next";
 import { toSiteUrl } from "@/lib/site-url";
+import { buildWebPageSchema } from "@/lib/page-schema";
 
 export const metadata: Metadata = {
   title: "Terms of Service — BuyWhere",
@@ -9,11 +11,42 @@ export const metadata: Metadata = {
   alternates: {
     canonical: toSiteUrl("/terms/"),
   },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    title: "Terms of Service — BuyWhere",
+    description: "BuyWhere Terms of Service",
+    url: toSiteUrl("/terms/"),
+    type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "BuyWhere Terms of Service",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Terms of Service — BuyWhere",
+    description: "BuyWhere Terms of Service",
+    images: ["/og-image.png"],
+  },
 };
+
+const termsSchema = buildWebPageSchema({
+  path: "/terms/",
+  name: "Terms of Service",
+  description: "BuyWhere Terms of Service",
+});
 
 export default function TermsPage() {
   return (
     <div className="flex flex-col min-h-screen">
+      <Schema data={termsSchema} />
       <Nav />
 
       <main id="main-content" className="flex-1 py-16">
