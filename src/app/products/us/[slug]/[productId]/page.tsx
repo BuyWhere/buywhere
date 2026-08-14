@@ -77,8 +77,9 @@ async function getProduct(productId: string, merchantSlug: string): Promise<Prod
       signal: AbortSignal.timeout(5000),
     });
     if (res.ok) {
-      const data = (await res.json()) as ProductDetail;
-      if (data?.id) return data;
+      const json = await res.json() as { data?: ProductDetail[] };
+      const data = json?.data?.[0];
+      if (data?.id != null) return data;
     }
   } catch (err) {
     console.warn(`[products/us] internal API error for ${productId}:`, err);
