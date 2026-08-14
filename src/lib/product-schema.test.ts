@@ -8,6 +8,8 @@ import {
   buildProductDetailGraph,
 } from "@/lib/product-schema";
 
+type SchemaNode = Record<string, any>;
+
 // BUY-69663 — AEO integrity contract for product-cluster JSON-LD:
 // real data only, no undefined leakage, absolute URLs, one publisher @id.
 
@@ -29,9 +31,9 @@ test("Product emits aggregateRating only for real rating data", () => {
     name: "Test Widget",
     rating: { ratingValue: 4.6, reviewCount: 212 },
   });
-  assert.equal(withRating.aggregateRating.ratingValue, 4.6);
-  assert.equal(withRating.aggregateRating.reviewCount, 212);
-  assert.equal(withRating.aggregateRating.bestRating, 5);
+  assert.equal(withRating.aggregateRating!.ratingValue, 4.6);
+  assert.equal(withRating.aggregateRating!.reviewCount, 212);
+  assert.equal(withRating.aggregateRating!.bestRating, 5);
 });
 
 test("Product rejects zero-review rating (would be fabricated)", () => {
@@ -93,9 +95,10 @@ test("Product detail graph anchors publisher and omits empty sections", () => {
       { name: "Test Widget", path: "/products/us/acme/123/" },
     ],
   });
-  const types = graph["@graph"].map((n: { "@type": string }) => n["@type"]);
+  const nodes = graph["@graph"] as SchemaNode[];
+  const types = nodes.map((n) => n["@type"]);
   assert.deepEqual(types, ["WebPage", "BreadcrumbList", "Product"]);
-  const webpage = graph["@graph"][0];
+  const webpage = nodes[0];
   assert.equal(webpage.publisher["@id"], "https://buywhere.ai/#organization");
   assert.equal(webpage.isPartOf["@id"], "https://buywhere.ai/#website");
   assert.equal(JSON.stringify(graph).includes("undefined"), false);
@@ -108,7 +111,7 @@ test("Product detail graph includes FAQ and ItemList when supplied", () => {
     faq: [{ question: "Q?", answer: "A." }],
     itemList: [{ name: "Widget", path: "/products/us/acme/1/" }],
   });
-  const types = graph["@graph"].map((n: { "@type": string }) => n["@type"]);
+  const types = (graph["@graph"] as SchemaNode[]).map((n) => n["@type"]);
   assert.ok(types.includes("FAQPage"));
   assert.ok(types.includes("ItemList"));
 });
@@ -136,7 +139,8 @@ test("AggregateOffer summarizes multi-merchant pricing with sellers", () => {
       sellers: ["Acme", "Beta", "Gamma"],
     },
   });
-  assert.equal(schema.offers["@type"], "AggregateOffer");
-  assert.equal(schema.offers.offerCount, 3);
-  assert.equal(schema.offers.sellers.length, 3);
+  const offers = schema.offers as SchemaNode;
+  assert.equal(offers["@type"], "AggregateOffer");
+  assert.equal(offers.offerCount, 3);
+  assert.equal(offers.sellers.length, 3);
 });
