@@ -36,6 +36,8 @@ export const ErrorCode = {
   UPSTREAM_ERROR: 'UPSTREAM_ERROR',
   // 503
   SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
+  // 422
+  MARKET_UNSUPPORTED: 'MARKET_UNSUPPORTED',
 } as const;
 
 export type ErrorCodeType = (typeof ErrorCode)[keyof typeof ErrorCode];
@@ -63,6 +65,7 @@ const HTTP_STATUS_MAP: Record<string, number> = {
   INTERNAL_ERROR: 500,
   UPSTREAM_ERROR: 502,
   SERVICE_UNAVAILABLE: 503,
+  MARKET_UNSUPPORTED: 400,
 };
 
 const DEFAULT_MESSAGES: Record<string, string> = {
