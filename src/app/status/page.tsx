@@ -17,6 +17,14 @@ export const metadata: Metadata = {
       "Real-time operational status for BuyWhere API, MCP server, and product catalog services.",
     url: toSiteUrl("/status"),
     type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "BuyWhere API Status — Operational Health",
+      },
+    ],
   },
 };
 
