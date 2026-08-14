@@ -845,6 +845,10 @@ router.get(
     const discountOrder = useDiscountCol
       ? 'discount_pct DESC'
       : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
+    // BUY-69340 (#36): match the deals index order exactly — see api/ tree.
+    const dealOrderBy = useDiscountCol
+      ? discountOrder
+      : `${discountOrder} NULLS LAST, updated_at DESC`;
 
     const COUNT_CAP = 1001;
 
@@ -879,7 +883,7 @@ router.get(
                 ${discountSelect}
          FROM products
          WHERE ${dealWhere}
-         ORDER BY ${discountOrder}, updated_at DESC
+         ORDER BY ${dealOrderBy}
          LIMIT $${dealIdx} OFFSET $${dealIdx + 1}`,
         [...dealParams, limit, offset]
       );

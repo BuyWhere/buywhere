@@ -1582,6 +1582,15 @@ router.get(
     const discountOrder = useDiscountCol
       ? 'discount_pct DESC'
       : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
+    // BUY-69340 (#36, 2026-08-14): with the generated column, ORDER BY must match
+    // idx_products_deals_discount_pct (currency, discount_pct DESC) EXACTLY —
+    // adding NULLS LAST / updated_at tiebreaks forces a Sort node over every
+    // matching row (live EXPLAIN: 23K-cost sort -> 4.6s -> degraded empty),
+    // while the bare index order early-stops at LIMIT in single-digit ms.
+    // NULLS LAST is dead weight anyway: discount_pct >= min excludes NULLs.
+    const dealOrderBy = useDiscountCol
+      ? discountOrder
+      : `${discountOrder} NULLS LAST, updated_at DESC`;
 
     // BUY-60309: removed COUNT query and added bounded sampling.
     // Sample recent active candidates, then filter/order that bounded slice.
@@ -1622,7 +1631,7 @@ router.get(
                 ${discountSelect}
          FROM products
          WHERE ${dealWhere}
-         ORDER BY ${discountOrder} NULLS LAST, updated_at DESC
+         ORDER BY ${dealOrderBy}
          LIMIT ${dealLimitParam}::int OFFSET ${dealOffsetParam}::int`,
         dealParams
       );
