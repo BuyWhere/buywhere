@@ -274,6 +274,19 @@ const nextConfig = {
         destination: '/partnership',
         permanent: true,
       },
+      // BUY-31b6ae66: /legal and /sign-up must be configured here (not page-level
+      // permanentRedirect) so production probes receive a true HTTP 308 instead of
+      // the App Router shell-render trick.
+      {
+        source: '/legal',
+        destination: '/privacy',
+        permanent: true,
+      },
+      {
+        source: '/sign-up',
+        destination: '/register',
+        permanent: true,
+      },
       // BUY-69692: developer-intent route aliases should redirect to canonical pages
       // or return branded 404/410 with recovery hints instead of thin/empty shells.
       {
