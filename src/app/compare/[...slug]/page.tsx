@@ -6,7 +6,6 @@ import remarkGfm from "remark-gfm";
 import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
-import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
@@ -128,8 +127,8 @@ function CompareCategoryPairPage({ pair }: { pair: CompareCategoryPair }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
-      <Script id="compare-pair-breadcrumb-schema" type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
-      <Script id="compare-pair-itemlist-schema" type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }} />
       <Nav />
       <main id="main-content" className="flex-1">
         <section className="border-b border-slate-200 bg-white">
