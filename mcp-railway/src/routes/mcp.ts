@@ -803,41 +803,52 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const deviceFilter = buildDeviceFilter(productName, country);
 
   // BUY-26343: price > 0 prevents returning corrupt zero-price records
-  const conditions: string[] = ['is_active = true', 'price > 0'];
-  const params: unknown[] = [];
+  // (applied as innerConditions below).
 
-  // BUY-69501: match the api host's `title ILIKE` predicate. The previous
-  // `search_vector @@ plainto_tsquery` path returned deterministic 0 rows here
-  // because the tsvector column is unpopulated on this service's catalog DB.
-  params.push(`%${productName}%`);
-  conditions.push(`title ILIKE $${params.length}`);
+  // BUY-69501: mirror the api host's find_best_price plan. Two changes from the
+  // previous mcp-railway query:
+  //   1. `search_vector @@ plainto_tsquery` -> `title ILIKE`. The tsvector column
+  //      is unpopulated on this service's catalog DB, so FTS matched 0 rows
+  //      deterministically (host asymmetry vs api, which already used ILIKE).
+  //   2. ILIKE is unindexed, so it must NOT be the inner candidate predicate --
+  //      that scans the full products table and hits statement_timeout. Bound the
+  //      candidate pool by `updated_at DESC` first (indexed), then apply ILIKE and
+  //      the country filter in the outer query, exactly as api does.
+  const CANDIDATE_POOL = 50000;
+  const titlePattern = `%${productName}%`;
+  const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
 
-  if (country) {
-    params.push(country);
-    conditions.push(`country_code = $${params.length}`);
+  // Inner query: indexed, bounded. Only price floor is cheap enough to push down.
+  const innerConditions: string[] = ['is_active = true', 'price > 0'];
+  const innerParams: unknown[] = [CANDIDATE_POOL];
+  if (minPrice > 0) {
+    innerParams.push(minPrice);
+    innerConditions.push(`price >= $${innerParams.length}`);
   }
+
+  // Outer query: the selective-but-unindexed predicates, over <=50k candidate rows.
+  const outerConditions: string[] = [];
+  const outerParams: unknown[] = [];
+  if (country) {
+    outerParams.push(country);
+    outerConditions.push(`country_code = $${innerParams.length + outerParams.length}`);
+  }
+  outerParams.push(titlePattern);
+  outerConditions.push(`title ILIKE $${innerParams.length + outerParams.length}`);
   if (region) {
-    params.push(region);
-    conditions.push(`region = $${params.length}`);
+    outerParams.push(region);
+    outerConditions.push(`region = $${innerParams.length + outerParams.length}`);
   }
   if (category) {
-    params.push(`%${category}%`);
-    conditions.push(`category ILIKE $${params.length}`);
+    outerParams.push(`%${category}%`);
+    outerConditions.push(`category ILIKE $${innerParams.length + outerParams.length}`);
   }
 
-  // BUY-67522: for exact device queries, enforce a floor that accessories cannot satisfy.
-  if (deviceFilter.minLocal > 0) {
-    params.push(deviceFilter.minLocal);
-    conditions.push(`price >= $${params.length}`);
-  }
+  const params: unknown[] = [...innerParams, ...outerParams, limit];
+  const limitPlaceholder = `$${params.length}`;
+  const innerWhere = `WHERE ${innerConditions.join(' AND ')}`;
+  const outerWhere = `WHERE ${outerConditions.join(' AND ')}`;
 
-  const CANDIDATE_POOL = Math.max(limit * 50, 500);
-  params.push(CANDIDATE_POOL, limit);
-  const where = `WHERE ${conditions.join(' AND ')}`;
-
-  // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
-  // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
-  // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
   const bestPriceClient = await acquireMcpClient();
   let result: { rows: Record<string, unknown>[] };
   try {
@@ -846,11 +857,13 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       `SELECT * FROM (
          SELECT id, title, price, currency, source AS domain, url, image_url,
                 country_code, updated_at, category, category_path, metadata
-         FROM products ${where}
-         LIMIT $${params.length - 1}
+         FROM products ${innerWhere}
+         ORDER BY updated_at DESC
+         LIMIT $1
        ) _candidates
+       ${outerWhere}
        ORDER BY price ASC, updated_at DESC
-       LIMIT $${params.length}`,
+       LIMIT ${limitPlaceholder}`,
       params
     );
   } finally {
