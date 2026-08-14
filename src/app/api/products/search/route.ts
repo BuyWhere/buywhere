@@ -20,6 +20,18 @@ const STORAGE_CATEGORY_TOKENS = [
   'storage', 'internal ssd', 'solid state drive', 'solid state', 'hard drive',
   'nvme ssd', 'external ssd', 'internal drive', 'usb drive', 'memory card',
 ];
+const PHONE_PRODUCT_TOKENS = [
+  'iphone', 'samsung galaxy', 'galaxy s', 'galaxy z', 'google pixel', 'pixel',
+  'android', 'smartphone', 'cell phone', 'mobile phone', 'unlocked phone',
+  'dual sim', '5g', '4g', 'nokia', 'motorola', 'moto ', 'oneplus', 'xiaomi',
+  'redmi', 'realme', 'infinix', 'oppo', 'vivo', 'sony xperia', 'feature phone',
+  'keypad phone',
+];
+const PHONE_ACCESSORY_TOKENS = [
+  'accessory', 'accessories', 'case', 'cover', 'protector', 'charger', 'charging',
+  'cable', 'holder', 'mount', 'stand', 'pouch', 'wallet', 'crossbody', 'lanyard',
+  'strap', 'armband', 'tripod', 'selfie stick', 'power bank', 'battery pack',
+];
 
 function classifyDeviceQuery(query: string): { isDevice: boolean; isStorage: boolean } {
   const words = normalizeText(query).split(/\s+/).filter(Boolean);
@@ -352,7 +364,24 @@ function coreQueryWords(query: string) {
 }
 
 function itemSearchText(item: Record<string, unknown>) {
-  return [item.name, item.title, item.brand, item.category].map(normalizeText).filter(Boolean).join(' ');
+  const meta = item.metadata as Record<string, unknown> | null | undefined;
+  return [item.name, item.title, item.brand, item.category, meta?.category]
+    .map(normalizeText)
+    .filter(Boolean)
+    .join(' ');
+}
+
+function isPhoneProductItem(item: Record<string, unknown>) {
+  const searchText = itemSearchText(item);
+  return PHONE_PRODUCT_TOKENS.some((token) => searchText.includes(token));
+}
+
+function isPhoneAccessoryItem(item: Record<string, unknown>) {
+  const category = itemCategoryLower(item);
+  const searchText = itemSearchText(item);
+  if (category.includes('phone accessory') || category.includes('cell phone accessory')) return true;
+  if (isPhoneProductItem(item)) return false;
+  return PHONE_ACCESSORY_TOKENS.some((token) => searchText.includes(token));
 }
 
 function isAccessoryItem(item: Record<string, unknown>, queryWords: string[]) {
@@ -404,17 +433,28 @@ function rankAndClassifyItems(items: Record<string, unknown>[], query: string) {
     dedupedItems = [...primary, ...demoted];
   }
 
+  // BUY-69753: The live `phone` query has enough actual handset rows after rank
+  // 10, but generic phone accessories/holders dominate the head. Promote handset
+  // rows before the generic accessory pass so the top page satisfies device intent
+  // without deleting accessories from longer-tail results.
+  if (isDevice && !isStorage && query.toLowerCase().includes('phone')) {
+    const phones: Record<string, unknown>[] = [], rest: Record<string, unknown>[] = [];
+    for (const item of dedupedItems) {
+      if (isPhoneProductItem(item)) phones.push(item);
+      else rest.push(item);
+    }
+    dedupedItems = [...phones, ...rest];
+  }
+
   const primaryItems: Record<string, unknown>[] = [];
   const accessoryItems: Record<string, unknown>[] = [];
 
   dedupedItems.forEach((item) => {
     const isAccessoryByKeyword = isAccessoryItem(item, queryWords);
     // For phone queries, also demote phone-accessory items
-    const isPhoneAccessory =
-      isDevice && !isStorage && query.toLowerCase().includes('phone')
-        ? (itemCategoryLower(item).includes('accessory') || itemCategoryLower(item).includes('case') ||
-            itemCategoryLower(item).includes('cover') || itemCategoryLower(item).includes('protector'))
-        : false;
+    const isPhoneAccessory = isDevice && !isStorage && query.toLowerCase().includes('phone')
+      ? isPhoneAccessoryItem(item)
+      : false;
     const isAccessory = isAccessoryByKeyword || isPhoneAccessory;
     const classifiedItem = { ...item, isAccessory, product_type: isAccessory ? 'accessory' : item.product_type };
     if (isAccessory) {
