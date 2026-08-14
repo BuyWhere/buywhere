@@ -47,13 +47,25 @@ export async function generateMetadata({ searchParams }: SearchPageProps): Promi
   }
 
   const query = safeString(resolved?.q).trim();
+  const country = safeString(resolved?.country);
+
+  // BUY-69622: Build query-aware title and path for metadata
+  const queryTitle = query
+    ? `Search results for '${query}' — BuyWhere`
+    : SEARCH_TITLE;
+
+  const searchPath = query
+    ? `/search?q=${encodeURIComponent(query)}${country ? `&country=${country}` : ''}`
+    : country
+      ? `/search?country=${country}`
+      : SEARCH_PATH;
 
   let metadata: Metadata;
   try {
     metadata = buildPageMetadata({
-      title: SEARCH_TITLE,
+      title: queryTitle,
       description: SEARCH_DESCRIPTION,
-      path: SEARCH_PATH,
+      path: searchPath,
     });
   } catch {
     metadata = { title: FALLBACK_TITLE };
@@ -68,12 +80,22 @@ export async function generateMetadata({ searchParams }: SearchPageProps): Promi
     // keep the safe fallback
   }
 
+  // BUY-69622: Add query-aware og:title, twitter:title, and og:url
   return {
     ...metadata,
     title: query ? `Search results for '${query}' — BuyWhere` : SEARCH_TITLE,
     robots: { index: false, follow: true },
     alternates: {
       canonical,
+    },
+    openGraph: {
+      ...metadata.openGraph,
+      title: queryTitle,
+      url: toSiteUrl(searchPath),
+    },
+    twitter: {
+      ...metadata.twitter,
+      title: queryTitle,
     },
   };
 }
