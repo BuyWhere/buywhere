@@ -573,6 +573,20 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkup) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            "@id": `${toSiteUrl("/compare/")}#breadcrumb`,
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Home", item: toSiteUrl("/") },
+              { "@type": "ListItem", position: 2, name: "Compare", item: toSiteUrl("/compare/") },
+            ],
+          }),
+        }}
+      />
 
       <main id="main-content" tabIndex={-1} className="flex-1">
         <section className="bg-gradient-to-br from-indigo-700 via-slate-900 to-sky-900 text-white py-20">

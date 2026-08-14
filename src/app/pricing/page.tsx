@@ -1,5 +1,5 @@
 import Schema from "@/components/Schema";
-import { buildSoftwareApplicationSchema } from "@/lib/page-schema";
+import { buildSoftwareApplicationSchema, buildBreadcrumbListSchema } from "@/lib/page-schema";
 
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
@@ -114,9 +114,14 @@ export default function PricingPage() {
       { price: '99', priceCurrency: 'USD' },
     ],
   });
+  const breadcrumbSchema = buildBreadcrumbListSchema({
+    path: '/pricing',
+    name: 'Pricing',
+  });
   return (
     <>
       <Schema data={schema} />
+      <Schema data={breadcrumbSchema} />
       <div className="flex flex-col min-h-screen bg-white">
         <Nav />
 

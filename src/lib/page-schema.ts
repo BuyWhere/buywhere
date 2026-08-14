@@ -107,6 +107,34 @@ export function buildWebPageSchema(input: WebPageInput) {
   };
 }
 
+export type BreadcrumbInput = {
+  path: string;
+  name: string;
+};
+
+export function buildBreadcrumbListSchema(input: BreadcrumbInput) {
+  const url = toSiteUrl(input.path);
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "@id": `${url}#breadcrumb`,
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: toSiteUrl("/"),
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: input.name,
+        item: url,
+      },
+    ],
+  };
+}
+
 export type SoftwareApplicationInput = {
   path: string;
   name: string;

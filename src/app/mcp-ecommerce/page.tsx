@@ -169,6 +169,20 @@ export default async function McpEcommercePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            "@id": `${toSiteUrl("/mcp-ecommerce")}#breadcrumb`,
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Home", item: toSiteUrl("/") },
+              { "@type": "ListItem", position: 2, name: "MCP for Ecommerce", item: toSiteUrl("/mcp-ecommerce") },
+            ],
+          }),
+        }}
+      />
       <Nav />
 
       <main id="main-content">

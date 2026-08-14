@@ -1,6 +1,6 @@
 import Schema from '@/components/Schema';
 import { buildPageMetadata } from '@/lib/page-metadata';
-import { buildCollectionPageSchema } from '@/lib/page-schema';
+import { buildCollectionPageSchema, buildBreadcrumbListSchema } from '@/lib/page-schema';
 
 export const revalidate = 900;
 
@@ -48,9 +48,14 @@ export default async function DealsPage() {
     description: DEALS_DESCRIPTION,
   });
 
+  const breadcrumbSchema = buildBreadcrumbListSchema({
+    path: '/deals',
+    name: 'Deals',
+  });
   return (
     <>
       <Schema data={jsonLd} />
+      <Schema data={breadcrumbSchema} />
       <main id="main-content" className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <div className="container mx-auto px-4 py-16">
           <header className="mb-12">
