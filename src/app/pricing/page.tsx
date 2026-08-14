@@ -113,6 +113,11 @@ export default function PricingPage() {
       { price: '29', priceCurrency: 'USD' },
       { price: '99', priceCurrency: 'USD' },
     ],
+    // BUY-69732: Home > Pricing breadcrumb for the pricing route.
+    breadcrumb: [
+      { name: 'Home', path: '/' },
+      { name: 'Pricing', path: '/pricing' },
+    ],
   });
   return (
     <>

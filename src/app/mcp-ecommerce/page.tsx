@@ -42,6 +42,25 @@ function buildStructuredData(productCountPhrase: string) {
   "@context": "https://schema.org",
   "@graph": [
     {
+      // BUY-69732: Home > MCP for Ecommerce breadcrumb for the guide route.
+      "@type": "BreadcrumbList",
+      "@id": "https://buywhere.ai/mcp-ecommerce#breadcrumb",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: "https://buywhere.ai",
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "MCP for Ecommerce",
+          item: "https://buywhere.ai/mcp-ecommerce",
+        },
+      ],
+    },
+    {
       "@type": "Article",
       "@id": "https://buywhere.ai/mcp-ecommerce#article",
       headline: "MCP for Ecommerce: The Complete Guide to Product Search MCP Servers (2026)",
