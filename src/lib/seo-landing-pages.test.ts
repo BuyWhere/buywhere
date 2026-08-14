@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
+  compareLandingCardOrder,
+  findFloorPriceProductId,
   getSeoLandingProducts,
   getSeoLandingFallbackProduct,
   isCompleteRobotVacuum,
@@ -577,4 +579,107 @@ test("getSeoLandingFallbackProduct matches by productId and region, ignoring slu
   // Region still matters — wrong region should not match
   const matchWithWrongRegion = getSeoLandingFallbackProduct("sg", productId, mangledSlug);
   assert.ok(!matchWithWrongRegion, "should NOT match with wrong region");
+});
+
+// ---------------------------------------------------------------------------
+// BUY-66320 (v4): hero "from {floorPrice}" must be provable at card position 1.
+//
+// Regression for the reopen at 2026-08-14T06:12Z. Two previously-shipped rules
+// collided on /best-robot-vacuums-2026:
+//   * BUY-66320  — hero reads the live catalog minimum ($560 Shark Navigator)
+//   * BUY-67622 v3 — Roomba/Roborock are sorted to the front of the card grid
+// Together they rendered "from $560" above cards starting at $1,299 / $999.
+// The fixture below is the byte-exact live card set captured from SSR HTML.
+// ---------------------------------------------------------------------------
+
+function makePricedProduct(id: string, name: string, price: number | null): LandingProduct {
+  return {
+    ...makeLandingProduct(name),
+    id,
+    price,
+    currency: "USD",
+    merchant: "Test Merchant",
+    imageUrl: null,
+    href: "/x",
+  } as LandingProduct;
+}
+
+// Live card set observed on https://buywhere.ai/best-robot-vacuums-2026.
+const LIVE_ROBOT_VACUUM_CARDS: LandingProduct[] = [
+  makePricedProduct("rv1", "Roborock S8 MaxV Ultra", 1299),
+  makePricedProduct("rv2", "iRobot Roomba Combo j9+", 999),
+  makePricedProduct("rv3", "Shark - Navigator Robot Vacuum + Self-Empty Base - Gray", 559.99),
+  makePricedProduct("rv4", "Shark PowerDetect 2-in-1", 699),
+];
+
+test("BUY-66320 v4: the hero floor-price card is rendered first", () => {
+  const heroFeaturedBrands = ["roomba", "irobot", "roborock"];
+  const floorId = findFloorPriceProductId(LIVE_ROBOT_VACUUM_CARDS);
+  assert.equal(floorId, "rv3", "floor card is the $559.99 Shark Navigator");
+
+  const ordered = [...LIVE_ROBOT_VACUUM_CARDS].sort((a, b) =>
+    compareLandingCardOrder(a, b, heroFeaturedBrands, floorId),
+  );
+
+  assert.equal(
+    ordered[0].id,
+    "rv3",
+    "the card backing the hero's 'from $560' claim must lead, not sit at position 3",
+  );
+});
+
+test("BUY-66320 v4: hero headline price equals the first rendered card price", () => {
+  const config = seoLandingPages["best-robot-vacuums-2026"];
+  const heroFeaturedBrands = config.heroFeaturedBrands;
+  const floorId = findFloorPriceProductId(LIVE_ROBOT_VACUUM_CARDS);
+  const ordered = [...LIVE_ROBOT_VACUUM_CARDS].sort((a, b) =>
+    compareLandingCardOrder(a, b, heroFeaturedBrands, floorId),
+  );
+
+  const heroTitle = resolveHeroTitle(config, LIVE_ROBOT_VACUUM_CARDS);
+  const heroPrice = heroTitle.match(/from (\$[\d,]+)/)?.[1];
+  const firstCardPrice = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(Number(ordered[0].price));
+
+  assert.equal(heroPrice, "$560", "hero should advertise the live floor");
+  assert.equal(
+    heroPrice,
+    firstCardPrice,
+    "the headline price and the first visible card price must be identical",
+  );
+});
+
+test("BUY-66320 v4: BUY-67622 hero-brand promotion still holds for non-floor cards", () => {
+  const heroFeaturedBrands = ["roomba", "irobot", "roborock"];
+  const floorId = findFloorPriceProductId(LIVE_ROBOT_VACUUM_CARDS);
+  const ordered = [...LIVE_ROBOT_VACUUM_CARDS].sort((a, b) =>
+    compareLandingCardOrder(a, b, heroFeaturedBrands, floorId),
+  );
+
+  // Position 0 is the floor card; hero-named brands must occupy the next slots
+  // so BUY-67622's "hero promise matches what shoppers see" intent survives.
+  const after = ordered.slice(1).map((p) => p.id);
+  assert.deepEqual(
+    after.slice(0, 2).sort(),
+    ["rv1", "rv2"],
+    "Roborock/Roomba still rank ahead of the non-featured Shark PowerDetect",
+  );
+  assert.equal(after[2], "rv4", "non-featured Shark PowerDetect ranks last");
+});
+
+test("BUY-66320 v4: ordering is a no-op when no product has a usable price", () => {
+  const unpriced = [
+    makePricedProduct("u1", "Roomba X", null),
+    makePricedProduct("u2", "Shark Y", 0),
+  ];
+  const floorId = findFloorPriceProductId(unpriced);
+  assert.equal(floorId, null, "no positive price means no floor card to promote");
+
+  const ordered = [...unpriced].sort((a, b) =>
+    compareLandingCardOrder(a, b, ["roomba"], floorId),
+  );
+  assert.equal(ordered[0].id, "u1", "falls back to hero-brand promotion only");
 });
