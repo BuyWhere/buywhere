@@ -58,7 +58,16 @@ export async function GET(
       );
     }
 
-    const data = (await response.json()) as ProductDetail;
+    // The backend API returns {data: [ProductDetail]} — unwrap to bare ProductDetail
+    const json = await response.json() as { data?: ProductDetail[] };
+    const data = json?.data?.[0];
+    if (!data?.id) {
+      return NextResponse.json(
+        { error: "product_not_found", message: "Product not found" },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json(data);
   } catch (err) {
     console.error(`[api/products/${id}] fetch error:`, err);
