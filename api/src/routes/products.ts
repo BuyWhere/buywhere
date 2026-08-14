@@ -154,6 +154,7 @@ async function tryTierSearch(
   let dtIdx = 0;
   if (p.deliverTo) { dtIdx = i; params.push(p.deliverTo); i++; } // rank-only: local-first ordering, never filters
   const filterSql = conds.length ? ' AND ' + conds.join(' AND ') : '';
+  const isGenericPhoneQuery = lexemes.length === 1 && lexemes[0]?.toLowerCase() === 'phone';
   const limitIdx = i; params.push(p.limit + 1); i++;
   const offsetIdx = i; params.push(p.offset); i++;
   const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
@@ -173,6 +174,28 @@ async function tryTierSearch(
         OR array_to_string(sp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
       THEN 0.25 ELSE 1.0
     END`;
+  // BUY-69753: boost phone-handset brands and demote phone accessories in title-fallback
+  // results. The `phone` token has no FTS entry (no rows match sp.search_vector @@
+  // plainto_tsquery('english','phone')), so the query falls through to title LIKE
+  // '%phone%' — which matches "Cell Phone Holder" before actual handsets. Apply a
+  // handset brand boost (2x) for titles containing known phone brand names, and a
+  // strong demotion (0.15x) for titles containing phone-accessory keywords.
+  const phoneHandsetBoost = `
+    CASE
+      WHEN lower(sp.title) ~* '\\m(iphone|galaxy s|galaxy a|galaxy z|pixel [0-9]|moto g|moto e|oneplus|redmi|realme|infinix|oppo|vivo|xperia|smartphone|android phone|nokia)\\M'
+        OR lower(sp.category) ~* '\\m(smartphone|phone|android)\\M'
+      THEN 2.0 ELSE 1.0
+    END`;
+  // BUY-69753: phone accessory penalty mirrors the laptop accessory penalty above.
+  // Titles with holder/case/cover/pouch/etc. AND the word "phone" are accessories.
+  const phoneAccessoryPenalty = `
+    CASE
+      WHEN lower(sp.title) ~* '\\mphone\\M'
+        AND (lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter)\\M'
+          OR lower(sp.category) ~* '\\m(accessory|accessories)\\M')
+      THEN 0.15 ELSE 1.0
+    END`;
+
   const laptopBoost = `
     CASE
       WHEN lower(sp.title) LIKE '%laptop%' OR lower(sp.title) LIKE '%notebook%' OR lower(sp.title) LIKE '%macbook%'
@@ -194,7 +217,9 @@ async function tryTierSearch(
     ), top AS (
       SELECT id, ts_rank(search_vector, plainto_tsquery('english', $${qIdx})) *
             (${laptopBoost}) *
-            (${laptopAccessoryPenalty}) AS rank
+            (${laptopAccessoryPenalty}) *
+            (${phoneHandsetBoost}) *
+            (${phoneAccessoryPenalty}) AS rank
       FROM cand ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
@@ -226,7 +251,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
@@ -237,7 +262,21 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+  const phoneCategoryFallbackQuery = `
+    WITH pcand AS (
+      SELECT sp.id FROM search_products sp
+      WHERE (
+        lower(coalesce(sp.category,'')) ~* '\\m(smartphone|cell phone|mobile phone|phone)\\M'
+        OR lower(sp.title) ~* '\\m(iphone|galaxy s|galaxy a|galaxy z|pixel [0-9]|moto g|moto e|oneplus|redmi|realme|infinix|oppo|vivo|xperia|smartphone|android phone|nokia)\\M'
+      )${filterSql}${storageExcl}
+      LIMIT 1000
+    )
+    SELECT ${cols}, 0 AS _fts_rank
+    FROM pcand JOIN search_products sp ON sp.id = pcand.id${storageJoinFilter}
+    LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
+    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
 
   let client: PoolClient;
@@ -255,12 +294,18 @@ async function tryTierSearch(
     // eating 4s of the 10s handler budget before the archive even starts. FTS
     // first (idx_sp_fts); the title-prefix scan stays below as a 0-result fallback.
     let rows = (await client.query(mkQuery(andMatch), params)).rows;
+    if (rows.length === 0 && isGenericPhoneQuery) {
+      rows = (await client.query(phoneCategoryFallbackQuery, params)).rows;
+    }
     if (rows.length === 0 && lexemes.length === 1) {
       rows = (await client.query(titleFallbackQuery, params)).rows;
     }
     if (rows.length === 0) {
       if (rows.length === 0 && lexemes.length > 1) {
         rows = (await client.query(mkQuery(orMatch), params)).rows;   // recall fallback
+      }
+      if (rows.length === 0 && isGenericPhoneQuery) {
+        rows = (await client.query(phoneCategoryFallbackQuery, params)).rows;
       }
       if (rows.length === 0) {
         rows = (await client.query(titleFallbackQuery, params)).rows;
