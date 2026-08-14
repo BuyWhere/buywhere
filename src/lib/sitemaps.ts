@@ -313,15 +313,16 @@ const STATIC_SITEMAP_ROUTES = [
   // (line ~190). Keeping them here caused each of those 9 URLs to appear
   // TWICE in sitemap-pages.xml (once with priority 0.9 and once with 0.8).
   { path: "/mcp-ecommerce", priority: 0.9, changeFrequency: "weekly" as const },
+  // BUY-69522: /careers and /press are live marketing routes with real content.
+  // Previously untracked and returning 404 shells in production.
+  { path: "/careers", priority: 0.8, changeFrequency: "weekly" as const },
+  { path: "/press", priority: 0.7, changeFrequency: "monthly" as const },
   { path: "/challenge", priority: 0.9, changeFrequency: "daily" as const },
   { path: "/privacy", priority: 0.3, changeFrequency: "yearly" as const },
   { path: "/terms", priority: 0.3, changeFrequency: "yearly" as const },
-  // BUY-66281: ChatGPT plugin manifest. Already served at
-  // /.well-known/ai-plugin.json with HTTP 200, but zero sitemap references
-  // meant zero indexable URL graph signal. Add it here so Google + agent
-  // crawlers can find it via sitemap-pages.xml. robots.txt also declares
-  // `Plugin: /.well-known/ai-plugin.json`.
-  { path: "/.well-known/ai-plugin.json", priority: 0.8, changeFrequency: "monthly" as const },
+  // BUY-69430: /.well-known/ai-plugin.json is a machine-readable JSON
+  // manifest, not an HTML page. Keep it directly fetchable and advertised via
+  // robots.txt `Plugin`, but do not emit it in sitemap-pages.xml.
 ] as const;
 
 function xmlEscape(value: string): string {
