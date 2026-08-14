@@ -299,11 +299,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     params.push(country.toUpperCase());
     conditions.push(`country_code = $${params.length}`);
   }
-  if (category) {
-    params.push(`%${category}%`);
-    conditions.push(`category ILIKE $${params.length}`);
-  }
-
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   let rows: unknown[];
@@ -435,7 +430,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             }
             const detailResult = await searchClient.query(
               `SELECT id, sku AS source, source AS domain, url, title,
-                      price, currency, image_url, metadata, updated_at, region, country_code
+                      price, currency, image_url, metadata, updated_at, region, country_code, category, category_path
                FROM products WHERE ${detailConditions.join(' AND ')}`,
               detailParams
             );
@@ -450,7 +445,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           const result = await searchClient.query(
             `SELECT * FROM (
                SELECT id, sku AS source, source AS domain, url, title,
-                      price, currency, image_url, metadata, updated_at, region, country_code
+                      price, currency, image_url, metadata, updated_at, region, country_code, category, category_path
                FROM products ${where}
                LIMIT $${params.length - 2}
              ) _candidates
@@ -514,6 +509,15 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   } finally {
     // BUY-56185: always use safe release to discard connections poisoned by statement_timeout
     releaseClientSafely(searchClient);
+  }
+
+  // BUY-69738: category was removed from SQL WHERE (caused heap scan at 400M+ rows).
+  // Filter in-memory after fetch — ILIKE match is cheap on the bounded result set.
+  if (category && rows.length > 0) {
+    const catLower = category.toLowerCase();
+    rows = (rows as Record<string, unknown>[]).filter(r =>
+      ((r.category as string) || '').toLowerCase().includes(catLower)
+    );
   }
 
   const products = (rows as Record<string, unknown>[]).map(r =>
@@ -967,6 +971,14 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);
+  }
+
+  // BUY-69738: filter by category in-memory instead of SQL (ILIKE causes heap scan at scale)
+  if (category && result.rows.length > 0) {
+    const catLower = category.toLowerCase();
+    result.rows = result.rows.filter(r =>
+      ((r.category as string) || '').toLowerCase().includes(catLower)
+    );
   }
 
   const currency = COUNTRY_CURRENCY[country] || 'SGD';
