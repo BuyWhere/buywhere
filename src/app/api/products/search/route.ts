@@ -9,24 +9,43 @@ const API_BASE_URL = (
 
 const API_KEY = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || '';
 const ALLOWED_PARAMS = new Set(['q', 'country', 'country_code', 'category', 'limit', 'cursor', 'offset']);
-// Categories that are storage components — these are mismatch candidates when the query
-// is a device type (laptop/desktop/phone/tablet) that does NOT appear in the category name
-const STORAGE_CATEGORIES = new Set(['Storage', 'Hard Drives', 'Solid State Drives', 'External Storage']);
+// BUY-69727: Full device-query + storage-category detection for client-side demotion.
+// Mirrors the isDeviceQuery / isStorageQuery logic from api/src/lib/searchRelevanceTaxonomy.ts
+// to ensure all-words scanning (not just first word).
+const DEVICE_QUERY_TOKENS = [
+  'laptop', 'desktop', 'phone', 'tablet', 'monitor', 'smartwatch', 'earbud', 'headphone', 'console', 'ipad',
+];
+const STORAGE_QUERY_TOKENS = new Set(['ssd', 'hdd', 'nvme', 'storage', 'hard', 'drive']);
+const STORAGE_CATEGORY_TOKENS = [
+  'storage', 'internal ssd', 'solid state drive', 'solid state', 'hard drive',
+  'nvme ssd', 'external ssd', 'internal drive', 'usb drive', 'memory card',
+];
 
-// For device-type queries, demote items whose category is a storage component but whose
-// category name does not include the device type (e.g. Storage for "gaming laptop")
-function isStorageMismatchForDeviceQuery(item: Record<string, unknown>, deviceQuery: string) {
-  const normalizedDevice = deviceQuery.toLowerCase();
-  if (!['laptop', 'desktop', 'phone', 'tablet'].includes(normalizedDevice)) return false;
+function classifyDeviceQuery(query: string): { isDevice: boolean; isStorage: boolean } {
+  const words = normalizeText(query).split(/\s+/).filter(Boolean);
+  let isDevice = false, isStorage = false;
+  for (const w of words) {
+    for (const fam of DEVICE_QUERY_TOKENS) {
+      if (w.length >= fam.length && w.startsWith(fam)) { isDevice = true; break; }
+    }
+    if (STORAGE_QUERY_TOKENS.has(w)) isStorage = true;
+  }
+  // Cap: don't trigger on long queries where device is incidental
+  if (words.length > 4) isDevice = false;
+  return { isDevice, isStorage };
+}
 
-  const category = normalizeText(item.category);
-  if (!category) return false;
+function itemCategoryLower(item: Record<string, unknown>): string {
+  const meta = item.metadata as Record<string, unknown> | null | undefined;
+  const cat = typeof meta?.category === 'string' ? meta.category.toLowerCase() :
+    (typeof item.category === 'string' ? item.category.toLowerCase() : '');
+  return cat;
+}
 
-  // If the category itself mentions the device type, it's not a mismatch
-  if (category.includes(normalizedDevice)) return false;
-
-  // Demote known storage categories
-  return Array.from(STORAGE_CATEGORIES).some((cat) => category.includes(cat.toLowerCase()));
+function isStorageCategoryItem(item: Record<string, unknown>): boolean {
+  const cat = itemCategoryLower(item);
+  if (!cat) return false;
+  return STORAGE_CATEGORY_TOKENS.some((tok) => cat.includes(tok));
 }
 
 const ACCESSORY_KEYWORDS = [
@@ -372,35 +391,31 @@ function deduplicateItems(items: Record<string, unknown>[]) {
 
 function rankAndClassifyItems(items: Record<string, unknown>[], query: string) {
   const queryWords = coreQueryWords(query);
-  const normalizedQuery = normalizeText(query);
-  const dedupedItems = deduplicateItems(items);
+  const { isDevice, isStorage } = classifyDeviceQuery(query);
+  let dedupedItems = deduplicateItems(items);
+
+  // BUY-69727: Demote storage-category items for device queries (not storage queries).
+  if (isDevice && !isStorage) {
+    const primary: Record<string, unknown>[] = [], demoted: Record<string, unknown>[] = [];
+    for (const item of dedupedItems) {
+      if (isStorageCategoryItem(item)) demoted.push(item);
+      else primary.push(item);
+    }
+    dedupedItems = [...primary, ...demoted];
+  }
+
   const primaryItems: Record<string, unknown>[] = [];
   const accessoryItems: Record<string, unknown>[] = [];
 
-  // Detect short device-type queries (1-2 words dominated by a single device type)
-  // e.g. "laptop", "gaming laptop", "desktop" — but NOT "laptop ssd" or "laptop stand"
-  const deviceQuery = (() => {
-    const words = normalizedQuery.split(/\s+/).filter((w) => w.length > 1 && !QUERY_STOP_WORDS.has(w));
-    if (words.length === 1 && ['laptop', 'desktop', 'phone', 'tablet'].includes(words[0])) return words[0];
-    if (words.length === 2 && ['laptop', 'desktop', 'phone', 'tablet'].includes(words[0])) return words[0];
-    return null;
-  })();
-
   dedupedItems.forEach((item) => {
     const isAccessoryByKeyword = isAccessoryItem(item, queryWords);
-    // BUY-69167: drop the local `const itemSearchText = itemSearchText(item)`
-    // that the previous PR introduced — it shadowed the module-scope
-    // `itemSearchText()` helper, was unused downstream, and tripped
-    // `next build` (TypeScript "implicitly has type 'any' ... referenced
-    // directly or indirectly in its own initializer"), auto-rolling the
-    // deploy back to HEAD~1 and blocking BUY-69167's category-aware
-    // placeholder fix.
-
-    // Additional check: for short device-type queries, demote storage devices that don't
-    // explicitly mention the device type in their text (e.g. Firecuda SSD for "gaming laptop")
-    const isStorageMismatch = deviceQuery ? isStorageMismatchForDeviceQuery(item, deviceQuery) : false;
-
-    const isAccessory = isAccessoryByKeyword || isStorageMismatch;
+    // For phone queries, also demote phone-accessory items
+    const isPhoneAccessory =
+      isDevice && !isStorage && query.toLowerCase().includes('phone')
+        ? (itemCategoryLower(item).includes('accessory') || itemCategoryLower(item).includes('case') ||
+            itemCategoryLower(item).includes('cover') || itemCategoryLower(item).includes('protector'))
+        : false;
+    const isAccessory = isAccessoryByKeyword || isPhoneAccessory;
     const classifiedItem = { ...item, isAccessory, product_type: isAccessory ? 'accessory' : item.product_type };
     if (isAccessory) {
       accessoryItems.push(classifiedItem);

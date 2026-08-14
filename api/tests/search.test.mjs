@@ -843,10 +843,10 @@ describe('BUY-69621 device-vs-storage exclusion (BUY-69616)', () => {
   after(() => { server?.close(); });
   beforeEach(() => { setupDefaultMocks(); });
 
-  // The storage-category exclusion regex fragment, anchored on a distinctive
-  // substring so it matches both the `sp.` (tier) and `products` (archive) forms.
-  // BUY-69672 FIX: The SQL is now a valid POSIX regex: ~* 'storage|internal ssd|...'
-  const STORAGE_EXCL_RE = /NOT\s*\(coalesce\((?:sp\.category|category),''\)\s*~\*\s*'storage\|internal ssd/;
+  // The storage-category exclusion fragment, matching both the `sp.` (tier) and
+  // `products` (archive) alias forms. BUY-69727 switched this from ~* POSIX
+  // regex to ILIKE ANY to remove regex ambiguity with space-containing categories.
+  const STORAGE_EXCL_RE = /NOT\s*\(lower\(coalesce\((?:sp\.category|category),''\)\)\s+ILIKE\s+ANY/i;
 
   const deviceQueries = [
     'gaming laptop', 'laptop', 'macbook', 'gaming pc', 'desktop computer',

@@ -74,15 +74,12 @@ const STORAGE_CATEGORY_SUBSTRINGS = [
   'memory card',
 ];
 
-// Pre-built SQL regex alternation for the category column. Matches if the
-// lowercased category contains any storage substring. NULL/empty categories
-// never match → fail-open (the product is kept), per spec.
-// BUGFIX BUY-69672: PostgreSQL ~* takes a SINGLE regex string literal, NOT
-// SQL string literals joined by |. The old code generated invalid SQL like
-// ('storage'|'internal ssd'|...) which caused HTTP 500 on device queries.
-const STORAGE_CATEGORY_SQL = `(coalesce(sp.category,'') ~* '${STORAGE_CATEGORY_SUBSTRINGS.join('|')}')`;
+// BUY-69727 FIX: Use ILIKE ANY instead of POSIX regex. The live repro leaked
+// Seagate Firecuda 520 SSD (cat="Storage") into "gaming laptop" results; ILIKE
+// ANY is unambiguous substring containment for categories with spaces.
+const STORAGE_CATEGORY_SQL = `(lower(coalesce(sp.category,'')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
 
-const STORAGE_CATEGORY_SQL_PRODUCTS = `(coalesce(category,'') ~* '${STORAGE_CATEGORY_SUBSTRINGS.join('|')}')`;
+const STORAGE_CATEGORY_SQL_PRODUCTS = `(lower(coalesce(category,'')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
 
 function normalizeQueryTokens(q: string): Set<string> {
   return new Set(
