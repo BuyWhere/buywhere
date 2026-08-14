@@ -650,6 +650,10 @@ describe('NL search queries — response correctness', () => {
       c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('ORDER BY ts_rank(search_vector')
     );
     assert.ok(ftsRankingCall, 'Expected hybrid mode to query FTS candidates for RRF');
+    const sql = ftsRankingCall.arguments[0];
+    assert.ok(sql.includes('fts_cand'), 'Hybrid FTS should use bounded fts_cand CTE');
+    assert.ok(sql.includes('LIMIT 200'), 'Hybrid FTS gather should be limited to CANDIDATE_CAP=200 candidates');
+    assert.ok(sql.includes('fts_top'), 'Hybrid FTS ranking should be confined to fts_top');
   });
 
   // BUY-52089: vector search should fall back to FTS when vector query throws (e.g., dim mismatch)
@@ -818,3 +822,108 @@ describe('NL search — Redis caching behavior', () => {
     assert.ok(cacheGetCalls[0].arguments[0].startsWith('fts:deliver-to-v6:keyfmt:'));
   });
 });
+
+// BUY-69621: device-query vs storage-category exclusion regression.
+// Verifies the HARD filter SQL fragment is present in candidate WHERE clauses
+// for device queries and absent for storage queries (positive control).
+describe('BUY-69621 device-vs-storage exclusion (BUY-69616)', () => {
+  let server;
+  let port;
+
+  before(async () => {
+    const express = require('express');
+    const productsRouter = require('../dist/routes/products').default;
+    const app = express();
+    app.use(express.json());
+    app.use('/v1/products', productsRouter);
+    server = http.createServer(app);
+    await new Promise(r => server.listen(0, r));
+    port = server.address().port;
+  });
+  after(() => { server?.close(); });
+  beforeEach(() => { setupDefaultMocks(); });
+
+  // The storage-category exclusion regex fragment, anchored on a distinctive
+  // substring so it matches both the `sp.` (tier) and `products` (archive) forms.
+  const STORAGE_EXCL_RE = /NOT\s*\(coalesce\((?:sp\.category|category),''\)\s*~\*\s*\('storage'\|'internal ssd/;
+
+  const deviceQueries = [
+    'gaming laptop', 'laptop', 'macbook', 'gaming pc', 'desktop computer',
+    'iphone', 'android phone', 'smartphone', 'tablet', 'gaming monitor',
+    'wireless earbuds', 'smart watch',
+  ];
+  const storageQueries = ['ssd', 'nvme ssd', 'portable ssd', '1tb ssd', 'gaming ssd', 'internal ssd'];
+
+  for (const q of deviceQueries) {
+    it(`tier path excludes storage categories for device query "${q}"`, async () => {
+      const res = await fetch(
+        `http://localhost:${port}/v1/products/search?q=${encodeURIComponent(q)}&country_code=US&_tier=1`,
+        { headers: { Authorization: 'Bearer test-key' } },
+      );
+      assert.equal(res.status, 200);
+      const tierCalls = queryMock.mock.calls.filter(
+        c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM search_products sp')
+      );
+      assert.ok(tierCalls.length > 0, `expected tier query for "${q}"`);
+      assert.ok(
+        tierCalls.some(c => STORAGE_EXCL_RE.test(c.arguments[0])),
+        `device query "${q}" must hard-exclude storage categories in tier path`,
+      );
+    });
+  }
+
+  for (const q of storageQueries) {
+    it(`tier path does NOT exclude storage for storage query "${q}" (positive control)`, async () => {
+      const res = await fetch(
+        `http://localhost:${port}/v1/products/search?q=${encodeURIComponent(q)}&country_code=US&_tier=1`,
+        { headers: { Authorization: 'Bearer test-key' } },
+      );
+      assert.equal(res.status, 200);
+      const tierCalls = queryMock.mock.calls.filter(
+        c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM search_products sp')
+      );
+      assert.ok(tierCalls.length > 0);
+      assert.ok(
+        !tierCalls.some(c => STORAGE_EXCL_RE.test(c.arguments[0])),
+        `storage query "${q}" must NOT be filtered (positive control)`,
+      );
+    });
+  }
+
+  it('archive path excludes storage categories for a device query', async () => {
+    // _tier=0 forces the archive fallback path.
+    const res = await fetch(
+      `http://localhost:${port}/v1/products/search?q=${encodeURIComponent('gaming laptop')}&country_code=US&_tier=0`,
+      { headers: { Authorization: 'Bearer test-key' } },
+    );
+    assert.equal(res.status, 200);
+    // The archive FTS dataQuery ranks via ts_rank inside a recent_candidates CTE
+    // over the unaliased `products` table.
+    const dataCalls = queryMock.mock.calls.filter(
+      c => typeof c.arguments[0] === 'string'
+        && c.arguments[0].includes('FROM products')
+        && c.arguments[0].includes('recent_candidates AS MATERIALIZED')
+    );
+    assert.ok(dataCalls.length > 0, 'expected archive recent_candidates query');
+    assert.ok(
+      dataCalls.some(c => STORAGE_EXCL_RE.test(c.arguments[0])),
+      'archive path must hard-exclude storage categories for "gaming laptop"',
+    );
+  });
+
+  it('non-device, non-storage query is not filtered (e.g. "running shoes")', async () => {
+    const res = await fetch(
+      `http://localhost:${port}/v1/products/search?q=${encodeURIComponent('running shoes')}&country_code=US&_tier=1`,
+      { headers: { Authorization: 'Bearer test-key' } },
+    );
+    assert.equal(res.status, 200);
+    const tierCalls = queryMock.mock.calls.filter(
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM search_products sp')
+    );
+    assert.ok(
+      !tierCalls.some(c => STORAGE_EXCL_RE.test(c.arguments[0])),
+      'irrelevant query must not be filtered (fail-open)',
+    );
+  });
+});
+

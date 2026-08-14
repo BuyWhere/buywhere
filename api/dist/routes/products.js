@@ -14,6 +14,7 @@ const response_1 = require("../lib/response");
 const compare_query_1 = require("../lib/compare-query");
 const queryPreprocessor_1 = require("../lib/queryPreprocessor");
 const shipsTo_1 = require("../lib/shipsTo");
+const searchRelevanceTaxonomy_1 = require("../lib/searchRelevanceTaxonomy");
 const instrumentation_1 = require("../lib/instrumentation");
 const embedProducts_1 = require("../jobs/embedProducts");
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
@@ -93,6 +94,11 @@ async function tryTierSearch(req, res, p) {
     if (lexemes.length === 0)
         return false;
     const tsOr = lexemes.join(' | ');
+    // BUY-69621: HARD-exclude storage/SSD categories when the query targets a
+    // device family (laptop/phone/tablet/…). No-op (fail-open) for storage
+    // queries (`ssd`, `nvme`) and non-device queries. Uses `sp.` alias (tier
+    // path reads from search_products sp). See lib/searchRelevanceTaxonomy.
+    const storageExcl = (0, searchRelevanceTaxonomy_1.deviceStorageExclusionFragment)(p.q);
     const conds = [];
     const params = [];
     let i = 1;
@@ -178,7 +184,7 @@ async function tryTierSearch(req, res, p) {
     const mkQuery = (match, extraFilter = '') => `
     WITH cand AS (
       SELECT id, search_vector FROM search_products sp
-      WHERE ${match}${filterSql}${extraFilter}
+      WHERE ${match}${filterSql}${extraFilter}${storageExcl}
       -- perf: no ORDER BY — sorting forces enumeration of the FULL match set before
       -- LIMIT (broad OR fallbacks time out at the 4s tier cap; same anti-pattern as
       -- the archive fix in 9e3ad8e, measured 60x there). LIMIT stops early; ts_rank
@@ -210,14 +216,14 @@ async function tryTierSearch(req, res, p) {
     SELECT ${cols}, 0 AS _fts_rank
     FROM search_products sp
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}
+    WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}${storageExcl}
     ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     const tokenTitleFallbackQuery = `
     SELECT ${cols}, 0 AS _fts_rank
     FROM search_products sp
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}
+    WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}${storageExcl}
     ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     let client;
@@ -620,6 +626,14 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             return;
     }
     const baseConditions = ['is_active = true', 'price > 0'];
+    // BUY-69621: HARD-exclude storage/SSD categories from device-typed queries
+    // (laptop/phone/…). Flows through baseConditions into every archive + hybrid
+    // candidate WHERE (recent_hits, non-FTS branch, fts_cand, semantic
+    // vectorFilterQuery). No-op (fail-open) for storage queries and non-device
+    // queries. Unqualified `category` matches the unaliased `products` table.
+    const storageExclProducts = (0, searchRelevanceTaxonomy_1.deviceStorageExclusionFragmentProducts)(q);
+    if (storageExclProducts)
+        baseConditions.push(`1 = 1${storageExclProducts}`);
     const baseParams = [];
     let baseIdx = 1;
     if (minPrice !== undefined || maxPrice !== undefined) {
@@ -1074,54 +1088,75 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         if (activeVectorDb) {
             const queryVector = await getCachedQueryEmbedding(q, geminiKey);
             if (queryVector) {
-                const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
-                const semanticCandidates = await activeVectorDb.query(`SELECT product_id FROM product_embeddings
-             ORDER BY embedding <=> $1::vector
-             LIMIT $2`, [queryVector, candidateCap]);
-                const rawSemanticIds = semanticCandidates.rows.map((row) => row.product_id);
-                let filteredSemanticIds = [];
-                if (rawSemanticIds.length > 0) {
-                    const vectorFilterQuery = `
-              SELECT id
-              FROM products
-              WHERE id = ANY($1::bigint[]) AND ${baseConditions.map((condition) => shiftSqlPlaceholders(condition, 1)).join(' AND ')}
-            `;
-                    const vectorFilterResult = await client.query(vectorFilterQuery, [rawSemanticIds, ...baseParams]);
-                    const allowedIds = new Set(vectorFilterResult.rows.map((row) => row.id));
-                    filteredSemanticIds = rawSemanticIds.filter((id) => allowedIds.has(id));
+                try {
+                    const candidateCap = Math.min(Math.max(requestedRows * 10, 200), VECTOR_CANDIDATE_CAP);
+                    // BUY-65476 + BUY-52089: filter by model_ver to avoid legacy 1024-dim vectors.
+                    // The query embedding is 512-dim (gemini-embedding-001) - only match rows with same dimension.
+                    // Note: When 0 results return (embed worker blocked on proxy outage), we do NOT fall back
+                    // to FTS silently — that would make semantic = keyword (the original bug). Instead,
+                    // we return 0 results, which at least makes semantic DIFFERENT from keyword.
+                    const semanticCandidates = await activeVectorDb.query(`SELECT product_id FROM product_embeddings
+               WHERE model_ver = 'gemini-embedding-001@512'
+               ORDER BY embedding <=> $1::vector
+               LIMIT $2`, [queryVector, candidateCap]);
+                    const rawSemanticIds = semanticCandidates.rows.map((row) => row.product_id);
+                    let filteredSemanticIds = [];
+                    if (rawSemanticIds.length > 0) {
+                        const vectorFilterQuery = `
+                SELECT id
+                FROM products
+                WHERE id = ANY($1::bigint[]) AND ${baseConditions.map((condition) => shiftSqlPlaceholders(condition, 1)).join(' AND ')}
+              `;
+                        const vectorFilterResult = await client.query(vectorFilterQuery, [rawSemanticIds, ...baseParams]);
+                        const allowedIds = new Set(vectorFilterResult.rows.map((row) => row.id));
+                        filteredSemanticIds = rawSemanticIds.filter((id) => allowedIds.has(id));
+                    }
+                    let rankedCandidateIds = filteredSemanticIds;
+                    if (searchMode === 'hybrid') {
+                        const ftsCandidates = await client.query(`WITH fts_cand AS MATERIALIZED (
+                   SELECT id, search_vector
+                   FROM products
+                  ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
+                   LIMIT ${CANDIDATE_CAP}
+                 ), fts_top AS (
+                   SELECT id
+                   FROM fts_cand
+                   ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
+                   LIMIT 200
+                 )
+                 SELECT id FROM fts_top`, searchParams);
+                        rankedCandidateIds = mergeRrfCandidateIds(ftsCandidates.rows.map((row) => row.id), filteredSemanticIds, candidateCap);
+                    }
+                    total = rankedCandidateIds.length;
+                    hasMore = total > offset + limit;
+                    if (total === 0) {
+                        dataResult = { rows: [] };
+                    }
+                    else if (!effectiveSort || effectiveSort === 'relevance') {
+                        const pageIds = rankedCandidateIds.slice(offset, offset + requestedRows);
+                        const detailResult = await client.query(`SELECT ${joinedColumns}
+                 FROM products
+                 LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+                 WHERE products.id = ANY($1::bigint[])`, [pageIds]);
+                        const byId = new Map(detailResult.rows.map((row) => [row.id, row]));
+                        dataResult = {
+                            rows: pageIds.map((id) => byId.get(id)).filter(Boolean),
+                        };
+                    }
+                    else {
+                        dataResult = await client.query(`SELECT ${joinedColumns}
+                 FROM products
+                 LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
+                 WHERE products.id = ANY($1::bigint[])
+                 ORDER BY ${buildSortOrder()}
+                 LIMIT $2 OFFSET $3`, [rankedCandidateIds, requestedRows, offset]);
+                    }
                 }
-                let rankedCandidateIds = filteredSemanticIds;
-                if (searchMode === 'hybrid') {
-                    const ftsCandidates = await client.query(`SELECT id
-               FROM products
-              ${useSgFreshnessGuardrail ? freshWhereClause : whereClause}
-               ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIdx})) DESC
-               LIMIT 200`, searchParams);
-                    rankedCandidateIds = mergeRrfCandidateIds(ftsCandidates.rows.map((row) => row.id), filteredSemanticIds, candidateCap);
-                }
-                total = rankedCandidateIds.length;
-                hasMore = total > offset + limit;
-                if (total === 0) {
-                    dataResult = { rows: [] };
-                }
-                else if (!effectiveSort || effectiveSort === 'relevance') {
-                    const pageIds = rankedCandidateIds.slice(offset, offset + requestedRows);
-                    const detailResult = await client.query(`SELECT ${joinedColumns}
-               FROM products
-               LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-               WHERE products.id = ANY($1::bigint[])`, [pageIds]);
-                    const byId = new Map(detailResult.rows.map((row) => [row.id, row]));
-                    dataResult = {
-                        rows: pageIds.map((id) => byId.get(id)).filter(Boolean),
-                    };
-                }
-                else {
-                    dataResult = await client.query(`SELECT ${joinedColumns}
-               FROM products
-               LEFT JOIN affiliate_links al ON al.product_id = products.id::text AND al.merchant_id = products.merchant_id
-               WHERE products.id = ANY($1::bigint[])
-               ORDER BY ${buildSortOrder()}
-               LIMIT $2 OFFSET $3`, [rankedCandidateIds, requestedRows, offset]);
+                catch (vectorErr) {
+                    // BUY-52089: vector infra may be unavailable (e.g., dimension mismatch BUY-63231)
+                    // Fall back to FTS so the public API returns results instead of 500.
+                    console.warn('[search] vector search failed, falling back to FTS:', vectorErr?.message || vectorErr);
+                    dataResult = await execFtsQuery(dataQuery);
                 }
             }
             else {
