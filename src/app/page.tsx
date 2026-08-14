@@ -308,15 +308,15 @@ export default function HomePage() {
             <div className="flex flex-col gap-3 justify-center mb-6 sm:flex-row sm:gap-4">
               <Link
                 href="/compare"
-                className="inline-flex w-full items-center justify-center px-6 py-3 bg-white text-indigo-700 font-semibold rounded-xl hover:bg-indigo-50 transition-colors sm:w-auto"
+                className="inline-flex w-full items-center justify-center px-8 py-4 bg-white text-indigo-700 font-bold text-lg rounded-xl shadow-sm hover:bg-indigo-50 transition-colors sm:w-auto"
               >
                 Browse price comparisons →
               </Link>
               <Link
                 href="/developers"
-                className="inline-flex w-full items-center justify-center rounded-xl border-2 border-white bg-indigo-700 px-6 py-3 font-bold text-white shadow-sm transition-colors hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 sm:w-auto"
+                className="inline-flex w-full items-center justify-center px-3 py-2 text-sm underline text-white/90 hover:text-white transition-colors sm:w-auto"
               >
-                Developers: Get API access
+                For developers →
               </Link>
             </div>
             <p className="text-base font-semibold text-white">
