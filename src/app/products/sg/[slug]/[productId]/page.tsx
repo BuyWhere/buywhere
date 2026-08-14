@@ -3,6 +3,7 @@ import { permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import { getSeoLandingFallbackProduct } from "@/lib/seo-landing-pages";
 import { buildSGLegacyProductRedirect } from "@/lib/legacy-product-redirect";
+import { buildProductDetailGraph } from "@/lib/product-schema";
 
 const INTERNAL_ORIGIN =
   process.env.BUYWHERE_INTERNAL_ORIGIN ||
@@ -210,53 +211,42 @@ export default async function SGProductDetailPage({ params }: PageProps) {
   const merchantName =
     product.merchant_name ??
     merchantSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  const canonicalUrl = `https://buywhere.ai/products/sg/${merchantSlug}/${productId}/`;
 
-  const productSchema = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: productName,
-    description:
-      product.description ??
-      `${productName} available from ${merchantName} in Singapore.`,
-    url: canonicalUrl,
-    ...(product.image_url && { image: product.image_url }),
-    ...(product.brand && { brand: { "@type": "Brand", name: product.brand } }),
-    ...(product.price != null && {
-      offers: {
-        "@type": "Offer",
-        priceCurrency: "SGD",
-        price: product.price,
-        availability: "https://schema.org/InStock",
-        seller: { "@type": "Organization", name: merchantName },
-      },
-    }),
-  };
-
-  const breadcrumbSchema = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Home", item: "https://buywhere.ai/" },
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: `${merchantName} Products`,
-        item: `https://buywhere.ai/sg/${merchantSlug}/products/`,
-      },
-      { "@type": "ListItem", position: 3, name: productName, item: canonicalUrl },
+  // BUY-69663: shared JSON-LD graph replaces the duplicated inline Product +
+  // Breadcrumb blocks — publisher-anchored @graph, ratings only from real data.
+  const pagePath = `/products/sg/${merchantSlug}/${productId}/`;
+  const schema = buildProductDetailGraph({
+    product: {
+      path: pagePath,
+      name: productName,
+      description:
+        product.description ??
+        `${productName} available from ${merchantName} in Singapore.`,
+      image: product.image_url ?? null,
+      brand: product.brand ?? null,
+      category: product.category ?? null,
+      sku: product.id != null ? String(product.id) : null,
+      offer:
+        product.price != null
+          ? {
+              price: product.price,
+              priceCurrency: "SGD",
+              sellerName: merchantName,
+            }
+          : null,
+    },
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: `${merchantName} Products`, path: `/sg/${merchantSlug}/products/` },
+      { name: productName, path: pagePath },
     ],
-  };
+  });
 
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
       />
       <main id="main-content" className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
         <nav aria-label="breadcrumb" className="mb-6 text-sm text-gray-500">
