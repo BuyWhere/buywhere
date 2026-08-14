@@ -22,10 +22,10 @@ const TARGET_CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'MYR', 'IDR', 'THB', 'PHP
 type TargetCurrency = (typeof TARGET_CURRENCIES)[number];
 type FxRateSource = FxRateRecord['source'];
 
-/** frankfurter.app returns ECB rates; base currency is configurable (we use EUR). */
+/** frankfurter.dev returns ECB rates; base currency is configurable (we use EUR). */
 async function fetchFromFrankfurter(base: string): Promise<Map<string, number>> {
   const rates = new Map<string, number>();
-  const url = `https://api.frankfurter.app/latest?from=${base}`;
+  const url = `https://api.frankfurter.dev/v1/latest?from=${base}`;
   const res = await fetch(url, {
     headers: { 'Accept': 'application/json' },
     signal: AbortSignal.timeout(10_000),
