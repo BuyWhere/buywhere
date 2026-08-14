@@ -371,7 +371,7 @@ export default async function RegionProductDetailPage({ params }: PageProps) {
             )}
 
             {product.category && (
-              <p className="mt-4 text-xs text-gray-400">Category: {product.category}</p>
+              <p className="mt-4 text-xs text-gray-500">Category: {product.category}</p>
             )}
           </div>
         </div>
