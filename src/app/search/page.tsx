@@ -24,20 +24,34 @@ const SEARCH_PATH = '/search';
 
 export async function generateMetadata({ searchParams }: SearchPageProps): Promise<Metadata> {
   const query = getSearchParam(searchParams?.q).trim();
+  const country = getSearchParam(searchParams?.country);
+
+  const queryTitle = query
+    ? `Search results for '${query}' — BuyWhere`
+    : SEARCH_TITLE;
+
+  const searchPath = query
+    ? `/search?q=${encodeURIComponent(query)}${country ? `&country=${country}` : ''}`
+    : country
+      ? `/search?country=${country}`
+      : SEARCH_PATH;
+
   const metadata = buildPageMetadata({
-    title: SEARCH_TITLE,
+    title: queryTitle,
     description: SEARCH_DESCRIPTION,
-    path: SEARCH_PATH,
+    path: searchPath,
   });
 
   return {
     ...metadata,
-    title: query ? `Search results for '${query}' — BuyWhere` : SEARCH_TITLE,
-    robots: { index: false, follow: true },
-    alternates: {
-      canonical: query
-        ? toSiteUrl(`/search?q=${encodeURIComponent(query)}`)
-        : toSiteUrl(SEARCH_PATH),
+    openGraph: {
+      ...metadata.openGraph,
+      title: queryTitle,
+      url: toSiteUrl(searchPath),
+    },
+    twitter: {
+      ...metadata.twitter,
+      title: queryTitle,
     },
   };
 }

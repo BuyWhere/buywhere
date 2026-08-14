@@ -224,8 +224,6 @@ const ACCESSORY_KEYWORDS = [
 
 function isAccessoryProduct(product: SearchCardProduct): boolean {
   const titleLower = product.name.toLowerCase();
-  const categoryLower = (product.category || '').toLowerCase();
-  const text = `${titleLower} ${categoryLower}`;
 
   // BUY-63738: Detect accessories (backpacks, skins, sleeves, etc.).
   // Strategy: products with accessory keywords are accessories UNLESS the title
@@ -613,9 +611,15 @@ export default function SearchResultsClient({
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeHistoryIndex, setActiveHistoryIndex] = useState(-1);
+  const [hasHydrated, setHasHydrated] = useState(false);
   const lastRequestKeyRef = useRef<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchFieldRef = useRef<HTMLLabelElement>(null);
+
+  // Track hydration state to avoid server/client mismatch
+  useEffect(() => {
+    setHasHydrated(true);
+  }, []);
 
   const persistSearchHistory = useCallback((searchTerm: string) => {
     setSearchHistory((currentHistory) => {
@@ -870,12 +874,9 @@ export default function SearchResultsClient({
       <Header />
 
       <main id="main-content" className="flex-1">
-        {/* Mobile compact summary (replaces the full hero on mobile when an active search
-            is running) — keeps the result count + query fully visible by wrapping gracefully
-            on small viewports instead of truncating with an ellipsis (BUY-67976).
-            Rendered as an <h1> for SEO semantics and tightened to ~44px above the fold. */}
-        {hasActiveSearch ? (
-          <h1
+        {/* Mobile compact summary — shows result count on mobile only (not an H1) */}
+        {hasActiveSearch && hasHydrated ? (
+          <div
             data-testid="search-mobile-summary"
             className="mx-auto block max-w-7xl px-4 py-3 text-sm font-semibold leading-snug text-slate-700 [overflow-wrap:anywhere] md:hidden"
           >
@@ -883,10 +884,10 @@ export default function SearchResultsClient({
             <span className="mx-2 text-slate-300">/</span>
             <span>
               {loadingInitial
-                ? 'Searching…'
-                : `${total.toLocaleString()} results for “${debouncedQuery}”`}
+                ? 'Searching...'
+                : `${total.toLocaleString()} results for &ldquo;${debouncedQuery}&rdquo;`}
             </span>
-          </h1>
+          </div>
         ) : null}
 
         <section className="hidden border-b border-amber-100 bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.22),_rgba(255,247,237,0.85)_38%,_rgba(255,255,255,1)_80%)] md:block">
@@ -894,8 +895,13 @@ export default function SearchResultsClient({
             <div className="max-w-3xl">
               {/* Hide the hero H1 + eyebrow when an active search is running so the query
                   isn't echoed twice. The result-count heading below becomes the single,
-                  unified results header (rendered as <h1> for SEO semantics). */}
-              {hasActiveSearch ? null : (
+                  unified results header (rendered as <h1> for SEO semantics).
+
+                  BUY-69622: During SSR, if initialQuery exists, the hero H1 is hidden
+                  and only the result-count H1 (below) renders to avoid duplicate H1s.
+                  This ensures crawlers see the actual search query in the H1, not
+                  a loading placeholder. */}
+              {hasActiveSearch || initialQuery ? null : (
                 <>
                   <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">Product search</p>
                   <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
@@ -1094,24 +1100,27 @@ export default function SearchResultsClient({
                   results header. The sticky header logo already provides homepage
                   navigation on every viewport, so the CTA was duplicating it in the
                   highest-value slot and (previously) pushed product cards below the
-                  fold on mobile. Keep the result-count heading alone above the grid. */}
+                  fold on mobile. Keep the result-count heading alone above the grid.
+
+                  BUY-69622: The H1 is now rendered with actual query text during SSR
+                  (via initialQuery prop), not with "Searching catalog..." skeleton.
+                  Loading indicator is rendered below as a separate element with
+                  role="status" (BUY-69622 a11y fix). */}
               <div className="hidden md:block">
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
                   {activeCountry.label}
                 </p>
                 <h1 className="mt-1 text-2xl font-semibold text-slate-950">
-                  {loadingInitial ? (
-                    <>
-                      Searching catalog...
-                      <span className="ml-2 animate-pulse text-lg leading-none">&bull;&bull;&bull;</span>
-                    </>
-                  ) : (
-                    `${total.toLocaleString()} results for “${debouncedQuery}”`
-                  )}
+                  {hasHydrated && !loadingInitial
+                    ? `${total.toLocaleString()} results for &ldquo;${debouncedQuery}&rdquo;`
+                    : `${initialQuery ? `Search results for &ldquo;${initialQuery}&rdquo;` : 'Search Products — BuyWhere'}`}
                 </h1>
               </div>
 
-              {loadingInitial ? (
+              {/* BUY-69622: Only render loading indicator after hydration to avoid
+                  SSR showing "Searching..." in the initial HTML. The H1 above now
+                  provides meaningful server-rendered content instead. */}
+              {loadingInitial && hasHydrated ? (
                 <>
                   <SearchProgressIndicator startedAt={searchStartTime ?? Date.now()} />
                   <SearchResultsSkeleton />
@@ -1126,7 +1135,7 @@ export default function SearchResultsClient({
                 >
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Catalog update in progress</p>
                   <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-                    Live results for “{debouncedQuery}” are temporarily unavailable
+                    Live results for &ldquo;{debouncedQuery}&rdquo; are temporarily unavailable
                   </h2>
                   <p className="mt-3 max-w-2xl text-slate-700">
                     {degradedHint
@@ -1158,7 +1167,7 @@ export default function SearchResultsClient({
                 <div className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm" data-testid="search-no-matches">
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">No matches</p>
                   <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-                    No products found for “{debouncedQuery}”
+                    No products found for &ldquo;{debouncedQuery}&rdquo;
                   </h2>
                   <p className="mt-3 max-w-2xl text-slate-600">
                     Try a broader term, switch countries, or start with one of these popular searches.
