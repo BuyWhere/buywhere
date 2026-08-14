@@ -63,6 +63,8 @@ exports.STORAGE_QUERY_TOKENS = new Set([
 // mentions "1TB SSD" stays eligible. Substring match (not word-boundary)
 // because stored categories are inconsistent ("Internal SSD", "Solid State
 // Drives", "Computer Components & Storage", …) and the spec allows substring.
+// BUY-69727 FIX: metadata->>'category' fallback for the products table (archive
+// path), where some products have NULL category but store it in the JSONB metadata column.
 const STORAGE_CATEGORY_SUBSTRINGS = [
     'storage',
     'internal ssd',
@@ -75,14 +77,9 @@ const STORAGE_CATEGORY_SUBSTRINGS = [
     'usb drive',
     'memory card',
 ];
-// Pre-built SQL regex alternation for the category column. Matches if the
-// lowercased category contains any storage substring. NULL/empty categories
-// never match → fail-open (the product is kept), per spec.
-// BUGFIX BUY-69672: PostgreSQL ~* takes a SINGLE regex string literal, NOT
-// SQL string literals joined by |. The old code generated invalid SQL like
-// ('storage'|'internal ssd'|...) which caused HTTP 500 on device queries.
-const STORAGE_CATEGORY_SQL = `(coalesce(sp.category,'') ~* '${STORAGE_CATEGORY_SUBSTRINGS.join('|')}')`;
-const STORAGE_CATEGORY_SQL_PRODUCTS = `(coalesce(category,'') ~* '${STORAGE_CATEGORY_SUBSTRINGS.join('|')}')`;
+// ILIKE ANY — unambiguous, no regex parsing issues with spaces.
+const STORAGE_CATEGORY_SQL = `(lower(coalesce(sp.category,'')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
+const STORAGE_CATEGORY_SQL_PRODUCTS = `(lower(coalesce(category, metadata->>'category', '')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
 function normalizeQueryTokens(q) {
     return new Set(q
         .toLowerCase()
