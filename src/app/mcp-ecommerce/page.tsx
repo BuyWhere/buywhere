@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
@@ -17,12 +16,24 @@ export const metadata: Metadata = {
   alternates: {
     canonical: toSiteUrl("/mcp-ecommerce"),
   },
+  robots: {
+    index: true,
+    follow: true,
+  },
   openGraph: {
     title: "MCP for Ecommerce: The Complete Guide to Product Search MCP Servers (2026)",
     description:
       "Learn how AI agents search real products, compare prices, and discover deals using MCP for ecommerce. Complete guide with setup instructions and real-world use cases.",
     type: "article",
     url: toSiteUrl("/mcp-ecommerce"),
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "MCP for Ecommerce — BuyWhere",
+      },
+    ],
   },
 };
 
@@ -154,11 +165,13 @@ export default async function McpEcommercePage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
-      <Script id="structured-data" type="application/ld+json" strategy="afterInteractive">
-        {JSON.stringify(structuredData)}
-      </Script>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <Nav />
 
+      <main id="main-content">
       <section className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(79,70,229,0.12),_transparent_40%),linear-gradient(135deg,#0f172a_0%,#1e1b4b_100%)] text-white">
         <div className="mx-auto max-w-6xl px-4 py-24 sm:px-6">
           <div className="max-w-3xl">
@@ -423,6 +436,7 @@ Sony WH-1000XM5 (US)        — $329.99 @ Amazon US`}</pre>
         </div>
       </section>
 
+      </main>
       <Footer />
     </div>
   );
