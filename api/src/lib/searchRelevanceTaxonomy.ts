@@ -77,13 +77,12 @@ const STORAGE_CATEGORY_SUBSTRINGS = [
 // Pre-built SQL regex alternation for the category column. Matches if the
 // lowercased category contains any storage substring. NULL/empty categories
 // never match → fail-open (the product is kept), per spec.
-const STORAGE_CATEGORY_SQL = `(coalesce(sp.category,'') ~* (${STORAGE_CATEGORY_SUBSTRINGS
-  .map((s) => `'${s.replace(/'/g, "''")}'`)
-  .join('|')}))`;
+// BUGFIX BUY-69672: PostgreSQL ~* takes a SINGLE regex string literal, NOT
+// SQL string literals joined by |. The old code generated invalid SQL like
+// ('storage'|'internal ssd'|...) which caused HTTP 500 on device queries.
+const STORAGE_CATEGORY_SQL = `(coalesce(sp.category,'') ~* '${STORAGE_CATEGORY_SUBSTRINGS.join('|')}')`;
 
-const STORAGE_CATEGORY_SQL_PRODUCTS = `(coalesce(category,'') ~* (${STORAGE_CATEGORY_SUBSTRINGS
-  .map((s) => `'${s.replace(/'/g, "''")}'`)
-  .join('|')}))`;
+const STORAGE_CATEGORY_SQL_PRODUCTS = `(coalesce(category,'') ~* '${STORAGE_CATEGORY_SUBSTRINGS.join('|')}')`;
 
 function normalizeQueryTokens(q: string): Set<string> {
   return new Set(
