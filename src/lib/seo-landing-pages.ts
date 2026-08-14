@@ -595,7 +595,8 @@ function brandedProductPlaceholderSvg(
  * landing page would SSR with an <img> that fails to load and lands on the
  * Placeholder (BUY-64729).
  */
-async function verifyReachableImage(imageUrl: string | null, timeoutMs = 2500): Promise<boolean> {
+// BUY-69736: exported so the regression test can probe it directly.
+export async function verifyReachableImage(imageUrl: string | null, timeoutMs = 2500): Promise<boolean> {
   if (!imageUrl) return false;
   if (imageUrl.startsWith("data:image/svg+xml")) return true;
   try {
@@ -622,7 +623,14 @@ async function verifyReachableImage(imageUrl: string | null, timeoutMs = 2500): 
         // CDN image servers may return 405 on HEAD; fall back to a ranged GET.
         redirect: "follow",
       });
-      if (res.ok) return true;
+      // BUY-69736: a 200 OK is not enough — some CDNs answer 200 with an
+      // HTML error page for missing assets. Require an image/* content type
+      // so text/html error pages are treated as unreachable and the branded
+      // SVG placeholder path takes over.
+      if (res.ok) {
+        const contentType = (res.headers.get("content-type") || "").toLowerCase();
+        return contentType.startsWith("image/");
+      }
       if (res.status === 405 || res.status === 403) {
         // Some image hosts (Cloudflare, Shopify CDN) forbid HEAD. Allow only
         // when the response indicates actual blocking (403 -> false). 405 -> retry GET.
@@ -633,7 +641,9 @@ async function verifyReachableImage(imageUrl: string | null, timeoutMs = 2500): 
             redirect: "follow",
             headers: { Range: "bytes=0-0" },
           });
-          return get.ok || get.status === 206;
+          if (!(get.ok || get.status === 206)) return false;
+          const getContentType = (get.headers.get("content-type") || "").toLowerCase();
+          return getContentType.startsWith("image/");
         }
         return false;
       }
@@ -1062,11 +1072,16 @@ export function buildLandingProductSlug(product: Pick<LandingProduct, "name">): 
     .slice(0, 80);
 }
 
-export function getSeoLandingFallbackProduct(
+// BUY-69736: async + image repair. The PDP route renders curated fallback
+// rows verbatim when the catalog product fetch misses; without this repair a
+// dead or hotlink-blocked curated image URL reaches the browser as-is and the
+// PDP shows a broken-image icon. Mirrors the repair pipeline
+// getSeoLandingProducts already applies to the same rows (line ~855).
+export async function getSeoLandingFallbackProduct(
   region: string,
   productId: string,
   slug?: string,
-): LandingProduct | null {
+): Promise<LandingProduct | null> {
   const normalizedRegion = region.toUpperCase();
 
   for (const config of Object.values(seoLandingPages)) {
@@ -1080,9 +1095,25 @@ export function getSeoLandingFallbackProduct(
       // Offer.url slugs are derived from upstream merchant product titles.
       // BUY-69630: relax the strict byte-equality guard to allow PDPs to
       // render for catalog productIds even when the URL slug is mangled.
+      const detailUrl = buildProductDetailUrl(product, config.country);
+
+      // BUY-69736: probe the curated image; replace with the branded SVG
+      // placeholder when the URL is dead/blocked/serves HTML.
+      let imageUrl = product.imageUrl;
+      if (imageUrl) {
+        const reachable = await verifyReachableImage(imageUrl);
+        if (!reachable) {
+          console.warn(
+            `[seo] replacing unreachable fallback image for product ${product.id} on PDP: ${imageUrl}`
+          );
+          imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
+        }
+      }
+
       return {
         ...product,
-        productUrl: buildProductDetailUrl(product, config.country),
+        imageUrl,
+        productUrl: detailUrl,
       };
     }
   }
@@ -1090,7 +1121,11 @@ export function getSeoLandingFallbackProduct(
   return null;
 }
 
-export function getSeoLandingFallbackProductBySlug(region: string, slug: string): LandingProduct | null {
+// BUY-69736: same image repair for the by-slug variant used by generateMetadata.
+export async function getSeoLandingFallbackProductBySlug(
+  region: string,
+  slug: string,
+): Promise<LandingProduct | null> {
   const normalizedRegion = region.toUpperCase();
   const normalizedSlug = decodeURIComponent(slug).toLowerCase();
 
@@ -1100,8 +1135,20 @@ export function getSeoLandingFallbackProductBySlug(region: string, slug: string)
     for (const product of config.fallbackProducts) {
       if (buildLandingProductSlug(product) !== normalizedSlug) continue;
 
+      let imageUrl = product.imageUrl;
+      if (imageUrl) {
+        const reachable = await verifyReachableImage(imageUrl);
+        if (!reachable) {
+          console.warn(
+            `[seo] replacing unreachable fallback image for product ${product.id} on PDP: ${imageUrl}`
+          );
+          imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
+        }
+      }
+
       return {
         ...product,
+        imageUrl,
         productUrl: buildProductDetailUrl(product, config.country),
       };
     }
@@ -1850,12 +1897,20 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "g1", name: "ASUS ROG Zephyrus G16", price: 1999, currency: "USD", merchant: "Best Buy", imageUrl: "https://m.media-amazon.com/images/I/71KcW4ZhcpL._AC_UL320_.jpg", href: "/search?q=ASUS+ROG+Zephyrus+G16&country=us", brand: "ASUS", category: "Gaming Laptops" },
-      { id: "g2", name: "Lenovo Legion Pro 7i", price: 2299, currency: "USD", merchant: "Lenovo", imageUrl: "https://p1-ofp.static.pub/medias/bWFzdGVyfHJvb3R8Mzc2NTYyfGltYWdlL3BuZ3xoNWYvaGNhLzE0MTk2NzgzNjQ0MTkwLnBuZ3wxODhhZjI5ZjMzN2UyMWI1ZTcyZThjMGYwNTcyOTM1YTllYmQ0ZDU3Y2E4Y2QwMGY1YmNhODQ1MTVkZTRhZGEw/lenovo-legion-pro-7i-16-intel-hero.png", href: "/search?q=Lenovo+Legion+Pro+7i&country=us", brand: "Lenovo", category: "Gaming Laptops" },
-      { id: "g3", name: "Alienware m16 R3", price: 2499, currency: "USD", merchant: "Dell", imageUrl: "https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/dell-client-products/notebooks/alienware-notebooks/alienware-m16-r2/media-gallery/laptop-aw-m16r2-nt-bk-gallery-1.psd", href: "/search?q=Alienware+m16+R3&country=us", brand: "Alienware", category: "Gaming Laptops" },
-      { id: "g4", name: "HP Omen Transcend 14", price: 1699, currency: "USD", merchant: "HP", imageUrl: "https://ssl-product-images.www8-hp.com/digmedialib/prodimg/lowres/c08855874.png", href: "/search?q=HP+Omen+Transcend+14&country=us", brand: "HP", category: "Gaming Laptops" },
-      { id: "g5", name: "Acer Predator Helios Neo 16", price: 1499, currency: "USD", merchant: "Acer", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/p/r/predator-helios-neo-16-phn16-72-black-01.png", href: "/search?q=Acer+Predator+Helios+Neo+16&country=us", brand: "Acer", category: "Gaming Laptops" },
-      { id: "g6", name: "ASUS TUF Gaming A15", price: 1199, currency: "USD", merchant: "Amazon", imageUrl: "https://m.media-amazon.com/images/I/71gXelI8upL._AC_UL320_.jpg", href: "/search?q=ASUS+TUF+Gaming+A15&country=us", brand: "ASUS", category: "Gaming Laptops" },
+      // BUY-69736: replaced dead/wrong curated images with live-catalog-verified
+      // product photos (each URL returns HTTP 200 + image/* and is the exact
+      // image BuyWhere's own catalog serves for that model):
+      // g1 was a generic Intel Optane laptop photo (wrong product).
+      // g3 was a Dell Akamai URL returning 403 Access Denied.
+      // g4 was a 10-byte "Not found" PNG.
+      // g5 was an Acer wordmark logo, not a product photo.
+      // g6 was an Acer Nitro 5 photo on the ASUS TUF PDP (the QA ticket).
+      { id: "g1", name: "ASUS ROG Zephyrus G16", price: 1999, currency: "USD", merchant: "Best Buy", imageUrl: "https://cdn.shopify.com/s/files/1/0823/1567/3883/files/download_a7ddefe9-0f1e-4cf6-93b2-4dd1f6556aa3.png?v=1778825118", href: "/search?q=ASUS+ROG+Zephyrus+G16&country=us", brand: "ASUS", category: "Gaming Laptops" },
+      { id: "g2", name: "Lenovo Legion Pro 7i", price: 2299, currency: "USD", merchant: "Lenovo", imageUrl: "https://cdn.shopify.com/s/files/1/0622/7050/5109/files/Legion-Pro-7-16IAX10H_01_a36a4c10-d9ef-4e1a-b94e-b3e58846d93b.jpg?v=1772980345", href: "/search?q=Lenovo+Legion+Pro+7i&country=us", brand: "Lenovo", category: "Gaming Laptops" },
+      { id: "g3", name: "Alienware m16 R3", price: 2499, currency: "USD", merchant: "Dell", imageUrl: "https://cdn.shopify.com/s/files/1/0254/2144/7246/files/0a51c504-ca45-4cbf-91f2-2950269dd00f.jpg?v=1770772011", href: "/search?q=Alienware+m16+R3&country=us", brand: "Alienware", category: "Gaming Laptops" },
+      { id: "g4", name: "HP Omen Transcend 14", price: 1699, currency: "USD", merchant: "HP", imageUrl: "https://cdn.shopify.com/s/files/1/0355/8296/7943/files/1000000017762.jpg?v=1739358567", href: "/search?q=HP+Omen+Transcend+14&country=us", brand: "HP", category: "Gaming Laptops" },
+      { id: "g5", name: "Acer Predator Helios Neo 16", price: 1499, currency: "USD", merchant: "Acer", imageUrl: "https://cdn.shopify.com/s/files/1/0577/7371/9758/files/a_5_017c5486-6dfc-4bad-a6f9-e8a2b3fe4c18.jpg?v=1778759781", href: "/search?q=Acer+Predator+Helios+Neo+16&country=us", brand: "Acer", category: "Gaming Laptops" },
+      { id: "g6", name: "ASUS TUF Gaming A15", price: 1199, currency: "USD", merchant: "Amazon", imageUrl: "https://cdn.shopify.com/s/files/1/0355/8296/7943/products/0197105129795_824c30c1-67f1-4829-b28d-508e09f6f16a.jpg?v=1681799113", href: "/search?q=ASUS+TUF+Gaming+A15&country=us", brand: "ASUS", category: "Gaming Laptops" },
     ],
     showRelatedCategory: true,
   },

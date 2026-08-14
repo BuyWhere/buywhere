@@ -171,7 +171,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const apiProduct = await getProduct(productId);
-  const fallbackProduct = apiProduct ? null : getSeoLandingFallbackProduct(region, productId, merchantSlug);
+  // BUY-69736: getSeoLandingFallbackProduct is now async (image repair probe).
+  const fallbackProduct = apiProduct ? null : await getSeoLandingFallbackProduct(region, productId, merchantSlug);
   if (!apiProduct && !fallbackProduct) {
     return { title: "Product Not Found" };
   }
@@ -208,7 +209,8 @@ export default async function RegionProductDetailPage({ params }: PageProps) {
   if (!regionConfig) notFound();
 
   const apiProduct = await getProduct(productId);
-  const fallbackProduct = apiProduct ? null : getSeoLandingFallbackProduct(region, productId, merchantSlug);
+  // BUY-69736: getSeoLandingFallbackProduct is now async (image repair probe).
+  const fallbackProduct = apiProduct ? null : await getSeoLandingFallbackProduct(region, productId, merchantSlug);
   if (!apiProduct && !fallbackProduct) {
     // Unknown region-specific product id. Bounce to a search page derived from
     // the slug so the SEO landing-page card CTA still lands somewhere useful

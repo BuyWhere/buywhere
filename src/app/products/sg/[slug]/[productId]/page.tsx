@@ -101,7 +101,8 @@ function pickPrimaryCtaUrl(detail: ProductDetail | null | undefined): string | n
   return null;
 }
 
-function landingProductToDetail(product: ReturnType<typeof getSeoLandingFallbackProduct>): ProductDetail | null {
+// BUY-69736: getSeoLandingFallbackProduct is now async (image repair probe).
+function landingProductToDetail(product: Awaited<ReturnType<typeof getSeoLandingFallbackProduct>>): ProductDetail | null {
   if (!product) return null;
 
   return {
@@ -154,7 +155,7 @@ async function getProduct(
   }
 
   // Fallback to curated SEO landing page fallback products
-  return landingProductToDetail(getSeoLandingFallbackProduct("sg", productId, merchantSlug));
+  return landingProductToDetail(await getSeoLandingFallbackProduct("sg", productId, merchantSlug));
 }
 
 interface PageProps {
