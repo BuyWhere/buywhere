@@ -1022,14 +1022,14 @@ export function getSeoLandingFallbackProduct(
     for (const product of config.fallbackProducts) {
       if (product.id !== productId) continue;
 
-      const detailUrl = buildProductDetailUrl(product, config.country);
-      if (slug && detailUrl !== `/products/${region.toLowerCase()}/${slug}/${productId}`) {
-        continue;
-      }
-
+      // Match by productId and region; slug is informational only and can
+      // differ from buildLandingProductSlug(product.name) because JSON-LD
+      // Offer.url slugs are derived from upstream merchant product titles.
+      // BUY-69630: relax the strict byte-equality guard to allow PDPs to
+      // render for catalog productIds even when the URL slug is mangled.
       return {
         ...product,
-        productUrl: detailUrl,
+        productUrl: buildProductDetailUrl(product, config.country),
       };
     }
   }
