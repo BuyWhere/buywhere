@@ -443,13 +443,14 @@ async function run(options = {}) {
         freshnessScript,
         '--hour', hourISO,
         '--write',
+        '--json',
       ], {
         timeout: 30_000,
         env: process.env,
       });
       if (stdout && stdout.trim()) {
         const lines = stdout.trim().split('\n');
-        console.log('[freshness-check]', lines.slice(0, 5).join('  '));
+        console.error('[freshness-check]', lines.slice(0, 5).join('  '));
       }
       if (stderr && stderr.trim()) {
         const errLines = stderr.trim().split('\n');
