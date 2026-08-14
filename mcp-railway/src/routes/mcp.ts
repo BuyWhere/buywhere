@@ -1269,7 +1269,27 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   };
 }
 
+
+// BUY-69625: Validate country_code against each tool's supported enum.
+// A bogus code (e.g. "ZZ") silently falls through to default-market queries,
+// making it impossible to verify the filter was honoured.
+const VALID_COUNTRY_CODES: Record<string, string[]> = {
+  search_products: ['SG', 'US', 'VN', 'TH', 'MY'],
+  get_deals: ['SG', 'US', 'VN', 'TH', 'MY'],
+  list_categories: ['SG', 'US', 'VN', 'TH', 'MY', 'GB', 'IN', 'AU'],
+  find_best_price: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'],
+};
+
+function validateCountryCode(toolName: string, args: Record<string, unknown>): void {
+  const allowed = VALID_COUNTRY_CODES[toolName];
+  if (!allowed) return; // tool doesn't use country_code
+  const raw = ((args.country_code as string) || (args.country as string) || '').toUpperCase();
+  if (raw && !allowed.includes(raw)) {
+    throw { code: -32602, message: `Country code "${raw}" is not supported by ${toolName}. Supported: ${allowed.join(', ')}`, envelopeCode: 'MARKET_UNSUPPORTED' };
+  }
+}
 async function dispatchTool(name: string, args: Record<string, unknown>) {
+  validateCountryCode(name, args);
   switch (name) {
     case 'search_products':  return handleSearchProducts(args);
     case 'get_product':      return handleGetProduct(args);
@@ -1286,14 +1306,16 @@ async function dispatchTool(name: string, args: Record<string, unknown>) {
 
 // JSON-RPC 2.0 response helpers
 function jsonrpcOk(id: unknown, result: unknown) {
-  return { jsonrpc: '2.0', id, result };
+  const requestId = typeof id === 'string' ? id : null;
+  return { jsonrpc: '2.0', id, request_id: requestId, result };
 }
 function jsonrpcErr(id: unknown, code: number, message: string, data?: unknown, envelopeCode?: string) {
   const errorData: Record<string, unknown> = data != null ? { detail: data } : {};
   if (envelopeCode) {
     errorData.envelope = buildErrorEnvelope(envelopeCode as ErrorCodeType, message);
   }
-  return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) } };
+  const requestId = typeof id === 'string' ? id : null;
+  return { jsonrpc: '2.0', id, request_id: requestId, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) } };
 }
 
 // GET /mcp/auth/token — token endpoint descriptor (public, no auth).
@@ -1485,12 +1507,13 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
       }
     }
   } catch (err: unknown) {
-    const e = err as { code?: number; message?: string };
+    const e = err as { code?: number; message?: string; envelopeCode?: string };
     if (typeof e.code === 'number' && e.message) {
-      const envelopeCode = e.code === -32001 ? ErrorCode.NOT_FOUND
+      const envelopeCode = e.envelopeCode || (e.code === -32001 ? ErrorCode.NOT_FOUND
         : e.code === -32602 ? ErrorCode.INVALID_PARAMETER
-        : ErrorCode.INTERNAL_ERROR;
-      return res.json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
+        : ErrorCode.INTERNAL_ERROR);
+      const status = envelopeCode === ErrorCode.MARKET_UNSUPPORTED ? 400 : 200;
+      return res.status(status).json(jsonrpcErr(id, e.code, e.message, undefined, envelopeCode));
     }
     console.error('[mcp] error:', err);
     return res.json(jsonrpcErr(id, -32603, 'Internal error', undefined, ErrorCode.INTERNAL_ERROR));
