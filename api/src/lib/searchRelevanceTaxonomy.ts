@@ -61,6 +61,8 @@ export const STORAGE_QUERY_TOKENS = new Set<string>([
 // mentions "1TB SSD" stays eligible. Substring match (not word-boundary)
 // because stored categories are inconsistent ("Internal SSD", "Solid State
 // Drives", "Computer Components & Storage", …) and the spec allows substring.
+// BUY-69727 FIX: metadata->>'category' fallback for the products table (archive
+// path), where some products have NULL category but store it in the JSONB metadata column.
 const STORAGE_CATEGORY_SUBSTRINGS = [
   'storage',
   'internal ssd',
@@ -79,7 +81,7 @@ const STORAGE_CATEGORY_SUBSTRINGS = [
 // ANY is unambiguous substring containment for categories with spaces.
 const STORAGE_CATEGORY_SQL = `(lower(coalesce(sp.category,'')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
 
-const STORAGE_CATEGORY_SQL_PRODUCTS = `(lower(coalesce(category,'')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
+const STORAGE_CATEGORY_SQL_PRODUCTS = `(lower(coalesce(category, metadata->>'category', '')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
 
 function normalizeQueryTokens(q: string): Set<string> {
   return new Set(
