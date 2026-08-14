@@ -970,9 +970,6 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   }
 
   const currency = COUNTRY_CURRENCY[country] || 'SGD';
-  const rates = getCachedFxRates();
-  const toUsd = rates[currency] ?? CURRENCY_RATES[currency] ?? 1;
-
   const neg = deviceFilter.negativeTerms;
 
   const isAccessory = (r: Record<string, unknown>) => {
@@ -1000,23 +997,65 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     return false;
   };
 
-  const candidates = result.rows.filter(r => !isAccessory(r));
+  // BUY-63229: median-based outlier guard — normalize each row's price to USD by
+  // its own currency so scam listings priced in foreign currency can't slip past.
+  const rates = getCachedFxRates();
+  const rowToUsd = (r: Record<string, unknown>) => {
+    const curr = ((r.currency as string) || currency).toUpperCase();
+    const fxRate = rates[curr] ?? CURRENCY_RATES[curr] ?? 1;
+    const price = r.price != null ? Number(r.price) : 0;
+    return price * fxRate;
+  };
 
-  const data = candidates.map((r: Record<string, unknown>) => ({
-    id: r.id,
-    title: r.title,
-    price: { amount: r.price != null ? parseFloat(r.price as string) : null, currency: r.currency || currency },
-    normalized_price_usd: r.price != null ? Math.round(Number(r.price) * toUsd * 100) / 100 : null,
-    merchant: r.domain as string,
-    url: r.url as string,
-    image_url: r.image_url as string,
-    country_code: r.country_code as string,
-  }));
+  let guardApplied = false;
+  let medianUsd: number | null = null;
+  let minAllowedUsd: number | null = null;
+  let finalRows = result.rows.filter(r => !isAccessory(r));
+
+  if (finalRows.length >= 3) {
+    const sortedUsd = finalRows.map(rowToUsd).sort((a, b) => a - b);
+    const mid = Math.floor(sortedUsd.length / 2);
+    medianUsd = sortedUsd.length % 2 === 0
+      ? (sortedUsd[mid - 1] + sortedUsd[mid]) / 2
+      : sortedUsd[mid];
+    minAllowedUsd = (medianUsd as number) * 0.15;
+    const filtered = finalRows.filter(r => rowToUsd(r) >= (minAllowedUsd as number));
+    if (filtered.length > 0) {
+      finalRows = filtered;
+      guardApplied = filtered.length < result.rows.filter(r => !isAccessory(r)).length;
+      if (guardApplied) {
+        console.log(`[find_best_price] BUY-63229 outlier guard: rejected ${result.rows.filter(r => !isAccessory(r)).length - filtered.length}/${result.rows.filter(r => !isAccessory(r)).length} candidates. median_usd=${(medianUsd as number).toFixed(2)}, min_allowed_usd=${(minAllowedUsd as number).toFixed(2)}, product="${productName}", country=${country}`);
+      }
+    }
+  }
+
+  const data = finalRows.slice(0, 10).map((r: Record<string, unknown>) => {
+    const price = r.price != null ? parseFloat(r.price as string) : null;
+    const curr = ((r.currency as string) || currency).toUpperCase();
+    const fxRate = rates[curr] ?? CURRENCY_RATES[curr] ?? 1;
+    return {
+      id: r.id,
+      title: r.title,
+      price: { amount: price, currency: curr },
+      normalized_price_usd: price != null ? Math.round(price * fxRate * 100) / 100 : null,
+      merchant: r.domain as string,
+      url: r.url as string,
+      image_url: r.image_url as string,
+      country_code: r.country_code as string,
+    };
+  });
 
   return {
     best_price: data[0] ?? null,
     alternatives: data.slice(1),
-    meta: { total: data.length, country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'), response_time_ms: Date.now() - t0 },
+    meta: {
+      total: data.length,
+      guard_applied: guardApplied,
+      ...(medianUsd != null ? { median_usd: Math.round(medianUsd * 100) / 100 } : {}),
+      ...(minAllowedUsd != null ? { min_allowed_usd: Math.round(minAllowedUsd * 100) / 100 } : {}),
+      country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'),
+      response_time_ms: Date.now() - t0,
+    },
   };
 }
 
