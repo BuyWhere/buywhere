@@ -363,6 +363,124 @@ function sortProductsByRelevance(products: SearchCardProduct[], query: string = 
 }
 
 
+// BUY-67977: derive a brand from the product title when the API did not
+// supply one. The catalog ingest lane (BUY-52807 family) leaves `brand` and
+// `metadata.brand` blank for the vast majority of products, but every
+// product title begins with the brand (e.g. "JBL Everest 310…",
+// "Sony MDR-100ABN/B…", "Beats by Dr. Dre Solo3…"). Without a derived brand,
+// only the small minority of rows that happen to carry `metadata.category`
+// render any subtitle line — which broke grid-row visual alignment. We use
+// the first leading token(s) that look brand-shaped: starts with a letter,
+// is not all-digits, and is not a generic product noun ("Wireless",
+// "Headphones", "Ear", "ANC", "Pro", …).
+//
+// We deliberately keep the heuristic conservative so it never invents a brand
+// from a generic noun like "Studio" or "Premium" — when the first token is
+// ambiguous we return null and let the reserved slot render empty (PR #431's
+// `min-h-[1.25rem]` keeps row alignment either way).
+const TITLE_BRANDS_BLOCKLIST = new Set([
+  // Product categories / descriptors.
+  'wireless', 'bluetooth', 'headphones', 'headphone', 'earbuds', 'earbud',
+  'ear', 'earpiece', 'over-ear', 'on-ear', 'in-ear', 'over',
+  // Marketing / quality adjectives.
+  'new', 'premium', 'pro', 'plus', 'mini', 'max', 'ultra', 'lite',
+  'anc', 'hifi', 'hi-fi', 'stereo', 'mono', 'noise', 'cancelling',
+  'cancellation', 'portable', 'foldable', 'folding',
+  'studio', 'series', 'version', 'generation', 'gen', 'model',
+  'official', 'original', 'authentic', 'genuine', 'brand', 'newest',
+  'latest', 'best', 'top', 'quality', 'high', 'low', 'cheap', 'expensive',
+  'free', 'shipping', 'sale', 'discount', 'limited', 'edition',
+  'special', 'classic', 'deluxe', 'standard', 'edition',
+  // Connectivity / port descriptors.
+  'usb', 'usb-c', 'type-c', 'wired', 'cordless', 'rechargeable',
+  // Colors / finishes — never a real brand when it appears as a leading token.
+  'black', 'white', 'blue', 'red', 'green', 'yellow', 'pink', 'purple',
+  'orange', 'grey', 'gray', 'silver', 'gold', 'rose', 'midnight',
+  'space', 'starlight', 'graphite', 'natural', 'matte', 'glossy',
+  // Common English function / generic words that show up as leading tokens
+  // in generic, brand-less titles.
+  'the', 'a', 'an', 'and', 'or', 'for', 'with', 'to', 'from', 'in', 'on',
+  'at', 'by', 'of', 'this', 'that', 'these', 'those', 'my', 'your', 'our',
+  // Single letters (rejected here so we don't pick them up after skipping
+  // other tokens; the length check in isLikelyBrandToken also enforces this).
+  'x', 'i',
+]);
+
+function isLikelyBrandToken(token: string): boolean {
+  if (!token) return false;
+  // Strip leading/trailing punctuation EXCEPT internal periods ("Dr.", "Inc.").
+  // We deliberately keep periods so "Dr." survives into the candidate.
+  const cleaned = token.replace(/^[^A-Za-z0-9.]+|[^A-Za-z0-9.]+$/g, '');
+  if (!cleaned) return false;
+  // Must start with a letter.
+  if (!/^[A-Za-z]/.test(cleaned)) return false;
+  // Require at least 2 characters so single-letter shapes like "X" are
+  // rejected (those are usually model numbers, not brand names).
+  if (cleaned.length < 2) return false;
+  // Reject all-digit tokens (model numbers).
+  if (/^\d+$/.test(cleaned)) return false;
+  // Reject tokens that look like model numbers: contain a digit within 4 chars
+  // of the start (e.g. "W820Nb", "WH-1000XM5", "MTU02LL/A").
+  if (/^[A-Za-z]*\d/.test(cleaned) && cleaned.length <= 12) return false;
+  // Reject generic product nouns.
+  if (TITLE_BRANDS_BLOCKLIST.has(cleaned.toLowerCase())) return false;
+  // Reject function words.
+  if (/^(by|for|of|and|with|to|from|the|a|an)$/i.test(cleaned)) return false;
+  return true;
+}
+
+// BUY-67977: Multi-word brand extraction for titles like
+// "Beats by Dr. Dre Solo3 Wireless Headphones" → "Beats by Dr. Dre"
+// "Audio-Technica ATH-CKS50TW2 Wireless Headphones" → "Audio-Technica"
+// "JBL Everest 310 On-Ear Wireless Headphones" → "JBL"
+//
+// Rules:
+//   - Take the first leading token that passes isLikelyBrandToken.
+//   - If the next token is "by" and the token after is a brand-shaped
+//     capitalized word, keep "First by Brand" up to two more title-cased
+//     tokens (matches "Beats by Dr. Dre" exactly).
+//   - Otherwise the brand is just the first token.
+function deriveBrandFromTitle(title: string | null | undefined): string | null {
+  if (!title || typeof title !== 'string') return null;
+  const tokens = title.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return null;
+
+  // Strip surrounding punctuation but PRESERVE internal periods so
+  // "Dr." survives into the candidate string ("Beats by Dr. Dre").
+  const clean = (s: string): string => s.replace(/^[^A-Za-z0-9.]+|[^A-Za-z0-9.]+$/g, '');
+
+  // Find the first brand-shaped token.
+  let idx = 0;
+  while (idx < tokens.length && !isLikelyBrandToken(clean(tokens[idx]))) {
+    idx += 1;
+  }
+  if (idx >= tokens.length) return null;
+
+  // Handle "First by Brand Name" pattern (e.g. "Beats by Dr. Dre").
+  // We only extend when the next token is exactly "by" (case-insensitive) and
+  // the token after that is also brand-shaped — caps to 3 total tokens so we
+  // never span onto a model number or product noun.
+  let endIdx = idx + 1;
+  const next = clean(tokens[idx + 1] ?? '').toLowerCase().replace(/\.$/, '');
+  if (next === 'by' && tokens[idx + 2] && isLikelyBrandToken(clean(tokens[idx + 2]))) {
+    const afterBy2 = clean(tokens[idx + 3] ?? '');
+    endIdx = idx + 3; // include "by Brand"
+    // Optional fourth token if also brand-shaped (e.g. "Beats by Dr. Dre").
+    if (
+      afterBy2 &&
+      isLikelyBrandToken(afterBy2) &&
+      // Don't extend if the fourth token would cross into a model-number zone.
+      !/\d/.test(afterBy2)
+    ) {
+      endIdx = idx + 4;
+    }
+  }
+
+  const candidate = tokens.slice(idx, endIdx).map(clean).filter(Boolean).join(' ');
+  if (!candidate || candidate.length > 32) return null;
+  return candidate;
+}
+
 function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): SearchCardProduct {
   const priceValue =
     item.price && typeof item.price === 'object' && 'amount' in item.price
@@ -401,13 +519,18 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
     imageUrl,
     href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.buy_url || item.url || '#',
-    brand: item.brand || specBrand,
+    // BUY-67977: derive brand from the title when the API does not provide
+    // one, so the meta slot renders a consistent brand line across all cards
+    // in a grid row (rather than only the rare rows where the ingest lane
+    // populated `metadata.brand`).
+    brand: item.brand || specBrand || deriveBrandFromTitle(name),
     category,
   };
 }
 
 // BUY-65559: exported for the price-sanity regression test.
 // BUY-68365: also exported for the category-mismatch regression test.
+// BUY-67977: also exported for the brand-derivation regression test.
 export const __test__ = {
   isPlausiblePrice,
   formatPrice,
@@ -416,6 +539,7 @@ export const __test__ = {
   sortProductsByRelevance,
   isAccessoryProduct,
   isCategoryMismatchedForDeviceQuery,
+  deriveBrandFromTitle,
   HIGH_VALUE_MIN_PRICE,
   MAX_PLAUSIBLE_PRICE,
 };
