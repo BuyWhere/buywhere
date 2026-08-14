@@ -37,7 +37,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v8-storage-excl'; // BUY-69727: bust stale storage-leak search cache entries
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v9-phone-device-boost'; // BUY-69753: bust stale phone-accessory ranking cache entries
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -268,9 +268,14 @@ async function tryTierSearch(
     WITH pcand AS (
       SELECT sp.id FROM search_products sp
       WHERE (
-        lower(coalesce(sp.category,'')) ~* '\\m(smartphone|cell phone|mobile phone|phone)\\M'
+        lower(coalesce(sp.category,'')) ~* '\\m(smartphone|smartphones|cell phone|cell phones|mobile phone|mobile phones)\\M'
         OR lower(sp.title) ~* '\\m(iphone|galaxy s|galaxy a|galaxy z|pixel [0-9]|moto g|moto e|oneplus|redmi|realme|infinix|oppo|vivo|xperia|smartphone|android phone|nokia)\\M'
+      )
+      AND NOT (
+        lower(sp.title) ~* '\\m(holder|stand|mount|case|cover|protector|pouch|lanyard|strap|cable|charger|armband|tripod|wallet|adapter|kit|kits)\\M'
+        OR lower(coalesce(sp.category,'')) ~* '\\m(accessory|accessories|case|cases|cover|covers)\\M'
       )${filterSql}${storageExcl}
+      ORDER BY sp.id DESC
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
@@ -293,11 +298,10 @@ async function tryTierSearch(
     // tier for precisely the head terms (laptop/macbook/dyson/airpods/ps5) and
     // eating 4s of the 10s handler budget before the archive even starts. FTS
     // first (idx_sp_fts); the title-prefix scan stays below as a 0-result fallback.
-    let rows = (await client.query(mkQuery(andMatch), params)).rows;
-    if (rows.length === 0 && isGenericPhoneQuery) {
-      rows = (await client.query(phoneCategoryFallbackQuery, params)).rows;
-    }
-    if (rows.length === 0 && lexemes.length === 1) {
+    let rows = isGenericPhoneQuery
+      ? (await client.query(phoneCategoryFallbackQuery, params)).rows
+      : (await client.query(mkQuery(andMatch), params)).rows;
+    if (rows.length === 0 && !isGenericPhoneQuery && lexemes.length === 1) {
       rows = (await client.query(titleFallbackQuery, params)).rows;
     }
     if (rows.length === 0) {
