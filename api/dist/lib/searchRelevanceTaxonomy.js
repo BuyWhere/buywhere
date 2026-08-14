@@ -71,6 +71,8 @@ exports.STORAGE_QUERY_TOKENS = new Set([
 // unambiguous for substring containment and bypasses all regex ambiguity.
 //
 // FAIL-OPEN contract: NULL/empty category never matches → product is kept.
+// BUY-69727 FIX: added metadata->>'category' fallback for the products table (archive
+// path), where some products have NULL category but store it in the JSONB metadata column.
 const STORAGE_CATEGORY_SUBSTRINGS = [
     'storage',
     'internal ssd',
@@ -85,7 +87,7 @@ const STORAGE_CATEGORY_SUBSTRINGS = [
 ];
 // ILIKE ANY — unambiguous, no regex parsing issues with spaces.
 const STORAGE_CATEGORY_SQL = `(lower(coalesce(sp.category,'')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
-const STORAGE_CATEGORY_SQL_PRODUCTS = `(lower(coalesce(category,'')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
+const STORAGE_CATEGORY_SQL_PRODUCTS = `(lower(coalesce(category, metadata->>'category', '')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
 function normalizeQueryTokens(q) {
     return new Set(q
         .toLowerCase()

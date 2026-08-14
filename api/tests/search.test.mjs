@@ -819,7 +819,7 @@ describe('NL search — Redis caching behavior', () => {
         && c.arguments[0].includes(':keyfmt:')
     );
     assert.ok(cacheGetCalls.length >= 1);
-    assert.ok(cacheGetCalls[0].arguments[0].startsWith('fts:deliver-to-v6:keyfmt:'));
+    assert.ok(cacheGetCalls[0].arguments[0].startsWith('fts:deliver-to-v8-storage-excl:keyfmt:'));
   });
 });
 
@@ -846,7 +846,7 @@ describe('BUY-69621 device-vs-storage exclusion (BUY-69616)', () => {
   // The storage-category exclusion fragment, matching both the `sp.` (tier) and
   // `products` (archive) alias forms. After BUY-69727 the SQL uses ILIKE ANY
   // (replaced ~* POSIX regex to eliminate live-leak ambiguity with spaces).
-  const STORAGE_EXCL_RE = /NOT\s*\(lower\(coalesce\((?:sp\.category|category),''\)\)\s+ILIKE\s+ANY/i;
+  const STORAGE_EXCL_RE = /NOT\s*\(lower\(coalesce\((?:sp\.category|category(?:,\s*metadata->>'category')?),\s*''\)\)\s+ILIKE\s+ANY/i;
 
   const deviceQueries = [
     'gaming laptop', 'laptop', 'macbook', 'gaming pc', 'desktop computer',
@@ -937,7 +937,7 @@ describe('BUY-69727 storage-exclusion seeded regression', () => {
   let port;
 
   // Matches the ILIKE ANY fragment in the SQL (from searchRelevanceTaxonomy.ts)
-  const STORAGE_EXCL_RE = /NOT\s*\(lower\(coalesce\((?:sp\.category|category),''\)\)\s+ILIKE\s+ANY/i;
+  const STORAGE_EXCL_RE = /NOT\s*\(lower\(coalesce\((?:sp\.category|category(?:,\s*metadata->>'category')?),\s*''\)\)\s+ILIKE\s+ANY/i;
 
   before(async () => {
     const express = require('express');
