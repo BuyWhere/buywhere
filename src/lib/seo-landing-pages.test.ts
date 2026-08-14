@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
+  buildSeoLandingMetadata,
   compareLandingCardOrder,
   findFloorPriceProductId,
   getSeoLandingProducts,
@@ -682,4 +683,63 @@ test("BUY-66320 v4: ordering is a no-op when no product has a usable price", () 
     compareLandingCardOrder(a, b, ["roomba"], floorId),
   );
   assert.equal(ordered[0].id, "u1", "falls back to hero-brand promotion only");
+});
+
+// BUY-67622 v4: buildSeoLandingMetadata must thread the live catalog floor
+// price into the SEO meta tags (<title>, og:title, twitter:title,
+// og:image:alt) — so the meta tags match the visible H1 that SeoLandingPage
+// renders via resolveHeroTitle. Without products it must fall back to the
+// static config.title (graceful degradation when upstream times out).
+test("buildSeoLandingMetadata resolves hero title from live products (BUY-67622 v4)", () => {
+  const config = seoLandingPages["best-robot-vacuums-2026"];
+  assert.ok(config, "best-robot-vacuums-2026 config must exist");
+  const products: LandingProduct[] = [
+    { ...makeLandingProduct("Roborock S8 MaxV Ultra"), id: "r1", price: 1299, currency: "USD", merchant: "Amazon", imageUrl: null, href: "/x" },
+    { ...makeLandingProduct("Roomba Combo j9+"), id: "r2", price: 999, currency: "USD", merchant: "Best Buy", imageUrl: null, href: "/x" },
+    { ...makeLandingProduct("Roborock Q5 Pro+"), id: "r3", price: 560, currency: "USD", merchant: "Walmart", imageUrl: null, href: "/x" },
+  ];
+  const meta = buildSeoLandingMetadata(config, products);
+  assert.equal(
+    String(meta.title),
+    "Best Robot Vacuums 2026 from $560 — Roomba & Roborock Deals",
+    "metadata title should resolve to the live catalog floor $560, not the stale $199",
+  );
+  const ogTitle = (meta.openGraph as { title?: string } | undefined)?.title;
+  assert.equal(
+    ogTitle,
+    "Best Robot Vacuums 2026 from $560 — Roomba & Roborock Deals",
+    "og:title should mirror the resolved hero title",
+  );
+  const twitterTitle = (meta.twitter as { title?: string } | undefined)?.title;
+  assert.equal(
+    twitterTitle,
+    "Best Robot Vacuums 2026 from $560 — Roomba & Roborock Deals",
+    "twitter:title should mirror the resolved hero title",
+  );
+  const ogImageAlt = (meta.openGraph as { images?: Array<{ alt?: string }> } | undefined)?.images?.[0]?.alt;
+  assert.equal(
+    ogImageAlt,
+    "Best Robot Vacuums 2026 from $560 — Roomba & Roborock Deals",
+    "og:image:alt should mirror the resolved hero title",
+  );
+});
+
+test("buildSeoLandingMetadata falls back to static config.title when no products provided (BUY-67622 v4 graceful degradation)", () => {
+  const config = seoLandingPages["best-robot-vacuums-2026"];
+  const meta = buildSeoLandingMetadata(config);
+  assert.equal(
+    String(meta.title),
+    "Best Robot Vacuums 2026 from $199 — Roomba, Roborock",
+    "without products, metadata title must fall back to static config.title",
+  );
+});
+
+test("buildSeoLandingMetadata falls back to static config.title when live catalog is empty (BUY-67622 v4 hardens against upstream outages)", () => {
+  const config = seoLandingPages["best-robot-vacuums-2026"];
+  const meta = buildSeoLandingMetadata(config, []);
+  assert.equal(
+    String(meta.title),
+    "Best Robot Vacuums 2026 from $199 — Roomba, Roborock",
+    "empty live catalog must fall back to static config.title, not the floor-derived $560",
+  );
 });

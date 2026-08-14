@@ -1308,7 +1308,10 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   return fallback.slice(0, 8).map((fb) => withFallbackDetailUrl(fb, config.country));
 }
 
-export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata {
+export function buildSeoLandingMetadata(
+  config: SeoLandingPageConfig,
+  products?: LandingProduct[],
+): Metadata {
   const canonical = toSiteUrl(config.canonicalPath);
 
   // Build hreflang language alternates: each provided locale -> its canonical path URL.
@@ -1326,8 +1329,16 @@ export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata 
   const ogLocaleAlternate =
     config.country === "US" ? "en_SG" : "en_US";
 
+  // BUY-67622 v4: when generateMetadata threads the live products through, use
+  // the resolved hero title (the live catalog floor price) for the <title>,
+  // og:title, twitter:title, and og:image:alt — so the SEO meta tags match the
+  // visible H1 the page renders. When products are omitted (e.g. older
+  // callers, or a transient upstream outage), fall back to the static
+  // config.title for graceful degradation. (BUY-67622)
+  const seoTitle = products ? resolveHeroTitle(config, products) : config.title;
+
   return {
-    title: config.title,
+    title: seoTitle,
     description: config.description,
     alternates: {
       canonical,
@@ -1340,7 +1351,7 @@ export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata 
       "og:locale:alternate": ogLocaleAlternate,
     },
     openGraph: {
-      title: config.title,
+      title: seoTitle,
       description: config.description,
       url: canonical,
       type: "article",
@@ -1351,13 +1362,13 @@ export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata 
           url: "/og-image.png",
           width: 1200,
           height: 630,
-          alt: config.title,
+          alt: seoTitle,
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
-      title: config.title,
+      title: seoTitle,
       description: config.description,
       images: ["/og-image.png"],
     },
