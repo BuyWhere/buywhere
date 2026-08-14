@@ -272,8 +272,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     params.push(maxPrice);
     conditions.push(`price <= $${params.length}`);
   }
-  if (market.dbRegion) {
-    params.push(market.dbRegion);
+  if (region) {
+    params.push(region);
     conditions.push(`region = $${params.length}`);
   }
   if (country) {
@@ -400,7 +400,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           if (pageIds.length === 0) {
             rows = [];
           } else {
-            const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
             const detailParams: unknown[] = [...pageIds];
             const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
             const detailConditions = [`id IN (${ph})`, 'is_active = true'];
@@ -408,8 +407,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
               detailParams.push(country.toUpperCase());
               detailConditions.push(`country_code = $${detailParams.length}`);
             }
-            if (market.dbRegion) {
-              detailParams.push(market.dbRegion);
+            if (region) {
+              detailParams.push(region);
               detailConditions.push(`region = $${detailParams.length}`);
             }
             const detailResult = await searchClient.query(
@@ -578,7 +577,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
 
-  const cacheKey = `deals_mcp:v2:${currency}:${minDiscount}:${region}:${market.dbRegion}:${effectiveCountry}:${limit}:${offset}`;
+  const cacheKey = `deals_mcp:v2:${currency}:${minDiscount}:${region}:${region}:${effectiveCountry}:${limit}:${offset}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -610,8 +609,8 @@ async function handleGetDeals(args: Record<string, unknown>) {
   }
   const params: unknown[] = [currency, minDiscount];
 
-  if (market.dbRegion) {
-    params.push(market.dbRegion);
+  if (region) {
+    params.push(region);
     conditions.push(`region = $${params.length}`);
   }
   if (effectiveCountry) {
