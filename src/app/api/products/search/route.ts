@@ -9,6 +9,23 @@ const API_BASE_URL = (
 
 const API_KEY = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || '';
 const ALLOWED_PARAMS = new Set(['q', 'country', 'country_code', 'category', 'limit', 'cursor', 'offset']);
+
+const DEVICE_QUERY_TOKENS = [
+  'laptop',
+  'desktop',
+  'phone',
+  'tablet',
+  'monitor',
+  'smartwatch',
+  'earbud',
+  'headphone',
+  'console',
+  'ipad',
+];
+const STORAGE_QUERY_TOKENS = new Set(['ssd', 'hdd', 'nvme', 'storage', 'hard', 'drive']);
+const STORAGE_CATEGORY_TOKENS = ['storage', 'internal ssd', 'solid state drive', 'solid state', 'hard drive', 'nvme ssd', 'external ssd', 'internal drive', 'usb drive', 'memory card'];
+const PHONE_ACCESSORY_CATEGORY_TOKENS = ['accessory', 'accessories', 'case', 'cover', 'protector', 'charger', 'cable', 'adapter', 'battery', 'mount', 'holder', 'stand', 'skin'];
+
 const ACCESSORY_KEYWORDS = [
   'adapter',
   'adhesive',
@@ -462,14 +479,80 @@ function deduplicateItems(items: Record<string, unknown>[]) {
   });
 }
 
+// BUY-69727: Mirrors isDeviceQuery / isStorageQuery from api/src/lib/searchRelevanceTaxonomy.ts.
+// Detects device-typed queries (laptop/desktop/phone/tablet/...) regardless of which
+// word carries the device token. Storage tokens (ssd/hdd/nvme/...) act as the positive
+// control so e.g. `laptop ssd` correctly stays as a storage-positive query.
+function classifyDeviceQuery(query: string): { isDevice: boolean; isStorage: boolean; wordCount: number } {
+  const words = normalizeText(query).split(/\s+/).filter(Boolean);
+  const wordCount = words.length;
+  let isDevice = false;
+  let isStorage = false;
+  for (const w of words) {
+    // Stem-tolerant startsWith: laptops -> laptop, earbuds -> earbud, monitors -> monitor
+    for (const fam of DEVICE_QUERY_TOKENS) {
+      if (w.length >= fam.length && w.startsWith(fam)) {
+        isDevice = true;
+        break;
+      }
+    }
+    if (STORAGE_QUERY_TOKENS.has(w)) isStorage = true;
+  }
+  // Cap so multi-word phrasing like "asus rog gaming laptop 16gb" doesn't
+  // accidentally trigger storage/exclusion logic when the device is incidental.
+  if (wordCount > 4) isDevice = false;
+  return { isDevice, isStorage, wordCount };
+}
+
+function itemCategoryLower(item: Record<string, unknown>): string {
+  const metadata = item.metadata as Record<string, unknown> | null | undefined;
+  const metaCat = typeof metadata?.category === 'string' ? metadata.category.toLowerCase() : '';
+  if (metaCat) return metaCat;
+  return typeof item.category === 'string' ? item.category.toLowerCase() : '';
+}
+
+function isStorageCategoryItem(item: Record<string, unknown>): boolean {
+  const cat = itemCategoryLower(item);
+  if (!cat) return false;
+  return STORAGE_CATEGORY_TOKENS.some((tok) => cat.includes(tok));
+}
+
+function isPhoneAccessoryCategoryItem(item: Record<string, unknown>): boolean {
+  const cat = itemCategoryLower(item);
+  if (!cat) return false;
+  return PHONE_ACCESSORY_CATEGORY_TOKENS.some((tok) => cat.includes(tok));
+}
+
 function rankAndClassifyItems(items: Record<string, unknown>[], query: string) {
   const queryWords = coreQueryWords(query);
-  const dedupedItems = deduplicateItems(items);
+  const { isDevice, isStorage } = classifyDeviceQuery(query);
+  let dedupedItems = deduplicateItems(items);
+
+  // BUY-69727: Device-query gate. If this is a device query that is NOT also a
+  // storage query, demote storage-category rows out of the top-N result. Defense-
+  // in-depth: upstream SQL should already filter them, but live tests showed
+  // Firecuda-style leaks survive (e.g. NULL category on tier vs populated on
+  // archive, or pagination that bypasses the tier FTS path).
+  if (isDevice && !isStorage) {
+    const primary: Record<string, unknown>[] = [];
+    const demoted: Record<string, unknown>[] = [];
+    for (const item of dedupedItems) {
+      if (isStorageCategoryItem(item)) demoted.push(item);
+      else primary.push(item);
+    }
+    dedupedItems = [...primary, ...demoted];
+  }
+
   const primaryItems: Record<string, unknown>[] = [];
   const accessoryItems: Record<string, unknown>[] = [];
 
   dedupedItems.forEach((item) => {
-    const isAccessory = isAccessoryItem(item, queryWords);
+    const accessoryByTitle = isAccessoryItem(item, queryWords);
+    const accessoryByCategory =
+      isDevice && !isStorage
+        ? (query.toLowerCase().includes('phone') && isPhoneAccessoryCategoryItem(item))
+        : false;
+    const isAccessory = accessoryByTitle || accessoryByCategory;
     const classifiedItem = { ...item, isAccessory, product_type: isAccessory ? 'accessory' : item.product_type };
     if (isAccessory) {
       accessoryItems.push(classifiedItem);

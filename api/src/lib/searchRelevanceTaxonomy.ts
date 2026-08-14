@@ -61,6 +61,14 @@ export const STORAGE_QUERY_TOKENS = new Set<string>([
 // mentions "1TB SSD" stays eligible. Substring match (not word-boundary)
 // because stored categories are inconsistent ("Internal SSD", "Solid State
 // Drives", "Computer Components & Storage", …) and the spec allows substring.
+//
+// BUY-69727 FIX: Switched from ~* POSIX-regex to ILIKE ANY after confirmed
+// live leak: Firecuda 520 SSD (cat="Storage") ranked #2 for "gaming laptop".
+// Root cause: ~* with space-containing ERE alternations ('storage|internal ssd|…')
+// can silently under-match on live catalog data. ILIKE ANY(ARRAY[...]) is
+// unambiguous for substring containment and bypasses all regex ambiguity.
+//
+// FAIL-OPEN contract: NULL/empty category never matches → product is kept.
 const STORAGE_CATEGORY_SUBSTRINGS = [
   'storage',
   'internal ssd',
@@ -74,15 +82,10 @@ const STORAGE_CATEGORY_SUBSTRINGS = [
   'memory card',
 ];
 
-// Pre-built SQL regex alternation for the category column. Matches if the
-// lowercased category contains any storage substring. NULL/empty categories
-// never match → fail-open (the product is kept), per spec.
-// BUGFIX BUY-69672: PostgreSQL ~* takes a SINGLE regex string literal, NOT
-// SQL string literals joined by |. The old code generated invalid SQL like
-// ('storage'|'internal ssd'|...) which caused HTTP 500 on device queries.
-const STORAGE_CATEGORY_SQL = `(coalesce(sp.category,'') ~* '${STORAGE_CATEGORY_SUBSTRINGS.join('|')}')`;
+// ILIKE ANY — unambiguous, no regex parsing issues with spaces.
+const STORAGE_CATEGORY_SQL = `(lower(coalesce(sp.category,'')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
 
-const STORAGE_CATEGORY_SQL_PRODUCTS = `(coalesce(category,'') ~* '${STORAGE_CATEGORY_SUBSTRINGS.join('|')}')`;
+const STORAGE_CATEGORY_SQL_PRODUCTS = `(lower(coalesce(category,'')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
 
 function normalizeQueryTokens(q: string): Set<string> {
   return new Set(
