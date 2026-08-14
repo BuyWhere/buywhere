@@ -199,18 +199,29 @@ async function tryTierSearch(
         OR array_to_string(sp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
       THEN 0 ELSE 1
     END`;
+  // BUY-67275 (#37, 2026-08-14): bound the fallback candidates BEFORE ordering —
+  // the orderPrefix/penalty ORDER BY otherwise enumerates every LIKE match
+  // (same full-sort anti-pattern as mkQuery pre-cand and the archive path).
   const titleFallbackQuery = `
+    WITH tcand AS (
+      SELECT sp.id FROM search_products sp
+      WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}
+      LIMIT 1000
+    )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM search_products sp
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    WHERE lower(sp.title) LIKE lower($${qIdx} || '%')${filterSql}
     ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const tokenTitleFallbackQuery = `
+    WITH tcand AS (
+      SELECT sp.id FROM search_products sp
+      WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}
+      LIMIT 1000
+    )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM search_products sp
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    WHERE lower(sp.title) LIKE lower('%' || $${qIdx} || '%')${filterSql}
     ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
 
