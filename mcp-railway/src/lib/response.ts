@@ -107,6 +107,7 @@ export function buildSearchResponse(
   offset: number,
   responseTimeMs: number,
   cached: boolean,
+  hasMore?: boolean,
 ): SearchResponse {
   return {
     results: products,
@@ -114,5 +115,6 @@ export function buildSearchResponse(
     page: { limit, offset },
     response_time_ms: responseTimeMs,
     cached,
+    ...(hasMore != null && { has_more: hasMore }),
   };
 }

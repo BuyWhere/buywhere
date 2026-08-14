@@ -45,4 +45,6 @@ export interface SearchResponse {
   page: { limit: number; offset: number };
   response_time_ms: number;
   cached: boolean;
+  // BUY-67275: see api tree — hasMore was previously fed into `cached`.
+  has_more?: boolean;
 }

@@ -137,6 +137,7 @@ export function buildSearchResponse(
   responseTimeMs: number,
   cached: boolean,
   degraded?: boolean,
+  hasMore?: boolean,
 ): SearchResponse {
   return {
     data: products,
@@ -147,6 +148,7 @@ export function buildSearchResponse(
       response_time_ms: responseTimeMs,
       cached,
       ...(degraded != null && { degraded }),
+      ...(hasMore != null && { has_more: hasMore }),
     },
   };
 }

@@ -711,7 +711,7 @@ router.get(
     }
 
     const responseBody = buildSearchResponse(
-      filteredProducts, total, limit, offset, responseTimeMs, hasMore ?? false
+      filteredProducts, total, limit, offset, responseTimeMs, false, hasMore ?? false
     );
 
     // Cache result in Redis (fire-and-forget)
@@ -1654,7 +1654,7 @@ export async function warmSearchCache(): Promise<void> {
       const total = result.rows.length + (hasMore ? 1 : 0);
 
       const products = result.rows.map((row) => buildProduct(row as Record<string, unknown>, currency, false));
-      const responseBody = buildSearchResponse(products, total, limit, offset, 0, hasMore);
+      const responseBody = buildSearchResponse(products, total, limit, offset, 0, false, hasMore);
 
       await redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS);
       warmed++;

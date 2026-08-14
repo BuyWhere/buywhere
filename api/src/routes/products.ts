@@ -931,7 +931,7 @@ router.get(
         buildProduct(row as Record<string, unknown>, currency, compact)
       );
       const responseBody = buildSearchResponse(
-        fallbackProducts, total, limit, offset, responseTimeMs, hasMore
+        fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore
       );
       annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
       redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => {});
@@ -1419,7 +1419,7 @@ router.get(
     }
 
     const responseBody = buildSearchResponse(
-      filteredProducts, total, limit, offset, responseTimeMs, hasMore ?? false
+      filteredProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore ?? false
     );
     annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
 
@@ -2487,7 +2487,7 @@ export async function warmSearchCache(): Promise<void> {
       const total = result.rows.length + (hasMore ? 1 : 0);
 
       const products = result.rows.map((row) => buildProduct(row as Record<string, unknown>, currency, false));
-      const responseBody = buildSearchResponse(products, total, limit, offset, 0, hasMore);
+      const responseBody = buildSearchResponse(products, total, limit, offset, 0, false, undefined, hasMore);
 
       await redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS);
       warmed++;

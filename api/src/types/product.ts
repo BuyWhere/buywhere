@@ -52,6 +52,9 @@ export interface SearchMeta {
   cached: boolean;
   // BUY-60309: degraded flag when deals query timed out or was cancelled
   degraded?: boolean;
+  // BUY-67275: true when more pages exist. Previously hasMore was (incorrectly)
+  // fed into `cached`, so cached lied on every multi-page response.
+  has_more?: boolean;
 }
 
 export interface SearchResponse {
