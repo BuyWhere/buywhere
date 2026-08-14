@@ -807,7 +807,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const params: unknown[] = [];
 
   params.push(productName);
-  conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
+  conditions.push(`title ILIKE '%' || $${params.length} || '%');
 
   if (country) {
     params.push(country);
