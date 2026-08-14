@@ -851,9 +851,8 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
   // BUY-69626: add a bounded title-ILIKE fallback that scans recent market-local rows
   // when FTS misses sparse/stale search_vector entries, instead of returning nothing.
-  const CANDIDATE_POOL = Math.max(limit * 50, 500);
-  params.push(CANDIDATE_POOL, limit);
-  const where = `WHERE ${conditions.join(' AND ')}`;
+  // (Deduped 2026-08-14: 921c3fa re-added the CANDIDATE_POOL/where declarations that
+  // were already defined above — a TS2451 redeclare error that broke every deploy.)
   const bestPriceClient = await acquireMcpClient();
   let result: { rows: Record<string, unknown>[] };
   try {
