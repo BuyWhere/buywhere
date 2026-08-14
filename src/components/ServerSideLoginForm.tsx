@@ -43,9 +43,10 @@ export default function ServerSideLoginForm() {
 
   return (
     <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
-      <label className="block">
+      <label htmlFor="api-key-input" className="block">
         <span className="text-sm font-medium text-slate-700 dark:text-slate-200">API key</span>
         <input
+          id="api-key-input"
           type="password"
           autoComplete="off"
           spellCheck={false}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import CheckoutSuccessClient from "@/components/CheckoutSuccessClient";
@@ -28,7 +29,9 @@ export default function CheckoutSuccessPage() {
               No Stripe session ID was present in the URL. You can still open the dashboard to verify your current plan.
             </div>
 
-            <CheckoutSuccessClient />
+            <Suspense fallback={null}>
+              <CheckoutSuccessClient />
+            </Suspense>
           </div>
         </div>
       </section>
