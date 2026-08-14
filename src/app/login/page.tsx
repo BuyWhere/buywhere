@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import ServerSideLoginForm from "@/components/ServerSideLoginForm";
+import LoginFeedback from "@/components/LoginFeedback";
 
 export const metadata: Metadata = {
-  robots: { index: false, follow: false },
+  robots: { index: false, follow: true },
 };
 
 export default function LoginPage() {
@@ -24,6 +26,11 @@ export default function LoginPage() {
               <p className="mt-3 max-w-xl text-sm leading-7 text-slate-600 dark:text-slate-300">
                 Paste an existing BuyWhere API key to open `/dashboard`, manage rotation, and inspect current usage without emailing support.
               </p>
+
+              {/* No-JS form-POST feedback (?signin=ok | ?error=invalid_key) */}
+              <Suspense fallback={null}>
+                <LoginFeedback />
+              </Suspense>
 
               {/* Server-rendered login form */}
               <ServerSideLoginForm />

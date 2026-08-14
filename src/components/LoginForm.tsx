@@ -58,9 +58,11 @@ export default function LoginForm({ nextPath = "/dashboard" }: LoginFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="mt-8 space-y-4">
-      <label className="block">
+      <label htmlFor="login-api-key" className="block">
         <span className="text-sm font-medium text-slate-700 dark:text-slate-200">API key</span>
         <input
+          id="login-api-key"
+          name="apiKey"
           type="password"
           autoComplete="off"
           spellCheck={false}
