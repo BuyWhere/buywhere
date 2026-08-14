@@ -12,7 +12,7 @@ import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/resp
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { shipScopeForUrl } from '../lib/shipsTo';
-import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts } from '../lib/searchRelevanceTaxonomy';
+import { deviceStorageExclusionFragment, deviceStorageExclusionFragmentProducts, STORAGE_CATEGORY_SQL_TIER_JOIN, tierStorageExclusionNeeded } from '../lib/searchRelevanceTaxonomy';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
 import { embedQuery } from '../jobs/embedProducts';
 
@@ -126,6 +126,15 @@ async function tryTierSearch(
   // queries (`ssd`, `nvme`) and non-device queries. Uses `sp.` alias (tier
   // path reads from search_products sp). See lib/searchRelevanceTaxonomy.
   const storageExcl = deviceStorageExclusionFragment(p.q);
+  // BUY-69727: search_products.category can be mis-tagged at ingest (newegg_us
+  // writes 'home-living' for electronics) while products.metadata carries the
+  // true category. The cand-CTE exclusion above cannot see metadata; this
+  // post-rank join filter runs over the bounded top set (≤200 rows) only, so
+  // the PK join to products is cheap. It fires for the same query set as
+  // storageExcl (both derive from the same device/storage gates).
+  const storageJoinFilter = tierStorageExclusionNeeded(p.q)
+    ? ` JOIN products m ON m.id = sp.id AND NOT ${STORAGE_CATEGORY_SQL_TIER_JOIN}`
+    : '';
 
   const conds: string[] = [];
   const params: unknown[] = [];
@@ -189,7 +198,7 @@ async function tryTierSearch(
       FROM cand ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
-    FROM top JOIN search_products sp ON sp.id = top.id
+    FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}top.rank DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -215,7 +224,7 @@ async function tryTierSearch(
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -226,7 +235,7 @@ async function tryTierSearch(
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}(${laptopAccessoryPenaltyTitle}) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
