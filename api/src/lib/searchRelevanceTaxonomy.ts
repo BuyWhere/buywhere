@@ -81,7 +81,25 @@ const STORAGE_CATEGORY_SUBSTRINGS = [
 // ANY is unambiguous substring containment for categories with spaces.
 const STORAGE_CATEGORY_SQL = `(lower(coalesce(sp.category,'')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
 
-const STORAGE_CATEGORY_SQL_PRODUCTS = `(lower(coalesce(category, metadata->>'category', '')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
+// BUY-69727 live-probe: on the products (archive) table the newegg_us feed
+// mis-tags `category` as 'home-living'/'groceries' while the JSONB
+// metadata->>'category' carries the true value ('Storage'/'Laptops'). The
+// metadata value is the feed-sourced ground truth, so it takes precedence —
+// coalesce(metadata first), falling back to the column only when absent.
+const STORAGE_CATEGORY_SQL_PRODUCTS = `(lower(coalesce(metadata->>'category', category, '')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
+
+// BUY-69727 tier-path helper: search_products has no metadata column, so the
+// category-only exclusion cannot see the true category of mis-tagged rows
+// (Firecuda: sp.category='home-living'). Callers join `products m ON
+// m.id = <sp-alias>.id` over the BOUNDED candidate set (≤200 ranked rows) and
+// apply this predicate as a post-join filter — a PK join at that scale is
+// cheap, unlike a join inside the 115M-row candidate WHERE clause.
+export const STORAGE_CATEGORY_SQL_TIER_JOIN = `(lower(coalesce(m.metadata->>'category', sp.category, '')) ILIKE ANY(ARRAY[${STORAGE_CATEGORY_SUBSTRINGS.map(s => `'%${s}%'`).join(',')}]::text[]))`;
+
+/** True when the tier path needs the metadata join filter for this query. */
+export function tierStorageExclusionNeeded(q: string): boolean {
+  return deviceStorageExclusionFragment(q) !== '';
+}
 
 function normalizeQueryTokens(q: string): Set<string> {
   return new Set(
