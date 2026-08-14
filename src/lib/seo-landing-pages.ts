@@ -160,6 +160,18 @@ export type SeoLandingPageConfig = {
    * `requiredProductTerms` filter. BUY-67622.
    */
   requiredGpuTokens?: string[];
+  /**
+   * BUY-67622 (v3): hero-promised brands that MUST rank above the broader
+   * `requiredProductTerms` set. E.g. the /best-robot-vacuums-2026 hero
+   * specifically names "Roomba & Roborock", but `requiredProductTerms` may
+   * legitimately include Shark / Eufy too (comparisonRows mention them).
+   * Without this sort, a Shark card can land at position 1 on a page whose
+   * hero promises Roomba/Roborock — which was exactly the QA reopen at
+   * 2026-08-14T02:15Z. Products matching any term here are promoted to
+   * the top of the live card set; products matching ONLY the broader
+   * requiredProductTerms stay eligible but rank behind them.
+   */
+  heroFeaturedBrands?: string[];
   /** Upstream category filter used to constrain broad catalog searches */
   searchCategory?: string;
   /** Strictly reject product parts and accessories from live catalog cards */
@@ -807,6 +819,27 @@ function productMatchesGpuTokens(product: LandingProduct, gpuTokens?: string[]):
   return gpuTokens.some((token) => haystack.includes(token.toLowerCase()));
 }
 
+// BUY-67622 (v3): promote hero-named brands (e.g. "Roomba", "Roborock") to the
+// top of the live card set so the FIRST visible card matches the hero copy.
+// Used as a stable comparator — products matching a heroFeaturedBrands term
+// always rank above products that only matched the broader requiredProductTerms
+// set (e.g. Shark/Eufy on the robot page). Items matching neither (i.e. that
+// don't pass productMatchesRequiredTerms at all) never reach this point.
+function compareHeroFeatured(
+  a: LandingProduct,
+  b: LandingProduct,
+  heroFeaturedBrands?: string[],
+): number {
+  if (!heroFeaturedBrands || heroFeaturedBrands.length === 0) return 0;
+  const aHaystack = [a.name, a.brand, a.category].filter(Boolean).join(" ").toLowerCase();
+  const bHaystack = [b.name, b.brand, b.category].filter(Boolean).join(" ").toLowerCase();
+  const aFeatured = heroFeaturedBrands.some((t) => aHaystack.includes(t.toLowerCase()));
+  const bFeatured = heroFeaturedBrands.some((t) => bHaystack.includes(t.toLowerCase()));
+  if (aFeatured && !bFeatured) return -1;
+  if (bFeatured && !aFeatured) return 1;
+  return 0;
+}
+
 const PRODUCT_ACCESSORY_RE =
   /\b(?:accessor(?:y|ies)(?:\s+(?:package|kit|set))?|fabric cleaner|replacement\s+(?:battery|batteries|brush(?:es)?|dust bags?|filter(?:s)?|kit|mop pads?|motor|nozzles?|parts?|roller(?:s)?|side brush(?:es)?|water tanks?)|vacuum\s+(?:accessor(?:y|ies)|parts?|supply|supplies)|(?:\d+[- ]?pack|pack of \d+)\s+(?:replacement\s+)?(?:brush(?:es)?|dust bags?|filter(?:s)?|mop pads?|roller(?:s)?|side brush(?:es)?)|(?:brush(?:es)?|dust bags?|filter(?:s)?|mop pads?|roller(?:s)?|side brush(?:es)?)\s+(?:kit|set)\s+(?:for|compatible with))\b/i;
 const NON_FLOOR_ROBOT_VACUUM_RE = /\b(?:cordless|handheld|pool|stick|upright)\b/i;
@@ -1170,7 +1203,13 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   const verifiedProducts = verified;
 
   if (verifiedProducts.length >= 4) {
-    return verifiedProducts.slice(0, 8).map((p) => withLiveProductDetailUrl(p, config.country));
+    // BUY-67622 (v3): stable-sort so hero-promised brands lead. Without this,
+    // a Shark card can land at position 1 on a page whose hero promises
+    // "Roomba & Roborock Deals".
+    const featured = [...verifiedProducts].sort((a, b) =>
+      compareHeroFeatured(a, b, config.heroFeaturedBrands),
+    );
+    return featured.slice(0, 8).map((p) => withLiveProductDetailUrl(p, config.country));
   }
 
   // If we got some (but fewer than 4) real products, top up with fallbacks so
@@ -1184,12 +1223,22 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
         topUp.push(withFallbackDetailUrl(fb, config.country));
       }
     }
-    return topUp.slice(0, 8).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
+    // BUY-67622 (v3): keep hero-promised brands at the front of the partial top-up too.
+    const featuredTopUp = [...topUp].sort((a, b) =>
+      compareHeroFeatured(a, b, config.heroFeaturedBrands),
+    );
+    return featuredTopUp.slice(0, 8).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
   }
 
   // No real products from any query — show curated fallback products (with real
   // names, prices, merchants, and deep-link search hrefs) rather than an empty
   // page. These are honest editorial picks, not empty skeleton cards.
+  // BUY-67622 (v3): when falling back entirely, still promote heroFeaturedBrands
+  // matches so the page top still reflects the hero promise.
+  if (config.heroFeaturedBrands && config.heroFeaturedBrands.length > 0 && fallback.length > 1) {
+    const featuredFallback = [...fallback].sort((a, b) => compareHeroFeatured(a, b, config.heroFeaturedBrands));
+    return featuredFallback.slice(0, 8).map((fb) => withFallbackDetailUrl(fb, config.country));
+  }
   return fallback.slice(0, 8).map((fb) => withFallbackDetailUrl(fb, config.country));
 }
 
@@ -1891,6 +1940,13 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       "shark",
       "best buy", "walmart", "amazon", "costco",
     ],
+    // BUY-67622 v3: hero specifically promises "Roomba & Roborock Deals"
+    // (Roomba/Roborock/iRobot literally named in heroTitle). QA at 2026-08-14T02:15Z
+    // reopened because the v2 allowed Shark/Eufy/Ecovacs to land at position 1.
+    // Promote Roomba/iRobot/Roborock to the top of the live card set so the
+    // hero promise matches what shoppers see first. Shark/Eufy stay eligible
+    // and rank behind the hero-named products.
+    heroFeaturedBrands: ["roomba", "irobot", "roborock"],
     hreflangAlternates: { "en-SG": "/best-robot-vacuums-singapore" },
     productSectionTitle: "Live robot vacuum deals across the US",
     comparisonSectionTitle: "Top robot vacuum & Roomba picks at a glance",
