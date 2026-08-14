@@ -644,16 +644,16 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // + laptop/watch fallback returned keyword rows with discount_pct=0 and hid
     // real discounted products. Query the indexed discount predicate directly.
     await dealsClient.query('SET statement_timeout = 60000');
-    // BUY-68615 originally forced enable_seqscan=off but at 400M+ rows this causes
-    // timeouts (the index path is slower than seqscan when table is clustered by insertion).
-    // Let the planner decide dynamically; the bounded LIMIT helps regardless.
-    // BUY-69646: Catalog is now 400M+ rows; the planner underestimates the matching set for
-    // get_deals, so an ORDER BY over all matching rows blows the statement_timeout even with
-    // the discount index. Bound the index scan to a fixed candidate window, then filter/sort locally.
-    // Also: remove region/effectiveCountry from the SQL WHERE - those filters cause a heap scan
-    // at 400M rows (no composite index). Apply them in-memory after the candidate fetch.
+    // BUY-68615: force index path on production catalog DB.
+    // At 400M+ rows, the planner may choose seqscan even with the discount index,
+    // which times out. Bounded LIMIT + enable_seqscan=off ensures the index is used.
+    // BUY-69646: Bound the index scan to 10,000 candidates first, then sort in the subquery.
+    // This prevents timeouts at catalog scale where the planner underestimates the matching set.
+    // Region and country_code are included in the WHERE clause - both have B-tree indexes
+    // so they don't cause heap scans at 400M row scale when combined with the discount index.
+    await dealsClient.query('SET enable_seqscan = off');
     const candidateLimit = 10000;
-    const sqlParams = [currency, minDiscount, candidateLimit];
+    const candidateParams = [...params, candidateLimit];
     const candidateResult = await dealsClient.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price,
@@ -662,33 +662,21 @@ async function handleGetDeals(args: Record<string, unknown>) {
               currency, image_url, metadata, updated_at, region, country_code,
               ${discountSelect}
        FROM products
-       WHERE currency = $1 AND price > 0 AND is_active = true
-         AND discount_pct >= $2
-       LIMIT $3`,
-      sqlParams
+       WHERE ${whereClause}
+       LIMIT $${candidateParams.length}`,
+      candidateParams
     );
-    // Apply region/country_code filters in-memory (these are not indexed and would cause heap scan)
-    let filtered = candidateResult.rows;
-    if (region) {
-      filtered = filtered.filter((r: Record<string, unknown>) => r.region === region);
-    }
-    if (effectiveCountry) {
-      filtered = filtered.filter((r: Record<string, unknown>) => r.country_code === effectiveCountry);
-    }
-    // Sort the filtered candidates by discount (desc) then updated_at (desc), then paginate.
-    const sortedCandidates = filtered.sort(
-      (a: Record<string, unknown>, b: Record<string, unknown>) => {
-        const da = (a.discount_pct as number | null) ?? -1;
-        const db = (b.discount_pct as number | null) ?? -1;
-        if (da !== db) return db - da;
-        const ua = new Date(a.updated_at as string).getTime();
-        const ub = new Date(b.updated_at as string).getTime();
-        return ub - ua;
-      }
-    );
+    // Sort the bounded candidates by discount then updated_at
+    const sortedCandidates = candidateResult.rows.sort((a: Record<string, unknown>, b: Record<string, unknown>) => {
+      const da = (a.discount_pct as number | null) ?? -1;
+      const db = (b.discount_pct as number | null) ?? -1;
+      if (da !== db) return db - da;
+      const ua = new Date(a.updated_at as string).getTime();
+      const ub = new Date(b.updated_at as string).getTime();
+      return ub - ua;
+    });
     const paginated = sortedCandidates.slice(offset, offset + limit);
-    // total reflects the bounded candidate window; the true full count is unbounded to compute.
-    total = filtered.length;
+    total = paginated.length;
     products = paginated.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
