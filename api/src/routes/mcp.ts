@@ -11,14 +11,18 @@ import { buildDeviceFilter } from '../lib/deviceClassifier';
 
 const router = Router();
 
-// BUY-56185: Detect statement_timeout poisoned connections.
+// BUY-56185/BUY-69684: Detect statement_timeout poisoned connections.
 // When PostgreSQL's statement_timeout fires, the query is cancelled but the
 // connection enters PQTRANS_INERROR state. Returning such a connection to the
 // pool poises every subsequent query on it with "current transaction is aborted".
-// client.state returns 'error' in this state — discard instead of reusing.
+// NOTE: client.state tracks the socket connection state ('connected','connecting')
+// and is NOT set to 'error' for transaction-level errors — we must check
+// client.transactionStatus (pg's PQTRANS_* codes) to detect aborted transactions.
 function releaseClientSafely(client: any) {
   try {
-    if (client && typeof client.state === 'string' && client.state === 'error') {
+    // PQTRANS_INERROR = 3 — transaction aborted due to statement_timeout or other error.
+    // Discard the connection so a fresh one is acquired from the pool next time.
+    if (client && client.transactionStatus === 3) {
       client.release(true); // discard — do NOT return poisoned connection to pool
     } else {
       client.release();
@@ -143,10 +147,9 @@ const TOOLS = [
     description: 'Use this whenever a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X" or "where can I buy X for the lowest price". This finds the best current price across all merchants.',
     inputSchema: {
       type: 'object',
-      required: ['product_name'],
       properties: {
+        q: { type: 'string', description: 'Keyword search query — alias for product_name' },
         product_name: { type: 'string', description: 'Product name to find best price for (e.g., "iphone 15 pro 256gb", "samsung galaxy s24")' },
-        q: { type: 'string', description: 'Alias for product_name (deprecated, use product_name).' },
         category: { type: 'string', description: 'Category to filter by (e.g., "electronics", "fashion")' },
         country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG). Alias: country.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
@@ -822,7 +825,7 @@ async function handleListCategories(args: Record<string, unknown>) {
 async function handleFindBestPrice(args: Record<string, unknown>) {
   const t0 = Date.now();
   const productName = ((args.product_name as string) || (args.q as string) || '').trim();
-  if (!productName) throw { code: -32602, message: 'product_name is required' };
+  if (!productName) throw { code: -32602, message: 'product_name (or q) is required' };
 
   const market = normalizeMcpMarket(args, 'SG');
   const country = market.country;

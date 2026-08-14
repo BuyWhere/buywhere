@@ -282,8 +282,11 @@ const TOOLS: Tool[] = [
       "Use this whenever a user asks about prices, wants to find the cheapest option, or asks \"what's the best price for X\" or \"where can I buy X for the lowest price\". This finds the best current price across all merchants.",
     inputSchema: {
       type: 'object',
-      required: ['product_name'],
       properties: {
+        q: {
+          type: 'string',
+          description: 'Keyword search query — alias for product_name',
+        },
         product_name: {
           type: 'string',
           description:
