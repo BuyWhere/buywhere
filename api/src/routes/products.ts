@@ -1180,6 +1180,15 @@ router.get(
           // Archive path is only a fallback on tier errors.
           if (andRes.rows.length > 0) return andRes;
         }
+        // BUY-67275 (#29): sorted queries skip the ranked ladders but still paid
+        // the broad OR bitmap (Postgres builds the FULL union bitmap before LIMIT
+        // can stop the heap fetch — 'cast iron skillet' SG timed out at 8s). Try
+        // strict AND candidates first (small bitmap, better relevance for an
+        // explicit sort anyway); fall back to broad OR only when AND is empty.
+        if (!useFtsRanking && ftsIsMultiWord && q) {
+          const andFirst = await client.query(baseQuery.split(ftsOrMatch).join(ftsAndMatch), dataParams);
+          if (andFirst.rows.length > 0) return andFirst;
+        }
         let r = await client.query(baseQuery, dataParams);
         if (useSgFreshnessGuardrail && r.rows.length === 0) {
           r = await client.query(baseQuery.replace(freshWhereClause, whereClause), dataParams);
