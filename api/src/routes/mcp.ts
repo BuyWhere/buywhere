@@ -641,8 +641,13 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // real discounted products. Query the indexed discount predicate directly.
     await dealsClient.query('SET statement_timeout = 60000');
     await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path on production catalog DB
-    const dataParams = [...params, limit, offset];
-    const dataResult = await dealsClient.query(
+    // BUY-69646: Catalog is now 400M+ rows; the planner underestimates the matching set for
+    // get_deals, so an ORDER BY over all matching rows blows the statement_timeout even with
+    // the discount index. Bound the index scan to a fixed candidate window, then sort locally
+    // and paginate in-process. Guarantees return within the 60s budget at scale.
+    const candidateLimit = 10000;
+    const candidateParams = [...params, candidateLimit];
+    const candidateResult = await dealsClient.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price,
               CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
@@ -651,12 +656,24 @@ async function handleGetDeals(args: Record<string, unknown>) {
               ${discountSelect}
        FROM products
        WHERE ${whereClause}
-       ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
-       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
-      dataParams
+       LIMIT $${candidateParams.length}`,
+      candidateParams
     );
-    total = dataResult.rows.length;
-    products = dataResult.rows.map((r: Record<string, unknown>) =>
+    // Sort the bounded candidates by discount (desc) then updated_at (desc), then paginate.
+    const sortedCandidates = candidateResult.rows.sort(
+      (a: Record<string, unknown>, b: Record<string, unknown>) => {
+        const da = (a.discount_pct as number | null) ?? -1;
+        const db = (b.discount_pct as number | null) ?? -1;
+        if (da !== db) return db - da;
+        const ua = new Date(a.updated_at as string).getTime();
+        const ub = new Date(b.updated_at as string).getTime();
+        return ub - ua;
+      }
+    );
+    const paginated = sortedCandidates.slice(offset, offset + limit);
+    // total reflects the bounded candidate window; the true full count is unbounded to compute.
+    total = candidateResult.rows.length;
+    products = paginated.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
   } finally {
