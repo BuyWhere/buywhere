@@ -1596,7 +1596,9 @@ export async function warmSearchCache(): Promise<void> {
       // Must match the handler's cacheKey exactly:
       // fts:q:domain:region:country:category:catId:catPath:brand:merchantId:avail:currency:minP:maxP:limit:offset:sort:fields:compact
       // With all defaults empty: fts:q:::country:::::::currency:::limit:offset:::f
-      const cacheKey = `fts:${q}:::${country}:::::::${currency}:::${limit}:${offset}:::f`;
+      // BUY-67275 (#37): live handler key ends with :searchMode — without it the
+      // warm write is never read.
+      const cacheKey = `fts:${q}:::${country}:::::::${currency}:::${limit}:${offset}:::f:${DEFAULT_SEARCH_MODE}`;
 
       const existing = await redis.get(cacheKey).catch(() => null);
       if (existing) {

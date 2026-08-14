@@ -2437,9 +2437,16 @@ export async function warmSearchCache(): Promise<void> {
       const limit = 20;
       const offset = 0;
       // Must match the handler's cacheKey exactly:
-      // fts:q:domain:region:country:category:catId:catPath:brand:merchantId:avail:currency:minP:maxP:limit:offset:sort:fields:compact
-      // With all defaults empty: fts:q:::country:::::::currency:::limit:offset:::f
-      const cacheKey = `fts:${q}:::${country}:::::::${currency}:::${limit}:${offset}:::f`;
+      // BUY-67275 (#37, 2026-08-14): this key must byte-match the live search
+      // handler's cacheKey (VER prefix + normalized q + trailing
+      // searchMode/deliverTo/includeUnshippable segments) or every warm write is
+      // dead weight the handler never reads — which is exactly what happened
+      // after the key format grew. Defaults: compact=f, mode=DEFAULT_SEARCH_MODE,
+      // deliver_to='', include_unshippable=1.
+      const qNorm = q.toLowerCase().trim().split(/\s+/)
+        .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
+        || q.toLowerCase().trim();
+      const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:::${country}:::::::${currency}:::${limit}:${offset}:::f:${DEFAULT_SEARCH_MODE}::1`;
 
       const existing = await redis.get(cacheKey).catch(() => null);
       if (existing) {
