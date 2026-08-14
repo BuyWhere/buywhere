@@ -806,8 +806,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const conditions: string[] = ['is_active = true', 'price > 0'];
   const params: unknown[] = [];
 
-  params.push(productName);
-  conditions.push(`title ILIKE '%' || $${params.length} || '%');
+  // BUY-69501: match the api host's `title ILIKE` predicate. The previous
+  // `search_vector @@ plainto_tsquery` path returned deterministic 0 rows here
+  // because the tsvector column is unpopulated on this service's catalog DB.
+  params.push(`%${productName}%`);
+  conditions.push(`title ILIKE $${params.length}`);
 
   if (country) {
     params.push(country);
