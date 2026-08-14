@@ -848,6 +848,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
+  // BUY-69626: add a bounded title-ILIKE fallback that scans recent market-local rows
+  // when FTS misses sparse/stale search_vector entries, instead of returning nothing.
+  const CANDIDATE_POOL = Math.max(limit * 50, 500);
+  params.push(CANDIDATE_POOL, limit);
+  const where = `WHERE ${conditions.join(' AND ')}`;
   const bestPriceClient = await acquireMcpClient();
   let result: { rows: Record<string, unknown>[] };
   try {
@@ -863,6 +868,32 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
        LIMIT $${params.length}`,
       params
     );
+    // BUY-69626: FTS returned nothing — try bounded title-ILIKE on recent market slice
+    if (result.rows.length === 0) {
+      await bestPriceClient.query('SET statement_timeout = 4500');
+      const titlePattern = `%${productName}%`;
+      const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
+      const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
+      result = await bestPriceClient.query(
+        `SELECT * FROM (
+           SELECT id, title, price, currency, source AS domain, url, image_url,
+                  country_code, updated_at, category, category_path, metadata
+           FROM products
+           WHERE is_active = true AND price > 0
+             AND country_code = $1
+             ${minPrice > 0 ? `AND price >= $${4}` : ''}
+           ORDER BY updated_at DESC
+           LIMIT $${minPrice > 0 ? 3 : 2}
+         ) _recent
+         WHERE title ILIKE $${minPrice > 0 ? 3 : 2}
+         ${category ? `AND category ILIKE $${minPrice > 0 ? 5 : 4}` : ''}
+         ORDER BY price ASC
+         LIMIT $${minPrice > 0 ? (category ? 6 : 5) : (category ? 4 : 3)}`,
+        minPrice > 0
+          ? (category ? [requestedCountry, CANDIDATE_POOL, titlePattern, minPrice, `%${category}%`] : [requestedCountry, CANDIDATE_POOL, titlePattern, minPrice])
+          : (category ? [requestedCountry, CANDIDATE_POOL, titlePattern, `%${category}%`] : [requestedCountry, CANDIDATE_POOL, titlePattern])
+      );
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);
