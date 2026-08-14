@@ -590,8 +590,12 @@ async function handleGetDeals(args: Record<string, unknown>) {
   try {
     await dealsClient.query('SET statement_timeout = 60000');
     await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path on production catalog DB
-    const dataParams = [...params, limit, offset];
-    const dataResult = await dealsClient.query(
+    // BUY-69646: Bound the index scan to 10,000 candidates first, then sort in the subquery.
+    // This prevents timeouts at catalog scale (400M+ rows) where the planner estimates
+    // 30K matches but the actual set is much larger, causing the index scan to timeout.
+    const candidateLimit = 10000;
+    const candidateParams = [...params, candidateLimit];
+    const candidateResult = await dealsClient.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price,
               CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
@@ -600,12 +604,21 @@ async function handleGetDeals(args: Record<string, unknown>) {
               ${discountSelect}
        FROM products
        WHERE ${whereClause}
-       ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
-       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
-      dataParams
+       LIMIT $${candidateParams.length}`,
+      candidateParams
     );
-    total = dataResult.rows.length;
-    products = dataResult.rows.map((r: Record<string, unknown>) =>
+    // Sort the bounded candidates by discount then updated_at
+    const sortedCandidates = candidateResult.rows.sort((a: Record<string, unknown>, b: Record<string, unknown>) => {
+      const da = (a.discount_pct as number | null) ?? -1;
+      const db = (b.discount_pct as number | null) ?? -1;
+      if (da !== db) return db - da;
+      const ua = new Date(a.updated_at as string).getTime();
+      const ub = new Date(b.updated_at as string).getTime();
+      return ub - ua;
+    });
+    const paginated = sortedCandidates.slice(offset, offset + limit);
+    total = paginated.length;
+    products = paginated.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
   } finally {
