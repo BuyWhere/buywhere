@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import type { PoolClient } from 'pg';
 import { db, redis, vectorDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
@@ -10,18 +11,31 @@ import { buildDeviceFilter } from '../lib/deviceClassifier';
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
 
-async function acquireMcpClient() {
+async function acquireMcpClient(): Promise<PoolClient> {
   let timer: NodeJS.Timeout | undefined;
-  try {
-    return await Promise.race([
-      db.connect(),
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error('mcp_db_pool_acquire_timeout')), MCP_DB_ACQUIRE_TIMEOUT_MS);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
+  let timedOut = false;
+
+  return new Promise<PoolClient>((resolve, reject) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      reject(new Error('mcp_db_pool_acquire_timeout'));
+    }, MCP_DB_ACQUIRE_TIMEOUT_MS);
+
+    db.connect().then((client) => {
+      if (timer) clearTimeout(timer);
+      if (timedOut) {
+        // BUY-69626: Promise.race(db.connect(), timeout) leaks a client when the
+        // timeout wins and db.connect resolves later. Release late clients so
+        // contention does not permanently exhaust the MCP pool.
+        releaseClientSafely(client);
+        return;
+      }
+      resolve(client);
+    }).catch((err) => {
+      if (timer) clearTimeout(timer);
+      reject(err);
+    });
+  });
 }
 
 // BUY-56185/BUY-56635: Detect statement_timeout poisoned connections.
@@ -575,7 +589,6 @@ async function handleGetDeals(args: Record<string, unknown>) {
     conditions.push(`discount_pct >= $2`);
   } else {
     // Guard: only consider rows where original_price is a valid numeric string.
-    // Matches the partial index predicate on idx_products_deals_country/region.
     conditions.push(`metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'`);
     conditions.push(`(metadata->>'original_price')::numeric > price`);
     conditions.push(`((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) >= $2`);
@@ -594,6 +607,9 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const discountSelect = useDiscountCol
     ? 'discount_pct'
     : `ROUND(((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)::numeric, 1) AS discount_pct`;
+  const discountOrder = useDiscountCol
+    ? 'discount_pct DESC'
+    : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC, updated_at DESC`;
   // BUY-68615: do not sample a global recent-window before applying
   // country/currency/discount filters. That plan uses Merge Append over the
   // updated_at indexes for SG+US and hits the 4.5s timeout on mcp.buywhere.ai.
@@ -620,7 +636,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
               ${discountSelect}
        FROM products
        WHERE ${whereClause}
-       ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
+       ORDER BY ${discountOrder}
        LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
       dataParams
     );
@@ -832,54 +848,67 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-67522: infer exact device-family queries and reject accessory results.
   const deviceFilter = buildDeviceFilter(productName, country);
 
-  // BUY-26343: price > 0 prevents returning corrupt zero-price records
-  const conditions: string[] = ['is_active = true', 'price > 0'];
-  const params: unknown[] = [];
-
-  params.push(productName);
-  conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
-
-  if (country) {
-    params.push(country);
-    conditions.push(`country_code = $${params.length}`);
-  }
-  if (region) {
-    params.push(region);
-    conditions.push(`region = $${params.length}`);
-  }
-  if (category) {
-    params.push(`%${category}%`);
-    conditions.push(`category ILIKE $${params.length}`);
-  }
-
-  // BUY-67522: for exact device queries, enforce a floor that accessories cannot satisfy.
-  if (deviceFilter.minLocal > 0) {
-    params.push(deviceFilter.minLocal);
-    conditions.push(`price >= $${params.length}`);
-  }
-
+  const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
+  const titlePattern = `%${productName}%`;
+  const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
+  // BUY-69626: the BUY-69501 robustness fix defined a 500-row pool but still
+  // passed a hardcoded 50000 into both SQL scans. Under MCP contention that
+  // recent-window sort clusters at the 30s pool/statement ceiling and returns
+  // TIMEOUT-EMPTY. Keep the candidate pool intentionally small; fbp needs the
+  // cheapest answer from a recent market-local slice, not a full-market scan.
   const CANDIDATE_POOL = Math.max(limit * 50, 500);
-  params.push(CANDIDATE_POOL, limit);
-  const where = `WHERE ${conditions.join(' AND ')}`;
 
-  // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
-  // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
-  // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
+  // BUY-69226: mcp.buywhere.ai was still using a strict FTS-only query path here.
+  // US iPhone requests can miss the sparse/stale search_vector rows and return an
+  // "unavailable" semantic result even though the canonical API's bounded recent
+  // title-match path finds live listings. Keep this path aligned with api/src/routes/mcp.ts:
+  // sample a bounded recent active/positive-price pool, then filter by country/title,
+  // with a country-only fallback for resilient best-price answers.
   const bestPriceClient = await acquireMcpClient();
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 10000');
+    await bestPriceClient.query('SET statement_timeout = 4500');
     result = await bestPriceClient.query(
       `SELECT * FROM (
          SELECT id, title, price, currency, source AS domain, url, image_url,
                 country_code, updated_at, category, category_path, metadata
-         FROM products ${where}
-         LIMIT $${params.length - 1}
+         FROM products
+         WHERE is_active = true AND price > 0
+           AND country_code = $2
+           ${minPrice > 0 ? `AND price >= $${5}` : ''}
+         ORDER BY updated_at DESC
+         LIMIT $1
        ) _candidates
+       WHERE country_code = $2
+         AND title ILIKE $3
+         ${category ? `AND category ILIKE $${minPrice > 0 ? 6 : 5}` : ''}
        ORDER BY price ASC, updated_at DESC
-       LIMIT $${params.length}`,
-      params
+       LIMIT $4`,
+      minPrice > 0
+        ? (category ? [CANDIDATE_POOL, requestedCountry, titlePattern, limit, minPrice, `%${category}%`] : [CANDIDATE_POOL, requestedCountry, titlePattern, limit, minPrice])
+        : (category ? [CANDIDATE_POOL, requestedCountry, titlePattern, limit, `%${category}%`] : [CANDIDATE_POOL, requestedCountry, titlePattern, limit])
     );
+    if (result.rows.length === 0) {
+      result = await bestPriceClient.query(
+        `SELECT * FROM (
+           SELECT id, title, price, currency, source AS domain, url, image_url,
+                  country_code, updated_at, category, category_path, metadata
+           FROM products
+           WHERE is_active = true AND price > 0
+             AND country_code = $2
+             ${minPrice > 0 ? `AND price >= $${4}` : ''}
+           ORDER BY updated_at DESC
+           LIMIT $1
+         ) _candidates
+         WHERE country_code = $2
+           ${category ? `AND category ILIKE $${minPrice > 0 ? 5 : 4}` : ''}
+         ORDER BY price ASC, updated_at DESC
+         LIMIT $3`,
+        minPrice > 0
+          ? (category ? [CANDIDATE_POOL, requestedCountry, limit, minPrice, `%${category}%`] : [CANDIDATE_POOL, requestedCountry, limit, minPrice])
+          : (category ? [CANDIDATE_POOL, requestedCountry, limit, `%${category}%`] : [CANDIDATE_POOL, requestedCountry, limit])
+      );
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);

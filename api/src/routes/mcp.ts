@@ -569,7 +569,6 @@ async function handleGetDeals(args: Record<string, unknown>) {
     conditions.push(`discount_pct >= $2`);
   } else {
     // Guard: only consider rows where original_price is a valid numeric string.
-    // Matches the partial index predicate on idx_products_deals_country/region.
     conditions.push(`metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'`);
     conditions.push(`(metadata->>'original_price')::numeric > price`);
     conditions.push(`((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100) >= $2`);
@@ -592,12 +591,12 @@ async function handleGetDeals(args: Record<string, unknown>) {
     : `ROUND(((1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) * 100)::numeric, 1) AS discount_pct`;
   const discountOrder = useDiscountCol
     ? 'discount_pct DESC'
-    : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC`;
+    : `(1 - price / NULLIF((metadata->>'original_price')::numeric, 0)) DESC, updated_at DESC`;
 
   // Use dedicated client with bounded statement_timeout so a slow deals scan returns
   // a structured -32603 envelope to the MCP client (which drops at ~35s) instead of
-  // hanging the connection until the 5-min default. The deals query is index-backed
-  // (idx_products_deals_country/region) for both paths; 25s is more than enough.
+  // hanging the connection until the 5-min default. The generated-column path orders
+  // exactly by discount_pct DESC so the existing valid deals index can early-stop.
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
   const dealsClient = await db.connect().catch((err: unknown) => {
@@ -622,7 +621,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
               ${discountSelect}
        FROM products
        WHERE ${whereClause}
-       ORDER BY discount_pct DESC NULLS LAST, updated_at DESC
+       ORDER BY ${discountOrder}
        LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
       dataParams
     );
@@ -779,6 +778,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // BUY-67522: infer exact device-family queries and reject accessory results.
   const deviceFilter = buildDeviceFilter(productName, country);
 
+  // BUY-69626: both SQL scans previously passed hardcoded 50000 literals instead
+  // of using CANDIDATE_POOL. Under contention the 50K-window sort hits the 30s
+  // pool/statement ceiling and returns TIMEOUT-EMPTY. Cap the recent market slice;
+  // fbp needs the cheapest recent listing per market, not a full-market scan.
   const CANDIDATE_POOL = Math.max(limit * 50, 500);
 
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
@@ -805,6 +808,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
                 country_code, updated_at, category, category_path, metadata
          FROM products
          WHERE is_active = true AND price > 0
+           AND country_code = $2
            ${minPrice > 0 ? `AND price >= $${5}` : ''}
          ORDER BY updated_at DESC
          LIMIT $1
@@ -813,7 +817,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          AND title ILIKE $3
        ORDER BY price ASC, updated_at DESC
        LIMIT $4`,
-      minPrice > 0 ? [50000, requestedCountry, titlePattern, limit, minPrice] : [50000, requestedCountry, titlePattern, limit]
+      minPrice > 0 ? [CANDIDATE_POOL, requestedCountry, titlePattern, limit, minPrice] : [CANDIDATE_POOL, requestedCountry, titlePattern, limit]
     );
     if (result.rows.length === 0) {
       result = await bestPriceClient.query(
@@ -822,6 +826,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
                   country_code, updated_at, category, category_path, metadata
            FROM products
            WHERE is_active = true AND price > 0
+             AND country_code = $2
              ${minPrice > 0 ? `AND price >= $${4}` : ''}
            ORDER BY updated_at DESC
            LIMIT $1
@@ -829,7 +834,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          WHERE country_code = $2
          ORDER BY price ASC, updated_at DESC
          LIMIT $3`,
-        minPrice > 0 ? [50000, requestedCountry, limit, minPrice] : [50000, requestedCountry, limit]
+        minPrice > 0 ? [CANDIDATE_POOL, requestedCountry, limit, minPrice] : [CANDIDATE_POOL, requestedCountry, limit]
       );
     }
   } finally {
