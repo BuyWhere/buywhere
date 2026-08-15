@@ -860,14 +860,21 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   try {
     await bestPriceClient.query('SET statement_timeout = 10000');
     result = await bestPriceClient.query(
-      `SELECT * FROM (
-         SELECT id, title, price, currency, source AS domain, url, image_url,
-                country_code, updated_at, category, category_path, metadata
+      `WITH cand AS (
+         SELECT id, price, updated_at
          FROM products ${where}
          LIMIT $${params.length - 1}
-       ) _candidates
-       ORDER BY price ASC, updated_at DESC
-       LIMIT $${params.length}`,
+       ), page_ids AS (
+         SELECT id, price, updated_at
+         FROM cand
+         ORDER BY price ASC, updated_at DESC
+         LIMIT $${params.length}
+       )
+       SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
+              p.country_code, p.updated_at, p.category, p.category_path, p.metadata
+       FROM page_ids pi
+       JOIN products p ON p.id = pi.id
+       ORDER BY pi.price ASC, pi.updated_at DESC`,
       params
     );
     // BUY-69626: FTS returned nothing — try bounded title-ILIKE on recent market slice
