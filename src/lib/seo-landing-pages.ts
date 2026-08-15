@@ -65,6 +65,7 @@ export type LandingProduct = {
   productUrl?: string | null;
   brand: string | null;
   category: string | null;
+  countryCode?: string | null;
 };
 
 type SearchApiItem = {
@@ -89,6 +90,7 @@ type SearchApiItem = {
   brand?: string | null;
   updated_at?: string | null;
   category?: string | null;
+  country_code?: string | null;
 };
 
 type SearchApiResponseMeta = {
@@ -428,6 +430,8 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     brand: item.brand || null,
     category,
     updatedAt: item.updated_at || null,
+    // BUY-69925: expose product's country for SSR-layer filtering
+    countryCode: (item as SearchApiItem).country_code ?? null,
   };
 }
 
@@ -1212,6 +1216,12 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       const params = new URLSearchParams({
         q: query,
         country: config.country,
+        // BUY-69925: filter to US-merchant products only. The API's deliver_to
+        // + include_unshippable=false gates out foreign merchants (e.g. a UAE
+        // store selling in USD) that would otherwise leak into US-specific SEO
+        // pages. This ensures US retailers in the deals snapshot are actually US.
+        deliver_to: config.country,
+        include_unshippable: "false",
         limit: config.excludeAccessories ? "24" : "8",
       });
       if (config.searchCategory) {
@@ -1256,6 +1266,12 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       for (const item of items) {
         const product = normalizeProduct(item, config.currency, config.minPrice, config.searchCategory);
         if (!product) continue;
+        // BUY-69925: reject products whose merchant/market country differs from the
+        // page's target country. This is the SSR-layer gate for non-US merchants
+        // (e.g. a UAE store selling in USD) that pass the currency check but
+        // shouldn't appear in a US-specific SEO page's deals snapshot. It runs as
+        // defense-in-depth alongside the API-side include_unshippable=false filter.
+        if (product.countryCode && product.countryCode !== config.country) continue;
         if (!hasUsableLiveCard(product)) continue;
         if (isExcludedAccessory(product, config)) continue;
         if (!productMatchesRequiredTerms(product, config.requiredProductTerms)) continue;
