@@ -435,12 +435,14 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
 // Treat them as unreachable so the placeholder path takes over instead of
 // rendering a broken-image icon on the live SEO landing pages.
 // BUY-69615: Added c1.neweggimages.com - returns HTTP 400 for all image requests
+// BUY-64057: Added cdn.shopify.com - hotlink protection blocks browser requests
 const HOTLINK_BLOCKED_HOSTS = new Set([
   "courts.com.sg",
   "www.courts.com.sg",
   "dlcdnwebimgs.asus.com",
   "www.asus.com",
   "shopifycdn.com",
+  "cdn.shopify.com",
   "elescat.store",
   "source.unsplash.com",
   "c1.neweggimages.com",

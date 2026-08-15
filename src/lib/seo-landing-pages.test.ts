@@ -969,3 +969,17 @@ test("getSeoLandingFallbackProduct replaces a dead curated URL with the branded 
     globalThis.fetch = originalFetch;
   }
 });
+
+// BUY-64057: Regression test — cdn.shopify.com must be blocked at SSR so
+// products don't render with broken images. The SSR probe succeeds (bots get
+// 200) but browsers get hotlink-blocked 403s, triggering the placeholder
+// fallback path. Adding to HOTLINK_BLOCKED_HOSTS forces branded SVG at
+// normalize time instead of a broken image in the browser.
+test("cdn.shopify.com is blocked at SSR to prevent browser hotlink 403s (BUY-64057)", async () => {
+  const source = readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8");
+  // HOTLINK_BLOCKED_HOSTS must include cdn.shopify.com
+  assert.ok(
+    source.includes('"cdn.shopify.com"'),
+    "cdn.shopify.com must be in HOTLINK_BLOCKED_HOSTS (BUY-64057)",
+  );
+});
