@@ -838,27 +838,26 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     conditions.push(`category ILIKE $${params.length}`);
   }
 
-  // BUY-67522: for exact device queries, enforce a floor that accessories cannot satisfy.
-  if (deviceFilter.minLocal > 0) {
-    params.push(deviceFilter.minLocal);
-    conditions.push(`price >= $${params.length}`);
-  }
-
-  const CANDIDATE_POOL = Math.max(limit * 50, 500);
-  params.push(CANDIDATE_POOL, limit);
-  const where = `WHERE ${conditions.join(' AND ')}`;
+  const minLocal = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
 
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
   // O(N log N) full-sort that causes the 10s/30s timeout on large FTS result sets.
   // BUY-69626: add a bounded title-ILIKE fallback that scans recent market-local rows
   // when FTS misses sparse/stale search_vector entries, instead of returning nothing.
-  // (Deduped 2026-08-14: 921c3fa re-added the CANDIDATE_POOL/where declarations that
-  // were already defined above — a TS2451 redeclare error that broke every deploy.)
+  // BUY-70017: keep the device price floor outside the indexed FTS candidate scan.
+  // On SG phone queries, adding price >= floor to the inner WHERE makes Postgres
+  // combine broad bitmap indexes and hit statement_timeout. GIN-bounded candidates
+  // return in milliseconds; the floor is applied while sorting the bounded set.
+  const CANDIDATE_POOL = Math.max(limit * 50, 500);
+  params.push(CANDIDATE_POOL, limit);
+  const where = `WHERE ${conditions.join(' AND ')}`;
+
   const bestPriceClient = await acquireMcpClient();
   let result: { rows: Record<string, unknown>[] };
   try {
     await bestPriceClient.query('SET statement_timeout = 10000');
+    // BUY-70017: apply device price floor AFTER fetching bounded candidates, not in the indexed scan.
     result = await bestPriceClient.query(
       `WITH cand AS (
          SELECT id, price, updated_at
@@ -867,6 +866,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
        ), page_ids AS (
          SELECT id, price, updated_at
          FROM cand
+         WHERE price >= $${params.length + 1}
          ORDER BY price ASC, updated_at DESC
          LIMIT $${params.length}
        )
@@ -875,7 +875,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
        FROM page_ids pi
        JOIN products p ON p.id = pi.id
        ORDER BY pi.price ASC, pi.updated_at DESC`,
-      params
+      [...params, minLocal]
     );
     // BUY-69626: FTS returned nothing — try bounded title-ILIKE on recent market slice
     if (result.rows.length === 0) {
