@@ -5,7 +5,7 @@ import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, formatPriceField, isSentinelPrice } from '../lib/response';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
 
 const router = Router();
@@ -972,16 +972,22 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
 
   const candidates = result.rows.filter(r => !isAccessory(r));
 
-  const data = candidates.map((r: Record<string, unknown>) => ({
-    id: r.id,
-    title: r.title,
-    price: { amount: r.price != null ? parseFloat(r.price as string) : null, currency: r.currency || currency },
-    normalized_price_usd: r.price != null ? Math.round(Number(r.price) * toUsd * 100) / 100 : null,
-    merchant: r.domain as string,
-    url: r.url as string,
-    image_url: r.image_url as string,
-    country_code: r.country_code as string,
-  }));
+  const data = candidates.map((r: Record<string, unknown>) => {
+    const amount = r.price != null ? parseFloat(r.price as string) : null;
+    const rowCurrency = (r.currency as string) || currency;
+    return {
+      id: r.id,
+      title: r.title,
+      // BUY-65559 / BUY-65685: sentinel-price guard — string when sentinel,
+      // structured object otherwise. Parallel to PR #36 in @buywhere/mcp.
+      price: formatPriceField(amount, rowCurrency),
+      normalized_price_usd: isSentinelPrice(amount) || amount == null ? null : Math.round(amount * toUsd * 100) / 100,
+      merchant: r.domain as string,
+      url: r.url as string,
+      image_url: r.image_url as string,
+      country_code: r.country_code as string,
+    };
+  });
 
   return {
     best_price: data[0] ?? null,
