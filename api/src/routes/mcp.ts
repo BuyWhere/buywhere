@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Router, Request, Response, NextFunction } from 'express';
 import { db, redis, vectorDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
@@ -248,14 +249,15 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
   const domain = (args.domain as string) || '';
-  const region = (args.region as string) || '';
-  // country_code is canonical; `country` kept as alias for backward compat
+  const requestedMarket = normalizeMcpMarket(args, q ? 'SG' : '');
+  const region = requestedMarket.dbRegion;
+  // country_code is canonical; `country` kept as alias for backward compat.
+  // deliver_to is the buyer market and must take precedence to prevent
+  // cross-market results when callers pass stale/default country_code values.
   // BUY-6598: Default to SG for search queries. BUY-31962: skip default for
   // empty-q browse mode — no index on country_code makes filtered scan slow,
   // and recent rows are predominantly US/null so SG filter finds nothing.
-  const rawCountry = (((args.country_code as string) || (args.country as string)) || '').toUpperCase();
-  const hasExplicitCountry = !!(args.country_code || args.country);
-  const country = rawCountry || (q && !region ? 'SG' : '');
+  const country = requestedMarket.country;
   const category = (args.category as string) || '';
   const minPrice = args.min_price != null ? Number(args.min_price) : null;
   const maxPrice = args.max_price != null ? Number(args.max_price) : null;
@@ -263,6 +265,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const offset = Number(args.offset) || 0;
   const compact = args.compact === true;
   const currency = country ? (COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
+  const COUNT_CAP = 1001;
 
   const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
   try {
@@ -328,11 +331,11 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
     const COUNT_CAP = 1001;
     if (q) {
-      const countResult = await searchClient.query(
-        `SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`,
-        params
-      );
-      total = parseInt(countResult.rows[0].count, 10);
+      // BUY-69998: do not run a separate COUNT for keyword searches. Under SG/VN
+      // country/category probes the count can consume the whole statement_timeout
+      // before the bounded result query runs. We report a capped page-derived total
+      // after fetching rows instead.
+      total = 0;
 
       // BUY-31962 / BUY-41138: hybrid search (RRF) or keyword FTS fallback.
       // Hybrid and semantic paths embed the query via Jina AI, query the vector DB
@@ -520,6 +523,24 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     const catLower = category.toLowerCase();
     rows = (rows as Record<string, unknown>[]).filter(r =>
       ((r.category as string) || '').toLowerCase().includes(catLower)
+    );
+  }
+
+  if (q) {
+    total = Math.min((rows as Record<string, unknown>[]).length + offset, COUNT_CAP);
+  }
+
+  // Defense in depth for buyer-market routing: SQL includes country_code/region
+  // predicates, but this prevents stale cached rows or future query variants from
+  // returning another market in top results.
+  if (country && rows.length > 0) {
+    rows = (rows as Record<string, unknown>[]).filter(r =>
+      ((r.country_code as string) || '').toUpperCase() === country
+    );
+  }
+  if (region && rows.length > 0) {
+    rows = (rows as Record<string, unknown>[]).filter(r =>
+      ((r.region as string) || '').toLowerCase() === region.toLowerCase()
     );
   }
 
@@ -765,8 +786,8 @@ async function handleListCategories(args: Record<string, unknown>) {
 
   // 3. No in-flight query — start one and register it so concurrent callers coalesce
   // BUY-69823: wrap the whole queryPromise in a hard wall-clock timeout so pool
-  // contention + slow queries never exceed ~6s. If timeout fires, return hardcoded
-  // categories rather than a hard 5xx.
+  // contention + slow queries never exceed ~6s. If timeout fires, return an
+  // explicit unavailable fallback instead of zero-count categories.
   const MAT_VIEW_TIMEOUT_MS = 8000;
   const LIVE_TIMEOUT_MS = 1800;
   const HARD_TIMEOUT_MS = 6000;
@@ -790,6 +811,7 @@ async function handleListCategories(args: Record<string, unknown>) {
             `SELECT slug, name, product_count
              FROM mcp_category_summary_by_country
              WHERE country_code = $1
+               AND NULLIF(BTRIM(slug), '') IS NOT NULL
              ORDER BY product_count DESC
              LIMIT 100`,
             [country]
@@ -808,6 +830,7 @@ async function handleListCategories(args: Record<string, unknown>) {
                FROM products
                WHERE country_code = $1
                  AND category_path[1] IS NOT NULL
+                 AND NULLIF(BTRIM(category_path[1]), '') IS NOT NULL
                  AND is_active = true
                GROUP BY category_path[1]
                ORDER BY COUNT(*) DESC
@@ -835,6 +858,7 @@ async function handleListCategories(args: Record<string, unknown>) {
                  FROM products
                  WHERE country_code = $1
                    AND category_path[1] IS NOT NULL
+                   AND NULLIF(BTRIM(category_path[1]), '') IS NOT NULL
                    AND is_active = true
                  ORDER BY updated_at DESC
                  LIMIT 50000
@@ -861,15 +885,11 @@ async function handleListCategories(args: Record<string, unknown>) {
         }
       }
       if (rows.length === 0) {
-        rows = ['Electronics', 'Computers', 'Mobile Phones', 'Home', 'Fashion'].map((name) => ({
-          slug: name.toLowerCase().replace(/\s+/g, '-'),
-          name,
-          product_count: 0,
-        }));
+        rows = buildHardcodedCategories();
       }
       const data = {
         data: rows,
-        meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false, unavailable: false },
+        meta: { total: rows.length, country_code: country, response_time_ms: 0, cached: false, unavailable: rows.every((row) => Number(row.product_count) === 0) },
       };
       redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
       return data;
@@ -1466,15 +1486,31 @@ async function dispatchTool(name: string, args: Record<string, unknown>) {
 }
 
 // JSON-RPC 2.0 response helpers
+// BUY-70000: every response (success or error) carries `request_id` and a
+// top-level `timestamp` so agent-facing monitoring suites can correlate
+// JSON-RPC calls with query_log entries without scraping server logs.
+// `request_id` prefers a string JSON-RPC id; when the caller used a numeric
+// or null id we fall back to a generated UUID so the field is always present.
+function jsonrpcRequestId(id: unknown): string {
+  if (typeof id === 'string' && id) return id;
+  if (typeof id === 'number' && Number.isFinite(id)) return String(id);
+  return randomUUID();
+}
 function jsonrpcOk(id: unknown, result: unknown) {
-  return { jsonrpc: '2.0', id, result };
+  return { jsonrpc: '2.0', id, request_id: jsonrpcRequestId(id), timestamp: new Date().toISOString(), result };
 }
 function jsonrpcErr(id: unknown, code: number, message: string, data?: unknown, envelopeCode?: string) {
   const errorData: Record<string, unknown> = data != null ? { detail: data } : {};
   if (envelopeCode) {
     errorData.envelope = buildErrorEnvelope(envelopeCode as ErrorCodeType, message);
   }
-  return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) } };
+  return {
+    jsonrpc: '2.0',
+    id,
+    request_id: jsonrpcRequestId(id),
+    timestamp: new Date().toISOString(),
+    error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) },
+  };
 }
 
 // GET /mcp/auth/token — token endpoint descriptor (public, no auth).
