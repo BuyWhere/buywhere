@@ -434,6 +434,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
 // Hosts that historically serve 200 to bots but 403/404 inside a browser.
 // Treat them as unreachable so the placeholder path takes over instead of
 // rendering a broken-image icon on the live SEO landing pages.
+// BUY-69615: Added c1.neweggimages.com - returns HTTP 400 for all image requests
 const HOTLINK_BLOCKED_HOSTS = new Set([
   "courts.com.sg",
   "www.courts.com.sg",
@@ -442,6 +443,10 @@ const HOTLINK_BLOCKED_HOSTS = new Set([
   "shopifycdn.com",
   "elescat.store",
   "source.unsplash.com",
+  "c1.neweggimages.com",
+  "www.neweggimages.com",
+  "www.harveynorman.com.sg",
+  "harveynorman.com.sg",
 ]);
 
 function isUsableProductImage(imageUrl?: string | null) {

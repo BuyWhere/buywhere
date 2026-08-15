@@ -190,6 +190,22 @@ function formatPrice(price: number | null, currency: string) {
   }
 }
 
+// BUY-69615: Centralized blocklist of known-bad image hosts that return 4xx/5xx
+// even with valid browser User-Agents. Mirrors the HOTLINK_BLOCKED_HOSTS set in
+// src/lib/seo-landing-pages.ts. These hosts cause console noise and broken-image
+// fallbacks when included in search cards.
+const SEARCH_IMAGE_BLOCKED_HOSTS = new Set([
+  // Generic test/synthetic hosts (existing)
+  'example.sg', 'example.com', 'example.net', 'example.org',
+  // Unsplash placeholder (existing)
+  'source.unsplash.com', 'images.unsplash.com',
+  // Hotlink-protected merchant CDNs (added for BUY-69615)
+  'c1.neweggimages.com', // Returns HTTP 400 for all requests
+  'www.neweggimages.com',
+  'www.harveynorman.com.sg', // Returns HTTP 404 for most images
+  'harveynorman.com.sg',
+]);
+
 function hasUsableProductImage(value?: string | null) {
   if (!value) return false;
 
@@ -200,6 +216,8 @@ function hasUsableProductImage(value?: string | null) {
     const search = imageUrl.search.toLowerCase();
     const fullUrl = `${hostname}${pathname}${search}`;
 
+    // BUY-69615: Check centralized blocklist first
+    if (SEARCH_IMAGE_BLOCKED_HOSTS.has(hostname)) return false;
     if (hostname.includes('source.unsplash.com') || fullUrl.includes('source.unsplash.com')) return false;
     if (hostname.includes('images.unsplash.com') || fullUrl.includes('images.unsplash.com')) return false;
     if (hostname.includes('unsplash.com')) return false;
@@ -561,6 +579,7 @@ export const __test__ = {
   isAccessoryProduct,
   isCategoryMismatchedForDeviceQuery,
   deriveBrandFromTitle,
+  hasUsableProductImage,
   HIGH_VALUE_MIN_PRICE,
   MAX_PLAUSIBLE_PRICE,
 };

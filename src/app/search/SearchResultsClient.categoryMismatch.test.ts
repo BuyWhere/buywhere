@@ -180,3 +180,21 @@ test("BUY-68365: rankProduct is safe when query is empty (no demote)", () => {
   // Empty query → no demote, default ranks apply.
   assert.ok(score >= 100, `firecuda should still rank normally when query is empty; got ${score}`);
 });
+
+// BUY-69615: Regression tests for image blocklist
+// Merchants like Newegg return HTTP 400 from their image CDN, so we must block them.
+test("BUY-69615: blocks known 4xx merchant image hosts", () => {
+  const { hasUsableProductImage } = __test__;
+  // c1.neweggimages.com returns HTTP 400 - should be blocked
+  assert.equal(hasUsableProductImage("https://c1.neweggimages.com/ProductImageCompressAll1280/34-233-624-02.jpg"), false);
+  assert.equal(hasUsableProductImage("https://www.neweggimages.com/ProductImage/34-233-624-02.jpg"), false);
+  // Harvey Norman SG catalog images frequently return HTTP 404 - should be blocked
+  assert.equal(hasUsableProductImage("https://www.harveynorman.com.sg/media/catalog/product/cache/example.jpg"), false);
+});
+
+test("BUY-69615: allows non-blocked image hosts", () => {
+  const { hasUsableProductImage } = __test__;
+  // Shopify and other working CDNs should pass through
+  assert.equal(hasUsableProductImage("https://cdn.shopify.com/s/files/12345.jpg"), true);
+  assert.equal(hasUsableProductImage("https://images.unsplash.com/photo-123456.jpg"), false); // unsplash is blocked
+});
