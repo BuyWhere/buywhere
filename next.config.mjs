@@ -329,6 +329,13 @@ const nextConfig = {
         destination: '/docs',
         permanent: true,
       },
+      // BUY-70145: legacy MCP server docs URL should recover to the canonical
+      // MCP integration guide instead of the branded 410 recovery page.
+      {
+        source: '/docs/mcp-server',
+        destination: '/docs/guides/mcp-integration',
+        permanent: true,
+      },
       // BUY-70108: /docs/sdks and /docs/examples are returning 410s; redirect to canonical pages
       {
         source: '/docs/sdks',
