@@ -8,6 +8,46 @@ import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/erro
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, formatPriceField, isSentinelPrice } from '../lib/response';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
 
+// Sentinel-price guard (BUY-65574 band-aid, parent BUY-65559):
+// catalog rows where `price.amount < 10` (or non-finite / null) are produced by
+// the BuyWhere ingest pipeline when the merchant page had no parseable price;
+// the scraper writes `1` as a placeholder, which the front-end renders as
+// `.00`. Until BUY-52807 ships an ingest-time sanity bound, surface a "see
+// merchant" hint so MCP clients (AI agents) do not quote a fake price.
+const PRICE_SENTINEL_MIN = 10;
+const PRICE_UNAVAILABLE_TEXT = 'see merchant (price unavailable in catalog) — click through to confirm';
+
+function isSentinelPrice(amount: unknown): boolean {
+  return typeof amount !== 'number' || !Number.isFinite(amount) || amount < PRICE_SENTINEL_MIN;
+}
+
+function formatPriceLine(price: Record<string, unknown> | undefined, url: string | undefined): string {
+  if (!price || isSentinelPrice(price.amount)) {
+    const link = url ? ` — ${url}` : '';
+    return `Price: ${PRICE_UNAVAILABLE_TEXT}${link}`;
+  }
+  return `Price: ${price.currency ?? 'SGD'} ${price.amount}`;
+}
+
+function formatProductForMcp(p: Record<string, unknown>): string {
+  const price = p.price as Record<string, unknown> | undefined;
+  const merchant = p.merchant as Record<string, unknown> | undefined;
+  const avail = p.availability as Record<string, unknown> | undefined;
+
+  const lines: string[] = [
+    `**${p.title ?? p.name ?? ''}**`,
+    `ID: ${p.id}`,
+    formatPriceLine(price, p.url as string | undefined),
+    `Category: ${p.category ?? ''}`,
+    `Merchant: ${merchant?.name ?? merchant?.merchant_id ?? ''}` +
+      (merchant?.platform ? ` (${merchant.platform})` : ''),
+    `In stock: ${avail?.in_stock ? 'Yes' : 'No'}`,
+    `URL: ${p.url ?? ''}`,
+  ];
+
+  return lines.join('\n');
+}
+
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
 
@@ -484,7 +524,12 @@ async function handleGetProduct(args: Record<string, unknown>) {
   }
   if (!result.rows.length) throw { code: -32001, message: 'Product not found' };
   const product = buildProduct(result.rows[0] as Record<string, unknown>, 'SGD', false);
-  return buildSearchResponse([product], 1, 1, 0, Date.now() - t0, false);
+  const formattedText = formatProductForMcp(product as unknown as Record<string, unknown>);
+  return {
+    content: [{ type: 'text', text: formattedText }],
+    product,  // Keep the structured data available too
+    response_time_ms: Date.now() - t0,
+  };
 }
 
 async function handleCompareProducts(args: Record<string, unknown>) {
@@ -1362,6 +1407,17 @@ function validateCountryCode(toolName: string, args: Record<string, unknown>): v
     throw { code: -32602, message: `Country code "${raw}" is not supported by ${toolName}. Supported: ${allowed.join(', ')}`, envelopeCode: 'MARKET_UNSUPPORTED' };
   }
 }
+function buildToolCallResponse(result: unknown) {
+  if (
+    result &&
+    typeof result === 'object' &&
+    Array.isArray((result as { content?: unknown }).content)
+  ) {
+    return result;
+  }
+  return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+}
+
 async function dispatchTool(name: string, args: Record<string, unknown>) {
   validateCountryCode(name, args);
   switch (name) {
@@ -1571,9 +1627,7 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
         res.locals.mcpToolName = toolName;
         const result = await dispatchTool(toolName, toolArgs);
-        return res.json(jsonrpcOk(id, {
-          content: [{ type: 'text', text: JSON.stringify(result) }],
-        }));
+        return res.json(jsonrpcOk(id, buildToolCallResponse(result)));
       }
 
       // BUY-68192: backward compatibility for direct tool-name JSON-RPC methods
@@ -1585,9 +1639,7 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         if (knownTool) {
           res.locals.mcpToolName = method;
           const result = await dispatchTool(method, args);
-          return res.json(jsonrpcOk(id, {
-            content: [{ type: 'text', text: JSON.stringify(result) }],
-          }));
+          return res.json(jsonrpcOk(id, buildToolCallResponse(result)));
         }
         return res.json(jsonrpcErr(id, -32601, `Method not found: ${method}`));
       }
