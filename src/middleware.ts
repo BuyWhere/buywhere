@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isCanonicalRouterStateTree } from "@/lib/router-state-tree";
 
 // BUY-69058: Baseline browser security/privacy headers applied to public HTML routes.
 const BASELINE_SECURITY_HEADERS: [string, string][] = [
@@ -468,8 +469,35 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
   return null;
 }
 
+// BUY-67074: strip a non-canonical `Next-Router-State-Tree` header before it
+// reaches the dynamic renderer. See src/lib/router-state-tree.ts for the full
+// root-cause writeup.
+const ROUTER_STATE_TREE_HEADER = "next-router-state-tree";
+
+// Only the dynamically rendered routes are affected: every other route is
+// served from the full-route cache without re-rendering, so a bad tree never
+// reaches the renderer there. Keeping this list tight means the early return
+// below cannot bypass the redirect/rewrite logic for any other path.
+const DYNAMIC_RSC_ROUTES = new Set(["/search", "/compare"]);
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // BUY-67074: sanitise a malformed/non-canonical router state tree before it
+  // can reach the dynamic renderer and surface as a 500.
+  const routerStateTree = request.headers.get(ROUTER_STATE_TREE_HEADER);
+  if (
+    routerStateTree &&
+    DYNAMIC_RSC_ROUTES.has(pathname) &&
+    !isCanonicalRouterStateTree(routerStateTree)
+  ) {
+    const sanitized = new Headers(request.headers);
+    sanitized.delete(ROUTER_STATE_TREE_HEADER);
+    // Force a full (non-partial) render, which is what a cold navigation does.
+    sanitized.delete("next-router-prefetch");
+    return NextResponse.next({ request: { headers: sanitized } });
+  }
+
   const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
   const host = forwardedHost || request.headers.get("host") || "";
   const accept = request.headers.get("accept") ?? "";
