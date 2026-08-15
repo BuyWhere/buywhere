@@ -309,7 +309,7 @@ export default function HomePage() {
           </div>
           <HomeProductSearch />
           <div className="max-w-3xl mx-auto text-center mt-8">
-            <div className="flex flex-col gap-3 justify-center mb-6 sm:flex-row sm:gap-4">
+            <div className="flex flex-col gap-3 justify-center mb-6 md:flex-row md:gap-4">
               <Link
                 href="/compare"
                 className="inline-flex w-full items-center justify-center px-8 py-4 bg-white text-indigo-700 font-bold text-lg rounded-xl shadow-sm hover:bg-indigo-50 transition-colors sm:w-auto"
