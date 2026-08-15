@@ -30,7 +30,6 @@ test("normalizeComparisonOffer reads availability from API metadata", () => {
     id: "prod_789",
     name: "Metadata availability product",
     merchant: "newegg_us",
-    price: 499,
     metadata: {
       availability: "in_stock",
       in_stock: true,
@@ -39,4 +38,32 @@ test("normalizeComparisonOffer reads availability from API metadata", () => {
 
   assert.equal(offer.availability, "In stock");
   assert.equal(offer.inStock, true);
+});
+
+test("normalizeComparisonOffer handles metadata available: true", () => {
+  const offer = normalizeComparisonOffer({
+    id: "prod_888",
+    name: "Available product",
+    merchant: "walmart_us",
+    metadata: {
+      available: true,
+    },
+  });
+
+  assert.equal(offer.availability, "Available");
+  assert.equal(offer.inStock, true);
+});
+
+test("normalizeComparisonOffer normalizes unavailable string from metadata", () => {
+  const offer = normalizeComparisonOffer({
+    id: "prod_999",
+    name: "Unavailable product",
+    merchant: "walmart_us",
+    metadata: {
+      availability: "unavailable",
+    },
+  });
+
+  assert.equal(offer.availability, "Out of stock");
+  assert.equal(offer.inStock, false);
 });
