@@ -17,9 +17,27 @@ ts() { date -u +%Y-%m-%dT%H:%TZ; }
 log() { echo "[$(ts)] $*" | tee -a "$LOG_FILE"; }
 log_err() { echo "[$(ts)] ERROR: $*" | tee -a "$LOG_FILE" >&2; }
 
-# Load Paperclip credentials
+# Load Paperclip credentials (BUY-69899: fix credential sourcing)
+# 1. Try .paperclip_env first
 if [[ -f /home/paperclip/.paperclip_env ]]; then
   . /home/paperclip/.paperclip_env 2>/dev/null || true
+fi
+
+# 2. Fallback to dispatcher's own persisted credentials file (BUY-69899)
+if [[ -z "$PAPERCLIP_API_KEY" && -f /home/paperclip/.throughput_dispatcher_env ]]; then
+  . /home/paperclip/.throughput_dispatcher_env 2>/dev/null || true
+fi
+
+# 3. If still empty, try to mint a fresh token using the dispatcher's mint script
+if [[ -z "$PAPERCLIP_API_KEY" ]]; then
+  MINT_SCRIPT="$WORKSPACE/scripts/mint-throughput-dispatcher-token.py"
+  if [[ -f "$MINT_SCRIPT" ]]; then
+    MINTED_KEY=$(python3 "$MINT_SCRIPT" 2>/dev/null) || true
+    if [[ -n "$MINTED_KEY" ]]; then
+      PAPERCLIP_API_KEY="$MINTED_KEY"
+      log "Minted fresh dispatcher token"
+    fi
+  fi
 fi
 
 PAPERCLIP_API_KEY="${PAPERCLIP_API_KEY:-}"
