@@ -321,7 +321,22 @@ function isLowTrustRedirectHost(href: string | null | undefined): boolean {
   }
 }
 
-function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPrice?: number): LandingProduct | null {
+function landingCategoryLabel(searchCategory?: string, itemCategory?: string | null): string | null {
+  if (itemCategory?.trim()) return itemCategory;
+  switch (searchCategory) {
+    case "robot_vacuums":
+      return "Robot Vacuums";
+    case "laptops":
+    case "gaming_laptops":
+      return "Laptops";
+    case "air_purifiers":
+      return "Air Purifiers";
+    default:
+      return null;
+  }
+}
+
+function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPrice?: number, searchCategory?: string): LandingProduct | null {
   // Currency guard: only keep products priced in the page's currency. The
   // upstream catalog frequently returns wrong-region rows (e.g. INR/PHP/GBP
   // "laptop" listings for an SG page) that would otherwise displace honest
@@ -386,6 +401,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
   }
 
   const imageUrl = item.image_url || item.image || null;
+  const category = landingCategoryLabel(searchCategory, item.category || null);
 
   return {
     id: String(item.id),
@@ -393,19 +409,14 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     price: Number.isFinite(numericPrice) ? numericPrice : null,
     currency: priceCurrency || fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
-    // BUY-63954: render the deterministic branded SVG card for every catalog
-    // snapshot product instead of the upstream CDN image. The remote image
-    // loads fine for human users, but QA's headless screenshot environment
-    // can't load many of these CDNs (hotlink/CORS/referrer policy), which
-    // triggered the <img> onError fallback to a generic slate silhouette and
-    // was reported as "placeholder icons instead of real product photos". The
-    // branded SVG renders identically in SSR and any browser/headless
-    // environment so the Live Catalog Snapshot always looks polished.
-    imageUrl: brandedProductPlaceholderSvg(
-      item.brand || null,
-      item.name || null,
-      item.category || null,
-    ),
+    // Prefer the catalog product photo. getSeoLandingProducts probes the URL
+    // before rendering; if it is dead/hotlink-blocked we drop/top-up or repair
+    // through a category-aware fallback. The previous unconditional branded SVG
+    // made every live row look like a generic illustration, which is exactly the
+    // BUY-68366 QA failure on the SEO landing pages.
+    imageUrl: isUsableProductImage(imageUrl)
+      ? imageUrl
+      : brandedProductPlaceholderSvg(item.brand || null, item.name || null, category),
     href: normalizeExternalHref(
       item.affiliate_redirect_url,
       item.click_url,
@@ -415,7 +426,7 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
       item.url,
     ),
     brand: item.brand || null,
-    category: item.category || null,
+    category,
     updatedAt: item.updated_at || null,
   };
 }
@@ -1008,6 +1019,9 @@ function isExcludedAccessory(product: LandingProduct, config: SeoLandingPageConf
     if (LAPTOP_ACCESSORY_RE.test(text)) return true;
     return !matchesAnyToken(text, LAPTOP_REQUIRED_TOKENS);
   }
+  if (config.searchCategory === "air_purifiers") {
+    return !/\b(?:air\s*purifier|purifier|hepa|dyson|philips|xiaomi|sharp|sterra|coway|levoit|blueair)\b/i.test(text);
+  }
   return PRODUCT_ACCESSORY_RE.test(text);
 }
 
@@ -1235,7 +1249,7 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       }
 
       for (const item of items) {
-        const product = normalizeProduct(item, config.currency, config.minPrice);
+        const product = normalizeProduct(item, config.currency, config.minPrice, config.searchCategory);
         if (!product) continue;
         if (!hasUsableLiveCard(product)) continue;
         if (isExcludedAccessory(product, config)) continue;
@@ -1638,6 +1652,9 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "air purifier",
+    searchCategory: "air_purifiers",
+    excludeAccessories: true,
+    compactCatalogCards: true,
     backupQueries: ["Coway air purifier", "Levoit air purifier", "Blueair air purifier", "Xiaomi air purifier"],
     minPrice: 50,
     requiredProductTerms: ["air purifier", "purifier", "hepa", "dyson", "philips", "xiaomi", "sharp", "sterra", "coway", "levoit", "blueair"],
