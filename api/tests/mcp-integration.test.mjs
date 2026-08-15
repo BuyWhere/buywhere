@@ -543,6 +543,38 @@ describe('MCP JSON-RPC — error handling', () => {
     assert.equal(res.status, 401);
   });
 
+  it('returns standardized RATE_LIMITED envelope for MCP 429 responses', async () => {
+    redisIncrMock.mock.mockImplementation(() => Promise.resolve(2));
+    queryMock.mock.mockImplementation((sql) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true, rpm_limit: 1, daily_limit: 1000 }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 'rl-1', method: 'tools/call',
+        params: { name: 'list_categories', arguments: { country_code: 'MY' } },
+      }),
+    });
+    const body = await res.json();
+
+    assert.equal(res.status, 429);
+    assert.ok(Number(res.headers.get('retry-after')) > 0);
+    assert.equal(body.jsonrpc, '2.0');
+    assert.equal(body.id, 'rl-1');
+    assert.equal(body.error.code, 429);
+    assert.equal(body.error.data.envelope.error.code, 'RATE_LIMITED');
+    assert.ok(body.error.data.envelope.rate_limit.retry_after_seconds > 0);
+    assert.equal(body.error.data.retry_after_seconds, body.error.data.envelope.rate_limit.retry_after_seconds);
+  });
+
   it('returns error for unknown method', async () => {
     const res = await fetch(`http://localhost:${port}/mcp`, {
       method: 'POST',
