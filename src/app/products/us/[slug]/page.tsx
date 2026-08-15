@@ -133,5 +133,20 @@ export default async function USProductSlugPage({ params }: PageProps) {
 
   const initialData = await fetchUSProductSSR(resolvedProduct.id) ?? buildResolvedProductFallback(resolvedProduct);
 
-  return <USProductDetail productId={resolvedProduct.id} initialData={initialData} />;
+  // Compute an absolute image URL for JSON-LD structured data:
+  // - Prefer a real product image from the API response.
+  // - Otherwise fall back to the dynamic OG card (which is always available and
+  //   carries the product name visually even when no product image exists).
+  const apiProductImage = initialData?.image && initialData.image.startsWith("http")
+    ? initialData.image
+    : null;
+  const jsonLdImageUrl = apiProductImage ?? toSiteUrl(`/api/og-image?title=${encodeURIComponent(resolvedProduct.name)}`);
+
+  return (
+    <USProductDetail
+      productId={resolvedProduct.id}
+      initialData={initialData}
+      jsonLdImageUrl={jsonLdImageUrl}
+    />
+  );
 }
