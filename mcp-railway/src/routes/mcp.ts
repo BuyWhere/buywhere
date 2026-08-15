@@ -5,7 +5,8 @@ import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, formatPriceField, isSentinelPrice, PRICE_UNAVAILABLE_TEXT } from '../lib/response';
+<<<<<<< HEAD
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, formatPriceField, formatSimilarPriceField, isSentinelPrice, PRICE_UNAVAILABLE_TEXT } from '../lib/response';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
 
 // formatPriceLine: formats a price for MCP text display (mirrors formatPriceField logic
@@ -1378,11 +1379,22 @@ async function handleFindSimilar(args: Record<string, unknown>) {
       const p = byId.get(id) as Record<string, unknown> | undefined;
       if (!p) return null;
       const dist = distMap.get(id) ?? 1;
+      // BUY-65693: sentinel-price guard for find_similar. Mirror BUY-65685
+      // (find_best_price / buildProduct): the raw DB `price` value can be a
+      // sentinel placeholder (`1`) from the ingest pipeline, which AI agents
+      // then format as `.00`. Apply formatSimilarPriceField so the JSON-RPC
+      // `price` slot becomes either the structured `{amount, currency}` or
+      // the sentinel hint string. When the structured form is returned the
+      // sibling `currency` field is redundant, so we omit it.
+      const rowCurrency = (p.currency as string) || '';
+      const amount = p.price != null ? parseFloat(p.price as string) : null;
+      const formattedPrice = formatSimilarPriceField(amount, rowCurrency);
+      const isStructured = typeof formattedPrice === 'object';
       return {
         id: p.id,
         title: p.title,
-        price: p.price,
-        currency: p.currency,
+        price: formattedPrice,
+        ...(isStructured ? {} : { currency: rowCurrency }),
         domain: p.domain,
         url: p.url,
         image_url: p.image_url,
