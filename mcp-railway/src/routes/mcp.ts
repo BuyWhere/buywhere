@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { Router, Request, Response, NextFunction } from 'express';
-import { db, redis, vectorDb } from '../config';
+import { db, redis, vectorDb, catalogDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -1381,7 +1381,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
       params.push(countryCode);
       conditions.push(`country_code = $${params.length}`);
     }
-    const lookupResult = await db.query(
+    const lookupResult = await catalogDb.query(
       `SELECT id, sku FROM products WHERE ${conditions.join(' AND ')} ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC LIMIT 1`,
       params
     );
@@ -1410,7 +1410,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   let sourceProductId = resolvedId;
   let sourceSku: string | null = null;
   try {
-    const sourceResult = await db.query<{ id: string; sku: string | null }>(
+    const sourceResult = await catalogDb.query<{ id: string; sku: string | null }>(
       isNumericProductId
         ? `SELECT id::text AS id, sku FROM products WHERE id = $1 AND is_active = true LIMIT 1`
         : `SELECT id::text AS id, sku FROM products WHERE sku = $1 AND is_active = true ORDER BY updated_at DESC LIMIT 1`,
@@ -1493,7 +1493,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
 
   const nearKeys = nearResult.rows.map(r => r.vector_key);
   const ph = nearKeys.map((_, i) => `$${i + 1}`).join(',');
-  const detailResult = await db.query(
+  const detailResult = await catalogDb.query(
     vectorTable === 'search_proof.product_vectors'
       ? `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url FROM products WHERE sku IN (${ph}) AND is_active = true`
       : `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url FROM products WHERE id::text IN (${ph}) AND is_active = true`,
