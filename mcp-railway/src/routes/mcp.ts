@@ -299,17 +299,21 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     params.push(country.toUpperCase());
     conditions.push(`country_code = $${params.length}`);
   }
-  if (category) {
-    params.push(`%${category}%`);
-    conditions.push(`category ILIKE $${params.length}`);
-  }
+  // BUY-70132: category ILIKE in SQL causes statement_timeout on large result sets.
+  // Instead, fetch via GIN index + country_code filter, then filter in-memory on both
+  // raw category AND category_path[1] (canonical). This handles broad labels like
+  // "Electronics" that match category_path values but not raw category strings.
+  // The category ILIKE is removed from SQL; post-filter applied after fetch.
+  // if (category) {
+  //   params.push(`%${category}%`);
+  //   conditions.push(`category ILIKE $${params.length}`);
+  // }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   let rows: unknown[];
   let total: number;
 
-  // BUY-57657: add connect timeout so pool exhaustion fails fast at 2s instead of
   // blocking the entire 12s statement_timeout. The DB itself is fast (70-130ms) so
   // any 8-12s MCP latency is pool-acquisition contention, not query execution.
   const searchClient = await Promise.race([
@@ -324,15 +328,20 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     // BUY-56185: reduced from 30s to 12s — keyword+country FTS on 14M rows should
     // complete within 12s via GIN index; anything longer signals plan regression or
     // pool exhaustion. Failing fast prevents cascading connection starvation.
+    // BUY-70144: enable_seqscan=off forces GIN/btree index use on the 400M-row
+    // catalog — the planner otherwise chooses a sequential scan on VN/sparse markets
+    // because their row fraction is too small to win on cost estimates, and the 12s
+    // statement_timeout fires before the partition pruning kicks in.
     await searchClient.query('SET statement_timeout = 12000');
     await searchClient.query('SET work_mem = \'64MB\''); // BUY-26343: encourage GIN bitmap plan over btree index scan for FTS queries
-    const COUNT_CAP = 1001;
+    await searchClient.query('SET enable_seqscan = off'); // BUY-70144: force index usage so sparse-country FTS uses GIN, not seqscan
     if (q) {
-      const countResult = await searchClient.query(
-        `SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT ${COUNT_CAP}) _sub`,
-        params
-      );
-      total = parseInt(countResult.rows[0].count, 10);
+      // BUY-70144: Do not run the old preflight COUNT(*) over FTS hits.
+      // On sparse markets (VN) the actual data query is fast via GIN, but the
+      // capped count can still walk enough of the 400M-row catalog to hit
+      // statement_timeout and surface JSON-RPC -32603. Use a page-based total
+      // heuristic below for keyword mode; hybrid/semantic keeps candidate count.
+      total = 0;
 
       // BUY-31962 / BUY-41138: hybrid search (RRF) or keyword FTS fallback.
       // Hybrid and semantic paths embed the query via Jina AI, query the vector DB
@@ -396,7 +405,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
             const detailResult = await searchClient.query(
               `SELECT id, sku AS source, source AS domain, url, title,
-                      price, currency, image_url, metadata, updated_at, region, country_code
+                      price, currency, image_url, metadata, updated_at, region, country_code, category, category_path
                FROM products WHERE id IN (${ph}) AND is_active = true`,
               pageIds
             );
@@ -411,7 +420,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           const result = await searchClient.query(
             `SELECT * FROM (
                SELECT id, sku AS source, source AS domain, url, title,
-                      price, currency, image_url, metadata, updated_at, region, country_code
+                      price, currency, image_url, metadata, updated_at, region, country_code, category, category_path
                FROM products ${where}
                LIMIT $${params.length - 2}
              ) _candidates
@@ -420,6 +429,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             params
           );
           rows = result.rows;
+          // BUY-70144: if we hit the candidate cap, use that as a lower-bound total
+          total = rows.length >= CANDIDATE_LIMIT ? CANDIDATE_LIMIT : rows.length;
         }
       } else {
         // Keyword (FTS) path — BUY-31962 subquery pattern
@@ -428,7 +439,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         const result = await searchClient.query(
           `SELECT * FROM (
              SELECT id, sku AS source, source AS domain, url, title,
-                    price, currency, image_url, metadata, updated_at, region, country_code
+                    price, currency, image_url, metadata, updated_at, region, country_code, category, category_path
              FROM products ${where}
              LIMIT $${params.length - 2}
            ) _candidates
@@ -437,6 +448,8 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           params
         );
         rows = result.rows;
+        // BUY-70144: if we hit the candidate cap, use that as a lower-bound total
+        total = rows.length >= CANDIDATE_LIMIT ? CANDIDATE_LIMIT : rows.length;
       }
     } else {
       // No FTS — browse mode. Use reltuples for approximate total and fetch
@@ -475,6 +488,17 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   } finally {
     // BUY-56185: always use safe release to discard connections poisoned by statement_timeout
     releaseClientSafely(searchClient);
+  }
+
+  // BUY-70132: post-filter on both raw category AND category_path[1] (canonical).
+  // Removed ILIKE from SQL (was causing seqscan on large result sets).
+  if (category && rows.length > 0) {
+    const catLower = category.toLowerCase();
+    rows = (rows as Record<string, unknown>[]).filter(r => {
+      const rawCat = ((r.category as string) || '').toLowerCase();
+      const catPath = ((r.category_path as string[])?.[0] || '').toLowerCase();
+      return rawCat.includes(catLower) || catPath.includes(catLower);
+    });
   }
 
   const products = (rows as Record<string, unknown>[]).map(r =>
@@ -907,7 +931,14 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     try {
       const primaryClient = await acquireMcpClient();
       try {
-        await primaryClient.query('SET statement_timeout = 10000');
+        // BUY-70144: bumped to 20s — US "nike air max" FTS returns ~1001 rows
+        // and takes ~3s via GIN; 10s was too tight and caused US to fall through
+        // to the ILIKE fallback, which also timed out → 0 results for US queries.
+        // BUY-70144: enable_seqscan=off ensures the planner uses the composite GIN
+        // index even on sparse-result queries (low selectivity selectivity → the
+        // planner misestimates cost and picks seqscan → statement_timeout).
+        await primaryClient.query('SET statement_timeout = 20000');
+        await primaryClient.query('SET enable_seqscan = off');
         result = await primaryClient.query(
           `WITH cand AS (
              SELECT id, price, updated_at
@@ -954,7 +985,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     try {
       const fallbackClient = await acquireMcpClient();
       try {
+        // BUY-70144: enable_seqscan=off ensures the planner uses the
+        // (country_code, updated_at) index for the recent-rows scan, avoiding
+        // a seq scan on the full catalog when VN/sparse markets have few rows.
         await fallbackClient.query('SET statement_timeout = 4500');
+        await fallbackClient.query('SET enable_seqscan = off');
         const fallbackParams: unknown[] = [requestedCountry, titlePattern, CANDIDATE_POOL];
         const fallbackConditions = ['is_active = true', 'price > 0', 'country_code = $1'];
         if (minPrice > 0) {
