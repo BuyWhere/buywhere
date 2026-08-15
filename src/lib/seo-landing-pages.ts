@@ -598,10 +598,11 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   // the QA expectation is "Live Catalog Snapshot shows real product
   // thumbnails with prices and merchant badges".
   //
-  // When the dropped count brings the live card set below 4, the
-  // fallback-top-up branch (below) substitutes curated fallbackProducts
-  // which have known-good real image URLs (Apple CDN, Dell CDN, Philips,
-  // Roborock, Dyson, Xiaomi, etc.).
+  // BUY-70202: unreachable-image products are now replaced with branded SVG
+  // placeholders instead of being dropped. The page always shows real product
+  // name/price/merchant/CTA — only the photo slot differs. When the verified
+  // count is still below 4, the fallback-top-up branch (below) fills the
+  // remaining slots with curated fallbackProducts which have known-good URLs.
   const verified: LandingProduct[] = [];
   const probeResults = await Promise.all(
     collected.map(async (product) => {
@@ -613,9 +614,15 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     if (probeResults[i]) {
       verified.push(collected[i]);
     } else {
-      console.warn(
-        `[seo] dropping unreachable product ${collected[i].id} on ${config.slug}: ${collected[i].imageUrl}`
+      // BUY-70202: image is unreachable — replace with branded SVG instead of
+      // dropping the product entirely. The card still shows real name, price,
+      // merchant, and CTA; only the photo slot gets a branded placeholder.
+      const placeholderUrl = brandedProductPlaceholderSvg(
+        collected[i].brand,
+        collected[i].name,
+        collected[i].category
       );
+      verified.push({ ...collected[i], imageUrl: placeholderUrl });
     }
   }
 
