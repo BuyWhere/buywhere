@@ -589,37 +589,39 @@ async function handleGetDeals(args: Record<string, unknown>) {
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
   try {
-    await dealsClient.query('SET statement_timeout = 60000');
+    await dealsClient.query('SET statement_timeout = 15000'); // 2026-08-15: fail fast — a 60s DB hang dead-airs the MCP transport
     await dealsClient.query('SET enable_seqscan = off'); // BUY-68615: force index path on production catalog DB
-    // BUY-69646: Bound the index scan to 10,000 candidates first, then sort in the subquery.
-    // This prevents timeouts at catalog scale (400M+ rows) where the planner estimates
-    // 30K matches but the actual set is much larger, causing the index scan to timeout.
-    const candidateLimit = 10000;
+    // BUY-69340 + BUY-69646 merged (2026-08-15): walk the deals index IN ORDER
+    // (currency, discount_pct DESC) so the response is the TRUE top discounts —
+    // the unordered 10K candidate walk could miss the best deals entirely and
+    // shipped 10K full rows (metadata jsonb) to Node per call (27-30s observed
+    // under replica load). The ordered walk early-stops at candidateLimit
+    // PASSING rows (same worst case as the unordered walk when filters are
+    // selective), candidates are id-thin, and full rows join only for the
+    // returned page. updated_at tiebreak preserved in SQL.
+    const candidateLimit = 2000;
     const candidateParams = [...params, candidateLimit];
-    const candidateResult = await dealsClient.query(
-      `SELECT id, sku AS source, source AS domain, url, title,
-              price,
-              CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
-                   THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
-              currency, image_url, metadata, updated_at, region, country_code,
-              ${discountSelect}
-       FROM products
-       WHERE ${whereClause}
-       LIMIT $${candidateParams.length}`,
+    const dataResult = await dealsClient.query(
+      `WITH cand AS (
+         SELECT id, discount_pct AS cand_discount, updated_at AS cand_updated
+         FROM products
+         WHERE ${whereClause}
+         ORDER BY discount_pct DESC
+         LIMIT $${candidateParams.length}
+       )
+       SELECT p.id, p.sku AS source, p.source AS domain, p.url, p.title,
+              p.price,
+              CASE WHEN p.metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
+                   THEN (p.metadata->>'original_price')::numeric ELSE NULL END AS original_price,
+              p.currency, p.image_url, p.metadata, p.updated_at, p.region, p.country_code,
+              p.discount_pct
+       FROM cand JOIN products p ON p.id = cand.id
+       ORDER BY cand.cand_discount DESC, cand.cand_updated DESC
+       LIMIT ${limit} OFFSET ${offset}`,
       candidateParams
     );
-    // Sort the bounded candidates by discount then updated_at
-    const sortedCandidates = candidateResult.rows.sort((a: Record<string, unknown>, b: Record<string, unknown>) => {
-      const da = (a.discount_pct as number | null) ?? -1;
-      const db = (b.discount_pct as number | null) ?? -1;
-      if (da !== db) return db - da;
-      const ua = new Date(a.updated_at as string).getTime();
-      const ub = new Date(b.updated_at as string).getTime();
-      return ub - ua;
-    });
-    const paginated = sortedCandidates.slice(offset, offset + limit);
-    total = paginated.length;
-    products = paginated.map((r: Record<string, unknown>) =>
+    total = dataResult.rows.length;
+    products = dataResult.rows.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false)
     );
   } finally {
