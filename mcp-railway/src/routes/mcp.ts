@@ -891,70 +891,59 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // (Deduped 2026-08-14: 921c3fa re-added the CANDIDATE_POOL/where declarations that
   // were already defined above — a TS2451 redeclare error that broke every deploy.)
   //
-  // BUY-70112: Restructure to two-CTE pattern. The prior single-CTE `cand` CTE included
-  // category ILIKE in the Bitmap Heap Scan filter, causing the planner to estimate
-  // BitmapAnd(rows_from_fts=2.3M × rows_from_country_idx=99M) → Bitmap Heap Scan on all
-  // SG rows regardless of FTS match → statement_timeout on Fashion/SG where the ILIKE
-  // selectivity was wildly misestimated. Fix: let `fts_cand` CTE hold only the FTS+indexable
-  // predicates, and let `page_ids` CTE apply the non-indexable category ILIKE filter to the
-  // already-bounded 500-row FTS result set. This limits the Bitmap Heap Scan to exactly
-  // what the GIN index returns (2.3M), and the ILIKE filter only scans 500 rows.
+  // BUY-70112: category-qualified queries (e.g. Fashion/SG) hit statement_timeout in the
+  // primary FTS query because PostgreSQL misestimates the BitmapAnd selectivity:
+  // the planner assumes BitmapAnd(2.3M FTS rows × 99M SG rows) = few rows, but the
+  // ILIKE filter on the full SG set removes everything — forcing a sequential scan on
+  // 500M+ rows before returning anything.
+  //
+  // Fix: skip the primary FTS path entirely when a category filter is present.
+  // The bounded fallback (recent market-local rows, ordered by updated_at DESC, LIMIT 5000,
+  // then ILIKE + price-order) is both faster AND handles category predicates correctly.
+  // The primary path is still used for non-category queries where FTS is the right signal.
   let result: { rows: Record<string, unknown>[] } = { rows: [] };
-  try {
-    const primaryClient = await acquireMcpClient();
+  if (!category) {
     try {
-      await primaryClient.query('SET statement_timeout = 10000');
-      // Re-build params for the two-CTE pattern.
-      // Fixed positional placeholders: $1=productName, $2=country, $3=region, $4=minPrice, $5=category.
-      // CANDIDATE_POOL and limit are integer literals in LIMIT clauses (not parameterized).
-      // fts_cand: FTS + indexable predicates → bounded to CANDIDATE_POOL rows.
-      // page_ids: non-indexable category ILIKE applied to the 500-row FTS set, then ordered.
-      const ftsParams: unknown[] = [productName];
-      const ftsConditions = ['is_active = true', 'price > 0', 'search_vector @@ plainto_tsquery(\'english\', $1)'];
-      if (country) { ftsParams.push(country); ftsConditions.push(`country_code = $${ftsParams.length}`); }
-      if (region) { ftsParams.push(region); ftsConditions.push(`region = $${ftsParams.length}`); }
-      if (deviceFilter.minLocal > 0) { ftsParams.push(deviceFilter.minLocal); ftsConditions.push(`price >= $${ftsParams.length}`); }
-      const categoryParam = category ? `%${category}%` : null;
-      const categoryCondition = categoryParam
-        ? (() => { ftsParams.push(categoryParam); return `AND category ILIKE $${ftsParams.length}`; })()
-        : '';
-      result = await primaryClient.query(
-        `WITH fts_cand AS (
-           SELECT id, price, updated_at, category
-           FROM products
-           WHERE ${ftsConditions.join(' AND ')}
-           LIMIT ${CANDIDATE_POOL}
-         ), page_ids AS (
-           SELECT id, price, updated_at
-           FROM fts_cand
-           WHERE 1=1 ${categoryCondition}
-           ORDER BY price ASC, updated_at DESC
-           LIMIT ${limit}
-         )
-         SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
-                p.country_code, p.updated_at, p.category, p.category_path, p.metadata
-         FROM page_ids pi
-         JOIN products p ON p.id = pi.id
-         ORDER BY pi.price ASC, pi.updated_at DESC`,
-        ftsParams
-      );
-    } finally {
-      // BUY-56185: discard connections poisoned by statement_timeout.
-      releaseClientSafely(primaryClient);
+      const primaryClient = await acquireMcpClient();
+      try {
+        await primaryClient.query('SET statement_timeout = 10000');
+        result = await primaryClient.query(
+          `WITH cand AS (
+             SELECT id, price, updated_at
+             FROM products ${where}
+             LIMIT $${params.length - 1}
+           ), page_ids AS (
+             SELECT id, price, updated_at
+             FROM cand
+             ORDER BY price ASC, updated_at DESC
+             LIMIT $${params.length}
+           )
+           SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
+                  p.country_code, p.updated_at, p.category, p.category_path, p.metadata
+           FROM page_ids pi
+           JOIN products p ON p.id = pi.id
+           ORDER BY pi.price ASC, pi.updated_at DESC`,
+          params
+        );
+      } finally {
+        // BUY-56185: discard connections poisoned by statement_timeout.
+        releaseClientSafely(primaryClient);
+      }
+    } catch (primaryErr) {
+      // BUY-70088/BUY-70097: broad/sparse strings can produce huge FTS candidate
+      // sets and hit statement_timeout. Preserve MCP contract by trying the
+      // fallback instead of surfacing generic JSON-RPC -32603.
+      console.warn('[mcp] find_best_price primary query failed:', (primaryErr as Error).message);
+      result = { rows: [] };
     }
-  } catch (primaryErr) {
-    // BUY-70088/BUY-70097: broad/sparse strings can produce huge FTS candidate
-    // sets and hit statement_timeout. Preserve MCP contract by trying the
-    // fallback instead of surfacing generic JSON-RPC -32603. Use a fresh client
-    // below because a cancelled PostgreSQL query can leave this one poisoned.
-    console.warn('[mcp] find_best_price primary query failed:', (primaryErr as Error).message);
-    result = { rows: [] };
   }
 
   // BUY-69626: FTS returned nothing — try bounded title-ILIKE on recent market slice
   // BUY-70064: Fixed parameter order — $2 must be titlePattern for both LIMIT and ILIKE.
   // Prior bug: params were [country, CANDIDATE_POOL, titlePattern] making $2=CANDIDATE_POOL,
   // which is an integer but used as text in LIMIT/ILIKE → PostgreSQL type error → -32603.
+  // BUY-70112: category-qualified queries also skip primary and enter here directly because
+  // the primary FTS path times out on broad category predicates (Fashion/SG pattern).
   if (result.rows.length === 0) {
     const titlePattern = `%${productName}%`;
     const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
