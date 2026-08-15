@@ -181,10 +181,6 @@ const OPTIONAL_METADATA_MISSES: Record<string, { body: string; contentType: stri
     body: '{"error":"apple-app-site-association is not published for this site."}\n',
     contentType: "application/json; charset=utf-8",
   },
-  "/browserconfig.xml": {
-    body: '<?xml version="1.0" encoding="utf-8"?>\n<browserconfig><msapplication /></browserconfig>\n',
-    contentType: "application/xml; charset=utf-8",
-  },
 };
 
 function optionalMetadataMiss(pathname: string): NextResponse | null {

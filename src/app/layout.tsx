@@ -89,6 +89,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <head>
+        {/* BUY-69954 re-fix PWA head polish: explicit theme-color for page-level brand chrome.
+            Metadata-only themeColor was missing across public routes in production. */}
+        <meta name="theme-color" content="#4F46E5" />
         {/* Safari pinned-tab mask icon (BUY-67512). mask-icon requires a
             monochrome SVG; Next's Metadata API has no field for it. */}
         <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#4F46E5" />
