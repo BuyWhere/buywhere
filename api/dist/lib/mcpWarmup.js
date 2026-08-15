@@ -3,17 +3,44 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.warmupMcpCaches = warmupMcpCaches;
 exports.refreshCategorySummaries = refreshCategorySummaries;
 const config_1 = require("../config");
-const WARMUP_STATEMENT_TIMEOUT_MS = parseInt(process.env.MCP_WARMUP_STATEMENT_TIMEOUT_MS || '15000', 10);
+const WARMUP_STATEMENT_TIMEOUT_MS = parseInt(process.env.MCP_WARMUP_STATEMENT_TIMEOUT_MS || '60000', 10);
 const WARMUP_LOCK_TIMEOUT_MS = parseInt(process.env.MCP_WARMUP_LOCK_TIMEOUT_MS || '1000', 10);
-const REFRESH_STATEMENT_TIMEOUT_MS = parseInt(process.env.MCP_REFRESH_STATEMENT_TIMEOUT_MS || '15000', 10);
+const REFRESH_STATEMENT_TIMEOUT_MS = parseInt(process.env.MCP_REFRESH_STATEMENT_TIMEOUT_MS || '60000', 10);
 const REFRESH_LOCK_TIMEOUT_MS = parseInt(process.env.MCP_REFRESH_LOCK_TIMEOUT_MS || '1000', 10);
 function isTimeoutError(err) {
     const error = err;
     return error?.code === '57014' || /timeout|canceling statement/i.test(error?.message || '');
 }
+// BUY-56185 / BUY-60097: Detect statement_timeout poisoned connections.
+// When PostgreSQL's statement_timeout fires, the query is cancelled but the
+// connection enters PQTRANS_INERROR state. Returning such a connection to the
+// pool poises every subsequent query with "current transaction is aborted".
+// client.state returns 'error' in this state — discard instead of reusing.
+function releaseClientSafely(client) {
+    try {
+        if (client && typeof client.state === 'string' && client.state === 'error') {
+            client.release(true); // discard — do NOT return poisoned connection to pool
+        }
+        else {
+            client.release();
+        }
+    }
+    catch (_) {
+        // Swallow release errors — pool will remove the bad client anyway.
+    }
+}
 async function resetSessionTimeouts(client) {
-    await client.query('RESET statement_timeout');
-    await client.query('RESET lock_timeout');
+    // BUY-60097: guard RESET calls — on a statement_timeout-poisoned connection,
+    // RESET itself can fail because the transaction is already in error state.
+    // Swallow those failures so we still call releaseClientSafely below.
+    try {
+        await client.query('RESET statement_timeout');
+    }
+    catch (_) { /* already in error state — releaseClientSafely will discard */ }
+    try {
+        await client.query('RESET lock_timeout');
+    }
+    catch (_) { /* already in error state — releaseClientSafely will discard */ }
 }
 async function queryWithWarmupBudget(client, sql, params) {
     try {
@@ -144,7 +171,10 @@ async function warmupMcpCaches() {
     }
     finally {
         await resetSessionTimeouts(client).catch(() => { });
-        client.release();
+        // BUY-60097: use safe release to discard connections poisoned by
+        // statement_timeout — keeps the pool free of PQTRANS_INERROR clients
+        // that would crash the next MCP handler that checks them out.
+        releaseClientSafely(client);
     }
 }
 const CATEGORY_REFRESH_COUNTRIES = ['SG', 'US', 'VN', 'TH', 'MY'];
@@ -179,6 +209,6 @@ async function refreshCategorySummaries() {
     }
     finally {
         await resetSessionTimeouts(client).catch(() => { });
-        client.release();
+        releaseClientSafely(client);
     }
 }

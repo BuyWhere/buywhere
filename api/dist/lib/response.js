@@ -117,7 +117,7 @@ function buildProduct(row, defaultCurrency, compact) {
     }
     return base;
 }
-function buildSearchResponse(products, total, limit, offset, responseTimeMs, cached, degraded) {
+function buildSearchResponse(products, total, limit, offset, responseTimeMs, cached, degraded, hasMore) {
     return {
         data: products,
         meta: {
@@ -127,6 +127,7 @@ function buildSearchResponse(products, total, limit, offset, responseTimeMs, cac
             response_time_ms: responseTimeMs,
             cached,
             ...(degraded != null && { degraded }),
+            ...(hasMore != null && { has_more: hasMore }),
         },
     };
 }

@@ -40,6 +40,23 @@ app.use('/', mcp_1.default);
 app.use((_req, res) => {
     res.status(404).json({ error: 'not found' });
 });
+// BUY-56185 / BUY-60097: Detect statement_timeout poisoned connections.
+// When PostgreSQL's statement_timeout fires, the query is cancelled but the
+// connection enters PQTRANS_INERROR state. Returning such a connection to the
+// pool poisons every subsequent query. client.state returns 'error' in this state.
+function releaseClientSafely(client) {
+    try {
+        if (client && typeof client.state === 'string' && client.state === 'error') {
+            client.release(true); // discard — do NOT return poisoned connection to pool
+        }
+        else {
+            client.release();
+        }
+    }
+    catch (_) {
+        // Swallow release errors — pool will remove the bad client anyway.
+    }
+}
 async function warmupMcpCaches() {
     // BUY-22324: Ensure discount_pct is a GENERATED STORED column (not a plain column).
     const client = await config_1.db.connect();
@@ -128,7 +145,8 @@ async function warmupMcpCaches() {
         }
     }
     finally {
-        client.release();
+        // BUY-60097: discard connections poisoned by statement_timeout
+        releaseClientSafely(client);
     }
 }
 const server = app.listen(MCP_PORT, () => {

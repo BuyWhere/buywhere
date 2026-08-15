@@ -178,12 +178,13 @@ const TOOLS = [
   },
   {
     name: 'find_similar',
-    description: 'Find products similar to a given product using vector similarity. Returns up to 10 nearest neighbours by semantic meaning (title+description embedding). Useful for "more like this" recommendations.',
+    description: 'Find products similar to a given product using vector similarity. Returns up to 10 nearest neighbours by semantic meaning (title+description embedding). Useful for "more like this" recommendations. Accepts product_id directly, or product_name for automatic lookup.',
     inputSchema: {
       type: 'object',
-      required: ['product_id'],
       properties: {
-        product_id: { type: 'string', description: 'UUID of the source product' },
+        product_id: { type: 'string', description: 'Numeric ID of the source product (mutually exclusive with product_name)' },
+        product_name: { type: 'string', description: 'Product name to find similar items for (auto-resolves to best-matching product ID). Preferred when agent starts with a name/query.' },
+        country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Country to scope product_name lookup (defaults to SG)' },
         limit: { type: 'integer', description: 'Number of similar products to return (1-10, default 10)', default: 10 },
       },
     },
@@ -1384,17 +1385,42 @@ async function handleIngestProducts(args: Record<string, unknown>) {
 async function handleFindSimilar(args: Record<string, unknown>) {
   const t0 = Date.now();
   const productId = (args.product_id as string || '').trim();
+  const productName = (args.product_name as string || '').trim();
+  const countryCode = ((args.country_code as string) || 'SG').toUpperCase();
   const limit = Math.min(Number(args.limit) || 10, 10);
 
-  if (!productId) {
-    throw { code: -32602, message: 'missing required parameter: product_id' };
+  // BUY-70124: Resolve product_name → product_id via FTS when product_id is not provided.
+  // This enables agents to start with a product name (natural discovery flow) instead
+  // of requiring a pre-known numeric ID.
+  let resolvedId = productId;
+  if (!resolvedId && productName) {
+    const conditions = ['is_active = true'];
+    const params: unknown[] = [];
+    params.push(productName);
+    conditions.push(`search_vector @@ plainto_tsquery('english', $${params.length})`);
+    if (countryCode) {
+      params.push(countryCode);
+      conditions.push(`country_code = $${params.length}`);
+    }
+    const lookupResult = await db.query(
+      `SELECT id, title FROM products WHERE ${conditions.join(' AND ')} ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC LIMIT 1`,
+      params
+    );
+    if (!lookupResult.rows.length) {
+      throw { code: -32001, message: `No product found matching "${productName}" in ${countryCode}` };
+    }
+    resolvedId = String((lookupResult.rows[0] as Record<string, unknown>).id);
+  }
+
+  if (!resolvedId) {
+    throw { code: -32602, message: 'missing required parameter: provide product_id or product_name' };
   }
 
   // product_embeddings.product_id is bigint; reject non-numeric IDs upfront so the
   // SQL parameter doesn't blow up with "invalid input syntax for type bigint".
   // BUY-59390 — previously the handler exposed -32603 raw SQL errors.
-  if (!/^\d+$/.test(productId)) {
-    throw { code: -32602, message: `Invalid product_id format: expected numeric ID, got "${productId}"` };
+  if (!/^\d+$/.test(resolvedId)) {
+    throw { code: -32602, message: `Invalid product_id format: expected numeric ID, got "${resolvedId}"` };
   }
 
   if (!vectorDb) {
@@ -1406,7 +1432,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   try {
     refResult = await vectorDb.query<{ embedding: string }>(
       `SELECT embedding::text FROM product_embeddings WHERE product_id = $1`,
-      [productId]
+      [resolvedId]
     );
   } catch {
     throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
@@ -1423,7 +1449,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
       `SELECT product_id, (embedding <=> $1::vector)::float AS distance
        FROM product_embeddings WHERE product_id != $2
        ORDER BY distance LIMIT $3`,
-      [refEmbedding, productId, limit]
+      [refEmbedding, resolvedId, limit]
     );
   } catch {
     throw { code: -32001, message: 'No similar products found' };
@@ -1463,7 +1489,8 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     .filter(Boolean);
 
   return {
-    product_id: productId,
+    product_id: resolvedId,
+    matched_product_name: productName || undefined,
     similar,
     total: similar.length,
     response_time_ms: Date.now() - t0,

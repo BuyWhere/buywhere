@@ -317,12 +317,23 @@ const TOOLS: Tool[] = [
   {
     name: 'find_similar',
     description:
-      'Find products similar to a given product using vector similarity. Returns up to 10 nearest neighbours by semantic meaning (title+description embedding). Useful for "more like this" recommendations.',
+      'Find products similar to a given product using vector similarity. Returns up to 10 nearest neighbours by semantic meaning (title+description embedding). Useful for "more like this" recommendations. Accepts product_id directly, or product_name for automatic lookup.',
     inputSchema: {
       type: 'object',
-      required: ['product_id'],
       properties: {
-        product_id: { type: 'string', description: 'UUID of the source product' },
+        product_id: {
+          type: 'string',
+          description: 'Numeric ID of the source product (mutually exclusive with product_name)',
+        },
+        product_name: {
+          type: 'string',
+          description: 'Product name to find similar items for (auto-resolves to best-matching product ID). Preferred when agent starts with a name/query.',
+        },
+        country_code: {
+          type: 'string',
+          enum: ['SG', 'US', 'VN', 'TH', 'MY'],
+          description: 'Country to scope product_name lookup (defaults to SG)',
+        },
         limit: {
           type: 'integer',
           description: 'Number of similar products to return (1-10, default 10)',
