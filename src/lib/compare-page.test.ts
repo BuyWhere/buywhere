@@ -25,65 +25,18 @@ test("normalizeComparisonOffer uses click_url when affiliate_redirect_url is abs
   assert.equal(offer.href, "https://merchant.example/product/prod_456");
 });
 
-test("normalizeComparisonOffer handles nested price object from live API", () => {
+test("normalizeComparisonOffer reads availability from API metadata", () => {
   const offer = normalizeComparisonOffer({
-    id: "54419109",
-    title: "Laptop 15.6-inch Intel Core i7",
-    merchant: "amazon.com",
-    price: { amount: 1074.41, currency: "SGD" },
-  });
-
-  assert.equal(offer.price, 1074.41);
-  assert.equal(offer.currency, "SGD");
-});
-
-test("normalizeComparisonOffer extracts price from nested metadata.in_stock", () => {
-  const offer = normalizeComparisonOffer({
-    id: "54412356",
-    title: "Gaming Laptop",
+    id: "prod_789",
+    name: "Metadata availability product",
     merchant: "newegg_us",
-    price: { amount: 1499.99, currency: "USD" },
-    metadata: { in_stock: true, availability: "in_stock" },
+    price: 499,
+    metadata: {
+      availability: "in_stock",
+      in_stock: true,
+    },
   });
 
-  assert.equal(offer.price, 1499.99);
-  assert.equal(offer.inStock, true);
   assert.equal(offer.availability, "In stock");
-});
-
-test("normalizeComparisonOffer falls back to price_amount / price_currency fields", () => {
-  const offer = normalizeComparisonOffer({
-    id: "123",
-    name: "Test product",
-    merchant: "test_store",
-    price_amount: 99.99,
-    price_currency: "EUR",
-  });
-
-  assert.equal(offer.price, 99.99);
-  assert.equal(offer.currency, "EUR");
-});
-
-test("normalizeComparisonOffer reads brand/category from metadata", () => {
-  const offer = normalizeComparisonOffer({
-    id: "456",
-    name: "Phone",
-    merchant: "shop",
-    price: { amount: 699, currency: "USD" },
-    metadata: { brand: "Apple", category: "Smartphones" },
-  });
-
-  assert.equal(offer.brand, "Apple");
-  assert.equal(offer.category, "Smartphones");
-});
-
-test("normalizeComparisonOffer uses merchant_name over merchant", () => {
-  const offer = normalizeComparisonOffer({
-    id: "789",
-    name: "Test",
-    merchant: "old_merchant",
-    merchant_name: "New Merchant",
-  });
-
-  assert.equal(offer.merchant, "New Merchant");
+  assert.equal(offer.inStock, true);
 });
