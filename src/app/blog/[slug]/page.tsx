@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
-import { getAllBlogPosts, getBlogPostBySlug } from "@/lib/blog";
+import { getAllBlogPosts, getBlogPostBySlug, type BlogPost } from "@/lib/blog";
 import { toSiteUrl } from "@/lib/site-url";
 
 type PageProps = {
@@ -21,6 +21,47 @@ function formatDate(date: string) {
   }).format(new Date(date));
 }
 
+function articleImage(post: BlogPost) {
+  return post.coverImage ?? toSiteUrl("/og-image.png");
+}
+
+function articleJsonLd(post: BlogPost) {
+  if (post.jsonLd) {
+    return post.jsonLd;
+  }
+
+  const canonical = post.canonicalUrl ?? toSiteUrl(`/blog/${post.slug}`);
+  const image = articleImage(post);
+
+  return JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "@id": `${canonical}#article`,
+    headline: post.title,
+    description: post.description,
+    image,
+    datePublished: post.publishedAt,
+    dateModified: post.lastUpdatedAt ?? post.publishedAt,
+    author: {
+      "@type": "Organization",
+      name: post.author,
+    },
+    publisher: {
+      "@type": "Organization",
+      "@id": "https://buywhere.ai/#organization",
+      name: "BuyWhere",
+      logo: {
+        "@type": "ImageObject",
+        url: toSiteUrl("/logo.png"),
+      },
+    },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": canonical,
+    },
+  });
+}
+
 export function generateStaticParams() {
   return getAllBlogPosts().map((post) => ({ slug: post.slug }));
 }
@@ -33,10 +74,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const canonical = post.canonicalUrl ?? toSiteUrl(`/blog/${post.slug}`);
+  const image = articleImage(post);
 
   return {
     title: post.title,
     description: post.description,
+    robots: {
+      index: true,
+      follow: true,
+    },
     alternates: {
       canonical,
     },
@@ -46,14 +92,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       type: "article",
       url: canonical,
       publishedTime: post.publishedAt,
+      modifiedTime: post.lastUpdatedAt,
       authors: [post.author],
-      images: post.coverImage ? [{ url: post.coverImage }] : undefined,
+      images: [{ url: image, width: 1200, height: 630, alt: post.title }],
     },
     twitter: {
       card: "summary_large_image",
       title: post.title,
       description: post.description,
-      images: post.coverImage ? [post.coverImage] : undefined,
+      images: [image],
     },
   };
 }
@@ -68,12 +115,12 @@ export default function BlogPostPage({ params }: PageProps) {
     notFound();
   }
 
-  const jsonLd = post.jsonLd ? (
+  const jsonLd = (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: post.jsonLd }}
+      dangerouslySetInnerHTML={{ __html: articleJsonLd(post) }}
     />
-  ) : null;
+  );
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
@@ -121,9 +168,9 @@ export default function BlogPostPage({ params }: PageProps) {
                 remarkPlugins={[remarkGfm]}
                 components={{
                   h1: ({ children }) => (
-                    <h1 className="mt-10 text-3xl font-bold tracking-tight text-slate-900 first:mt-0">
+                    <h2 className="mt-10 text-3xl font-bold tracking-tight text-slate-900 first:mt-0">
                       {children}
-                    </h1>
+                    </h2>
                   ),
                   h2: ({ children }) => (
                     <h2 className="mt-10 text-2xl font-semibold tracking-tight text-slate-900">

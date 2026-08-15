@@ -316,12 +316,6 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/challenge", priority: 0.9, changeFrequency: "daily" as const },
   { path: "/privacy", priority: 0.3, changeFrequency: "yearly" as const },
   { path: "/terms", priority: 0.3, changeFrequency: "yearly" as const },
-  // BUY-66281: ChatGPT plugin manifest. Already served at
-  // /.well-known/ai-plugin.json with HTTP 200, but zero sitemap references
-  // meant zero indexable URL graph signal. Add it here so Google + agent
-  // crawlers can find it via sitemap-pages.xml. robots.txt also declares
-  // `Plugin: /.well-known/ai-plugin.json`.
-  { path: "/.well-known/ai-plugin.json", priority: 0.8, changeFrequency: "monthly" as const },
 ] as const;
 
 function xmlEscape(value: string): string {
