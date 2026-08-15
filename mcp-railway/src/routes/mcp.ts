@@ -890,28 +890,53 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // when FTS misses sparse/stale search_vector entries, instead of returning nothing.
   // (Deduped 2026-08-14: 921c3fa re-added the CANDIDATE_POOL/where declarations that
   // were already defined above — a TS2451 redeclare error that broke every deploy.)
+  //
+  // BUY-70112: Restructure to two-CTE pattern. The prior single-CTE `cand` CTE included
+  // category ILIKE in the Bitmap Heap Scan filter, causing the planner to estimate
+  // BitmapAnd(rows_from_fts=2.3M × rows_from_country_idx=99M) → Bitmap Heap Scan on all
+  // SG rows regardless of FTS match → statement_timeout on Fashion/SG where the ILIKE
+  // selectivity was wildly misestimated. Fix: let `fts_cand` CTE hold only the FTS+indexable
+  // predicates, and let `page_ids` CTE apply the non-indexable category ILIKE filter to the
+  // already-bounded 500-row FTS result set. This limits the Bitmap Heap Scan to exactly
+  // what the GIN index returns (2.3M), and the ILIKE filter only scans 500 rows.
   let result: { rows: Record<string, unknown>[] } = { rows: [] };
   try {
     const primaryClient = await acquireMcpClient();
     try {
       await primaryClient.query('SET statement_timeout = 10000');
+      // Re-build params for the two-CTE pattern.
+      // Fixed positional placeholders: $1=productName, $2=country, $3=region, $4=minPrice, $5=category.
+      // CANDIDATE_POOL and limit are integer literals in LIMIT clauses (not parameterized).
+      // fts_cand: FTS + indexable predicates → bounded to CANDIDATE_POOL rows.
+      // page_ids: non-indexable category ILIKE applied to the 500-row FTS set, then ordered.
+      const ftsParams: unknown[] = [productName];
+      const ftsConditions = ['is_active = true', 'price > 0', 'search_vector @@ plainto_tsquery(\'english\', $1)'];
+      if (country) { ftsParams.push(country); ftsConditions.push(`country_code = $${ftsParams.length}`); }
+      if (region) { ftsParams.push(region); ftsConditions.push(`region = $${ftsParams.length}`); }
+      if (deviceFilter.minLocal > 0) { ftsParams.push(deviceFilter.minLocal); ftsConditions.push(`price >= $${ftsParams.length}`); }
+      const categoryParam = category ? `%${category}%` : null;
+      const categoryCondition = categoryParam
+        ? (() => { ftsParams.push(categoryParam); return `AND category ILIKE $${ftsParams.length}`; })()
+        : '';
       result = await primaryClient.query(
-        `WITH cand AS (
-           SELECT id, price, updated_at
-           FROM products ${where}
-           LIMIT $${params.length - 1}
+        `WITH fts_cand AS (
+           SELECT id, price, updated_at, category
+           FROM products
+           WHERE ${ftsConditions.join(' AND ')}
+           LIMIT ${CANDIDATE_POOL}
          ), page_ids AS (
            SELECT id, price, updated_at
-           FROM cand
+           FROM fts_cand
+           WHERE 1=1 ${categoryCondition}
            ORDER BY price ASC, updated_at DESC
-           LIMIT $${params.length}
+           LIMIT ${limit}
          )
          SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
                 p.country_code, p.updated_at, p.category, p.category_path, p.metadata
          FROM page_ids pi
          JOIN products p ON p.id = pi.id
          ORDER BY pi.price ASC, pi.updated_at DESC`,
-        params
+        ftsParams
       );
     } finally {
       // BUY-56185: discard connections poisoned by statement_timeout.

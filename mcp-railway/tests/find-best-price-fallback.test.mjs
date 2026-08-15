@@ -125,4 +125,14 @@ suite('BUY-70064: find_best_price fallback path — no -32603 on sparse queries'
     assert.notEqual(body.error?.code, -32603,
       `find_best_price with category returned -32603: ${JSON.stringify(body.error)}`);
   });
+
+  // BUY-70112: SG Fashion broad terms previously hit PostgreSQL statement_timeout
+  // because category ILIKE was applied in the unbounded primary Bitmap Heap Scan.
+  it('no -32603 for SG Fashion dress category query', async () => {
+    const { body } = await rpc('find_best_price', {
+      product_name: 'dress', country_code: 'SG', category: 'Fashion'
+    }, 'fbp-sg-fashion-dress');
+    assert.notEqual(body.error?.code, -32603,
+      `find_best_price SG Fashion dress returned -32603: ${JSON.stringify(body.error)}`);
+  });
 });
