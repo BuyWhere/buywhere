@@ -182,7 +182,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        product_id: { type: 'string', description: 'Numeric ID of the source product (mutually exclusive with product_name)' },
+        product_id: { type: 'string', description: 'Catalog product id (products.id; mutually exclusive with product_name). For legacy vector rows, an exact SKU is also accepted.' },
         product_name: { type: 'string', description: 'Product name to find similar items for (auto-resolves to best-matching product ID). Preferred when agent starts with a name/query.' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Country to scope product_name lookup (defaults to SG)' },
         limit: { type: 'integer', description: 'Number of similar products to return (1-10, default 10)', default: 10 },
@@ -1384,15 +1384,12 @@ async function handleIngestProducts(args: Record<string, unknown>) {
 
 async function handleFindSimilar(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const productId = (args.product_id as string || '').trim();
+  const requestedId = (args.product_id as string || '').trim();
   const productName = (args.product_name as string || '').trim();
   const countryCode = ((args.country_code as string) || 'SG').toUpperCase();
-  const limit = Math.min(Number(args.limit) || 10, 10);
+  const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 10);
 
-  // BUY-70124: Resolve product_name → product_id via FTS when product_id is not provided.
-  // This enables agents to start with a product name (natural discovery flow) instead
-  // of requiring a pre-known numeric ID.
-  let resolvedId = productId;
+  let resolvedId = requestedId;
   if (!resolvedId && productName) {
     const conditions = ['is_active = true'];
     const params: unknown[] = [];
@@ -1403,7 +1400,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
       conditions.push(`country_code = $${params.length}`);
     }
     const lookupResult = await db.query(
-      `SELECT id, title FROM products WHERE ${conditions.join(' AND ')} ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC LIMIT 1`,
+      `SELECT id, sku FROM products WHERE ${conditions.join(' AND ')} ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC LIMIT 1`,
       params
     );
     if (!lookupResult.rows.length) {
@@ -1415,71 +1412,126 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   if (!resolvedId) {
     throw { code: -32602, message: 'missing required parameter: provide product_id or product_name' };
   }
-
-  // product_embeddings.product_id is bigint; reject non-numeric IDs upfront so the
-  // SQL parameter doesn't blow up with "invalid input syntax for type bigint".
-  // BUY-59390 — previously the handler exposed -32603 raw SQL errors.
-  if (!/^\d+$/.test(resolvedId)) {
-    throw { code: -32602, message: `Invalid product_id format: expected numeric ID, got "${resolvedId}"` };
-  }
-
   if (!vectorDb) {
-    throw { code: -32001, message: 'Vector search not available — vector DB not configured' };
+    throw { code: -32001, message: 'Vector search not available - vector DB not configured' };
   }
 
-  // Step 1: get reference embedding from vector DB
-  let refResult;
+  // Public contract: product_id is products.id (currently bigint text in MCP JSON).
+  // Legacy vector data in search_proof.product_vectors is keyed by sku, so exact SKU
+  // input remains accepted as a compatibility bridge while canonical coverage catches up.
+  const isNumericProductId = /^\d+$/.test(resolvedId);
+  const isUuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedId);
+  if (!isNumericProductId && isUuidLike) {
+    throw { code: -32602, message: `Invalid product_id format: expected catalog product id or exact SKU, got "${resolvedId}"` };
+  }
+
+  let sourceProductId = resolvedId;
+  let sourceSku: string | null = null;
   try {
-    refResult = await vectorDb.query<{ embedding: string }>(
-      `SELECT embedding::text FROM product_embeddings WHERE product_id = $1`,
+    const sourceResult = await db.query<{ id: string; sku: string | null }>(
+      isNumericProductId
+        ? `SELECT id::text AS id, sku FROM products WHERE id = $1 AND is_active = true LIMIT 1`
+        : `SELECT id::text AS id, sku FROM products WHERE sku = $1 AND is_active = true ORDER BY updated_at DESC LIMIT 1`,
       [resolvedId]
     );
+    if (sourceResult.rows.length) {
+      sourceProductId = String(sourceResult.rows[0].id);
+      sourceSku = sourceResult.rows[0].sku ? String(sourceResult.rows[0].sku) : null;
+    }
   } catch {
-    throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
+    if (!isNumericProductId) sourceSku = resolvedId;
   }
-  if (!refResult.rows.length) {
-    throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
-  }
-  const refEmbedding = refResult.rows[0].embedding;
+  const lookupKeys = Array.from(new Set([sourceProductId, sourceSku, resolvedId].filter(Boolean).map(String)));
 
-  // Step 2: find nearest neighbours in vector DB (excluding source product)
-  let nearResult;
+  let refResult;
   try {
-    nearResult = await vectorDb.query<{ product_id: string; distance: number }>(
-      `SELECT product_id, (embedding <=> $1::vector)::float AS distance
-       FROM product_embeddings WHERE product_id != $2
-       ORDER BY distance LIMIT $3`,
-      [refEmbedding, resolvedId, limit]
+    refResult = await vectorDb.query<{ vector_key: string; embedding: string; vector_table: string }>(
+      `SELECT product_id::text AS vector_key, embedding::text, 'product_embeddings' AS vector_table
+         FROM product_embeddings
+        WHERE product_id::text = ANY($1::text[])
+        ORDER BY CASE WHEN product_id::text = $2 THEN 0 ELSE 1 END
+        LIMIT 1`,
+      [lookupKeys, sourceProductId]
     );
   } catch {
-    throw { code: -32001, message: 'No similar products found' };
+    refResult = { rows: [] };
+  }
+
+  if (!refResult.rows.length) {
+    try {
+      refResult = await vectorDb.query<{ vector_key: string; embedding: string; vector_table: string }>(
+        `SELECT sku AS vector_key, embedding::text, 'search_proof.product_vectors' AS vector_table
+           FROM search_proof.product_vectors
+          WHERE sku = ANY($1::text[])
+          ORDER BY CASE WHEN sku = $2 THEN 0 ELSE 1 END
+          LIMIT 1`,
+        [lookupKeys, sourceSku || resolvedId]
+      );
+    } catch {
+      refResult = { rows: [] };
+    }
+  }
+
+  if (!refResult.rows.length) {
+    throw { code: -32001, message: 'No embedding found for this product - backfill may still be running' };
+  }
+  const refEmbedding = refResult.rows[0].embedding;
+  const vectorKey = refResult.rows[0].vector_key;
+  const vectorTable = refResult.rows[0].vector_table;
+
+  let nearResult;
+  if (vectorTable === 'search_proof.product_vectors') {
+    try {
+      nearResult = await vectorDb.query<{ vector_key: string; distance: number }>(
+        `SELECT sku AS vector_key, (embedding <=> $1::vector)::float AS distance
+           FROM search_proof.product_vectors
+          WHERE sku != $2
+          ORDER BY distance LIMIT $3`,
+        [refEmbedding, vectorKey, limit]
+      );
+    } catch {
+      nearResult = { rows: [] };
+    }
+  } else {
+    try {
+      nearResult = await vectorDb.query<{ vector_key: string; distance: number }>(
+        `SELECT product_id::text AS vector_key, (embedding <=> $1::vector)::float AS distance
+           FROM product_embeddings
+          WHERE product_id::text != $2
+          ORDER BY distance LIMIT $3`,
+        [refEmbedding, vectorKey, limit]
+      );
+    } catch {
+      nearResult = { rows: [] };
+    }
   }
   if (!nearResult.rows.length) {
     throw { code: -32001, message: 'No similar products found' };
   }
 
-  // Step 3: fetch product details from main DB
-  const nearIds = nearResult.rows.map(r => r.product_id);
-  const ph = nearIds.map((_, i) => `$${i + 1}`).join(',');
+  const nearKeys = nearResult.rows.map(r => r.vector_key);
+  const ph = nearKeys.map((_, i) => `$${i + 1}`).join(',');
   const detailResult = await db.query(
-    `SELECT id, title, price, currency, source AS domain, url, image_url
-     FROM products WHERE id IN (${ph}) AND is_active = true`,
-    nearIds
+    vectorTable === 'search_proof.product_vectors'
+      ? `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url FROM products WHERE sku IN (${ph}) AND is_active = true`
+      : `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url FROM products WHERE id::text IN (${ph}) AND is_active = true`,
+    nearKeys
   );
 
-  // Step 4: merge, preserving similarity order
-  const distMap = new Map(nearResult.rows.map(r => [r.product_id, r.distance]));
-  const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
-  const similar = nearIds
+  const distMap = new Map(nearResult.rows.map(r => [r.vector_key, r.distance]));
+  const byKey = new Map(detailResult.rows.map(r => [vectorTable === 'search_proof.product_vectors' ? String((r as Record<string, unknown>).sku) : String((r as Record<string, unknown>).id), r]));
+  const similar = nearKeys
     .map(id => {
-      const p = byId.get(id) as Record<string, unknown> | undefined;
+      const p = byKey.get(id) as Record<string, unknown> | undefined;
       if (!p) return null;
       const dist = distMap.get(id) ?? 1;
+      const rowCurrency = (p.currency as string) || '';
       return {
         id: p.id,
+        sku: p.sku,
         title: p.title,
         price: p.price,
-        currency: p.currency,
+        currency: rowCurrency,
         domain: p.domain,
         url: p.url,
         image_url: p.image_url,
@@ -1489,10 +1541,13 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     .filter(Boolean);
 
   return {
-    product_id: resolvedId,
+    product_id: sourceProductId,
+    requested_product_id: requestedId || undefined,
     matched_product_name: productName || undefined,
+    sku: sourceSku,
     similar,
     total: similar.length,
+    meta: { vector_table: vectorTable, vector_key: vectorKey },
     response_time_ms: Date.now() - t0,
   };
 }
