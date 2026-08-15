@@ -30,6 +30,109 @@ function makeLandingProduct(name: string): Pick<LandingProduct, "name" | "brand"
   return { name, brand: null, category: null };
 }
 
+test("live SEO landing cards prefer catalog product image_url", async () => {
+  const originalFetch = globalThis.fetch;
+  const requestedUrls: string[] = [];
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    requestedUrls.push(url);
+    if (url.includes("/api/products/search")) {
+      return new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: "robot-live-1",
+              title: "Roborock Q5 Pro+ Robot Vacuum",
+              price_amount: 560,
+              price_currency: "USD",
+              merchant_name: "Walmart",
+              click_url: "https://merchant.example/robot-live-1",
+              image_url: "https://images.example/robot-vacuum.jpg",
+              category: null,
+              brand: "Roborock",
+            },
+            {
+              id: "robot-live-2",
+              title: "iRobot Roomba Combo j9+ Robot Vacuum",
+              price_amount: 999,
+              price_currency: "USD",
+              merchant_name: "Best Buy",
+              click_url: "https://merchant.example/robot-live-2",
+              image_url: "https://images.example/roomba.jpg",
+              category: "Robot Vacuums",
+              brand: "iRobot",
+            },
+            {
+              id: "robot-live-3",
+              title: "Roborock S8 MaxV Ultra Robot Vacuum",
+              price_amount: 1299,
+              price_currency: "USD",
+              merchant_name: "Amazon",
+              click_url: "https://merchant.example/robot-live-3",
+              image_url: "https://images.example/roborock-s8.jpg",
+              category: "Robot Vacuums",
+              brand: "Roborock",
+            },
+            {
+              id: "robot-live-4",
+              title: "eufy X10 Pro Omni Robot Vacuum",
+              price_amount: 799,
+              price_currency: "USD",
+              merchant_name: "Amazon",
+              click_url: "https://merchant.example/robot-live-4",
+              image_url: "https://images.example/eufy-x10.jpg",
+              category: "Robot Vacuums",
+              brand: "eufy",
+            },
+          ],
+          meta: { total: 4, degraded: false },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    return new Response("", { status: 200, headers: { "content-type": "image/jpeg" } });
+  };
+
+  try {
+    const products = await getSeoLandingProducts(seoLandingPages["best-robot-vacuums-2026"]);
+    assert.equal(products.length, 4);
+    assert.equal(products[0].imageUrl, "https://images.example/robot-vacuum.jpg");
+    assert.equal(products[0].category, "Robot Vacuums");
+    assert.ok(requestedUrls.some((url) => url.includes("/api/products/search") && url.includes("category=robot_vacuums")));
+    assert.ok(requestedUrls.some((url) => url === "https://images.example/robot-vacuum.jpg"));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("air purifier landing page constrains live results and uses compact above-the-fold cards", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/api/products/search")) {
+      requestedUrl = url;
+      return new Response(JSON.stringify({ data: [], meta: { total: 0, degraded: true } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return new Response("", { status: 200, headers: { "content-type": "image/jpeg" } });
+  };
+
+  try {
+    const config = seoLandingPages["air-purifier-singapore"];
+    await getSeoLandingProducts(config);
+    assert.equal(config.searchCategory, "air_purifiers");
+    assert.equal(config.excludeAccessories, true);
+    assert.equal(config.compactCatalogCards, true);
+    assert.match(requestedUrl, /category=air_purifiers/);
+    assert.match(requestedUrl, /limit=24/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("SEO landing products never render synthetic placeholder catalog cards", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () =>
