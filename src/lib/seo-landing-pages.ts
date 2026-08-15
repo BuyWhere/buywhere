@@ -445,6 +445,7 @@ const HOTLINK_BLOCKED_HOSTS = new Set([
   "dlcdnwebimgs.asus.com",
   "www.asus.com",
   "shopifycdn.com",
+  "cdn.shopify.com",
   "elescat.store",
   "source.unsplash.com",
   "c1.neweggimages.com",

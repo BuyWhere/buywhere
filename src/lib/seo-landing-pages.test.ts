@@ -1051,3 +1051,11 @@ test("ProductGridImage proxies remote merchant images through /api/image-proxy (
   assert.match(source, /\/api\/image-proxy\?url=\$\{encodeURIComponent/);
   assert.match(source, /src=\{proxiedImageSrc\(src\)\}/);
 });
+
+test("cdn.shopify.com is blocked at SSR to prevent browser hotlink 403s (BUY-64057)", async () => {
+  const source = readFileSync(new URL("./seo-landing-pages.ts", import.meta.url), "utf8");
+  assert.ok(
+    source.includes('"cdn.shopify.com"'),
+    "cdn.shopify.com must be in HOTLINK_BLOCKED_HOSTS (BUY-64057)",
+  );
+});
