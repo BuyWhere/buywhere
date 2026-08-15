@@ -969,3 +969,13 @@ test("getSeoLandingFallbackProduct replaces a dead curated URL with the branded 
     globalThis.fetch = originalFetch;
   }
 });
+
+// BUY-64057: Regression test — browser-rendered merchant images must go
+// through BuyWhere's image proxy so Shopify/Courts/etc. hotlink protection no
+// longer turns complete cards into branded SVG placeholders.
+test("ProductGridImage proxies remote merchant images through /api/image-proxy (BUY-64057)", async () => {
+  const source = readFileSync(new URL("../components/seo/ProductGridImage.tsx", import.meta.url), "utf8");
+  assert.match(source, /function proxiedImageSrc/);
+  assert.match(source, /\/api\/image-proxy\?url=\$\{encodeURIComponent/);
+  assert.match(source, /src=\{proxiedImageSrc\(src\)\}/);
+});
