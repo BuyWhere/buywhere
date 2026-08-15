@@ -63,6 +63,19 @@ const nextConfig = {
         destination: '/docs',
         permanent: true,
       },
+      // BUY-70180: docs.buywhere.ai now redirects to the root domain while
+      // preserving paths, so keep common legacy docs API URLs recoverable before
+      // the root-domain /api/* proxy rewrites them to the JSON API service.
+      {
+        source: '/api/reference',
+        destination: '/docs/api-reference/search',
+        permanent: true,
+      },
+      {
+        source: '/api/get-product',
+        destination: '/docs/api-reference/get-product',
+        permanent: true,
+      },
       {
         source: '/api-reference',
         destination: '/docs/api-reference/search',
