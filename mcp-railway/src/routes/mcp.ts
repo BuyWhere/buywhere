@@ -889,25 +889,39 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
       // Parameter order: $1=country, $2=titlePattern, $3=CANDIDATE_POOL, $4=minPrice, $5=category
       // SQL placeholders must match this ordering.
-      result = await bestPriceClient.query(
-        `SELECT * FROM (
-           SELECT id, title, price, currency, source AS domain, url, image_url,
-                  country_code, updated_at, category, category_path, metadata
-           FROM products
-           WHERE is_active = true AND price > 0
-             AND country_code = $1
-             ${minPrice > 0 ? `AND price >= $4` : ''}
-           ORDER BY updated_at DESC
-           LIMIT $3
-         ) _recent
-         WHERE title ILIKE $2
-         ${category ? `AND category ILIKE $5` : ''}
-         ORDER BY price ASC
-         LIMIT ${minPrice > 0 ? (category ? 6 : 5) : (category ? 4 : 3)}`,
-        minPrice > 0
-          ? (category ? [requestedCountry, titlePattern, CANDIDATE_POOL, minPrice, `%${category}%`] : [requestedCountry, titlePattern, CANDIDATE_POOL, minPrice])
-          : (category ? [requestedCountry, titlePattern, CANDIDATE_POOL, `%${category}%`] : [requestedCountry, titlePattern, CANDIDATE_POOL])
-      );
+      try {
+        const fallbackParams: unknown[] = [requestedCountry, titlePattern, CANDIDATE_POOL];
+        const fallbackConditions = ['is_active = true', 'price > 0', 'country_code = $1'];
+        if (minPrice > 0) {
+          fallbackParams.push(minPrice);
+          fallbackConditions.push(`price >= $${fallbackParams.length}`);
+        }
+        if (category) {
+          fallbackParams.push(`%${category}%`);
+        }
+        const categoryPredicate = category ? `AND category ILIKE $${fallbackParams.length}` : '';
+        result = await bestPriceClient.query(
+          `SELECT * FROM (
+             SELECT id, title, price, currency, source AS domain, url, image_url,
+                    country_code, updated_at, category, category_path, metadata
+             FROM products
+             WHERE ${fallbackConditions.join(' AND ')}
+             ORDER BY updated_at DESC
+             LIMIT $3
+           ) _recent
+           WHERE title ILIKE $2
+           ${categoryPredicate}
+           ORDER BY price ASC
+           LIMIT ${limit}`,
+          fallbackParams
+        );
+      } catch (fallbackErr) {
+        // BUY-70064: fallback is best-effort only. If sparse markets/timeouts hit
+        // the fallback, preserve MCP contract by returning no best_price instead
+        // of surfacing a generic JSON-RPC -32603.
+        console.warn('[mcp] find_best_price fallback failed:', (fallbackErr as Error).message);
+        result = { rows: [] };
+      }
     }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
