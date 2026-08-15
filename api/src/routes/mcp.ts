@@ -1491,9 +1491,9 @@ async function dispatchTool(name: string, args: Record<string, unknown>) {
 // JSON-RPC calls with query_log entries without scraping server logs.
 // `request_id` prefers a string JSON-RPC id; when the caller used a numeric
 // or null id we fall back to a generated UUID so the field is always present.
-function jsonrpcRequestId(id: unknown): string {
-  if (typeof id === 'string' && id) return id;
-  if (typeof id === 'number' && Number.isFinite(id)) return String(id);
+// BUY-70114: `request_id` is always a server-generated UUID for traceability.
+// The JSON-RPC `id` is preserved separately for protocol correlation.
+function jsonrpcRequestId(_id: unknown): string {
   return randomUUID();
 }
 function jsonrpcOk(id: unknown, result: unknown) {

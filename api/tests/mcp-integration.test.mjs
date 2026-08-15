@@ -694,6 +694,26 @@ describe('MCP JSON-RPC — error handling', () => {
     });
     const body = await res.json();
     assert.equal(body.id, 'req-xyz-789');
+    // BUY-70114: request_id must be a server-generated UUID, not the JSON-RPC id
+    assert.ok(body.request_id, 'request_id must be present');
+    assert.match(body.request_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, 'request_id must be a UUID');
+    assert.notEqual(body.request_id, 'req-xyz-789', 'request_id must not echo JSON-RPC id');
+  });
+
+  it('success response has server-generated UUID request_id', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 'my-jsonrpc-id', method: 'tools/call',
+        params: { name: 'search_products', arguments: { q: 'laptop' } },
+      }),
+    });
+    const body = await res.json();
+    assert.equal(body.id, 'my-jsonrpc-id');
+    assert.ok(body.request_id, 'request_id must be present');
+    assert.match(body.request_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, 'request_id must be a UUID');
+    assert.notEqual(body.request_id, 'my-jsonrpc-id', 'request_id must not echo JSON-RPC id');
   });
 });
 
