@@ -1059,3 +1059,41 @@ test("cdn.shopify.com is blocked at SSR to prevent browser hotlink 403s (BUY-640
     "cdn.shopify.com must be in HOTLINK_BLOCKED_HOSTS (BUY-64057)",
   );
 });
+
+test("BUY-70202: unreachable live products replaced with branded SVG (not dropped)", async () => {
+  // Two collected live products, both with image URLs that 404 on the
+  // reachable + content probes. With the pre-fix code, both were dropped and
+  // the page rendered 0 cards (or fell through to fallback-only). With the
+  // fix, both stay in the card list with a branded SVG imageUrl so the
+  // card shell renders real name/price/merchant/CTA.
+  const config: SeoLandingPageConfig = {
+    id: "buy-70202-test",
+    slug: "buy-70202-test",
+    title: "test",
+    description: "test",
+    heroEyebrow: "test",
+    heroTitle: "test",
+    heroBody: "test",
+    canonicalPath: "/buy-70202-test",
+    country: "US",
+    currency: "USD",
+    heroFeaturedBrands: [],
+    fallbackProducts: [],
+  };
+  const products = [
+    { id: "p1", name: "Example Phone 1", brand: "Acme", category: "phone", merchant: "Store A", price: 99, imageUrl: "https://does-not-resolve.invalid/x.jpg", href: "/p1" } as any,
+    { id: "p2", name: "Example Phone 2", brand: "Beta", category: "phone", merchant: "Store B", price: 199, imageUrl: "https://does-not-resolve.invalid/y.jpg", href: "/p2" } as any,
+  ];
+  const result = await getSeoLandingProducts(config, products);
+  assert.equal(result.length, 2, "both cards must render, not be dropped");
+  for (const r of result) {
+    assert.ok(
+      (r.imageUrl ?? "").startsWith("data:image/svg+xml"),
+      `expected branded SVG placeholder, got: ${r.imageUrl}`,
+    );
+    assert.ok(
+      !(r.imageUrl ?? "").startsWith("https://does-not-resolve"),
+      `dead URL must be replaced, got: ${r.imageUrl}`,
+    );
+  }
+});

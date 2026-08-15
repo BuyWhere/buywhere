@@ -1329,9 +1329,15 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     if (probeResults[i]) {
       verified.push(collected[i]);
     } else {
-      console.warn(
-        `[seo] dropping unusable product ${collected[i].id} on ${config.slug}: ${collected[i].imageUrl}`
+      // BUY-70202: unreachable-image products are replaced with branded SVG
+      // instead of dropped. The card still shows real name/price/merchant/CTA;
+      // only the photo slot gets a branded placeholder.
+      const placeholderUrl = brandedProductPlaceholderSvg(
+        collected[i].brand,
+        collected[i].name,
+        collected[i].category
       );
+      verified.push({ ...collected[i], imageUrl: placeholderUrl });
     }
   }
 
