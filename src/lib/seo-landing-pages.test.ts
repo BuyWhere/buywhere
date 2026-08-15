@@ -326,6 +326,78 @@ test("QA-sampled SEO source configs do not contain synthetic placeholders", () =
   }
 });
 
+test("BUY-69925: US SEO landing search passes deliver_to + include_unshippable=false", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/api/products/search")) {
+      requestedUrl = url;
+      return new Response(
+        JSON.stringify({ data: [], meta: { total: 0, degraded: true } }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    return new Response("", { status: 200, headers: { "content-type": "image/jpeg" } });
+  };
+
+  try {
+    await getSeoLandingProducts(seoLandingPages["best-gaming-laptops-us"]);
+    assert.match(requestedUrl, /[?&]country=US/);
+    assert.match(requestedUrl, /[?&]deliver_to=US/);
+    assert.match(requestedUrl, /[?&]include_unshippable=false/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("BUY-69925: foreign-merchant products are dropped from US SEO snapshot", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/api/products/search")) {
+      return new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: "us-live",
+              title: "ASUS ROG Zephyrus G16 Gaming Laptop",
+              price_amount: 1999,
+              price_currency: "USD",
+              merchant_name: "Best Buy",
+              click_url: "https://merchant.example/us-live",
+              image_url: "https://images.example/us-live.jpg",
+              country_code: "US",
+            },
+            {
+              id: "ae-live",
+              title: "Gaming Laptop RTX 5070",
+              price_amount: 1800,
+              price_currency: "USD",
+              merchant_name: "COMPUMARTS",
+              click_url: "https://merchant.example/ae-live",
+              image_url: "https://images.example/ae-live.jpg",
+              country_code: "AE",
+            },
+          ],
+          meta: { total: 2, degraded: false },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    return new Response("", { status: 200, headers: { "content-type": "image/jpeg" } });
+  };
+
+  try {
+    const products = await getSeoLandingProducts(seoLandingPages["best-gaming-laptops-us"]);
+    // Verify US merchant is kept and foreign merchant is filtered out
+    assert.equal(products.length, 1, "only one product should remain after filtering");
+    assert.equal(products[0].merchant, "Best Buy", "US merchant should be included");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("branded SVG placeholder data URL uses RFC-2397 charset form (BUY-64260)", async () => {
   const source = readFileSync(
     new URL("./seo-landing-pages.ts", import.meta.url),
