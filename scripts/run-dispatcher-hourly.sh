@@ -9,8 +9,9 @@ LOG_DIR="$WORKSPACE/logs"
 LOG_FILE="$LOG_DIR/dispatcher-hourly.log"
 RESULT_FILE="$WORKSPACE/data/.last-dispatcher-result.json"
 STATE_DIR="/tmp/buy-69678-dispatcher"
+TMP_DIR="${PAPERCLIP_TMPDIR:-${TMPDIR:-/tmp}/buy-69678-dispatcher}"
 
-mkdir -p "$LOG_DIR" "$STATE_DIR"
+mkdir -p "$LOG_DIR" "$STATE_DIR" "$TMP_DIR"
 
 ts() { date -u +%Y-%m-%dT%H:%TZ; }
 log() { echo "[$(ts)] $*" | tee -a "$LOG_FILE"; }
@@ -39,9 +40,9 @@ fi
 
 # Run the dispatcher
 log "Starting dispatcher_v6_hourly.js..."
-DISPATCHER_STDOUT="$PAPERCLIP_TMPDIR/dispatcher-stdout.json"
-DISPATCHER_STDERR="$PAPERCLIP_TMPDIR/dispatcher-stderr.log"
-(cd "$WORKSPACE" && CANONICAL_DATABASE_URL="$CATALOG_DB_URL" 
+DISPATCHER_STDOUT="$TMP_DIR/dispatcher-stdout.json"
+DISPATCHER_STDERR="$TMP_DIR/dispatcher-stderr.log"
+(cd "$WORKSPACE" && CANONICAL_DATABASE_URL="$CATALOG_DB_URL" \
   node scripts/dispatcher_v6_hourly.js --json 1>"$DISPATCHER_STDOUT" 2>"$DISPATCHER_STDERR") || {
   log_err "Dispatcher failed (exit $?)"
   exit 1
