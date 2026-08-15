@@ -22,6 +22,9 @@ export async function GET(): Promise<Response> {
     // the index to avoid GSC "Sitemap could not be read" coverage errors.
     // Removed from the index per BUY-67478.
     { url: `${SITEMAP_BASE_URL}/sitemap-merchants.xml`, lastModified: now },
+    // BUY-70024: dedicated docs sitemap for explicit crawler discovery of
+    // developer/API docs pages (already included in sitemap-pages.xml too).
+    { url: `${SITEMAP_BASE_URL}/sitemap-docs.xml`, lastModified: now },
   ];
 
   const response = buildSitemapResponse(renderSitemapIndex(sitemapEntries));
