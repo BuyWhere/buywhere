@@ -901,12 +901,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // when FTS misses sparse/stale search_vector entries, instead of returning nothing.
   // (Deduped 2026-08-14: 921c3fa re-added the CANDIDATE_POOL/where declarations that
   // were already defined above — a TS2451 redeclare error that broke every deploy.)
-  const bestPriceClient = await acquireMcpClient();
-  let result: { rows: Record<string, unknown>[] };
+  let result: { rows: Record<string, unknown>[] } = { rows: [] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 10000');
+    const primaryClient = await acquireMcpClient();
     try {
-      result = await bestPriceClient.query(
+      await primaryClient.query('SET statement_timeout = 10000');
+      result = await primaryClient.query(
         `WITH cand AS (
            SELECT id, price, updated_at
            FROM products ${where}
@@ -924,25 +924,33 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          ORDER BY pi.price ASC, pi.updated_at DESC`,
         params
       );
-    } catch (primaryErr) {
-      // BUY-70088: broad/hostile strings can produce huge FTS candidate sets and
-      // hit statement_timeout. Preserve MCP contract by returning no best_price
-      // instead of surfacing generic JSON-RPC -32603.
-      console.warn('[mcp] find_best_price primary query failed:', (primaryErr as Error).message);
-      result = { rows: [] };
+    } finally {
+      // BUY-56185: discard connections poisoned by statement_timeout.
+      releaseClientSafely(primaryClient);
     }
-    // BUY-69626: FTS returned nothing — try bounded title-ILIKE on recent market slice
-    // BUY-70064: Fixed parameter order — $2 must be titlePattern for both LIMIT and ILIKE.
-    // Prior bug: params were [country, CANDIDATE_POOL, titlePattern] making $2=CANDIDATE_POOL,
-    // which is an integer but used as text in LIMIT/ILIKE → PostgreSQL type error → -32603.
-    if (result.rows.length === 0) {
-      await bestPriceClient.query('SET statement_timeout = 4500');
-      const titlePattern = `%${productName}%`;
-      const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
-      const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
-      // Parameter order: $1=country, $2=titlePattern, $3=CANDIDATE_POOL, $4=minPrice, $5=category
-      // SQL placeholders must match this ordering.
+  } catch (primaryErr) {
+    // BUY-70088/BUY-70097: broad/sparse strings can produce huge FTS candidate
+    // sets and hit statement_timeout. Preserve MCP contract by trying the
+    // fallback instead of surfacing generic JSON-RPC -32603. Use a fresh client
+    // below because a cancelled PostgreSQL query can leave this one poisoned.
+    console.warn('[mcp] find_best_price primary query failed:', (primaryErr as Error).message);
+    result = { rows: [] };
+  }
+
+  // BUY-69626: FTS returned nothing — try bounded title-ILIKE on recent market slice
+  // BUY-70064: Fixed parameter order — $2 must be titlePattern for both LIMIT and ILIKE.
+  // Prior bug: params were [country, CANDIDATE_POOL, titlePattern] making $2=CANDIDATE_POOL,
+  // which is an integer but used as text in LIMIT/ILIKE → PostgreSQL type error → -32603.
+  if (result.rows.length === 0) {
+    const titlePattern = `%${productName}%`;
+    const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
+    const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
+    // Parameter order: $1=country, $2=titlePattern, $3=CANDIDATE_POOL, $4=minPrice, $5=category
+    // SQL placeholders must match this ordering.
+    try {
+      const fallbackClient = await acquireMcpClient();
       try {
+        await fallbackClient.query('SET statement_timeout = 4500');
         const fallbackParams: unknown[] = [requestedCountry, titlePattern, CANDIDATE_POOL];
         const fallbackConditions = ['is_active = true', 'price > 0', 'country_code = $1'];
         if (minPrice > 0) {
@@ -953,7 +961,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
           fallbackParams.push(`%${category}%`);
         }
         const categoryPredicate = category ? `AND category ILIKE $${fallbackParams.length}` : '';
-        result = await bestPriceClient.query(
+        result = await fallbackClient.query(
           `SELECT * FROM (
              SELECT id, title, price, currency, source AS domain, url, image_url,
                     country_code, updated_at, category, category_path, metadata
@@ -968,17 +976,17 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
            LIMIT ${limit}`,
           fallbackParams
         );
-      } catch (fallbackErr) {
-        // BUY-70064: fallback is best-effort only. If sparse markets/timeouts hit
-        // the fallback, preserve MCP contract by returning no best_price instead
-        // of surfacing a generic JSON-RPC -32603.
-        console.warn('[mcp] find_best_price fallback failed:', (fallbackErr as Error).message);
-        result = { rows: [] };
+      } finally {
+        // BUY-56185: discard connections poisoned by statement_timeout.
+        releaseClientSafely(fallbackClient);
       }
+    } catch (fallbackErr) {
+      // BUY-70064/BUY-70097: fallback is best-effort only. If sparse
+      // markets/timeouts hit the fallback, preserve MCP contract by returning no
+      // best_price instead of surfacing a generic JSON-RPC -32603.
+      console.warn('[mcp] find_best_price fallback failed:', (fallbackErr as Error).message);
+      result = { rows: [] };
     }
-  } finally {
-    // BUY-56185: discard connections poisoned by statement_timeout
-    releaseClientSafely(bestPriceClient);
   }
 
   const currency = COUNTRY_CURRENCY[country] || 'SGD';
