@@ -5,22 +5,11 @@ import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, formatPriceField, isSentinelPrice } from '../lib/response';
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, formatPriceField, isSentinelPrice, PRICE_UNAVAILABLE_TEXT } from '../lib/response';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
 
-// Sentinel-price guard (BUY-65574 band-aid, parent BUY-65559):
-// catalog rows where `price.amount < 10` (or non-finite / null) are produced by
-// the BuyWhere ingest pipeline when the merchant page had no parseable price;
-// the scraper writes `1` as a placeholder, which the front-end renders as
-// `.00`. Until BUY-52807 ships an ingest-time sanity bound, surface a "see
-// merchant" hint so MCP clients (AI agents) do not quote a fake price.
-const PRICE_SENTINEL_MIN = 10;
-const PRICE_UNAVAILABLE_TEXT = 'see merchant (price unavailable in catalog) — click through to confirm';
-
-function isSentinelPrice(amount: unknown): boolean {
-  return typeof amount !== 'number' || !Number.isFinite(amount) || amount < PRICE_SENTINEL_MIN;
-}
-
+// formatPriceLine: formats a price for MCP text display (mirrors formatPriceField logic
+// but returns a human-readable string; used by formatProductForMcp only).
 function formatPriceLine(price: Record<string, unknown> | undefined, url: string | undefined): string {
   if (!price || isSentinelPrice(price.amount)) {
     const link = url ? ` — ${url}` : '';
