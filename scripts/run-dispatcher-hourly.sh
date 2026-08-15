@@ -24,8 +24,16 @@ if [[ -f /home/paperclip/.paperclip_env ]]; then
 fi
 
 # 2. Fallback to dispatcher's own persisted credentials file (BUY-69899)
+#    Accept only if exp > now + 60s (same 60s buffer as dispatcher_v6_hourly.js)
 if [[ -z "$PAPERCLIP_API_KEY" && -f /home/paperclip/.throughput_dispatcher_env ]]; then
   . /home/paperclip/.throughput_dispatcher_env 2>/dev/null || true
+  if [[ -n "$PAPERCLIP_API_KEY" ]]; then
+    EXP_EPOCH=$(echo "$PAPERCLIP_API_KEY" | cut -d. -f2 | base64 -d 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('exp',0))" 2>/dev/null || echo 0)
+    NOW_EPOCH=$(date +%s)
+    if [[ "$EXP_EPOCH" -lt $((NOW_EPOCH + 60)) ]]; then
+      unset PAPERCLIP_API_KEY
+    fi
+  fi
 fi
 
 # 3. If still empty, try to mint a fresh token using the dispatcher's mint script
