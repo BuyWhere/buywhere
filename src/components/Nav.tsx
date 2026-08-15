@@ -31,7 +31,7 @@ function DevDropdown() {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="true"
         aria-expanded={open}
-        className="flex items-center gap-1 hover:text-indigo-600 transition-colors focus:outline-none"
+        className="flex items-center gap-1 rounded-sm hover:text-indigo-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1"
       >
         Developers
         <svg
