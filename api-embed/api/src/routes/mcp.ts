@@ -770,24 +770,26 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   try {
     await bestPriceClient.query('SET statement_timeout = 4500');
     const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
-    const titlePattern = `%${productName}%`;
     // BUY-70000: filter by country_code in the inner query so the planner uses
     // idx_products_country_code instead of fetching 100 global rows and post-filtering.
     // For smaller markets (TH, VN) the old pattern returned 0 because the top-100
     // recent products were dominated by US/SG rows.
+    // BUY-70000: use FTS (GIN-indexed) instead of ILIKE for title matching.
+    // ILIKE '%shirt%' requires sequential scan on all TH rows (100K+); FTS
+    // leverages idx_products_search_vector and completes in <500ms.
     result = await bestPriceClient.query(
       `SELECT id, title, price, currency, source AS domain, url, image_url,
               country_code, updated_at
        FROM products
        WHERE is_active = true AND price > 0
          AND country_code = $1
-         AND title ILIKE $2
+         AND search_vector @@ plainto_tsquery('english', $2)
        ORDER BY price ASC, updated_at DESC
        LIMIT $3`,
-      [requestedCountry, titlePattern, CANDIDATE_POOL]
+      [requestedCountry, productName, CANDIDATE_POOL]
     );
     if (result.rows.length === 0) {
-      // Fallback: find cheapest products in country even if title doesn't match
+      // Fallback: find cheapest products in country even if FTS misses
       result = await bestPriceClient.query(
         `SELECT id, title, price, currency, source AS domain, url, image_url,
                 country_code, updated_at
