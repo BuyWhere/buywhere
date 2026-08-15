@@ -927,7 +927,37 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // then ILIKE + price-order) is both faster AND handles category predicates correctly.
   // The primary path is still used for non-category queries where FTS is the right signal.
   let result: { rows: Record<string, unknown>[] } = { rows: [] };
+  // BUY-70189: gate high-cardinality FTS queries with a quick count check.
+  // Terms like "nike", "iphone", "samsung" match millions of rows, causing the
+  // GIN index scan to timeout even with enable_seqscan=off. Instead of timing out
+  // on the full sort, we first check if the FTS result set exceeds CANDIDATE_POOL.
+  // If so, skip directly to the ILIKE fallback which is bounded and fast.
+  let ftsTooBroad = false;
   if (!category) {
+    try {
+      const countClient = await acquireMcpClient();
+      try {
+        await countClient.query('SET statement_timeout = 3000');
+        const countResult = await countClient.query(
+          `SELECT COUNT(*) as cnt FROM products ${where} LIMIT ${CANDIDATE_POOL + 1}`,
+          params.slice(0, -2) // Remove the CANDIDATE_POOL and limit params
+        );
+        const ftsCount = parseInt(countResult.rows[0]?.cnt ?? '0', 10);
+        // If FTS matches exceed candidate pool, skip primary and use fallback
+        if (ftsCount > CANDIDATE_POOL) {
+          console.log(`[mcp] find_best_price: FTS count ${ftsCount} > pool ${CANDIDATE_POOL}, using ILIKE fallback`);
+          ftsTooBroad = true;
+        }
+      } finally {
+        releaseClientSafely(countClient);
+      }
+    } catch (countErr) {
+      // Count query failed — proceed to primary and let it fail naturally if FTS is too slow
+      console.warn('[mcp] find_best_price count check failed:', (countErr as Error).message);
+    }
+  }
+
+  if (!category && !ftsTooBroad) {
     try {
       const primaryClient = await acquireMcpClient();
       try {
