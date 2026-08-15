@@ -1,19 +1,17 @@
-import { buildSitemapResponse, renderUrlSet } from "@/lib/sitemaps";
+import { buildSitemapResponse, getStaticSitemapEntries, renderUrlSet } from "@/lib/sitemaps";
 
 // BUY-70024: dedicated docs sitemap for explicit crawler discovery.
-// The docs pages are already included in sitemap-pages.xml via DOC_SLUGS,
-// but a dedicated sitemap improves crawl efficiency for large doc sites.
+// The docs pages are already included in sitemap-pages.xml too, but a dedicated
+// sitemap gives crawlers and answer engines a focused developer-doc URL set.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const runtime = "nodejs";
 
-export async function GET(): Promise<Response> {
-  // Import DOC_SLUGS from sitemaps lib
-  const { getStaticSitemapEntries } = await import("@/lib/sitemaps");
+export function GET(): Response {
   const entries = getStaticSitemapEntries();
-
-  // Filter to only docs URLs
-  const docsEntries = entries.filter((entry) => entry.url.includes("/docs/"));
+  const docsEntries = entries.filter(
+    (entry) => entry.url.endsWith("/docs") || entry.url.includes("/docs/")
+  );
 
   return buildSitemapResponse(renderUrlSet(docsEntries));
 }
