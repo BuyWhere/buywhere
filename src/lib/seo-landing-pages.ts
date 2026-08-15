@@ -1164,14 +1164,18 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   // broken-image icon instead of a real product thumbnail (BUY-64729).
   //
   // We probe URLs in parallel with a short per-request timeout. Unreachable
-  // products are DROPPED entirely from the live card set instead of being
-  // replaced with a branded SVG placeholder. QA re-verification at
-  // 2026-07-29T10:12Z still flagged the branded-SVG fallback as a "generic
-  // placeholder" because the page no longer shows real product photos — and
-  // the QA expectation is "Live Catalog Snapshot shows real product
-  // thumbnails with prices and merchant badges".
+  // products are REPLACED with a branded SVG placeholder so the Live Catalog
+  // Snapshot still shows the real product's name, price, merchant, and CTA
+  // (BUY-70202). Replacing rather than dropping keeps card slots populated
+  // and avoids empty slots when a CDN URL is unreachable even after the
+  // image-proxy / HOTLINK_BLOCKED_HOSTS handling in BUY-70187.
   //
-  // When the dropped count brings the live card set below 4, the
+  // BUY-63507: chain the reachable probe with a content-shape probe. A 200 OK
+  // on a 1:1 product photo with heavy white margins renders as a "blank/white"
+  // card under our aspect-[4/3] + object-cover layout. The content probe
+  // rejects those products so the next live result fills the slot instead.
+  //
+  // When the replaced count brings the live card set below 4, the
   // fallback-top-up branch (below) substitutes curated fallbackProducts
   // which have known-good real image URLs (Apple CDN, Dell CDN, Philips,
   // Roborock, Dyson, Xiaomi, etc.).
@@ -1179,11 +1183,6 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
   const probeResults = await Promise.all(
     collected.map(async (product) => {
       if (!product.imageUrl) return false;
-      // BUY-63507: chain the reachable probe with a content-shape probe. A 200
-      // OK on a 1:1 product photo with heavy white margins renders as a
-      // "blank/white" card under our aspect-[4/3] + object-cover layout. The
-      // content probe drops those products so the next live result fills the
-      // slot instead.
       const reachable = await verifyReachableImage(product.imageUrl);
       if (!reachable) return false;
       return verifyUsableImageContent(product.imageUrl);
@@ -1193,9 +1192,18 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     if (probeResults[i]) {
       verified.push(collected[i]);
     } else {
+      const replaced = {
+        ...collected[i],
+        imageUrl: brandedProductPlaceholderSvg(
+          collected[i].brand,
+          collected[i].name,
+          collected[i].category,
+        ),
+      };
       console.warn(
-        `[seo] dropping unusable product ${collected[i].id} on ${config.slug}: ${collected[i].imageUrl}`
+        `[seo] replacing unusable product ${collected[i].id} on ${config.slug} with branded placeholder: ${collected[i].imageUrl}`
       );
+      verified.push(replaced);
     }
   }
 

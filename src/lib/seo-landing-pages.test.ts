@@ -555,3 +555,57 @@ test("best-robot-vacuums-2026 declares heroTitleTemplate so the headline stays i
   // The static heroTitle is the fallback when the live catalog is empty.
   assert.match(config.heroTitle, /Roomba/);
 });
+
+// BUY-70202: when a live product's image URL is unreachable (HEAD/GET probe
+// fails), the product MUST be replaced with a branded SVG placeholder — not
+// dropped. Replacing keeps the card slot populated (name, price, merchant,
+// CTA) so the live snapshot never goes empty even when every CDN URL is
+// broken. The previous drop-on-fail behavior left empty slots when the
+// fallback-top-up branch also failed.
+test("BUY-70202: unreachable live product images are replaced with branded SVG instead of dropped", async () => {
+  const originalFetch = globalThis.fetch;
+  // Two live products with image URLs that point at a host that returns 404.
+  // The verifier chain will mark both unreachable; under the old drop-on-fail
+  // behavior the page would render 0 cards.
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    // The page-level /api/products/search route returns the catalog.
+    if (url.includes("/api/products/search")) {
+      return new Response(
+        JSON.stringify({
+          data: [
+            { id: "r1", title: "Roborock S8 MaxV Ultra", brand: "Roborock", category: "robot_vacuums", price_amount: 1299, price_currency: "USD", merchant_name: "Amazon", click_url: "https://x/r1", image_url: "https://broken-host.example/r1.jpg" },
+            { id: "r2", title: "iRobot Roomba Combo j9+", brand: "iRobot", category: "robot_vacuums", price_amount: 999, price_currency: "USD", merchant_name: "Best Buy", click_url: "https://x/r2", image_url: "https://broken-host.example/r2.jpg" },
+          ],
+          meta: { total: 2, degraded: false },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    // Everything else (image probes) returns 404 — every live URL is unreachable.
+    return new Response("not found", { status: 404 });
+  };
+
+  try {
+    const products = await getSeoLandingProducts(seoLandingPages["best-robot-vacuums-2026"]);
+    assert.equal(products.length, 2, "both cards must still render; replace-not-drop");
+    for (const product of products) {
+      assert.ok(product.imageUrl, `${product.name} must have a placeholder imageUrl`);
+      assert.ok(
+        product.imageUrl!.startsWith("data:image/svg+xml"),
+        `${product.name} must have a branded SVG placeholder, not the broken CDN URL (got: ${product.imageUrl})`,
+      );
+      assert.doesNotMatch(
+        product.imageUrl!,
+        /broken-host\.example/,
+        `${product.name} must not retain the unreachable upstream URL`,
+      );
+      // Real product data is preserved through the replace.
+      assert.ok(product.name, `${product.id} must keep its real name`);
+      assert.ok(product.price !== null, `${product.id} must keep its price`);
+      assert.ok(product.merchant, `${product.id} must keep its merchant`);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
