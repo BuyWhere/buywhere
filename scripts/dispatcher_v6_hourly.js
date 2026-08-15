@@ -97,7 +97,6 @@ function select_v6_throughput_signal(metrics, target = TARGET_INSERTS_PER_HOUR) 
   const liveCountDelta = toNumber(metrics?.live_count_delta);
   const nLiveTupDelta = toNumber(metrics?.n_live_tup_delta);
   const statResetDetected = Boolean(metrics?.stat_reset_detected);
-  const frozenCounter = deltaInsFromStats === 0 && nLiveTupDelta === 0;
 
   if (deltaInsFromStats !== null && deltaInsFromStats >= target) {
     return {
@@ -126,7 +125,16 @@ function select_v6_throughput_signal(metrics, target = TARGET_INSERTS_PER_HOUR) 
     // Fall through: autovacuum bloat likely masked the real (low) ingest.
   }
 
-  if (deltaInsFromStats === null || statResetDetected || frozenCounter) {
+  if (deltaInsFromStats !== null) {
+    return {
+      verdict: 'FAIL',
+      value: deltaInsFromStats,
+      source: 'delta_ins_from_stats',
+      reason: `delta_ins_from_stats ${formatNumber(deltaInsFromStats)} < ${formatNumber(target)} and no v6 guard met target`,
+    };
+  }
+
+  if (deltaInsFromStats === null || statResetDetected) {
     if (liveCountDelta !== null && liveCountDelta >= target) {
       return {
         verdict: 'PASS',
@@ -146,34 +154,13 @@ function select_v6_throughput_signal(metrics, target = TARGET_INSERTS_PER_HOUR) 
       };
     }
 
-    // Consult cycle-marker ground truth when ingestion_runs misses (BUY-43106 / BUY-66134).
-    // The bulk ingester buy30331-ingest-stream.mjs writes ONLY .ingested.json cycle
-    // markers and never logs to ingestion_runs, so ingestion_runs.ing_inserted can be
-    // zero even during a high-volume hour.
-    const cycleMarkerInserted = toNumber(metrics?.cycle_marker_inserted) ?? 0;
-    if (cycleMarkerInserted >= target) {
-      return {
-        verdict: 'PASS',
-        value: cycleMarkerInserted,
-        source: 'cycle_marker_fallback',
-        reason: `stat reset/frozen counters; cycle_marker_inserted ${formatNumber(cycleMarkerInserted)} >= ${formatNumber(target)} (bulk ingester ground truth)`
-      };
-    }
-
     return {
       verdict: 'FAIL',
       value: ingInserted,
       source: 'ing_inserted_fallback',
-      reason: `stat reset/frozen counters; ingestion_runs.ing_inserted ${formatNumber(ingInserted)} < ${formatNumber(target)}, cycle_marker_inserted ${formatNumber(cycleMarkerInserted)} < ${formatNumber(target)}, no other guard met target`
+      reason: `stat reset/unavailable insert delta; ingestion_runs.ing_inserted ${formatNumber(ingInserted)} < ${formatNumber(target)}, live_count_delta ${formatNumber(liveCountDelta)} < ${formatNumber(target)}`
     };
   }
-
-  return {
-    verdict: 'FAIL',
-    value: deltaInsFromStats,
-    source: 'delta_ins_from_stats',
-    reason: `delta_ins_from_stats ${formatNumber(deltaInsFromStats)} < ${formatNumber(target)} and no v6 guard met target`,
-  };
 }
 
 function should_file_v6_failure_ticket(metrics, target = TARGET_INSERTS_PER_HOUR) {
@@ -520,23 +507,14 @@ function selfTest() {
   // v6.4 still fires when ing_inserted >= target (stale-counter protection)
   assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 0, n_live_tup_delta: 200000, ing_inserted: 200000 }), false, 'v6.4 guard still fires when ing_inserted >= target');
   assertEqual(select_v6_throughput_signal({ delta_ins_from_stats: null, stat_reset_detected: true, live_count_delta: 200000 }).source, 'live_count_delta_fallback', 'live count fallback');
-  // v6.4.1: frozen stats counters (n_tup_ins and n_live_tup both unchanged from prior hour)
-  // should fall through to ing_inserted_fallback, not produce a false FAIL
-  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 0, n_live_tup_delta: 0, ing_inserted: 300000 }), false, 'v6.4.1 frozen counter with healthy ing_inserted');
-  assertEqual(select_v6_throughput_signal({ delta_ins_from_stats: 0, n_live_tup_delta: 0, ing_inserted: 300000 }).source, 'ing_inserted_fallback', 'v6.4.1 frozen counter uses ing_inserted_fallback');
-  // v6.4.1: frozen counters with low ing_inserted is still a real FAIL
-  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 0, n_live_tup_delta: 0, ing_inserted: 100 }), true, 'v6.4.1 frozen counter with low ing_inserted fails');
-  // v6.4.1: delta_ins_from_stats=0 with nonzero n_live_tup_delta is NOT frozen (partial stats)
-  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 0, n_live_tup_delta: 50000, ing_inserted: 100 }), true, 'v6.4.1 partial stats still fails');
-  // BUY-66134: stat_reset_detected + low ingestion_runs + high cycle_marker = PASS
-  assertEqual(select_v6_throughput_signal({ delta_ins_from_stats: null, stat_reset_detected: true, ing_inserted: 57401, cycle_marker_inserted: 398920 }).verdict, 'PASS', 'BUY-66134 cycle_marker_fallback passes');
-  assertEqual(select_v6_throughput_signal({ delta_ins_from_stats: null, stat_reset_detected: true, ing_inserted: 57401, cycle_marker_inserted: 398920 }).source, 'cycle_marker_fallback', 'BUY-66134 source is cycle_marker_fallback');
-  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: null, stat_reset_detected: true, ing_inserted: 57401, cycle_marker_inserted: 398920 }), false, 'BUY-66134 should not file failure');
-  // Cycle marker below target with low ingestion_runs still fails
-  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: null, stat_reset_detected: true, ing_inserted: 10000, cycle_marker_inserted: 10000 }), true, 'low cycle_marker + low ingestion still fails');
-  // Frozen counters + high cycle_marker = PASS
-  assertEqual(select_v6_throughput_signal({ delta_ins_from_stats: 0, n_live_tup_delta: 0, ing_inserted: 100, cycle_marker_inserted: 200000 }).source, 'cycle_marker_fallback', 'frozen counters with high cycle_marker uses fallback');
-  console.log('dispatcher_v6_hourly self-test: 19 passed');
+  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 0, n_live_tup_delta: 0, ing_inserted: 300000 }), true, 'ing_inserted is observability-only when delta_ins_from_stats is non-null');
+  assertEqual(select_v6_throughput_signal({ delta_ins_from_stats: 0, n_live_tup_delta: 0, ing_inserted: 300000 }).source, 'delta_ins_from_stats', 'non-null delta_ins_from_stats remains authoritative below target');
+  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: 0, n_live_tup_delta: 0, live_count_delta: 300000 }), true, 'live_count_delta fallback does not override non-null delta_ins_from_stats');
+  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: null, stat_reset_detected: true, ing_inserted: 300000 }), false, 'ing_inserted fallback only when stats unavailable');
+  assertEqual(select_v6_throughput_signal({ delta_ins_from_stats: null, stat_reset_detected: true, ing_inserted: 300000 }).source, 'ing_inserted_fallback', 'ing_inserted fallback source when stats unavailable');
+  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: null, stat_reset_detected: true, ing_inserted: 149999, live_count_delta: 149999 }), true, 'fail-only when all available fallbacks miss');
+  assertEqual(should_file_v6_failure_ticket({ delta_ins_from_stats: null, stat_reset_detected: true, ing_inserted: 0 }), true, 'first tick/stat reset with no passing fallback fails');
+  console.log('dispatcher_v6_hourly self-test: 18 passed');
 }
 
 if (require.main === module) {
