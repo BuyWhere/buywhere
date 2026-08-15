@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Router, Request, Response, NextFunction } from 'express';
 import { db, redis, vectorDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
@@ -1345,17 +1346,29 @@ async function dispatchTool(name: string, args: Record<string, unknown>) {
 }
 
 // JSON-RPC 2.0 response helpers
+// BUY-70000: every response (success or error) carries `request_id` and a
+// top-level `timestamp` so agent-facing monitoring suites can correlate
+// JSON-RPC calls with query_log entries without scraping server logs.
+function jsonrpcRequestId(id: unknown): string {
+  if (typeof id === 'string' && id) return id;
+  if (typeof id === 'number' && Number.isFinite(id)) return String(id);
+  return randomUUID();
+}
 function jsonrpcOk(id: unknown, result: unknown) {
-  const requestId = typeof id === 'string' ? id : null;
-  return { jsonrpc: '2.0', id, request_id: requestId, result };
+  return { jsonrpc: '2.0', id, request_id: jsonrpcRequestId(id), timestamp: new Date().toISOString(), result };
 }
 function jsonrpcErr(id: unknown, code: number, message: string, data?: unknown, envelopeCode?: string) {
   const errorData: Record<string, unknown> = data != null ? { detail: data } : {};
   if (envelopeCode) {
     errorData.envelope = buildErrorEnvelope(envelopeCode as ErrorCodeType, message);
   }
-  const requestId = typeof id === 'string' ? id : null;
-  return { jsonrpc: '2.0', id, request_id: requestId, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) } };
+  return {
+    jsonrpc: '2.0',
+    id,
+    request_id: jsonrpcRequestId(id),
+    timestamp: new Date().toISOString(),
+    error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) },
+  };
 }
 
 // GET /mcp/auth/token — token endpoint descriptor (public, no auth).

@@ -77,9 +77,33 @@ suite('BUY-69625: country_code validation', () => {
     assert.equal(typeof body.request_id, 'string');
   });
 
-  it('request_id is null when id is numeric', async () => {
+  // BUY-70000: request_id is always a non-empty string (UUID when id is null/numeric,
+  // passthrough when id is a non-empty string).
+  it('request_id is a string (UUID) when id is numeric', async () => {
     const { body } = await rpc('search_products', { country_code: 'ZZ' }, 42);
-    assert.equal(body.request_id, null);
+    assert.equal(body.request_id, '42');
+    assert.equal(typeof body.request_id, 'string');
+  });
+
+  it('request_id is a string (UUID) when id is null', async () => {
+    const { body } = await rpc('search_products', { country_code: 'ZZ' }, null);
+    // null id -> random UUID
+    assert(body.request_id);
+    assert.equal(typeof body.request_id, 'string');
+    assert.match(body.request_id, /^[0-9a-f-]{36}$/);
+  });
+
+  it('response includes top-level timestamp on success', async () => {
+    const { body } = await rpc('list_categories', {});
+    assert(body.timestamp);
+    assert.equal(typeof body.timestamp, 'string');
+    assert.match(body.timestamp, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+  });
+
+  it('response includes top-level timestamp on error', async () => {
+    const { body } = await rpc('search_products', { country_code: 'ZZ' });
+    assert(body.timestamp);
+    assert.equal(typeof body.timestamp, 'string');
   });
 
   it('does not validate country_code on tools without it (get_product)', async () => {
