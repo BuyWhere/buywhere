@@ -5,7 +5,7 @@ import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, formatPriceField, isSentinelPrice } from '../lib/response';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
 
 // Sentinel-price guard (BUY-65574 band-aid, parent BUY-65559):
@@ -905,24 +905,32 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   let result: { rows: Record<string, unknown>[] };
   try {
     await bestPriceClient.query('SET statement_timeout = 10000');
-    result = await bestPriceClient.query(
-      `WITH cand AS (
-         SELECT id, price, updated_at
-         FROM products ${where}
-         LIMIT $${params.length - 1}
-       ), page_ids AS (
-         SELECT id, price, updated_at
-         FROM cand
-         ORDER BY price ASC, updated_at DESC
-         LIMIT $${params.length}
-       )
-       SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
-              p.country_code, p.updated_at, p.category, p.category_path, p.metadata
-       FROM page_ids pi
-       JOIN products p ON p.id = pi.id
-       ORDER BY pi.price ASC, pi.updated_at DESC`,
-      params
-    );
+    try {
+      result = await bestPriceClient.query(
+        `WITH cand AS (
+           SELECT id, price, updated_at
+           FROM products ${where}
+           LIMIT $${params.length - 1}
+         ), page_ids AS (
+           SELECT id, price, updated_at
+           FROM cand
+           ORDER BY price ASC, updated_at DESC
+           LIMIT $${params.length}
+         )
+         SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
+                p.country_code, p.updated_at, p.category, p.category_path, p.metadata
+         FROM page_ids pi
+         JOIN products p ON p.id = pi.id
+         ORDER BY pi.price ASC, pi.updated_at DESC`,
+        params
+      );
+    } catch (primaryErr) {
+      // BUY-70088: broad/hostile strings can produce huge FTS candidate sets and
+      // hit statement_timeout. Preserve MCP contract by returning no best_price
+      // instead of surfacing generic JSON-RPC -32603.
+      console.warn('[mcp] find_best_price primary query failed:', (primaryErr as Error).message);
+      result = { rows: [] };
+    }
     // BUY-69626: FTS returned nothing — try bounded title-ILIKE on recent market slice
     // BUY-70064: Fixed parameter order — $2 must be titlePattern for both LIMIT and ILIKE.
     // Prior bug: params were [country, CANDIDATE_POOL, titlePattern] making $2=CANDIDATE_POOL,
@@ -1009,16 +1017,22 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
 
   const candidates = result.rows.filter(r => !isAccessory(r));
 
-  const data = candidates.map((r: Record<string, unknown>) => ({
-    id: r.id,
-    title: r.title,
-    price: { amount: r.price != null ? parseFloat(r.price as string) : null, currency: r.currency || currency },
-    normalized_price_usd: r.price != null ? Math.round(Number(r.price) * toUsd * 100) / 100 : null,
-    merchant: r.domain as string,
-    url: r.url as string,
-    image_url: r.image_url as string,
-    country_code: r.country_code as string,
-  }));
+  const data = candidates.map((r: Record<string, unknown>) => {
+    const amount = r.price != null ? parseFloat(r.price as string) : null;
+    const rowCurrency = (r.currency as string) || currency;
+    return {
+      id: r.id,
+      title: r.title,
+      // BUY-65559 / BUY-65685: sentinel-price guard — string when sentinel,
+      // structured object otherwise. Parallel to PR #36 in @buywhere/mcp.
+      price: formatPriceField(amount, rowCurrency),
+      normalized_price_usd: isSentinelPrice(amount) || amount == null ? null : Math.round(amount * toUsd * 100) / 100,
+      merchant: r.domain as string,
+      url: r.url as string,
+      image_url: r.image_url as string,
+      country_code: r.country_code as string,
+    };
+  });
 
   return {
     best_price: data[0] ?? null,

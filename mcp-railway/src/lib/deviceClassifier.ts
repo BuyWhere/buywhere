@@ -23,7 +23,7 @@ const ACCESSORY_NEGATIVE_TERMS = [
 function inferDevice(productName: string): DevicePattern {
   const p = productName.toLowerCase();
   // Phones
-  if (/\b(iphone\b|samsung galaxy s|google pixel\b|xiaomi\b|redmi\b|oppo\b|vivo\b|nothing phone|oneplus\b)/.test(p)) {
+  if (/\b(iphone\b|smartphone\b|smart\s*phone\b|mobile\s*phone\b|samsung galaxy s|google pixel\b|xiaomi\b|redmi\b|oppo\b|vivo\b|nothing phone|oneplus\b)/.test(p)) {
     return { type: 'phone', negativeTerms: ACCESSORY_NEGATIVE_TERMS, minPriceUsd: 80 };
   }
   // Consoles / controllers

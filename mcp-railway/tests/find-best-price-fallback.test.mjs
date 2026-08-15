@@ -95,6 +95,14 @@ suite('BUY-70064: find_best_price fallback path — no -32603 on sparse queries'
     });
   }
 
+  it('no -32603 for SQL-like input', async () => {
+    const { body } = await rpc('find_best_price', {
+      product_name: "'; DROP TABLE products; --", country_code: 'SG'
+    }, 'fbp-sql-like');
+    assert.notEqual(body.error?.code, -32603,
+      `find_best_price returned -32603 for SQL-like input: ${JSON.stringify(body.error)}`);
+  });
+
   // Verify response structure when successful
   it('find_best_price returns valid structure with best_price field', async () => {
     const { body } = await rpc('find_best_price', { product_name: 'laptop', country_code: 'SG' }, 'fbp-struct');

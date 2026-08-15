@@ -31,7 +31,7 @@ export default function Header() {
         </Link>
 
         <span className="sr-only">Use Tab to navigate links, Enter to activate</span>
-        <nav id="main-navigation" role="navigation" tabIndex={0} className="hidden lg:flex items-center gap-5 text-sm font-medium text-gray-600 dark:text-gray-300" aria-label="Main navigation">
+        <nav id="main-navigation" role="navigation" className="hidden lg:flex items-center gap-5 text-sm font-medium text-gray-600 dark:text-gray-300" aria-label="Main navigation">
           <Link href="/compare" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Compare</Link>
           <Link href="/blog" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Blog</Link>
           <Link href="/merchants" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Merchants</Link>
