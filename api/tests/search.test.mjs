@@ -291,8 +291,27 @@ describe('NL search queries — response correctness', () => {
     assert.equal(tierCalls, 3);
   });
 
-  it('uses bounded laptop product-intent fallback for US laptop searches', async () => {
-    const res = await fetch(`http://localhost:${port}/v1/products/search?q=asus+rog+laptop&country_code=US`, {
+  it('uses bounded title fallback for US laptop searches', async () => {
+    queryMock.mock.mockImplementation((sql, params) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (typeof sql === 'string' && (sql.includes('BEGIN') || sql.includes('COMMIT') || sql.includes('ROLLBACK') || sql.includes('SET LOCAL'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (typeof sql === 'string' && sql.includes('lower(sp.title) LIKE lower($1 ||') && Array.isArray(params) && params[2] === 'US') {
+        return Promise.resolve({ rows: [makeProduct('1', { title: 'ASUS ROG Gaming Laptop', country_code: 'US', source: 'amazon_us' })] });
+      }
+      if (typeof sql === 'string' && sql.includes('search_products sp')) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await fetch(`http://localhost:${port}/v1/products/search?q=asus+rog+laptop&country_code=US&_tier=1`, {
       headers: { Authorization: 'Bearer test-key' },
     });
     const body = await res.json();
@@ -301,12 +320,13 @@ describe('NL search queries — response correctness', () => {
     assert.ok(responseResults(body).length > 0);
 
     const laptopFallbackCall = queryMock.mock.calls.find(
-      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('_accessory_rank')
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('WITH tcand AS')
+        && c.arguments[0].includes('lower(sp.title) LIKE lower($1 ||')
     );
-    assert.ok(laptopFallbackCall, 'Expected bounded laptop fallback query');
-    assert.ok(laptopFallbackCall.arguments[0].includes('ORDER BY _accessory_rank ASC'));
-    assert.ok(laptopFallbackCall.arguments[0].includes('products.title ILIKE'));
-    assert.deepEqual(laptopFallbackCall.arguments[1], ['US', '%asus%', '%rog%', 21, 0]);
+    assert.ok(laptopFallbackCall, 'Expected bounded title fallback query');
+    assert.ok(laptopFallbackCall.arguments[0].includes('LIMIT 1000'));
+    assert.ok(laptopFallbackCall.arguments[0].includes('ORDER BY'));
+    assert.deepEqual(laptopFallbackCall.arguments[1], ['asus rog laptop', 'asus | rog | laptop', 'US', 21, 0]);
   });
 
   it('applies price range filters with NL query', async () => {
