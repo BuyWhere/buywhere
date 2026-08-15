@@ -879,11 +879,16 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       params
     );
     // BUY-69626: FTS returned nothing — try bounded title-ILIKE on recent market slice
+    // BUY-70064: Fixed parameter order — $2 must be titlePattern for both LIMIT and ILIKE.
+    // Prior bug: params were [country, CANDIDATE_POOL, titlePattern] making $2=CANDIDATE_POOL,
+    // which is an integer but used as text in LIMIT/ILIKE → PostgreSQL type error → -32603.
     if (result.rows.length === 0) {
       await bestPriceClient.query('SET statement_timeout = 4500');
       const titlePattern = `%${productName}%`;
       const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
       const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
+      // Parameter order: $1=country, $2=titlePattern, $3=CANDIDATE_POOL, $4=minPrice, $5=category
+      // SQL placeholders must match this ordering.
       result = await bestPriceClient.query(
         `SELECT * FROM (
            SELECT id, title, price, currency, source AS domain, url, image_url,
@@ -891,17 +896,17 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
            FROM products
            WHERE is_active = true AND price > 0
              AND country_code = $1
-             ${minPrice > 0 ? `AND price >= $${4}` : ''}
+             ${minPrice > 0 ? `AND price >= $4` : ''}
            ORDER BY updated_at DESC
-           LIMIT $${minPrice > 0 ? 3 : 2}
+           LIMIT $3
          ) _recent
-         WHERE title ILIKE $${minPrice > 0 ? 3 : 2}
-         ${category ? `AND category ILIKE $${minPrice > 0 ? 5 : 4}` : ''}
+         WHERE title ILIKE $2
+         ${category ? `AND category ILIKE $5` : ''}
          ORDER BY price ASC
-         LIMIT $${minPrice > 0 ? (category ? 6 : 5) : (category ? 4 : 3)}`,
+         LIMIT ${minPrice > 0 ? (category ? 6 : 5) : (category ? 4 : 3)}`,
         minPrice > 0
-          ? (category ? [requestedCountry, CANDIDATE_POOL, titlePattern, minPrice, `%${category}%`] : [requestedCountry, CANDIDATE_POOL, titlePattern, minPrice])
-          : (category ? [requestedCountry, CANDIDATE_POOL, titlePattern, `%${category}%`] : [requestedCountry, CANDIDATE_POOL, titlePattern])
+          ? (category ? [requestedCountry, titlePattern, CANDIDATE_POOL, minPrice, `%${category}%`] : [requestedCountry, titlePattern, CANDIDATE_POOL, minPrice])
+          : (category ? [requestedCountry, titlePattern, CANDIDATE_POOL, `%${category}%`] : [requestedCountry, titlePattern, CANDIDATE_POOL])
       );
     }
   } finally {
