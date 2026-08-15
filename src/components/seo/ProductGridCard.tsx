@@ -3,18 +3,7 @@
 import Link from "next/link";
 import { ProductGridImage } from "@/components/seo/ProductGridImage";
 import type { LandingProduct } from "@/lib/seo-landing-pages";
-
-function formatPrice(price: number | null, currency: string) {
-  if (price === null) {
-    return "Price unavailable";
-  }
-
-  return new Intl.NumberFormat(currency === "SGD" ? "en-SG" : "en-US", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(price);
-}
+import { formatPrice } from "@/lib/format-price";
 
 export function ProductGridCard({ product, compact = false }: { product: LandingProduct; compact?: boolean }) {
   const isMerchantOffer =

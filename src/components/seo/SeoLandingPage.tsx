@@ -10,18 +10,7 @@ import {
   type SeoLandingPageConfig,
 } from "@/lib/seo-landing-pages";
 import { RelatedCategoryBlock } from "@/components/RelatedCategoryBlock";
-
-function formatPrice(price: number | null, currency: string) {
-  if (price === null) {
-    return "Price unavailable";
-  }
-
-  return new Intl.NumberFormat(currency === "SGD" ? "en-SG" : "en-US", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(price);
-}
+import { formatPrice } from "@/lib/format-price";
 
 const DEFAULT_SHOPPER_CTA = {
   title: "Start comparing prices",
