@@ -17,10 +17,13 @@ type SearchLikeItem = {
   id?: string | number | null;
   name?: string | null;
   title?: string | null;
-  price?: number | string | null;
+  price?: number | string | { amount?: number | string | null; currency?: string | null } | null;
+  price_amount?: number | string | null;
+  price_currency?: string | null;
   currency?: string | null;
   source?: string | null;
   merchant?: string | null;
+  merchant_name?: string | null;
   image_url?: string | null;
   image?: string | null;
   url?: string | null;
@@ -35,6 +38,12 @@ type SearchLikeItem = {
   stock_status?: string | null;
   in_stock?: boolean | null;
   available?: boolean | null;
+  metadata?: {
+    availability?: string | null;
+    in_stock?: boolean | null;
+    category?: string | null;
+    brand?: string | null;
+  } | null;
   last_updated?: string | null;
   updated_at?: string | null;
 };
@@ -92,11 +101,34 @@ function normalizePrice(price: number | string | null | undefined): number | nul
   return null;
 }
 
+function normalizePriceFields(item: SearchLikeItem): { price: number | null; currency: string | null } {
+  if (item.price && typeof item.price === "object") {
+    return {
+      price: normalizePrice(item.price.amount),
+      currency: item.price.currency || null,
+    };
+  }
+
+  return {
+    price: normalizePrice(item.price_amount ?? item.price),
+    currency: item.price_currency || item.currency || null,
+  };
+}
+
 function normalizeAvailability(item: SearchLikeItem): Pick<ComparisonOffer, "availability" | "inStock"> {
+  const metadata = item.metadata && typeof item.metadata === "object" ? item.metadata : null;
+
   if (typeof item.in_stock === "boolean") {
     return {
       availability: item.in_stock ? "In stock" : "Out of stock",
       inStock: item.in_stock,
+    };
+  }
+
+  if (typeof metadata?.in_stock === "boolean") {
+    return {
+      availability: metadata.in_stock ? "In stock" : "Out of stock",
+      inStock: metadata.in_stock,
     };
   }
 
@@ -107,7 +139,7 @@ function normalizeAvailability(item: SearchLikeItem): Pick<ComparisonOffer, "ava
     };
   }
 
-  const rawStatus = item.availability || item.stock_status;
+  const rawStatus = item.availability || item.stock_status || metadata?.availability;
   if (!rawStatus) {
     return { availability: "Availability unknown", inStock: null };
   }
@@ -129,19 +161,20 @@ export function normalizeComparisonOffer(
   fallbackCurrency = "USD",
 ): ComparisonOffer {
   const availability = normalizeAvailability(item);
+  const priceFields = normalizePriceFields(item);
 
   return {
     id: String(item.id ?? item.name ?? item.title ?? crypto.randomUUID()),
     name: item.name || item.title || "Untitled product",
-    merchant: formatMerchantName(item.merchant || item.source),
-    price: normalizePrice(item.price),
-    currency: item.currency || fallbackCurrency,
+    merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
+    price: priceFields.price,
+    currency: priceFields.currency || fallbackCurrency,
     imageUrl: item.image_url || item.image || null,
     href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.affiliateLink || item.buy_url || item.url || "#",
     availability: availability.availability,
     inStock: availability.inStock,
-    brand: item.brand || null,
-    category: item.category || null,
+    brand: item.brand || item.metadata?.brand || null,
+    category: item.category || item.metadata?.category || null,
     lastUpdated: item.last_updated || item.updated_at || null,
   };
 }
