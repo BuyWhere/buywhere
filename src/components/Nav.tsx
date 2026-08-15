@@ -54,6 +54,7 @@ function DevDropdown() {
             <Link
               key={href}
               href={href}
+              prefetch={false}
               role="menuitem"
               onClick={() => setOpen(false)}
               className="flex flex-col px-4 py-3 hover:bg-indigo-50 transition-colors"
@@ -82,15 +83,15 @@ export default function Nav() {
         {/* Desktop nav */}
         <nav id="main-navigation" className="hidden lg:flex items-center gap-6 text-sm font-medium text-gray-600" aria-label="Main navigation">
           <DevDropdown />
-          <Link href="/challenge" className="hover:text-indigo-600 transition-colors">Challenge</Link>
-          <Link href="/merchants" className="hover:text-indigo-600 transition-colors">Merchants</Link>
-          <Link href="/partners" className="hover:text-indigo-600 transition-colors">Partners</Link>
-          <Link href="/pricing" className="hover:text-indigo-600 transition-colors">Pricing</Link>
-          <Link href="/about" className="hover:text-indigo-600 transition-colors">About</Link>
-          <Link href="/blog" className="hover:text-indigo-600 transition-colors">Blog</Link>
+          <Link href="/challenge" prefetch={false} className="hover:text-indigo-600 transition-colors">Challenge</Link>
+          <Link href="/merchants" prefetch={false} className="hover:text-indigo-600 transition-colors">Merchants</Link>
+          <Link href="/partners" prefetch={false} className="hover:text-indigo-600 transition-colors">Partners</Link>
+          <Link href="/pricing" prefetch={false} className="hover:text-indigo-600 transition-colors">Pricing</Link>
+          <Link href="/about" prefetch={false} className="hover:text-indigo-600 transition-colors">About</Link>
+          <Link href="/blog" prefetch={false} className="hover:text-indigo-600 transition-colors">Blog</Link>
           <div className="flex items-center gap-3 ml-4 pl-4 border-l border-gray-200">
-            <Link href="/login" className="hover:text-indigo-600 transition-colors">Log In</Link>
-            <Link href="/register" className="rounded-lg bg-indigo-600 px-4 py-2 text-white transition-colors hover:bg-indigo-700">
+            <Link href="/login" prefetch={false} className="hover:text-indigo-600 transition-colors">Log In</Link>
+            <Link href="/register" prefetch={false} className="rounded-lg bg-indigo-600 px-4 py-2 text-white transition-colors hover:bg-indigo-700">
               Sign Up
             </Link>
           </div>
@@ -145,6 +146,7 @@ export default function Nav() {
                 <Link
                   key={href}
                   href={href}
+                  prefetch={false}
                   onClick={() => { setOpen(false); setDevOpen(false); }}
                   className="py-1.5 hover:text-indigo-600"
                 >
@@ -154,15 +156,15 @@ export default function Nav() {
               ))}
             </div>
           )}
-          <Link href="/challenge" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Challenge</Link>
-          <Link href="/merchants" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Merchants</Link>
-          <Link href="/partners" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Partners</Link>
-          <Link href="/pricing" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Pricing</Link>
-          <Link href="/about" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">About</Link>
-          <Link href="/blog" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Blog</Link>
+          <Link href="/challenge" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Challenge</Link>
+          <Link href="/merchants" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Merchants</Link>
+          <Link href="/partners" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Partners</Link>
+          <Link href="/pricing" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Pricing</Link>
+          <Link href="/about" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">About</Link>
+          <Link href="/blog" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Blog</Link>
           <div className="pt-3 mt-3 border-t border-gray-100 flex flex-col gap-3">
-            <Link href="/login" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Log In</Link>
-            <Link href="/register" onClick={() => setOpen(false)} className="rounded-lg bg-indigo-600 px-4 py-2 text-center text-white font-semibold">
+            <Link href="/login" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Log In</Link>
+            <Link href="/register" prefetch={false} onClick={() => setOpen(false)} className="rounded-lg bg-indigo-600 px-4 py-2 text-center text-white font-semibold">
               Sign Up
             </Link>
           </div>

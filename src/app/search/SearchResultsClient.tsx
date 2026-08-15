@@ -203,6 +203,19 @@ function hasUsableProductImage(value?: string | null) {
     if (hostname.includes('source.unsplash.com') || fullUrl.includes('source.unsplash.com')) return false;
     if (hostname.includes('images.unsplash.com') || fullUrl.includes('images.unsplash.com')) return false;
     if (hostname.includes('unsplash.com')) return false;
+    // BUY-69614: Some Amazon catalog rows carry ASIN-like placeholders in the
+    // image path (for example /images/I/B10162807901._AC_SY360_.jpg). Amazon
+    // returns HTTP 400 for those assets, which creates QA console noise before
+    // our render-side onError fallback can hide the broken image.
+    if (hostname === 'm.media-amazon.com' && /\/images\/i\/b\d{10,}\._/.test(pathname)) return false;
+    // BUY-68364: synthetic fixture image hosts must never reach the browser in
+    // production search cards. They resolve as NXDOMAIN (for example,
+    // images.example.sg/products/SYNTH_08012/1.jpg), which creates visible broken
+    // image noise before the render-side fallback can take over.
+    if (hostname === 'example.sg' || hostname.endsWith('.example.sg')) return false;
+    if (hostname === 'example.com' || hostname.endsWith('.example.com')) return false;
+    if (hostname === 'example.net' || hostname.endsWith('.example.net')) return false;
+    if (hostname === 'example.org' || hostname.endsWith('.example.org')) return false;
     if (fullUrl.includes('placeholder')) return false;
     if (fullUrl.includes('image-unavailable')) return false;
     if (fullUrl.includes('no-image')) return false;
