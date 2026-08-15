@@ -442,6 +442,17 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
     return "__GONE__";
   }
 
+  // BUY-70108: explicit redirects for /docs/sdks and /docs/examples
+  // These were returning 410 because the catch-all /docs check below fires
+  // before next.config.mjs redirects. Handle them here with 301 redirects.
+  const docsRedirectAlias = {
+    "/docs/sdks": "/developers",
+    "/docs/examples": "/docs",
+  }[normalizedPath];
+  if (docsRedirectAlias) {
+    return docsRedirectAlias;
+}
+
   if (normalizedPath.startsWith("/docs")) {
     if (ACTIVE_DOC_PATHS.has(normalizedPath)) {
       return isDocsHost ? normalizedPath : null;
