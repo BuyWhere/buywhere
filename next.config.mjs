@@ -329,6 +329,17 @@ const nextConfig = {
         destination: '/docs',
         permanent: true,
       },
+      // BUY-70108: /docs/sdks and /docs/examples are returning 410s; redirect to canonical pages
+      {
+        source: '/docs/sdks',
+        destination: '/developers',
+        permanent: true,
+      },
+      {
+        source: '/docs/examples',
+        destination: '/docs',
+        permanent: true,
+      },
       {
         source: '/:path*',
         has: [
