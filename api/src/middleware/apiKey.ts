@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { request as httpRequest } from 'http';
 import { request as httpsRequest } from 'https';
 import { db, redis, FREE_TIER, TIER_LIMITS } from '../config';
@@ -353,14 +353,23 @@ export function isMcpJsonRpcRequest(req: Request): boolean {
     && typeof req.body.method === 'string';
 }
 
+function mcpRequestId(id: unknown): string {
+  if (typeof id === 'string' && id) return id;
+  if (typeof id === 'number' && Number.isFinite(id)) return String(id);
+  return randomUUID();
+}
+
 function sendMcpPerMinuteLimitError(req: Request, res: Response, tier: string, limit: number): void {
   const retryAfter = Math.ceil(60 - (Date.now() % 60000) / 1000);
   const resetAt = new Date(Date.now() + retryAfter * 1000).toISOString();
   const message = `Rate limit of ${limit} requests/min exceeded for ${tier.charAt(0).toUpperCase()}${tier.slice(1)} tier.`;
+  const id = (req.body as { id?: unknown }).id ?? null;
   res.set('Retry-After', String(retryAfter));
   res.status(429).json({
     jsonrpc: '2.0',
-    id: (req.body as { id?: unknown }).id ?? null,
+    id,
+    request_id: mcpRequestId(id),
+    timestamp: new Date().toISOString(),
     error: {
       code: 429,
       message,
