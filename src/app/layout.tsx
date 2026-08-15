@@ -38,6 +38,10 @@ export const metadata: Metadata = {
   title: "BuyWhere — MCP Server and Product Catalog API for AI Agents",
   description:
     "BuyWhere is the MCP server and product catalog API for AI agents: real-time search, price comparison, and merchant handoff across Southeast Asia and the US.",
+  robots: {
+    index: true,
+    follow: true,
+  },
   openGraph: {
     type: "website",
     siteName: "BuyWhere",
