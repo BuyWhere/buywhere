@@ -120,6 +120,19 @@ jobs:
           fi
           echo "Site healthy after deploy (status=ok)"
 
+          # BUY-70068: Product sitemap must have >0 URLs or the root sitemap
+          # must not advertise it. Fail early if we serve an empty product sitemap.
+          echo "=== Checking product sitemap URL count ==="
+          SITEMAP_PRODUCTS_XML=$(curl -fsS --max-time 30 "${SITE_URL}/sitemap-products.xml" 2>/dev/null || echo "")
+          SITEMAP_PRODS=$(printf '%s' "$SITEMAP_PRODUCTS_XML" | grep -o '<loc>' | wc -l | tr -d ' ')
+          echo "Product sitemap has ${SITEMAP_PRODS} <loc> entries"
+          SITEMAP_INDEX=$(curl -fsS --max-time 30 "${SITE_URL}/sitemap.xml" 2>/dev/null || echo "")
+          if echo "$SITEMAP_INDEX" | grep -q 'sitemap-products.xml' && [ "$SITEMAP_PRODS" = "0" ]; then
+            echo "ERROR: root sitemap advertises sitemap-products.xml but it has 0 URLs"
+            exit 1
+          fi
+          echo "Product sitemap check passed (${SITEMAP_PRODS} URLs)"
+
   # ──────────────────────────────────────────────────────────────────────────
   # Post-deploy e2e: Playwright smoke against the freshly-deployed production
   # site. Skippable on manual dispatch for emergency deploys.
