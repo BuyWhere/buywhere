@@ -7,6 +7,10 @@ import { PopularComparisons } from "@/components/PopularComparisons";
 import { HomeProductSearch } from "@/components/HomeProductSearch";
 
 export const metadata: Metadata = {
+  robots: {
+    index: true,
+    follow: true,
+  },
   alternates: {
     canonical: "/",
   },
