@@ -22,7 +22,8 @@ function formatDate(date: string) {
 }
 
 function articleImage(post: BlogPost) {
-  return post.coverImage ?? toSiteUrl("/og-image.png");
+  // Use dynamic OG image endpoint with article title
+  return post.coverImage ?? toSiteUrl(`/api/og-image?title=${encodeURIComponent(post.title)}`);
 }
 
 function articleJsonLd(post: BlogPost) {
