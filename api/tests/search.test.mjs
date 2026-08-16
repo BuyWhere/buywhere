@@ -94,6 +94,10 @@ function defaultQueryHandler(sql, params) {
   });
 }
 
+// Backing store so the mocked Redis GET returns values the handler SET within
+// the same request (mirrors the production qembed: 60s cache contract).
+const redisStore = new Map();
+
 function setupDefaultMocks() {
   queryMock.mock.resetCalls();
   vectorQueryMock.mock.resetCalls();
@@ -103,8 +107,14 @@ function setupDefaultMocks() {
   queryMock.mock.mockImplementation(defaultQueryHandler);
   vectorQueryMock.mock.mockImplementation(() => Promise.resolve({ rows: [] }));
   embedQueryMock.mock.mockImplementation(() => Promise.resolve('[0.1,0.2,0.3]'));
-  redisGetMock.mock.mockImplementation(() => Promise.resolve(null));
-  redisSetMock.mock.mockImplementation(() => Promise.resolve('OK'));
+  // Simulate real Redis semantics: a value previously SET is returned by GET.
+  // Without this, getCachedQueryEmbedding re-embeds on every call — the semantic
+  // cache probe and the vector search each call it, and tests that assert
+  // "one embed per request" (the production property under the 60s qembed: TTL)
+  // fail 2x-vs-1x purely from the mock (BUY-70294).
+  redisStore.clear();
+  redisGetMock.mock.mockImplementation((key) => Promise.resolve(redisStore.get(key) ?? null));
+  redisSetMock.mock.mockImplementation((key, value) => { redisStore.set(key, value); return Promise.resolve('OK'); });
   config.vectorDb = null;
   delete process.env.GEMINI_API_KEY;
   process.env.SEARCH_USE_TIER = '0';
@@ -839,7 +849,11 @@ describe('NL search — Redis caching behavior', () => {
         && c.arguments[0].includes(':keyfmt:')
     );
     assert.ok(cacheGetCalls.length >= 1);
-    assert.ok(cacheGetCalls[0].arguments[0].startsWith('fts:deliver-to-v8-storage-excl:keyfmt:'));
+    // Key shape: fts:<cache-version-segment>:<qNorm>:… — the version segment is a
+    // cache-busting token that changes per ranking fix (v8→v9→v10…). Assert the
+    // shape, not the literal version, so a legitimate bump doesn't rot this test
+    // (BUY-70294: it had been pinned to v8 through two bumps).
+    assert.match(cacheGetCalls[0].arguments[0], /^fts:deliver-to-v\d+-[a-z-]+:keyfmt:/);
   });
 });
 
@@ -863,10 +877,12 @@ describe('BUY-69621 device-vs-storage exclusion (BUY-69616)', () => {
   after(() => { server?.close(); });
   beforeEach(() => { setupDefaultMocks(); });
 
-  // The storage-category exclusion fragment, matching both the `sp.` (tier) and
-  // `products` (archive) alias forms. After BUY-69727 the SQL uses ILIKE ANY
-  // (replaced ~* POSIX regex to eliminate live-leak ambiguity with spaces).
-  const STORAGE_EXCL_RE = /NOT\s*\(lower\(coalesce\((?:sp\.category|category(?:,\s*metadata->>'category')?),\s*''\)\)\s+ILIKE\s+ANY/i;
+  // The storage-category exclusion fragment, matching the alias forms emitted by
+  // searchRelevanceTaxonomy. After BUY-69727 the SQL uses ILIKE ANY (replaced ~*
+  // POSIX regex) and the products-side fragment coalesces metadata->>'category'
+  // FIRST (feed ground truth) with the legacy category column as fallback — the
+  // reverse order still matches so old artifacts can't slip through either.
+  const STORAGE_EXCL_RE = /NOT\s*\(lower\(coalesce\((?:sp\.category|(?:metadata->>'category',\s*)?category(?:,\s*metadata->>'category')?|m\.metadata->>'category',\s*sp\.category),\s*''\)\)\s+ILIKE\s+ANY/i;
 
   const deviceQueries = [
     'gaming laptop', 'laptop', 'macbook', 'gaming pc', 'desktop computer',
@@ -956,8 +972,10 @@ describe('BUY-69727 storage-exclusion seeded regression', () => {
   let server;
   let port;
 
-  // Matches the ILIKE ANY fragment in the SQL (from searchRelevanceTaxonomy.ts)
-  const STORAGE_EXCL_RE = /NOT\s*\(lower\(coalesce\((?:sp\.category|category(?:,\s*metadata->>'category')?),\s*''\)\)\s+ILIKE\s+ANY/i;
+  // Matches the ILIKE ANY fragment in the SQL (from searchRelevanceTaxonomy.ts).
+  // BUY-69727: products-side fragment coalesces metadata->>'category' FIRST; the
+  // tier sp.category form and legacy column-first order still match.
+  const STORAGE_EXCL_RE = /NOT\s*\(lower\(coalesce\((?:sp\.category|(?:metadata->>'category',\s*)?category(?:,\s*metadata->>'category')?|m\.metadata->>'category',\s*sp\.category),\s*''\)\)\s+ILIKE\s+ANY/i;
 
   before(async () => {
     const express = require('express');
@@ -970,6 +988,9 @@ describe('BUY-69727 storage-exclusion seeded regression', () => {
     port = server.address().port;
   });
   after(() => { server?.close(); });
+  // Reset between tests: with the stateful Redis mock, the tier response cached
+  // by an earlier test would serve later ones from cache (no SQL to inspect).
+  beforeEach(() => { setupDefaultMocks(); });
 
   // Canonical Firecuda row from BUY-69616 repro.
   const FIRECUDA = {

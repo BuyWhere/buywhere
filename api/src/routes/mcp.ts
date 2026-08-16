@@ -1418,7 +1418,16 @@ async function handleFindSimilar(args: Record<string, unknown>) {
       conditions.push(`country_code = $${params.length}`);
     }
     const lookupResult = await db.query(
-      `SELECT id, sku FROM products WHERE ${conditions.join(' AND ')} ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC LIMIT 1`,
+      // BUY-32028/70294: bound the FTS candidates BEFORE ranking. An unbounded
+      // rank sort over the whole match set re-introduces the multi-second sort
+      // the ts-rank guard exists to prevent. Rank only a 50-row slice.
+      `SELECT id, sku FROM (
+         SELECT id, sku, ts_rank(search_vector, plainto_tsquery('english', $1)) AS _rank
+         FROM (
+           SELECT id, sku, search_vector FROM products WHERE ${conditions.join(' AND ')} LIMIT 50
+         ) _lookup_candidates
+       ) _ranked_lookup_candidates
+       ORDER BY _rank DESC LIMIT 1`,
       params
     );
     if (!lookupResult.rows.length) {

@@ -85,6 +85,7 @@ const TOOLS = [
             type: 'object',
             properties: {
                 q: { type: 'string', description: 'Keyword search query' },
+                query: { type: 'string', description: 'Alias for q (accepted for agent convenience; use q)' },
                 domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
                 region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
                 country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
@@ -107,7 +108,7 @@ const TOOLS = [
             type: 'object',
             required: ['id'],
             properties: {
-                id: { type: 'string', description: 'Product UUID' },
+                id: { type: 'string', description: 'Product ID (numeric catalog ID)' },
             },
         },
     },
@@ -179,7 +180,7 @@ const TOOLS = [
         inputSchema: {
             type: 'object',
             properties: {
-                product_id: { type: 'string', description: 'Numeric ID of the source product (mutually exclusive with product_name)' },
+                product_id: { type: 'string', description: 'Numeric catalog product ID (products.id; mutually exclusive with product_name). For legacy vector rows, an exact SKU is also accepted.' },
                 product_name: { type: 'string', description: 'Product name to find similar items for (auto-resolves to best-matching product ID). Preferred when agent starts with a name/query.' },
                 country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Country to scope product_name lookup (defaults to SG)' },
                 limit: { type: 'integer', description: 'Number of similar products to return (1-10, default 10)', default: 10 },
@@ -237,7 +238,11 @@ probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() 
 // Tool handlers
 async function handleSearchProducts(args) {
     const t0 = Date.now();
-    const q = args.q || '';
+    // BUY-68587 direction-correction: agents passing the natural alias `query`
+    // (instead of canonical `q`) silently fell into the no-q browse branch and got
+    // 0 rows with a reltuples-derived "total" (~397M) that looked like fabricated
+    // cache data. Accept the alias so the query actually runs.
+    const q = args.q || args.query || '';
     const mode = args.mode || 'hybrid';
     const geminiKey = process.env.GEMINI_API_KEY ?? '';
     const useVector = config_1.vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
@@ -888,6 +893,7 @@ async function handleFindBestPrice(args) {
         throw { code: -32603, message: 'Database connection timeout' };
     });
     let result;
+    let ftsTimedOut = false;
     try {
         await bestPriceClient.query('SET statement_timeout = 10000');
         const requestedCountry = country;
@@ -920,6 +926,19 @@ async function handleFindBestPrice(args) {
        FROM page_ids pi
        JOIN products p ON p.id = pi.id
        ORDER BY pi.price ASC, pi.updated_at DESC`, [...params, limit]);
+    }
+    catch (err) {
+        // BUY-70222: catch SQLSTATE 57014 (statement_timeout) and fail open with a
+        // structured empty response instead of surfacing JSON-RPC -32603 to callers.
+        const pgErr = err;
+        if (pgErr?.code === '57014') {
+            console.warn('[find_best_price] FTS timed out for country=', country, 'product=', productName);
+            ftsTimedOut = true;
+            result = { rows: [] };
+        }
+        else {
+            throw err;
+        }
     }
     finally {
         // BUY-56185: discard connections poisoned by statement_timeout
@@ -1020,6 +1039,7 @@ async function handleFindBestPrice(args) {
             ...(minAllowedUsd != null ? { min_allowed_usd: Math.round(minAllowedUsd * 100) / 100 } : {}),
             country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'),
             response_time_ms: Date.now() - t0,
+            ...(ftsTimedOut ? { timed_out: true, unavailable: true, message: 'Best-price search temporarily unavailable; please retry.' } : {}),
         },
     };
 }
@@ -1261,14 +1281,11 @@ async function handleIngestProducts(args) {
 }
 async function handleFindSimilar(args) {
     const t0 = Date.now();
-    const productId = (args.product_id || '').trim();
+    const requestedId = (args.product_id || '').trim();
     const productName = (args.product_name || '').trim();
     const countryCode = (args.country_code || 'SG').toUpperCase();
-    const limit = Math.min(Number(args.limit) || 10, 10);
-    // BUY-70124: Resolve product_name → product_id via FTS when product_id is not provided.
-    // This enables agents to start with a product name (natural discovery flow) instead
-    // of requiring a pre-known numeric ID.
-    let resolvedId = productId;
+    const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 10);
+    let resolvedId = requestedId;
     if (!resolvedId && productName) {
         const conditions = ['is_active = true'];
         const params = [];
@@ -1278,7 +1295,17 @@ async function handleFindSimilar(args) {
             params.push(countryCode);
             conditions.push(`country_code = $${params.length}`);
         }
-        const lookupResult = await config_1.db.query(`SELECT id, title FROM products WHERE ${conditions.join(' AND ')} ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC LIMIT 1`, params);
+        const lookupResult = await config_1.db.query(
+        // BUY-32028/70294: bound the FTS candidates BEFORE ranking. An unbounded
+        // rank sort over the whole match set re-introduces the multi-second sort
+        // the ts-rank guard exists to prevent. Rank only a 50-row slice.
+        `SELECT id, sku FROM (
+         SELECT id, sku, ts_rank(search_vector, plainto_tsquery('english', $1)) AS _rank
+         FROM (
+           SELECT id, sku, search_vector FROM products WHERE ${conditions.join(' AND ')} LIMIT 50
+         ) _lookup_candidates
+       ) _ranked_lookup_candidates
+       ORDER BY _rank DESC LIMIT 1`, params);
         if (!lookupResult.rows.length) {
             throw { code: -32001, message: `No product found matching "${productName}" in ${countryCode}` };
         }
@@ -1287,59 +1314,108 @@ async function handleFindSimilar(args) {
     if (!resolvedId) {
         throw { code: -32602, message: 'missing required parameter: provide product_id or product_name' };
     }
-    // product_embeddings.product_id is bigint; reject non-numeric IDs upfront so the
-    // SQL parameter doesn't blow up with "invalid input syntax for type bigint".
-    // BUY-59390 — previously the handler exposed -32603 raw SQL errors.
-    if (!/^\d+$/.test(resolvedId)) {
-        throw { code: -32602, message: `Invalid product_id format: expected numeric ID, got "${resolvedId}"` };
+    // Public contract: product_id is products.id (currently bigint text in MCP JSON).
+    // Legacy vector data in search_proof.product_vectors is keyed by sku, so exact SKU
+    // input remains accepted as a compatibility bridge while canonical coverage catches up.
+    const isNumericProductId = /^\d+$/.test(resolvedId);
+    const isUuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedId);
+    if (!isNumericProductId && isUuidLike) {
+        throw { code: -32602, message: `Invalid product_id format: expected catalog product id or exact SKU, got "${resolvedId}"` };
     }
     if (!config_1.vectorDb) {
-        throw { code: -32001, message: 'Vector search not available — vector DB not configured' };
+        throw { code: -32001, message: 'Vector search not available - vector DB not configured' };
     }
-    // Step 1: get reference embedding from vector DB
+    let sourceProductId = resolvedId;
+    let sourceSku = null;
+    try {
+        const sourceResult = await config_1.db.query(isNumericProductId
+            ? `SELECT id::text AS id, sku FROM products WHERE id = $1 AND is_active = true LIMIT 1`
+            : `SELECT id::text AS id, sku FROM products WHERE sku = $1 AND is_active = true ORDER BY updated_at DESC LIMIT 1`, [resolvedId]);
+        if (sourceResult.rows.length) {
+            sourceProductId = String(sourceResult.rows[0].id);
+            sourceSku = sourceResult.rows[0].sku ? String(sourceResult.rows[0].sku) : null;
+        }
+    }
+    catch {
+        if (!isNumericProductId)
+            sourceSku = resolvedId;
+    }
+    const lookupKeys = Array.from(new Set([sourceProductId, sourceSku, resolvedId].filter(Boolean).map(String)));
     let refResult;
     try {
-        refResult = await config_1.vectorDb.query(`SELECT embedding::text FROM product_embeddings WHERE product_id = $1`, [resolvedId]);
+        refResult = await config_1.vectorDb.query(`SELECT product_id::text AS vector_key, embedding::text, 'product_embeddings' AS vector_table
+         FROM product_embeddings
+        WHERE product_id::text = ANY($1::text[])
+        ORDER BY CASE WHEN product_id::text = $2 THEN 0 ELSE 1 END
+        LIMIT 1`, [lookupKeys, sourceProductId]);
     }
     catch {
-        throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
+        refResult = { rows: [] };
     }
     if (!refResult.rows.length) {
-        throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
+        try {
+            refResult = await config_1.vectorDb.query(`SELECT sku AS vector_key, embedding::text, 'search_proof.product_vectors' AS vector_table
+           FROM search_proof.product_vectors
+          WHERE sku = ANY($1::text[])
+          ORDER BY CASE WHEN sku = $2 THEN 0 ELSE 1 END
+          LIMIT 1`, [lookupKeys, sourceSku || resolvedId]);
+        }
+        catch {
+            refResult = { rows: [] };
+        }
+    }
+    if (!refResult.rows.length) {
+        throw { code: -32001, message: 'No embedding found for this product - backfill may still be running' };
     }
     const refEmbedding = refResult.rows[0].embedding;
-    // Step 2: find nearest neighbours in vector DB (excluding source product)
+    const vectorKey = refResult.rows[0].vector_key;
+    const vectorTable = refResult.rows[0].vector_table;
     let nearResult;
-    try {
-        nearResult = await config_1.vectorDb.query(`SELECT product_id, (embedding <=> $1::vector)::float AS distance
-       FROM product_embeddings WHERE product_id != $2
-       ORDER BY distance LIMIT $3`, [refEmbedding, resolvedId, limit]);
+    if (vectorTable === 'search_proof.product_vectors') {
+        try {
+            nearResult = await config_1.vectorDb.query(`SELECT sku AS vector_key, (embedding <=> $1::vector)::float AS distance
+           FROM search_proof.product_vectors
+          WHERE sku != $2
+          ORDER BY distance LIMIT $3`, [refEmbedding, vectorKey, limit]);
+        }
+        catch {
+            nearResult = { rows: [] };
+        }
     }
-    catch {
-        throw { code: -32001, message: 'No similar products found' };
+    else {
+        try {
+            nearResult = await config_1.vectorDb.query(`SELECT product_id::text AS vector_key, (embedding <=> $1::vector)::float AS distance
+           FROM product_embeddings
+          WHERE product_id::text != $2
+          ORDER BY distance LIMIT $3`, [refEmbedding, vectorKey, limit]);
+        }
+        catch {
+            nearResult = { rows: [] };
+        }
     }
     if (!nearResult.rows.length) {
         throw { code: -32001, message: 'No similar products found' };
     }
-    // Step 3: fetch product details from main DB
-    const nearIds = nearResult.rows.map(r => r.product_id);
-    const ph = nearIds.map((_, i) => `$${i + 1}`).join(',');
-    const detailResult = await config_1.db.query(`SELECT id, title, price, currency, source AS domain, url, image_url
-     FROM products WHERE id IN (${ph}) AND is_active = true`, nearIds);
-    // Step 4: merge, preserving similarity order
-    const distMap = new Map(nearResult.rows.map(r => [r.product_id, r.distance]));
-    const byId = new Map(detailResult.rows.map(r => [r.id, r]));
-    const similar = nearIds
+    const nearKeys = nearResult.rows.map(r => r.vector_key);
+    const ph = nearKeys.map((_, i) => `$${i + 1}`).join(',');
+    const detailResult = await config_1.db.query(vectorTable === 'search_proof.product_vectors'
+        ? `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url FROM products WHERE sku IN (${ph}) AND is_active = true`
+        : `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url FROM products WHERE id::text IN (${ph}) AND is_active = true`, nearKeys);
+    const distMap = new Map(nearResult.rows.map(r => [r.vector_key, r.distance]));
+    const byKey = new Map(detailResult.rows.map(r => [vectorTable === 'search_proof.product_vectors' ? String(r.sku) : String(r.id), r]));
+    const similar = nearKeys
         .map(id => {
-        const p = byId.get(id);
+        const p = byKey.get(id);
         if (!p)
             return null;
         const dist = distMap.get(id) ?? 1;
+        const rowCurrency = p.currency || '';
         return {
             id: p.id,
+            sku: p.sku,
             title: p.title,
             price: p.price,
-            currency: p.currency,
+            currency: rowCurrency,
             domain: p.domain,
             url: p.url,
             image_url: p.image_url,
@@ -1348,10 +1424,13 @@ async function handleFindSimilar(args) {
     })
         .filter(Boolean);
     return {
-        product_id: resolvedId,
+        product_id: sourceProductId,
+        requested_product_id: requestedId || undefined,
         matched_product_name: productName || undefined,
+        sku: sourceSku,
         similar,
         total: similar.length,
+        meta: { vector_table: vectorTable, vector_key: vectorKey },
         response_time_ms: Date.now() - t0,
     };
 }
