@@ -20,11 +20,17 @@ type SearchLikeMetadata = {
   available?: boolean | null;
 };
 
+// BUY-69923: /v1/products/search returns price as an OBJECT
+// (`{ amount: 1074.41, currency: "SGD" }`), not a bare number. The compare
+// page previously only handled number|string, so every row normalized to
+// price=null → "Price unavailable" and Priced offers = 0.
+type SearchLikePrice = number | string | { amount?: number | string | null; currency?: string | null } | null;
+
 type SearchLikeItem = {
   id?: string | number | null;
   name?: string | null;
   title?: string | null;
-  price?: number | string | null;
+  price?: SearchLikePrice;
   currency?: string | null;
   source?: string | null;
   merchant?: string | null;
@@ -87,7 +93,7 @@ export function formatMerchantName(value?: string | null): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function normalizePrice(price: number | string | null | undefined): number | null {
+function normalizePrice(price: SearchLikePrice | undefined): number | null {
   if (typeof price === "number") {
     return Number.isFinite(price) ? price : null;
   }
@@ -95,6 +101,18 @@ function normalizePrice(price: number | string | null | undefined): number | nul
   if (typeof price === "string" && price.trim()) {
     const parsed = Number(price);
     return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  // BUY-69923: object form `{ amount, currency }` from /v1/products/search.
+  if (price && typeof price === "object") {
+    const amount = price.amount;
+    if (typeof amount === "number") {
+      return Number.isFinite(amount) ? amount : null;
+    }
+    if (typeof amount === "string" && amount.trim()) {
+      const parsed = Number(amount);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
   }
 
   return null;
@@ -145,7 +163,12 @@ export function normalizeComparisonOffer(
     name: item.name || item.title || "Untitled product",
     merchant: formatMerchantName(item.merchant || item.source),
     price: normalizePrice(item.price),
-    currency: item.currency || fallbackCurrency,
+    // BUY-69923: with the object price form the currency travels inside the
+    // price object (price.currency), so prefer that over the top-level field.
+    currency:
+      (item.price && typeof item.price === "object" && item.price.currency) ||
+      item.currency ||
+      fallbackCurrency,
     imageUrl: item.image_url || item.image || null,
     href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.affiliateLink || item.buy_url || item.url || "#",
     availability: availability.availability,

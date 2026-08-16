@@ -67,3 +67,57 @@ test("normalizeComparisonOffer normalizes unavailable string from metadata", () 
   assert.equal(offer.availability, "Out of stock");
   assert.equal(offer.inStock, false);
 });
+
+test("normalizeComparisonOffer reads price from API object form { amount, currency }", () => {
+  // BUY-69923: /v1/products/search returns `price: { amount: 1074.41, currency: "SGD" }`.
+  // The compare page previously only handled number|string and normalized every
+  // object price to null → "Price unavailable" on all rows / Priced offers = 0.
+  const offer = normalizeComparisonOffer({
+    id: "54419109",
+    title: "Laptop 15.6-inch Intel Core i7 16GB RAM 512GB SSD",
+    merchant: "amazon.com",
+    price: { amount: 1074.41, currency: "SGD" },
+    metadata: { availability: "in_stock", in_stock: true },
+  });
+
+  assert.equal(offer.price, 1074.41);
+  assert.equal(offer.currency, "SGD");
+});
+
+test("normalizeComparisonOffer still reads price from string amount inside object form", () => {
+  const offer = normalizeComparisonOffer({
+    id: "54412356",
+    title: "GIGABYTE GAMING A16",
+    merchant: "newegg_us",
+    price: { amount: "1499.99", currency: "USD" },
+  });
+
+  assert.equal(offer.price, 1499.99);
+  assert.equal(offer.currency, "USD");
+});
+
+test("normalizeComparisonOffer keeps scalar price working", () => {
+  const offer = normalizeComparisonOffer({
+    id: "prod_scalar",
+    title: "Scalar price product",
+    merchant: "bestbuy",
+    price: 899,
+    currency: "USD",
+  });
+
+  assert.equal(offer.price, 899);
+  assert.equal(offer.currency, "USD");
+});
+
+test("normalizeComparisonOffer falls back to top-level currency when object price has none", () => {
+  const offer = normalizeComparisonOffer({
+    id: "prod_nocur",
+    title: "Object price without currency",
+    merchant: "amazon.com",
+    price: { amount: 42 },
+    currency: "USD",
+  });
+
+  assert.equal(offer.price, 42);
+  assert.equal(offer.currency, "USD");
+});
