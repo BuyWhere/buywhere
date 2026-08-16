@@ -117,6 +117,11 @@ export const TIER_LIMITS: Record<string, { rpm: number; daily: number; monthlyCa
 // hanging for the idleTimeout window and exhausting the pool (max=5).
 const vectorStatementTimeout = parseInt(process.env.VECTOR_STATEMENT_TIMEOUT || '10000');
 const vectorDbUrl = process.env.VECTOR_DB_URL || process.env.RAILWAY_SERVICE_VECTOR_DB_URL;
+export const VECTOR_DB_USES_CATALOG_DB = Boolean(
+  process.env.CATALOG_DATABASE_URL &&
+  vectorDbUrl &&
+  process.env.CATALOG_DATABASE_URL === vectorDbUrl
+);
 
 export const vectorDb: Pool | null = vectorDbUrl
   ? (() => {

@@ -80,4 +80,10 @@ describe('MCP find_similar query-shape regression (BUY-70113 seq-scan fix)', () 
     assert.match(source, /else if \(!isNumericProductId\)/);
     assert.match(source, /sourceSku = resolvedId/);
   });
+
+  it('does not let catalog-as-vector compatibility hide legacy fallback hits', () => {
+    assert.match(source, /VECTOR_DB_USES_CATALOG_DB/);
+    assert.match(source, /if \(!refResult\.rows\.length && !VECTOR_DB_USES_CATALOG_DB && vectorDb\)/);
+    assert.match(source, /nearResult\.rows = nearResult\.rows\.filter\(r => r\.vector_key !== vectorKey\)\.slice\(0, limit\)/);
+  });
 });

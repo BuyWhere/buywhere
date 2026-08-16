@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { Router, Request, Response, NextFunction } from 'express';
-import { db, redis, vectorDb, catalogDb } from '../config';
+import { db, redis, vectorDb, catalogDb, VECTOR_DB_USES_CATALOG_DB } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -1658,7 +1658,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     throw { code: -32602, message: `Invalid product_id format: expected catalog product id or exact SKU, got "${resolvedId}"` };
   }
 
-  if (!vectorDb) {
+  if (!vectorDb && !VECTOR_DB_USES_CATALOG_DB) {
     throw { code: -32001, message: 'Vector search not available - vector DB not configured' };
   }
 
@@ -1694,14 +1694,16 @@ async function handleFindSimilar(args: Record<string, unknown>) {
 
   let refResult;
   try {
-    refResult = await vectorDb.query<{ vector_key: string; embedding: string; vector_table: string }>(
-      `SELECT product_id::text AS vector_key, embedding::text, 'product_embeddings' AS vector_table
-         FROM product_embeddings
-        WHERE product_id = ANY($1::bigint[])
-        ORDER BY CASE WHEN product_id::text = $2 THEN 0 ELSE 1 END
-        LIMIT 1`,
-      [lookupKeys.filter(k => /^\d+$/.test(k)).map(k => k), sourceProductId]
-    );
+    refResult = vectorDb
+      ? await vectorDb.query<{ vector_key: string; embedding: string; vector_table: string }>(
+          `SELECT product_id::text AS vector_key, embedding::text, 'product_embeddings' AS vector_table
+             FROM product_embeddings
+            WHERE product_id = ANY($1::bigint[])
+            ORDER BY CASE WHEN product_id::text = $2 THEN 0 ELSE 1 END
+            LIMIT 1`,
+          [lookupKeys.filter(k => /^\d+$/.test(k)).map(k => k), sourceProductId]
+        )
+      : { rows: [] };
   } catch {
     refResult = { rows: [] };
   }
@@ -1724,7 +1726,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     }
   }
 
-  if (!refResult.rows.length) {
+  if (!refResult.rows.length && !VECTOR_DB_USES_CATALOG_DB && vectorDb) {
     // BUY-70314: standard search_products→find_similar flow must not fail just
     // because the selected source product has not been backfilled into vector DB.
     // If the catalog row exists, embed its own title/description at request time
@@ -1812,25 +1814,31 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     try {
       // BUY-70113: legacy search_proof vectors live in catalogDb; keep both the
       // reference lookup and nearest-neighbour scan on the same catalog database.
+      const nearLimit = VECTOR_DB_USES_CATALOG_DB ? limit + 1 : limit;
       nearResult = await catalogDb.query<{ vector_key: string; distance: number }>(
         `SELECT sku AS vector_key, (embedding <=> $1::vector)::float AS distance
            FROM search_proof.product_vectors
-          WHERE sku != $2
+          WHERE ($2::text IS NULL OR sku != $2)
           ORDER BY distance LIMIT $3`,
-        [refEmbedding, vectorKey, limit]
+        [refEmbedding, VECTOR_DB_USES_CATALOG_DB ? null : vectorKey, nearLimit]
       );
+      if (VECTOR_DB_USES_CATALOG_DB) {
+        nearResult.rows = nearResult.rows.filter(r => r.vector_key !== vectorKey).slice(0, limit);
+      }
     } catch {
       nearResult = { rows: [] };
     }
   } else {
     try {
-      nearResult = await vectorDb.query<{ vector_key: string; distance: number }>(
-        `SELECT product_id::text AS vector_key, (embedding <=> $1::vector)::float AS distance
-           FROM product_embeddings
-          WHERE product_id::text != $2
-          ORDER BY distance LIMIT $3`,
-        [refEmbedding, vectorKey, limit]
-      );
+      nearResult = vectorDb
+        ? await vectorDb.query<{ vector_key: string; distance: number }>(
+            `SELECT product_id::text AS vector_key, (embedding <=> $1::vector)::float AS distance
+               FROM product_embeddings
+              WHERE product_id::text != $2
+              ORDER BY distance LIMIT $3`,
+            [refEmbedding, vectorKey, limit]
+          )
+        : { rows: [] };
     } catch {
       nearResult = { rows: [] };
     }
