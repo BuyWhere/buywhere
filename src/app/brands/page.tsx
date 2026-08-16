@@ -35,12 +35,21 @@ export const metadata: Metadata = {
     url: '/brands',
     siteName: 'BuyWhere',
     type: 'website',
+    images: [
+      {
+        url: '/brands/opengraph-image',
+        width: 1200,
+        height: 630,
+        alt: 'Shop by Brand — BuyWhere',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Shop by Brand — BuyWhere AI',
     description:
       'Browse popular brands and find the best prices across retailers.',
+    images: ['/brands/opengraph-image'],
   },
 };
 
