@@ -151,12 +151,29 @@ function BrandedPlaceholder({ alt, brand, merchant, category }: { alt: string; b
   );
 }
 
+const REFERER_GATED_HOSTS = new Set([
+  "c1.neweggimages.com",
+  "www.neweggimages.com",
+]);
+
+function isRefererGatedImage(src: string): boolean {
+  try {
+    const url = new URL(src);
+    return REFERER_GATED_HOSTS.has(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 function proxiedImageSrc(src: string): string {
   if (!src || src.startsWith("data:")) return src;
 
   try {
     const url = new URL(src);
     if (url.protocol !== "http:" && url.protocol !== "https:") return src;
+    // BUY-70340: referer-gated hosts need the browser request to omit Referer;
+    // proxying would re-run the same server-side probe path that Akamai rejects.
+    if (REFERER_GATED_HOSTS.has(url.hostname)) return url.toString();
     // BUY-64057: Route merchant images through BuyWhere so Shopify/Courts/etc.
     // hotlink protection sees a server-side fetch instead of a browser Referer.
     return `/api/image-proxy?url=${encodeURIComponent(url.toString())}`;
@@ -172,6 +189,8 @@ export function ProductGridImage({ src, alt, brand, merchant, category, classNam
     return <BrandedPlaceholder alt={alt} brand={brand} merchant={merchant} category={category} />;
   }
 
+  const referrerPolicy = isRefererGatedImage(src) ? "no-referrer" : "no-referrer-when-downgrade";
+
   // BUY-65158: Use a plain <img> (not next/image) so the SSR HTML shows the
   // image directly on first paint. next/image + loading="lazy" causes a visible
   // loading flash where the background gradient (or empty box) is rendered
@@ -184,7 +203,7 @@ export function ProductGridImage({ src, alt, brand, merchant, category, classNam
       alt={alt}
       loading="lazy"
       decoding="async"
-      referrerPolicy="no-referrer-when-downgrade"
+      referrerPolicy={referrerPolicy}
       className={className ?? "h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]"}
       onError={() => setHasError(true)}
     />
