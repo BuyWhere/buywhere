@@ -360,6 +360,17 @@ const nextConfig = {
         destination: '/docs',
         permanent: true,
       },
+      // BUY-68344: SEO regression — external links pointed at the abbreviated
+      // /iphone-16-vs-17 slug while the canonical blog post is mounted under
+      // the longer /blog/iphone-16-vs-iphone-17-upgrade-worth-it-2026 path.
+      // 308 keeps the redirect permanent for crawlers and forwards existing
+      // PageRank; the target page already carries the intentional title and
+      // canonical so this resolves the "default app title" regression.
+      {
+        source: '/iphone-16-vs-17',
+        destination: '/blog/iphone-16-vs-iphone-17-upgrade-worth-it-2026',
+        permanent: true,
+      },
       {
         source: '/:path*',
         has: [
