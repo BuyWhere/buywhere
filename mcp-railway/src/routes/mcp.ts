@@ -937,15 +937,18 @@ async function handleListCategories(args: Record<string, unknown>) {
           product_count: 0,
         }));
       }
+      const allCountsZero = rows.every((row) => Number(row.product_count) === 0);
       const meta: Record<string, unknown> = {
         total: rows.length,
         country_code: country,
         response_time_ms: 0,
         cached: false,
       };
-      meta.unavailable = false;
+      meta.unavailable = allCountsZero;
       const data = { data: rows, meta };
-      redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
+      if (!allCountsZero) {
+        redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
+      }
       return data;
     } finally {
       releaseClientSafely(client);
