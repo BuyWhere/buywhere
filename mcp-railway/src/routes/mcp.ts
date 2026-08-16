@@ -1035,7 +1035,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // can remove all rows when the cheapest FTS matches are expensive accessories
   // (e.g. iPhone 15 camera skins at S$299 vs device at S$620+). The fallback ILIKE
   // path also benefits from returning a wider pre-filter set.
-  const CANDIDATE_POOL = Math.max(limit * 50, 500);
+  // BUY-70332: device queries with a price floor (e.g. iPhone >= S$540) need a smaller
+  // pool because the GIN index scan with price predicate is slower than unlimited FTS.
+  const isDeviceQuery = deviceFilter.type && deviceFilter.minLocal > 0;
+  const CANDIDATE_POOL = isDeviceQuery ? 50 : Math.max(limit * 50, 500);
   const PREFILTER_RESULT_POOL = Math.max(limit * 50, 500);
   params.push(CANDIDATE_POOL, PREFILTER_RESULT_POOL);
   const where = `WHERE ${conditions.join(' AND ')}`;
@@ -1059,14 +1062,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // then ILIKE + price-order) is both faster AND handles category predicates correctly.
   // The primary path is still used for non-category queries where FTS is the right signal.
   let result: { rows: Record<string, unknown>[] } = { rows: [] };
-  // BUY-70189/BUY-70314: gate high-cardinality FTS queries. Single-token terms
-  // like "nike" get a capped count probe; broad multi-token SEA shopping terms
-  // like "wireless earbuds" skip primary FTS entirely because the count probe +
-  // primary path observed at 28s on TH before reaching the bounded fallback.
-  const queryTokenCount = productName.split(/\s+/).filter(Boolean).length;
-  const seaBroadMultiToken = queryTokenCount > 1 && ['SG', 'MY', 'TH'].includes(country);
-  let ftsTooBroad = seaBroadMultiToken && !deviceFilter.type;
-  if (!category && !deviceFilter.type && !ftsTooBroad) {
+  // BUY-70189/BUY-70314/BUY-70332: gate high-cardinality FTS queries with a quick
+  // capped count probe. Do not pre-classify multi-token SEA queries as too broad:
+  // under catalog DB I/O contention the bounded ILIKE fallback can be slower than
+  // primary FTS and can false-empty broad queries like "wireless mouse".
+  let ftsTooBroad = false;
+  if (!category && !deviceFilter.type) {
     try {
       const countClient = await acquireMcpClient();
       try {
@@ -1157,9 +1158,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     try {
       const fallbackClient = await acquireMcpClient();
       try {
-        // BUY-70144: enable_seqscan=off ensures the planner uses the
-        // (country_code, updated_at) index for the recent-rows scan, avoiding
-        // a seq scan on the full catalog when VN/sparse markets have few rows.
+        // BUY-70332: avoid ORDER BY updated_at in the fallback. Under catalog DB
+        // I/O contention, the recent-rows scan spent 20s+ sorting market-local rows
+        // and timed out, returning false-empty results across every region. The
+        // active-country index can supply a bounded market slice quickly.
         await fallbackClient.query('SET statement_timeout = 4500');
         await fallbackClient.query('SET enable_seqscan = off');
         const fallbackParams: unknown[] = [requestedCountry, titlePattern, CANDIDATE_POOL];
@@ -1172,13 +1174,16 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
           fallbackParams.push(`%${category}%`);
         }
         const categoryPredicate = category ? `AND category ILIKE $${fallbackParams.length}` : '';
+        // BUY-70332: drop ORDER BY updated_at. Under catalog DB I/O load, the
+        // sequential scan + sort spent 20s+ before the 4.5s statement_timeout hit,
+        // causing false-empty responses. An unordered country scan uses the
+        // (is_active, country_code) index and completes in ~100ms for LIMIT 500.
         result = await fallbackClient.query(
           `SELECT * FROM (
              SELECT id, title, price, currency, source AS domain, url, image_url,
                     country_code, updated_at, category, category_path, metadata
              FROM products
              WHERE ${fallbackConditions.join(' AND ')}
-             ORDER BY updated_at DESC
              LIMIT $3
            ) _recent
            WHERE title ILIKE $2
