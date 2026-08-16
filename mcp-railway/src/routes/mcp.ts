@@ -429,11 +429,24 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             let ftsRows: { id: string }[] = [];
             let vecRows: { product_id: string }[] = [];
             try {
-              const ftsResult = await searchClient.query<{ id: string }>(
-                `SELECT id FROM products ${where} LIMIT 200`,
-                params
-              );
-              ftsRows = ftsResult.rows;
+              // BUY-70445: run the hybrid FTS leg on its own bounded client. Under
+              // catalog DB I/O contention, a raw query on the outer searchClient can
+              // sit behind the pool/default 30s timeout and make otherwise-fast
+              // keyword searches surface JSON-RPC -32603. Match keyword mode's
+              // explicit statement timeout and fail open to vector-only/no-results.
+              const ftsClient = await acquireMcpClient();
+              try {
+                await ftsClient.query('SET statement_timeout = 4500');
+                await ftsClient.query('SET work_mem = \'64MB\'');
+                await ftsClient.query('SET enable_seqscan = off');
+                const ftsResult = await ftsClient.query<{ id: string }>(
+                  `SELECT id FROM products ${where} LIMIT 200`,
+                  params
+                );
+                ftsRows = ftsResult.rows;
+              } finally {
+                releaseClientSafely(ftsClient);
+              }
             } catch (ftsErr) {
               console.warn('[search] hybrid FTS query failed:', (ftsErr as Error).message);
             }
