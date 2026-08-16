@@ -55,6 +55,8 @@ export function HomeProductSearch() {
   return (
     <div className="max-w-3xl mx-auto mb-10">
       <form
+        action="/search"
+        method="get"
         onSubmit={handleSubmit}
         className="grid gap-3"
         noValidate
@@ -67,6 +69,7 @@ export function HomeProductSearch() {
             />
             <input
               type="search"
+              name="q"
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value);
@@ -84,6 +87,7 @@ export function HomeProductSearch() {
           </div>
 
           <select
+            name="country"
             value={country}
             onChange={(event) => {
               setCountry(event.target.value as CountryValue);
@@ -116,17 +120,14 @@ export function HomeProductSearch() {
             <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-sm text-indigo-100">
               <span className="shrink-0 font-semibold text-white">Try</span>
               {exampleQueries.map((example) => (
-                <button
+                <a
                   key={example}
-                  type="button"
-                  onClick={() => {
-                    setQuery(example);
-                    submitQuery(example);
-                  }}
+                  href={`/search?q=${encodeURIComponent(example)}&country=${country}`}
+                  onClick={() => submitQuery(example)}
                   className="whitespace-nowrap rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700"
                 >
                   {example}
-                </button>
+                </a>
               ))}
             </div>
           )}
