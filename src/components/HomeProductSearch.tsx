@@ -113,23 +113,21 @@ export function HomeProductSearch() {
               {error}
             </p>
           ) : (
-            <div className="flex flex-col items-start gap-2 text-sm text-white sm:flex-row sm:items-center sm:justify-center sm:gap-x-3">
-              <span className="inline-flex items-center self-center rounded-full border border-white/60 bg-white/10 px-2.5 py-0.5 font-semibold text-white shadow-sm sm:shrink-0">Try</span>
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                {exampleQueries.map((example) => (
-                  <button
-                    key={example}
-                    type="button"
-                    onClick={() => {
-                      setQuery(example);
-                      submitQuery(example);
-                    }}
-                    className="whitespace-nowrap rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700"
-                  >
-                    {example}
-                  </button>
-                ))}
-              </div>
+            <div className="flex flex-row flex-wrap justify-center gap-2 text-sm text-white sm:gap-x-3">
+              <span className="inline-flex items-center rounded-full border border-white/60 bg-white/10 px-2.5 py-0.5 font-semibold text-white shadow-sm shrink-0">Try</span>
+              {exampleQueries.map((example) => (
+                <button
+                  key={example}
+                  type="button"
+                  onClick={() => {
+                    setQuery(example);
+                    submitQuery(example);
+                  }}
+                  className="whitespace-nowrap rounded-full border border-white bg-white px-3 py-1 font-semibold text-indigo-900 shadow-sm transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700"
+                >
+                  {example}
+                </button>
+              ))}
             </div>
           )}
         </div>
