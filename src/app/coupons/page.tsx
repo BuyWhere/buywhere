@@ -15,6 +15,20 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  openGraph: {
+    title: "Coupons & Deals — Save More with BuyWhere",
+    description:
+      "Find the best coupons and deals across retailers. BuyWhere tracks price drops, discounts, and promotions so you never overpay.",
+    url: toSiteUrl("/coupons"),
+    siteName: "BuyWhere",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Coupons & Deals — Save More with BuyWhere",
+    description:
+      "Find the best coupons and deals across retailers.",
+  },
 };
 
 interface CouponCategory {
@@ -52,10 +66,23 @@ const categories: CouponCategory[] = [
 ];
 
 export default function CouponsPage() {
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: 'Coupons & Deals',
+    description: 'Find the best coupons and deals across retailers. BuyWhere tracks price drops, discounts, and promotions so you never overpay.',
+    url: toSiteUrl('/coupons'),
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       <Nav />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
+      <main id="main-content">
       <section className="bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 text-white py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <h1 className="text-4xl font-bold mb-4">Coupons & Deals</h1>
@@ -107,6 +134,7 @@ export default function CouponsPage() {
         </div>
       </section>
 
+      </main>
       <Footer />
     </div>
   );
