@@ -255,7 +255,7 @@ export default function PricingPage() {
                     >
                       {tier.highlighted ? (
                         <span>
-                          {tier.name}
+                          {tier.name}{" "}
                           <span aria-hidden="true" className="mt-1 ml-1 inline-flex text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
                             Popular
                           </span>
