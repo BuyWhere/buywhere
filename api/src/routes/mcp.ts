@@ -1023,7 +1023,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
          LIMIT $${params.length + 1}
        )
        SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
-              p.country_code, p.updated_at, p.category, p.category_path, p.metadata
+              p.country_code, p.updated_at, p.category, p.category_path, p.metadata, p.in_stock
        FROM page_ids pi
        JOIN products p ON p.id = pi.id
        ORDER BY pi.price ASC, pi.updated_at DESC`,
@@ -1126,6 +1126,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       url: r.url as string,
       image_url: r.image_url as string,
       country_code: r.country_code as string,
+      in_stock: r.in_stock !== false,
     };
   });
 

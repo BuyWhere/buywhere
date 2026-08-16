@@ -220,6 +220,11 @@ async function tryTierSearch(
         OR array_to_string(sp.category_path, ' ') LIKE '%laptop%'
       THEN 2.0 ELSE 1.0
     END`;
+  // BUY-70592: boost in-stock products for VN/TH laptop and phone queries
+  const inStockBoost = `
+    CASE
+      WHEN sp.in_stock IS NOT FALSE THEN 1.8 ELSE 1.0
+    END`;
   const mkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
       SELECT id, search_vector FROM search_products sp
@@ -236,7 +241,8 @@ async function tryTierSearch(
             (${laptopBoost}) *
             (${laptopAccessoryPenalty}) *
             (${phoneHandsetBoost}) *
-            (${phoneAccessoryPenalty}) AS rank
+            (${phoneAccessoryPenalty}) *
+            (${inStockBoost}) AS rank
       FROM cand ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
@@ -1071,7 +1077,8 @@ router.get(
                      OR rhp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
                      OR array_to_string(rhp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
                    THEN 0.25 ELSE 1.0
-                 END AS rank
+                 END *
+                 CASE WHEN COALESCE(rhp.in_stock, true) IS NOT FALSE THEN 1.8 ELSE 1.0 END AS rank
           FROM recent_hits rh
           JOIN products rhp ON rhp.id = rh.id
           ORDER BY rank DESC, rh.id DESC
@@ -1184,7 +1191,9 @@ router.get(
                 -- perf(search): no ORDER BY updated_at (same early-stop fix as recent_hits above)
                 LIMIT ${CANDIDATE_CAP}
               ), top_ids AS (
-                SELECT rc.id, rc.country_code, ts_rank(rcp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+                SELECT rc.id, rc.country_code,
+                       ts_rank(rcp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
+                       CASE WHEN COALESCE(rcp.in_stock, true) IS NOT FALSE THEN 1.8 ELSE 1.0 END AS rank
                 FROM recent_candidates rc
                 JOIN products rcp ON rcp.id = rc.id
                 ORDER BY rank DESC, rc.id DESC

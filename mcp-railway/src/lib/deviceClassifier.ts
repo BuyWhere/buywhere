@@ -23,8 +23,66 @@ const ACCESSORY_NEGATIVE_TERMS = [
   'kính cường lực', 'miếng bảo vệ', 'vòng nam châm',
 ];
 
+// BUY-70592: Common typos that should map to device types
+const TYPO_CORRECTIONS: Record<string, string> = {
+  'lapotp': 'laptop',
+  'lapto': 'laptop',
+  'laptp': 'laptop',
+  'phoen': 'phone',
+  'phon': 'phone',
+  'mackbook': 'macbook',
+  'mackbook pro': 'macbook pro',
+  'mackbook air': 'macbook air',
+  'iphon': 'iphone',
+  'iphoe': 'iphone',
+  'galay': 'galaxy',
+  'galxy': 'galaxy',
+  'samnsung': 'samsung',
+  'samgung': 'samsung',
+  'dyson': 'dyson',
+  'airpods': 'airpods',
+  'airpod': 'airpods',
+  'ultrabook': 'laptop',
+};
+
+function applyTypoCorrection(input: string): string {
+  const lower = input.toLowerCase().trim();
+  const correctToken = (token: string) => {
+    if (TYPO_CORRECTIONS[token]) return TYPO_CORRECTIONS[token];
+    for (const [typo, correction] of Object.entries(TYPO_CORRECTIONS)) {
+      // Only check if lengths are similar enough (typo should be within 2 chars of original)
+      if (typo.length >= 4 && Math.abs(token.length - typo.length) <= 2 && levenshtein(token, typo) <= 2) {
+        return correction;
+      }
+    }
+    return token;
+  };
+  return lower.split(/\s+/).map(correctToken).join(' ');
+}
+
+// Simple Levenshtein distance for fuzzy typo matching
+function levenshtein(a: string, b: string): number {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  const matrix: number[][] = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
 function inferDevice(productName: string): DevicePattern {
-  const p = productName.toLowerCase();
+  // BUY-70592: Apply typo correction before matching
+  const corrected = applyTypoCorrection(productName);
+  const p = corrected.toLowerCase();
   // Phones
   if (/\b(iphone\b|smartphone\b|smart\s*phone\b|mobile\s*phone\b|samsung galaxy s|google pixel\b|xiaomi\b|redmi\b|oppo\b|vivo\b|nothing phone|oneplus\b)/.test(p)) {
     return { type: 'phone', negativeTerms: ACCESSORY_NEGATIVE_TERMS, minPriceUsd: 400 };
