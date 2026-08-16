@@ -845,6 +845,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const CANDIDATE_POOL = Math.max(limit * 50, 500);
   params.push(CANDIDATE_POOL, limit);
   const where = `WHERE ${conditions.join(' AND ')}`;
+  const filterParams = params.slice(0, -2);
 
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
@@ -857,17 +858,30 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   let result: { rows: Record<string, unknown>[] };
   try {
     await bestPriceClient.query('SET statement_timeout = 10000');
-    result = await bestPriceClient.query(
-      `SELECT * FROM (
-         SELECT id, title, price, currency, source AS domain, url, image_url,
-                country_code, updated_at, category, category_path, metadata
-         FROM products ${where}
-         LIMIT $${params.length - 1}
-       ) _candidates
-       ORDER BY price ASC, updated_at DESC
-       LIMIT $${params.length}`,
-      params
+    // BUY-70608: high-cardinality FTS terms can burn the full timeout before returning.
+    // Probe a capped count; if it hits the cap, the result set exceeds the budget,
+    // so skip straight to the ILIKE fallback.
+    const COUNT_CAP = CANDIDATE_POOL + 1;
+    const countResult = await bestPriceClient.query(
+      `SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT $${filterParams.length + 1}) _sub`,
+      [...filterParams, COUNT_CAP]
     );
+    const ftsCount = parseInt(countResult.rows[0]?.count ?? '0', 10);
+    if (ftsCount >= COUNT_CAP) {
+      result = { rows: [] };
+    } else {
+      result = await bestPriceClient.query(
+        `SELECT * FROM (
+           SELECT id, title, price, currency, source AS domain, url, image_url,
+                  country_code, updated_at, category, category_path, metadata
+           FROM products ${where}
+           LIMIT $${params.length - 1}
+         ) _candidates
+         ORDER BY price ASC, updated_at DESC
+         LIMIT $${params.length}`,
+        params
+      );
+    }
     // BUY-69626: FTS returned nothing — try bounded title-ILIKE on recent market slice
     if (result.rows.length === 0) {
       await bestPriceClient.query('SET statement_timeout = 4500');
