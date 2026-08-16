@@ -1355,12 +1355,18 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     throw { code: -32001, message: 'Vector search not available — vector DB not configured' };
   }
 
+  // BUY-70113: convert to bigint for proper index use
+  const productIdNum = parseInt(productId, 10);
+  if (isNaN(productIdNum)) {
+    throw { code: -32602, message: `Invalid product_id: must be a numeric products.id value` };
+  }
+
   // Step 1: get reference embedding from vector DB
   let refResult;
   try {
     refResult = await vectorDb.query<{ embedding: string }>(
       `SELECT embedding::text FROM product_embeddings WHERE product_id = $1`,
-      [productId]
+      [productIdNum]
     );
   } catch {
     throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
@@ -1371,13 +1377,14 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   const refEmbedding = refResult.rows[0].embedding;
 
   // Step 2: find nearest neighbours in vector DB (excluding source product)
+  // BUY-70113: cast product_id to bigint for comparison to avoid text-cast seq scan
   let nearResult;
   try {
     nearResult = await vectorDb.query<{ product_id: string; distance: number }>(
       `SELECT product_id, (embedding <=> $1::vector)::float AS distance
-       FROM product_embeddings WHERE product_id != $2
+       FROM product_embeddings WHERE product_id::bigint != $2
        ORDER BY distance LIMIT $3`,
-      [refEmbedding, productId, limit]
+      [refEmbedding, productIdNum, limit]
     );
   } catch {
     throw { code: -32001, message: 'No similar products found' };
@@ -1387,17 +1394,20 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   }
 
   // Step 3: fetch product details from main DB
-  const nearIds = nearResult.rows.map(r => r.product_id);
-  const ph = nearIds.map((_, i) => `$${i + 1}`).join(',');
+  // BUY-70113: use bigint array parameter to avoid text-cast seq scan on products table
+  const nearIds = nearResult.rows.map(r => parseInt(r.product_id, 10)).filter(id => !isNaN(id));
+  if (nearIds.length === 0) {
+    throw { code: -32001, message: 'No similar products found' };
+  }
   const detailResult = await db.query(
     `SELECT id, title, price, currency, source AS domain, url, image_url
-     FROM products WHERE id IN (${ph}) AND is_active = true`,
-    nearIds
+     FROM products WHERE id = ANY($1::bigint[]) AND is_active = true`,
+    [nearIds]
   );
 
   // Step 4: merge, preserving similarity order
-  const distMap = new Map(nearResult.rows.map(r => [r.product_id, r.distance]));
-  const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
+  const distMap = new Map(nearResult.rows.map(r => [parseInt(r.product_id, 10), r.distance]));
+  const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as number, r]));
   const similar = nearIds
     .map(id => {
       const p = byId.get(id) as Record<string, unknown> | undefined;

@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { db, redis, vectorDb } from '../config';
+import { db, redis, vectorDb, catalogDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
 import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
@@ -1241,10 +1241,18 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     throw { code: -32001, message: 'Vector search not available — vector DB not configured' };
   }
 
+  // BUY-70113: product_id is bigint (products.id), not text. Binding as bigint
+  // enables pkey index use and avoids seq-scan timeout on large tables.
+  const productIdNum = parseInt(productId, 10);
+  if (isNaN(productIdNum)) {
+    throw { code: -32602, message: 'product_id must be a numeric products.id value' };
+  }
+
   // Step 1: get reference embedding from vector DB
+  // Vector DB product_id is text, but we query with bigint to match our input type
   const refResult = await vectorDb.query<{ embedding: string }>(
     `SELECT embedding::text FROM product_embeddings WHERE product_id = $1`,
-    [productId]
+    [productIdNum]
   );
   if (!refResult.rows.length) {
     throw { code: -32001, message: 'No embedding found for this product — backfill may still be running' };
@@ -1254,26 +1262,30 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   // Step 2: find nearest neighbours in vector DB (excluding source product)
   const nearResult = await vectorDb.query<{ product_id: string; distance: number }>(
     `SELECT product_id, (embedding <=> $1::vector)::float AS distance
-     FROM product_embeddings WHERE product_id != $2
+     FROM product_embeddings WHERE product_id::bigint != $2
      ORDER BY distance LIMIT $3`,
-    [refEmbedding, productId, limit]
+    [refEmbedding, productIdNum, limit]
   );
   if (!nearResult.rows.length) {
     throw { code: -32001, message: 'No similar products found' };
   }
 
-  // Step 3: fetch product details from main DB
-  const nearIds = nearResult.rows.map(r => r.product_id);
-  const ph = nearIds.map((_, i) => `$${i + 1}`).join(',');
-  const detailResult = await db.query(
+  // Step 3: fetch product details from catalog DB (not primary db)
+  // BUY-70113: use catalogDb for product lookups in mcp-railway service
+  // Pass nearIds as bigint[] array parameter to avoid text-cast seq scan
+  const nearIds = nearResult.rows.map(r => parseInt(r.product_id, 10)).filter(id => !isNaN(id));
+  if (nearIds.length === 0) {
+    throw { code: -32001, message: 'No similar products found' };
+  }
+  const detailResult = await catalogDb.query(
     `SELECT id, title, price, currency, source AS domain, url, image_url
-     FROM products WHERE id IN (${ph}) AND is_active = true`,
-    nearIds
+     FROM products WHERE id = ANY($1::bigint[]) AND is_active = true`,
+    [nearIds]
   );
 
   // Step 4: merge, preserving similarity order
-  const distMap = new Map(nearResult.rows.map(r => [r.product_id, r.distance]));
-  const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
+  const distMap = new Map(nearResult.rows.map((r: { product_id: string; distance: number }) => [parseInt(r.product_id, 10), r.distance]));
+  const byId = new Map(detailResult.rows.map((r: Record<string, unknown>) => [r.id as number, r]));
   const similar = nearIds
     .map(id => {
       const p = byId.get(id) as Record<string, unknown> | undefined;
