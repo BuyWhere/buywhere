@@ -71,26 +71,28 @@ suite('BUY-69625: country_code validation', () => {
     assert.equal(body.error.data.envelope.error.code, 'MARKET_UNSUPPORTED');
   });
 
-  it('includes request_id when id is a string', async () => {
+  // BUY-70114 / BUY-70351: `request_id` is always a server-generated UUID.
+  // The JSON-RPC `id` is preserved separately for protocol correlation.
+  it('request_id is a server-generated UUID when id is a string', async () => {
     const { body } = await rpc('search_products', { country_code: 'ZZ' });
-    assert.equal(body.request_id, body.id);
-    assert.equal(typeof body.request_id, 'string');
+    assert.ok(body.request_id, 'request_id must be present');
+    assert.match(body.request_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, 'request_id must be a UUID');
+    assert.notEqual(body.request_id, body.id, 'request_id must not echo JSON-RPC id');
   });
 
-  // BUY-70000: request_id is always a non-empty string (UUID when id is null/numeric,
-  // passthrough when id is a non-empty string).
-  it('request_id is a string (UUID) when id is numeric', async () => {
+  // BUY-70114 / BUY-70351: numeric JSON-RPC id is preserved; request_id is UUID.
+  it('request_id is a server-generated UUID when id is numeric', async () => {
     const { body } = await rpc('search_products', { country_code: 'ZZ' }, 42);
-    assert.equal(body.request_id, '42');
-    assert.equal(typeof body.request_id, 'string');
+    assert.ok(body.request_id, 'request_id must be present');
+    assert.match(body.request_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, 'request_id must be a UUID');
+    assert.notEqual(body.request_id, '42', 'request_id must not echo JSON-RPC id');
   });
 
-  it('request_id is a string (UUID) when id is null', async () => {
+  it('request_id is a server-generated UUID when id is null', async () => {
     const { body } = await rpc('search_products', { country_code: 'ZZ' }, null);
-    // null id -> random UUID
-    assert(body.request_id);
+    assert.ok(body.request_id, 'request_id must be present');
     assert.equal(typeof body.request_id, 'string');
-    assert.match(body.request_id, /^[0-9a-f-]{36}$/);
+    assert.match(body.request_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, 'request_id must be a UUID');
   });
 
   it('response includes top-level timestamp on success', async () => {

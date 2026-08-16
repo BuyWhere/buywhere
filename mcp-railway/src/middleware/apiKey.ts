@@ -356,9 +356,8 @@ export function isMcpJsonRpcRequest(req: Request): boolean {
     && typeof req.body.method === 'string';
 }
 
-function mcpRequestId(id: unknown): string {
-  if (typeof id === 'string' && id) return id;
-  if (typeof id === 'number' && Number.isFinite(id)) return String(id);
+// BUY-70351: `request_id` is always a server-generated UUID for traceability.
+function mcpRequestId(_id: unknown): string {
   return randomUUID();
 }
 

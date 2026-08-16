@@ -1848,12 +1848,12 @@ async function dispatchTool(name: string, args: Record<string, unknown>) {
 }
 
 // JSON-RPC 2.0 response helpers
-// BUY-70000: every response (success or error) carries `request_id` and a
-// top-level `timestamp` so agent-facing monitoring suites can correlate
+// BUY-70000 / BUY-70351: every response (success or error) carries `request_id`
+// and a top-level `timestamp` so agent-facing monitoring suites can correlate
 // JSON-RPC calls with query_log entries without scraping server logs.
-function jsonrpcRequestId(id: unknown): string {
-  if (typeof id === 'string' && id) return id;
-  if (typeof id === 'number' && Number.isFinite(id)) return String(id);
+// BUY-70351: `request_id` is always a server-generated UUID for traceability.
+// The JSON-RPC `id` is preserved separately for protocol correlation.
+function jsonrpcRequestId(_id: unknown): string {
   return randomUUID();
 }
 function jsonrpcOk(id: unknown, result: unknown) {
