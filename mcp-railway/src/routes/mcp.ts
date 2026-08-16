@@ -485,11 +485,36 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           if (pageIds.length === 0) {
             rows = [];
           } else {
-            const detailParams = [...params, pageIds];
+            // BUY-70539: hybrid RRF may include vector-only candidates. Do not reuse
+            // `where` here because it includes the keyword FTS predicate; reapplying
+            // that predicate filters out vector hits and yields total>0/results=[].
+            const detailConditions: string[] = ['is_active = true'];
+            const detailParams: unknown[] = [];
+            if (domain) {
+              detailParams.push(domain);
+              detailConditions.push(`source = $${detailParams.length}`);
+            }
+            if (minPrice != null) {
+              detailParams.push(minPrice);
+              detailConditions.push(`price >= $${detailParams.length}`);
+            }
+            if (maxPrice != null) {
+              detailParams.push(maxPrice);
+              detailConditions.push(`price <= $${detailParams.length}`);
+            }
+            if (region) {
+              detailParams.push(region);
+              detailConditions.push(`region = $${detailParams.length}`);
+            }
+            if (country) {
+              detailParams.push(country.toUpperCase());
+              detailConditions.push(`country_code = $${detailParams.length}`);
+            }
+            detailParams.push(pageIds);
             const detailResult = await searchClient.query(
               `SELECT id, sku AS source, source AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code, category, category_path
-               FROM products ${where} AND id = ANY($${detailParams.length}::bigint[])`,
+               FROM products WHERE ${detailConditions.join(' AND ')} AND id = ANY($${detailParams.length}::bigint[])`,
               detailParams
             );
             // Preserve ranking order
