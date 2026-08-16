@@ -1571,8 +1571,8 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   const detailResult = await catalogDb.query(
     vectorTable === 'search_proof.product_vectors'
       ? `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url FROM products WHERE sku IN (${ph}) AND is_active = true`
-      : `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url FROM products WHERE id IN (${ph}::bigint[]) AND is_active = true`,
-    nearKeys
+      : `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url FROM products WHERE id = ANY($1::bigint[]) AND is_active = true`,
+    vectorTable === 'search_proof.product_vectors' ? nearKeys : [nearKeys] as unknown as unknown[]
   );
 
   const distMap = new Map(nearResult.rows.map(r => [r.vector_key, r.distance]));
