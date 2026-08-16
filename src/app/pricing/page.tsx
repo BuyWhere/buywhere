@@ -84,7 +84,7 @@ function CheckIcon({ on }: { on: boolean }) {
     );
   }
   return (
-    <svg className="w-5 h-5 text-indigo-600 mx-auto" viewBox="0 0 20 20" fill="none">
+    <svg className="w-5 h-5 text-indigo-500 mx-auto" viewBox="0 0 20 20" fill="none">
       <path
         d="M4 10l4.5 4.5L16 6"
         stroke="currentColor"
@@ -198,7 +198,7 @@ export default function PricingPage() {
                     .map((feat) => (
                       <li key={feat as string} className="flex items-center gap-2">
                         <svg
-                          className={`w-4 h-4 shrink-0 ${tier.highlighted ? "text-indigo-300" : "text-indigo-600"}`}
+                          className={`w-4 h-4 shrink-0 ${tier.highlighted ? "text-indigo-300" : "text-indigo-500"}`}
                           viewBox="0 0 16 16"
                           fill="none"
                         >
