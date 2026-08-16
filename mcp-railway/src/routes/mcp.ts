@@ -645,10 +645,16 @@ async function handleGetProduct(args: Record<string, unknown>) {
   }
   if (!result.rows.length) throw { code: -32001, message: 'Product not found' };
   const product = buildProduct(result.rows[0] as Record<string, unknown>, 'SGD', false);
+  // BUY-70395: agents parse content[0].text as the tool result. The old
+  // markdown blob gave structured-data consumers nothing to parse while every
+  // other tool returned JSON. Emit JSON as the text content and keep the
+  // human-readable markdown alongside (not instead).
+  const productJson = JSON.stringify(product as unknown as Record<string, unknown>);
   const formattedText = formatProductForMcp(product as unknown as Record<string, unknown>);
   return {
-    content: [{ type: 'text', text: formattedText }],
-    product,  // Keep the structured data available too
+    content: [{ type: 'text', text: productJson }],
+    product,
+    markdown: formattedText,
     response_time_ms: Date.now() - t0,
   };
 }
@@ -965,6 +971,10 @@ async function handleListCategories(args: Record<string, unknown>) {
         }));
       }
       const allCountsZero = rows.every((row) => Number(row.product_count) === 0);
+      // BUY-70395: pg returns COUNT(*) as bigint → JSON string ('7013'). The
+      // REST endpoint parseInt()s it; do the same here so MCP and REST agree on
+      // `product_count` being an int in the JSON payload.
+      rows = rows.map((row) => ({ ...row, product_count: Number(row.product_count) }));
       const meta: Record<string, unknown> = {
         total: rows.length,
         country_code: country,
@@ -1066,9 +1076,16 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // queries with a quick capped count probe. Do not count-gate multi-token
   // queries: under catalog DB I/O contention the bounded ILIKE fallback can be
   // slower than primary FTS and can false-empty phrases like "wireless mouse".
+  // BUY-70332 (follow-up): when the count probe reports count > pool, do NOT
+  // divert to the ILIKE fallback. The primary FTS query is bounded by
+  // LIMIT CANDIDATE_POOL itself, so a large FTS match set is exactly the case
+  // the pool bound handles. The old diversion sampled 500 arbitrary (unordered)
+  // market rows for a title ILIKE — for niche single-token terms like "nike"
+  // the sample contains zero matches and the tool false-empties in ~100ms.
   const queryTokenCount = productName.split(/\s+/).filter(Boolean).length;
   let ftsTooBroad = false;
-  if (!category && !deviceFilter.type && queryTokenCount <= 1) {
+  void ftsTooBroad;
+  if (false && !category && !deviceFilter.type && queryTokenCount <= 1) {
     try {
       const countClient = await acquireMcpClient();
       try {
@@ -1854,12 +1871,14 @@ async function dispatchTool(name: string, args: Record<string, unknown>) {
 }
 
 // JSON-RPC 2.0 response helpers
-// BUY-70000: every response (success or error) carries `request_id` and a
-// top-level `timestamp` so agent-facing monitoring suites can correlate
+// BUY-70000 / BUY-70351: every response (success or error) carries `request_id`
+// and a top-level `timestamp` so agent-facing monitoring suites can correlate
 // JSON-RPC calls with query_log entries without scraping server logs.
-function jsonrpcRequestId(id: unknown): string {
-  if (typeof id === 'string' && id) return id;
-  if (typeof id === 'number' && Number.isFinite(id)) return String(id);
+// BUY-70351: `request_id` is always a server-generated UUID for traceability.
+// The JSON-RPC `id` is preserved separately for protocol correlation.
+// (BUY-70395: commit 8732f31 re-introduced id-passthrough while syncing the
+// BUY-70332 FBP fix onto this branch — keep the UUID contract.)
+function jsonrpcRequestId(_id: unknown): string {
   return randomUUID();
 }
 function jsonrpcOk(id: unknown, result: unknown) {

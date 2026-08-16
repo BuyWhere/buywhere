@@ -71,26 +71,28 @@ suite('BUY-69625: country_code validation', () => {
     assert.equal(body.error.data.envelope.error.code, 'MARKET_UNSUPPORTED');
   });
 
-  it('includes request_id when id is a string', async () => {
+  // BUY-70114 / BUY-70351: `request_id` is always a server-generated UUID.
+  // The JSON-RPC `id` is preserved separately for protocol correlation.
+  it('request_id is a server-generated UUID when id is a string', async () => {
     const { body } = await rpc('search_products', { country_code: 'ZZ' });
-    assert.equal(body.request_id, body.id);
-    assert.equal(typeof body.request_id, 'string');
+    assert.ok(body.request_id, 'request_id must be present');
+    assert.match(body.request_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, 'request_id must be a UUID');
+    assert.notEqual(body.request_id, body.id, 'request_id must not echo JSON-RPC id');
   });
 
-  // BUY-70000: request_id is always a non-empty string (UUID when id is null/numeric,
-  // passthrough when id is a non-empty string).
-  it('request_id is a string (UUID) when id is numeric', async () => {
+  // BUY-70114 / BUY-70351: numeric JSON-RPC id is preserved; request_id is UUID.
+  it('request_id is a server-generated UUID when id is numeric', async () => {
     const { body } = await rpc('search_products', { country_code: 'ZZ' }, 42);
-    assert.equal(body.request_id, '42');
-    assert.equal(typeof body.request_id, 'string');
+    assert.ok(body.request_id, 'request_id must be present');
+    assert.match(body.request_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, 'request_id must be a UUID');
+    assert.notEqual(body.request_id, '42', 'request_id must not echo JSON-RPC id');
   });
 
-  it('request_id is a string (UUID) when id is null', async () => {
+  it('request_id is a server-generated UUID when id is null', async () => {
     const { body } = await rpc('search_products', { country_code: 'ZZ' }, null);
-    // null id -> random UUID
-    assert(body.request_id);
+    assert.ok(body.request_id, 'request_id must be present');
     assert.equal(typeof body.request_id, 'string');
-    assert.match(body.request_id, /^[0-9a-f-]{36}$/);
+    assert.match(body.request_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, 'request_id must be a UUID');
   });
 
   it('response includes top-level timestamp on success', async () => {
@@ -110,6 +112,47 @@ suite('BUY-69625: country_code validation', () => {
     const { status, body } = await rpc('get_product', { id: 'nonexistent-id' });
     if (body.error) {
       assert.notEqual(body.error.data?.envelope?.error?.code, 'MARKET_UNSUPPORTED');
+    }
+  });
+
+  // BUY-70395: content[0].text must be parseable JSON like every other tool —
+  // agents extracting structured fields got nothing from the old markdown blob.
+  it('get_product content[0].text is JSON when the product exists', async () => {
+    const { body } = await rpc('get_product', { id: process.env.MCP_TEST_PRODUCT_ID || '1' });
+    if (!body.error && body.result?.content?.[0]?.text) {
+      let parsed;
+      try {
+        parsed = JSON.parse(body.result.content[0].text);
+      } catch {
+        assert.fail('get_product content[0].text must be valid JSON (BUY-70395)');
+      }
+      assert.equal(typeof parsed, 'object');
+      assert(parsed.id || parsed.title, 'parsed product JSON must carry id/title');
+    }
+  });
+
+  // BUY-70395: pg bigint COUNT(*) serializes as a JSON string; MCP and REST
+  // must both expose product_count as a number.
+  it('list_categories product_count is a number', async () => {
+    const { body } = await rpc('list_categories', {});
+    if (body.error) return;
+    const text = body.result?.content?.[0]?.text;
+    if (!text) return;
+    let payload;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      assert.fail('list_categories content[0].text must be valid JSON');
+    }
+    const cats = payload?.data;
+    if (Array.isArray(cats) && cats.length) {
+      for (const cat of cats) {
+        assert.equal(
+          typeof cat.product_count,
+          'number',
+          `product_count for ${cat.slug} must be a number, got ${typeof cat.product_count} (BUY-70395; note Redis cache serves pre-fix payloads for up to 10 min after deploy)`
+        );
+      }
     }
   });
 });
