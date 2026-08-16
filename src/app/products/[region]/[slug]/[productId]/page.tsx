@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getSeoLandingFallbackProduct, type LandingProduct } from "@/lib/seo-landing-pages";
 import { extractLegacyProductQuery } from "@/lib/legacy-product-redirect";
 import { buildProductDetailGraph } from "@/lib/product-schema";
+import { renderProductLlmsSnippet } from "@/lib/llms-snippets";
 
 const INTERNAL_ORIGIN =
   process.env.BUYWHERE_INTERNAL_ORIGIN ||
@@ -233,13 +234,14 @@ export default async function RegionProductDetailPage({ params }: PageProps) {
   // duplicated inline blocks. Answer engines resolve the full @graph, so the
   // publisher attribution now travels with every PDP.
   const pagePath = `/products/${region}/${merchantSlug}/${productId}/`;
+  const description =
+    product.description ??
+    `${productName} available from ${merchantName} in ${regionConfig.countryName}.`;
   const schema = buildProductDetailGraph({
     product: {
       path: pagePath,
       name: productName,
-      description:
-        product.description ??
-        `${productName} available from ${merchantName} in ${regionConfig.countryName}.`,
+      description,
       image: product.image_url ?? null,
       brand: product.brand ?? null,
       category: product.category ?? null,
@@ -259,12 +261,31 @@ export default async function RegionProductDetailPage({ params }: PageProps) {
       { name: productName, path: pagePath },
     ],
   });
+  const llmsSnippet = renderProductLlmsSnippet({
+    country: region,
+    productId,
+    title: productName,
+    description,
+    currency: regionConfig.currency,
+    price: product.price ?? null,
+    availability: "local",
+    brand: product.brand ?? "",
+    category: product.category ?? "",
+    merchantSlug,
+    merchantName,
+    url: `https://buywhere.ai${pagePath}`,
+    imageUrl: product.image_url ?? "",
+  });
 
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+      />
+      <script
+        type="text/llms.txt"
+        dangerouslySetInnerHTML={{ __html: llmsSnippet }}
       />
       <main id="main-content" className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
         <nav aria-label="breadcrumb" className="mb-6 text-sm text-gray-500">

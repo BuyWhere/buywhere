@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getSeoLandingFallbackProduct } from "@/lib/seo-landing-pages";
 import { slugToSearchRedirect } from "@/lib/us-product-route";
 import { buildProductDetailGraph } from "@/lib/product-schema";
+import { renderProductLlmsSnippet } from "@/lib/llms-snippets";
 
 const INTERNAL_ORIGIN =
   process.env.BUYWHERE_INTERNAL_ORIGIN ||
@@ -214,13 +215,13 @@ export default async function USProductDetailPage({ params }: PageProps) {
   // BUY-69663: shared JSON-LD graph replaces the duplicated inline Product +
   // Breadcrumb blocks — publisher-anchored @graph, ratings only from real data.
   const pagePath = `/products/us/${merchantSlug}/${productId}/`;
+  const description =
+    product.description ?? `${productName} available from ${merchantName} in the US.`;
   const schema = buildProductDetailGraph({
     product: {
       path: pagePath,
       name: productName,
-      description:
-        product.description ??
-        `${productName} available from ${merchantName} in the US.`,
+      description,
       image: product.image_url ?? null,
       brand: product.brand ?? null,
       category: product.category ?? null,
@@ -240,12 +241,31 @@ export default async function USProductDetailPage({ params }: PageProps) {
       { name: productName, path: pagePath },
     ],
   });
+  const llmsSnippet = renderProductLlmsSnippet({
+    country: "us",
+    productId,
+    title: productName,
+    description,
+    currency: "USD",
+    price: product.price ?? null,
+    availability: "local",
+    brand: product.brand ?? "",
+    category: product.category ?? "",
+    merchantSlug,
+    merchantName,
+    url: `https://buywhere.ai${pagePath}`,
+    imageUrl: product.image_url ?? "",
+  });
 
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+      />
+      <script
+        type="text/llms.txt"
+        dangerouslySetInnerHTML={{ __html: llmsSnippet }}
       />
       <main id="main-content" className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
         <nav aria-label="breadcrumb" className="mb-6 text-sm text-gray-500">
