@@ -113,9 +113,9 @@ export function HomeProductSearch() {
               {error}
             </p>
           ) : (
-            <div className="flex flex-col items-start gap-2 text-sm text-white sm:flex-row sm:items-center sm:justify-center sm:gap-x-3">
-              <span className="inline-flex items-center shrink-0 rounded-full border border-white/60 bg-white/10 px-2.5 py-0.5 font-semibold text-white shadow-sm">Try</span>
-              <div className="chip-group flex flex-wrap items-center justify-center gap-2 w-full text-center">
+            <div className="inline-flex items-center justify-center gap-x-3 text-sm text-white sm:gap-x-3">
+              <span className="shrink-0 rounded-full border border-white/60 bg-white/10 px-2.5 py-0.5 font-semibold text-white shadow-sm">Try</span>
+              <div className="inline-flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center">
                 {exampleQueries.map((example) => (
                   <button
                     key={example}
