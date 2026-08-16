@@ -857,19 +857,25 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const bestPriceClient = await acquireMcpClient();
   let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 10000');
     // BUY-70608: high-cardinality FTS terms can burn the full timeout before returning.
-    // Probe a capped count; if it hits the cap, the result set exceeds the budget,
-    // so skip straight to the ILIKE fallback.
+    // Probe a capped count under a short budget; if it hits the cap or times out,
+    // skip straight to the ILIKE fallback instead of spending the full request budget.
     const COUNT_CAP = CANDIDATE_POOL + 1;
-    const countResult = await bestPriceClient.query(
-      `SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT $${filterParams.length + 1}) _sub`,
-      [...filterParams, COUNT_CAP]
-    );
-    const ftsCount = parseInt(countResult.rows[0]?.count ?? '0', 10);
+    let ftsCount = COUNT_CAP;
+    try {
+      await bestPriceClient.query('SET statement_timeout = 2500');
+      const countResult = await bestPriceClient.query(
+        `SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT $${filterParams.length + 1}) _sub`,
+        [...filterParams, COUNT_CAP]
+      );
+      ftsCount = parseInt(countResult.rows[0]?.count ?? '0', 10);
+    } catch (err) {
+      console.warn('[mcp] find_best_price: FTS count timed out, using ILIKE fallback', (err as Error).message);
+    }
     if (ftsCount >= COUNT_CAP) {
       result = { rows: [] };
     } else {
+      await bestPriceClient.query('SET statement_timeout = 7500');
       result = await bestPriceClient.query(
         `SELECT * FROM (
            SELECT id, title, price, currency, source AS domain, url, image_url,
