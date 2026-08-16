@@ -166,6 +166,11 @@ router.get(
       if (cached) {
         const parsed = JSON.parse(cached);
         parsed.pagination.response_time_ms = Date.now() - requestStart;
+        recordProductViewsBulk({
+          productIds: productIdsFromResponse(parsed),
+          source: 'products.list',
+          req,
+        });
         res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
         res.set('X-Cache', 'HIT');
         return res.json(parsed);
