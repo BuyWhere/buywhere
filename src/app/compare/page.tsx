@@ -614,9 +614,9 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
         <section className="bg-gradient-to-br from-indigo-700 via-slate-900 to-sky-900 text-white py-20">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-amber-300">Comparison workspace</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-amber-600">Comparison workspace</p>
             <h1 className="mt-4 text-4xl sm:text-5xl font-bold">
-              Side-by-side retailer pricing at <span className="text-amber-300">/compare</span>
+              Side-by-side retailer pricing at <span className="text-amber-600">/compare</span>
             </h1>
             <p className="mt-5 text-lg text-indigo-100">
               Search one product or paste explicit IDs to compare price, availability, imagery, and affiliate destinations without context switching.
