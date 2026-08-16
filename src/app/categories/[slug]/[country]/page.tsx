@@ -6,6 +6,7 @@ import {
   getApiCategoryBySlug,
   SITEMAP_BASE_URL,
 } from "@/lib/sitemaps";
+import { renderCategoryLlmsSnippet } from "@/lib/llms-snippets";
 
 interface PageProps {
   params: Promise<{ slug: string; country: string }>;
@@ -76,11 +77,29 @@ export default async function CategoryCountryPage({ params }: PageProps) {
     },
   };
 
+  const llmsSnippet = renderCategoryLlmsSnippet({
+    country: normalizedCountry,
+    slug: category.slug,
+    name: categoryName,
+    description: `Compare ${categoryName.toLowerCase()} products and prices available in ${countryLabel}.`,
+    productCount: category.product_count ?? null,
+    sampleQueries: [
+      categoryName,
+      `best ${categoryName.toLowerCase()}`,
+      `cheapest ${categoryName.toLowerCase()}`,
+    ],
+    url,
+  });
+
   return (
     <main className="min-h-screen bg-slate-50 text-slate-950">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="text/llms.txt"
+        dangerouslySetInnerHTML={{ __html: llmsSnippet }}
       />
       <section className="mx-auto max-w-5xl px-6 py-16">
         <nav className="mb-8 text-sm text-slate-600" aria-label="Breadcrumb">

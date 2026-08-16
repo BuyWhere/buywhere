@@ -4,6 +4,7 @@ import USProductDetail from "@/components/USProductDetail";
 import { toSiteUrl } from "@/lib/site-url";
 import { resolveUSProductRoute, slugToSearchRedirect } from "@/lib/us-product-route";
 import { normalizeUSMerchantPrice, type USProduct, type USProductOfferApiItem } from "@/lib/us-products";
+import { renderProductLlmsSnippet } from "@/lib/llms-snippets";
 
 interface PageProps {
   params: { slug: string };
@@ -141,12 +142,45 @@ export default async function USProductSlugPage({ params }: PageProps) {
     ? initialData.image
     : null;
   const jsonLdImageUrl = apiProductImage ?? toSiteUrl(`/api/og-image?title=${encodeURIComponent(resolvedProduct.name)}`);
+  const pageUrl = toSiteUrl(`/products/us/${resolvedProduct.slug}`);
+
+  // BUY-70312: per-product llms.txt block. Multi-merchant pages (USProductDetail
+  // renders an offer matrix) emit a min-max range.
+  const offerPrices = (initialData?.prices ?? [])
+    .map((p) => parseFloat((p.price ?? "").replace(/[^0-9.]/g, "")))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const llmsSnippet = renderProductLlmsSnippet({
+    country: "us",
+    productId: resolvedProduct.id,
+    title: resolvedProduct.name,
+    description: `Compare prices for ${resolvedProduct.name} across US retailers on BuyWhere.`,
+    currency: "USD",
+    ...(offerPrices.length > 1
+      ? {
+          minPrice: Math.min(...offerPrices),
+          maxPrice: Math.max(...offerPrices),
+        }
+      : { price: offerPrices.length === 1 ? offerPrices[0] : null }),
+    availability: offerPrices.length > 0 ? "local" : "unknown",
+    brand: initialData?.brand || "",
+    category: "",
+    merchantSlug: "",
+    merchantName: null,
+    url: pageUrl,
+    imageUrl: apiProductImage ?? "",
+  });
 
   return (
-    <USProductDetail
-      productId={resolvedProduct.id}
-      initialData={initialData}
-      jsonLdImageUrl={jsonLdImageUrl}
-    />
+    <>
+      <script
+        type="text/llms.txt"
+        dangerouslySetInnerHTML={{ __html: llmsSnippet }}
+      />
+      <USProductDetail
+        productId={resolvedProduct.id}
+        initialData={initialData}
+        jsonLdImageUrl={jsonLdImageUrl}
+      />
+    </>
   );
 }

@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { HeroSearch } from '@/components/HeroSearch';
 import { PRODUCT_TAXONOMY, getCategoryBySlug } from '@/lib/taxonomy';
 import { toSiteUrl } from '@/lib/site-url';
+import { renderCategoryLlmsSnippet } from '@/lib/llms-snippets';
 
 function slugToQuery(slug: string): string {
   return slug.replace(/-/g, '+');
@@ -117,11 +118,28 @@ export default async function CategorySlugPage({ params }: PageProps) {
     ],
   };
 
+  const llmsSnippet = renderCategoryLlmsSnippet({
+    country: 'sg',
+    slug,
+    name,
+    description: `Find the best ${name.toLowerCase()} in Singapore. Compare prices from top retailers on BuyWhere.`,
+    sampleQueries: [
+      name,
+      `best ${name.toLowerCase()} singapore`,
+      `cheapest ${name.toLowerCase()}`,
+    ],
+    url: canonicalCategoryUrl,
+  });
+
   return (
     <main id="main-content" className="min-h-[60vh] py-12">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkup) }}
+      />
+      <script
+        type="text/llms.txt"
+        dangerouslySetInnerHTML={{ __html: llmsSnippet }}
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
