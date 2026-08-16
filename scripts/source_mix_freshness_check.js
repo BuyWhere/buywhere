@@ -172,6 +172,10 @@ async function getCounterProductsReconciliation(client, hourStart) {
   let productsCount = null;
   let productsCountTimedOut = false;
   try {
+    // This guardrail is invoked inside the hourly dispatcher with a 30s child-process
+    // timeout. Bound the large products-table probes below that ceiling so a slow
+    // COUNT stamps UNKNOWN instead of leaving reconciliation_status blank.
+    await client.query(`SET statement_timeout = 10000`);
     const products = await client.query(`
       SELECT COUNT(*)::bigint AS rows
       FROM products
@@ -183,12 +187,26 @@ async function getCounterProductsReconciliation(client, hourStart) {
     productsCountTimedOut = true;
   }
 
-  const newestCreatedAt = await client.query(`SELECT MAX(created_at) AS max FROM products`);
+  let newestCreatedAt = null;
+  let productsMaxTimedOut = false;
+  if (!productsCountTimedOut) {
+    try {
+      await client.query(`SET statement_timeout = 10000`);
+      const newest = await client.query(`SELECT MAX(created_at) AS max FROM products`);
+      newestCreatedAt = newest.rows[0]?.max || null;
+    } catch (err) {
+      productsMaxTimedOut = true;
+    }
+  } else {
+    productsMaxTimedOut = true;
+  }
+
   return {
     canonical_ing_inserted: ingInserted,
     products_created_in_hour: productsCount,
     products_count_timed_out: productsCountTimedOut,
-    products_created_at_max: newestCreatedAt.rows[0]?.max,
+    products_created_at_max: newestCreatedAt,
+    products_max_timed_out: productsMaxTimedOut,
     gap_inserted_minus_products: ingInserted !== null && productsCount !== null
       ? ingInserted - productsCount
       : null,
@@ -293,7 +311,7 @@ function buildReport(hourStart, mix, guardrail, freshness, freshState, recon, dr
     `## 3. Counters vs products reconciliation (BUY-64988)\n` +
     `- canonical_throughput_hourly.ing_inserted: ${recon.canonical_ing_inserted}\n` +
     `- COUNT(products.created_at in hour): ${recon.products_created_in_hour}${recon.products_count_timed_out ? ' (timed out — best-effort)' : ''}\n` +
-    `- products.created_at MAX: ${recon.products_created_at_max}\n` +
+    `- products.created_at MAX: ${recon.products_created_at_max}${recon.products_max_timed_out ? ' (timed out — best-effort)' : ''}\n` +
     `- Gap (ing_inserted - products_count): ${drift.gap_inserted_minus_products}\n` +
     `- Alignment verdict: **${drift.status}**\n` +
     `- Reason: ${drift.reason}\n` +
@@ -467,10 +485,12 @@ async function run(options = {}) {
     const drift = evaluateCountersReconciliation(recon);
     let window = null;
     if (options.write) {
-      try {
-        window = await get24hAlignmentWindow(client, hourStart);
-      } catch (err) {
-        window = null;
+      if (!drift.products_count_timed_out) {
+        try {
+          window = await get24hAlignmentWindow(client, hourStart);
+        } catch (err) {
+          window = null;
+        }
       }
       await writeReconciliationStatus(client, hourStart, drift, window);
     }
