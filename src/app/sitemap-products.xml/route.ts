@@ -12,5 +12,15 @@ export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
   const usEntries = await getProductSitemapEntries();
+
+  // BUY-70448: guard against silently shipping an empty 200 sitemap.
+  // An empty <urlset> breaks crawler discovery and SEO.
+  if (usEntries.length === 0) {
+    return new Response("Sitemap temporarily unavailable — no products found", {
+      status: 503,
+      headers: { "Content-Type": "text/plain" },
+    });
+  }
+
   return buildSitemapResponse(renderUrlSet(usEntries));
 }

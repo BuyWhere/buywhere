@@ -190,6 +190,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         ? [{ url: product.image_url, width: 800, height: 800, alt: productName }]
         : [{ url: "/og-image.png", width: 1200, height: 630, alt: productName }],
     },
+    twitter: {
+      card: "summary_large_image",
+      title: `${productName} — ${merchantName} | BuyWhere US`,
+      description: `Buy ${productName} from ${merchantName} in the US.`,
+      images: product.image_url
+        ? [product.image_url]
+        : ["/og-image.png"],
+    },
   };
 }
 
