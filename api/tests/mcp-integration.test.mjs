@@ -241,6 +241,37 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     assert.ok(calls.length >= 1, 'Expected country_code filter');
   });
 
+  it('search_products filtered browse total does not use global reltuples estimate', async () => {
+    queryMock.mock.mockImplementation((sql) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (typeof sql === 'string' && sql.includes('pg_class')) {
+        return Promise.resolve({ rows: [{ estimate: '398007424' }] });
+      }
+      return Promise.resolve({
+        rows: [makeProduct('sg-1', { title: 'SG Laptop', country_code: 'SG', region: 'sg' })],
+      });
+    });
+
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 112, method: 'tools/call',
+        params: { name: 'search_products', arguments: { country_code: 'TH', category: 'Electronics', limit: 5 } },
+      }),
+    });
+    const body = await res.json();
+    const data = JSON.parse(body.result.content[0].text);
+
+    assert.equal(data.data.length, 0);
+    assert.equal(data.meta.total, 0);
+  });
+
   it('search_products with compact=true returns compact fields', async () => {
     queryMock.mock.mockImplementation((sql) => {
       if (typeof sql === 'string' && sql.includes('api_keys')) {

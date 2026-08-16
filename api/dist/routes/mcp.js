@@ -80,7 +80,7 @@ function normalizeMcpMarket(args, defaultCountry = '') {
 const TOOLS = [
     {
         name: 'search_products',
-        description: 'Search the BuyWhere product catalog by keyword. Always pass deliver_to when the buyer market is known; it takes precedence over country_code/country and prevents all-market scans. Returns schema.org/Product entities with name, description, image, and offers (schema.org/AggregateOffer with lowPrice, highPrice, priceCurrency). Covers e-commerce platforms across Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US. Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields.',
+        description: 'Search the BuyWhere product catalog by keyword. Always pass deliver_to when the buyer market is known; it takes precedence over country_code/country and prevents all-market scans. Returns a results array where each item has: id, title, price ({amount, currency}), normalized_price_usd, merchant, url, image_url, region, country_code, click_url, affiliate_redirect_url, and updated_at. Covers e-commerce platforms across Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US. Use compact=true for agent-optimized responses adding structured_specs, comparison_attributes, and normalized_price_usd fields.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -131,7 +131,7 @@ const TOOLS = [
     },
     {
         name: 'get_deals',
-        description: 'Get discounted products sorted by discount percentage. Returns schema.org/Product entities with schema.org/Offer properties: price, priceCurrency, availability, originalPrice, and discountPercentage. Covers Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US e-commerce. Supports currency, region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters.',
+        description: 'Get discounted products sorted by discount percentage. Returns a results array where each item has: id, title, price ({amount, currency}), normalized_price_usd, merchant, url, image_url, region, country_code, click_url, and updated_at. Also includes original_price and discount_pct when available. Covers Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US e-commerce. Supports currency, region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -160,7 +160,7 @@ const TOOLS = [
     },
     {
         name: 'find_best_price',
-        description: 'Use this whenever a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X" or "where can I buy X for the lowest price". Returns schema.org/Product entities with schema.org/AggregateOffer (lowPrice, offerCount, priceCurrency) across all merchants.',
+        description: 'Use this whenever a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X" or "where can I buy X for the lowest price". Returns a results array where each item has: id, title, price ({amount, currency}), normalized_price_usd, merchant, url, image_url, region, country_code, click_url, and updated_at. Results are from across all merchants. Also includes structured_specs and comparison_attributes when available.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -336,18 +336,28 @@ async function handleSearchProducts(args) {
             if (useVector) {
                 // Embed query (retrieval.query task); Redis-cache 60s keyed by base64 query
                 let queryVec = null;
+                let embedTimedOut = false;
                 try {
                     const embedKey = `qembed:${Buffer.from(q).toString('base64').slice(0, 48)}`;
                     queryVec = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, embedKey, () => config_1.redis.get(embedKey));
                     if (!queryVec) {
-                        queryVec = await (0, embedProducts_1.embedQuery)(q, geminiKey);
-                        await config_1.redis.set(embedKey, queryVec, 'EX', 60).catch(() => { });
+                        // BUY-70290: cap embed latency at 3s — Gemini API occasionally hangs
+                        // for 12-18s, turning a fast FTS search into a multi-second ordeal.
+                        queryVec = await Promise.race([
+                            (0, embedProducts_1.embedQuery)(q, geminiKey),
+                            new Promise((_resolve, reject) => setTimeout(() => reject(new Error('embed timeout after 3000ms')), 3000)),
+                        ]);
+                        if (queryVec) {
+                            await config_1.redis.set(embedKey, queryVec, 'EX', 60).catch(() => { });
+                        }
                     }
                 }
                 catch (embedErr) {
-                    console.warn('[search] embed query failed, falling back to FTS:', embedErr.message);
+                    console.warn('[search] embed query failed/timeout, falling back to FTS:', embedErr.message);
+                    queryVec = null;
+                    embedTimedOut = true;
                 }
-                if (queryVec && config_1.vectorDb) {
+                if (queryVec && config_1.vectorDb && !embedTimedOut) {
                     let candidateIds = [];
                     let vectorCandidateIds = null;
                     if (mode === 'semantic') {
@@ -509,6 +519,13 @@ async function handleSearchProducts(args) {
     }
     if (region && rows.length > 0) {
         rows = rows.filter(r => (r.region || '').toLowerCase() === region.toLowerCase());
+    }
+    if (!q && (country || region || category)) {
+        // Browse mode fetches recent rows through idx_products_updated_at and applies
+        // market/category filters in memory because country_code scans are too slow on
+        // the 398M-row products table. Do not pair a filtered page with the global
+        // reltuples estimate; that reports false non-zero totals for empty markets.
+        total = Math.min(rows.length + offset, COUNT_CAP);
     }
     const products = rows.map(r => (0, response_1.buildProduct)(r, currency, compact));
     const result = (0, response_1.buildSearchResponse)(products, total, limit, offset, Date.now() - t0, false);

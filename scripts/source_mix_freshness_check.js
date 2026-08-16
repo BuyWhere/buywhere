@@ -104,19 +104,41 @@ async function getHourSourceMix(client, hourStart) {
 }
 
 async function getCandidateFreshness(client) {
-  const result = await client.query(`
-    SELECT
-      (SELECT MAX(discovered_at) FROM merchant_candidates)               AS newest_candidate,
-      (SELECT MAX(validated_at) FROM merchant_candidates)                AS newest_validated,
-      (SELECT COUNT(*) FROM merchant_candidates)                         AS total_candidates,
-      (SELECT COUNT(*) FROM merchant_candidates WHERE validated)        AS validated_candidates,
-      (SELECT MAX(created_at) FROM merchants)                            AS newest_merchant,
-      (SELECT COUNT(*) FROM merchants WHERE is_active)                   AS active_merchants,
-      (SELECT COUNT(*) FROM merchants WHERE source='shopify' AND is_active
-              AND last_scraped_at IS NULL)                               AS shopify_never_scraped,
-      NOW()                                                              AS now_ts
-  `);
-  const row = result.rows[0] || {};
+  let row = {};
+  try {
+    const result = await client.query(`
+      SELECT
+        (SELECT MAX(discovered_at) FROM merchant_candidates)               AS newest_candidate,
+        (SELECT MAX(validated_at) FROM merchant_candidates)                AS newest_validated,
+        (SELECT COUNT(*) FROM merchant_candidates)                         AS total_candidates,
+        (SELECT COUNT(*) FROM merchant_candidates WHERE validated)        AS validated_candidates,
+        (SELECT MAX(created_at) FROM merchants)                            AS newest_merchant,
+        (SELECT COUNT(*) FROM merchants WHERE is_active)                   AS active_merchants,
+        (SELECT COUNT(*) FROM merchants WHERE source='shopify' AND is_active
+                AND last_scraped_at IS NULL)                               AS shopify_never_scraped,
+        NOW()                                                              AS now_ts
+    `);
+    row = result.rows[0] || {};
+  } catch (err) {
+    if (err.code === '42P01') {
+      console.error('[freshness-check:warn] merchant_candidates table missing, using merchants-only fallback');
+    } else {
+      console.error('[freshness-check:warn] candidate freshness query failed:', err.message || err);
+    }
+    try {
+      const fallback = await client.query(`
+        SELECT
+          (SELECT MAX(created_at) FROM merchants)                            AS newest_merchant,
+          (SELECT COUNT(*) FROM merchants WHERE is_active)                   AS active_merchants,
+          (SELECT COUNT(*) FROM merchants WHERE source='shopify' AND is_active
+                  AND last_scraped_at IS NULL)                               AS shopify_never_scraped,
+          NOW()                                                              AS now_ts
+      `);
+      row = fallback.rows[0] || {};
+    } catch (fallbackErr) {
+      console.error('[freshness-check:warn] fallback merchants query also failed:', fallbackErr.message || fallbackErr);
+    }
+  }
   const hoursSince = (col) => {
     const ts = row[col];
     if (!ts) return null;

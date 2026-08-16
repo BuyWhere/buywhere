@@ -562,6 +562,14 @@ async function handleSearchProducts(args: Record<string, unknown>) {
     );
   }
 
+  if (!q && (country || region || category)) {
+    // Browse mode fetches recent rows through idx_products_updated_at and applies
+    // market/category filters in memory because country_code scans are too slow on
+    // the 398M-row products table. Do not pair a filtered page with the global
+    // reltuples estimate; that reports false non-zero totals for empty markets.
+    total = Math.min((rows as Record<string, unknown>[]).length + offset, COUNT_CAP);
+  }
+
   const products = (rows as Record<string, unknown>[]).map(r =>
     buildProduct(r, currency, compact)
   );

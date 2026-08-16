@@ -749,33 +749,23 @@ async function handleGetDeals(args) {
         // PASSING rows (same worst case as the unordered walk when filters are
         // selective), candidates are id-thin, and full rows join only for the
         // returned page. updated_at tiebreak preserved in SQL.
-        // BUY-70370 (2026-08-16): reduced candidateLimit from 2000 to 400 to stop
-        // SG get_deals from timing out under heavy ingestion I/O. The 2000 walk
-        // dove deep into the long discount_pct tail (10-50% range) and fetched
-        // >100K rows from idx_products_deals_discount_pct, the only valid deals
-        // index (region-filtered indexes are invalid). With I/O contention from
-        // long-running autovacuum/ingestion backends, this exceeded the 15s
-        // statement_timeout and surfaced as -32603 INTERNAL_ERROR. 400 candidates
-        // is ample for page-size results (default limit=20) while keeping the
-        // index walk bounded under 2s even with 11-14h-old I/O-bound backends.
-        const candidateLimit = 400;
-        const candidateParams = [...params, candidateLimit];
-        const dataResult = await dealsClient.query(`WITH cand AS (
-         SELECT id, discount_pct AS cand_discount, updated_at AS cand_updated
-         FROM products
-         WHERE ${whereClause}
-         ORDER BY discount_pct DESC
-         LIMIT $${candidateParams.length}
-       )
-       SELECT p.id, p.sku AS source, p.source AS domain, p.url, p.title,
-              p.price,
-              CASE WHEN p.metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
-                   THEN (p.metadata->>'original_price')::numeric ELSE NULL END AS original_price,
-              p.currency, p.image_url, p.metadata, p.updated_at, p.region, p.country_code,
-              p.discount_pct
-       FROM cand JOIN products p ON p.id = cand.id
-       ORDER BY p.discount_pct DESC, p.updated_at DESC
-       LIMIT ${limit} OFFSET ${offset}`, candidateParams);
+        // BUY-70554 (2026-08-16): page directly from the ordered deals index.
+        // The prior id-thin CTE capped the walk at 400 candidates, then self-joined
+        // all 400 IDs back through products_pkey before applying the caller's page
+        // limit. On cold cache this spent ~10s on 400 random heap lookups even for
+        // limit=3 and surfaced as -32603. The direct scan preserves discount-first
+        // ordering, lets Postgres incremental-sort the current discount group by
+        // updated_at, and early-stops after the requested page rows.
+        const dataResult = await dealsClient.query(`SELECT id, sku AS source, source AS domain, url, title,
+              price,
+              CASE WHEN metadata->>'original_price' ~ '^[0-9]+(\\.[0-9]+)?$'
+                   THEN (metadata->>'original_price')::numeric ELSE NULL END AS original_price,
+              currency, image_url, metadata, updated_at, region, country_code,
+              discount_pct
+       FROM products
+       WHERE ${whereClause}
+       ORDER BY discount_pct DESC, updated_at DESC
+       LIMIT ${limit} OFFSET ${offset}`, params);
         total = dataResult.rows.length;
         products = dataResult.rows.map((r) => (0, response_1.buildProduct)(r, currency, false));
     }
