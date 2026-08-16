@@ -986,9 +986,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   });
   let result: { rows: Record<string, unknown>[] };
   let ftsTimedOut = false;
+  let crossMarketFallback = false;
+  const requestedCountry = country;
   try {
-    await bestPriceClient.query('SET statement_timeout = 10000');
-    const requestedCountry = country;
+    await bestPriceClient.query('SET statement_timeout = 3000');
     const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
     const conditions: string[] = ['is_active = true', 'price > 0'];
     const params: unknown[] = [];
@@ -1030,7 +1031,42 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       ftsTimedOut = true;
       result = { rows: [] };
     } else {
+      releaseClientSafely(bestPriceClient);
       throw err;
+    }
+  }
+
+  // BUY-70482: If FTS returned zero rows (timeout or no match), attempt a cross-market
+  // FTS fallback with a tight statement_timeout so we degrade gracefully without
+  // scanning all partitions. Bounded LIMIT keeps the response within p95 ≤5s.
+  // Empirical probe: `LIMIT 10` global FTS returns 10-55ms regardless of table size.
+  try {
+    if (result.rows.length === 0) {
+      await bestPriceClient.query('SET statement_timeout = 1500');
+      const fallbackResult = await bestPriceClient.query(
+        `SELECT id, title, price, currency, source AS domain, url, image_url,
+                country_code, updated_at, category, category_path, metadata
+         FROM products
+         WHERE is_active = true
+           AND price > 0
+           AND search_vector @@ plainto_tsquery('english', $1)
+         ORDER BY price ASC, updated_at DESC
+         LIMIT $2`,
+        [productName, limit]
+      );
+      if (fallbackResult.rows.length > 0) {
+        result = fallbackResult;
+        ftsTimedOut = false;
+        crossMarketFallback = true;
+        console.log('[find_best_price] country FTS empty, cross-market FTS fallback succeeded for country=', country, 'product=', productName, 'rows=', fallbackResult.rows.length);
+      }
+    }
+  } catch (fallbackErr: unknown) {
+    const fbErr = fallbackErr as { code?: string };
+    if (fbErr?.code === '57014') {
+      console.warn('[find_best_price] cross-market FTS fallback timed out for country=', country, 'product=', productName);
+    } else {
+      console.warn('[find_best_price] cross-market FTS fallback error:', fbErr);
     }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
@@ -1131,6 +1167,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       ...(minAllowedUsd != null ? { min_allowed_usd: Math.round(minAllowedUsd * 100) / 100 } : {}),
       country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'),
       response_time_ms: Date.now() - t0,
+      ...(crossMarketFallback ? { cross_market_fallback: true, requested_country: requestedCountry } : {}),
       ...(ftsTimedOut ? { timed_out: true, unavailable: true, message: 'Best-price search temporarily unavailable; please retry.' } : {}),
     },
   };
