@@ -107,13 +107,13 @@ export function HomeProductSearch() {
           </button>
         </div>
 
-        <div className="min-h-5" aria-live="polite">
+        <div className="min-h-5 text-center" aria-live="polite">
           {error ? (
             <p id={errorId} className="text-sm font-medium text-amber-100">
               {error}
             </p>
           ) : (
-            <div className="flex flex-row flex-wrap justify-center gap-2 text-sm text-white sm:gap-x-3">
+            <div className="inline-flex flex-row flex-wrap justify-center gap-2 text-sm text-white sm:gap-x-3">
               <span className="inline-flex items-center rounded-full border border-white/60 bg-white/10 px-2.5 py-0.5 font-semibold text-white shadow-sm shrink-0">Try</span>
               {exampleQueries.map((example) => (
                 <button
