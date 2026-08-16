@@ -127,6 +127,7 @@ async function handleCategoryCompareFallback(slug: string, req: Request, res: Re
   const normalizedSlug = slugifyCategory(slug);
   const currency = (req.query.country === 'US' || req.query.region === 'us') ? 'USD' : 'SGD';
   const aliasNames = COMPARE_CATEGORY_ALIASES[normalizedSlug] || [];
+  const categoryLabel = aliasNames[0];
 
   if (aliasNames.length === 0) {
     return false;
@@ -153,13 +154,11 @@ async function handleCategoryCompareFallback(slug: string, req: Request, res: Re
     [currency, pattern, limit, offset]
   ).catch(() => null);
 
-  if (!productsResult || productsResult.rows.length === 0) {
-    return false;
-  }
+  const rows = productsResult?.rows ?? [];
 
   // Group products by SKU / title — each unique product row becomes a product entry
   // with its prices[] array containing this one merchant listing
-  const products = productsResult.rows.map((row) => ({
+  const products = rows.map((row) => ({
     id: row.id,
     name: row.title,
     brand: row.brand || '',
@@ -176,7 +175,7 @@ async function handleCategoryCompareFallback(slug: string, req: Request, res: Re
 
   const payload = {
     slug: normalizedSlug,
-    category: normalizedSlug,
+    category: categoryLabel,
     products,
     meta: {
       limit,
