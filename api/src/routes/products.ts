@@ -116,10 +116,24 @@ async function tryTierSearch(
     minPrice?: number; maxPrice?: number; category?: string; brand?: string; domain?: string;
     compact: boolean; requestStart: number; cacheKey: string;
     deliverTo?: string; includeUnshippable?: boolean;
+    sort?: string;
   },
 ): Promise<boolean> {
   const lexemes = p.q.trim().split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
   if (lexemes.length === 0) return false;
+  // BUY-67275 durable (2026-08-16): serve explicit sorts from the tier — the
+  // archive sorted path flaps to degraded-empty whenever dedupe/replica
+  // pressure spikes, while the RAM-resident tier stays fast. Sort applies over
+  // the bounded top-200 relevance candidates (same trade as archive sort_hits).
+  const TIER_SORT: Record<string, string> = {
+    price_asc: 'sp.price ASC NULLS LAST',
+    price_desc: 'sp.price DESC NULLS LAST',
+    newest: 'sp.updated_at DESC',
+    highest_rated: 'sp.avg_rating DESC NULLS LAST',
+    most_reviewed: 'sp.review_count DESC NULLS LAST',
+  };
+  const tierSort = p.sort ? TIER_SORT[p.sort] : undefined;
+  const sortPrefix = tierSort ? `${tierSort}, ` : '';
   const tsOr = lexemes.join(' | ');
   // BUY-69621: HARD-exclude storage/SSD categories when the query targets a
   // device family (laptop/phone/tablet/…). No-op (fail-open) for storage
@@ -228,7 +242,7 @@ async function tryTierSearch(
     SELECT ${cols}, top.rank AS _fts_rank
     FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}top.rank DESC
+    ORDER BY ${orderPrefix}${sortPrefix}top.rank DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
 
   const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
@@ -254,7 +268,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}${sortPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
@@ -265,7 +279,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}${sortPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const phoneCategoryFallbackQuery = `
     WITH pcand AS (
@@ -284,7 +298,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM pcand JOIN search_products sp ON sp.id = pcand.id${storageJoinFilter}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}((${phoneHandsetBoost}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}${sortPrefix}((${phoneHandsetBoost}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
 
   let client: PoolClient;
@@ -755,13 +769,14 @@ router.get(
     // single-table archive constraints because it falls through unchanged on any
     // tier error, and SEARCH_USE_TIER=0 remains a runtime kill switch.
     const useSearchTier = req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0');
-    // BUY-67275 (#29, 2026-08-13): the tier has its own ORDER BY (rank/accessory
-    // penalty) and ignores `sort`. When the caller asks for a real sort, skip the
-    // tier so the archive path (which honors buildSortOrder) serves it ordered.
-    if (q && searchMode === 'keyword' && useSearchTier && !sortRequested) {
+    // BUY-67275 durable (2026-08-16): the tier now honors sort directly
+    // (TIER_SORT in tryTierSearch), so sorted queries take the fast RAM path
+    // and no longer flap to degraded-empty under replica pressure. Tier miss
+    // still falls through to the archive sorted path.
+    if (q && searchMode === 'keyword' && useSearchTier) {
       const handled = await tryTierSearch(req, res, {
         q, countryCode, currency, limit, offset, minPrice, maxPrice,
-        category, brand, domain, compact, requestStart, cacheKey,
+        category, brand, domain, compact, requestStart, cacheKey, sort,
         deliverTo, includeUnshippable,
       });
       if (handled) return;
