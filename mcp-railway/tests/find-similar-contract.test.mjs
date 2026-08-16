@@ -20,7 +20,7 @@ describe('MCP find_similar identifier contract (BUY-70113)', () => {
   });
 
   it('maps catalog product ids to sku before vector lookup', () => {
-    assert.match(source, /SELECT id::text AS id, sku FROM products WHERE id = \$1::bigint AND is_active = true LIMIT 1/);
+    assert.match(source, /WHERE id = \$1::bigint AND is_active = true\$\{countryPredicate\} LIMIT 1/);
     assert.match(source, /const lookupKeys = Array\.from\(new Set\(\[sourceProductId, sourceSku, resolvedId\]/);
   });
 
@@ -40,7 +40,7 @@ describe('MCP find_similar query-shape regression (BUY-70113 seq-scan fix)', () 
   it('binds numeric ids as bigint so products_pkey is used (no id::text filter)', () => {
     // The source-lookup path must not filter on a text-cast id — that defeats
     // products_pkey and Seq-Scans the ~300M-row catalog until statement_timeout.
-    assert.match(source, /WHERE id = \$1::bigint AND is_active = true LIMIT 1/);
+    assert.match(source, /WHERE id = \$1::bigint AND is_active = true\$\{countryPredicate\} LIMIT 1/);
     // The detail-enrichment path likewise.
     assert.match(source, /WHERE id = ANY\(\$1::bigint\[\]\) AND is_active = true/);
     assert.doesNotMatch(source, /WHERE id::text (?:=|IN)/);
@@ -85,5 +85,11 @@ describe('MCP find_similar query-shape regression (BUY-70113 seq-scan fix)', () 
     assert.match(source, /VECTOR_DB_USES_CATALOG_DB/);
     assert.match(source, /if \(!refResult\.rows\.length && !VECTOR_DB_USES_CATALOG_DB && vectorDb\)/);
     assert.match(source, /nearResult\.rows = nearResult\.rows\.filter\(r => r\.vector_key !== vectorKey\)\.slice\(0, limit\)/);
+  });
+
+  it('fails fast when a market-scoped anchor product is outside that market', () => {
+    assert.match(source, /explicitCountryCode = \(\(args\.country_code as string\) \|\| ''\)\.toUpperCase\(\)/);
+    assert.match(source, /countryPredicate = explicitCountryCode \? ' AND country_code = \$2' : ''/);
+    assert.match(source, /Product not found in \$\{explicitCountryCode\}/);
   });
 });

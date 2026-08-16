@@ -1615,7 +1615,8 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   const t0 = Date.now();
   const requestedId = (args.product_id as string || '').trim();
   const productName = (args.product_name as string || '').trim();
-  const countryCode = ((args.country_code as string) || 'SG').toUpperCase();
+  const explicitCountryCode = ((args.country_code as string) || '').toUpperCase();
+  const countryCode = explicitCountryCode || 'SG';
   const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 10);
 
   let resolvedId = requestedId;
@@ -1669,21 +1670,30 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     // BUY-70113: numeric ids must bind as bigint so products_pkey is used — an
     // `id = $1` with a text parameter (or `id::text`) is a full Seq Scan on the
     // ~300M-row catalog and blows the statement_timeout.
+    // BUY-70652: when callers scope find_similar to a market, validate the anchor
+    // product in that same market before entering the expensive vector path. TH
+    // probes harvest no ids and use a fallback SG id; without this guard the handler
+    // runs global KNN work for an out-of-market anchor and can surface 57014 as -32603.
+    const countryPredicate = explicitCountryCode ? ' AND country_code = $2' : '';
     const sourceResult = await catalogDb.query<{ id: string; sku: string | null }>(
       isNumericProductId
-        ? `SELECT id::text AS id, sku FROM products WHERE id = $1::bigint AND is_active = true LIMIT 1`
-        : `SELECT id::text AS id, sku FROM products WHERE sku = $1 AND is_active = true ORDER BY updated_at DESC LIMIT 1`,
-      [resolvedId]
+        ? `SELECT id::text AS id, sku FROM products WHERE id = $1::bigint AND is_active = true${countryPredicate} LIMIT 1`
+        : `SELECT id::text AS id, sku FROM products WHERE sku = $1 AND is_active = true${countryPredicate} ORDER BY updated_at DESC LIMIT 1`,
+      explicitCountryCode ? [resolvedId, explicitCountryCode] : [resolvedId]
     );
     if (sourceResult.rows.length) {
       sourceProductId = String(sourceResult.rows[0].id);
       sourceSku = sourceResult.rows[0].sku ? String(sourceResult.rows[0].sku) : null;
+    } else if (explicitCountryCode) {
+      throw { code: -32001, message: `Product not found in ${explicitCountryCode}` };
     } else if (!isNumericProductId) {
       // Non-numeric input that matched no product row: keep it as a raw legacy-SKU
       // probe for the sku-keyed vector table.
       sourceSku = resolvedId;
     }
-  } catch {
+  } catch (err) {
+    const e = err as { code?: number };
+    if (e?.code === -32001) throw err;
     if (!isNumericProductId) sourceSku = resolvedId;
   }
   // BUY-70113: numeric input may be a products.id OR a legacy vector SKU (Shopify
