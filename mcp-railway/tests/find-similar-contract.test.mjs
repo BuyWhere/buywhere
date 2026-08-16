@@ -51,16 +51,26 @@ describe('MCP find_similar query-shape regression (BUY-70113 seq-scan fix)', () 
     assert.doesNotMatch(source, /WHERE product_id::text = ANY/);
   });
 
-  it('probes the legacy sku vector table on catalogDb, where that schema lives', () => {
+  it('runs all legacy sku vector queries on catalogDb, where that schema lives', () => {
     // search_proof.product_vectors exists only in the catalog DB; querying it on
     // vectorDb always throws and the swallowed catch made the fallback dead code.
-    const legacyBlock = source.match(
+    const legacyRefBlock = source.match(
       /catalogDb\.query<\{ vector_key: string; embedding: string; vector_table: string \}>\(\s*\n\s*`SELECT sku AS vector_key[\s\S]*?search_proof\.product_vectors/
     );
-    assert.ok(legacyBlock, 'legacy fallback must run on catalogDb.query');
+    assert.ok(legacyRefBlock, 'legacy reference fallback must run on catalogDb.query');
+
+    const legacyNearBlock = source.match(
+      /catalogDb\.query<\{ vector_key: string; distance: number \}>\(\s*\n\s*`SELECT sku AS vector_key, \(embedding <=> \$1::vector\)::float AS distance[\s\S]*?search_proof\.product_vectors/
+    );
+    assert.ok(legacyNearBlock, 'legacy nearest-neighbour scan must run on catalogDb.query');
+
     assert.doesNotMatch(
       source,
       /vectorDb\.query<\{ vector_key: string; embedding: string; vector_table: string \}>\(\s*\n\s*`SELECT sku AS vector_key/
+    );
+    assert.doesNotMatch(
+      source,
+      /vectorDb\.query<\{ vector_key: string; distance: number \}>\(\s*\n\s*`SELECT sku AS vector_key, \(embedding <=> \$1::vector\)::float AS distance[\s\S]*?search_proof\.product_vectors/
     );
   });
 

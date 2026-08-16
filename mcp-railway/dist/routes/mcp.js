@@ -1660,7 +1660,9 @@ async function handleFindSimilar(args) {
     let nearResult;
     if (vectorTable === 'search_proof.product_vectors') {
         try {
-            nearResult = await config_1.vectorDb.query(`SELECT sku AS vector_key, (embedding <=> $1::vector)::float AS distance
+            // BUY-70113: legacy search_proof vectors live in catalogDb; keep both the
+            // reference lookup and nearest-neighbour scan on the same catalog database.
+            nearResult = await config_1.catalogDb.query(`SELECT sku AS vector_key, (embedding <=> $1::vector)::float AS distance
            FROM search_proof.product_vectors
           WHERE sku != $2
           ORDER BY distance LIMIT $3`, [refEmbedding, vectorKey, limit]);
