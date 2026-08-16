@@ -19,6 +19,10 @@ export interface CanonicalProduct {
   region: string | null;
   country_code: string | null;
   in_stock?: boolean;
+  availability?: {
+    in_stock: boolean;
+    status: 'in_stock' | 'out_of_stock';
+  };
   updated_at: string | null;
   // Compact-mode only (agent-optimized extras):
   canonical_id?: string;

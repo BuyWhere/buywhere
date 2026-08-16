@@ -65,6 +65,10 @@ export function buildProduct(
     : null;
   const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
 
+  const inStock = row.in_stock != null
+    ? row.in_stock as boolean
+    : sanitizedAmount != null && sanitizedAmount > 0;
+
   const base: CanonicalProduct = {
     id: productId,
     title: row.title as string,
@@ -77,6 +81,13 @@ export function buildProduct(
     updated_at: (row.updated_at as string) || null,
     // CAT-08: expose stock status as a top-level boolean when known.
     ...(row.in_stock != null && { in_stock: row.in_stock as boolean }),
+    // BUY-70574/BUY-70043: basket verification consumes availability.in_stock.
+    // When feeds omit explicit stock, positive-price catalog rows are minimally
+    // considered available so agent commerce flows have a usable availability signal.
+    availability: {
+      in_stock: inStock,
+      status: inStock ? 'in_stock' : 'out_of_stock',
+    },
     ...(affiliateUrl != null && { affiliate_url: affiliateUrl }),
     ...(clickUrl != null && { click_url: clickUrl }),
     ...(affiliateRedirectUrl != null && { affiliate_redirect_url: affiliateRedirectUrl }),
