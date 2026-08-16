@@ -401,27 +401,60 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           let candidateIds: string[];
 
           if (mode === 'semantic') {
-            // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
-            const vecRows = await vectorDb.query<{ product_id: string }>(
-              `SELECT product_id FROM product_embeddings
-               ORDER BY embedding <=> $1::vector LIMIT 200`,
-              [queryVec]
-            );
-            candidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
+            // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details.
+            // Restrict to the 512-dim Gemini table; fail open to keyword FTS below
+            // instead of rejecting the whole MCP call on vector slowness/mismatch.
+            try {
+              const vecRows = await Promise.race([
+                vectorDb.query<{ product_id: string }>(
+                  `SELECT product_id FROM product_embeddings
+                   WHERE model_ver = 'gemini-embedding-001@512'
+                   ORDER BY embedding <=> $1::vector LIMIT 200`,
+                  [queryVec]
+                ),
+                new Promise<never>((_, reject) =>
+                  setTimeout(() => reject(new Error('vector timeout after 2000ms')), 2000)
+                ),
+              ]);
+              candidateIds = vecRows.rows.map(r => r.product_id).slice(0, limit + offset);
+            } catch (vecErr) {
+              console.warn('[search] vector query failed, falling back to FTS:', (vecErr as Error).message);
+              candidateIds = [];
+              queryVec = null;
+            }
           } else {
-            // Hybrid: app-level RRF of FTS ranks + vector ranks
-            const [ftsResult, vecResult] = await Promise.all([
-              searchClient.query<{ id: string }>(
+            // Hybrid: app-level RRF of FTS ranks + vector ranks.
+            // BUY-70304: fail open per leg. A slow/mismatched vector DB query was
+            // making otherwise-fast MY keyword searches surface JSON-RPC -32603.
+            let ftsRows: { id: string }[] = [];
+            let vecRows: { product_id: string }[] = [];
+            try {
+              const ftsResult = await searchClient.query<{ id: string }>(
                 `SELECT id FROM products ${where} LIMIT 200`,
                 params
-              ),
-              vectorDb.query<{ product_id: string }>(
-                `SELECT product_id FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT 200`,
-                [queryVec]
-              ),
-            ]);
-            const ftsRank = new Map(ftsResult.rows.map((r, i) => [r.id, i + 1]));
-            const vecRank = new Map(vecResult.rows.map((r, i) => [r.product_id, i + 1]));
+              );
+              ftsRows = ftsResult.rows;
+            } catch (ftsErr) {
+              console.warn('[search] hybrid FTS query failed:', (ftsErr as Error).message);
+            }
+            try {
+              const vecResult = await Promise.race([
+                vectorDb.query<{ product_id: string }>(
+                  `SELECT product_id FROM product_embeddings
+                   WHERE model_ver = 'gemini-embedding-001@512'
+                   ORDER BY embedding <=> $1::vector LIMIT 200`,
+                  [queryVec]
+                ),
+                new Promise<never>((_, reject) =>
+                  setTimeout(() => reject(new Error('vector timeout after 2000ms')), 2000)
+                ),
+              ]);
+              vecRows = vecResult.rows;
+            } catch (vecErr) {
+              console.warn('[search] hybrid vector query failed, FTS only:', (vecErr as Error).message);
+            }
+            const ftsRank = new Map(ftsRows.map((r, i) => [r.id, i + 1]));
+            const vecRank = new Map(vecRows.map((r, i) => [r.product_id, i + 1]));
             const allIds = new Set([...ftsRank.keys(), ...vecRank.keys()]);
             candidateIds = [...allIds]
               .map(id => ({
@@ -1042,13 +1075,22 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       const countClient = await acquireMcpClient();
       try {
         await countClient.query('SET statement_timeout = 3000');
+        await countClient.query('SET enable_seqscan = off');
+        // BUY-70304: cap before counting. COUNT(*) ... LIMIT is still an
+        // unbounded aggregate, so SG laptop spent seconds in the gate before
+        // falling into an accessory-prone ILIKE fallback. The subquery stops as
+        // soon as we know there are more candidates than the primary pool.
         const countResult = await countClient.query(
-          `SELECT COUNT(*) as cnt FROM products ${where} LIMIT ${CANDIDATE_POOL + 1}`,
+          `SELECT COUNT(*) as cnt FROM (
+             SELECT 1 FROM products ${where} LIMIT ${CANDIDATE_POOL + 1}
+           ) _capped`,
           params.slice(0, -2) // Remove the CANDIDATE_POOL and limit params
         );
         const ftsCount = parseInt(countResult.rows[0]?.cnt ?? '0', 10);
-        // If FTS matches exceed candidate pool, skip primary and use fallback
-        if (ftsCount > CANDIDATE_POOL) {
+        // Device-family queries need the FTS primary path: broad title-ILIKE
+        // fallback over recent rows returns mice/bags/RAM that are later filtered
+        // as accessories, producing false-empty results for "laptop".
+        if (ftsCount > CANDIDATE_POOL && !deviceFilter.type) {
           console.log(`[mcp] find_best_price: FTS count ${ftsCount} > pool ${CANDIDATE_POOL}, using ILIKE fallback`);
           ftsTooBroad = true;
         }
