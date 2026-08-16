@@ -110,7 +110,7 @@ const TOOLS = [
       type: 'object',
       required: ['id'],
       properties: {
-        id: { type: 'string', description: 'Product UUID' },
+        id: { type: 'string', description: 'Product ID (numeric catalog ID)' },
       },
     },
   },
@@ -182,7 +182,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        product_id: { type: 'string', description: 'Catalog product id (products.id; mutually exclusive with product_name). For legacy vector rows, an exact SKU is also accepted.' },
+        product_id: { type: 'string', description: 'Numeric catalog product ID (products.id; mutually exclusive with product_name). For legacy vector rows, an exact SKU is also accepted.' },
         product_name: { type: 'string', description: 'Product name to find similar items for (auto-resolves to best-matching product ID). Preferred when agent starts with a name/query.' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Country to scope product_name lookup (defaults to SG)' },
         limit: { type: 'integer', description: 'Number of similar products to return (1-10, default 10)', default: 10 },
@@ -968,6 +968,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     throw { code: -32603, message: 'Database connection timeout' };
   });
   let result: { rows: Record<string, unknown>[] };
+  let ftsTimedOut = false;
   try {
     await bestPriceClient.query('SET statement_timeout = 10000');
     const requestedCountry = country;
@@ -1003,6 +1004,17 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
        ORDER BY pi.price ASC, pi.updated_at DESC`,
       [...params, limit]
     );
+  } catch (err: unknown) {
+    // BUY-70222: catch SQLSTATE 57014 (statement_timeout) and fail open with a
+    // structured empty response instead of surfacing JSON-RPC -32603 to callers.
+    const pgErr = err as { code?: string };
+    if (pgErr?.code === '57014') {
+      console.warn('[find_best_price] FTS timed out for country=', country, 'product=', productName);
+      ftsTimedOut = true;
+      result = { rows: [] };
+    } else {
+      throw err;
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);
@@ -1102,6 +1114,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       ...(minAllowedUsd != null ? { min_allowed_usd: Math.round(minAllowedUsd * 100) / 100 } : {}),
       country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'),
       response_time_ms: Date.now() - t0,
+      ...(ftsTimedOut ? { timed_out: true, unavailable: true, message: 'Best-price search temporarily unavailable; please retry.' } : {}),
     },
   };
 }
