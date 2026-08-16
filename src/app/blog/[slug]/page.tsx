@@ -21,6 +21,11 @@ function formatDate(date: string) {
   }).format(new Date(date));
 }
 
+function articleImage(post: BlogPost) {
+  // Use dynamic OG image endpoint with article title
+  return post.coverImage ?? toSiteUrl(`/api/og-image?title=${encodeURIComponent(post.title)}`);
+}
+
 export function generateStaticParams() {
   return getAllBlogPosts().map((post) => ({ slug: post.slug }));
 }
@@ -33,6 +38,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const canonical = post.canonicalUrl ?? toSiteUrl(`/blog/${post.slug}`);
+  const image = articleImage(post);
 
   return {
     title: post.title,
@@ -47,13 +53,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       url: canonical,
       publishedTime: post.publishedAt,
       authors: [post.author],
-      images: post.coverImage ? [{ url: post.coverImage }] : undefined,
+      images: [{ url: image, width: 1200, height: 630, alt: post.title }],
     },
     twitter: {
       card: "summary_large_image",
       title: post.title,
       description: post.description,
-      images: post.coverImage ? [post.coverImage] : undefined,
+      images: [image],
     },
   };
 }
