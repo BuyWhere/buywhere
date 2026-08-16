@@ -1059,13 +1059,14 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // then ILIKE + price-order) is both faster AND handles category predicates correctly.
   // The primary path is still used for non-category queries where FTS is the right signal.
   let result: { rows: Record<string, unknown>[] } = { rows: [] };
-  // BUY-70189/BUY-70314: gate high-cardinality FTS queries with a quick count
-  // check. Single-token terms like "nike" and broad multi-token terms like
-  // "wireless earbuds" can both match enough rows to burn the full primary
-  // timeout. Specific multi-token queries keep the primary path when the capped
-  // count is within the candidate pool.
-  let ftsTooBroad = false;
-  if (!category && !deviceFilter.type) {
+  // BUY-70189/BUY-70314: gate high-cardinality FTS queries. Single-token terms
+  // like "nike" get a capped count probe; broad multi-token SEA shopping terms
+  // like "wireless earbuds" skip primary FTS entirely because the count probe +
+  // primary path observed at 28s on TH before reaching the bounded fallback.
+  const queryTokenCount = productName.split(/\s+/).filter(Boolean).length;
+  const seaBroadMultiToken = queryTokenCount > 1 && ['SG', 'MY', 'TH'].includes(country);
+  let ftsTooBroad = seaBroadMultiToken && !deviceFilter.type;
+  if (!category && !deviceFilter.type && !ftsTooBroad) {
     try {
       const countClient = await acquireMcpClient();
       try {
