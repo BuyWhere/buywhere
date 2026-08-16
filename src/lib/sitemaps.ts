@@ -302,6 +302,7 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/partners", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/use-cases", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/pricing", priority: 0.8, changeFrequency: "monthly" as const },
+  { path: "/about", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/contact", priority: 0.5, changeFrequency: "monthly" as const },
   // BUY-56627 / BUY-57452: /best-* URLs and the 6 blog + 3 product
   // dupes (cheapest-iphone-singapore-2026, best-laptop-deals-singapore,
