@@ -830,27 +830,42 @@ async function handleListCategories(args: Record<string, unknown>) {
   const queryPromise = (async () => {
     const client = await acquireMcpClient();
     try {
-      await client.query('SET statement_timeout = 8000');
-      const tableCheck = await client.query(
-        `SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`
-      );
       let rows: Array<{ slug: string; name: string; product_count: number }>;
-      const MAT_VIEW_TIMEOUT_MS = 8000;
+      // BUY-70286: the primary matview read is an indexed sub-10ms scan when
+      // healthy, but it had neither a try/catch nor a tight budget. Under
+      // ingestion I/O contention it queued past the old 8s statement_timeout
+      // and the rejection escaped as a raw -32603 (the observed "8.4s VN"
+      // failure). Budget it at 2s and treat a timeout/abort exactly like an
+      // empty read so the bounded live fallbacks below still run.
+      const MAT_VIEW_TIMEOUT_MS = 2000;
       // BUY-60096: canonical MCP must never let category fallback monopolize the shared pool.
       // If the materialized view is empty, keep fallbacks bounded so cold misses stay under 5s.
       const LIVE_TIMEOUT_MS = 1800;
       const FALLBACK_COUNTRIES = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'GB', 'PH', 'ID', 'IN', 'AU']);
+      await client.query(`SET statement_timeout = ${MAT_VIEW_TIMEOUT_MS}`);
+      const tableCheck = await client.query(
+        `SELECT to_regclass('public.mcp_category_summary_by_country') AS tbl`
+      );
       rows = [];
       if (tableCheck.rows[0]?.tbl) {
-        const summaryResult = await client.query(
-          `SELECT slug, name, product_count
-           FROM mcp_category_summary_by_country
-           WHERE country_code = $1
-           ORDER BY product_count DESC
-           LIMIT 100`,
-          [country]
-        );
-        rows = summaryResult.rows;
+        try {
+          const summaryResult = await client.query(
+            `SELECT slug, name, product_count
+             FROM mcp_category_summary_by_country
+             WHERE country_code = $1
+               AND slug IS NOT NULL AND slug <> ''
+             ORDER BY product_count DESC
+             LIMIT 100`,
+            [country]
+          );
+          rows = summaryResult.rows;
+        } catch (_) {
+          // Matview read timed out or failed — fall through to the bounded
+          // live fallbacks instead of surfacing -32603. Autocommit means the
+          // next statement starts a fresh transaction, so the client is safe
+          // to reuse; releaseClientSafely still discards it if not.
+          rows = [];
+        }
       }
       // BUY-59768: view empty or missing for this country — fall through to a
       // bounded live GROUP BY on the country_code partition (uses partition
@@ -904,6 +919,7 @@ async function handleListCategories(args: Record<string, unknown>) {
                LIMIT 50000
              ) _recent_categories
              CROSS JOIN LATERAL (SELECT category_path[1] AS slug) _cat
+             WHERE slug IS NOT NULL AND slug <> ''
              GROUP BY slug
              ORDER BY product_count DESC
              LIMIT 100`,
