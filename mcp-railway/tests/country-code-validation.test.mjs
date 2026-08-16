@@ -135,12 +135,22 @@ suite('BUY-69625: country_code validation', () => {
   // must both expose product_count as a number.
   it('list_categories product_count is a number', async () => {
     const { body } = await rpc('list_categories', {});
-    if (!body.error && Array.isArray(body.result?.data) && body.result.data.length) {
-      for (const cat of body.result.data) {
+    if (body.error) return;
+    const text = body.result?.content?.[0]?.text;
+    if (!text) return;
+    let payload;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      assert.fail('list_categories content[0].text must be valid JSON');
+    }
+    const cats = payload?.data;
+    if (Array.isArray(cats) && cats.length) {
+      for (const cat of cats) {
         assert.equal(
           typeof cat.product_count,
           'number',
-          `product_count for ${cat.slug} must be a number, got ${typeof cat.product_count}`
+          `product_count for ${cat.slug} must be a number, got ${typeof cat.product_count} (BUY-70395; note Redis cache serves pre-fix payloads for up to 10 min after deploy)`
         );
       }
     }
