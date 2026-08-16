@@ -109,6 +109,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // "Page with redirect" (BUY-42727, BUY-41940, BUY-40084).
   const canonicalUrl = `https://buywhere.ai/${region}/${merchantSlug}/products`;
 
+  // Use merchant logo if available, otherwise fall back to default og-image
+  const ogImage = merchant?.logo_url || "/og-image.png";
+
   return {
     title: `${displayName} Products in ${regionLabel} | BuyWhere`,
     description:
@@ -124,6 +127,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description: `Browse ${displayName} products in ${regionLabel}`,
       url: canonicalUrl,
       type: "website",
+      images: [
+        {
+          url: ogImage,
+          width: 1200,
+          height: 630,
+          alt: `${displayName} products in ${regionLabel}`,
+        },
+      ],
     },
   };
 }
