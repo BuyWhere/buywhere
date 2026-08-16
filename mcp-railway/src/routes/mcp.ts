@@ -286,7 +286,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const compact = args.compact === true;
   const currency = country ? (COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
 
-  const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
+  const cacheKey = `fts:v2:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -472,12 +472,12 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           if (pageIds.length === 0) {
             rows = [];
           } else {
-            const ph = pageIds.map((_, i) => `$${i + 1}`).join(',');
+            const detailParams = [...params, pageIds];
             const detailResult = await searchClient.query(
               `SELECT id, sku AS source, source AS domain, url, title,
                       price, currency, image_url, metadata, updated_at, region, country_code, category, category_path
-               FROM products WHERE id IN (${ph}) AND is_active = true`,
-              pageIds
+               FROM products ${where} AND id = ANY($${detailParams.length}::bigint[])`,
+              detailParams
             );
             // Preserve ranking order
             const byId = new Map(detailResult.rows.map(r => [(r as Record<string, unknown>).id as string, r]));
@@ -565,37 +565,31 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         total = rows.length >= CANDIDATE_LIMIT ? CANDIDATE_LIMIT : rows.length;
       }
     } else {
-      // No FTS — browse mode. Use reltuples for approximate total and fetch
-      // recent products via idx_products_updated_at (3ms for 500 rows).
-      // If user explicitly passed country_code/region, overfetch and filter
-      // in-application (no composite index on country_code+updated_at).
-      const approxResult = await searchClient.query(
-        `SELECT reltuples::bigint AS estimate FROM pg_class WHERE relname = 'products'`
-      );
-      total = parseInt(approxResult.rows[0]?.estimate ?? '0', 10);
-
-      const needsFilter = !!(country || region);
+      // No FTS — browse mode. Unfiltered browse can use reltuples as a catalog-size
+      // estimate, but filtered browse must not report the global product count as
+      // `total` (BUY-70314: agents used the 397M global count as result quality).
+      const needsFilter = !!(country || region || domain || minPrice != null || maxPrice != null);
       const fetchLimit = needsFilter ? Math.min((limit + offset) * 20, 5000) : limit + offset;
+      if (!needsFilter) {
+        const approxResult = await searchClient.query(
+          `SELECT reltuples::bigint AS estimate FROM pg_class WHERE relname = 'products'`
+        );
+        total = parseInt(approxResult.rows[0]?.estimate ?? '0', 10);
+      }
+
+      const browseParams = [...params, fetchLimit];
       const rawResult = await searchClient.query(
         `SELECT id, sku AS source, source AS domain, url, title,
                 price, currency, image_url, metadata, updated_at,
                 region, country_code
-         FROM products
+         FROM products ${where}
          ORDER BY updated_at DESC
-         LIMIT $1`,
-        [fetchLimit]
+         LIMIT $${browseParams.length}`,
+        browseParams
       );
+      rows = (rawResult.rows as unknown[]).slice(offset, offset + limit);
       if (needsFilter) {
-        let filtered = rawResult.rows as Record<string, unknown>[];
-        if (country) {
-          filtered = filtered.filter(r => (r.country_code as string || '').toUpperCase() === country);
-        }
-        if (region) {
-          filtered = filtered.filter(r => (r.region as string || '').toLowerCase() === region.toLowerCase());
-        }
-        rows = filtered.slice(offset, offset + limit);
-      } else {
-        rows = (rawResult.rows as unknown[]).slice(offset, offset + limit);
+        total = rawResult.rows.length;
       }
     }
   } finally {
@@ -1658,13 +1652,79 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   }
 
   if (!refResult.rows.length) {
-    throw { code: -32001, message: 'No embedding found for this product - backfill may still be running' };
+    // BUY-70314: standard search_products→find_similar flow must not fail just
+    // because the selected source product has not been backfilled into vector DB.
+    // If the catalog row exists, embed its own title/description at request time
+    // and use that as the reference vector.
+    const geminiKey = process.env.GEMINI_API_KEY ?? '';
+    if (!geminiKey || !sourceProductId) {
+      throw { code: -32001, message: 'No embedding found for this product - backfill may still be running' };
+    }
+    const productResult = await catalogDb.query<{ title: string; description: string | null }>(
+      `SELECT title, description FROM products WHERE id = $1 AND is_active = true`,
+      [sourceProductId]
+    );
+    if (!productResult.rows.length) {
+      throw { code: -32001, message: 'Product not found' };
+    }
+    const sourceText = [productResult.rows[0].title, productResult.rows[0].description]
+      .filter(Boolean)
+      .join(' ')
+      .slice(0, 2000);
+    let fallbackEmbedding: string;
+    try {
+      fallbackEmbedding = await embedQuery(sourceText, geminiKey);
+    } catch {
+      throw { code: -32001, message: 'No embedding found for this product - backfill may still be running' };
+    }
+    // Fallback: embed product text and find similar via product_embeddings only
+    let nearResult: { rows: Array<{ vector_key: string; distance: number }> };
+    try {
+      nearResult = await vectorDb.query<{ vector_key: string; distance: number }>(
+        `SELECT product_id::text AS vector_key, (embedding <=> $1::vector)::float AS distance
+           FROM product_embeddings
+          WHERE product_id::text != $2
+          ORDER BY distance LIMIT $3`,
+        [fallbackEmbedding, sourceProductId, limit]
+      );
+    } catch {
+      nearResult = { rows: [] };
+    }
+    if (!nearResult.rows.length) {
+      throw { code: -32001, message: 'No similar products found' };
+    }
+    const nearKeys = nearResult.rows.map(r => r.vector_key);
+    const nearIds = nearKeys.map(k => parseInt(k, 10)).filter(n => !isNaN(n));
+    const detailResult = await catalogDb.query(
+      `SELECT id::text, title, price, currency, source AS domain, url, image_url
+       FROM products WHERE id = ANY($1::bigint[]) AND is_active = true`,
+      [nearIds]
+    );
+    const distMap = new Map(nearResult.rows.map(r => [r.vector_key, r.distance]));
+    const byKey = new Map(detailResult.rows.map(r => [String((r as Record<string, unknown>).id), r]));
+    const similar = nearKeys
+      .map(key => {
+        const p = byKey.get(key) as Record<string, unknown> | undefined;
+        if (!p) return null;
+        const dist = distMap.get(key) ?? 1;
+        return {
+          id: p.id, title: p.title, price: p.price,
+          currency: p.currency, domain: p.domain, url: p.url, image_url: p.image_url,
+          similarity: +Math.max(0, 1 - dist).toFixed(4),
+        };
+      })
+      .filter(Boolean);
+    return {
+      product_id: requestedId, similar,
+      total: similar.length,
+      response_time_ms: Date.now() - t0,
+    };
   }
   const refEmbedding = refResult.rows[0].embedding;
   const vectorKey = refResult.rows[0].vector_key;
   const vectorTable = refResult.rows[0].vector_table;
 
-  let nearResult;
+  let nearResult: { rows: Array<{ vector_key: string; distance: number }> };
   if (vectorTable === 'search_proof.product_vectors') {
     try {
       nearResult = await vectorDb.query<{ vector_key: string; distance: number }>(
