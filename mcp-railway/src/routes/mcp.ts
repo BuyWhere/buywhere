@@ -772,7 +772,16 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // PASSING rows (same worst case as the unordered walk when filters are
     // selective), candidates are id-thin, and full rows join only for the
     // returned page. updated_at tiebreak preserved in SQL.
-    const candidateLimit = 2000;
+    // BUY-70370 (2026-08-16): reduced candidateLimit from 2000 to 400 to stop
+    // SG get_deals from timing out under heavy ingestion I/O. The 2000 walk
+    // dove deep into the long discount_pct tail (10-50% range) and fetched
+    // >100K rows from idx_products_deals_discount_pct, the only valid deals
+    // index (region-filtered indexes are invalid). With I/O contention from
+    // long-running autovacuum/ingestion backends, this exceeded the 15s
+    // statement_timeout and surfaced as -32603 INTERNAL_ERROR. 400 candidates
+    // is ample for page-size results (default limit=20) while keeping the
+    // index walk bounded under 2s even with 11-14h-old I/O-bound backends.
+    const candidateLimit = 400;
     const candidateParams = [...params, candidateLimit];
     const dataResult = await dealsClient.query(
       `WITH cand AS (
@@ -789,7 +798,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
               p.currency, p.image_url, p.metadata, p.updated_at, p.region, p.country_code,
               p.discount_pct
        FROM cand JOIN products p ON p.id = cand.id
-       ORDER BY cand.cand_discount DESC, cand.cand_updated DESC
+       ORDER BY p.discount_pct DESC, p.updated_at DESC
        LIMIT ${limit} OFFSET ${offset}`,
       candidateParams
     );
