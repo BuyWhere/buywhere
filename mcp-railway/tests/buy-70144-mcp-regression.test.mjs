@@ -68,6 +68,7 @@ suite('BUY-70144: MCP search/find_best_price regressions', () => {
     const inner = parseToolText(body);
     assert.ok(inner.meta?.total > 0, `Expected SG nike air max results, got: ${JSON.stringify(inner).slice(0, 300)}`);
     assert.ok(inner.best_price, `Expected best_price, got: ${JSON.stringify(inner).slice(0, 300)}`);
+    assert.ok(inner.meta?.response_time_ms < 8000, `SG FBP should respond <8s, got ${inner.meta?.response_time_ms}ms`);
   });
 
   it('find_best_price returns non-empty results for US nike air max', async () => {
@@ -76,6 +77,7 @@ suite('BUY-70144: MCP search/find_best_price regressions', () => {
     const inner = parseToolText(body);
     assert.ok(inner.meta?.total > 0, `Expected US nike air max results, got: ${JSON.stringify(inner).slice(0, 300)}`);
     assert.ok(inner.best_price, `Expected best_price, got: ${JSON.stringify(inner).slice(0, 300)}`);
+    assert.ok(inner.meta?.response_time_ms < 15000, `US FBP should respond <15s, got ${inner.meta?.response_time_ms}ms`);
   });
 
   it('search_products treats ISO region aliases as country filters and never reports positive total with empty results', async () => {
