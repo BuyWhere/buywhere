@@ -36,9 +36,9 @@ const DEVICE_TITLE_PATTERNS: Record<ExactDeviceProductType, string[]> = {
 
 const DEVICE_NEGATIVE_TAXONOMY_PATTERNS = [
   '%accessor%', '%case%', '%casing%', '%cover%', '%protector%', '%screen protector%', '%tempered glass%',
-  '%film%', '%skin%', '%decal%', '%sticker%', '%sleeve%', '%pouch%', '%cable%', '%charger%', '%adapter%',
+  '%film%', '%glass%', '%sklo%', '%skin%', '%decal%', '%sticker%', '%sleeve%', '%pouch%', '%cable%', '%charger%', '%adapter%',
   '%holder%', '%mount%', '%strap%', '%lanyard%', '%repair%', '%replacement%', '%parts%', '%spare part%',
-  '%controller%', '%gamepad%', '%kryt%', '%capa%', '%capas%', '%専用%',
+  '%controller%', '%gamepad%', '%joystick%', '%thumbstick%', '%grip%', '%silicone%', '%kryt%', '%capa%', '%capas%', '%専用%',
 ];
 const DEVICE_NEGATIVE_TITLE_PATTERNS = [
   ...DEVICE_NEGATIVE_TAXONOMY_PATTERNS,
