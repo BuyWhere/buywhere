@@ -139,7 +139,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
         <section className="overflow-hidden max-sm:overflow-visible bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_55%,#f59e0b_130%)] text-white">
           <div className={`mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end ${config.compactCatalogCards ? "py-6" : "py-16 lg:py-24"}`}>
             <div>
-              <div className="mb-5 inline-flex items-center rounded-full border border-white/20 bg-slate-950/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-100">
+              <div className="mb-5 inline-flex items-center rounded-full border border-white/20 bg-slate-950 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-100">
                 {config.heroEyebrow}
               </div>
               <h1 className="max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl">
@@ -150,43 +150,38 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               </p>
               <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-100" aria-label="Page metadata">
                 <li className="inline-flex items-center gap-2">
-                  <span aria-hidden="true" className="text-amber-200">✓</span>
+                  <span aria-hidden="true" className="text-amber-100">✓</span>
                   <span>{buildRefreshedLabel(config, products)}</span>
                 </li>
                 <li className="inline-flex items-center gap-2">
-                  <span aria-hidden="true" className="text-amber-200">✓</span>
+                  <span aria-hidden="true" className="text-amber-100">✓</span>
                   <span>{config.country} market coverage</span>
                 </li>
                 <li className="inline-flex items-center gap-2">
-                  <span aria-hidden="true" className="text-amber-200">✓</span>
+                  <span aria-hidden="true" className="text-amber-100">✓</span>
                   <span>Live BuyWhere search results</span>
                 </li>
               </ul>
             </div>
 
-            <div className="rounded-[32px] border border-white/10 bg-slate-950/35 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">Quick next step</p>
+            <div className="rounded-[32px] border border-white/10 bg-slate-950 p-6 shadow-2xl shadow-slate-950/30">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-100">Quick next step</p>
               <h2 className="mt-3 text-2xl font-semibold">{shopperCta.title}</h2>
               <p className="mt-3 text-sm leading-6 text-slate-200">{shopperCta.body}</p>
-              <div className="mt-6">
+              <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href={shopperCta.href}
-                  prefetch={false}
-                  className="inline-flex min-h-[44px] items-center rounded-full bg-amber-300 px-5 py-3 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-200 focus:outline-none focus:ring-4 focus:ring-amber-200/60"
+                  className="inline-flex min-h-[44px] items-center rounded-full bg-amber-800 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
                 >
                   {shopperCta.label}
                 </Link>
-              </div>
-              <p className="mt-4 text-xs leading-5 text-slate-300">
-                Building a deal feed? {" "}
                 <Link
                   href={developerCta.href}
-                  prefetch={false}
-                  className="font-semibold text-amber-200 underline-offset-4 hover:text-amber-100 hover:underline"
+                  className="inline-flex min-h-[44px] items-center rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
                 >
-                  {developerCta.label} →
+                  {developerCta.label}
                 </Link>
-              </p>
+              </div>
             </div>
           </div>
         </section>
@@ -195,10 +190,10 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className={`${config.compactCatalogCards ? "mb-4" : "mb-8"} flex flex-col gap-3 md:flex-row md:items-end md:justify-between`}>
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#8A4300]">Live catalog snapshot</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-800">Live catalog snapshot</p>
                 <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
               </div>
-              <Link href={shopperCta.href} prefetch={false} className="text-sm font-semibold text-amber-900 hover:text-amber-950 underline-offset-4 hover:underline">
+              <Link href={shopperCta.href} className="text-sm font-semibold text-amber-800 hover:text-amber-900">
                 Open full search
               </Link>
             </div>
