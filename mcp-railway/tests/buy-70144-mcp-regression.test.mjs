@@ -77,4 +77,22 @@ suite('BUY-70144: MCP search/find_best_price regressions', () => {
     assert.ok(inner.meta?.total > 0, `Expected US nike air max results, got: ${JSON.stringify(inner).slice(0, 300)}`);
     assert.ok(inner.best_price, `Expected best_price, got: ${JSON.stringify(inner).slice(0, 300)}`);
   });
+
+  it('search_products treats ISO region aliases as country filters and never reports positive total with empty results', async () => {
+    const { body } = await rpc('search_products', { q: 'nike shoes', region: 'SG', limit: 3 }, 'buy-70218-search-region-sg');
+    assert.notEqual(body.error?.code, -32603, `search_products region=SG returned -32603: ${JSON.stringify(body.error)}`);
+    const inner = parseToolText(body);
+    assert.ok(Array.isArray(inner.results), `Expected results array, got: ${JSON.stringify(inner).slice(0, 300)}`);
+    if (inner.total > 0) {
+      assert.ok(inner.results.length > 0, `total>0 must not have empty results: ${JSON.stringify(inner).slice(0, 300)}`);
+    }
+  });
+
+  it('find_best_price treats ISO region aliases as country filters', async () => {
+    const { body } = await rpc('find_best_price', { product_name: 'nike air max', region: 'SG', limit: 3 }, 'buy-70218-fbp-region-sg');
+    assert.notEqual(body.error?.code, -32603, `find_best_price region=SG returned -32603: ${JSON.stringify(body.error)}`);
+    const inner = parseToolText(body);
+    assert.ok(inner.meta?.total > 0, `Expected region=SG nike air max results, got: ${JSON.stringify(inner).slice(0, 300)}`);
+    assert.ok(inner.best_price, `Expected best_price for region=SG, got: ${JSON.stringify(inner).slice(0, 300)}`);
+  });
 });
