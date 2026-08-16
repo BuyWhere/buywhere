@@ -114,4 +114,35 @@ suite('BUY-69625: country_code validation', () => {
       assert.notEqual(body.error.data?.envelope?.error?.code, 'MARKET_UNSUPPORTED');
     }
   });
+
+  // BUY-70395: content[0].text must be parseable JSON like every other tool —
+  // agents extracting structured fields got nothing from the old markdown blob.
+  it('get_product content[0].text is JSON when the product exists', async () => {
+    const { body } = await rpc('get_product', { id: process.env.MCP_TEST_PRODUCT_ID || '1' });
+    if (!body.error && body.result?.content?.[0]?.text) {
+      let parsed;
+      try {
+        parsed = JSON.parse(body.result.content[0].text);
+      } catch {
+        assert.fail('get_product content[0].text must be valid JSON (BUY-70395)');
+      }
+      assert.equal(typeof parsed, 'object');
+      assert(parsed.id || parsed.title, 'parsed product JSON must carry id/title');
+    }
+  });
+
+  // BUY-70395: pg bigint COUNT(*) serializes as a JSON string; MCP and REST
+  // must both expose product_count as a number.
+  it('list_categories product_count is a number', async () => {
+    const { body } = await rpc('list_categories', {});
+    if (!body.error && Array.isArray(body.result?.data) && body.result.data.length) {
+      for (const cat of body.result.data) {
+        assert.equal(
+          typeof cat.product_count,
+          'number',
+          `product_count for ${cat.slug} must be a number, got ${typeof cat.product_count}`
+        );
+      }
+    }
+  });
 });
