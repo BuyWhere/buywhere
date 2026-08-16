@@ -198,6 +198,33 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     assert.ok(typeof data.meta.response_time_ms === 'number');
   });
 
+  it('search_products accepts `query` alias for q and runs a keyword search (BUY-68587 direction fix)', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 19, method: 'tools/call',
+        params: { name: 'search_products', arguments: { query: 'laptop', country: 'SG' } },
+      }),
+    });
+    const body = await res.json();
+    const data = JSON.parse(body.result.content[0].text);
+
+    // Alias must be treated as a keyword query: FTS fires, browse mode does not.
+    const ftsCalls = queryMock.mock.calls.filter(
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('plainto_tsquery')
+    );
+    assert.ok(ftsCalls.length >= 1, 'Expected plainto_tsquery FTS call for `query` alias');
+    const browseCalls = queryMock.mock.calls.filter(
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('pg_class')
+    );
+    assert.equal(browseCalls.length, 0, 'Expected no reltuples browse-mode call for `query` alias');
+
+    assert.ok(Array.isArray(data.data));
+    assert.equal(data.data.length, 2);
+    assert.equal(data.data[0].title, 'Gaming Laptop');
+  });
+
   it('search_products passes country_code filter when provided', async () => {
     await fetch(`http://localhost:${port}/mcp`, {
       method: 'POST',
