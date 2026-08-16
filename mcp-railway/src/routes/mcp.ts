@@ -471,18 +471,61 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         }
       } else {
         // Keyword (FTS) path — BUY-31962 subquery pattern
+        // BUY-70263: gate high-cardinality single-token FTS queries with a quick count check.
+        // Terms like "laptop", "skincare" match millions of rows for MY, causing the
+        // GIN index scan to timeout even with enable_seqscan=off. If FTS matches exceed
+        // a safe threshold, restrict the scan to recent rows to avoid statement_timeout.
+        const queryTokenCount = q.split(/\s+/).filter(Boolean).length;
+        let ftsTooBroad = false;
         const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
-        params.push(CANDIDATE_LIMIT, limit, offset);
+        const FTS_COUNT_THRESHOLD = 10000; // If FTS matches > 10K rows, restrict to recent data
+
+        let finalWhere = where;
+        let finalParams = [...params];
+
+        if (queryTokenCount <= 1 && !domain && !minPrice && !maxPrice) {
+          try {
+            const countClient = await acquireMcpClient();
+            try {
+              await countClient.query('SET statement_timeout = 3000');
+              await countClient.query('SET enable_seqscan = off');
+              // Count only the FTS matches (without the CANDIDATE_LIMIT)
+              const countResult = await countClient.query(
+                `SELECT COUNT(*) as cnt FROM products ${where}`,
+                params
+              );
+              const ftsCount = parseInt(countResult.rows[0]?.cnt ?? '0', 10);
+              if (ftsCount > FTS_COUNT_THRESHOLD) {
+                console.log(`[search_products] FTS count ${ftsCount} > threshold ${FTS_COUNT_THRESHOLD}, restricting to recent rows`);
+                ftsTooBroad = true;
+              }
+            } finally {
+              releaseClientSafely(countClient);
+            }
+          } catch (countErr) {
+            // Count query failed — proceed to primary and let it fail naturally if FTS is too slow
+            console.warn('[search_products] count check failed:', (countErr as Error).message);
+          }
+        }
+
+        // If FTS is too broad, restrict to recent rows (last 90 days) to keep the scan manageable
+        if (ftsTooBroad) {
+          const constrainedConditions = [...conditions, `updated_at > NOW() - INTERVAL '90 days'`];
+          finalWhere = constrainedConditions.length ? `WHERE ${constrainedConditions.join(' AND ')}` : '';
+        }
+
+        finalParams.push(CANDIDATE_LIMIT, limit, offset);
+
         const result = await searchClient.query(
           `SELECT * FROM (
              SELECT id, sku AS source, source AS domain, url, title,
                     price, currency, image_url, metadata, updated_at, region, country_code, category, category_path
-             FROM products ${where}
-             LIMIT $${params.length - 2}
+             FROM products ${finalWhere}
+             LIMIT $${finalParams.length - 2}
            ) _candidates
            ORDER BY updated_at DESC
-           LIMIT $${params.length - 1} OFFSET $${params.length}`,
-          params
+           LIMIT $${finalParams.length - 1} OFFSET $${finalParams.length}`,
+          finalParams
         );
         rows = result.rows;
         // BUY-70144: if we hit the candidate cap, use that as a lower-bound total
