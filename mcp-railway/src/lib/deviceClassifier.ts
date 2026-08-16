@@ -18,6 +18,9 @@ const ACCESSORY_NEGATIVE_TERMS = [
   'funda', 'coque', 'hülle', 'cover', '保護', 'ケース', 'カバー',
   'compatible', 'replacement', 'part', 'spare', 'repair', 'tool',
   'carcasa', 'étui', 'pouzdro', 'obal', 'etui',
+  // Vietnamese common accessory terms in Tiki/Lazada titles.
+  'ốp', 'ốp lưng', 'bao da', 'dây cáp', 'cáp sạc', 'sạc nhanh', 'giá đỡ',
+  'kính cường lực', 'miếng bảo vệ', 'vòng nam châm',
 ];
 
 function inferDevice(productName: string): DevicePattern {
@@ -47,9 +50,13 @@ function inferDevice(productName: string): DevicePattern {
 
 export function buildDeviceFilter(productName: string, country: string) {
   const device = inferDevice(productName);
+  const countryCurrency: Record<string, string> = {
+    SG: 'SGD', MY: 'MYR', TH: 'THB', VN: 'VND', US: 'USD', PH: 'PHP', ID: 'IDR',
+  };
+  const currency = countryCurrency[country] || country;
   const toUsd = {
     SGD: 0.74, MYR: 0.22, THB: 0.028, VND: 0.000041, USD: 1, PHP: 0.017, IDR: 0.000061,
-  }[country] || 1;
+  }[currency] || 1;
   const minLocal = device.minPriceUsd > 0 ? device.minPriceUsd / toUsd : 0;
   return { ...device, minLocal };
 }
