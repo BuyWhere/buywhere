@@ -204,6 +204,15 @@ const SEARCH_IMAGE_BLOCKED_HOSTS = new Set([
   'www.neweggimages.com',
   'www.harveynorman.com.sg', // Returns HTTP 404 for most images
   'harveynorman.com.sg',
+  // BUY-67241: mediadecathlon content host returns hard 410 (max-age=2592000)
+  'contents.mediadecathlon.com',
+  'www.mediadecathlon.com',
+  // BUY-67241: cdn.shopify.com wireless-headphones catalog rows return mixed
+  // 200/404/410 (JBL, Sony, Beats break in QA 2026-08-09T02:13Z); filter the
+  // whole host and render BrandedPlaceholder instead.
+  'cdn.shopify.com',
+  'shopify.com',
+  'www.shopify.com',
 ]);
 
 function hasUsableProductImage(value?: string | null) {
@@ -240,6 +249,13 @@ function hasUsableProductImage(value?: string | null) {
     if (fullUrl.includes('no_image')) return false;
     if (fullUrl.includes('missing-image')) return false;
     if (fullUrl.includes('generic')) return false;
+
+    // BUY-67241: subdomain wildcards for the always-410 / mixed-410 hosts.
+    // The Set above catches apex + www; matches here catch subdomains like
+    // burst.shopifycdn.com and static.mediadecathlon.com.
+    if (hostname.endsWith('.mediadecathlon.com')) return false;
+    if (hostname.endsWith('.shopify.com')) return false;
+    if (hostname.endsWith('.shopifycdn.com')) return false;
 
     return true;
   } catch {
