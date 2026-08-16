@@ -22,12 +22,21 @@ export const metadata: Metadata = {
     url: toSiteUrl("/stores"),
     siteName: "BuyWhere",
     type: "website",
+    images: [
+      {
+        url: "/stores/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "Browse Stores — BuyWhere",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Stores — Shop Across Top Retailers | BuyWhere",
     description:
       "Browse stores covered by BuyWhere's product catalog. Compare prices across top retailers.",
+    images: ["/stores/opengraph-image"],
   },
 };
 
