@@ -1468,19 +1468,31 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   let sourceProductId = resolvedId;
   let sourceSku: string | null = null;
   try {
+    // BUY-70113: numeric ids must bind as bigint so products_pkey is used — an
+    // `id = $1` with a text parameter (or `id::text`) is a full Seq Scan on the
+    // ~300M-row catalog and blows the statement_timeout.
     const sourceResult = await catalogDb.query<{ id: string; sku: string | null }>(
       isNumericProductId
-        ? `SELECT id::text AS id, sku FROM products WHERE id = $1 AND is_active = true LIMIT 1`
+        ? `SELECT id::text AS id, sku FROM products WHERE id = $1::bigint AND is_active = true LIMIT 1`
         : `SELECT id::text AS id, sku FROM products WHERE sku = $1 AND is_active = true ORDER BY updated_at DESC LIMIT 1`,
       [resolvedId]
     );
     if (sourceResult.rows.length) {
       sourceProductId = String(sourceResult.rows[0].id);
       sourceSku = sourceResult.rows[0].sku ? String(sourceResult.rows[0].sku) : null;
+    } else if (!isNumericProductId) {
+      // Non-numeric input that matched no product row: keep it as a raw legacy-SKU
+      // probe for the sku-keyed vector table.
+      sourceSku = resolvedId;
     }
   } catch {
     if (!isNumericProductId) sourceSku = resolvedId;
   }
+  // BUY-70113: numeric input may be a products.id OR a legacy vector SKU (Shopify
+  // variant ids like "9641789751525" are 13-digit and indistinguishable by shape).
+  // Probe both: canonical product_embeddings by product_id, then legacy
+  // search_proof.product_vectors by sku — but run the legacy table on catalogDb,
+  // which is where it lives (vectorDb has no search_proof schema).
   const lookupKeys = Array.from(new Set([sourceProductId, sourceSku, resolvedId].filter(Boolean).map(String)));
 
   let refResult;
@@ -1488,10 +1500,10 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     refResult = await vectorDb.query<{ vector_key: string; embedding: string; vector_table: string }>(
       `SELECT product_id::text AS vector_key, embedding::text, 'product_embeddings' AS vector_table
          FROM product_embeddings
-        WHERE product_id::text = ANY($1::text[])
+        WHERE product_id = ANY($1::bigint[])
         ORDER BY CASE WHEN product_id::text = $2 THEN 0 ELSE 1 END
         LIMIT 1`,
-      [lookupKeys, sourceProductId]
+      [lookupKeys.filter(k => /^\d+$/.test(k)).map(k => k), sourceProductId]
     );
   } catch {
     refResult = { rows: [] };
@@ -1499,7 +1511,10 @@ async function handleFindSimilar(args: Record<string, unknown>) {
 
   if (!refResult.rows.length) {
     try {
-      refResult = await vectorDb.query<{ vector_key: string; embedding: string; vector_table: string }>(
+      // BUY-70113: search_proof.product_vectors lives in the CATALOG DB (sakura),
+      // not the vector DB — the previous vectorDb probe always errored and the
+      // swallowed catch made the legacy fallback dead code.
+      refResult = await catalogDb.query<{ vector_key: string; embedding: string; vector_table: string }>(
         `SELECT sku AS vector_key, embedding::text, 'search_proof.product_vectors' AS vector_table
            FROM search_proof.product_vectors
           WHERE sku = ANY($1::text[])
@@ -1551,10 +1566,12 @@ async function handleFindSimilar(args: Record<string, unknown>) {
 
   const nearKeys = nearResult.rows.map(r => r.vector_key);
   const ph = nearKeys.map((_, i) => `$${i + 1}`).join(',');
+  // BUY-70113: bind ids as bigint (products_pkey) — `id::text IN (...)` is a
+  // catalog-wide Seq Scan and the 30s statement_timeout kills the whole call.
   const detailResult = await catalogDb.query(
     vectorTable === 'search_proof.product_vectors'
       ? `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url FROM products WHERE sku IN (${ph}) AND is_active = true`
-      : `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url FROM products WHERE id::text IN (${ph}) AND is_active = true`,
+      : `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url FROM products WHERE id IN (${ph}::bigint[]) AND is_active = true`,
     nearKeys
   );
 
