@@ -714,7 +714,13 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const regionArg = ((args.region as string) || '').toLowerCase();
   const dealsCountry = ((args.country_code as string) || (args.country as string) || REGION_TO_COUNTRY[regionArg] || '').toUpperCase();
   const currency = explicitCurrency || (dealsCountry ? (COUNTRY_CURRENCY[dealsCountry] || 'SGD') : 'SGD');
-  const region = regionArg;
+  // BUY-70428: an ISO-style region (sg/us/my/...) is a market selector, not a
+  // literal products.region value. The old code kept BOTH `region='my'`
+  // (lowercased!) and `country_code='MY'`, adding a redundant — and for
+  // mixed-case catalogs, wrong — predicate on top of the country filter.
+  // Normalize ISO regions to country_code and only pass a raw region
+  // predicate through for genuinely non-ISO region labels.
+  const region = REGION_TO_COUNTRY[regionArg] ? '' : regionArg;
   const country = dealsCountry;
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
@@ -892,7 +898,15 @@ async function handleListCategories(args: Record<string, unknown>) {
       // and the rejection escaped as a raw -32603 (the observed "8.4s VN"
       // failure). Budget it at 2s and treat a timeout/abort exactly like an
       // empty read so the bounded live fallbacks below still run.
-      const MAT_VIEW_TIMEOUT_MS = 2000;
+      // BUY-70428: the 2s budget is the right ceiling for a warm buffer cache
+      // (observed 3-15ms), but the concurrent-REFRESH cycle + ingestion I/O
+      // contention can evict the 36MB matview / 3.7MB index from the small
+      // Railway shared_buffers. On a cold cache the indexed read alone took
+      // 5.5s (EXPLAIN ANALYZE, all I/O) and timed out, cascading to the
+      // placeholder fallback and unavailable:true for every region. 6s still
+      // bounds the tool well under the transport ceiling while letting a
+      // cold-cache read complete instead of degrading to static stubs.
+      const MAT_VIEW_TIMEOUT_MS = 6000;
       // BUY-60096: canonical MCP must never let category fallback monopolize the shared pool.
       // If the materialized view is empty, keep fallbacks bounded so cold misses stay under 5s.
       const LIVE_TIMEOUT_MS = 1800;
@@ -1702,7 +1716,13 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     // and use that as the reference vector.
     const geminiKey = process.env.GEMINI_API_KEY ?? '';
     if (!geminiKey || !sourceProductId) {
-      throw { code: -32001, message: 'No embedding found for this product - backfill may still be running' };
+      // BUY-70428: name the actual gap in the error so callers can act on it —
+      // "backfill may still be running" is misleading when the service has no
+      // embedding key configured and the request-time fallback is impossible.
+      const reason = !geminiKey
+        ? 'No embedding found for this product and request-time embedding is unavailable (GEMINI_API_KEY not set on this service)'
+        : 'No embedding found for this product - backfill may still be running';
+      throw { code: -32001, message: reason };
     }
     const productResult = await catalogDb.query<{ title: string; description: string | null }>(
       `SELECT title, description FROM products WHERE id = $1 AND is_active = true`,
@@ -1718,8 +1738,12 @@ async function handleFindSimilar(args: Record<string, unknown>) {
     let fallbackEmbedding: string;
     try {
       fallbackEmbedding = await embedQuery(sourceText, geminiKey);
-    } catch {
-      throw { code: -32001, message: 'No embedding found for this product - backfill may still be running' };
+    } catch (e) {
+      // BUY-70428: distinguish "embedding service failed" (quota/auth/network —
+      // actionable) from "product not backfilled yet" so monitoring can tell a
+      // data gap from an integration outage.
+      const detail = (e as Error)?.message ? `: ${(e as Error).message.slice(0, 120)}` : '';
+      throw { code: -32001, message: `Request-time embedding failed for this product${detail}` };
     }
     // Fallback: embed product text and find similar via product_embeddings only
     let nearResult: { rows: Array<{ vector_key: string; distance: number }> };
