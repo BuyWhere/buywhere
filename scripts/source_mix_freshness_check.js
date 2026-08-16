@@ -17,7 +17,7 @@
  *        collapse guardrails."
  *
  *   2. Candidate freshness
- *      - Show newest merchant_candidates.discovered_at and merchants.created_at
+ *      - Show newest discovered merchants.created_at and merchants.first_indexed_at
  *        vs NOW(); both should be <48h for healthy candidate supply.
  *      - Surface counts of validated candidates / never-scraped active merchants
  *        so operators can see the supply state.
@@ -106,10 +106,10 @@ async function getHourSourceMix(client, hourStart) {
 async function getCandidateFreshness(client) {
   const result = await client.query(`
     SELECT
-      (SELECT MAX(discovered_at) FROM merchant_candidates)               AS newest_candidate,
-      (SELECT MAX(validated_at) FROM merchant_candidates)                AS newest_validated,
-      (SELECT COUNT(*) FROM merchant_candidates)                         AS total_candidates,
-      (SELECT COUNT(*) FROM merchant_candidates WHERE validated)        AS validated_candidates,
+      (SELECT MAX(created_at) FROM merchants WHERE onboarding_stage = 'discovered') AS newest_candidate,
+      (SELECT MAX(first_indexed_at) FROM merchants WHERE onboarding_stage NOT IN ('discovered', 'interested')) AS newest_validated,
+      (SELECT COUNT(*) FROM merchants WHERE onboarding_stage = 'discovered') AS total_candidates,
+      (SELECT COUNT(*) FROM merchants WHERE onboarding_stage NOT IN ('discovered', 'interested')) AS validated_candidates,
       (SELECT MAX(created_at) FROM merchants)                            AS newest_merchant,
       (SELECT COUNT(*) FROM merchants WHERE is_active)                   AS active_merchants,
       (SELECT COUNT(*) FROM merchants WHERE source='shopify' AND is_active
@@ -260,8 +260,8 @@ function buildReport(hourStart, mix, guardrail, freshness, freshState, recon, dr
     `- Guardrail verdict: **${guardrail.fails_guardrail ? 'FAIL' : 'PASS'}**\n` +
     `- Reason: ${guardrail.reason}\n\n` +
     `## 2. Candidate freshness\n` +
-    `- Newest merchant_candidate.discovered_at: ${freshness.newest_candidate} (${freshness.hours_since_newest_candidate}h ago)\n` +
-    `- Newest merchant_candidate.validated_at: ${freshness.newest_validated} (${freshness.hours_since_newest_validated}h ago)\n` +
+    `- Newest discovered merchant.created_at: ${freshness.newest_candidate} (${freshness.hours_since_newest_candidate}h ago)\n` +
+    `- Newest indexed merchant.first_indexed_at: ${freshness.newest_validated} (${freshness.hours_since_newest_validated}h ago)\n` +
     `- Total candidates: ${freshness.total_candidates} (${freshness.validated_candidates} validated)\n` +
     `- Newest merchant.created_at: ${freshness.newest_merchant} (${freshness.hours_since_newest_merchant}h ago)\n` +
     `- Active merchants: ${freshness.active_merchants}\n` +
@@ -305,7 +305,7 @@ function printHelp() {
 BUY-64501 source-mix/freshness guardrail:
   1. Source-mix collapse guardrail — fail when >=40% distinct sources have
      rows_inserted=0 AND total inserts < target.
-  2. Candidate freshness — flag when newest merchant_candidates.discovered_at
+  2. Candidate freshness — flag when newest merchants(onboarding_stage=discovered).created_at
      or merchants.created_at is >48h old.
   3. Counters vs products reconciliation (BUY-64988) — flag when |gap| >=
      100,000 OR |gap|/ing_inserted >= 10%. Writes reconciliation_status to
