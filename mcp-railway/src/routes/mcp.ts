@@ -845,7 +845,6 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const CANDIDATE_POOL = Math.max(limit * 50, 500);
   params.push(CANDIDATE_POOL, limit);
   const where = `WHERE ${conditions.join(' AND ')}`;
-  const filterParams = params.slice(0, -2);
 
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
   // index (no sort), then ORDER BY price ASC on the small candidate set. Avoids the
@@ -857,39 +856,21 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const bestPriceClient = await acquireMcpClient();
   let result: { rows: Record<string, unknown>[] };
   try {
-    // BUY-70608: high-cardinality FTS terms can burn the full timeout before returning.
-    // Probe a capped count under a short budget; if it hits the cap or times out,
-    // skip straight to the ILIKE fallback instead of spending the full request budget.
-    const COUNT_CAP = CANDIDATE_POOL + 1;
-    let ftsCount = COUNT_CAP;
-    try {
-      await bestPriceClient.query('SET statement_timeout = 2500');
-      const countResult = await bestPriceClient.query(
-        `SELECT COUNT(*) FROM (SELECT 1 FROM products ${where} LIMIT $${filterParams.length + 1}) _sub`,
-        [...filterParams, COUNT_CAP]
-      );
-      ftsCount = parseInt(countResult.rows[0]?.count ?? '0', 10);
-    } catch (err) {
-      console.warn('[mcp] find_best_price: FTS count timed out, using ILIKE fallback', (err as Error).message);
-    }
-    if (ftsCount >= COUNT_CAP) {
-      result = { rows: [] };
-    } else {
-      await bestPriceClient.query('SET statement_timeout = 7500');
-      result = await bestPriceClient.query(
-        `SELECT * FROM (
-           SELECT id, title, price, currency, source AS domain, url, image_url,
-                  country_code, updated_at, category, category_path, metadata
-           FROM products ${where}
-           LIMIT $${params.length - 1}
-         ) _candidates
-         ORDER BY price ASC, updated_at DESC
-         LIMIT $${params.length}`,
-        params
-      );
-    }
-    // BUY-70608: FTS returned nothing or count hit cap — try bounded ILIKE on
-    // a wider recent-row window (FALLBACK_CANDIDATE_POOL = 5000 vs 500 for FTS).
+    // BUY-70608: bound FTS to CANDIDATE_POOL rows — no full sort, just index scan.
+    // Only use ILIKE fallback when FTS returns zero candidates (stale search_vector).
+    await bestPriceClient.query('SET statement_timeout = 10000');
+    result = await bestPriceClient.query(
+      `SELECT * FROM (
+         SELECT id, title, price, currency, source AS domain, url, image_url,
+                country_code, updated_at, category, category_path, metadata
+         FROM products ${where}
+         LIMIT $${params.length - 1}
+       ) _candidates
+       ORDER BY price ASC, updated_at DESC
+       LIMIT $${params.length}`,
+      params
+    );
+    // BUY-69626: FTS returned nothing — try bounded ILIKE on a wider recent window.
     if (result.rows.length === 0) {
       await bestPriceClient.query('SET statement_timeout = 4500');
       const titlePattern = `%${productName}%`;
