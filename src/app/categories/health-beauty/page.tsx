@@ -4,14 +4,14 @@ import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
 import { toSiteUrl } from '@/lib/site-url';
 
 export const metadata = buildSgCategoryMetadata(
-  'Electronics Singapore | Compare Best Prices on Gadgets & Tech',
-  'Find the best electronics in Singapore. Compare cheapest prices on smartphones, laptops, TVs, and more from top retailers. Updated daily with the latest deals.',
-  'electronics'
+  'Health & Beauty Singapore | Compare Best Prices on Skincare, Vitamins & Wellness',
+  'Find the best health and beauty products in Singapore. Compare prices on skincare, makeup, vitamins, supplements, wellness, and personal care products.',
+  'health-beauty'
 );
 
-const CATEGORY_URL = toSiteUrl('/categories/electronics');
+const CATEGORY_URL = toSiteUrl('/categories/health-beauty');
 
-export default function ElectronicsCategoryPage() {
+export default function HealthBeautyCategoryPage() {
   const schemaMarkup = {
     "@context": "https://schema.org",
     "@graph": [
@@ -34,7 +34,7 @@ export default function ElectronicsCategoryPage() {
           {
             "@type": "ListItem",
             position: 3,
-            name: "Electronics",
+            name: "Health & Beauty",
             item: CATEGORY_URL
           }
         ]
@@ -42,8 +42,8 @@ export default function ElectronicsCategoryPage() {
       {
         "@type": "CollectionPage",
         "@id": `${CATEGORY_URL}#collection`,
-        name: "Electronics Singapore | Compare Best Prices on Gadgets & Tech",
-        description: "Find the best electronics in Singapore. Compare cheapest prices on smartphones, laptops, TVs, and more from top retailers.",
+        name: "Health & Beauty Singapore | Compare Best Prices on Skincare, Vitamins & Wellness",
+        description: "Find the best health and beauty products in Singapore. Compare prices on skincare, makeup, vitamins, supplements, wellness, and personal care products.",
         url: CATEGORY_URL,
         mainEntityOfPage: CATEGORY_URL,
         publisher: {
@@ -54,21 +54,21 @@ export default function ElectronicsCategoryPage() {
         },
         about: {
           "@type": "Thing",
-          name: "Electronics",
-          description: "Smartphones, laptops, TVs, gaming, cameras, and more"
+          name: "Health & Beauty",
+          description: "Skincare, makeup, vitamins, supplements, wellness products, and personal care essentials"
         },
         mainEntity: {
           "@type": "ItemList",
-          name: "Electronics Categories",
+          name: "Health & Beauty Categories",
           itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Mobile Phones & Tablets" },
-            { "@type": "ListItem", position: 2, name: "Laptops & Computers" },
-            { "@type": "ListItem", position: 3, name: "TVs & Home Entertainment" },
-            { "@type": "ListItem", position: 4, name: "Gaming" },
-            { "@type": "ListItem", position: 5, name: "Cameras & Photography" },
-            { "@type": "ListItem", position: 6, name: "Smart Home Devices" },
-            { "@type": "ListItem", position: 7, name: "Audio & Headphones" },
-            { "@type": "ListItem", position: 8, name: "Wearables & Smartwatches" }
+            { "@type": "ListItem", position: 1, name: "Skincare & Face Care" },
+            { "@type": "ListItem", position: 2, name: "Vitamins & Supplements" },
+            { "@type": "ListItem", position: 3, name: "Hair Care" },
+            { "@type": "ListItem", position: 4, name: "Makeup & Cosmetics" },
+            { "@type": "ListItem", position: 5, name: "Personal Care" },
+            { "@type": "ListItem", position: 6, name: "Wellness & Fitness" },
+            { "@type": "ListItem", position: 7, name: "Men Grooming" },
+            { "@type": "ListItem", position: 8, name: "Beauty Devices" }
           ]
         }
       }
@@ -85,17 +85,17 @@ export default function ElectronicsCategoryPage() {
         {/* Header */}
         <div className="mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Electronics Singapore | Compare Best Prices on Gadgets & Tech
+            Health & Beauty Singapore | Compare Best Prices on Skincare, Vitamins & Wellness
           </h1>
           <p className="text-lg text-gray-600 mb-6">
-            Looking for the best electronics in Singapore? BuyWhere aggregates product listings from hundreds of retailers so you can compare prices, specs, and availability all in one place. Whether you are hunting for the latest smartphone, upgrading your home entertainment system, or building a gaming PC, we help you find exactly what you need at the lowest prices.
+            Looking for health and beauty products in Singapore? BuyWhere brings together skincare, makeup, supplements, hair care, and personal care listings so you can compare prices and find trusted retailers faster.
           </p>
           <HeroSearch />
         </div>
 
         {/* Why Compare Section */}
         <section className="mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 mb-6">Why Compare Electronics Prices on BuyWhere?</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-6">Why Compare Health & Beauty Prices on BuyWhere?</h2>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
               <div className="flex items-center mb-4">
@@ -105,7 +105,7 @@ export default function ElectronicsCategoryPage() {
                 <h3 className="font-semibold text-gray-900 ml-4">Real-time Price Comparison</h3>
               </div>
               <p className="text-gray-600">
-                Compare prices from Courts, Harvey Norman, Best Denki, Challenger, and online-only stores across Singapore
+                Compare prices from pharmacies, beauty specialty stores, department stores, and online-only stores across Singapore
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
@@ -116,7 +116,7 @@ export default function ElectronicsCategoryPage() {
                 <h3 className="font-semibold text-gray-900 ml-4">Wide Product Range</h3>
               </div>
               <p className="text-gray-600">
-                From flagship smartphones to budget-friendly tablets, we index products across all price segments
+                From daily essentials like cleansers and shampoo to premium serums and supplements, we index products across all price segments
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
@@ -157,57 +157,57 @@ export default function ElectronicsCategoryPage() {
 
         {/* Featured Categories */}
         <section className="mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 mb-6">Featured Electronics Categories</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-6">Featured Health & Beauty Categories</h2>
           <p className="text-lg text-gray-600 mb-8">
-            Browse our most popular electronics categories in Singapore:
+            Browse our most popular health and beauty categories in Singapore:
           </p>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-              <h3 className="font-semibold text-gray-900 mb-2">Mobile Phones &amp; Tablets</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Skincare & Face Care</h3>
               <p className="text-gray-600">
-                Apple iPhone, Samsung Galaxy, Google Pixel, Xiaomi, and more
+                Cleansers, moisturizers, serums, sunscreen, and masks
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-              <h3 className="font-semibold text-gray-900 mb-2">Laptops &amp; Computers</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Vitamins & Supplements</h3>
               <p className="text-gray-600">
-                MacBooks, gaming laptops, desktops, and PC components
+                Multivitamins, fish oil, collagen, and herbal supplements
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-              <h3 className="font-semibold text-gray-900 mb-2">TVs &amp; Home Entertainment</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Hair Care</h3>
               <p className="text-gray-600">
-                Smart TVs, soundbars, streaming devices, and home theatre systems
+                Shampoo, conditioner, hair treatments, and styling products
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-              <h3 className="font-semibold text-gray-900 mb-2">Gaming</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Makeup & Cosmetics</h3>
               <p className="text-gray-600">
-                PlayStation 5, Xbox Series X, Nintendo Switch, gaming headsets, and accessories
+                Foundation, lipstick, eyeshadow, mascara, and beauty tools
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-              <h3 className="font-semibold text-gray-900 mb-2">Cameras &amp; Photography</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Personal Care</h3>
               <p className="text-gray-600">
-                DSLRs, mirrorless cameras, action cameras, and lenses
+                Soap, body wash, deodorant, dental care, and intimate care
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-              <h3 className="font-semibold text-gray-900 mb-2">Smart Home Devices</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Wellness & Fitness</h3>
               <p className="text-gray-600">
-                Amazon Echo, Google Nest, smart bulbs, security cameras, and robot vacuums
+                Protein powder, sports nutrition, and health monitors
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-              <h3 className="font-semibold text-gray-900 mb-2">Audio</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Men Grooming</h3>
               <p className="text-gray-600">
-                Wireless earbuds, headphones, portable speakers, and hi-fi systems
+                Shaving, beard care, fragrance, and grooming tools
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-              <h3 className="font-semibold text-gray-900 mb-2">Wearables</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Beauty Devices</h3>
               <p className="text-gray-600">
-                Smartwatches, fitness trackers, and health monitoring devices
+                Facial cleansing devices, hair dryers, straighteners, and trimmers
               </p>
             </div>
           </div>
@@ -215,15 +215,15 @@ export default function ElectronicsCategoryPage() {
 
         {/* Best Deals Section */}
         <section className="mb-16 bg-gray-50">
-          <h2 className="text-3xl font-bold text-gray-900 mb-6">Best Electronics Deals in Singapore</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-6">Best Health & Beauty Deals in Singapore</h2>
           <p className="text-lg text-gray-600 mb-8">
-            Singapore&apos;s electronics market is competitive, with prices varying significantly between retailers. BuyWhere monitors prices from over 50 electronics retailers in Singapore, including major chains like Courts, Harvey Norman, and Best Denki, as well as online-first brands. Our users regularly save hundreds of dollars by comparing before they buy.
+            Health and beauty products are often promoted across pharmacies, specialist stores, department stores, and marketplaces. BuyWhere helps you spot price differences and current deals in one place.
           </p>
           <p className="text-lg text-gray-600 mb-6">
-            Whether you are a tech enthusiast seeking the latest flagship device or a budget-conscious shopper looking for the best value, BuyWhere helps you make informed purchasing decisions.
+            Whether you are restocking everyday personal care or investing in a premium skincare routine, BuyWhere helps you make informed purchasing decisions.
           </p>
-          <Link href="/search?q=electronics&region=sg" className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors">
-            Browse Electronics Deals →
+          <Link href="/search?q=health-beauty&region=sg" className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors">
+            Browse Health & Beauty Deals →
           </Link>
         </section>
 
@@ -232,37 +232,37 @@ export default function ElectronicsCategoryPage() {
           <h2 className="text-3xl font-bold text-gray-900 mb-6">Frequently Asked Questions</h2>
           <div className="space-y-6">
             <div className="border-l-4 border-indigo-500 pl-4">
-              <h3 className="font-semibold text-gray-900 mb-2">Where can I find the cheapest electronics in Singapore?</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Where can I find the best health & beauty deals in Singapore?</h3>
               <p className="text-gray-600">
-                BuyWhere aggregates prices from all major electronics retailers in Singapore. Our comparison tool shows you the lowest price available across Courts, Harvey Norman, Best Denki, Challenger, and online stores like Shopee and Lazada.
+                BuyWhere aggregates prices from major retailers in Singapore. Our comparison tool shows prices across department stores, specialty shops, and online platforms so you can find better value.
               </p>
             </div>
             <div className="border-l-4 border-indigo-500 pl-4">
-              <h3 className="font-semibold text-gray-900 mb-2">Are electronics prices in Singapore inclusive of GST?</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Are health and beauty prices in Singapore inclusive of GST?</h3>
               <p className="text-gray-600">
                 All prices on BuyWhere show both ex-GST and inclusive prices. Singapore&apos;s 9% GST is applied at checkout, and we help you see the true cost before purchase.
               </p>
             </div>
             <div className="border-l-4 border-indigo-500 pl-4">
-              <h3 className="font-semibold text-gray-900 mb-2">Which electronics retailer has the best prices in Singapore?</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Which retailer has the best health and beauty prices in Singapore?</h3>
               <p className="text-gray-600">
-                Prices vary by product and retailer. Our data shows that online-only retailers like Challenger and standalone shops often beat the big box stores on specific items, while bundle deals at Courts and Harvey Norman can offer better value for home entertainment setups.
+                Prices vary by product and retailer. Our data shows that pharmacies and online marketplaces often beat specialty stores on popular brands, while member promotions at beauty chains can offer better value on full routines.
               </p>
             </div>
             <div className="border-l-4 border-indigo-500 pl-4">
-              <h3 className="font-semibold text-gray-900 mb-2">Can I compare prices for second-hand or refurbished electronics?</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Can I compare prices for travel-size or value packs?</h3>
               <p className="text-gray-600">
                 Currently, BuyWhere focuses on new products from authorized retailers. We are working on adding certified refurbished listings from approved sellers.
               </p>
             </div>
             <div className="border-l-4 border-indigo-500 pl-4">
-              <h3 className="font-semibold text-gray-900 mb-2">How often are electronics prices updated on BuyWhere?</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">How often are health and beauty prices updated on BuyWhere?</h3>
               <p className="text-gray-600">
                 Update cadence can vary by source and product. Check the current product detail and docs surfaces for the latest publicly documented availability and freshness guidance before making time-sensitive purchasing decisions.
               </p>
             </div>
             <div className="border-l-4 border-indigo-500 pl-4">
-              <h3 className="font-semibold text-gray-900 mb-2">Do you ship electronics to all of Singapore?</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Do health and beauty retailers deliver to all of Singapore?</h3>
               <p className="text-gray-600">
                 BuyWhere shows product availability by retailer. Delivery options vary by retailer — most offer island-wide delivery within 1-3 business days.
               </p>
@@ -273,10 +273,10 @@ export default function ElectronicsCategoryPage() {
         {/* CTA */}
         <section className="text-center py-12">
           <p className="text-lg text-gray-600 mb-6">
-            Start comparing electronics prices in Singapore today and find the best deals across all major retailers.
+            Start comparing health & beauty prices in Singapore today and find the best deals across major retailers.
           </p>
-          <Link href="/search?q=electronics&region=sg" className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
-            Compare Electronics Prices Now →
+          <Link href="/search?q=health-beauty&region=sg" className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
+            Compare Health & Beauty Prices Now →
           </Link>
         </section>
       </div>
