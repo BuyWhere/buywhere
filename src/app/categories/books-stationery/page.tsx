@@ -4,14 +4,14 @@ import { buildSgCategoryMetadata } from '@/lib/seo-category-metadata';
 import { toSiteUrl } from '@/lib/site-url';
 
 export const metadata = buildSgCategoryMetadata(
-  'Electronics Singapore | Compare Best Prices on Gadgets & Tech',
-  'Find the best electronics in Singapore. Compare cheapest prices on smartphones, laptops, TVs, and more from top retailers. Updated daily with the latest deals.',
-  'electronics'
+  'Books & Stationery Singapore | Compare Prices on Books, Notebooks & Office Supplies',
+  'Compare book and stationery prices in Singapore. Find deals on novels, textbooks, notebooks, pens, office supplies, and school essentials from top retailers.',
+  'books-stationery'
 );
 
-const CATEGORY_URL = toSiteUrl('/categories/electronics');
+const CATEGORY_URL = toSiteUrl('/categories/books-stationery');
 
-export default function ElectronicsCategoryPage() {
+export default function BooksStationeryCategoryPage() {
   const schemaMarkup = {
     "@context": "https://schema.org",
     "@graph": [
@@ -34,7 +34,7 @@ export default function ElectronicsCategoryPage() {
           {
             "@type": "ListItem",
             position: 3,
-            name: "Electronics",
+            name: "Books & Stationery",
             item: CATEGORY_URL
           }
         ]
@@ -42,8 +42,8 @@ export default function ElectronicsCategoryPage() {
       {
         "@type": "CollectionPage",
         "@id": `${CATEGORY_URL}#collection`,
-        name: "Electronics Singapore | Compare Best Prices on Gadgets & Tech",
-        description: "Find the best electronics in Singapore. Compare cheapest prices on smartphones, laptops, TVs, and more from top retailers.",
+        name: "Books & Stationery Singapore | Compare Prices on Books, Notebooks & Office Supplies",
+        description: "Compare book and stationery prices in Singapore. Find deals on novels, textbooks, notebooks, pens, office supplies, and school essentials from top retailers.",
         url: CATEGORY_URL,
         mainEntityOfPage: CATEGORY_URL,
         publisher: {
@@ -54,21 +54,21 @@ export default function ElectronicsCategoryPage() {
         },
         about: {
           "@type": "Thing",
-          name: "Electronics",
-          description: "Smartphones, laptops, TVs, gaming, cameras, and more"
+          name: "Books & Stationery",
+          description: "Novels, textbooks, children books, e-books, notebooks, pens, office supplies, and school essentials"
         },
         mainEntity: {
           "@type": "ItemList",
-          name: "Electronics Categories",
+          name: "Books & Stationery Categories",
           itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Mobile Phones & Tablets" },
-            { "@type": "ListItem", position: 2, name: "Laptops & Computers" },
-            { "@type": "ListItem", position: 3, name: "TVs & Home Entertainment" },
-            { "@type": "ListItem", position: 4, name: "Gaming" },
-            { "@type": "ListItem", position: 5, name: "Cameras & Photography" },
-            { "@type": "ListItem", position: 6, name: "Smart Home Devices" },
-            { "@type": "ListItem", position: 7, name: "Audio & Headphones" },
-            { "@type": "ListItem", position: 8, name: "Wearables & Smartwatches" }
+            { "@type": "ListItem", position: 1, name: "Fiction & Novels" },
+            { "@type": "ListItem", position: 2, name: "Non-Fiction & Self-Help" },
+            { "@type": "ListItem", position: 3, name: "Children Books" },
+            { "@type": "ListItem", position: 4, name: "Academic Textbooks" },
+            { "@type": "ListItem", position: 5, name: "Notebooks & Binders" },
+            { "@type": "ListItem", position: 6, name: "Pens & Writing" },
+            { "@type": "ListItem", position: 7, name: "Office Supplies" },
+            { "@type": "ListItem", position: 8, name: "Art & Craft" }
           ]
         }
       }
@@ -85,17 +85,17 @@ export default function ElectronicsCategoryPage() {
         {/* Header */}
         <div className="mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Electronics Singapore | Compare Best Prices on Gadgets & Tech
+            Books & Stationery Singapore | Compare Prices on Books, Notebooks & Office Supplies
           </h1>
           <p className="text-lg text-gray-600 mb-6">
-            Looking for the best electronics in Singapore? BuyWhere aggregates product listings from hundreds of retailers so you can compare prices, specs, and availability all in one place. Whether you are hunting for the latest smartphone, upgrading your home entertainment system, or building a gaming PC, we help you find exactly what you need at the lowest prices.
+            Looking for books and stationery in Singapore? BuyWhere compares prices across bookstores, office supply shops, school suppliers, and online marketplaces so you can find better deals on reading materials and everyday writing essentials.
           </p>
           <HeroSearch />
         </div>
 
         {/* Why Compare Section */}
         <section className="mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 mb-6">Why Compare Electronics Prices on BuyWhere?</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-6">Why Compare Books & Stationery Prices on BuyWhere?</h2>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
               <div className="flex items-center mb-4">
@@ -105,7 +105,7 @@ export default function ElectronicsCategoryPage() {
                 <h3 className="font-semibold text-gray-900 ml-4">Real-time Price Comparison</h3>
               </div>
               <p className="text-gray-600">
-                Compare prices from Courts, Harvey Norman, Best Denki, Challenger, and online-only stores across Singapore
+                Compare prices from bookstores, office supply shops, school suppliers, and online-only stores across Singapore
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
@@ -116,7 +116,7 @@ export default function ElectronicsCategoryPage() {
                 <h3 className="font-semibold text-gray-900 ml-4">Wide Product Range</h3>
               </div>
               <p className="text-gray-600">
-                From flagship smartphones to budget-friendly tablets, we index products across all price segments
+                From textbooks and bestsellers to everyday stationery and art supplies, we index products across all price segments
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
@@ -157,57 +157,57 @@ export default function ElectronicsCategoryPage() {
 
         {/* Featured Categories */}
         <section className="mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 mb-6">Featured Electronics Categories</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-6">Featured Books & Stationery Categories</h2>
           <p className="text-lg text-gray-600 mb-8">
-            Browse our most popular electronics categories in Singapore:
+            Browse our most popular books and stationery categories in Singapore:
           </p>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-              <h3 className="font-semibold text-gray-900 mb-2">Mobile Phones &amp; Tablets</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Fiction & Novels</h3>
               <p className="text-gray-600">
-                Apple iPhone, Samsung Galaxy, Google Pixel, Xiaomi, and more
+                Bestsellers, literary fiction, mystery, romance, sci-fi, and fantasy
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-              <h3 className="font-semibold text-gray-900 mb-2">Laptops &amp; Computers</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Non-Fiction & Self-Help</h3>
               <p className="text-gray-600">
-                MacBooks, gaming laptops, desktops, and PC components
+                Business, biography, health, personal development, and more
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-              <h3 className="font-semibold text-gray-900 mb-2">TVs &amp; Home Entertainment</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Children Books</h3>
               <p className="text-gray-600">
-                Smart TVs, soundbars, streaming devices, and home theatre systems
+                Picture books, chapter books, educational books, and activity books
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-              <h3 className="font-semibold text-gray-900 mb-2">Gaming</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Academic Textbooks</h3>
               <p className="text-gray-600">
-                PlayStation 5, Xbox Series X, Nintendo Switch, gaming headsets, and accessories
+                University, polytechnic, secondary, and primary school textbooks
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-              <h3 className="font-semibold text-gray-900 mb-2">Cameras &amp; Photography</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Notebooks & Binders</h3>
               <p className="text-gray-600">
-                DSLRs, mirrorless cameras, action cameras, and lenses
+                Exercise books, refill paper, ring binders, and organizers
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-              <h3 className="font-semibold text-gray-900 mb-2">Smart Home Devices</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Pens & Writing</h3>
               <p className="text-gray-600">
-                Amazon Echo, Google Nest, smart bulbs, security cameras, and robot vacuums
+                Ballpoint pens, gel pens, highlighters, pencils, and markers
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-              <h3 className="font-semibold text-gray-900 mb-2">Audio</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Office Supplies</h3>
               <p className="text-gray-600">
-                Wireless earbuds, headphones, portable speakers, and hi-fi systems
+                Paper, folders, labels, staplers, calculators, and desk tools
               </p>
             </div>
             <div className="p-6 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
-              <h3 className="font-semibold text-gray-900 mb-2">Wearables</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Art & Craft</h3>
               <p className="text-gray-600">
-                Smartwatches, fitness trackers, and health monitoring devices
+                Sketchbooks, paints, brushes, craft kits, and supplies
               </p>
             </div>
           </div>
@@ -215,15 +215,15 @@ export default function ElectronicsCategoryPage() {
 
         {/* Best Deals Section */}
         <section className="mb-16 bg-gray-50">
-          <h2 className="text-3xl font-bold text-gray-900 mb-6">Best Electronics Deals in Singapore</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-6">Best Books & Stationery Deals in Singapore</h2>
           <p className="text-lg text-gray-600 mb-8">
-            Singapore&apos;s electronics market is competitive, with prices varying significantly between retailers. BuyWhere monitors prices from over 50 electronics retailers in Singapore, including major chains like Courts, Harvey Norman, and Best Denki, as well as online-first brands. Our users regularly save hundreds of dollars by comparing before they buy.
+            From school-term stock-ups to office replenishment and new releases, books and stationery prices shift across retailers. BuyWhere helps shoppers compare before buying.
           </p>
           <p className="text-lg text-gray-600 mb-6">
-            Whether you are a tech enthusiast seeking the latest flagship device or a budget-conscious shopper looking for the best value, BuyWhere helps you make informed purchasing decisions.
+            Whether you are a student getting ready for the school term or a professional kitting out a workspace, BuyWhere helps you make informed purchasing decisions.
           </p>
-          <Link href="/search?q=electronics&region=sg" className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors">
-            Browse Electronics Deals →
+          <Link href="/search?q=books-stationery&region=sg" className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors">
+            Browse Books & Stationery Deals →
           </Link>
         </section>
 
@@ -232,37 +232,37 @@ export default function ElectronicsCategoryPage() {
           <h2 className="text-3xl font-bold text-gray-900 mb-6">Frequently Asked Questions</h2>
           <div className="space-y-6">
             <div className="border-l-4 border-indigo-500 pl-4">
-              <h3 className="font-semibold text-gray-900 mb-2">Where can I find the cheapest electronics in Singapore?</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Where can I find the best books & stationery deals in Singapore?</h3>
               <p className="text-gray-600">
-                BuyWhere aggregates prices from all major electronics retailers in Singapore. Our comparison tool shows you the lowest price available across Courts, Harvey Norman, Best Denki, Challenger, and online stores like Shopee and Lazada.
+                BuyWhere aggregates prices from major retailers in Singapore. Our comparison tool shows prices across department stores, specialty shops, and online platforms so you can find better value.
               </p>
             </div>
             <div className="border-l-4 border-indigo-500 pl-4">
-              <h3 className="font-semibold text-gray-900 mb-2">Are electronics prices in Singapore inclusive of GST?</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Are book and stationery prices in Singapore inclusive of GST?</h3>
               <p className="text-gray-600">
                 All prices on BuyWhere show both ex-GST and inclusive prices. Singapore&apos;s 9% GST is applied at checkout, and we help you see the true cost before purchase.
               </p>
             </div>
             <div className="border-l-4 border-indigo-500 pl-4">
-              <h3 className="font-semibold text-gray-900 mb-2">Which electronics retailer has the best prices in Singapore?</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Which retailer has the best book and stationery prices in Singapore?</h3>
               <p className="text-gray-600">
-                Prices vary by product and retailer. Our data shows that online-only retailers like Challenger and standalone shops often beat the big box stores on specific items, while bundle deals at Courts and Harvey Norman can offer better value for home entertainment setups.
+                Prices vary by product and retailer. Our data shows that online bookstores often beat physical chains on new releases, while school suppliers and stationery shops offer better value on bulk stationery.
               </p>
             </div>
             <div className="border-l-4 border-indigo-500 pl-4">
-              <h3 className="font-semibold text-gray-900 mb-2">Can I compare prices for second-hand or refurbished electronics?</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Can I compare prices for second-hand books?</h3>
               <p className="text-gray-600">
                 Currently, BuyWhere focuses on new products from authorized retailers. We are working on adding certified refurbished listings from approved sellers.
               </p>
             </div>
             <div className="border-l-4 border-indigo-500 pl-4">
-              <h3 className="font-semibold text-gray-900 mb-2">How often are electronics prices updated on BuyWhere?</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">How often are book and stationery prices updated on BuyWhere?</h3>
               <p className="text-gray-600">
                 Update cadence can vary by source and product. Check the current product detail and docs surfaces for the latest publicly documented availability and freshness guidance before making time-sensitive purchasing decisions.
               </p>
             </div>
             <div className="border-l-4 border-indigo-500 pl-4">
-              <h3 className="font-semibold text-gray-900 mb-2">Do you ship electronics to all of Singapore?</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Do book and stationery retailers deliver to all of Singapore?</h3>
               <p className="text-gray-600">
                 BuyWhere shows product availability by retailer. Delivery options vary by retailer — most offer island-wide delivery within 1-3 business days.
               </p>
@@ -273,10 +273,10 @@ export default function ElectronicsCategoryPage() {
         {/* CTA */}
         <section className="text-center py-12">
           <p className="text-lg text-gray-600 mb-6">
-            Start comparing electronics prices in Singapore today and find the best deals across all major retailers.
+            Start comparing books & stationery prices in Singapore today and find the best deals across major retailers.
           </p>
-          <Link href="/search?q=electronics&region=sg" className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
-            Compare Electronics Prices Now →
+          <Link href="/search?q=books-stationery&region=sg" className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
+            Compare Books & Stationery Prices Now →
           </Link>
         </section>
       </div>
