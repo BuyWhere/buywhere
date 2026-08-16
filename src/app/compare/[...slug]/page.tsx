@@ -60,12 +60,19 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
       title: doc.title, description: doc.description,
       alternates: { canonical: toSiteUrl(`/compare/${doc.slug}`) },
       openGraph: { title: doc.title, description: doc.description, type: "website", url: toSiteUrl(`/compare/${doc.slug}`), siteName: "BuyWhere", images: [{ url: "/og-image.png", width: 1200, height: 630, alt: doc.title }] },
+      twitter: { card: "summary_large_image", title: doc.title, description: doc.description, images: ["/og-image.png"] },
       robots: { index: true, follow: true },
     };
   }
 
   const pair = params.slug.length === 1 ? await findCompareCategoryPair(params.slug[0]) : null;
-  if (!pair) return {};
+  if (!pair) {
+    return {
+      title: "Compare page not found | BuyWhere",
+      description: "This BuyWhere comparison page was not found.",
+      robots: { index: false, follow: false },
+    };
+  }
   const slug = compareCategoryPairSlug(pair);
   const title = `${pair.left.name} vs ${pair.right.name} Price Comparison | BuyWhere`;
   const description = `Compare ${pair.left.name.toLowerCase()} and ${pair.right.name.toLowerCase()} prices, product coverage, and shopping categories on BuyWhere.`;
@@ -74,6 +81,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     description,
     alternates: { canonical: toSiteUrl(`/compare/${slug}`) },
     openGraph: { title, description, type: "website", url: toSiteUrl(`/compare/${slug}`), siteName: "BuyWhere", images: [{ url: "/og-image.png", width: 1200, height: 630, alt: title }] },
+    twitter: { card: "summary_large_image", title, description, images: ["/og-image.png"] },
     robots: { index: true, follow: true },
   };
 }
