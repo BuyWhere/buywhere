@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getCommerceBrand } from '@/lib/commerce-routes';
+import { commerceBrands, getCommerceBrand } from '@/lib/commerce-routes';
 import { toSiteUrl } from '@/lib/site-url';
 
 interface PageProps {
@@ -223,6 +223,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
+export const dynamicParams = false;
+
 export async function generateStaticParams() {
-  return [];
+  return commerceBrands.map((brand) => ({ slug: brand.slug }));
 }

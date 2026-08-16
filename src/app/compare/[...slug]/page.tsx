@@ -9,7 +9,7 @@ import matter from "gray-matter";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
-import { compareCategoryPairSlug, findCompareCategoryPair, type CompareCategoryPair } from "@/lib/sitemaps";
+import { compareCategoryPairSlug, findCompareCategoryPair, getCompareCategoryPairs, type CompareCategoryPair } from "@/lib/sitemaps";
 
 const contentDir = path.join(process.cwd(), "content", "compare");
 
@@ -49,8 +49,14 @@ function getBySlug(slugParts: string[]) {
   return getAll().find((d) => d && d.slug === slug) || null;
 }
 
+export const dynamicParams = false;
+
 export async function generateStaticParams() {
-  return getAll().map((d) => ({ slug: d!.slug.split("/") })).filter(Boolean);
+  const docs = getAll().map((d) => ({ slug: d!.slug.split("/") })).filter(Boolean);
+  const pairs = (await getCompareCategoryPairs()).map((pair) => ({
+    slug: [compareCategoryPairSlug(pair)],
+  }));
+  return [...docs, ...pairs];
 }
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
