@@ -29,6 +29,9 @@ export async function GET(): Promise<Response> {
     // BUY-70024: dedicated docs sitemap for explicit crawler discovery of
     // developer/API docs pages (already included in sitemap-pages.xml too).
     { url: `${SITEMAP_BASE_URL}/sitemap-docs.xml`, lastModified: now },
+    // BUY-70466: dedicated blog sitemap for explicit crawler discovery of
+    // blog article pages (already included in sitemap-pages.xml too).
+    { url: `${SITEMAP_BASE_URL}/sitemap-blog.xml`, lastModified: now },
   ];
 
   const response = buildSitemapResponse(renderSitemapIndex(sitemapEntries));
