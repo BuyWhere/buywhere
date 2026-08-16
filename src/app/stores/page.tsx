@@ -15,6 +15,20 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  openGraph: {
+    title: "Stores — Shop Across Top Retailers | BuyWhere",
+    description:
+      "Browse stores covered by BuyWhere's product catalog. Compare prices across Shopee, Lazada, Amazon, Walmart, and more.",
+    url: toSiteUrl("/stores"),
+    siteName: "BuyWhere",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Stores — Shop Across Top Retailers | BuyWhere",
+    description:
+      "Browse stores covered by BuyWhere's product catalog. Compare prices across top retailers.",
+  },
 };
 
 interface StoreEntry {
@@ -47,10 +61,24 @@ export default function StoresPage() {
     return acc;
   }, {});
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: 'Browse Stores',
+    description: 'Browse stores covered by BuyWhere\'s product catalog. Compare prices across Shopee, Lazada, Amazon, Walmart, and more.',
+    url: toSiteUrl('/stores'),
+    numberOfItems: stores.length,
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       <Nav />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
+      <main id="main-content">
       <section className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <h1 className="text-4xl font-bold mb-4">Browse Stores</h1>
@@ -101,6 +129,7 @@ export default function StoresPage() {
         </div>
       </section>
 
+      </main>
       <Footer />
     </div>
   );

@@ -28,6 +28,20 @@ export const metadata: Metadata = {
   description:
     'Browse popular brands and find the best prices across retailers. Compare deals on Apple, Samsung, Sony, Nike, and more.',
   alternates: { canonical: '/brands' },
+  openGraph: {
+    title: 'Shop by Brand — BuyWhere AI',
+    description:
+      'Browse popular brands and find the best prices across retailers. Compare deals on Apple, Samsung, Sony, Nike, and more.',
+    url: '/brands',
+    siteName: 'BuyWhere',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Shop by Brand — BuyWhere AI',
+    description:
+      'Browse popular brands and find the best prices across retailers.',
+  },
 };
 
 export default async function BrandsPage() {
@@ -48,7 +62,7 @@ export default async function BrandsPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <main className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      <main id="main-content" className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <div className="container mx-auto px-4 py-16">
           <header className="mb-12">
             <h1 className="text-4xl font-bold text-blue-800 mb-4">
