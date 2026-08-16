@@ -360,6 +360,38 @@ const nextConfig = {
         destination: '/docs',
         permanent: true,
       },
+      // BUY-70358: affiliate-intent route aliases should redirect to /earn or
+      // /partners so users and crawlers don't hit generic 404 shells.
+      {
+        source: '/affiliate',
+        destination: '/earn',
+        permanent: true,
+      },
+      {
+        source: '/affiliate-program',
+        destination: '/earn',
+        permanent: true,
+      },
+      {
+        source: '/referrals',
+        destination: '/earn',
+        permanent: true,
+      },
+      {
+        source: '/creators',
+        destination: '/earn',
+        permanent: true,
+      },
+      {
+        source: '/influencers',
+        destination: '/earn',
+        permanent: true,
+      },
+      {
+        source: '/partner',
+        destination: '/partners',
+        permanent: true,
+      },
       {
         source: '/:path*',
         has: [
