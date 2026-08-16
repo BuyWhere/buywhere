@@ -176,13 +176,6 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 >
                   {shopperCta.label}
                 </Link>
-                <Link
-                  href={developerCta.href}
-                  prefetch={false}
-                  className="inline-flex min-h-[44px] items-center rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
-                >
-                  {developerCta.label}
-                </Link>
               </div>
             </div>
           </div>
@@ -195,7 +188,11 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-800">Live catalog snapshot</p>
                 <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{config.productSectionTitle}</h2>
               </div>
-              <Link href={shopperCta.href} prefetch={false} className="text-sm font-semibold text-amber-800 hover:text-amber-900">
+              <Link
+                href={shopperCta.href}
+                prefetch={false}
+                className="text-sm font-semibold text-amber-800 hover:text-amber-900"
+              >
                 Open full search
               </Link>
             </div>
@@ -337,18 +334,6 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 </ul>
               </div>
 
-              <div className="mt-6 rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Developer angle</p>
-                <h3 className="mt-3 text-2xl font-semibold text-slate-900">{developerCta.title}</h3>
-                <p className="mt-3 text-sm leading-6 text-slate-600">{developerCta.body}</p>
-                <Link
-                  href={developerCta.href}
-                  prefetch={false}
-                  className="mt-6 inline-flex min-h-[44px] items-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
-                >
-                  {developerCta.label}
-                </Link>
-              </div>
             </div>
           </div>
         </section>
@@ -366,6 +351,23 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                   <p className="mt-3 text-sm leading-6 text-slate-600">{faq.answer}</p>
                 </article>
               ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="pb-16">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Developer angle</p>
+              <h3 className="mt-3 text-2xl font-semibold text-slate-900">{developerCta.title}</h3>
+              <p className="mt-3 text-sm leading-6 text-slate-600">{developerCta.body}</p>
+              <Link
+                href={developerCta.href}
+                prefetch={false}
+                className="mt-6 inline-flex min-h-[44px] items-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+              >
+                {developerCta.label}
+              </Link>
             </div>
           </div>
         </section>
