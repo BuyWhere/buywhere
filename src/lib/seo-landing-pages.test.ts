@@ -1097,3 +1097,39 @@ test("BUY-70202: unreachable live products replaced with branded SVG (not droppe
     );
   }
 });
+
+// BUY-70340: Newegg/Akamai image URLs are referer-gated, not permanently dead.
+// A naive SSR HEAD probe returns HTTP 400, but the browser can render them when
+// ProductGridImage uses referrerPolicy="no-referrer" and skips the proxy.
+test("verifyReachableImage treats Newegg referer-gated HTTP 400 probe as browser-usable (BUY-70340)", async () => {
+  const originalFetch = globalThis.fetch;
+  let probed = false;
+  globalThis.fetch = (async () => {
+    probed = true;
+    return new Response("<HTML><HEAD><TITLE>Invalid URL</TITLE></HEAD><BODY><H1>Invalid URL</H1></BODY></HTML>", {
+      status: 400,
+      headers: { "content-type": "text/html" },
+    });
+  }) as typeof globalThis.fetch;
+
+  try {
+    const reachable = await verifyReachableImage("https://c1.neweggimages.com/ProductImageCompressAll1280/34-236-123-V01.jpg");
+    assert.equal(reachable, true, "referer-gated Newegg images must be kept for browser no-referrer rendering");
+    assert.equal(probed, false, "referer-gated hosts must bypass the SSR probe that returns AkamaiGHost 400");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("ProductGridImage sends no-referrer and skips proxy for referer-gated Newegg hosts (BUY-70340)", async () => {
+  const source = readFileSync(new URL("../components/seo/ProductGridImage.tsx", import.meta.url), "utf8");
+  assert.match(source, /REFERER_GATED_HOSTS/);
+  assert.match(source, /"c1\.neweggimages\.com"/);
+  assert.match(source, /referrerPolicy = isRefererGatedImage\(src\) \? "no-referrer" : "no-referrer-when-downgrade"/);
+  assert.match(source, /if \(REFERER_GATED_HOSTS\.has\(url\.hostname\)\) return url\.toString\(\)/);
+});
+
+test("SEO landing product grid uses 3 columns at md widths to avoid tablet truncation (BUY-70340)", async () => {
+  const source = readFileSync(new URL("../components/seo/SeoLandingPage.tsx", import.meta.url), "utf8");
+  assert.match(source, /sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4/);
+});

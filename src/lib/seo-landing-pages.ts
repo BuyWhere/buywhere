@@ -416,9 +416,11 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     // through a category-aware fallback. The previous unconditional branded SVG
     // made every live row look like a generic illustration, which is exactly the
     // BUY-68366 QA failure on the SEO landing pages.
+    // BUY-70340: warn when we substitute a hotlink-blocked or referer-gated image.
     imageUrl: isUsableProductImage(imageUrl)
       ? imageUrl
-      : brandedProductPlaceholderSvg(item.brand || null, item.name || null, category),
+      : (console.warn(`[seo] substituting placeholder for image: ${imageUrl}`),
+        brandedProductPlaceholderSvg(item.brand || null, item.name || null, category)),
     href: normalizeExternalHref(
       item.affiliate_redirect_url,
       item.click_url,
@@ -438,7 +440,6 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
 // Hosts that historically serve 200 to bots but 403/404 inside a browser.
 // Treat them as unreachable so the placeholder path takes over instead of
 // rendering a broken-image icon on the live SEO landing pages.
-// BUY-69615: Added c1.neweggimages.com - returns HTTP 400 for all image requests
 const HOTLINK_BLOCKED_HOSTS = new Set([
   "courts.com.sg",
   "www.courts.com.sg",
@@ -448,10 +449,18 @@ const HOTLINK_BLOCKED_HOSTS = new Set([
   "cdn.shopify.com",
   "elescat.store",
   "source.unsplash.com",
-  "c1.neweggimages.com",
-  "www.neweggimages.com",
   "www.harveynorman.com.sg",
   "harveynorman.com.sg",
+]);
+
+// BUY-70340: Hosts that return HTTP 400/403 ONLY when the Referer header is
+// present (AkamaiGHost, Cloudflare referer-gating). A browser fetch with
+// referrerPolicy="no-referrer" bypasses the block. These are treated as
+// "usable" in the data layer so real product images surface; the client
+// component applies no-referrer so the browser request succeeds.
+export const REFERER_GATED_HOSTS = new Set([
+  "c1.neweggimages.com",
+  "www.neweggimages.com",
 ]);
 
 function isUsableProductImage(imageUrl?: string | null) {
@@ -461,6 +470,8 @@ function isUsableProductImage(imageUrl?: string | null) {
   try {
     const url = new URL(imageUrl);
     if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
+    // BUY-70340: referer-gated hosts are usable — client component applies no-referrer.
+    if (REFERER_GATED_HOSTS.has(url.hostname)) return true;
     return !url.hostname.endsWith(".elescat.store");
   } catch {
     return false;
@@ -626,6 +637,11 @@ export async function verifyReachableImage(imageUrl: string | null, timeoutMs = 
     // even when the HEAD probe is green. Skip the probe and mark them
     // unreachable so the branded placeholder path takes over.
     if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
+    // BUY-70340: referer-gated hosts (AkamaiGHost with referer blocking) always
+    // fail our HEAD/GET probe but work in the browser with referrerPolicy="no-referrer".
+    // Skip the probe and mark them reachable - the client component will use the
+    // appropriate referrer policy to make the request succeed.
+    if (REFERER_GATED_HOSTS.has(url.hostname)) return true;
     // Treat these hosts as always-reachable; probing them at SSR is wasteful
     // and Amazon's CDN often blocks non-browser UAs.
     if (
@@ -762,6 +778,9 @@ async function verifyUsableImageContent(
     // SVG already renders identically in every browser/headless environment.
     if (url.protocol === "data:") return true;
     if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
+    // BUY-70340: referer-gated hosts fail server-side content probes too; keep
+    // them and let ProductGridImage's no-referrer browser request render them.
+    if (REFERER_GATED_HOSTS.has(url.hostname)) return true;
     // Amazon CDN: known good landscape product photos — skip the probe.
     if (
       url.hostname === "m.media-amazon.com" ||
