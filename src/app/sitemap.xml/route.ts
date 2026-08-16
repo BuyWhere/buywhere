@@ -14,6 +14,8 @@ export async function GET(): Promise<Response> {
 
   const sitemapEntries = [
     { url: `${SITEMAP_BASE_URL}/sitemap-pages.xml`, lastModified: now },
+    { url: `${SITEMAP_BASE_URL}/sitemap-brands.xml`, lastModified: now },
+    { url: `${SITEMAP_BASE_URL}/sitemap-stores.xml`, lastModified: now },
     { url: `${SITEMAP_BASE_URL}/sitemap-categories.xml`, lastModified: now },
     { url: `${SITEMAP_BASE_URL}/sitemap-compare.xml`, lastModified: now },
     // BUY-70324: historical /sitemap-comparisons.xml path — same corpus as

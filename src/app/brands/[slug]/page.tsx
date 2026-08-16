@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { getCommerceBrand } from '@/lib/commerce-routes';
+import { toSiteUrl } from '@/lib/site-url';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -28,15 +30,35 @@ interface BrandData {
 }
 
 async function getBrandData(slug: string): Promise<BrandData | null> {
+  const knownBrand = getCommerceBrand(slug);
+
+  if (!knownBrand) {
+    return null;
+  }
+
   try {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
     const res = await fetch(`${baseUrl}/api/v1/brand/${slug}`, {
       next: { revalidate: 900 },
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      return {
+        slug: knownBrand.slug,
+        name: knownBrand.name,
+        description: `Compare ${knownBrand.name} products across BuyWhere's indexed retailers.`,
+        product_count: knownBrand.productCount ?? 0,
+        products: [],
+      };
+    }
     return res.json();
   } catch {
-    return null;
+    return {
+      slug: knownBrand.slug,
+      name: knownBrand.name,
+      description: `Compare ${knownBrand.name} products across BuyWhere's indexed retailers.`,
+      product_count: knownBrand.productCount ?? 0,
+      products: [],
+    };
   }
 }
 
@@ -46,7 +68,7 @@ function buildJsonLd(data: BrandData) {
     '@type': 'CollectionPage',
     name: `${data.name} Products — BuyWhere`,
     description: data.description,
-    url: `/brands/brand/${data.slug}`,
+    url: toSiteUrl(`/brands/${data.slug}`),
     mainEntity: {
       '@type': 'ItemList',
       name: `${data.name} Products`,
@@ -188,13 +210,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const brand = await getBrandData(slug);
 
   if (!brand) {
-    return { title: 'Brand Not Found' };
+    return {
+      title: 'Brand Not Found',
+      robots: { index: false, follow: false },
+    };
   }
 
   return {
     title: `${brand.name} Products — Compare Prices | BuyWhere`,
     description: brand.description,
-    alternates: { canonical: `/brands/brand/${slug}` },
+    alternates: { canonical: `/brands/${slug}` },
   };
 }
 

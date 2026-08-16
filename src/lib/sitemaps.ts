@@ -4,6 +4,7 @@ import { getUSProducts, type USProductForSitemap } from "@/lib/us-products";
 import { getSGProducts, type SGProductForSitemap } from "@/lib/sg-products";
 import { toSiteUrl } from "@/lib/site-url";
 import { seoLandingPages } from "@/lib/seo-landing-pages";
+import { commerceBrands, commerceStores } from "@/lib/commerce-routes";
 import fs from "node:fs";
 
 function safeGetBlogPosts() {
@@ -289,6 +290,8 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/developers", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/agents", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/blog", priority: 0.9, changeFrequency: "weekly" as const },
+  { path: "/brands", priority: 0.9, changeFrequency: "weekly" as const },
+  { path: "/stores", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/best", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/cheapest", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/quickstart", priority: 0.9, changeFrequency: "weekly" as const },
@@ -445,6 +448,22 @@ export function getStaticSitemapEntries(): SitemapUrlEntry[] {
       lastModified: now,
       changeFrequency,
       priority,
+    });
+  }
+  for (const brand of commerceBrands) {
+    upsert({
+      url: toSiteUrl(`/brands/${brand.slug}`),
+      lastModified: now,
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
+    });
+  }
+  for (const store of commerceStores) {
+    upsert({
+      url: toSiteUrl(`/stores/${store.slug}`),
+      lastModified: now,
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
     });
   }
   for (const slug of DOC_SLUGS) {
