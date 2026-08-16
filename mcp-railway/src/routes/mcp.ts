@@ -903,10 +903,10 @@ async function handleListCategories(args: Record<string, unknown>) {
       // contention can evict the 36MB matview / 3.7MB index from the small
       // Railway shared_buffers. On a cold cache the indexed read alone took
       // 5.5s (EXPLAIN ANALYZE, all I/O) and timed out, cascading to the
-      // placeholder fallback and unavailable:true for every region. 6s still
+      // placeholder fallback and unavailable:true for every region. 12s still
       // bounds the tool well under the transport ceiling while letting a
       // cold-cache read complete instead of degrading to static stubs.
-      const MAT_VIEW_TIMEOUT_MS = 6000;
+      const MAT_VIEW_TIMEOUT_MS = 12000;
       // BUY-60096: canonical MCP must never let category fallback monopolize the shared pool.
       // If the materialized view is empty, keep fallbacks bounded so cold misses stay under 5s.
       const LIVE_TIMEOUT_MS = 1800;
