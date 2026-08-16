@@ -1066,9 +1066,16 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // queries with a quick capped count probe. Do not count-gate multi-token
   // queries: under catalog DB I/O contention the bounded ILIKE fallback can be
   // slower than primary FTS and can false-empty phrases like "wireless mouse".
+  // BUY-70332 (follow-up): when the count probe reports count > pool, do NOT
+  // divert to the ILIKE fallback. The primary FTS query is bounded by
+  // LIMIT CANDIDATE_POOL itself, so a large FTS match set is exactly the case
+  // the pool bound handles. The old diversion sampled 500 arbitrary (unordered)
+  // market rows for a title ILIKE — for niche single-token terms like "nike"
+  // the sample contains zero matches and the tool false-empties in ~100ms.
   const queryTokenCount = productName.split(/\s+/).filter(Boolean).length;
   let ftsTooBroad = false;
-  if (!category && !deviceFilter.type && queryTokenCount <= 1) {
+  void ftsTooBroad;
+  if (false && !category && !deviceFilter.type && queryTokenCount <= 1) {
     try {
       const countClient = await acquireMcpClient();
       try {
