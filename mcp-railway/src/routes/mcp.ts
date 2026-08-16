@@ -882,30 +882,42 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
         params
       );
     }
-    // BUY-69626: FTS returned nothing — try bounded title-ILIKE on recent market slice
+    // BUY-70608: FTS returned nothing or count hit cap — try bounded ILIKE on
+    // a wider recent-row window (FALLBACK_CANDIDATE_POOL = 5000 vs 500 for FTS).
     if (result.rows.length === 0) {
       await bestPriceClient.query('SET statement_timeout = 4500');
       const titlePattern = `%${productName}%`;
       const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
       const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
+      const FALLBACK_CANDIDATE_POOL = Math.max(CANDIDATE_POOL, 5000);
+      const fallbackParams: unknown[] = [requestedCountry];
+      const innerConditions = ['is_active = true', 'price > 0', `country_code = $${fallbackParams.length}`];
+      if (minPrice > 0) { fallbackParams.push(minPrice); innerConditions.push(`price >= $${fallbackParams.length}`); }
+      fallbackParams.push(FALLBACK_CANDIDATE_POOL);
+      const innerLimitIdx = fallbackParams.length;
+      const outerConditions: string[] = [];
+      const terms = productName
+        .toLowerCase().split(/\s+/).map(t => t.replace(/[^a-z0-9]+/g, '')).filter(t => t.length >= 2).slice(0, 4);
+      for (const term of terms.length ? terms : [productName]) {
+        fallbackParams.push(`%${term}%`);
+        outerConditions.push(`title ILIKE $${fallbackParams.length}`);
+      }
+      if (category) { fallbackParams.push(`%${category}%`); outerConditions.push(`category ILIKE $${fallbackParams.length}`); }
+      fallbackParams.push(limit);
+      const outerLimitIdx = fallbackParams.length;
       result = await bestPriceClient.query(
         `SELECT * FROM (
            SELECT id, title, price, currency, source AS domain, url, image_url,
                   country_code, updated_at, category, category_path, metadata
            FROM products
-           WHERE is_active = true AND price > 0
-             AND country_code = $1
-             ${minPrice > 0 ? `AND price >= $${4}` : ''}
+           WHERE ${innerConditions.join(' AND ')}
            ORDER BY updated_at DESC
-           LIMIT $${minPrice > 0 ? 3 : 2}
+           LIMIT $${innerLimitIdx}
          ) _recent
-         WHERE title ILIKE $${minPrice > 0 ? 3 : 2}
-         ${category ? `AND category ILIKE $${minPrice > 0 ? 5 : 4}` : ''}
+         WHERE ${outerConditions.join(' AND ')}
          ORDER BY price ASC
-         LIMIT $${minPrice > 0 ? (category ? 6 : 5) : (category ? 4 : 3)}`,
-        minPrice > 0
-          ? (category ? [requestedCountry, CANDIDATE_POOL, titlePattern, minPrice, `%${category}%`] : [requestedCountry, CANDIDATE_POOL, titlePattern, minPrice])
-          : (category ? [requestedCountry, CANDIDATE_POOL, titlePattern, `%${category}%`] : [requestedCountry, CANDIDATE_POOL, titlePattern])
+         LIMIT $${outerLimitIdx}`,
+        fallbackParams
       );
     }
   } finally {
