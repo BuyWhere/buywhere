@@ -49,6 +49,21 @@ export async function resolveUSProductRoute(param: string): Promise<ResolvedUSPr
     return slugMatch;
   }
 
+  // BUY-70240: handle bare slugified product names without an ID suffix,
+  // e.g. "apple-airpods-pro-2nd-generation" resolves to the product whose
+  // slug is "apple-airpods-pro-2nd-generation-B09JQMJHXY".
+  const prefixMatch = products.find(
+    (product) => product.slug.toLowerCase().startsWith(`${normalizedParam}-`) ||
+                 product.slug.toLowerCase() === normalizedParam
+  );
+  if (prefixMatch) {
+    return {
+      ...prefixMatch,
+      slug: buildUSProductSlug(prefixMatch),
+    };
+  }
+
+  // Existing: match param that ends with the product ID as suffix.
   const suffixMatch = products.find((product) => normalizedParam.endsWith(`-${product.id.toLowerCase()}`));
   if (suffixMatch) {
     return {
