@@ -948,13 +948,15 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // then ILIKE + price-order) is both faster AND handles category predicates correctly.
   // The primary path is still used for non-category queries where FTS is the right signal.
   let result: { rows: Record<string, unknown>[] } = { rows: [] };
-  // BUY-70189: gate high-cardinality FTS queries with a quick count check.
+  // BUY-70189: gate high-cardinality single-token FTS queries with a quick count check.
   // Terms like "nike", "iphone", "samsung" match millions of rows, causing the
-  // GIN index scan to timeout even with enable_seqscan=off. Instead of timing out
-  // on the full sort, we first check if the FTS result set exceeds CANDIDATE_POOL.
-  // If so, skip directly to the ILIKE fallback which is bounded and fast.
+  // GIN index scan to timeout even with enable_seqscan=off. Specific multi-token
+  // product queries (e.g. "nike air max") are usually fast and must keep the
+  // primary FTS path; the exact-phrase ILIKE fallback can miss them in sparse
+  // recent slices and return false-empty results (BUY-70218).
+  const queryTokenCount = productName.split(/\s+/).filter(Boolean).length;
   let ftsTooBroad = false;
-  if (!category) {
+  if (!category && queryTokenCount <= 1) {
     try {
       const countClient = await acquireMcpClient();
       try {
