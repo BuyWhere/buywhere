@@ -77,7 +77,10 @@ async function main() {
 
   if (samples.length < sampleLimit) {
     try {
-      const legacy = await vector.query(
+      // BUY-70113: legacy search_proof vectors are stored in the catalog DB
+      // (sakura), not vector-db. Sampling vectorDb here made the coverage probe
+      // skip the exact fallback it is meant to verify.
+      const legacy = await catalog.query(
         `SELECT sku, 'search_proof.product_vectors' AS source
            FROM search_proof.product_vectors
           WHERE sku IS NOT NULL

@@ -1810,7 +1810,9 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   let nearResult: { rows: Array<{ vector_key: string; distance: number }> };
   if (vectorTable === 'search_proof.product_vectors') {
     try {
-      nearResult = await vectorDb.query<{ vector_key: string; distance: number }>(
+      // BUY-70113: legacy search_proof vectors live in catalogDb; keep both the
+      // reference lookup and nearest-neighbour scan on the same catalog database.
+      nearResult = await catalogDb.query<{ vector_key: string; distance: number }>(
         `SELECT sku AS vector_key, (embedding <=> $1::vector)::float AS distance
            FROM search_proof.product_vectors
           WHERE sku != $2
