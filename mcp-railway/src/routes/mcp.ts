@@ -925,8 +925,13 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     conditions.push(`price >= $${params.length}`);
   }
 
+  // BUY-70236: overfetch before accessory filtering — the TypeScript accessory filter
+  // can remove all rows when the cheapest FTS matches are expensive accessories
+  // (e.g. iPhone 15 camera skins at S$299 vs device at S$620+). The fallback ILIKE
+  // path also benefits from returning a wider pre-filter set.
   const CANDIDATE_POOL = Math.max(limit * 50, 500);
-  params.push(CANDIDATE_POOL, limit);
+  const PREFILTER_RESULT_POOL = Math.max(limit * 50, 500);
+  params.push(CANDIDATE_POOL, PREFILTER_RESULT_POOL);
   const where = `WHERE ${conditions.join(' AND ')}`;
 
   // BUY-31962: same subquery pattern as search_products — fetch candidates via GIN
@@ -1065,7 +1070,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
            WHERE title ILIKE $2
            ${categoryPredicate}
            ORDER BY price ASC
-           LIMIT ${limit}`,
+           LIMIT ${PREFILTER_RESULT_POOL}`,
           fallbackParams
         );
       } finally {
@@ -1115,7 +1120,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     return false;
   };
 
-  const candidates = result.rows.filter(r => !isAccessory(r));
+  const candidates = result.rows.filter(r => !isAccessory(r)).slice(0, limit);
 
   const data = candidates.map((r: Record<string, unknown>) => {
     const amount = r.price != null ? parseFloat(r.price as string) : null;

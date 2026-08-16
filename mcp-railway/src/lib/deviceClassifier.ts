@@ -24,7 +24,7 @@ function inferDevice(productName: string): DevicePattern {
   const p = productName.toLowerCase();
   // Phones
   if (/\b(iphone\b|smartphone\b|smart\s*phone\b|mobile\s*phone\b|samsung galaxy s|google pixel\b|xiaomi\b|redmi\b|oppo\b|vivo\b|nothing phone|oneplus\b)/.test(p)) {
-    return { type: 'phone', negativeTerms: ACCESSORY_NEGATIVE_TERMS, minPriceUsd: 80 };
+    return { type: 'phone', negativeTerms: ACCESSORY_NEGATIVE_TERMS, minPriceUsd: 400 };
   }
   // Consoles / controllers
   if (/\b(ps5\b|playstation\s*5|xbox\s*series\s*(s|x)\b|nintendo\s*switch\b)/.test(p)) {
