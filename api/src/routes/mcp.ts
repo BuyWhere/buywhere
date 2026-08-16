@@ -988,9 +988,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   let ftsTimedOut = false;
   let crossMarketFallback = false;
   const requestedCountry = country;
+  // BUY-70482: hoist minPrice outside the try so both FTS and fallback can reference it.
+  const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
   try {
     await bestPriceClient.query('SET statement_timeout = 3000');
-    const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
     const conditions: string[] = ['is_active = true', 'price > 0'];
     const params: unknown[] = [];
     params.push(productName);
@@ -1036,10 +1037,53 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     }
   }
 
-  // BUY-70482: If FTS returned zero rows (timeout or no match), attempt a cross-market
-  // FTS fallback with a tight statement_timeout so we degrade gracefully without
-  // scanning all partitions. Bounded LIMIT keeps the response within p95 ≤5s.
-  // Empirical probe: `LIMIT 10` global FTS returns 10-55ms regardless of table size.
+  // BUY-70482: If the country-pruned FTS plan returns zero rows or hits its
+  // statement_timeout, try the same-country ILIKE path that FastAPI exposes,
+  // but with a tight timeout so a bad sequential-scan plan cannot dominate p95.
+  try {
+    if (result.rows.length === 0) {
+      await bestPriceClient.query('SET statement_timeout = 1500');
+      const terms = productName.split(/\s+/).filter(Boolean).slice(0, 6);
+      const fallbackConditions: string[] = ['is_active = true', 'price > 0'];
+      const fallbackParams: unknown[] = [];
+      fallbackParams.push(requestedCountry);
+      fallbackConditions.push(`country_code = $${fallbackParams.length}`);
+      for (const term of terms) {
+        fallbackParams.push(`%${term}%`);
+        fallbackConditions.push(`title ILIKE $${fallbackParams.length}`);
+      }
+      if (minPrice > 0) {
+        fallbackParams.push(minPrice);
+        fallbackConditions.push(`price >= $${fallbackParams.length}`);
+      }
+      fallbackParams.push(limit);
+      const fallbackResult = await bestPriceClient.query(
+        `SELECT id, title, price, currency, source AS domain, url, image_url,
+                country_code, updated_at, category, category_path, metadata
+         FROM products
+         WHERE ${fallbackConditions.join(' AND ')}
+         ORDER BY price ASC, updated_at DESC
+         LIMIT $${fallbackParams.length}`,
+        fallbackParams
+      );
+      if (fallbackResult.rows.length > 0) {
+        result = fallbackResult;
+        ftsTimedOut = false;
+        console.log('[find_best_price] country ILIKE fallback succeeded for country=', country, 'product=', productName, 'rows=', fallbackResult.rows.length);
+      }
+    }
+  } catch (fallbackErr: unknown) {
+    const fbErr = fallbackErr as { code?: string };
+    if (fbErr?.code === '57014') {
+      console.warn('[find_best_price] country ILIKE fallback timed out for country=', country, 'product=', productName);
+    } else {
+      console.warn('[find_best_price] country ILIKE fallback error:', fbErr);
+    }
+  }
+
+  // BUY-70482: If same-country data is genuinely starved, degrade to a global
+  // FTS best-known result rather than an empty answer. Keep this bounded and
+  // marked in meta so clients can distinguish it from a local-market hit.
   try {
     if (result.rows.length === 0) {
       await bestPriceClient.query('SET statement_timeout = 1500');
@@ -1058,15 +1102,15 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
         result = fallbackResult;
         ftsTimedOut = false;
         crossMarketFallback = true;
-        console.log('[find_best_price] country FTS empty, cross-market FTS fallback succeeded for country=', country, 'product=', productName, 'rows=', fallbackResult.rows.length);
+        console.log('[find_best_price] global FTS fallback succeeded for requested country=', country, 'product=', productName, 'rows=', fallbackResult.rows.length);
       }
     }
   } catch (fallbackErr: unknown) {
     const fbErr = fallbackErr as { code?: string };
     if (fbErr?.code === '57014') {
-      console.warn('[find_best_price] cross-market FTS fallback timed out for country=', country, 'product=', productName);
+      console.warn('[find_best_price] global FTS fallback timed out for country=', country, 'product=', productName);
     } else {
-      console.warn('[find_best_price] cross-market FTS fallback error:', fbErr);
+      console.warn('[find_best_price] global FTS fallback error:', fbErr);
     }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout

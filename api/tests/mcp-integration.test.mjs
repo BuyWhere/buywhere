@@ -436,12 +436,52 @@ describe('MCP JSON-RPC — tools/call (authenticated)', () => {
     assert.equal(data.alternatives[0].title, 'Expensive Phone');
   });
 
-  it('find_best_price requires product_name', async () => {
+  it('find_best_price falls back to same-country ILIKE when FTS is empty (BUY-70482)', async () => {
+    const productQueries = [];
+    queryMock.mock.mockImplementation((sql) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (typeof sql === 'string' && sql.includes('FROM products')) {
+        productQueries.push(sql);
+      }
+      if (typeof sql === 'string' && sql.includes('search_vector @@')) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.resolve({
+        rows: [
+          { id: 'fb1', title: 'Sony WH-1000XM5 Headphones', price: '399', currency: 'SGD', domain: 'challenger_sg', url: 'https://x.com/fb1', image_url: null, country_code: 'SG', updated_at: '2026-08-16' },
+        ],
+      });
+    });
+
     const res = await fetch(`http://localhost:${port}/mcp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
       body: JSON.stringify({
         jsonrpc: '2.0', id: 20, method: 'tools/call',
+        params: { name: 'find_best_price', arguments: { product_name: 'Sony WH-1000XM5', country_code: 'SG' } },
+      }),
+    });
+    const body = await res.json();
+    const data = JSON.parse(body.result.content[0].text);
+    assert.equal(data.best_price.id, 'fb1');
+    assert.equal(data.best_price.country_code, 'SG');
+    assert.equal(data.meta.cross_market_fallback, undefined);
+    assert.ok(productQueries[0].includes('country_code = $2'), 'FTS query should be country-pruned');
+    assert.ok(productQueries[1].includes('country_code = $1'), 'ILIKE fallback should stay country-pruned');
+    assert.ok(productQueries[1].includes('title ILIKE'), 'second product query should use ILIKE fallback');
+  });
+
+  it('find_best_price requires product_name', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 21, method: 'tools/call',
         params: { name: 'find_best_price', arguments: {} },
       }),
     });

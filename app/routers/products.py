@@ -638,9 +638,12 @@ async def best_price(
 
     if not product:
         # Fallback: ILIKE search for broader matching
+        # BUY-70482: match the TS-MCP path's price guard so zero/negative
+        # sentinel prices cannot win the fallback path.
         fallback = (
             select(Product)
             .where(Product.is_active == True)
+            .where(Product.price > 0)
             .where(Product.title.ilike(f"%{q}%"))
         )
         if category:
