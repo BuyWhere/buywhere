@@ -42,7 +42,7 @@ describe('MCP find_similar query-shape regression (BUY-70113 seq-scan fix)', () 
     // products_pkey and Seq-Scans the ~300M-row catalog until statement_timeout.
     assert.match(source, /WHERE id = \$1::bigint AND is_active = true LIMIT 1/);
     // The detail-enrichment path likewise.
-    assert.match(source, /WHERE id IN \(\$\{ph\}::bigint\[\]\) AND is_active = true/);
+    assert.match(source, /WHERE id = ANY\(\$1::bigint\[\]\) AND is_active = true/);
     assert.doesNotMatch(source, /WHERE id::text (?:=|IN)/);
   });
 
