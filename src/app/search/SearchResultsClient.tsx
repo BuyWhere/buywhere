@@ -1173,7 +1173,7 @@ export default function SearchResultsClient({
             <span>
               {loadingInitial
                 ? 'Searching...'
-                : `${total.toLocaleString()} results for &ldquo;${debouncedQuery}&rdquo;`}
+                : `${total.toLocaleString()} results for “${debouncedQuery}”`}
             </span>
           </div>
         ) : null}
@@ -1403,8 +1403,8 @@ export default function SearchResultsClient({
                 </p>
                 <h1 className="mt-1 text-2xl font-semibold text-slate-950">
                   {hasHydrated && !loadingInitial
-                    ? `${total.toLocaleString()} results for &ldquo;${debouncedQuery}&rdquo;`
-                    : `${initialQuery ? `Search results for &ldquo;${initialQuery}&rdquo;` : 'Search Products — BuyWhere'}`}
+                    ? `${total.toLocaleString()} results for “${debouncedQuery}”`
+                    : `${initialQuery ? `Search results for “${initialQuery}”` : 'Search Products — BuyWhere'}`}
                 </h1>
               </div>
 
@@ -1426,7 +1426,7 @@ export default function SearchResultsClient({
                 >
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Catalog update in progress</p>
                   <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-                    Live results for &ldquo;{debouncedQuery}&rdquo; are temporarily unavailable
+                    Live results for “{debouncedQuery}” are temporarily unavailable
                   </h2>
                   <p className="mt-3 max-w-2xl text-slate-700">
                     {degradedHint
@@ -1458,7 +1458,7 @@ export default function SearchResultsClient({
                 <div className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm" data-testid="search-no-matches">
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">No matches</p>
                   <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-                    No products found for &ldquo;{debouncedQuery}&rdquo;
+                    No products found for “{debouncedQuery}”
                   </h2>
                   <p className="mt-3 max-w-2xl text-slate-600">
                     Try a broader term, switch countries, or start with one of these popular searches.
