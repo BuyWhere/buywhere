@@ -7,6 +7,7 @@ import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
+import { createHealthRouter } from '../monitoring/healthSnapshot';
 
 const router = Router();
 
@@ -132,7 +133,7 @@ const TOOLS = [
       type: 'object',
       required: ['product_id'],
       properties: {
-        product_id: { type: 'string', description: 'UUID of the source product' },
+        product_id: { type: 'string', description: 'Numeric catalog product ID or exact SKU of the source product' },
         limit: { type: 'integer', description: 'Number of similar products to return (1-10, default 10)', default: 10 },
       },
     },
@@ -174,6 +175,11 @@ const TOOLS = [
     },
   },
 ];
+
+// BUY-69817: public health surface.
+// Mounted before the legacy /health handler below so /health, /health/tools,
+// and /health/regions all use the same cached per-tool snapshot.
+router.use('/health', createHealthRouter());
 
 let _hasDiscountPct: boolean | undefined;
 

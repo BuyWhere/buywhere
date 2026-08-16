@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Router, Request, Response, NextFunction } from 'express';
 import { catalogDb, db, redis, vectorDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
@@ -6,6 +7,7 @@ import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
+import { createHealthRouter } from '../monitoring/healthSnapshot';
 
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
@@ -77,7 +79,7 @@ const TOOLS = [
       type: 'object',
       required: ['id'],
       properties: {
-        id: { type: 'string', description: 'Product UUID' },
+        id: { type: 'string', description: 'Product ID (numeric catalog ID)' },
       },
     },
   },
@@ -150,7 +152,7 @@ const TOOLS = [
       type: 'object',
       required: ['product_id'],
       properties: {
-        product_id: { type: 'string', description: 'UUID of the source product' },
+        product_id: { type: 'string', description: 'Numeric catalog product ID or exact SKU of the source product' },
         limit: { type: 'integer', description: 'Number of similar products to return (1-10, default 10)', default: 10 },
       },
     },
@@ -192,6 +194,9 @@ const TOOLS = [
     },
   },
 ];
+
+// BUY-69817: public health surface.
+router.use('/health', createHealthRouter());
 
 let _hasDiscountPct: boolean | undefined;
 
@@ -1416,15 +1421,24 @@ async function dispatchTool(name: string, args: Record<string, unknown>) {
 }
 
 // JSON-RPC 2.0 response helpers
+// BUY-70222: every response (success or error) carries `request_id` and a
+// top-level `timestamp` so agent-facing monitoring suites can correlate
+// JSON-RPC calls with server-side logs.
 function jsonrpcOk(id: unknown, result: unknown) {
-  return { jsonrpc: '2.0', id, result };
+  return { jsonrpc: '2.0', id, request_id: randomUUID(), timestamp: new Date().toISOString(), result };
 }
 function jsonrpcErr(id: unknown, code: number, message: string, data?: unknown, envelopeCode?: string) {
   const errorData: Record<string, unknown> = data != null ? { detail: data } : {};
   if (envelopeCode) {
     errorData.envelope = buildErrorEnvelope(envelopeCode as ErrorCodeType, message);
   }
-  return { jsonrpc: '2.0', id, error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) } };
+  return {
+    jsonrpc: '2.0',
+    id,
+    request_id: randomUUID(),
+    timestamp: new Date().toISOString(),
+    error: { code, message, ...(Object.keys(errorData).length ? { data: errorData } : {}) },
+  };
 }
 
 // GET /mcp/auth/token — token endpoint descriptor (public, no auth).
