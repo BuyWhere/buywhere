@@ -80,6 +80,15 @@ suite('BUY-70144: MCP search/find_best_price regressions', () => {
     assert.ok(inner.meta?.response_time_ms < 15000, `US FBP should respond <15s, got ${inner.meta?.response_time_ms}ms`);
   });
 
+  it('BUY-70286: list_categories returns non-empty VN categories under 2s', async () => {
+    const { body } = await rpc('list_categories', { country_code: 'VN' }, 'buy-70286-list-categories-vn');
+    assert.notEqual(body.error?.code, -32603, `list_categories VN returned -32603: ${JSON.stringify(body.error)}`);
+    const inner = parseToolText(body);
+    assert.ok(Array.isArray(inner.data), `Expected categories data array, got: ${JSON.stringify(inner).slice(0, 300)}`);
+    assert.ok(inner.data.length > 0, `Expected non-empty VN categories, got: ${JSON.stringify(inner).slice(0, 300)}`);
+    assert.ok(inner.meta?.response_time_ms < 2000, `VN list_categories should respond <2s, got ${inner.meta?.response_time_ms}ms`);
+  });
+
   it('search_products treats ISO region aliases as country filters and never reports positive total with empty results', async () => {
     const { body } = await rpc('search_products', { q: 'nike shoes', region: 'SG', limit: 3 }, 'buy-70218-search-region-sg');
     assert.notEqual(body.error?.code, -32603, `search_products region=SG returned -32603: ${JSON.stringify(body.error)}`);
