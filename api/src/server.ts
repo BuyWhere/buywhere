@@ -217,7 +217,26 @@ export function createApp() {
   // /api/mcp — backwards-compatible alias (BUY-30153)
   app.use('/api/mcp', mcpRouter);
 
-  // v1 API
+  // v1 API — root descriptor for /v1 discovery
+  app.get('/v1', (_req, res) => {
+    res.json({
+      name: 'BuyWhere REST API',
+      description: 'Agent-native product catalog API: product search, price comparison, and merchant data.',
+      version: '1.0.0',
+      openapi: 'https://api.buywhere.ai/openapi.json',
+      docs: 'https://api.buywhere.ai/docs',
+      auth: 'X-API-Key or Bearer token',
+      register: 'POST https://api.buywhere.ai/v1/auth/register',
+      routes: {
+        products: '/v1/products',
+        search: '/v1/products/search',
+        bestPrice: '/v1/products/best-price',
+        categories: '/v1/categories',
+        merchants: '/v1/merchants',
+      },
+      contact: 'hello@buywhere.ai',
+    });
+  });
   app.use('/v1/billing/webhook', express.raw({ type: 'application/json' }));
   app.use('/v1/billing', billingRouter);
   app.use('/v1/auth', authRouter);
