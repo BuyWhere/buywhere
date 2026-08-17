@@ -1214,13 +1214,14 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     try {
       const primaryClient = await acquireMcpClient();
       try {
-        // BUY-70144: bumped to 20s — US "nike air max" FTS returns ~1001 rows
-        // and takes ~3s via GIN; 10s was too tight and caused US to fall through
-        // to the ILIKE fallback, which also timed out → 0 results for US queries.
-        // BUY-70144: enable_seqscan=off ensures the planner uses the composite GIN
-        // index even on sparse-result queries (low selectivity selectivity → the
-        // planner misestimates cost and picks seqscan → statement_timeout).
-        await primaryClient.query('SET statement_timeout = 20000');
+        // BUY-70144: bumped US/large-market FTS to 20s — US "nike air max" returns
+        // ~1001 rows and takes ~3s via GIN; 10s was too tight and caused fallback churn.
+        // BUY-70908: SG sparse/no-match device queries ("Nintendo Switch 2") can cold-read
+        // the 21GB search_vector GIN for ~38s, then repeat the same shape in catalogDb and
+        // exceed the MCP transport ceiling. Keep SG bounded; if it times out, return
+        // unavailable metadata instead of spending another 15s on the identical retry.
+        const primaryTimeoutMs = country === 'SG' ? 8000 : 20000;
+        await primaryClient.query(`SET statement_timeout = ${primaryTimeoutMs}`);
         await primaryClient.query('SET enable_seqscan = off');
         result = await primaryClient.query(
           `WITH cand AS (
@@ -1288,6 +1289,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
 
     // BUY-70661: Tier-1 — run the exact primary CTE query on catalogDb (separate pool,
     // bypasses MCP pool starvation from concurrent MCP connections on Railway).
+    // BUY-70908: do not repeat the same cold SG GIN scan after the primary path already
+    // timed out. The duplicate retry is what turned an 8-20s DB miss into a 35s MCP
+    // timeout for sparse/no-match device queries.
+    if (!(country === 'SG' && primaryTimedOut)) {
     try {
       let catalogClient;
       try {
