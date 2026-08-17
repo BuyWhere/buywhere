@@ -24,14 +24,50 @@ interface ProbeResult {
   error: string | null;
 }
 
+async function indexIsValid(indexName: string): Promise<boolean> {
+  try {
+    const result = await db.query<{ indisvalid: boolean }>(
+      `SELECT i.indisvalid
+         FROM pg_index i
+         JOIN pg_class c ON c.oid = i.indexrelid
+        WHERE i.indrelid = 'public.products'::regclass
+          AND c.relname = $1`,
+      [indexName]
+    );
+    return result.rows.length > 0 && result.rows[0].indisvalid;
+  } catch {
+    return false;
+  }
+}
+
 async function fetchDueRows(): Promise<ProbeRow[]> {
+  // BUY-70938: idx_products_url_probe_due has been invalid on prod (failed CONCURRENTLY
+  // builds). A full scan over ~394M products exceeds the 30s statement_timeout, so we
+  // fall back to a primary-key-ordered scan over never-checked rows, which uses
+  // idx_products_updated_at and completes in <5ms per batch.
+  const dueIndexValid = await indexIsValid('idx_products_url_probe_due');
+  if (dueIndexValid) {
+    const result = await db.query<ProbeRow>(
+      `SELECT id::text, merchant_id, url
+         FROM products
+        WHERE is_active = true
+          AND url IS NOT NULL
+          AND (url_last_checked_at IS NULL OR url_last_checked_at < NOW() - INTERVAL '24 hours')
+        ORDER BY url_last_checked_at NULLS FIRST, updated_at DESC
+        LIMIT $1`,
+      [BATCH_SIZE]
+    );
+    return result.rows;
+  }
+
+  console.log('[outbound-probe] idx_products_url_probe_due missing/invalid; falling back to never-checked primary-key scan');
   const result = await db.query<ProbeRow>(
     `SELECT id::text, merchant_id, url
        FROM products
       WHERE is_active = true
         AND url IS NOT NULL
-        AND (url_last_checked_at IS NULL OR url_last_checked_at < NOW() - INTERVAL '24 hours')
-      ORDER BY url_last_checked_at NULLS FIRST, updated_at DESC
+        AND url_last_checked_at IS NULL
+      ORDER BY updated_at DESC
       LIMIT $1`,
     [BATCH_SIZE]
   );
