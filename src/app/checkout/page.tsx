@@ -5,8 +5,6 @@ import { toSiteUrl } from "@/lib/site-url";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import CheckoutClient from "./CheckoutClient";
-import { canonicalizeBillingTier } from "@/lib/billing";
-
 const CHECKOUT_DESCRIPTION =
   "Confirm your BuyWhere Pro or Scale plan, then continue to Stripe checkout with the developer account tied to your API key.";
 
@@ -17,11 +15,18 @@ const PLAN_PRICING: Record<string, { price: string; label: string; annualPrice: 
   scale: { price: "$99 / month", label: "Scale", annualPrice: "$990 / year (save 18%)" },
 };
 
+// Returns the raw lowercased plan key for PLAN_PRICING lookup.
+// Unlike canonicalizeBillingTier this does NOT alias starter→pro, so the
+// SSR title/badging correctly shows the plan the user selected.
+function getCheckoutPlanKey(planParam: string | undefined) {
+  return planParam?.toLowerCase() ?? "";
+}
+
 function metadataFromSearchParams(searchParams: Record<string, string | string[] | undefined>): Metadata {
   const planParam = Array.isArray(searchParams.plan) ? searchParams.plan[0] : searchParams.plan;
   const billingParam = Array.isArray(searchParams.billing) ? searchParams.billing[0] : searchParams.billing;
 
-  const plan = canonicalizeBillingTier(planParam ?? null);
+  const plan = getCheckoutPlanKey(planParam);
   const isAnnual = billingParam === "annual";
   const pricing = PLAN_PRICING[plan];
 
@@ -152,7 +157,7 @@ export default function CheckoutPage({
 }) {
   const planParam = searchParams?.plan;
   const billingParam = searchParams?.billing;
-  const plan = planParam ? canonicalizeBillingTier(planParam) : "";
+  const plan = getCheckoutPlanKey(planParam);
   const isAnnual = billingParam === "annual";
   const pricing = PLAN_PRICING[plan];
   const isUnsupportedPlan = planParam && !pricing;
