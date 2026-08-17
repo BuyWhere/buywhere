@@ -1122,12 +1122,6 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const region = normalizedMarket.region;
   const category = (args.category as string) || '';
   const limit = 10;
-  // BUY-71023: US FBP is sensitive to MCP-pool contention on Railway. Route the
-  // primary FTS query through the dedicated catalogDb pool for US so a cold GIN
-  // scan does not sit behind the shared MCP pool and then repeat the same scan
-  // in the tier-1 fallback. The tier-1 fallback is skipped for US because it
-  // would hit the same catalogDb path.
-  const primaryUsesCatalogDb = country === 'US' && Boolean(process.env.CATALOG_DATABASE_URL);
   // Keep find_best_price below the 35s MCP/client read ceiling even when the
   // catalog GIN index is cold. Each DB statement below is budgeted from this
   // per-call deadline before it starts, so retries cannot stack into a client
@@ -1247,16 +1241,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
 
   if (!category && !ftsTooBroad) {
     try {
-      // BUY-71023: US primary runs on catalogDb to avoid the shared MCP pool; other
-      // markets continue to use the MCP pool so we preserve its warm cache/performance.
-      const primaryClient = primaryUsesCatalogDb
-        ? await Promise.race([
-            catalogDb.connect(),
-            new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('catalog_db_pool_acquire_timeout')), 2000)
-            ),
-          ])
-        : await acquireMcpClient();
+      const primaryClient = await acquireMcpClient();
       try {
         // BUY-70144: bumped US/large-market FTS to 20s — US "nike air max" returns
         // ~1001 rows and takes ~3s via GIN; 10s was too tight and caused fallback churn.
@@ -1341,9 +1326,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     // BUY-70908: do not repeat the same cold SG GIN scan after the primary path already
     // timed out. The duplicate retry is what turned an 8-20s DB miss into a 35s MCP
     // timeout for sparse/no-match device queries.
-    // BUY-71023: US already ran the primary on catalogDb, so the tier-1 shape is a
-    // duplicate; skip straight to tier-2 ILIKE if the primary returned nothing.
-    if (!primaryUsesCatalogDb && !(country === 'SG' && primaryTimedOut) && tier1Timeout >= 1000) {
+    if (!(country === 'SG' && primaryTimedOut) && tier1Timeout >= 1000) {
     try {
       let catalogClient;
       try {

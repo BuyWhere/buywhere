@@ -11,7 +11,7 @@
 
 import { db, redis } from '../config';
 import { computeP95ForAllMarkets } from '../monitoring/middleware';
-import { insertAlert, getEndpointThreshold } from '../monitoring/p95';
+import { insertAlert } from '../monitoring/p95';
 
 const P95_THRESHOLD_MS = parseInt(process.env.P95_THRESHOLD_MS || '300', 10);
 const CONSECUTIVE_ROTATIONS_REQUIRED = 3;
@@ -22,63 +22,54 @@ const CONSECUTIVE_KEY_PREFIX = 'p95:consecutive:';
 const MARKETS = ['sg', 'us', 'my', 'vn', 'th'] as const;
 
 /**
- * Check consecutive-rotation threshold per market+endpoint.
- * Uses Redis to track how many consecutive windows exceeded the endpoint-specific
- * P95 threshold. When the count reaches CONSECUTIVE_ROTATIONS_REQUIRED, fires an alert.
+ * Check consecutive-rotation threshold for a market.
+ * Uses Redis to track how many consecutive windows exceeded the P95 threshold.
+ * When the count reaches CONSECUTIVE_ROTATIONS_REQUIRED, fires an alert.
  */
 async function checkConsecutiveAlerts(): Promise<void> {
-  try {
-    // Fetch the latest window for each market+endpoint in the last 15 minutes.
-    const result = await db.query(
-      `SELECT market, endpoint, p95_ms
-       FROM monitoring.p95_latency
-       WHERE window_end > NOW() - INTERVAL '15 minutes'
-       ORDER BY market, endpoint, window_end DESC`
-    );
+  for (const market of MARKETS) {
+    try {
+      // Get the latest P95 for this market across all endpoints
+      const result = await db.query(
+        `SELECT MAX(p95_ms) as max_p95 FROM monitoring.p95_latency
+         WHERE market = $1 AND window_end > NOW() - INTERVAL '10 minutes'`,
+        [market]
+      );
 
-    const latestByKey = new Map<string, { market: string; endpoint: string; p95_ms: number }>();
-    for (const row of result.rows) {
-      const key = `${row.market}:${row.endpoint}`;
-      if (!latestByKey.has(key)) {
-        latestByKey.set(key, row);
-      }
-    }
+      const maxP95 = result.rows[0]?.max_p95 || 0;
+      const redisKey = `${CONSECUTIVE_KEY_PREFIX}${market}`;
 
-    for (const { market, endpoint, p95_ms } of latestByKey.values()) {
-      try {
-        const thresholdMs = getEndpointThreshold(endpoint);
-        const redisKey = `${CONSECUTIVE_KEY_PREFIX}${market}:${endpoint}`;
+      if (maxP95 > P95_THRESHOLD_MS) {
+        // Threshold exceeded — increment consecutive counter
+        const count = await redis.incr(redisKey);
+        await redis.expire(redisKey, 1800).catch(() => {}); // 30 min TTL
 
-        if (p95_ms > thresholdMs) {
-          const count = await redis.incr(redisKey);
-          await redis.expire(redisKey, 1800).catch(() => {}); // 30 min TTL
+        console.log(
+          `[p95-runner] ${market.toUpperCase()} P95=${maxP95}ms exceeds ${P95_THRESHOLD_MS}ms ` +
+          `(${count}/${CONSECUTIVE_ROTATIONS_REQUIRED} consecutive)`
+        );
 
-          console.log(
-            `[p95-runner] ${market}:${endpoint} P95=${p95_ms}ms exceeds ${thresholdMs}ms ` +
-            `(${count}/${CONSECUTIVE_ROTATIONS_REQUIRED} consecutive)`
+        if (count >= CONSECUTIVE_ROTATIONS_REQUIRED) {
+          // 3 consecutive rotations exceeded — trigger alert
+          await insertAlert(market, maxP95, P95_THRESHOLD_MS);
+          console.warn(
+            `[p95-runner] ALERT: ${market.toUpperCase()} P95=${maxP95}ms exceeded ${P95_THRESHOLD_MS}ms ` +
+            `threshold for ${CONSECUTIVE_ROTATIONS_REQUIRED} consecutive rotations (BUY-13701)`
           );
-
-          if (count >= CONSECUTIVE_ROTATIONS_REQUIRED) {
-            await insertAlert(market, p95_ms, thresholdMs);
-            console.warn(
-              `[p95-runner] ALERT: ${market}:${endpoint} P95=${p95_ms}ms exceeded ${thresholdMs}ms ` +
-              `for ${CONSECUTIVE_ROTATIONS_REQUIRED} consecutive rotations (BUY-13701)`
-            );
-            await redis.set(redisKey, '0', 'EX', 1800);
-          }
-        } else {
-          const currentVal = await redis.get(redisKey);
-          if (currentVal && parseInt(currentVal, 10) > 0) {
-            await redis.set(redisKey, '0', 'EX', 1800);
-            console.log(`[p95-runner] ${market}:${endpoint} P95=${p95_ms}ms — resetting consecutive counter`);
-          }
+          // Reset counter after alerting so we don't re-alert every tick
+          await redis.set(redisKey, '0', 'EX', 1800);
         }
-      } catch (err) {
-        console.error(`[p95-runner] Error checking consecutive alerts for ${market}:${endpoint}:`, err);
+      } else {
+        // Threshold not exceeded — reset counter
+        const currentVal = await redis.get(redisKey);
+        if (currentVal && parseInt(currentVal, 10) > 0) {
+          await redis.set(redisKey, '0', 'EX', 1800);
+          console.log(`[p95-runner] ${market.toUpperCase()} P95=${maxP95}ms — resetting consecutive counter`);
+        }
       }
+    } catch (err) {
+      console.error(`[p95-runner] Error checking consecutive alerts for ${market}:`, err);
     }
-  } catch (err) {
-    console.error('[p95-runner] Error fetching latest P95 for consecutive alert check:', err);
   }
 }
 

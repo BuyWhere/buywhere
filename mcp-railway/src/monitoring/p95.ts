@@ -3,26 +3,12 @@ import { Request, Response, NextFunction } from 'express';
 
 export const VALID_MARKETS = ['sg', 'us', 'my', 'vn', 'th'] as const;
 export const P95_THRESHOLD_MS = parseInt(process.env.P95_THRESHOLD_MS || '300', 10);
-export const FBP_P95_THRESHOLD_MS = parseInt(process.env.FBP_P95_THRESHOLD_MS || '5000', 10);
 export const INTERNAL_P95_PROBE_HEADER = 'x-buywhere-internal-p95-probe';
-
-/**
- * Per-endpoint P95 alert threshold. FBP endpoints are allowed a much higher ceiling
- * because they issue heavy catalog FTS queries; alerting on the generic 300ms threshold
- * would page for normal FBP latency.
- */
-export function getEndpointThreshold(endpoint: string): number {
-  if (endpoint.startsWith('mcp:find_best_price:')) {
-    return FBP_P95_THRESHOLD_MS;
-  }
-  return P95_THRESHOLD_MS;
-}
 
 const AGGREGATION_WINDOW_MINUTES = 5;
 const AGGREGATION_LOOKBACK_WINDOWS = 3;
 const FRESHNESS_GRACE_MINUTES = 15;
 const REQUEST_TIMEOUT_MS = 10_000;
-const FBP_PROBE_TIMEOUT_MS = 25_000;
 const MONITORED_ENDPOINT = '/api/monitoring/p95';
 const API_BASE_URL = process.env.BUYWHERE_API_BASE_URL
   || (process.env.RAILWAY_SERVICE_BUYWHERE_API_URL ? `https://${process.env.RAILWAY_SERVICE_BUYWHERE_API_URL}` : 'https://api.buywhere.ai');
@@ -172,17 +158,13 @@ async function recordRawMeasurement(
   }
 }
 
-async function timedFetch(
-  url: string,
-  init: RequestInit = {},
-  timeoutMs: number = REQUEST_TIMEOUT_MS,
-): Promise<{ statusCode: number; latencyMs: number }> {
+async function timedFetch(url: string, init: RequestInit = {}): Promise<{ statusCode: number; latencyMs: number }> {
   const startedAt = Date.now();
 
   try {
     const response = await fetch(url, {
       ...init,
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     try {
       await response.text();
@@ -255,59 +237,12 @@ export async function recordMonitoredEndpointProbeSamples(
   }
 }
 
-/**
- * Probe find_best_price for each monitored market and persist latency samples under
- * endpoint keys like `mcp:find_best_price:us`. Uses a 25s timeout so cold FTS scans
- * (the symptom in BUY-71023) are captured as high-latency samples instead of silent
- * fetch aborts.
- */
-export async function recordMcpFindBestPriceProbeSamples(
-  markets: readonly (typeof VALID_MARKETS[number])[] = VALID_MARKETS,
-  productName: string = 'iphone 15',
-): Promise<void> {
-  const monitoringApiKey = process.env.MONITORING_API_KEY;
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-  };
-  if (monitoringApiKey) {
-    headers.Authorization = `Bearer ${monitoringApiKey}`;
-  }
-
-  await Promise.allSettled(
-    markets.map(async (market) => {
-      const { statusCode, latencyMs } = await timedFetch(
-        `${API_BASE_URL}/mcp`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: `probe:find_best_price:${market}`,
-            method: 'tools/call',
-            params: {
-              name: 'find_best_price',
-              arguments: {
-                product_name: productName,
-                country_code: market.toUpperCase(),
-              },
-            },
-          }),
-        },
-        FBP_PROBE_TIMEOUT_MS,
-      );
-      await recordRawMeasurement(market, `mcp:find_best_price:${market}`, latencyMs, statusCode);
-    }),
-  );
-}
-
 async function runFreshnessRecovery(): Promise<void> {
   await Promise.allSettled([
     probeHealth(),
     probeCatalogStats(),
     probeMcpListCategories(),
     recordMonitoredEndpointProbeSamples(),
-    recordMcpFindBestPriceProbeSamples(),
   ]);
 
   await refreshRecentP95Windows();
@@ -400,16 +335,15 @@ export async function getAllLatestP95(
 
   const markets: Record<string, LatestP95MarketSummary> = {};
   for (const row of result.rows) {
-    const thresholdMs = getEndpointThreshold(row.endpoint);
     markets[row.market] = {
       endpoint: row.endpoint,
       p95_ms: row.p95_ms,
       sample_size: row.sample_size,
       window_start: row.window_start,
       window_end: row.window_end,
-      alert_triggered: row.p95_ms > thresholdMs,
+      alert_triggered: row.p95_ms > P95_THRESHOLD_MS,
       baseline_ms: row.market === 'sg' ? 160 : 0,
-      threshold_ms: thresholdMs,
+      threshold_ms: P95_THRESHOLD_MS,
     };
   }
 
@@ -444,16 +378,14 @@ export async function insertP95Latency(
   windowStart: Date,
   windowEnd: Date
 ): Promise<void> {
-  const thresholdMs = getEndpointThreshold(endpoint);
-
   await db.query(
     `INSERT INTO monitoring.p95_latency (market, endpoint, p95_ms, sample_size, window_start, window_end)
      VALUES ($1, $2, $3, $4, $5, $6)`,
     [market, endpoint, p95Ms, sampleSize, windowStart, windowEnd]
   );
 
-  if (p95Ms > thresholdMs) {
-    await insertAlert(market, p95Ms, thresholdMs);
+  if (p95Ms > P95_THRESHOLD_MS) {
+    await insertAlert(market, p95Ms, P95_THRESHOLD_MS);
   }
 }
 
