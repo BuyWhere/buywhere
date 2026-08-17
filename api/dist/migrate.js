@@ -149,8 +149,9 @@ CREATE TABLE IF NOT EXISTS url_probe_log (
 );
 CREATE INDEX IF NOT EXISTS idx_url_probe_log_product_checked_at ON url_probe_log(product_id, checked_at DESC);
 CREATE INDEX IF NOT EXISTS idx_url_probe_log_status_checked_at ON url_probe_log(status, checked_at DESC);
-CREATE INDEX IF NOT EXISTS idx_products_url_probe_due ON products(url_last_checked_at) WHERE is_active = true AND url IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_products_url_status ON products(url_status);
+-- BUY-70924: products URL status indexes are created CONCURRENTLY in
+-- runMigrations() (ensureUrlProbeIndexes) so the build does not lock the live
+-- ingest pipeline. Do not add non-CONCURRENT product indexes to this transaction.
 
 -- Affiliate links registry
 CREATE TABLE IF NOT EXISTS affiliate_links (
@@ -481,6 +482,45 @@ function quoteIdentifier(identifier) {
 function quoteQualifiedIdentifier(qualifiedIdentifier) {
     return qualifiedIdentifier.split('.').map(quoteIdentifier).join('.');
 }
+async function ensureUrlProbeIndexes() {
+    const targetTable = 'public.products';
+    const indexes = [
+        {
+            name: 'idx_products_url_probe_due',
+            createSql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_products_url_probe_due
+                    ON ${targetTable} (url_last_checked_at)
+                    WHERE is_active = true AND url IS NOT NULL`,
+        },
+        {
+            name: 'idx_products_url_status',
+            createSql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_products_url_status
+                    ON ${targetTable} (url_status)`,
+        },
+    ];
+    for (const idx of indexes) {
+        try {
+            const existsValid = await config_1.db.query(`SELECT 1 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+          WHERE i.indrelid = ${targetTable}::regclass AND c.relname = $1 AND i.indisvalid`, [idx.name]);
+            if (existsValid.rows.length > 0) {
+                console.log(`[migration] ${idx.name} already valid.`);
+                continue;
+            }
+            const client = await config_1.db.connect();
+            try {
+                await client.query('SET statement_timeout = 1800000');
+                await client.query('SET lock_timeout = 60000');
+                await client.query(idx.createSql);
+                console.log(`[migration] ${idx.name} created.`);
+            }
+            finally {
+                client.release();
+            }
+        }
+        catch (err) {
+            console.warn(`[migration] ${idx.name} create failed (non-fatal): ${err.message?.slice(0, 200)}`);
+        }
+    }
+}
 async function ensureStrictDealsIndexes() {
     const partitions = await config_1.db.query(`SELECT c.oid::regclass::text AS table_name
        FROM pg_inherits i
@@ -711,6 +751,11 @@ async function runMigrations() {
     // it to GENERATED is deferred/fails, strict get_deals must still use the column
     // index path instead of seq-scanning the live products table.
     await ensureStrictDealsIndexes();
+    // BUY-70924: outbound-link probe indexes on products must be built CONCURRENTLY
+    // to avoid locking the live ingest pipeline. Each index gets its own checkout
+    // with a long statement_timeout and short lock_timeout so a transient lock wait
+    // fails this step but does not block startup or ingest.
+    await ensureUrlProbeIndexes();
     // BUY-22324: discount_pct GENERATED STORED column — must detect and fix a plain
     // (non-generated) column left by a prior migration failure.
     // Uses guarded CASE with regex to prevent dirty original_price from failing inserts.
