@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isCanonicalRouterStateTree } from "@/lib/router-state-tree";
 import { commerceBrands, commerceStores } from "@/lib/commerce-routes";
+import { PRODUCT_TAXONOMY } from "@/lib/taxonomy";
+import { COMPARE_DOC_SLUGS } from "@/lib/compare-doc-slugs";
 
 // BUY-69058: Baseline browser security/privacy headers applied to public HTML routes.
 const BASELINE_SECURITY_HEADERS: [string, string][] = [
@@ -615,6 +617,28 @@ export function middleware(request: NextRequest) {
       return new NextResponse(null, { status: 404, headers: { "Content-Type": "text/plain" } });
     }
   }
+  // BUY-70653: all single-segment /compare/{slug} routes must resolve to a real
+  // static markdown doc or a valid taxonomy category pair. Anything else is a
+  // soft-200 fallback shell that crawlers should see as a hard 404. This also
+  // prevents the category-pair regex from accidentally 404ing valid compare docs
+  // whose filenames contain "-vs-".
+  const compareSingleMatch = /^\/compare\/([a-z0-9-]+)\/?$/.exec(normalizedForDead);
+  if (compareSingleMatch) {
+    const slug = compareSingleMatch[1];
+    if (COMPARE_DOC_SLUGS.has(slug)) {
+      // valid static compare doc; let the page handler render it
+    } else if (/^[a-z0-9-]+-vs-[a-z0-9-]+$/.test(slug)) {
+      const [left, right] = slug.split("-vs-");
+      const validCategory = PRODUCT_TAXONOMY.some((c) => c.slug === left) &&
+                           PRODUCT_TAXONOMY.some((c) => c.slug === right);
+      if (!validCategory) {
+        return new NextResponse(null, { status: 404, headers: { "Content-Type": "text/plain" } });
+      }
+    } else {
+      return new NextResponse(null, { status: 404, headers: { "Content-Type": "text/plain" } });
+    }
+  }
+
   // BUY-69713: indexable compare aliases must not serve 200 generic/not-found shells.
   // Redirect known utility comparison paths to their canonical, structured pages.
   if (normalizedForDead === "/compare/us/electronics") {
