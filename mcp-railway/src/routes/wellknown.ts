@@ -10,7 +10,6 @@ const AI_AGENT_DESCRIPTOR = {
   version: '1.0',
   protocols: {
     mcp: 'https://api.buywhere.ai/mcp/sse',
-    a2a: 'https://api.buywhere.ai/.well-known/agent.json',
     rest: 'https://api.buywhere.ai/v1',
   },
   auth: {
@@ -64,10 +63,6 @@ const A2A_AGENT_CARD = {
     mcp: {
       serverUrl: 'https://api.buywhere.ai/mcp/sse',
       transport: 'sse',
-    },
-    a2a: {
-      serverUrl: 'https://api.buywhere.ai/a2a',
-      transport: 'json',
     },
   },
   contact: {
@@ -184,7 +179,7 @@ router.get('/ai-agent.json', (_req: Request, res: Response) => {
   res.json(AI_AGENT_DESCRIPTOR);
 });
 
-// GET /.well-known/agent.json — A2A agent card
+// GET /.well-known/agent.json — agent card
 router.get('/agent.json', (_req: Request, res: Response) => {
   res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
   res.json(A2A_AGENT_CARD);

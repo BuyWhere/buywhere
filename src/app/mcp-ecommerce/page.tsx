@@ -277,7 +277,7 @@ export default async function McpEcommercePage() {
               <li><strong>Multi-retailer aggregation</strong> — Lazada, Shopee, Amazon, and more</li>
               <li><strong>Price comparison</strong> across markets in a single tool call</li>
               <li><strong>Deal discovery</strong> — active promotions and price drops</li>
-              <li><strong>A2A protocol discovery</strong> via Agent Card at <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-sm text-slate-800">buywhere.ai/.well-known/agent.json</code></li>
+              <li><strong>Agent card discovery</strong> via <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-sm text-slate-800">buywhere.ai/.well-known/agent.json</code></li>
             </ul>
             <p className="mt-6 text-lg leading-8 text-slate-700">
               <strong>Setup time:</strong> 60 seconds. <Link href="/api-keys" className="font-medium text-indigo-600 underline decoration-indigo-200 underline-offset-4">Get your free API key</Link>.
@@ -363,7 +363,7 @@ Sony WH-1000XM5 (US)        — $329.99 @ Amazon US`}</pre>
             <div className="rounded-2xl border border-slate-200 bg-white p-8">
               <h3 className="text-xl font-bold text-slate-900">AI-to-AI Commerce</h3>
               <p className="mt-4 text-lg leading-8 text-slate-700">
-                With A2A protocol support, one agent can discover BuyWhere autonomously, search products, and hand results to another agent for checkout.
+                One agent can discover BuyWhere via its agent card, search products, and hand results to another agent for checkout.
               </p>
             </div>
           </div>
