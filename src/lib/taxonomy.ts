@@ -7,6 +7,23 @@ export interface TaxonomyCategory {
   regions: ('us' | 'sg' | 'sea')[];
 }
 
+// Static /compare/{slug} routes that are backed by real App Router pages.
+// Keep sitemap emission and middleware's hard-404 guard aligned so crawlers are
+// only sent to compare URLs that can serve 200 landing pages.
+export const ACTIVE_COMPARE_STATIC_SLUGS = [
+  "us",
+  "automotive",
+  "beauty",
+  "electronics",
+  "fashion",
+  "food-beverages",
+  "health-wellness",
+  "home-living",
+  "pet-supplies",
+  "sports-outdoors",
+  "toys-games",
+] as const;
+
 export const PRODUCT_TAXONOMY: TaxonomyCategory[] = [
   {
     id: 'electronics',

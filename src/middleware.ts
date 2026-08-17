@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isCanonicalRouterStateTree } from "@/lib/router-state-tree";
 import { commerceBrands, commerceStores } from "@/lib/commerce-routes";
-import { PRODUCT_TAXONOMY } from "@/lib/taxonomy";
+import { ACTIVE_COMPARE_STATIC_SLUGS, PRODUCT_TAXONOMY } from "@/lib/taxonomy";
 import { COMPARE_DOC_SLUGS } from "@/lib/compare-doc-slugs";
 
 // BUY-69058: Baseline browser security/privacy headers applied to public HTML routes.
@@ -651,8 +651,8 @@ export function middleware(request: NextRequest) {
   const compareSingleMatch = /^\/compare\/([a-z0-9-]+)\/?$/.exec(normalizedForDead);
   if (compareSingleMatch) {
     const slug = compareSingleMatch[1];
-    if (COMPARE_DOC_SLUGS.has(slug)) {
-      // valid static compare doc; let the page handler render it
+    if (COMPARE_DOC_SLUGS.has(slug) || ACTIVE_COMPARE_STATIC_SLUGS.includes(slug as typeof ACTIVE_COMPARE_STATIC_SLUGS[number])) {
+      // valid compare doc or static compare landing page; let the page handler render it
     } else if (/^[a-z0-9-]+-vs-[a-z0-9-]+$/.test(slug)) {
       const [left, right] = slug.split("-vs-");
       const validCategory = PRODUCT_TAXONOMY.some((c) => c.slug === left) &&

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { getCategorySitemapEntries, getCompareSitemapEntries, getStaticSitemapEntries } from "@/lib/sitemaps";
 import { toSiteUrl } from "@/lib/site-url";
+import { ACTIVE_COMPARE_STATIC_SLUGS, PRODUCT_TAXONOMY } from "@/lib/taxonomy";
 
 test("getCategorySitemapEntries uses canonical (no trailing slash) URLs", async () => {
   const entries = await getCategorySitemapEntries();
@@ -22,6 +23,24 @@ test("getCompareSitemapEntries uses canonical (no trailing slash) URLs", async (
       !path.endsWith("/") || path === "/",
       `compare sitemap URL ${entry.url} should not have a trailing slash (except for /)`,
     );
+  }
+});
+
+test("getCompareSitemapEntries only emits known static compare landing pages (BUY-71003)", async () => {
+  const entries = await getCompareSitemapEntries();
+  const paths = entries.map((e) => new URL(e.url).pathname);
+
+  assert.ok(paths.includes("/compare"), "expected /compare in sitemap-compare.xml");
+  for (const slug of ACTIVE_COMPARE_STATIC_SLUGS) {
+    assert.ok(paths.includes(`/compare/${slug}`), `expected /compare/${slug} in sitemap-compare.xml`);
+  }
+
+  const activeStatic = new Set<string>(ACTIVE_COMPARE_STATIC_SLUGS.map((slug) => `/compare/${slug}`));
+  for (const category of PRODUCT_TAXONOMY) {
+    const path = `/compare/${category.slug}`;
+    if (!activeStatic.has(path)) {
+      assert.ok(!paths.includes(path), `${path} is not backed by a static compare page and must not be emitted`);
+    }
   }
 });
 
