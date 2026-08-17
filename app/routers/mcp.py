@@ -26,6 +26,20 @@ _request_auth: contextvars.ContextVar[str] = contextvars.ContextVar("mcp_auth", 
 
 _api_server: Server | None = None
 
+# Country argument normalization — accepts country_code, country, or region aliases
+# to match how agents and probes invoke the tools (e.g. country: "SG" or region: "sg").
+_REG_TO_CC: dict[str, str] = {
+    "sg": "SG", "us": "US", "my": "MY", "th": "TH", "vn": "VN",
+    "ph": "PH", "gb": "GB", "uk": "GB", "in": "IN", "au": "AU",
+}
+
+
+def _normalize_country_arg(args: dict[str, Any]) -> str:
+    """Return an uppercased country code from country_code/country/region args, or ''."""
+    raw = args.get("country_code") or args.get("country") or args.get("region") or ""
+    key = str(raw).strip().lower()
+    return _REG_TO_CC.get(key) or (raw.strip().upper() if raw.strip() else "")
+
 
 def get_mcp_server() -> Server:
     global _api_server
@@ -208,9 +222,10 @@ async def _handle_search_products(args: dict[str, Any]) -> CallToolResult:
     for key in ("category", "min_price", "max_price", "source"):
         if args.get(key) is not None:
             params[key] = args[key]
+    country_code = _normalize_country_arg(args)
     # country_code scopes the GIN scan to a single market (7.8M rows for SG vs 28M total)
-    if args.get("country_code"):
-        params["country_code"] = str(args["country_code"]).upper()
+    if country_code:
+        params["country_code"] = country_code
 
     try:
         data = await _api_get("/v1/search", params)
@@ -263,8 +278,9 @@ async def _handle_find_best_price(args: dict[str, Any]) -> CallToolResult:
     params = {"q": product_name}
     if args.get("category"):
         params["category"] = args["category"]
-    if args.get("country_code"):
-        params["country_code"] = str(args["country_code"]).upper()
+    country_code = _normalize_country_arg(args)
+    if country_code:
+        params["country_code"] = country_code
 
     try:
         p = await _api_get("/v1/products/best-price", params)
