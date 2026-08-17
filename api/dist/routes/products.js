@@ -709,100 +709,6 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         || q.toLowerCase().trim();
     const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${(0, outboundLinkHealth_1.outboundProbeEnabled)() ? 'probe1' : 'probe0'}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
     res.locals.cacheHit = false;
-    try {
-        const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
-        if (cached) {
-            res.locals.cacheHit = true;
-            const parsed = JSON.parse(cached);
-            const elapsed = Date.now() - requestStart;
-            parsed.cached = true;
-            parsed.response_time_ms = elapsed;
-            const cachedProducts = parsed.products || parsed.results || parsed.data || [];
-            (0, instrumentation_1.recordProductViewsBulk)({
-                productIds: cachedProducts
-                    .map((product) => product.id)
-                    .filter(Boolean),
-                source: 'products.search.cache',
-                queryHash: q ? (0, crypto_1.createHash)('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
-                req,
-            });
-            res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
-            res.set('X-Cache', 'HIT');
-            return res.json(parsed);
-        }
-        // Semantic cache (2026-08-06): vector-similar reuse within the same scope.
-        // Scope = cacheKey minus the qNorm segment (qNorm can contain no colons).
-        if ((0, semanticCache_1.semanticEnabled)() && q && offset === 0) {
-            const semParts = cacheKey.split(':');
-            const semScope = `a1:${semParts[1]}:${semParts[2]}|${semParts.slice(4).join(':')}`;
-            let semVec = null;
-            const semGk = process.env.GEMINI_API_KEY ?? '';
-            if (semGk)
-                semVec = await getCachedQueryEmbedding(q, semGk);
-            const semHit = await (0, semanticCache_1.semanticLookup)(config_1.redis, semScope, qNorm, semVec);
-            res.locals.semScope = semScope;
-            res.locals.semQNorm = qNorm;
-            res.locals.semVec = semVec;
-            res.locals.semCacheKey = cacheKey;
-            if (semHit) {
-                res.locals.cacheHit = true;
-                const semParsed = JSON.parse(semHit.body);
-                semParsed.cached = true;
-                semParsed.semantic_cache = true;
-                semParsed.response_time_ms = Date.now() - requestStart;
-                res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
-                res.set('X-Cache', 'HIT-SEMANTIC');
-                return res.json(semParsed);
-            }
-        }
-    }
-    catch (_) {
-        // Redis miss or error — fall through to DB
-    }
-    // BUY-33987: only active products are surfaced to API consumers; the partial
-    // GIN index `products_*_search_vector_idx WHERE is_active = true` lets the
-    // planner skip dead rows and the inactive non-leaf rows that previously
-    // bloated the bitmap. EXPLAIN ANALYZE on roundhouse (post-fix) shows the
-    // planner switches to the partial index and execution drops to ~15-30ms.
-    // BUY-60385: Exclude zero-price products from search results (deceptive $0.00
-    // prices from upstream feeds). A meaningful price > $0 is a basic data quality
-    // requirement for any product listing. Products with $0 prices are either
-    // out-of-stock markers, missing price fields, or feed parsing errors.
-    // BUY-61117: make the RAM-fitting search tier the default for keyword search.
-    // Hermes QA found the archive path still returns degraded:true,total=0 for
-    // common cold broad queries across SG+US. Tier-first preserves Richmond's
-    // single-table archive constraints because it falls through unchanged on any
-    // tier error, and SEARCH_USE_TIER=0 remains a runtime kill switch.
-    const useSearchTier = !(0, outboundLinkHealth_1.outboundProbeEnabled)() && (req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0'));
-    // BUY-67275 durable (2026-08-16): the tier now honors sort directly
-    // (TIER_SORT in tryTierSearch), so sorted queries take the fast RAM path
-    // and no longer flap to degraded-empty under replica pressure. Tier miss
-    // still falls through to the archive sorted path.
-    if (q && searchMode === 'keyword' && useSearchTier) {
-        const handled = await tryTierSearch(req, res, {
-            q, countryCode, currency, limit, offset, minPrice, maxPrice,
-            category, brand, domain, compact, requestStart, cacheKey, sort,
-            deliverTo, includeUnshippable,
-        });
-        if (handled)
-            return;
-    }
-    const baseConditions = ['is_active = true', 'price > 0'];
-    // BUY-70776: when the outbound-link probe sweep is active, exclude rows whose
-    // URL has been verified dead. The probe flips url_status to 'dead' on confirmed
-    // 404/410/etc. Dead rows remain in the DB so they can reappear if the probe
-    // later finds the URL healthy; the filter only gates the read path.
-    if ((0, outboundLinkHealth_1.outboundProbeEnabled)()) {
-        baseConditions.push((0, outboundLinkHealth_1.liveUrlCondition)());
-    }
-    // BUY-69621: HARD-exclude storage/SSD categories from device-typed queries
-    // (laptop/phone/…). Flows through baseConditions into every archive + hybrid
-    // candidate WHERE (recent_hits, non-FTS branch, fts_cand, semantic
-    // vectorFilterQuery). No-op (fail-open) for storage queries and non-device
-    // queries. Unqualified `category` matches the unaliased `products` table.
-    const storageExclProducts = (0, searchRelevanceTaxonomy_1.deviceStorageExclusionFragmentProducts)(q);
-    if (storageExclProducts)
-        baseConditions.push(`1 = 1${storageExclProducts}`);
     const baseParams = [];
     let baseIdx = 1;
     if (minPrice !== undefined || maxPrice !== undefined) {
@@ -2072,6 +1978,7 @@ router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, 
     }
     const probeEnabled = (0, outboundLinkHealth_1.outboundProbeEnabled)();
     let result;
+    const probeEnabled = (0, outboundLinkHealth_1.outboundProbeEnabled)();
     try {
         result = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
                 title, price, currency, image_url, metadata, updated_at,

@@ -131,23 +131,6 @@ async function handleCategoryCompareFallback(slug, req, res) {
     const currency = (req.query.country === 'US' || req.query.region === 'us') ? 'USD' : 'SGD';
     const aliasNames = COMPARE_CATEGORY_ALIASES[normalizedSlug] || [];
     const categoryLabel = aliasNames[0];
-    if (aliasNames.length === 0) {
-        return false;
-    }
-    // Use ILIKE with leading wildcard - uses gin_trgm_ops index, fast
-    const limit = Math.min(parseInt(req.query.limit || '50'), 100);
-    const offset = parseInt(req.query.offset || '0');
-    // Build ILIKE conditions for each alias name with leading wildcard
-    // Note: We use normalizedSlug to match the slug itself (e.g., "electronics" matches "Electronics Accessories")
-    const pattern = `%${normalizedSlug}%`;
-    const urlCondition = (0, outboundLinkHealth_1.outboundProbeEnabled)() ? ` AND ${(0, outboundLinkHealth_1.liveUrlCondition)()}` : '';
-    const productsResult = await config_1.db.query(`SELECT id, title, brand, image_url, price, currency, url, source, is_active,
-            updated_at, sku, mpn
-     FROM products
-     WHERE currency = $1 AND category ILIKE $2${urlCondition}
-     ORDER BY updated_at DESC
-     LIMIT $3 OFFSET $4`, [currency, pattern, limit, offset]).catch(() => null);
-    const rows = productsResult?.rows ?? [];
     // Group products by SKU / title — each unique product row becomes a product entry
     // with its prices[] array containing this one merchant listing
     const products = rows.map((row) => ({
