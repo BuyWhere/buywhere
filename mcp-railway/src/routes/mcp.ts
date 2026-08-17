@@ -1091,7 +1091,7 @@ async function handleListCategories(args: Record<string, unknown>) {
 
 async function handleFindBestPrice(args: Record<string, unknown>) {
   const t0 = Date.now();
-  const productName = ((args.product_name as string) || (args.q as string) || '').trim();
+  const productName = ((args.product_name as string) || (args.q as string) || (args.query as string) || '').trim();
   if (!productName) throw { code: -32602, message: 'product_name is required' };
 
   const normalizedMarket = normalizeCountryAndRegion(args);
@@ -1446,7 +1446,10 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     return false;
   };
 
-  const candidates = result.rows.filter(r => !isAccessory(r)).slice(0, limit);
+  const candidates = result.rows
+    .filter((r) => !isSentinelPrice(r.price != null ? parseFloat(r.price as string) : null))
+    .filter(r => !isAccessory(r))
+    .slice(0, limit);
 
   const data = candidates.map((r: Record<string, unknown>) => {
     const amount = r.price != null ? parseFloat(r.price as string) : null;
