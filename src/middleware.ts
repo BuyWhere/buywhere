@@ -685,19 +685,6 @@ export function middleware(request: NextRequest) {
     url.search = "country_code=us&q=amazon%20walmart";
     return NextResponse.redirect(url, 301);
   }
-
-  // Moved content: product index pages now redirect to their country pages
-  if (normalizedForDead === "/products/us") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/us";
-    return NextResponse.redirect(url, 301);
-  }
-  if (normalizedForDead === "/products/sg") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url, 301);
-  }
-
   // /about now renders src/app/about/page.tsx with title + meta description
   // (see BUY-58440).  Previously this middleware returned 410 (BUY-57869), which
   // suppressed the page even though the page itself shipped the correct metadata.
