@@ -150,6 +150,58 @@ CREATE INDEX IF NOT EXISTS idx_url_probe_log_status_checked_at ON url_probe_log(
 CREATE INDEX IF NOT EXISTS idx_products_url_probe_due ON products(url_last_checked_at) WHERE is_active = true AND url IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_products_url_status ON products(url_status);
 
+-- BUY-70932: merchant-adapter recheck queue for dead->ok URL flips.
+-- Oracle consumes this queue to re-ingest / re-map merchant URLs. A trigger
+-- below auto-enqueues whenever products.url_status flips from 'dead' to 'ok',
+-- so the probe worker (Cart) does not need to know the queue schema.
+CREATE TABLE IF NOT EXISTS merchant_adapter_recheck_queue (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id        BIGINT NOT NULL,
+  merchant_id       TEXT NOT NULL,
+  old_status        TEXT NOT NULL,
+  new_status        TEXT NOT NULL,
+  url               TEXT,
+  detected_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  processed_at      TIMESTAMPTZ,
+  processed_by      TEXT,
+  result            TEXT,
+  retry_count       INTEGER NOT NULL DEFAULT 0,
+  quarantined_at    TIMESTAMPTZ,
+  quarantine_reason TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_merchant_adapter_recheck_queue_unprocessed
+  ON merchant_adapter_recheck_queue (detected_at ASC)
+  WHERE processed_at IS NULL AND quarantined_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_merchant_adapter_recheck_queue_product
+  ON merchant_adapter_recheck_queue (product_id, detected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_merchant_adapter_recheck_queue_merchant
+  ON merchant_adapter_recheck_queue (merchant_id, detected_at DESC)
+  WHERE processed_at IS NULL AND quarantined_at IS NULL;
+
+-- Trigger function: enqueue dead->ok flips.
+CREATE OR REPLACE FUNCTION trg_products_url_status_dead_to_ok_queue()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.url_status IS DISTINCT FROM NEW.url_status
+     AND OLD.url_status = 'dead'
+     AND NEW.url_status = 'ok' THEN
+    INSERT INTO merchant_adapter_recheck_queue (
+      product_id, merchant_id, old_status, new_status, url, detected_at
+    ) VALUES (
+      NEW.id, NEW.merchant_id, OLD.url_status, NEW.url_status, NEW.url,
+      COALESCE(NEW.url_last_checked_at, NOW())
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS products_url_status_dead_to_ok_queue ON products;
+CREATE TRIGGER products_url_status_dead_to_ok_queue
+  AFTER UPDATE OF url_status ON products
+  FOR EACH ROW
+  EXECUTE FUNCTION trg_products_url_status_dead_to_ok_queue();
+
 -- Affiliate links registry
 CREATE TABLE IF NOT EXISTS affiliate_links (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
