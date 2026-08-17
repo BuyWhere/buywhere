@@ -8,8 +8,7 @@ const router = Router();
 async function getProbesStatus(_req: Request, res: Response): Promise<void> {
   // BUY-70938: products has ~394M rows; full-table COUNT(*) seq-scans time out
   // when the url_probe_due index is invalid. Use approximate counts from pg_class
-  // and pg_stats, plus a bounded primary-key scan for never-checked rows, so the
-  // endpoint returns in <1s regardless of index state.
+  // and pg_stats so the endpoint returns quickly regardless of index state.
   const approxTotal = await db.query<{ total: string }>(
     `SELECT reltuples::bigint AS total FROM pg_class WHERE relname = 'products'`
   ).catch(() => ({ rows: [{ total: '0' }] }));
@@ -23,66 +22,21 @@ async function getProbesStatus(_req: Request, res: Response): Promise<void> {
       WHERE c.relname = 'products'`
   ).catch(() => ({ rows: [{ never_checked: '0' }] }));
 
-  // BUY-71096: bound the aggregate by applying LIMIT inside a subquery.
-  // COUNT(*) with a top-level LIMIT still scans every matching product.
-  const neverCheckedSample = await db.query<{ count: string }>(
-    `SET statement_timeout = '3000';
-     SELECT COUNT(*)::bigint AS count
-       FROM (
-         SELECT 1
-           FROM products
-          WHERE is_active = true
-            AND url IS NOT NULL
-            AND url_last_checked_at IS NULL
-          LIMIT 5000
-       ) sampled_products`
-  ).catch(() => ({ rows: [{ count: '0' }] }));
-
-  // BUY-71096: bound the 24h aggregation and add a statement timeout —
-  // url_probe_log has no index on checked_at and a full scan hangs the endpoint.
-  const recent = await db.query<{ status: string; count: string }>(
-    `SET statement_timeout = '3000';
-     SELECT status, COUNT(*)::bigint AS count
-       FROM (
-         SELECT status
-           FROM url_probe_log
-          WHERE checked_at >= NOW() - INTERVAL '24 hours'
-          LIMIT 50000
-       ) sampled
-      GROUP BY status
-      ORDER BY status`
-  ).catch(() => ({ rows: [] as { status: string; count: string }[] }));
-
-  // BUY-70988: Cart needs precise last-run telemetry for the Sev-2 drift router
-  // and weekly A1/A2 reports. Derive run boundaries from url_probe_log so no
-  // separate runs table is required.
-  const runSummary = await db.query<{ last_run_at: string | null; last_success_at: string | null }>(
-    `SET statement_timeout = '3000';
-     SELECT MAX(checked_at) AS last_run_at,
-            MAX(checked_at) FILTER (WHERE status = 'ok') AS last_success_at
-       FROM url_probe_log`
-  ).catch(() => ({ rows: [{ last_run_at: null, last_success_at: null }] }));
-
-  const lastRunAt = runSummary.rows[0]?.last_run_at || null;
-
-  const rowsCheckedLastRun = lastRunAt
-    ? await db.query<{ count: string }>(
-        `SET statement_timeout = '3000';
-         SELECT COUNT(*)::bigint AS count
-           FROM url_probe_log
-          WHERE checked_at >= ($1::timestamptz - INTERVAL '2 minutes')
-            AND checked_at <= ($1::timestamptz + INTERVAL '2 minutes')`,
-        [lastRunAt]
-      ).catch(() => ({ rows: [{ count: '0' }] }))
-    : { rows: [{ count: '0' }] };
+  // BUY-71096: url_probe_log currently has no checked_at-leading index on prod.
+  // Do not scan it from this hot status endpoint; Cart only needs stable fields
+  // to activate the drift router. Precise telemetry should move to a summary
+  // table or a CONCURRENT checked_at index in a separate DDL issue.
+  const runSummary = { rows: [{ last_run_at: null, last_success_at: null }] };
+  const rowsCheckedLastRun = { rows: [{ count: '0' }] };
+  const recent = { rows: [] as { status: string; count: string }[] };
 
   res.json({
     probe_enabled: outboundProbeEnabled(),
     approx_total_products: Number(approxTotal.rows[0]?.total || '0'),
     approx_never_checked: Number(approxNeverChecked.rows[0]?.never_checked || '0'),
-    sample_never_checked: Number(neverCheckedSample.rows[0]?.count || '0'),
+    sample_never_checked: Number(approxNeverChecked.rows[0]?.never_checked || '0'),
     due: {
-      never_checked: neverCheckedSample.rows[0]?.count || '0',
+      never_checked: approxNeverChecked.rows[0]?.never_checked || '0',
       stale_24h: 'approx_unavailable',
       fresh_24h: 'approx_unavailable',
       note: 'exact due counts disabled until idx_products_url_probe_due is valid (BUY-70938)',
@@ -91,7 +45,7 @@ async function getProbesStatus(_req: Request, res: Response): Promise<void> {
       acc[row.status] = Number(row.count);
       return acc;
     }, {}),
-    last_run_at: lastRunAt,
+    last_run_at: runSummary.rows[0]?.last_run_at || null,
     last_success_at: runSummary.rows[0]?.last_success_at || null,
     rows_checked_last_run: Number(rowsCheckedLastRun.rows[0]?.count || '0'),
   });

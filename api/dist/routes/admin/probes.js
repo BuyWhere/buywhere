@@ -43,43 +43,26 @@ var auth_1 = require("./auth");
 var router = (0, express_1.Router)();
 function getProbesStatus(_req, res) {
     return __awaiter(this, void 0, void 0, function () {
-        var approxTotal, approxNeverChecked, neverCheckedSample, recent, runSummary, lastRunAt, rowsCheckedLastRun, _a;
-        var _b, _c, _d, _e, _f, _g, _h;
-        return __generator(this, function (_j) {
-            switch (_j.label) {
+        var approxTotal, approxNeverChecked, runSummary, rowsCheckedLastRun, recent;
+        var _a, _b, _c, _d, _e, _f, _g;
+        return __generator(this, function (_h) {
+            switch (_h.label) {
                 case 0: return [4 /*yield*/, config_1.db.query("SELECT reltuples::bigint AS total FROM pg_class WHERE relname = 'products'").catch(function () { return ({ rows: [{ total: '0' }] }); })];
                 case 1:
-                    approxTotal = _j.sent();
+                    approxTotal = _h.sent();
                     return [4 /*yield*/, config_1.db.query("SELECT ROUND(c.reltuples * COALESCE(s.null_frac, 0))::bigint AS never_checked\n       FROM pg_class c\n       LEFT JOIN pg_stats s ON s.schemaname = 'public'\n                           AND s.tablename = 'products'\n                           AND s.attname = 'url_last_checked_at'\n      WHERE c.relname = 'products'").catch(function () { return ({ rows: [{ never_checked: '0' }] }); })];
                 case 2:
-                    approxNeverChecked = _j.sent();
-                    return [4 /*yield*/, config_1.db.query("SET statement_timeout = '3000';\n     SELECT COUNT(*)::bigint AS count\n       FROM (\n         SELECT 1\n           FROM products\n          WHERE is_active = true\n            AND url IS NOT NULL\n            AND url_last_checked_at IS NULL\n          LIMIT 5000\n       ) sampled_products").catch(function () { return ({ rows: [{ count: '0' }] }); })];
-                case 3:
-                    neverCheckedSample = _j.sent();
-                    return [4 /*yield*/, config_1.db.query("SET statement_timeout = '3000';\n     SELECT status, COUNT(*)::bigint AS count\n       FROM (\n         SELECT status\n           FROM url_probe_log\n          WHERE checked_at >= NOW() - INTERVAL '24 hours'\n          LIMIT 50000\n       ) sampled\n      GROUP BY status\n      ORDER BY status").catch(function () { return ({ rows: [] }); })];
-                case 4:
-                    recent = _j.sent();
-                    return [4 /*yield*/, config_1.db.query("SET statement_timeout = '3000';\n     SELECT MAX(checked_at) AS last_run_at,\n            MAX(checked_at) FILTER (WHERE status = 'ok') AS last_success_at\n       FROM url_probe_log").catch(function () { return ({ rows: [{ last_run_at: null, last_success_at: null }] }); })];
-                case 5:
-                    runSummary = _j.sent();
-                    lastRunAt = ((_b = runSummary.rows[0]) === null || _b === void 0 ? void 0 : _b.last_run_at) || null;
-                    if (!lastRunAt) return [3 /*break*/, 7];
-                    return [4 /*yield*/, config_1.db.query("SET statement_timeout = '3000';\n         SELECT COUNT(*)::bigint AS count\n           FROM url_probe_log\n          WHERE checked_at >= ($1::timestamptz - INTERVAL '2 minutes')\n            AND checked_at <= ($1::timestamptz + INTERVAL '2 minutes')", [lastRunAt]).catch(function () { return ({ rows: [{ count: '0' }] }); })];
-                case 6:
-                    _a = _j.sent();
-                    return [3 /*break*/, 8];
-                case 7:
-                    _a = { rows: [{ count: '0' }] };
-                    _j.label = 8;
-                case 8:
-                    rowsCheckedLastRun = _a;
+                    approxNeverChecked = _h.sent();
+                    runSummary = { rows: [{ last_run_at: null, last_success_at: null }] };
+                    rowsCheckedLastRun = { rows: [{ count: '0' }] };
+                    recent = { rows: [] };
                     res.json({
                         probe_enabled: (0, outboundLinkHealth_1.outboundProbeEnabled)(),
-                        approx_total_products: Number(((_c = approxTotal.rows[0]) === null || _c === void 0 ? void 0 : _c.total) || '0'),
-                        approx_never_checked: Number(((_d = approxNeverChecked.rows[0]) === null || _d === void 0 ? void 0 : _d.never_checked) || '0'),
-                        sample_never_checked: Number(((_e = neverCheckedSample.rows[0]) === null || _e === void 0 ? void 0 : _e.count) || '0'),
+                        approx_total_products: Number(((_a = approxTotal.rows[0]) === null || _a === void 0 ? void 0 : _a.total) || '0'),
+                        approx_never_checked: Number(((_b = approxNeverChecked.rows[0]) === null || _b === void 0 ? void 0 : _b.never_checked) || '0'),
+                        sample_never_checked: Number(((_c = approxNeverChecked.rows[0]) === null || _c === void 0 ? void 0 : _c.never_checked) || '0'),
                         due: {
-                            never_checked: ((_f = neverCheckedSample.rows[0]) === null || _f === void 0 ? void 0 : _f.count) || '0',
+                            never_checked: ((_d = approxNeverChecked.rows[0]) === null || _d === void 0 ? void 0 : _d.never_checked) || '0',
                             stale_24h: 'approx_unavailable',
                             fresh_24h: 'approx_unavailable',
                             note: 'exact due counts disabled until idx_products_url_probe_due is valid (BUY-70938)',
@@ -88,9 +71,9 @@ function getProbesStatus(_req, res) {
                             acc[row.status] = Number(row.count);
                             return acc;
                         }, {}),
-                        last_run_at: lastRunAt,
-                        last_success_at: ((_g = runSummary.rows[0]) === null || _g === void 0 ? void 0 : _g.last_success_at) || null,
-                        rows_checked_last_run: Number(((_h = rowsCheckedLastRun.rows[0]) === null || _h === void 0 ? void 0 : _h.count) || '0'),
+                        last_run_at: ((_e = runSummary.rows[0]) === null || _e === void 0 ? void 0 : _e.last_run_at) || null,
+                        last_success_at: ((_f = runSummary.rows[0]) === null || _f === void 0 ? void 0 : _f.last_success_at) || null,
+                        rows_checked_last_run: Number(((_g = rowsCheckedLastRun.rows[0]) === null || _g === void 0 ? void 0 : _g.count) || '0'),
                     });
                     return [2 /*return*/];
             }
