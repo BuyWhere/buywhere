@@ -454,7 +454,7 @@ async function run(options = {}) {
       const execFileAsync = promisify(execFile);
       const { stdout: yieldOut, stderr: yieldErr } = await execFileAsync(process.execPath, [
         yieldScript, '--json',
-      ], { timeout: 30_000, env: process.env });
+      ], { timeout: 30_000, maxBuffer: 5 * 1024 * 1024, env: process.env });
       if (yieldOut && yieldOut.trim()) {
         const yieldReport = JSON.parse(yieldOut.trim());
         console.error('[yield-guard]', yieldReport.overall, yieldReport.failing_lanes.length ? 'FAILING: ' + yieldReport.failing_lanes.join(', ') : 'all lanes OK');
@@ -472,7 +472,27 @@ async function run(options = {}) {
         console.error('[yield-guard:err]', yieldErr.trim().split('\n').slice(0, 3).join('  '));
       }
     } catch (yieldErr) {
-      console.error('[yield-guard:fail]', yieldErr?.message || yieldErr);
+      // execFile throws on non-zero exit codes; extract stdout if available (e.g. exit code 2 = FAIL)
+      const yieldErrOut = yieldErr?.stdout || '';
+      const yieldErrStd = yieldErr?.stderr || '';
+      if (yieldErrOut && yieldErrOut.trim()) {
+        try {
+          const yieldReport = JSON.parse(yieldErrOut.trim());
+          console.error('[yield-guard]', yieldReport.overall, yieldReport.failing_lanes.length ? 'FAILING: ' + yieldReport.failing_lanes.join(', ') : 'all lanes OK');
+          for (const lane of yieldReport.lanes || []) {
+            if (lane.verdict === 'FAIL') {
+              console.error('[yield-guard:alert]', lane.source,
+                'median=' + lane.trailing_median,
+                'recent=' + (lane.recent_runs || []).map(r => r.rows_inserted).join(','),
+                'consecutive_below=' + lane.consecutive_below_threshold);
+            }
+          }
+        } catch (_) {
+          console.error('[yield-guard:fail]', yieldErr?.message || yieldErr);
+        }
+      } else {
+        console.error('[yield-guard:fail]', yieldErr?.message || yieldErr);
+      }
     }
 
     try {
@@ -480,7 +500,7 @@ async function run(options = {}) {
       const execFileAsync = promisify(execFile);
       const { stdout: shareOut, stderr: shareErr } = await execFileAsync(process.execPath, [
         shareScript, '--json', '--hours-back', '6',
-      ], { timeout: 30_000, env: process.env });
+      ], { timeout: 30_000, maxBuffer: 5 * 1024 * 1024, env: process.env });
       if (shareOut && shareOut.trim()) {
         const shareReport = JSON.parse(shareOut.trim());
         console.error('[insert-share]', shareReport.overall, shareReport.alert_lanes.length ? 'ALERT: ' + shareReport.alert_lanes.join(', ') : 'all lanes OK');
@@ -497,7 +517,27 @@ async function run(options = {}) {
         console.error('[insert-share:err]', shareErr.trim().split('\n').slice(0, 3).join('  '));
       }
     } catch (shareErr) {
-      console.error('[insert-share:fail]', shareErr?.message || shareErr);
+      // execFile throws on non-zero exit codes; extract stdout if available
+      const shareErrOut = shareErr?.stdout || '';
+      const shareErrStd = shareErr?.stderr || '';
+      if (shareErrOut && shareErrOut.trim()) {
+        try {
+          const shareReport = JSON.parse(shareErrOut.trim());
+          console.error('[insert-share]', shareReport.overall, shareReport.alert_lanes.length ? 'ALERT: ' + shareReport.alert_lanes.join(', ') : 'all lanes OK');
+          for (const lane of shareReport.lanes || []) {
+            if (lane.verdict === 'ALERT') {
+              console.error('[insert-share:alert]', lane.source,
+                'latest=' + lane.latest_insert_share_pct + '%',
+                'prev=' + lane.previous_insert_share_pct + '%',
+                'drop=' + lane.drop_pts + 'pts');
+            }
+          }
+        } catch (_) {
+          console.error('[insert-share:fail]', shareErr?.message || shareErr);
+        }
+      } else {
+        console.error('[insert-share:fail]', shareErr?.message || shareErr);
+      }
     }
 
     return {

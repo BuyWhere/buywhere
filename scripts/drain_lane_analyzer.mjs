@@ -34,8 +34,8 @@ const DEFAULT_STATEMENT_TIMEOUT_MS = 30_000;
 const DEFAULT_CONNECTION_TIMEOUT_MS = 10_000;
 
 function buildClient() {
-  const raw = process.env.DATABASE_URL || process.env.CANONICAL_DATABASE_URL || process.env.BUYWHERE_DATABASE_URL;
-  if (!raw) throw new Error('Set DATABASE_URL, CANONICAL_DATABASE_URL, or BUYWHERE_DATABASE_URL.');
+  const raw = process.env.CANONICAL_DATABASE_URL || process.env.MAGLEV_DB_URL || process.env.DATABASE_URL || process.env.BUYWHERE_DATABASE_URL;
+  if (!raw) throw new Error('Set CANONICAL_DATABASE_URL, MAGLEV_DB_URL, DATABASE_URL, or BUYWHERE_DATABASE_URL for the canonical DB.');
   return new Client({
     connectionString: raw,
     connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS || DEFAULT_CONNECTION_TIMEOUT_MS),
