@@ -121,19 +121,6 @@ function PlatformBadge({
   );
 }
 
-function PriceComparisonRowSkeleton() {
-  return (
-    <div className="flex items-center gap-2">
-      {[1, 2, 3].map((i) => (
-        <div
-          key={i}
-          className="h-6 w-28 bg-gray-200 rounded-full animate-pulse"
-        />
-      ))}
-    </div>
-  );
-}
-
 export default function PlatformComparisonBadge({
   productQuery,
   productId,

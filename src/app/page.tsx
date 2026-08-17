@@ -318,7 +318,7 @@ export default function HomePage() {
               </Link>
               <Link
                 href="/developers"
-                className="inline-flex w-full items-center justify-center px-3 py-2 text-sm underline text-white/90 hover:text-white transition-colors sm:w-auto"
+                className="inline-flex w-full items-center justify-center px-3 py-2 text-sm font-semibold underline underline-offset-4 decoration-white/70 hover:decoration-white text-white hover:bg-white/10 rounded-lg transition-colors sm:w-auto"
               >
                 For developers →
               </Link>

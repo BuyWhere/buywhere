@@ -1,5 +1,3 @@
-import type { Metadata } from "next";
-
 import { buildPageMetadata } from "@/lib/page-metadata";
 export const metadata = buildPageMetadata({
   title: "Get BuyWhere API Key - Free Developer Access | BuyWhere",

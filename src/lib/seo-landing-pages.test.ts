@@ -1081,8 +1081,8 @@ test("BUY-70202: unreachable live products replaced with branded SVG (not droppe
     fallbackProducts: [],
   };
   const products = [
-    { id: "p1", name: "Example Phone 1", brand: "Acme", category: "phone", merchant: "Store A", price: 99, imageUrl: "https://does-not-resolve.invalid/x.jpg", href: "/p1" } as any,
-    { id: "p2", name: "Example Phone 2", brand: "Beta", category: "phone", merchant: "Store B", price: 199, imageUrl: "https://does-not-resolve.invalid/y.jpg", href: "/p2" } as any,
+    { id: "p1", name: "Example Phone 1", brand: "Acme", category: "phone", merchant: "Store A", price: 99, imageUrl: "https://does-not-resolve.invalid/x.jpg", href: "/p1" } as LandingProduct,
+    { id: "p2", name: "Example Phone 2", brand: "Beta", category: "phone", merchant: "Store B", price: 199, imageUrl: "https://does-not-resolve.invalid/y.jpg", href: "/p2" } as LandingProduct,
   ];
   const result = await getSeoLandingProducts(config, products);
   assert.equal(result.length, 2, "both cards must render, not be dropped");
