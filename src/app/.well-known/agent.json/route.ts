@@ -1,12 +1,13 @@
 const AGENT_JSON = {
   "name": "BuyWhere",
-  "description": "Real-time shopping API and agent-native product catalog for AI agents: 300M+ products from 238,000+ direct merchants worldwide, with location-aware deliver_to ranking and per-result availability labels.",
+  "description": "Real-time shopping API and agent-native product catalog for AI agents: 390M+ products from 800,000+ direct merchants worldwide, with location-aware deliver_to ranking and per-result availability labels. Live totals at GET /v1/catalog/stats.",
   "url": "https://buywhere.ai",
   "provider": {
     "organization": "BuyWhere",
     "url": "https://buywhere.ai"
   },
-  "version": "1.1.0",
+  "version": "1.2.0",
+  "updated_at": "2026-08-17T15:50:00Z",
   "capabilities": {
     "streaming": true,
     "pushNotifications": false,
@@ -29,7 +30,7 @@ const AGENT_JSON = {
     {
       "id": "product-search",
       "name": "Product Search",
-      "description": "Search 300M+ products worldwide by keyword, category, price range, merchant, country, and deliver_to for deliverable-first ranking.",
+      "description": "Search 390M+ products worldwide by keyword, category, price range, merchant, country, and deliver_to for deliverable-first ranking.",
       "tags": [
         "e-commerce",
         "search",
@@ -59,7 +60,7 @@ const AGENT_JSON = {
     {
       "id": "cross-storefront-comparison",
       "name": "Cross-Storefront Product Comparison",
-      "description": "Compare products, prices, attributes, and availability across 238,000+ independent storefronts worldwide.",
+      "description": "Compare products, prices, attributes, and availability across 800,000+ independent storefronts worldwide.",
       "tags": [
         "comparison",
         "price-comparison",
