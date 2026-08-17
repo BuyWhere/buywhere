@@ -290,9 +290,9 @@ export default function HomePage() {
       <section role="region" aria-label="Content section" className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-20 md:pt-20 md:pb-24 xl:pt-24 xl:pb-28">
           <div className="max-w-3xl mx-auto text-center mb-6">
-            <div className="hero-badge mx-auto inline-flex max-w-[18rem] flex-row flex-wrap items-start justify-start gap-x-2 gap-y-1 rounded-2xl border border-white bg-white px-4 py-2 text-center text-xs font-bold text-indigo-900 shadow-sm sm:max-w-none sm:flex-nowrap sm:items-center sm:gap-x-2 sm:rounded-full sm:px-3 sm:py-1 sm:text-left sm:text-sm">
+            <div className="hero-badge mx-auto inline-flex max-w-[18rem] flex-row flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-2xl border border-white bg-white px-4 py-2 text-center text-xs font-bold text-indigo-900 shadow-sm sm:max-w-none sm:flex-nowrap sm:items-center sm:gap-x-2 sm:rounded-full sm:px-3 sm:py-1 sm:text-left sm:text-sm">
               <span className="inline-flex shrink-0 items-center gap-x-1.5">
-                <span className="status-dot inline-block h-2 w-2 shrink-0 self-start rounded-full bg-green-600" aria-hidden="true"></span>
+                <span className="status-dot inline-block h-2 w-2 shrink-0 rounded-full bg-green-600" aria-hidden="true"></span>
                 <span className="whitespace-nowrap">300M+ products</span>
               </span>
               <span className="hidden sm:inline" aria-hidden="true">·</span>
@@ -318,7 +318,7 @@ export default function HomePage() {
               </Link>
               <Link
                 href="/developers"
-                className="inline-flex w-full items-center justify-center px-3 py-2 text-sm font-semibold underline underline-offset-4 decoration-white/70 hover:decoration-white text-white hover:bg-white/10 rounded-lg transition-colors sm:w-auto"
+                className="inline-flex w-full items-center justify-center rounded-lg border border-white/70 bg-white/10 px-4 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 sm:w-auto"
               >
                 For developers →
               </Link>
