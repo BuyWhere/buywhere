@@ -1,9 +1,10 @@
 ---
 slug: "cheapest-iphone-17-singapore-june-2026"
-title: "Cheapest iPhone 17 in Singapore — June 2026 Pricing Compared"
-description: "Compare iPhone 17, iPhone 17 Air, and iPhone 17 Pro prices across Shopee, Lazada, Amazon.sg, Apple Store SG, Challenger, Courts, Harvey Norman, and Best Denki. Find the cheapest iPhone 17 in Singapore for June 2026."
+title: "Cheapest iPhone 17 in Singapore — Aug 2026 Pricing Compared"
+description: "Compare iPhone 17, iPhone 17 Air, and iPhone 17 Pro prices across Shopee, Lazada, Amazon.sg, Apple Store SG, Challenger, Courts, Harvey Norman, and Best Denki. Find the cheapest iPhone 17 in Singapore for Aug 2026."
 author: "BuyWhere Team"
-publishedAt: "2026-06-18"
+
+lastUpdatedAt: "2026-08-17"
 tags: ["iphone", "iphone-17", "singapore", "pricing", "comparison", "apple"]
 jsonLd: >
   {
@@ -11,8 +12,8 @@ jsonLd: >
     "@graph": [
       {
         "@type": "Article",
-        "headline": "Cheapest iPhone 17 in Singapore — June 2026 Pricing Compared",
-        "description": "Compare iPhone 17, iPhone 17 Air, and iPhone 17 Pro prices across Shopee, Lazada, Amazon.sg, Apple Store SG, Challenger, Courts, Harvey Norman, and Best Denki. Find the cheapest iPhone 17 in Singapore for June 2026.",
+        "headline": "Cheapest iPhone 17 in Singapore — Aug 2026 Pricing Compared",
+        "description": "Compare iPhone 17, iPhone 17 Air, and iPhone 17 Pro prices across Shopee, Lazada, Amazon.sg, Apple Store SG, Challenger, Courts, Harvey Norman, and Best Denki. Find the cheapest iPhone 17 in Singapore for Aug 2026.",
         "datePublished": "2026-06-18",
         "dateModified": "2026-06-18",
         "author": { "@type": "Organization", "name": "BuyWhere Team", "url": "https://buywhere.ai" },
@@ -98,7 +99,7 @@ jsonLd: >
   }
 ---
 
-# Cheapest iPhone 17 in Singapore — June 2026 Pricing Compared
+# Cheapest iPhone 17 in Singapore — Aug 2026 Pricing Compared
 
 The iPhone 17 series launched in Singapore in April 2026 with four models: the standard iPhone 17, the ultra-thin iPhone 17 Air, the Pro, and the Pro Max. As of mid-June 2026, the best prices across all four models are found on Shopee SG and Lazada SG, with the iPhone 17 Pro at **SGD 1,449 on Shopee SG** — roughly SGD 200 below the Apple Store SG retail price of SGD 1,649. The standard iPhone 17 (128GB) is cheapest at **SGD 1,099 on Shopee SG**, while the iPhone 17 Air at **SGD 1,299 on Lazada SG** is the best value for the slim form factor.
 

@@ -1,9 +1,10 @@
 ---
 slug: "best-laptop-deals-singapore-june-2026"
-title: "Best Laptop Deals in Singapore — June 2026 (Lenovo, ASUS, HP, Apple, Dell Compared)"
-description: "Compare the best laptop deals in Singapore for June 2026 across Apple Store, Shopee, Lazada, Challenger, Courts, Harvey Norman, and Amazon.sg. MacBook Air, Lenovo Yoga, ASUS Zenbook, HP Pavilion, Dell XPS deals."
+title: "Best Laptop Deals in Singapore — Aug 2026 (Lenovo, ASUS, HP, Apple, Dell Compared)"
+description: "Compare the best laptop deals in Singapore for Aug 2026 across Apple Store, Shopee, Lazada, Challenger, Courts, Harvey Norman, and Amazon.sg. MacBook Air, Lenovo Yoga, ASUS Zenbook, HP Pavilion, Dell XPS deals."
 author: "BuyWhere Team"
-publishedAt: "2026-06-20"
+
+lastUpdatedAt: "2026-08-17"
 tags: ["laptops", "singapore", "pricing", "comparison", "macbook", "lenovo", "asus", "hp", "dell"]
 jsonLd: >
   {
@@ -11,8 +12,8 @@ jsonLd: >
     "@graph": [
       {
         "@type": "Article",
-        "headline": "Best Laptop Deals in Singapore — June 2026 (Lenovo, ASUS, HP, Apple, Dell Compared)",
-        "description": "Compare the best laptop deals in Singapore for June 2026 across Apple Store, Shopee, Lazada, Challenger, Courts, Harvey Norman, and Amazon.sg. MacBook Air, Lenovo Yoga, ASUS Zenbook, HP Pavilion, Dell XPS deals.",
+        "headline": "Best Laptop Deals in Singapore — Aug 2026 (Lenovo, ASUS, HP, Apple, Dell Compared)",
+        "description": "Compare the best laptop deals in Singapore for Aug 2026 across Apple Store, Shopee, Lazada, Challenger, Courts, Harvey Norman, and Amazon.sg. MacBook Air, Lenovo Yoga, ASUS Zenbook, HP Pavilion, Dell XPS deals.",
         "datePublished": "2026-06-20",
         "dateModified": "2026-06-20",
         "author": { "@type": "Organization", "name": "BuyWhere Team", "url": "https://buywhere.ai" },
@@ -94,7 +95,7 @@ jsonLd: >
   }
 ---
 
-# Best Laptop Deals in Singapore — June 2026 (Lenovo, ASUS, HP, Apple, Dell Compared)
+# Best Laptop Deals in Singapore — Aug 2026 (Lenovo, ASUS, HP, Apple, Dell Compared)
 
 The best laptop deal in Singapore in June 2026 is the **ASUS Zenbook 14 OLED at SGD 1,199 on Shopee SG** — an Intel Core Ultra 7, 16GB RAM, 512GB SSD machine with a 14-inch 2.8K OLED display, priced SGD 350 below the ASUS Store SG retail price. For MacBook buyers, the **MacBook Air 13 M3 at SGD 1,299 on Amazon.sg** is SGD 200 below the Apple Store SG price. We compared 8 models across 7 Singapore retailers in mid-June 2026; the table below reflects post-6.6 sale pricing that has held steady through mid-June.
 
