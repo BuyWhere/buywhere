@@ -26,7 +26,7 @@ async function getProbesStatus(_req: Request, res: Response): Promise<void> {
   // BUY-71096: bound the aggregate by applying LIMIT inside a subquery.
   // COUNT(*) with a top-level LIMIT still scans every matching product.
   const neverCheckedSample = await db.query<{ count: string }>(
-    `SET LOCAL statement_timeout = '3000';
+    `SET statement_timeout = '3000';
      SELECT COUNT(*)::bigint AS count
        FROM (
          SELECT 1
@@ -38,19 +38,26 @@ async function getProbesStatus(_req: Request, res: Response): Promise<void> {
        ) sampled_products`
   ).catch(() => ({ rows: [{ count: '0' }] }));
 
-  const recent = await db.query(
-    `SELECT status, COUNT(*)::bigint AS count
-       FROM url_probe_log
-      WHERE checked_at >= NOW() - INTERVAL '24 hours'
+  // BUY-71096: bound the 24h aggregation and add a statement timeout —
+  // url_probe_log has no index on checked_at and a full scan hangs the endpoint.
+  const recent = await db.query<{ status: string; count: string }>(
+    `SET statement_timeout = '3000';
+     SELECT status, COUNT(*)::bigint AS count
+       FROM (
+         SELECT status
+           FROM url_probe_log
+          WHERE checked_at >= NOW() - INTERVAL '24 hours'
+          LIMIT 50000
+       ) sampled
       GROUP BY status
       ORDER BY status`
-  ).catch(() => ({ rows: [] }));
+  ).catch(() => ({ rows: [] as { status: string; count: string }[] }));
 
   // BUY-70988: Cart needs precise last-run telemetry for the Sev-2 drift router
   // and weekly A1/A2 reports. Derive run boundaries from url_probe_log so no
   // separate runs table is required.
   const runSummary = await db.query<{ last_run_at: string | null; last_success_at: string | null }>(
-    `SET LOCAL statement_timeout = '3000';
+    `SET statement_timeout = '3000';
      SELECT MAX(checked_at) AS last_run_at,
             MAX(checked_at) FILTER (WHERE status = 'ok') AS last_success_at
        FROM url_probe_log`
@@ -60,7 +67,7 @@ async function getProbesStatus(_req: Request, res: Response): Promise<void> {
 
   const rowsCheckedLastRun = lastRunAt
     ? await db.query<{ count: string }>(
-        `SET LOCAL statement_timeout = '3000';
+        `SET statement_timeout = '3000';
          SELECT COUNT(*)::bigint AS count
            FROM url_probe_log
           WHERE checked_at >= ($1::timestamptz - INTERVAL '2 minutes')

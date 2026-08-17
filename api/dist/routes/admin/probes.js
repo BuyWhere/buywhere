@@ -53,18 +53,18 @@ function getProbesStatus(_req, res) {
                     return [4 /*yield*/, config_1.db.query("SELECT ROUND(c.reltuples * COALESCE(s.null_frac, 0))::bigint AS never_checked\n       FROM pg_class c\n       LEFT JOIN pg_stats s ON s.schemaname = 'public'\n                           AND s.tablename = 'products'\n                           AND s.attname = 'url_last_checked_at'\n      WHERE c.relname = 'products'").catch(function () { return ({ rows: [{ never_checked: '0' }] }); })];
                 case 2:
                     approxNeverChecked = _j.sent();
-                    return [4 /*yield*/, config_1.db.query("SET LOCAL statement_timeout = '3000';\n     SELECT COUNT(*)::bigint AS count\n       FROM (\n         SELECT 1\n           FROM products\n          WHERE is_active = true\n            AND url IS NOT NULL\n            AND url_last_checked_at IS NULL\n          LIMIT 5000\n       ) sampled_products").catch(function () { return ({ rows: [{ count: '0' }] }); })];
+                    return [4 /*yield*/, config_1.db.query("SET statement_timeout = '3000';\n     SELECT COUNT(*)::bigint AS count\n       FROM (\n         SELECT 1\n           FROM products\n          WHERE is_active = true\n            AND url IS NOT NULL\n            AND url_last_checked_at IS NULL\n          LIMIT 5000\n       ) sampled_products").catch(function () { return ({ rows: [{ count: '0' }] }); })];
                 case 3:
                     neverCheckedSample = _j.sent();
-                    return [4 /*yield*/, config_1.db.query("SELECT status, COUNT(*)::bigint AS count\n       FROM url_probe_log\n      WHERE checked_at >= NOW() - INTERVAL '24 hours'\n      GROUP BY status\n      ORDER BY status").catch(function () { return ({ rows: [] }); })];
+                    return [4 /*yield*/, config_1.db.query("SET statement_timeout = '3000';\n     SELECT status, COUNT(*)::bigint AS count\n       FROM (\n         SELECT status\n           FROM url_probe_log\n          WHERE checked_at >= NOW() - INTERVAL '24 hours'\n          LIMIT 50000\n       ) sampled\n      GROUP BY status\n      ORDER BY status").catch(function () { return ({ rows: [] }); })];
                 case 4:
                     recent = _j.sent();
-                    return [4 /*yield*/, config_1.db.query("SET LOCAL statement_timeout = '3000';\n     SELECT MAX(checked_at) AS last_run_at,\n            MAX(checked_at) FILTER (WHERE status = 'ok') AS last_success_at\n       FROM url_probe_log").catch(function () { return ({ rows: [{ last_run_at: null, last_success_at: null }] }); })];
+                    return [4 /*yield*/, config_1.db.query("SET statement_timeout = '3000';\n     SELECT MAX(checked_at) AS last_run_at,\n            MAX(checked_at) FILTER (WHERE status = 'ok') AS last_success_at\n       FROM url_probe_log").catch(function () { return ({ rows: [{ last_run_at: null, last_success_at: null }] }); })];
                 case 5:
                     runSummary = _j.sent();
                     lastRunAt = ((_b = runSummary.rows[0]) === null || _b === void 0 ? void 0 : _b.last_run_at) || null;
                     if (!lastRunAt) return [3 /*break*/, 7];
-                    return [4 /*yield*/, config_1.db.query("SET LOCAL statement_timeout = '3000';\n         SELECT COUNT(*)::bigint AS count\n           FROM url_probe_log\n          WHERE checked_at >= ($1::timestamptz - INTERVAL '2 minutes')\n            AND checked_at <= ($1::timestamptz + INTERVAL '2 minutes')", [lastRunAt]).catch(function () { return ({ rows: [{ count: '0' }] }); })];
+                    return [4 /*yield*/, config_1.db.query("SET statement_timeout = '3000';\n         SELECT COUNT(*)::bigint AS count\n           FROM url_probe_log\n          WHERE checked_at >= ($1::timestamptz - INTERVAL '2 minutes')\n            AND checked_at <= ($1::timestamptz + INTERVAL '2 minutes')", [lastRunAt]).catch(function () { return ({ rows: [{ count: '0' }] }); })];
                 case 6:
                     _a = _j.sent();
                     return [3 /*break*/, 8];
