@@ -269,9 +269,9 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // 0 rows with a reltuples-derived "total" (~397M) that looked like fabricated
   // cache data. Accept the alias so the query actually runs.
   const q = (args.q as string) || (args.query as string) || '';
-  const mode = (args.mode as string) || 'hybrid';
+  const requestedMode = typeof args.mode === 'string' ? args.mode.toLowerCase() : '';
+  const explicitMode = ['keyword', 'hybrid', 'semantic'].includes(requestedMode);
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
-  const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
   const domain = (args.domain as string) || '';
   const normalizedMarket = normalizeCountryAndRegion(args);
   const region = normalizedMarket.region;
@@ -284,6 +284,15 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   // and recent rows are predominantly US/null so SG filter finds nothing.
   const rawCountry = normalizedMarket.rawCountry || normalizedMarket.regionCountry;
   const country = rawCountry || (q && !region ? 'SG' : '');
+  // BUY-70963: default MY/VN/TH agent probes should use the proven fast keyword
+  // path. Hybrid remains available when callers explicitly request it, but as a
+  // default it can cold-read many heap pages in sparse regional markets and cache
+  // false-empty responses under DB I/O contention.
+  const sparseKeywordDefaultMarkets = new Set(['MY', 'VN', 'TH']);
+  const effectiveMode = explicitMode
+    ? requestedMode
+    : (q && country && sparseKeywordDefaultMarkets.has(country.toUpperCase()) ? 'keyword' : 'hybrid');
+  const useVector = vectorDb != null && geminiKey !== '' && q !== '' && effectiveMode !== 'keyword';
   const category = (args.category as string) || '';
   const minPrice = args.min_price != null ? Number(args.min_price) : null;
   const maxPrice = args.max_price != null ? Number(args.max_price) : null;
@@ -292,12 +301,18 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const compact = args.compact === true;
   const currency = country ? (COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
 
-  const cacheKey = `fts:v2:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
+  const cacheKey = `fts:v2:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? effectiveMode : 'kw'}`;
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
-      if (parsed.results) {
+      const poisonedMarketSearchCache = q && (country || region) && Number(parsed.total) > 0 && (
+        (Array.isArray(parsed.results) && parsed.results.length === 0) ||
+        (Array.isArray(parsed.data) && parsed.data.length === 0)
+      );
+      if (poisonedMarketSearchCache) {
+        redis.del(cacheKey).catch(() => {});
+      } else if (parsed.results) {
         return { ...parsed, cached: true, response_time_ms: Date.now() - t0 };
       }
     }
@@ -406,7 +421,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         if (queryVec && vectorDb && !embedTimedOut) {
           let candidateIds: string[];
 
-          if (mode === 'semantic') {
+          if (effectiveMode === 'semantic') {
             // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details.
             // Restrict to the 512-dim Gemini table; fail open to keyword FTS below
             // instead of rejecting the whole MCP call on vector slowness/mismatch.
@@ -928,7 +943,15 @@ async function handleListCategories(args: Record<string, unknown>) {
     const cached = await redis.get(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
-      return { ...parsed, meta: { ...parsed.meta, cached: true, response_time_ms: Date.now() - t0 } };
+      const poisonedCategoryCache = parsed?.meta?.unavailable === true &&
+        Array.isArray(parsed.data) &&
+        parsed.data.length > 0 &&
+        parsed.data.every((row: { product_count?: unknown }) => Number(row.product_count) === 0);
+      if (poisonedCategoryCache) {
+        redis.del(cacheKey).catch(() => {});
+      } else {
+        return { ...parsed, meta: { ...parsed.meta, cached: true, response_time_ms: Date.now() - t0 } };
+      }
     }
   } catch (_) {}
 
