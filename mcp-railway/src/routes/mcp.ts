@@ -88,6 +88,7 @@ const TOOLS = [
         query: { type: 'string', description: 'Alias for q (accepted for agent convenience; use q)' },
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
+        deliver_to: { type: 'string', description: 'Buyer delivery country/market. Preferred over country_code/country when known.' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
         min_price: { type: 'number', description: 'Minimum price (in currency inferred from country_code, or SGD by default)' },
@@ -137,6 +138,7 @@ const TOOLS = [
         min_discount: { type: 'number', description: 'Minimum discount percentage (default 10)', default: 10 },
         currency: { type: 'string', description: 'Filter by currency code (SGD, USD, MYR, VND, THB). Defaults to SGD.', default: 'SGD' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
+        deliver_to: { type: 'string', description: 'Buyer delivery country/market. Preferred over country_code/country when known.' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Alias: country.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
         limit: { type: 'integer', description: 'Number of results (max 100, default 20)', default: 20 },
@@ -150,6 +152,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
+        deliver_to: { type: 'string', description: 'Buyer delivery country/market. Preferred over country_code/country when known.' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY', 'GB', 'IN', 'AU'], description: 'Filter by ISO country code. Defaults to SG.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
         region: { type: 'string', description: 'Alias for country_code/market (us→US, sg→SG, my→MY, gb→GB, in→IN, au→AU).' },
@@ -166,6 +169,7 @@ const TOOLS = [
         product_name: { type: 'string', description: 'Product name to find best price for (e.g., "iphone 15 pro 256gb", "samsung galaxy s24")' },
         q: { type: 'string', description: 'Alias for product_name (deprecated, use product_name).' },
         category: { type: 'string', description: 'Category to filter by (e.g., "electronics", "fashion")' },
+        deliver_to: { type: 'string', description: 'Buyer delivery country/market. Preferred over country_code/country when known.' },
         country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG). Alias: country.' },
         country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
         region: { type: 'string', enum: ['us', 'sea'], description: 'Region filter - use "us" for United States or "sea" for Southeast Asia' },
@@ -245,9 +249,11 @@ const REGION_TO_COUNTRY: Record<string, string> = {
 };
 
 function normalizeCountryAndRegion(args: Record<string, unknown>) {
-  const rawCountry = String((args.country_code as string) || (args.country as string) || '').trim().toUpperCase();
+  // deliver_to is the buyer market and must take precedence over country_code/country.
+  // Cat A probes pass deliver_to; ignoring it makes market-scoped probes fall back to SG.
+  const rawCountry = String((args.deliver_to as string) || (args.country_code as string) || (args.country as string) || '').trim().toUpperCase();
   const rawRegion = String((args.region as string) || '').trim();
-  const regionCountry = rawRegion ? (REGION_TO_COUNTRY[rawRegion.toLowerCase()] || '') : '';
+  const regionCountry = rawRegion ? (REGION_TO_COUNTRY[rawRegion.toLowerCase()] || (/^[A-Z]{2}$/.test(rawRegion) ? rawRegion : '')) : '';
   return {
     rawCountry,
     regionCountry,
@@ -734,10 +740,12 @@ async function handleGetDeals(args: Record<string, unknown>) {
   const t0 = Date.now();
   const minDiscount = Number(args.min_discount) || 10;
   // BUY-59768: infer currency from country_code (or region) when not explicitly set.
-  const REGION_TO_COUNTRY: Record<string, string> = { sg: 'SG', us: 'US', my: 'MY', th: 'TH', vn: 'VN', gb: 'GB' };
+  const REGIONS_TO_COUNTRY: Record<string, string> = { sg: 'SG', us: 'US', my: 'MY', th: 'TH', vn: 'VN', gb: 'GB', au: 'AU', ph: 'PH', id: 'ID', in: 'IN', sea: 'SG' };
   const explicitCurrency = ((args.currency as string) || '').toUpperCase();
   const regionArg = ((args.region as string) || '').toLowerCase();
-  const dealsCountry = ((args.country_code as string) || (args.country as string) || REGION_TO_COUNTRY[regionArg] || '').toUpperCase();
+  const rawCountry = String((args.deliver_to as string) || (args.country_code as string) || (args.country as string) || '').trim().toUpperCase();
+  const regionCountry = regionArg ? REGIONS_TO_COUNTRY[regionArg] : '';
+  const dealsCountry = rawCountry || regionCountry || '';
   const currency = explicitCurrency || (dealsCountry ? (COUNTRY_CURRENCY[dealsCountry] || 'SGD') : 'SGD');
   // BUY-70428: an ISO-style region (sg/us/my/...) is a market selector, not a
   // literal products.region value. The old code kept BOTH `region='my'`
@@ -745,7 +753,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
   // mixed-case catalogs, wrong — predicate on top of the country filter.
   // Normalize ISO regions to country_code and only pass a raw region
   // predicate through for genuinely non-ISO region labels.
-  const region = REGION_TO_COUNTRY[regionArg] ? '' : regionArg;
+  const region = regionCountry ? '' : regionArg;
   const country = dealsCountry;
   const limit = Math.min(Number(args.limit) || 20, 100);
   const offset = Number(args.offset) || 0;
@@ -877,13 +885,15 @@ async function handleListCategories(args: Record<string, unknown>) {
     in: 'IN',
     au: 'AU',
     sea: 'SG',
+    ph: 'PH',
+    id: 'ID',
   };
   const normalizeCountry = (value: unknown) => {
     const raw = String(value || '').trim();
     if (!raw) return '';
     return REGION_TO_COUNTRY[raw.toLowerCase()] || raw.toUpperCase();
   };
-  const country = normalizeCountry(args.country_code || args.country || args.region) || 'SG';
+  const country = normalizeCountry((args.deliver_to as string) || args.country_code || args.country || args.region) || 'SG';
   const cacheKey = `categories_mcp:top100:${country}`;
 
   // 1. Redis fast path
@@ -2030,7 +2040,7 @@ const VALID_COUNTRY_CODES: Record<string, string[]> = {
 function validateCountryCode(toolName: string, args: Record<string, unknown>): void {
   const allowed = VALID_COUNTRY_CODES[toolName];
   if (!allowed) return; // tool doesn't use country_code
-  const raw = ((args.country_code as string) || (args.country as string) || '').toUpperCase();
+  const raw = ((args.deliver_to as string) || (args.country_code as string) || (args.country as string) || '').toUpperCase();
   if (raw && !allowed.includes(raw)) {
     throw { code: -32602, message: `Country code "${raw}" is not supported by ${toolName}. Supported: ${allowed.join(', ')}`, envelopeCode: 'MARKET_UNSUPPORTED' };
   }
