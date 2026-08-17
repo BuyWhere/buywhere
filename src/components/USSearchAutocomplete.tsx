@@ -190,7 +190,7 @@ export function USSearchAutocomplete({
           onFocus={handleFocus}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className={`w-full h-14 min-h-[56px] pl-12 pr-4 text-base text-[16px] border-2 rounded-lg transition-all duration-200 outline-none
+          className={`w-full h-14 min-h-[56px] pr-4 text-base text-[16px] border-2 rounded-lg transition-all duration-200 outline-none placeholder:text-slate-500
             bg-white
             focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200
             border-gray-200 hover:border-gray-300

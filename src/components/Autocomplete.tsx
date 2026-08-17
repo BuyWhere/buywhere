@@ -201,7 +201,7 @@ export function Autocomplete({
             aria-autocomplete="list"
             aria-controls={isOpen ? 'autocomplete-listbox' : undefined}
             role="combobox"
-            className={`w-full h-14 pl-12 pr-12 text-base border-2 rounded-lg transition-all duration-200 outline-none
+            className={`w-full h-14 pl-12 pr-12 text-base border-2 rounded-lg transition-all duration-200 outline-none placeholder:text-slate-500
               ${isFocused
                 ? 'border-indigo-500 ring-2 ring-indigo-200'
                 : 'border-gray-200 hover:border-gray-300'

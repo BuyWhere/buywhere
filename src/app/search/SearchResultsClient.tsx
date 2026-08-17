@@ -1262,7 +1262,7 @@ export default function SearchResultsClient({
                       }
                     }}
                     placeholder="Search sneakers, laptops, espresso machines..."
-                    className="h-14 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-base text-slate-900 shadow-sm outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+                    className="h-14 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-base text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
                     aria-label="Search products"
                     role="combobox"
                     aria-autocomplete="list"
