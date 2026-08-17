@@ -79,6 +79,13 @@ const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY ?? "phc_B3cS3aNdwTfr2UMy
 const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com";
 
 const BOT_PATTERNS: [RegExp, string][] = [
+  // BUY-70970: Expanded bot patterns for is_bot classifier accuracy
+  // Priority: specific crawlers first, then generic patterns
+  [/\bUptimeRobot\b/i, "UptimeRobot"], // 38% of "human" traffic - primary noise source
+  [/\bHeadlessChrome\b/i, "HeadlessChrome"], // Common testing/automation tool
+  [/\bChrome-Headless\b/i, "HeadlessChrome"],
+  [/\bPaperclip-Heartbeat\b/i, "Paperclip"],
+  [/\bSketchAudit\b/i, "SketchAudit"],
   [/\bChatGPT-User\//i, "ChatGPT-User"],
   [/\bClaudeBot\//i, "ClaudeBot"],
   [/\bPerplexityBot\//i, "PerplexityBot"],
@@ -94,11 +101,25 @@ const BOT_PATTERNS: [RegExp, string][] = [
   [/\bYandexBot\b/i, "other_bot"],
   [/\bAhrefsBot\b/i, "other_bot"],
   [/\bSemrushBot\b/i, "other_bot"],
+  [/\bfacebookexternalhit\b/i, "other_bot"],
+  [/\bTwitterbot\b/i, "other_bot"],
+  [/\bLinkedInBot\b/i, "other_bot"],
+  [/\bMJ12bot\b/i, "other_bot"],
+  [/\bDotBot\b/i, "other_bot"],
+  [/\bBytespider\b/i, "other_bot"],
+  [/\bApplebot\b/i, "other_bot"],
+  [/\bPetalBot\b/i, "other_bot"],
 ];
 
-const GENERIC_BOT_RE = /\b(bot|crawl|spider|fetch|scrape|headless|selenium|puppeteer|playwright|curl|wget|python-requests|node-fetch|axios)\b/i;
+// BUY-70970: generic catch-all for *bot*, *Bot*, *crawler*, *spider*, etc. Does NOT require a
+// leading word boundary so "FooBarBot" and "FooBot/1.0" are still caught.
+const GENERIC_BOT_RE = /(bot|crawl|spider|fetch|scrape|headless|selenium|puppeteer|playwright|curl|wget|python-requests|python-urllib|node-fetch|axios|java|go-http|http\.rb|okhttp|postman|insomnia)/i;
 
 function classifyUa(ua: string): { is_bot: boolean; agent_family: string } {
+  // BUY-70970: Bare "Mozilla/5.0" with no product token is a synthetic default UA
+  if (ua.trim() === "Mozilla/5.0") {
+    return { is_bot: true, agent_family: "bare_ua" };
+  }
   for (const [re, family] of BOT_PATTERNS) {
     if (re.test(ua)) return { is_bot: true, agent_family: family };
   }
@@ -113,6 +134,11 @@ async function capturePageviewServer(
   ip: string | null
 ) {
   const { is_bot, agent_family } = classifyUa(ua);
+  // BUY-70970: collapse trailing slashes so /developers and /developers/ aggregate together
+  const pathname =
+    url.pathname !== "/" && url.pathname.endsWith("/")
+      ? url.pathname.slice(0, -1)
+      : url.pathname;
   try {
     await fetch(`${POSTHOG_HOST}/i/v0/e/`, {
       method: "POST",
@@ -123,8 +149,8 @@ async function capturePageviewServer(
         distinct_id: distinctId,
         properties: {
           $current_url: url.toString(),
-          pathname: url.pathname,
-          path: url.pathname + url.search,
+          pathname,
+          path: pathname + url.search,
           host: url.host,
           $raw_user_agent: ua,
           $ip: ip,
