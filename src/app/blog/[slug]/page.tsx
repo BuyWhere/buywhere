@@ -63,6 +63,13 @@ function articleJsonLd(post: BlogPost) {
   });
 }
 
+// BUY-57626 follow-up (2026-08-18): with the middleware allowlist gate removed,
+// unknown slugs must 404 HERE. dynamicParams=false makes unknown slugs 404 at
+// the routing layer — the root loading.tsx streaming bug (which turns runtime
+// notFound() into a 200 shell) cannot affect routing-layer 404s. Same fix as
+// categories/[slug] and docs/[...slug] (2026-06-17 soft-404 audit).
+export const dynamicParams = false;
+
 export function generateStaticParams() {
   return getAllBlogPosts().map((post) => ({ slug: post.slug }));
 }
