@@ -1329,15 +1329,12 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     if (probeResults[i]) {
       verified.push(collected[i]);
     } else {
-      // BUY-70202: unreachable-image products are replaced with branded SVG
-      // instead of dropped. The card still shows real name/price/merchant/CTA;
-      // only the photo slot gets a branded placeholder.
-      const placeholderUrl = brandedProductPlaceholderSvg(
-        collected[i].brand,
-        collected[i].name,
-        collected[i].category
-      );
-      verified.push({ ...collected[i], imageUrl: placeholderUrl });
+      // BUY-706xx / BUY-69752: do NOT keep live rows whose photos fail the
+      // reachability/content probe. QA treats the branded SVG as a placeholder,
+      // and retaining 4+ placeholder-backed live rows prevents the curated
+      // fallback-photo top-up below from ever running. Drop the row so the page
+      // prefers real product photos over placeholder graphics.
+      seenIds.delete(collected[i].id);
     }
   }
 
