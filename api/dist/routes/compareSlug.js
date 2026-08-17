@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const config_1 = require("../config");
+const outboundLinkHealth_1 = require("../lib/outboundLinkHealth");
 const posthog_1 = require("../analytics/posthog");
 const router = (0, express_1.Router)();
 const CACHE_TTL_SECONDS = 300; // 5 min
@@ -139,10 +140,11 @@ async function handleCategoryCompareFallback(slug, req, res) {
     // Build ILIKE conditions for each alias name with leading wildcard
     // Note: We use normalizedSlug to match the slug itself (e.g., "electronics" matches "Electronics Accessories")
     const pattern = `%${normalizedSlug}%`;
+    const urlCondition = (0, outboundLinkHealth_1.outboundProbeEnabled)() ? ` AND ${(0, outboundLinkHealth_1.liveUrlCondition)()}` : '';
     const productsResult = await config_1.db.query(`SELECT id, title, brand, image_url, price, currency, url, source, is_active,
             updated_at, sku, mpn
      FROM products
-     WHERE currency = $1 AND category ILIKE $2
+     WHERE currency = $1 AND category ILIKE $2${urlCondition}
      ORDER BY updated_at DESC
      LIMIT $3 OFFSET $4`, [currency, pattern, limit, offset]).catch(() => null);
     const rows = productsResult?.rows ?? [];
@@ -224,11 +226,13 @@ router.get('/:slug', async (req, res) => {
         return;
     }
     // Fetch all products in this comparison group, ordered by SGD price ascending
+    // BUY-70776: when the probe flag is on, exclude rows whose URL has been confirmed dead.
+    const urlCondition = (0, outboundLinkHealth_1.outboundProbeEnabled)() ? ` AND ${(0, outboundLinkHealth_1.liveUrlCondition)()}` : '';
     const productsResult = await config_1.db.query(`SELECT id, title, brand, image_url, description, category_path,
             price, currency, url, source, is_active, updated_at, gtin,
             sku, mpn
      FROM products
-     WHERE id = ANY($1::bigint[]) AND url IS NOT NULL
+     WHERE id = ANY($1::bigint[]) AND url IS NOT NULL${urlCondition}
      ORDER BY price::numeric ASC NULLS LAST`, [productIds]).catch(() => null);
     const rows = productsResult?.rows ?? [];
     const canonical = rows[0]; // used for product card (first/cheapest row)
