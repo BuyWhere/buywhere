@@ -1357,6 +1357,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       console.warn('[mcp] find_best_price catalogDb tier-1 (primary query shape) failed:', msg);
       result = { rows: [] };
     }
+    }
 
     // BUY-70661: Tier-2 — last-resort title ILIKE on catalogDb.
     // Only runs when tier-1 failed (timeout or pool starve). title ILIKE is a broad
