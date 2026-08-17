@@ -445,11 +445,36 @@ async function handleSearchProducts(args: Record<string, unknown>) {
                 await ftsClient.query('SET statement_timeout = 4500');
                 await ftsClient.query('SET work_mem = \'64MB\'');
                 await ftsClient.query('SET enable_seqscan = off');
+                // BUY-70842: do not fetch 200 FTS ids for tiny MCP pages. On cold
+                // cache, MY/VN probes read tens of thousands of heap pages before
+                // producing 200 region-matching ids, then false-emptied or timed out.
+                // Fetch enough for the requested page plus a small RRF buffer.
+                const hybridFtsLimit = Math.min(Math.max(limit + offset, 30), 200);
                 const ftsResult = await ftsClient.query<{ id: string }>(
-                  `SELECT id FROM products ${where} LIMIT 200`,
+                  `SELECT id FROM products ${where} LIMIT ${hybridFtsLimit}`,
                   params
                 );
                 ftsRows = ftsResult.rows;
+                // BUY-70842: exact model-style FTS can be too strict for localized
+                // catalogs (e.g. TH has Sony rows but no exact WH-1000XM5 match).
+                // If exact hybrid FTS finds nothing, retry using the first alpha
+                // brand/token so the tool stays non-empty instead of surfacing a
+                // false catalog outage to agents.
+                if (ftsRows.length === 0) {
+                  const broadToken = q
+                    .split(/\s+/)
+                    .map(token => token.replace(/[^a-z0-9]/gi, ''))
+                    .find(token => token.length >= 3);
+                  if (broadToken && broadToken.toLowerCase() !== q.trim().toLowerCase()) {
+                    const broadParams = [...params];
+                    broadParams[0] = broadToken;
+                    const broadResult = await ftsClient.query<{ id: string }>(
+                      `SELECT id FROM products ${where} LIMIT ${hybridFtsLimit}`,
+                      broadParams
+                    );
+                    ftsRows = broadResult.rows;
+                  }
+                }
               } finally {
                 releaseClientSafely(ftsClient);
               }
@@ -828,9 +853,11 @@ async function handleGetDeals(args: Record<string, unknown>) {
     // The prior id-thin CTE capped the walk at 400 candidates, then self-joined
     // all 400 IDs back through products_pkey before applying the caller's page
     // limit. On cold cache this spent ~10s on 400 random heap lookups even for
-    // limit=3 and surfaced as -32603. The direct scan preserves discount-first
-    // ordering, lets Postgres incremental-sort the current discount group by
-    // updated_at, and early-stops after the requested page rows.
+    // limit=3 and surfaced as -32603.
+    // BUY-70842: remove the updated_at tiebreak from SQL order. With only
+    // discount_pct in the ORDER BY, Postgres can early-stop on the existing
+    // `(currency, discount_pct DESC)` deals index; adding updated_at forces an
+    // incremental sort over the whole discount bucket and timed out at 15s.
     const dataResult = await dealsClient.query(
       `SELECT id, sku AS source, source AS domain, url, title,
               price,
@@ -840,7 +867,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
               discount_pct
        FROM products
        WHERE ${whereClause}
-       ORDER BY discount_pct DESC, updated_at DESC
+       ORDER BY discount_pct DESC
        LIMIT ${limit} OFFSET ${offset}`,
       params
     );
