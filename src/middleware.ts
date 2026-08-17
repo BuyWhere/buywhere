@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isCanonicalRouterStateTree } from "@/lib/router-state-tree";
 import { commerceBrands, commerceStores } from "@/lib/commerce-routes";
-import { PRODUCT_TAXONOMY } from "@/lib/taxonomy";
 
 // BUY-69058: Baseline browser security/privacy headers applied to public HTML routes.
 const BASELINE_SECURITY_HEADERS: [string, string][] = [
@@ -616,18 +615,6 @@ export function middleware(request: NextRequest) {
       return new NextResponse(null, { status: 404, headers: { "Content-Type": "text/plain" } });
     }
   }
-  // /compare/category pairs (single segment, "a-vs-b") — validate against PRODUCT_TAXONOMY.
-  // Multi-segment slugs are static markdown pages; leave those to the page handler.
-  if (/^\/compare\/[a-z0-9-]+-vs-[a-z0-9-]+$/.test(normalizedForDead)) {
-    const pairSlug = normalizedForDead.slice("/compare/".length);
-    const [left, right] = pairSlug.split("-vs-");
-    const validCategory = PRODUCT_TAXONOMY.some((c) => c.slug === left) &&
-                         PRODUCT_TAXONOMY.some((c) => c.slug === right);
-    if (!validCategory) {
-      return new NextResponse(null, { status: 404, headers: { "Content-Type": "text/plain" } });
-    }
-  }
-
   // BUY-69713: indexable compare aliases must not serve 200 generic/not-found shells.
   // Redirect known utility comparison paths to their canonical, structured pages.
   if (normalizedForDead === "/compare/us/electronics") {

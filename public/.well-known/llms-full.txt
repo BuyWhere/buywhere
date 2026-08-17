@@ -4,9 +4,9 @@
 
 ## What is BuyWhere
 
-BuyWhere is an agent-native product catalog API for AI agents and LLM applications: 297M+ structured products from 214,000+ independent storefronts worldwide, normalized into one schema, with location-aware ranking so agents only recommend products their user can actually receive.
+BuyWhere is an agent-native product catalog API for AI agents and LLM applications: 390M+ structured products from 800,000+ independent storefronts worldwide, normalized into one schema, with location-aware ranking so agents only recommend products their user can actually receive.
 
-- Coverage: 297,218,016 total products, 214,325 merchants (live at GET /v1/catalog/stats; refreshed 2026-07-29)
+- Coverage: 390M+ total products, 800,000+ merchants (live totals at GET /v1/catalog/stats; snapshot refreshed 2026-08-16)
 - Location-aware search: `deliver_to=<ISO country>` ranks deliverable-first; each product carries an `availability` label.
 - Compact mode: `compact=true` returns `structured_specs`, `comparison_attributes`, `normalized_price_usd`.
 - Performance: P50 search latency <250ms; cached lookups <10ms; 99.9% uptime.
@@ -114,11 +114,13 @@ data.forEach(p => console.log(p.title, p.price, p.availability));
 
 ## MCP server
 
-The BuyWhere MCP server is available at the canonical HTTP endpoint `https://api.buywhere.ai/mcp` and exposes the same surface as the REST API. The legacy SSE endpoint remains available at `https://api.buywhere.ai/mcp/sse` for clients that explicitly require SSE transport. Install instructions:
+The BuyWhere MCP server is available at the canonical HTTP endpoint `https://api.buywhere.ai/mcp` (JSON-RPC over HTTP; authenticate with your API key via `X-API-Key` or `Authorization: Bearer`) and exposes the same surface as the REST API. The legacy SSE endpoint remains available at `https://api.buywhere.ai/mcp/sse` for clients that explicitly require SSE transport. Install instructions:
 
 - Claude Desktop / Claude Code: add `buywhere` to `mcp_servers` with `command: "buywhere-mcp"` (CLI) or the transport-specific endpoint above.
 - LangChain: `pip install langchain-buywhere` (community package; pending).
 - LlamaIndex: `pip install llama-index-tools-buywhere` (pending).
+
+MCP tools: `search_products`, `get_product`, `compare_products`, `get_deals`, `list_categories`, `find_best_price`, `find_similar`, `ingest_products`.
 
 ## Agent skill (Anthropic)
 
@@ -142,7 +144,7 @@ Every product returns:
 
 ## Rate limits
 
-Free tier: 1,000 requests/day, 60/minute. Authenticated paid plans scale per the rate-limit headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`).
+Free tier: 100 requests/day, 10/minute. Paid tiers: Starter $29/mo (10,000 req/day), Pro $99/mo (100,000 req/day). Authenticated plans scale per the rate-limit headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`).
 
 ## Contact
 
