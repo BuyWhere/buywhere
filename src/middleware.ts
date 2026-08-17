@@ -306,25 +306,12 @@ function normalizePathname(pathname: string): string {
 // here tells Google to PERMANENTLY drop the page. The 2026-06..08 incident:
 // a default-deny allowlist deindexed 33 commercial pages for 2 months. Do not
 // "optimise" the blog gate back to an allowlist.
-const DEAD_BLOG_SLUGS = new Set([
-  "where-to-buy-airpods-singapore",
-  "where-to-buy-apple-watch-singapore",
-  "where-to-buy-bose-qc45-singapore",
-  "where-to-buy-dyson-singapore",
-  "where-to-buy-fitbit-singapore",
-  "where-to-buy-gopro-singapore",
-  "where-to-buy-ipad-singapore",
-  "where-to-buy-iphone-singapore",
-  "where-to-buy-kindle-singapore",
-  "where-to-buy-logitech-mx-master-singapore",
-  "where-to-buy-macbook-singapore",
-  "where-to-buy-meta-quest-3-singapore",
-  "where-to-buy-roborock-singapore",
-  "where-to-buy-samsung-galaxy-s-singapore",
-  "where-to-buy-samsung-tv-singapore",
-  "where-to-buy-steam-deck-singapore",
-  "where-to-buy-xbox-series-x-singapore",
-]);
+//
+// BUY-71017 (tier 2, 2026-08-18): all 17 commercial where-to-buy-* slugs now
+// have content under content/blog/, so the App Router will serve 200. Pruned
+// the entire DEAD set to allow Google to re-crawl them. If a future restore
+// is needed, add the slug here ONLY if content cannot be recovered.
+const DEAD_BLOG_SLUGS: Set<string> = new Set([]);
 
 function isDeadBlogSlug(pathname: string): boolean {
   const normalized = normalizePathname(pathname);
