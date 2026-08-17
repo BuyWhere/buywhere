@@ -83,6 +83,13 @@ function inferDevice(productName: string): DevicePattern {
   // BUY-70592: Apply typo correction before matching
   const corrected = applyTypoCorrection(productName);
   const p = corrected.toLowerCase();
+  // BUY-70661: explicit accessory intent wins over device-family detection.
+  // Queries like "iPhone 15 case" and "laptop stand" are accessory searches;
+  // classifying them as phone/laptop applied a device price floor and then
+  // filtered the desired accessory rows out, producing false-empty FBP results.
+  if (ACCESSORY_NEGATIVE_TERMS.some(term => p.includes(term))) {
+    return { type: null, negativeTerms: [], minPriceUsd: 0 };
+  }
   // Phones
   if (/\b(iphone\b|smartphone\b|smart\s*phone\b|mobile\s*phone\b|samsung galaxy s|google pixel\b|xiaomi\b|redmi\b|oppo\b|vivo\b|nothing phone|oneplus\b)/.test(p)) {
     return { type: 'phone', negativeTerms: ACCESSORY_NEGATIVE_TERMS, minPriceUsd: 400 };
