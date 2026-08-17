@@ -81,6 +81,33 @@ const nextConfig = {
         destination: '/docs/api-reference/search',
         permanent: true,
       },
+      // BUY-70738: legacy /api-reference/{slug} aliases returning 200 skeleton shells.
+      // Redirect to canonical /docs/ or /docs/api-reference/ pages.
+      {
+        source: '/api-reference/authentication',
+        destination: '/docs/authentication',
+        permanent: true,
+      },
+      {
+        source: '/api-reference/errors',
+        destination: '/docs/errors',
+        permanent: true,
+      },
+      {
+        source: '/api-reference/search',
+        destination: '/docs/api-reference/search',
+        permanent: true,
+      },
+      {
+        source: '/api-reference/products',
+        destination: '/docs/api-reference/get-product',
+        permanent: true,
+      },
+      {
+        source: '/api-reference/recommendations',
+        destination: '/docs/api-reference/similar',
+        permanent: true,
+      },
       {
         source: '/developers/docs',
         destination: '/docs',
