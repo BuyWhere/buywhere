@@ -7,6 +7,10 @@ interface PageProps {
   params: { productId: string };
 }
 
+// BUY-70653: render this redirect route dynamically so an unknown productId
+// triggers a real 404 instead of a statically streamed not-found UI shell.
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedProduct = await resolveUSProductRoute(params.productId);
   if (!resolvedProduct) return { title: "Product Not Found" };
