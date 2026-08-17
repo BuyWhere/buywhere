@@ -346,6 +346,38 @@ const nextConfig = {
         destination: '/earn',
         permanent: true,
       },
+
+      // BUY-70467: affiliate-intent URL aliases → /earn (creator/affiliate signup)
+      {
+        source: '/affiliate',
+        destination: '/earn',
+        permanent: true,
+      },
+      {
+        source: '/partner',
+        destination: '/earn',
+        permanent: true,
+      },
+      {
+        source: '/referrals',
+        destination: '/earn',
+        permanent: true,
+      },
+      {
+        source: '/affiliate-program',
+        destination: '/earn',
+        permanent: true,
+      },
+      {
+        source: '/creators',
+        destination: '/earn',
+        permanent: true,
+      },
+      {
+        source: '/influencers',
+        destination: '/earn',
+        permanent: true,
+      },
       // BUY-31b6ae66: /legal and /sign-up must be configured here (not page-level
       // permanentRedirect) so production probes receive a true HTTP 308 instead of
       // the App Router shell-render trick.
