@@ -1008,9 +1008,11 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
 
   const normalizedMarket = normalizeCountryAndRegion(args);
   const country = (normalizedMarket.rawCountry || normalizedMarket.regionCountry || 'SG').toUpperCase();
+  const requestedCountry = country;
   const region = normalizedMarket.region;
   const category = (args.category as string) || '';
   const limit = 10;
+  let crossMarketFallback = false;
 
   // BUY-67522: infer exact device-family queries and reject accessory results.
   const deviceFilter = buildDeviceFilter(productName, country);
@@ -1169,7 +1171,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // the primary FTS path times out on broad category predicates (Fashion/SG pattern).
   if (result.rows.length === 0) {
     const titlePattern = `%${productName}%`;
-    const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
+    const fallbackCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
     const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
     // Parameter order: $1=country, $2=titlePattern, $3=CANDIDATE_POOL, $4=minPrice, $5=category
     // SQL placeholders must match this ordering.
@@ -1182,7 +1184,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
         // active-country index can supply a bounded market slice quickly.
         await fallbackClient.query('SET statement_timeout = 4500');
         await fallbackClient.query('SET enable_seqscan = off');
-        const fallbackParams: unknown[] = [requestedCountry, titlePattern, CANDIDATE_POOL];
+        const fallbackParams: unknown[] = [fallbackCountry, titlePattern, CANDIDATE_POOL];
         const fallbackConditions = ['is_active = true', 'price > 0', 'country_code = $1'];
         if (minPrice > 0) {
           fallbackParams.push(minPrice);
@@ -1220,6 +1222,39 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
       // best_price instead of surfacing a generic JSON-RPC -32603.
       console.warn('[mcp] find_best_price fallback failed:', (fallbackErr as Error).message);
       result = { rows: [] };
+    }
+  }
+
+  // BUY-70677 / BUY-70482 follow-up: when the country-pruned FTS plan returns zero
+  // rows for a sparsely-indexed market (e.g. Nintendo Switch 2 in TH/VN), degrade to
+  // a bounded global FTS best-known result so the agent gets a useful answer instead of
+  // null. Mark in meta so callers can distinguish it from a local-market hit.
+  if (result.rows.length === 0) {
+    try {
+      const crossClient = await acquireMcpClient();
+      try {
+        await crossClient.query('SET statement_timeout = 1500');
+        await crossClient.query('SET enable_seqscan = off');
+        result = await crossClient.query(
+          `SELECT id, title, price, currency, source AS domain, url, image_url,
+                  country_code, updated_at, category, category_path, metadata
+           FROM products
+           WHERE is_active = true
+             AND price > 0
+             AND search_vector @@ plainto_tsquery('english', $1)
+           ORDER BY price ASC, updated_at DESC
+           LIMIT $2`,
+          [productName, limit]
+        );
+        if (result.rows.length > 0) {
+          crossMarketFallback = true;
+          console.log('[mcp] find_best_price cross-market fallback hit product=', productName, 'rows=', result.rows.length);
+        }
+      } finally {
+        releaseClientSafely(crossClient);
+      }
+    } catch (crossErr) {
+      console.warn('[mcp] find_best_price cross-market fallback failed:', (crossErr as Error).message);
     }
   }
 
@@ -1279,7 +1314,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   return {
     best_price: data[0] ?? null,
     alternatives: data.slice(1),
-    meta: { total: data.length, country, response_time_ms: Date.now() - t0 },
+    meta: {
+      total: data.length,
+      country: crossMarketFallback ? requestedCountry : country,
+      response_time_ms: Date.now() - t0,
+      ...(crossMarketFallback && { cross_market_fallback: true, requested_country: requestedCountry }),
+    },
   };
 }
 

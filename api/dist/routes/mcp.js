@@ -80,7 +80,7 @@ function normalizeMcpMarket(args, defaultCountry = '') {
 const TOOLS = [
     {
         name: 'search_products',
-        description: 'Search the BuyWhere product catalog by keyword. Always pass deliver_to when the buyer market is known; it takes precedence over country_code/country and prevents all-market scans. Returns schema.org/Product entities with name, description, image, and offers (schema.org/AggregateOffer with lowPrice, highPrice, priceCurrency). Covers e-commerce platforms across Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US. Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields.',
+        description: 'Search the BuyWhere product catalog by keyword. Always pass deliver_to when the buyer market is known; it takes precedence over country_code/country and prevents all-market scans. Returns a results array where each item has: id, title, price ({amount, currency}), normalized_price_usd, merchant, url, image_url, region, country_code, click_url, affiliate_redirect_url, and updated_at. Covers e-commerce platforms across Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US. Use compact=true for agent-optimized responses adding structured_specs, comparison_attributes, and normalized_price_usd fields.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -131,7 +131,7 @@ const TOOLS = [
     },
     {
         name: 'get_deals',
-        description: 'Get discounted products sorted by discount percentage. Returns schema.org/Product entities with schema.org/Offer properties: price, priceCurrency, availability, originalPrice, and discountPercentage. Covers Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US e-commerce. Supports currency, region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters.',
+        description: 'Get discounted products sorted by discount percentage. Returns a results array where each item has: id, title, price ({amount, currency}), normalized_price_usd, merchant, url, image_url, region, country_code, click_url, and updated_at. Also includes original_price and discount_pct when available. Covers Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US e-commerce. Supports currency, region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -160,7 +160,7 @@ const TOOLS = [
     },
     {
         name: 'find_best_price',
-        description: 'Use this whenever a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X" or "where can I buy X for the lowest price". Returns schema.org/Product entities with schema.org/AggregateOffer (lowPrice, offerCount, priceCurrency) across all merchants.',
+        description: 'Use this whenever a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X" or "where can I buy X for the lowest price". Returns a results array where each item has: id, title, price ({amount, currency}), normalized_price_usd, merchant, url, image_url, region, country_code, click_url, and updated_at. Results are from across all merchants. Also includes structured_specs and comparison_attributes when available.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -336,18 +336,28 @@ async function handleSearchProducts(args) {
             if (useVector) {
                 // Embed query (retrieval.query task); Redis-cache 60s keyed by base64 query
                 let queryVec = null;
+                let embedTimedOut = false;
                 try {
                     const embedKey = `qembed:${Buffer.from(q).toString('base64').slice(0, 48)}`;
                     queryVec = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, embedKey, () => config_1.redis.get(embedKey));
                     if (!queryVec) {
-                        queryVec = await (0, embedProducts_1.embedQuery)(q, geminiKey);
-                        await config_1.redis.set(embedKey, queryVec, 'EX', 60).catch(() => { });
+                        // BUY-70290: cap embed latency at 3s — Gemini API occasionally hangs
+                        // for 12-18s, turning a fast FTS search into a multi-second ordeal.
+                        queryVec = await Promise.race([
+                            (0, embedProducts_1.embedQuery)(q, geminiKey),
+                            new Promise((_resolve, reject) => setTimeout(() => reject(new Error('embed timeout after 3000ms')), 3000)),
+                        ]);
+                        if (queryVec) {
+                            await config_1.redis.set(embedKey, queryVec, 'EX', 60).catch(() => { });
+                        }
                     }
                 }
                 catch (embedErr) {
-                    console.warn('[search] embed query failed, falling back to FTS:', embedErr.message);
+                    console.warn('[search] embed query failed/timeout, falling back to FTS:', embedErr.message);
+                    queryVec = null;
+                    embedTimedOut = true;
                 }
-                if (queryVec && config_1.vectorDb) {
+                if (queryVec && config_1.vectorDb && !embedTimedOut) {
                     let candidateIds = [];
                     let vectorCandidateIds = null;
                     if (mode === 'semantic') {
@@ -894,10 +904,12 @@ async function handleFindBestPrice(args) {
     });
     let result;
     let ftsTimedOut = false;
+    let crossMarketFallback = false;
+    const requestedCountry = country;
+    // BUY-70482: hoist minPrice outside the try so both FTS and fallback can reference it.
+    const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
     try {
-        await bestPriceClient.query('SET statement_timeout = 10000');
-        const requestedCountry = country;
-        const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
+        await bestPriceClient.query('SET statement_timeout = 3000');
         const conditions = ['is_active = true', 'price > 0'];
         const params = [];
         params.push(productName);
@@ -937,7 +949,81 @@ async function handleFindBestPrice(args) {
             result = { rows: [] };
         }
         else {
+            releaseClientSafely(bestPriceClient);
             throw err;
+        }
+    }
+    // BUY-70482: If the country-pruned FTS plan returns zero rows or hits its
+    // statement_timeout, try the same-country ILIKE path that FastAPI exposes,
+    // but with a tight timeout so a bad sequential-scan plan cannot dominate p95.
+    try {
+        if (result.rows.length === 0) {
+            await bestPriceClient.query('SET statement_timeout = 1500');
+            const terms = productName.split(/\s+/).filter(Boolean).slice(0, 6);
+            const fallbackConditions = ['is_active = true', 'price > 0'];
+            const fallbackParams = [];
+            fallbackParams.push(requestedCountry);
+            fallbackConditions.push(`country_code = $${fallbackParams.length}`);
+            for (const term of terms) {
+                fallbackParams.push(`%${term}%`);
+                fallbackConditions.push(`title ILIKE $${fallbackParams.length}`);
+            }
+            if (minPrice > 0) {
+                fallbackParams.push(minPrice);
+                fallbackConditions.push(`price >= $${fallbackParams.length}`);
+            }
+            fallbackParams.push(limit);
+            const fallbackResult = await bestPriceClient.query(`SELECT id, title, price, currency, source AS domain, url, image_url,
+                country_code, updated_at, category, category_path, metadata
+         FROM products
+         WHERE ${fallbackConditions.join(' AND ')}
+         ORDER BY price ASC, updated_at DESC
+         LIMIT $${fallbackParams.length}`, fallbackParams);
+            if (fallbackResult.rows.length > 0) {
+                result = fallbackResult;
+                ftsTimedOut = false;
+                console.log('[find_best_price] country ILIKE fallback succeeded for country=', country, 'product=', productName, 'rows=', fallbackResult.rows.length);
+            }
+        }
+    }
+    catch (fallbackErr) {
+        const fbErr = fallbackErr;
+        if (fbErr?.code === '57014') {
+            console.warn('[find_best_price] country ILIKE fallback timed out for country=', country, 'product=', productName);
+        }
+        else {
+            console.warn('[find_best_price] country ILIKE fallback error:', fbErr);
+        }
+    }
+    // BUY-70482: If same-country data is genuinely starved, degrade to a global
+    // FTS best-known result rather than an empty answer. Keep this bounded and
+    // marked in meta so clients can distinguish it from a local-market hit.
+    try {
+        if (result.rows.length === 0) {
+            await bestPriceClient.query('SET statement_timeout = 1500');
+            const fallbackResult = await bestPriceClient.query(`SELECT id, title, price, currency, source AS domain, url, image_url,
+                country_code, updated_at, category, category_path, metadata
+         FROM products
+         WHERE is_active = true
+           AND price > 0
+           AND search_vector @@ plainto_tsquery('english', $1)
+         ORDER BY price ASC, updated_at DESC
+         LIMIT $2`, [productName, limit]);
+            if (fallbackResult.rows.length > 0) {
+                result = fallbackResult;
+                ftsTimedOut = false;
+                crossMarketFallback = true;
+                console.log('[find_best_price] global FTS fallback succeeded for requested country=', country, 'product=', productName, 'rows=', fallbackResult.rows.length);
+            }
+        }
+    }
+    catch (fallbackErr) {
+        const fbErr = fallbackErr;
+        if (fbErr?.code === '57014') {
+            console.warn('[find_best_price] global FTS fallback timed out for country=', country, 'product=', productName);
+        }
+        else {
+            console.warn('[find_best_price] global FTS fallback error:', fbErr);
         }
     }
     finally {
@@ -1039,6 +1125,7 @@ async function handleFindBestPrice(args) {
             ...(minAllowedUsd != null ? { min_allowed_usd: Math.round(minAllowedUsd * 100) / 100 } : {}),
             country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'),
             response_time_ms: Date.now() - t0,
+            ...(crossMarketFallback ? { cross_market_fallback: true, requested_country: requestedCountry } : {}),
             ...(ftsTimedOut ? { timed_out: true, unavailable: true, message: 'Best-price search temporarily unavailable; please retry.' } : {}),
         },
     };
