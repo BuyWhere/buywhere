@@ -5,7 +5,6 @@ import { getSeoLandingFallbackProduct, type LandingProduct } from "@/lib/seo-lan
 import { extractLegacyProductQuery } from "@/lib/legacy-product-redirect";
 import { buildProductDetailGraph } from "@/lib/product-schema";
 import { renderProductLlmsSnippet } from "@/lib/llms-snippets";
-import { toSiteUrl } from "@/lib/site-url";
 
 const INTERNAL_ORIGIN =
   process.env.BUYWHERE_INTERNAL_ORIGIN ||
@@ -201,14 +200,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       images: product.image_url
         ? [{ url: product.image_url, width: 800, height: 800, alt: productName }]
         : [{ url: "/og-image.png", width: 1200, height: 630, alt: productName }],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: `${productName} — ${merchantName} | BuyWhere ${region.toUpperCase()}`,
-      description: `Buy ${productName} from ${merchantName} in ${regionConfig.countryName}.`,
-      images: product.image_url
-        ? [toSiteUrl(product.image_url)]
-        : [toSiteUrl("/og-image.png")],
     },
   };
 }

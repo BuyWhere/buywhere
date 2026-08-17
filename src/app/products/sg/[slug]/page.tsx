@@ -81,7 +81,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       card: "summary_large_image",
       title: `${resolvedProduct.name} - Compare Prices Singapore | BuyWhere`,
       description: `Compare prices for ${resolvedProduct.name} across Lazada, Shopee, Amazon SG, FairPrice, and top Singapore retailers.`,
-      images: ["/og-image.png"],
     },
     robots: {
       index: true,

@@ -33,12 +33,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         },
       ],
     },
-    twitter: {
-      card: "summary_large_image",
-      title: `${resolvedProduct.name} - BuyWhere`,
-      description: `Compare prices for ${resolvedProduct.name} across Amazon, Walmart, Target, and Best Buy.`,
-      images: ["/og-image.png"],
-    },
   };
 }
 
