@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../../config';
 import { outboundProbeEnabled } from '../../lib/outboundLinkHealth';
-import { adminAuth } from './auth';
+import { adminOrMonitoringAuth } from './auth';
 
 const router = Router();
 
@@ -85,9 +85,9 @@ async function getProbesStatus(_req: Request, res: Response): Promise<void> {
   });
 }
 
-router.get('/v1/admin/probes/status', adminAuth, getProbesStatus);
+router.get('/v1/admin/probes/status', adminOrMonitoringAuth, getProbesStatus);
 
 // BUY-70988: root alias so Cart/monitoring can use the exact /admin/probes/status path.
-router.get('/admin/probes/status', adminAuth, getProbesStatus);
+router.get('/admin/probes/status', adminOrMonitoringAuth, getProbesStatus);
 
 export default router;
