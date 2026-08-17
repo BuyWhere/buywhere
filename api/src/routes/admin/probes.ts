@@ -5,7 +5,7 @@ import { adminAuth } from './auth';
 
 const router = Router();
 
-router.get('/v1/admin/probes/status', adminAuth, async (_req: Request, res: Response) => {
+async function getProbesStatus(_req: Request, res: Response): Promise<void> {
   // BUY-70938: products has ~394M rows; full-table COUNT(*) seq-scans time out
   // when the url_probe_due index is invalid. Use approximate counts from pg_class
   // and pg_stats, plus a bounded primary-key scan for never-checked rows, so the
@@ -41,6 +41,29 @@ router.get('/v1/admin/probes/status', adminAuth, async (_req: Request, res: Resp
       ORDER BY status`
   ).catch(() => ({ rows: [] }));
 
+  // BUY-70988: Cart needs precise last-run telemetry for the Sev-2 drift router
+  // and weekly A1/A2 reports. Derive run boundaries from url_probe_log so no
+  // separate runs table is required.
+  const runSummary = await db.query<{ last_run_at: string | null; last_success_at: string | null }>(
+    `SET LOCAL statement_timeout = '3000';
+     SELECT MAX(checked_at) AS last_run_at,
+            MAX(checked_at) FILTER (WHERE status = 'ok') AS last_success_at
+       FROM url_probe_log`
+  ).catch(() => ({ rows: [{ last_run_at: null, last_success_at: null }] }));
+
+  const lastRunAt = runSummary.rows[0]?.last_run_at || null;
+
+  const rowsCheckedLastRun = lastRunAt
+    ? await db.query<{ count: string }>(
+        `SET LOCAL statement_timeout = '3000';
+         SELECT COUNT(*)::bigint AS count
+           FROM url_probe_log
+          WHERE checked_at >= ($1::timestamptz - INTERVAL '2 minutes')
+            AND checked_at <= ($1::timestamptz + INTERVAL '2 minutes')`,
+        [lastRunAt]
+      ).catch(() => ({ rows: [{ count: '0' }] }))
+    : { rows: [{ count: '0' }] };
+
   res.json({
     probe_enabled: outboundProbeEnabled(),
     approx_total_products: Number(approxTotal.rows[0]?.total || '0'),
@@ -56,7 +79,15 @@ router.get('/v1/admin/probes/status', adminAuth, async (_req: Request, res: Resp
       acc[row.status] = Number(row.count);
       return acc;
     }, {}),
+    last_run_at: lastRunAt,
+    last_success_at: runSummary.rows[0]?.last_success_at || null,
+    rows_checked_last_run: Number(rowsCheckedLastRun.rows[0]?.count || '0'),
   });
-});
+}
+
+router.get('/v1/admin/probes/status', adminAuth, getProbesStatus);
+
+// BUY-70988: root alias so Cart/monitoring can use the exact /admin/probes/status path.
+router.get('/admin/probes/status', adminAuth, getProbesStatus);
 
 export default router;
