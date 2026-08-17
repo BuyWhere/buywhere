@@ -19,6 +19,10 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS gtin           VARCHAR(14);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS mpn            VARCHAR(100);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS avg_rating     NUMERIC;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS review_count   INTEGER;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS url_status     TEXT NOT NULL DEFAULT 'ok';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS url_last_checked_at TIMESTAMPTZ;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS url_status_reason TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS url_dead_at     TIMESTAMPTZ;
 
 -- Full-text search support on products table
 CREATE INDEX IF NOT EXISTS idx_products_search_vector ON products USING GIN(search_vector);
@@ -122,10 +126,29 @@ CREATE TABLE IF NOT EXISTS affiliate_clicks (
   destination_url TEXT NOT NULL,
   clicked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS was_dead_at_click BOOLEAN NOT NULL DEFAULT false;
 
 CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_api_key ON affiliate_clicks(api_key);
 CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_product ON affiliate_clicks(product_id);
 CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_clicked_at ON affiliate_clicks(clicked_at);
+
+-- Append-only outbound URL probe history. Current status lives on products for fast render-gates.
+CREATE TABLE IF NOT EXISTS url_probe_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id TEXT NOT NULL,
+  merchant_id TEXT,
+  url TEXT NOT NULL,
+  status TEXT NOT NULL,
+  reason TEXT,
+  http_status INTEGER,
+  checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  latency_ms INTEGER,
+  error TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_url_probe_log_product_checked_at ON url_probe_log(product_id, checked_at DESC);
+CREATE INDEX IF NOT EXISTS idx_url_probe_log_status_checked_at ON url_probe_log(status, checked_at DESC);
+CREATE INDEX IF NOT EXISTS idx_products_url_probe_due ON products(url_last_checked_at) WHERE is_active = true AND url IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_products_url_status ON products(url_status);
 
 -- Affiliate links registry
 CREATE TABLE IF NOT EXISTS affiliate_links (
