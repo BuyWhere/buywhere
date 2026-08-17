@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isCanonicalRouterStateTree } from "@/lib/router-state-tree";
+import { commerceBrands, commerceStores } from "@/lib/commerce-routes";
+import { PRODUCT_TAXONOMY } from "@/lib/taxonomy";
 
 // BUY-69058: Baseline browser security/privacy headers applied to public HTML routes.
 const BASELINE_SECURITY_HEADERS: [string, string][] = [
@@ -595,6 +597,35 @@ export function middleware(request: NextRequest) {
   const normalizedForDead = normalizePathname(pathname);
   if (normalizedForDead === "/merchants/join") {
     return new NextResponse(null, { status: 410, headers: { "Content-Type": "text/plain" } });
+  }
+
+  // BUY-70666: invalid detail routes (/brands/{slug}, /stores/{slug}, /compare/{...}) must return
+  // a hard 404 instead of streaming a soft-200 fallback shell. We resolve the static registry here
+  // (same source the page handlers consult) so the missing-entity decision is made BEFORE Next.js
+  // begins streaming the App Router HTML — generateMetadata/Page.tsx notFound() in the page body
+  // runs too late and the response already commits as 200 with the not-found UI shell.
+  if (normalizedForDead.startsWith("/brands/")) {
+    const slug = normalizedForDead.slice("/brands/".length).split("/")[0];
+    if (slug && !commerceBrands.some((b) => b.slug === slug)) {
+      return new NextResponse(null, { status: 404, headers: { "Content-Type": "text/plain" } });
+    }
+  }
+  if (normalizedForDead.startsWith("/stores/")) {
+    const slug = normalizedForDead.slice("/stores/".length).split("/")[0];
+    if (slug && !commerceStores.some((s) => s.slug === slug)) {
+      return new NextResponse(null, { status: 404, headers: { "Content-Type": "text/plain" } });
+    }
+  }
+  // /compare/category pairs (single segment, "a-vs-b") — validate against PRODUCT_TAXONOMY.
+  // Multi-segment slugs are static markdown pages; leave those to the page handler.
+  if (/^\/compare\/[a-z0-9-]+-vs-[a-z0-9-]+$/.test(normalizedForDead)) {
+    const pairSlug = normalizedForDead.slice("/compare/".length);
+    const [left, right] = pairSlug.split("-vs-");
+    const validCategory = PRODUCT_TAXONOMY.some((c) => c.slug === left) &&
+                         PRODUCT_TAXONOMY.some((c) => c.slug === right);
+    if (!validCategory) {
+      return new NextResponse(null, { status: 404, headers: { "Content-Type": "text/plain" } });
+    }
   }
 
   // BUY-69713: indexable compare aliases must not serve 200 generic/not-found shells.
