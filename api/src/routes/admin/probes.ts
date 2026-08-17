@@ -23,14 +23,19 @@ async function getProbesStatus(_req: Request, res: Response): Promise<void> {
       WHERE c.relname = 'products'`
   ).catch(() => ({ rows: [{ never_checked: '0' }] }));
 
+  // BUY-71096: bound the aggregate by applying LIMIT inside a subquery.
+  // COUNT(*) with a top-level LIMIT still scans every matching product.
   const neverCheckedSample = await db.query<{ count: string }>(
     `SET LOCAL statement_timeout = '3000';
      SELECT COUNT(*)::bigint AS count
-       FROM products
-      WHERE is_active = true
-        AND url IS NOT NULL
-        AND url_last_checked_at IS NULL
-      LIMIT 5000`
+       FROM (
+         SELECT 1
+           FROM products
+          WHERE is_active = true
+            AND url IS NOT NULL
+            AND url_last_checked_at IS NULL
+          LIMIT 5000
+       ) sampled_products`
   ).catch(() => ({ rows: [{ count: '0' }] }));
 
   const recent = await db.query(

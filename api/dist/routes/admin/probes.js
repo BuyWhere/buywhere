@@ -53,7 +53,7 @@ function getProbesStatus(_req, res) {
                     return [4 /*yield*/, config_1.db.query("SELECT ROUND(c.reltuples * COALESCE(s.null_frac, 0))::bigint AS never_checked\n       FROM pg_class c\n       LEFT JOIN pg_stats s ON s.schemaname = 'public'\n                           AND s.tablename = 'products'\n                           AND s.attname = 'url_last_checked_at'\n      WHERE c.relname = 'products'").catch(function () { return ({ rows: [{ never_checked: '0' }] }); })];
                 case 2:
                     approxNeverChecked = _j.sent();
-                    return [4 /*yield*/, config_1.db.query("SET LOCAL statement_timeout = '3000';\n     SELECT COUNT(*)::bigint AS count\n       FROM products\n      WHERE is_active = true\n        AND url IS NOT NULL\n        AND url_last_checked_at IS NULL\n      LIMIT 5000").catch(function () { return ({ rows: [{ count: '0' }] }); })];
+                    return [4 /*yield*/, config_1.db.query("SET LOCAL statement_timeout = '3000';\n     SELECT COUNT(*)::bigint AS count\n       FROM (\n         SELECT 1\n           FROM products\n          WHERE is_active = true\n            AND url IS NOT NULL\n            AND url_last_checked_at IS NULL\n          LIMIT 5000\n       ) sampled_products").catch(function () { return ({ rows: [{ count: '0' }] }); })];
                 case 3:
                     neverCheckedSample = _j.sent();
                     return [4 /*yield*/, config_1.db.query("SELECT status, COUNT(*)::bigint AS count\n       FROM url_probe_log\n      WHERE checked_at >= NOW() - INTERVAL '24 hours'\n      GROUP BY status\n      ORDER BY status").catch(function () { return ({ rows: [] }); })];
