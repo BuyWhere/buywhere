@@ -210,10 +210,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const brand = await getBrandData(slug);
 
   if (!brand) {
-    return {
-      title: 'Brand Not Found',
-      robots: { index: false, follow: false },
-    };
+    notFound();
   }
 
   return {

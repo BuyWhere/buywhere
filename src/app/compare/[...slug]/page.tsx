@@ -66,13 +66,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   }
 
   const pair = params.slug.length === 1 ? await findCompareCategoryPair(params.slug[0]) : null;
-  if (!pair) {
-    return {
-      title: "Compare page not found | BuyWhere",
-      description: "This BuyWhere comparison page was not found.",
-      robots: { index: false, follow: false },
-    };
-  }
+  if (!pair) notFound();
   const slug = compareCategoryPairSlug(pair);
   const title = `${pair.left.name} vs ${pair.right.name} Price Comparison | BuyWhere`;
   const description = `Compare ${pair.left.name.toLowerCase()} and ${pair.right.name.toLowerCase()} prices, product coverage, and shopping categories on BuyWhere.`;

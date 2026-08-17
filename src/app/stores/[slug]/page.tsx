@@ -76,10 +76,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const store = getCommerceStore(slug);
 
   if (!store) {
-    return {
-      title: "Store Not Found",
-      robots: { index: false, follow: false },
-    };
+    notFound();
   }
 
   return {
