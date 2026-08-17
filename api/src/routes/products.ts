@@ -2249,6 +2249,7 @@ router.get(
 
     const probeEnabled = outboundProbeEnabled();
     let result;
+    const probeEnabled = outboundProbeEnabled();
     try {
       result = await db.query(
         `SELECT id, sku AS source_id, source AS domain, url,
