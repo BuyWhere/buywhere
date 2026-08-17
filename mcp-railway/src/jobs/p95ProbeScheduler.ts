@@ -1,10 +1,15 @@
 import { db } from '../config';
-import { recordMonitoredEndpointProbeSamples, refreshRecentP95Windows } from '../monitoring/p95';
+import {
+  recordMonitoredEndpointProbeSamples,
+  recordMcpFindBestPriceProbeSamples,
+  refreshRecentP95Windows,
+} from '../monitoring/p95';
 
 const MARKETS = ['sg', 'us', 'my', 'vn', 'th'] as const;
 const HEALTH_INTERVAL_MS = 30_000;
 const CATALOG_STATS_INTERVAL_MS = 60_000;
 const MCP_LIST_CATEGORIES_INTERVAL_MS = 60_000;
+const FBP_PROBE_INTERVAL_MS = 60_000;
 
 const API_BASE_URL = process.env.BUYWHERE_API_BASE_URL
   || (process.env.RAILWAY_SERVICE_BUYWHERE_API_URL ? `https://${process.env.RAILWAY_SERVICE_BUYWHERE_API_URL}` : 'https://api.buywhere.ai');
@@ -91,6 +96,7 @@ async function runProbeCycle(): Promise<void> {
       probeCatalogStats(),
       probeMcpListCategories(),
       recordMonitoredEndpointProbeSamples(),
+      recordMcpFindBestPriceProbeSamples(),
     ]);
     await refreshRecentP95Windows();
   } catch (error) {
@@ -131,6 +137,7 @@ export function startP95ProbeScheduler(): void {
     setInterval(() => { void probeCatalogStats().catch(swallow('probeCatalogStats')); }, CATALOG_STATS_INTERVAL_MS),
     setInterval(() => { void probeMcpListCategories().catch(swallow('probeMcpListCategories')); }, MCP_LIST_CATEGORIES_INTERVAL_MS),
     setInterval(() => { void recordMonitoredEndpointProbeSamples().catch(swallow('recordMonitoredEndpointProbeSamples')); }, 60_000),
+    setInterval(() => { void recordMcpFindBestPriceProbeSamples().catch(swallow('recordMcpFindBestPriceProbeSamples')); }, FBP_PROBE_INTERVAL_MS),
     setInterval(() => { void refreshRecentP95Windows().catch(swallow('refreshRecentP95Windows')); }, 60_000),
   ];
 

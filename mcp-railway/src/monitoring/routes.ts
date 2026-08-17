@@ -9,6 +9,7 @@ import {
   cleanupOldData,
   INTERNAL_P95_PROBE_HEADER,
   isValidMarket,
+  getEndpointThreshold,
   P95_THRESHOLD_MS,
   VALID_MARKETS,
 } from './p95';
@@ -129,7 +130,8 @@ router.get('/api/monitoring/p95', async (req, res) => {
       });
     }
 
-    const alertTriggered = record.p95_ms > P95_THRESHOLD_MS;
+    const thresholdMs = getEndpointThreshold(record.endpoint);
+    const alertTriggered = record.p95_ms > thresholdMs;
     const baselineMs = market.toLowerCase() === 'sg' ? 160 : 0;
 
     res.json({
@@ -140,7 +142,7 @@ router.get('/api/monitoring/p95', async (req, res) => {
       window_end: toIso(record.window_end),
       alert_triggered: alertTriggered,
       baseline_ms: baselineMs,
-      threshold_ms: P95_THRESHOLD_MS
+      threshold_ms: thresholdMs,
     });
   } catch (error) {
     console.error('[P95] Error fetching P95 data:', error);
