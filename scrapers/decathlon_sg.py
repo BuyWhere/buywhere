@@ -8,6 +8,7 @@ POST /v1/ingest/products.
 Usage:
     python -m scrapers.decathlon_sg --api-key <key> [--batch-size 100] [--delay 1.0]
     python -m scrapers.decathlon_sg --scrape-only
+    python -m scrapers.decathlon_sg --url-refresh --product-ids-file <file> [--dry-run]
 
 Verticals covered:
 - Sports Equipment: Camping, cycling, fitness, team sports — target 10K
@@ -59,12 +60,18 @@ class DecathlonScraper:
         batch_size: int = 100,
         delay: float = 1.0,
         scrape_only: bool = False,
+        url_refresh_mode: bool = False,
+        product_ids_file: str | None = None,
+        dry_run: bool = False,
     ):
         self.api_key = api_key
         self.api_base = api_base.rstrip("/")
         self.batch_size = batch_size
         self.delay = delay
         self.scrape_only = scrape_only
+        self.url_refresh_mode = url_refresh_mode
+        self.product_ids_file = product_ids_file
+        self.dry_run = dry_run
         self.client = httpx.AsyncClient(timeout=30.0, headers=HEADERS)
         self.total_scraped = 0
         self.total_ingested = 0
@@ -76,6 +83,8 @@ class DecathlonScraper:
     def _ensure_output_dir(self):
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         ts = time.strftime("%Y%m%d_%H%M%S")
+        if self.url_refresh_mode:
+            ts += "_url_refresh"
         self.products_outfile = os.path.join(OUTPUT_DIR, f"products_{ts}.jsonl")
 
     async def close(self):
@@ -112,6 +121,27 @@ class DecathlonScraper:
         except Exception:
             return []
 
+    async def fetch_product_by_sku(self, sku: str) -> dict[str, Any] | None:
+        """Fetch a single product by SKU for URL refresh mode."""
+        url = f"{BASE_URL}/search"
+        params = {
+            "q": sku,
+            "page_size": 1,
+        }
+        try:
+            resp = await self.client.get(url, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+            products = data.get("products", []) or []
+            for p in products:
+                if str(p.get("sku", "")) == str(sku):
+                    return p
+            # If no exact match, return first result
+            return products[0] if products else None
+        except Exception as e:
+            print(f"  Error fetching SKU {sku}: {e}")
+            return None
+
     def _extract_price(self, price_str: str | float) -> float:
         if isinstance(price_str, (int, float)):
             return float(price_str)
@@ -121,7 +151,7 @@ class DecathlonScraper:
         except ValueError:
             return 0.0
 
-    def transform_product(self, raw: dict, category: dict) -> dict[str, Any] | None:
+    def transform_product(self, raw: dict, category: dict | None = None) -> dict[str, Any] | None:
         try:
             sku = str(raw.get("sku", "") or raw.get("id", ""))
             if not sku:
@@ -152,6 +182,14 @@ class DecathlonScraper:
             if original_price > price:
                 discount = int(((original_price - price) / original_price) * 100)
 
+            # Determine category
+            if category:
+                cat_name = category["name"]
+                sub_name = category["sub"]
+            else:
+                cat_name = "Sports"
+                sub_name = "General"
+
             return {
                 "sku": sku,
                 "merchant_id": MERCHANT_ID,
@@ -161,8 +199,8 @@ class DecathlonScraper:
                 "currency": "SGD",
                 "url": product_url,
                 "image_url": image_url,
-                "category": category["name"],
-                "category_path": [category["name"], category["sub"]],
+                "category": cat_name,
+                "category_path": [cat_name, sub_name],
                 "brand": brand,
                 "is_active": True,
                 "metadata": {
@@ -170,7 +208,8 @@ class DecathlonScraper:
                     "discount_pct": discount,
                     "rating": rating,
                     "review_count": review_count,
-                    "subcategory": category["sub"],
+                    "subcategory": sub_name,
+                    "url_refresh_mode": self.url_refresh_mode,
                 },
             }
         except Exception:
@@ -194,6 +233,10 @@ class DecathlonScraper:
         url = f"{self.api_base}/v1/ingest/products"
         headers = {"Authorization": f"Bearer {self.api_key}"}
         payload = {"source": SOURCE, "products": products}
+
+        if self.dry_run:
+            print(f"  [DRY-RUN] Would send {len(products)} products to {url}")
+            return len(products), 0, 0
 
         try:
             resp = await self.client.post(url, json=payload, headers=headers)
@@ -274,7 +317,85 @@ class DecathlonScraper:
         print(f"  [{cat_name} / {sub_name}] Done: {counts}")
         return counts
 
+    async def run_url_refresh(self, product_ids: list[str]) -> dict[str, Any]:
+        """Run URL refresh mode - fetch only specific products by SKU/ID and update URL."""
+        print(f"Decathlon SG URL Refresh Mode starting...")
+        print(f"  Mode: {'DRY-RUN' if self.dry_run else 'LIVE'}")
+        print(f"  Product IDs file: {self.product_ids_file}")
+        print(f"  Products to refresh: {len(product_ids)}")
+        print(f"  Output: {self.products_outfile}")
+
+        start = time.time()
+        batch = []
+        refreshed_count = 0
+        not_found_count = 0
+
+        for i, product_id in enumerate(product_ids):
+            print(f"  [{i+1}/{len(product_ids)}] Fetching SKU {product_id}...", end=" ", flush=True)
+
+            product = await self.fetch_product_by_sku(product_id)
+
+            if not product:
+                print("NOT FOUND")
+                not_found_count += 1
+                continue
+
+            transformed = self.transform_product(product, None)
+            if transformed:
+                batch.append(transformed)
+                refreshed_count += 1
+                print(f"OK -> {transformed.get('url', '')[:60]}...")
+            else:
+                not_found_count += 1
+                print("TRANSFORM FAILED")
+                continue
+
+            if len(batch) >= self.batch_size:
+                i_count, u_count, f_count = await self.ingest_batch(batch)
+                self.total_ingested += i_count
+                self.total_updated += u_count
+                self.total_failed += f_count
+                batch = []
+                await asyncio.sleep(self.delay)
+
+        # Ingest remaining
+        if batch:
+            i_count, u_count, f_count = await self.ingest_batch(batch)
+            self.total_ingested += i_count
+            self.total_updated += u_count
+            self.total_failed += f_count
+
+        elapsed = time.time() - start
+
+        summary = {
+            "elapsed_seconds": round(elapsed, 1),
+            "total_scraped": refreshed_count,
+            "total_ingested": self.total_ingested,
+            "total_updated": self.total_updated,
+            "total_failed": self.total_failed,
+            "not_found_count": not_found_count,
+            "output_file": self.products_outfile,
+            "mode": "url_refresh",
+        }
+
+        print(f"\nURL Refresh complete: {summary}")
+        return summary
+
     async def run(self) -> dict[str, Any]:
+        if self.url_refresh_mode:
+            # URL refresh mode - load product IDs from file
+            if not self.product_ids_file:
+                raise ValueError("--product-ids-file required for URL refresh mode")
+
+            if not os.path.exists(self.product_ids_file):
+                raise FileNotFoundError(f"Product IDs file not found: {self.product_ids_file}")
+
+            with open(self.product_ids_file, "r") as f:
+                product_ids = [line.strip() for line in f if line.strip()]
+
+            return await self.run_url_refresh(product_ids)
+
+        # Original full-category scrape mode
         mode = "scrape only" if self.scrape_only else f"API: {self.api_base}"
         print(f"Decathlon SG Scraper starting...")
         print(f"Mode: {mode}")
@@ -316,6 +437,12 @@ async def main():
     parser.add_argument("--batch-size", type=int, default=100)
     parser.add_argument("--delay", type=float, default=1.0, help="Delay between batches (seconds)")
     parser.add_argument("--scrape-only", action="store_true", help="Save to JSONL without ingesting")
+
+    # URL refresh mode arguments
+    parser.add_argument("--url-refresh", action="store_true", help="Enable URL refresh mode (surgical URL update)")
+    parser.add_argument("--product-ids-file", type=str, help="File containing product IDs/SKUs to refresh (one per line)")
+    parser.add_argument("--dry-run", action="store_true", help="Dry run - print what would be done without sending to API")
+
     args = parser.parse_args()
 
     scraper = DecathlonScraper(
@@ -324,6 +451,9 @@ async def main():
         batch_size=args.batch_size,
         delay=args.delay,
         scrape_only=args.scrape_only,
+        url_refresh_mode=args.url_refresh,
+        product_ids_file=args.product_ids_file,
+        dry_run=args.dry_run,
     )
 
     try:
