@@ -56,6 +56,33 @@ const NOISE_WORDS = new Set([
     'price', 'prices', 'cost', 'costs',
     'deal', 'deals', 'discount', 'sale',
 ]);
+// BUY-70592: Common query typos that should map to correct tokens for FTS.
+const SEARCH_TYPO_MAP = {
+    'lapotp': 'laptop',
+    'lapto': 'laptop',
+    'laptp': 'laptop',
+    'phoen': 'phone',
+    'phon': 'phone',
+    'mackbook': 'macbook',
+    'iphon': 'iphone',
+    'iphoe': 'iphone',
+    'galay': 'galaxy',
+    'galxy': 'galaxy',
+    'samnsung': 'samsung',
+    'samgung': 'samsung',
+    'airpod': 'airpods',
+    'ultrabook': 'laptop',
+    'robott vacuum': 'robot vacuum',
+    'robottvacuum': 'robot vacuum',
+};
+/** Apply typo correction to each token of a query string (BUY-70592). */
+function applySearchTypoCorrection(q) {
+    return q
+        .toLowerCase()
+        .split(/\s+/)
+        .map(token => SEARCH_TYPO_MAP[token] ?? token)
+        .join(' ');
+}
 function preprocessSearchQuery(q, existingMinPrice, existingMaxPrice) {
     if (!q || !q.trim())
         return { cleanedQuery: q };
@@ -119,6 +146,9 @@ function cleanQueryText(text) {
     // Remove price literals: "$50", "50 dollars", "50 sgd"
     cleaned = cleaned.replace(/\$\s*(\d+[.,]?\d*)\b/g, '');
     cleaned = cleaned.replace(/\b(\d+[.,]?\d*)\s*(dollars|sgd|usd|gbp|eur)\b/gi, '');
+    // BUY-70592: correct common typos before noise-word stripping, so "lapotp"
+    // passes through as "laptop" instead of being kept and matched literally.
+    cleaned = applySearchTypoCorrection(cleaned);
     // Remove noise words that don't help FTS relevance
     cleaned = cleaned
         .split(/\s+/)
