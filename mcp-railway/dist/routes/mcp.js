@@ -1034,6 +1034,10 @@ async function handleFindBestPrice(args) {
     // then ILIKE + price-order) is both faster AND handles category predicates correctly.
     // The primary path is still used for non-category queries where FTS is the right signal.
     let result = { rows: [] };
+    // BUY-70661: track WHY the primary path returned 0 rows so monitoring can
+    // distinguish genuine no-match from infrastructure failure (timeout / pool starvation).
+    let primaryError = null;
+    let primaryTimedOut = false;
     // BUY-70189/BUY-70314/BUY-70332: gate high-cardinality single-token FTS
     // queries with a quick capped count probe. Do not count-gate multi-token
     // queries: under catalog DB I/O contention the bounded ILIKE fallback can be
@@ -1102,7 +1106,7 @@ async function handleFindBestPrice(args) {
              LIMIT $${params.length}
            )
            SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
-                  p.country_code, p.updated_at, p.category, p.category_path, p.metadata
+                  p.country_code, p.updated_at, p.category, p.category_path, p.metadata, p.in_stock
            FROM page_ids pi
            JOIN products p ON p.id = pi.id
            ORDER BY pi.price ASC, pi.updated_at DESC`, params);
@@ -1116,7 +1120,17 @@ async function handleFindBestPrice(args) {
             // BUY-70088/BUY-70097: broad/sparse strings can produce huge FTS candidate
             // sets and hit statement_timeout. Preserve MCP contract by trying the
             // fallback instead of surfacing generic JSON-RPC -32603.
-            console.warn('[mcp] find_best_price primary query failed:', primaryErr.message);
+            const msg = primaryErr.message;
+            if (msg.includes('statement timeout') || msg.includes('canceling statement')) {
+                primaryTimedOut = true;
+            }
+            else if (msg.includes('mcp_db_pool_acquire_timeout')) {
+                primaryError = 'pool_acquire_timeout';
+            }
+            else {
+                primaryError = msg.slice(0, 120);
+            }
+            console.warn('[mcp] find_best_price primary query failed:', msg);
             result = { rows: [] };
         }
     }
@@ -1130,19 +1144,23 @@ async function handleFindBestPrice(args) {
         const titlePattern = `%${productName}%`;
         const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
         const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
-        // Parameter order: $1=country, $2=titlePattern, $3=CANDIDATE_POOL, $4=minPrice, $5=category
-        // SQL placeholders must match this ordering.
+        const LARGE_MARKETS = new Set(['US', 'MY', 'VN']);
+        // BUY-70661: Tier-1 ILIKE fallback — push title ILIKE INTO the inner scan
+        // instead of filtering outside it. The old outer-filter pattern scanned LIMIT 500
+        // arbitrary country rows, then outer-applied title ILIKE — zero matches on sparse
+        // markets returned 0 rows instantly (not a timeout, not an error, just no hits).
+        // Pushing the predicate inside the index-scan makes it selective and fast.
+        //
+        // BUY-70661: market-size aware timeout. Large partitioned markets (US/MY/VN) need
+        // more time even for an index-only scan under cold-cache / I/O contention.
+        const tier1Timeout = LARGE_MARKETS.has(requestedCountry) ? 10000 : 4500;
         try {
             const fallbackClient = await acquireMcpClient();
             try {
-                // BUY-70332: avoid ORDER BY updated_at in the fallback. Under catalog DB
-                // I/O contention, the recent-rows scan spent 20s+ sorting market-local rows
-                // and timed out, returning false-empty results across every region. The
-                // active-country index can supply a bounded market slice quickly.
-                await fallbackClient.query('SET statement_timeout = 4500');
+                await fallbackClient.query(`SET statement_timeout = ${tier1Timeout}`);
                 await fallbackClient.query('SET enable_seqscan = off');
                 const fallbackParams = [requestedCountry, titlePattern, CANDIDATE_POOL];
-                const fallbackConditions = ['is_active = true', 'price > 0', 'country_code = $1'];
+                const fallbackConditions = ['is_active = true', 'price > 0', 'country_code = $1', 'title ILIKE $2'];
                 if (minPrice > 0) {
                     fallbackParams.push(minPrice);
                     fallbackConditions.push(`price >= $${fallbackParams.length}`);
@@ -1151,33 +1169,82 @@ async function handleFindBestPrice(args) {
                     fallbackParams.push(`%${category}%`);
                 }
                 const categoryPredicate = category ? `AND category ILIKE $${fallbackParams.length}` : '';
-                // BUY-70332: drop ORDER BY updated_at. Under catalog DB I/O load, the
-                // sequential scan + sort spent 20s+ before the 4.5s statement_timeout hit,
-                // causing false-empty responses. An unordered country scan uses the
-                // (is_active, country_code) index and completes in ~100ms for LIMIT 500.
-                result = await fallbackClient.query(`SELECT * FROM (
-             SELECT id, title, price, currency, source AS domain, url, image_url,
-                    country_code, updated_at, category, category_path, metadata
-             FROM products
-             WHERE ${fallbackConditions.join(' AND ')}
-             LIMIT $3
-           ) _recent
-           WHERE title ILIKE $2
+                // Title ILIKE is INSIDE the subquery so the index scan is selective:
+                // the (is_active, country_code) index returns only matching rows directly,
+                // instead of scanning 500 arbitrary rows and then filtering outside.
+                result = await fallbackClient.query(`SELECT id, title, price, currency, source AS domain, url, image_url,
+                  country_code, updated_at, category, category_path, metadata, in_stock
+           FROM products
+           WHERE ${fallbackConditions.join(' AND ')}
            ${categoryPredicate}
            ORDER BY price ASC
            LIMIT ${PREFILTER_RESULT_POOL}`, fallbackParams);
             }
             finally {
-                // BUY-56185: discard connections poisoned by statement_timeout.
                 releaseClientSafely(fallbackClient);
             }
         }
         catch (fallbackErr) {
-            // BUY-70064/BUY-70097: fallback is best-effort only. If sparse
-            // markets/timeouts hit the fallback, preserve MCP contract by returning no
-            // best_price instead of surfacing a generic JSON-RPC -32603.
-            console.warn('[mcp] find_best_price fallback failed:', fallbackErr.message);
+            const msg = fallbackErr.message;
+            if (msg.includes('statement timeout') || msg.includes('canceling statement')) {
+                primaryTimedOut = true;
+            }
+            else if (msg.includes('mcp_db_pool_acquire_timeout')) {
+                primaryError = 'pool_acquire_timeout';
+            }
+            console.warn('[mcp] find_best_price tier-1 ILIKE fallback failed:', msg);
             result = { rows: [] };
+        }
+        // BUY-70661: Tier-2 catalogDb direct fallback — bypass acquireMcpClient pool
+        // entirely. When catalog DB I/O contention saturates the shared MCP pool,
+        // acquireMcpClient itself times out at 1s and tier-1 never runs. catalogDb
+        // is a separate pool (CATALOG_DATABASE_URL) so it stays available.
+        // Only run if tier-1 gave us nothing.
+        if (result.rows.length === 0 && (primaryTimedOut || primaryError === 'pool_acquire_timeout')) {
+            const tier2Timeout = LARGE_MARKETS.has(requestedCountry) ? 15000 : 8000;
+            try {
+                let catalogClient;
+                try {
+                    catalogClient = await Promise.race([
+                        config_1.catalogDb.connect(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('catalog_db_pool_acquire_timeout')), 2000)),
+                    ]);
+                }
+                catch (acqErr) {
+                    console.warn('[mcp] find_best_price catalogDb acquire failed:', acqErr.message);
+                    catalogClient = null;
+                }
+                if (catalogClient) {
+                    try {
+                        await catalogClient.query(`SET statement_timeout = ${tier2Timeout}`);
+                        await catalogClient.query('SET enable_seqscan = off');
+                        const fallbackParams = [requestedCountry, titlePattern, CANDIDATE_POOL];
+                        const fallbackConditions = ['is_active = true', 'price > 0', 'country_code = $1', 'title ILIKE $2'];
+                        if (minPrice > 0) {
+                            fallbackParams.push(minPrice);
+                            fallbackConditions.push(`price >= $${fallbackParams.length}`);
+                        }
+                        if (category) {
+                            fallbackParams.push(`%${category}%`);
+                        }
+                        const categoryPredicate = category ? `AND category ILIKE $${fallbackParams.length}` : '';
+                        result = await catalogClient.query(`SELECT id, title, price, currency, source AS domain, url, image_url,
+                      country_code, updated_at, category, category_path, metadata, in_stock
+               FROM products
+               WHERE ${fallbackConditions.join(' AND ')}
+               ${categoryPredicate}
+               ORDER BY price ASC
+               LIMIT ${PREFILTER_RESULT_POOL}`, fallbackParams);
+                    }
+                    finally {
+                        releaseClientSafely(catalogClient);
+                    }
+                }
+            }
+            catch (tier2Err) {
+                console.warn('[mcp] find_best_price tier-2 catalogDb fallback failed:', tier2Err.message);
+                result = { rows: [] };
+            }
         }
     }
     const currency = response_1.COUNTRY_CURRENCY[country] || 'SGD';
@@ -1236,12 +1303,27 @@ async function handleFindBestPrice(args) {
             url: r.url,
             image_url: r.image_url,
             country_code: r.country_code,
+            in_stock: r.in_stock !== false,
         };
     });
+    // BUY-70661: surface infrastructure failure in response metadata so callers and
+    // monitoring can distinguish genuine no-match from timeout/pool starvation.
+    const meta = { total: data.length, country, response_time_ms: Date.now() - t0 };
+    if (primaryTimedOut) {
+        meta.timed_out = true;
+    }
+    if (primaryError) {
+        meta.unavailable_reason = primaryError;
+    }
+    // If both primary and fallback returned empty, mark as potentially unavailable
+    // so agents know to retry or use a different query — it's not a "genuinely no matches".
+    if (data.length === 0 && (primaryTimedOut || primaryError)) {
+        meta.unavailable = true;
+    }
     return {
         best_price: data[0] ?? null,
         alternatives: data.slice(1),
-        meta: { total: data.length, country, response_time_ms: Date.now() - t0 },
+        meta,
     };
 }
 // BUY-31929: MCP tool to ingest products — delegates to the same logic as
