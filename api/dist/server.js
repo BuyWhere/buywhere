@@ -70,6 +70,7 @@ const latency_1 = require("./middleware/latency");
 const uptime_1 = __importDefault(require("./routes/admin/uptime"));
 const metrics_1 = __importDefault(require("./routes/admin/metrics"));
 const fxRefresh_1 = __importDefault(require("./routes/admin/fxRefresh"));
+const probes_1 = __importDefault(require("./routes/admin/probes"));
 const config_1 = require("./config");
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=3600, s-maxage=3600';
 const AGENTS_TXT_CONTENT = `# BuyWhere AI Agents Discovery
@@ -356,6 +357,8 @@ function createApp() {
     // BUY-52476 / BUY-55347: admin endpoint to force-refresh fx_rates.
     // Auth is handled inside the router via Authorization: Bearer <admin key>.
     app.use(fxRefresh_1.default);
+    // BUY-70776: outbound-link probe status debug endpoint.
+    app.use(probes_1.default);
     // 404 fallback
     app.use((_req, res) => {
         res.status(404).json({ error: 'Not found' });
