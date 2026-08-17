@@ -556,7 +556,7 @@ async function ensureUrlProbeIndexes() {
     try {
       const existsValid = await db.query(
         `SELECT 1 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
-          WHERE i.indrelid = ${targetTable}::regclass AND c.relname = $1 AND i.indisvalid`,
+          WHERE i.indrelid = '${targetTable}'::regclass AND c.relname = $1 AND i.indisvalid`,
         [idx.name]
       );
       if (existsValid.rows.length > 0) {
