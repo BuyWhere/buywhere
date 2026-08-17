@@ -1032,7 +1032,10 @@ async function handleListCategories(args) {
                 cached: false,
             };
             meta.unavailable = allCountsZero;
-            const data = { data: rows, meta };
+            // BUY-71112: include both `categories` and `data` so probes/clients that
+            // key on `categories` (canonical contract) keep working while older
+            // consumers parsing `data` don't break.
+            const data = { categories: rows, data: rows, meta };
             if (!allCountsZero) {
                 config_1.redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => { }); // 10 min TTL
             }

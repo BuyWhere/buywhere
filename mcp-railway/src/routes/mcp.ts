@@ -942,7 +942,7 @@ async function handleGetDeals(args: Record<string, unknown>) {
 
 // Single-flight guard: at most one DB scan runs per country at a time.
 // Concurrent cache-misses coalesce on the same Promise instead of spawning N parallel GROUP-BY scans.
-const categoryListInflight = new Map<string, Promise<{ data: unknown[]; meta: Record<string, unknown> }>>();
+const categoryListInflight = new Map<string, Promise<{ categories: unknown[]; data: unknown[]; meta: Record<string, unknown> }>>();
 
 async function handleListCategories(args: Record<string, unknown>) {
   const t0 = Date.now();
@@ -1125,7 +1125,10 @@ async function handleListCategories(args: Record<string, unknown>) {
         cached: false,
       };
       meta.unavailable = allCountsZero;
-      const data = { data: rows, meta };
+      // BUY-71112: include both `categories` and `data` so probes/clients that
+      // key on `categories` (canonical contract) keep working while older
+      // consumers parsing `data` don't break.
+      const data = { categories: rows, data: rows, meta };
       if (!allCountsZero) {
         redis.set(cacheKey, JSON.stringify(data), 'EX', 600).catch(() => {}); // 10 min TTL
       }
