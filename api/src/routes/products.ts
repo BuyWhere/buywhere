@@ -13,6 +13,7 @@ import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compar
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { shipScopeForUrl } from '../lib/shipsTo';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
+import { outboundProbeEnabled, liveUrlCondition } from '../lib/outboundLinkHealth';
 import { embedQuery } from '../jobs/embedProducts';
 
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
@@ -559,7 +560,7 @@ router.get(
     const qNorm = q.toLowerCase().trim().split(/\s+/)
       .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).sort().join(' ')
       || q.toLowerCase().trim();
-    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
+    const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${outboundProbeEnabled() ? 'probe1' : 'probe0'}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
       if (cached) {
@@ -609,6 +610,13 @@ router.get(
     }
 
     const baseConditions: string[] = ['is_active = true', 'price > 0'];
+    // BUY-70776: when the outbound-link probe sweep is active, exclude rows whose
+    // URL has been verified dead. The probe flips url_status to 'dead' on confirmed
+    // 404/410/etc. Dead rows remain in the DB so they can reappear if the probe
+    // later finds the URL healthy; the filter only gates the read path.
+    if (outboundProbeEnabled()) {
+      baseConditions.push(liveUrlCondition());
+    }
     const baseParams: unknown[] = [];
     let baseIdx = 1;
     if (minPrice !== undefined || maxPrice !== undefined) {
@@ -1952,12 +1960,14 @@ router.get(
     }
 
     let result;
+    const probeEnabled = outboundProbeEnabled();
     try {
       result = await db.query(
         `SELECT id, sku AS source_id, source AS domain, url,
                 title, price, currency, image_url, metadata, updated_at,
                 region, country_code, created_at, description, brand, mpn, gtin,
                 category_path, category, merchant_id, avg_rating, review_count
+                ${probeEnabled ? ', url_status' : ''}
          FROM products WHERE id = $1`,
         [id]
       );
@@ -1968,6 +1978,11 @@ router.get(
     }
 
     if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+
+    if (probeEnabled && (result.rows[0] as Record<string, unknown>).url_status === 'dead') {
       res.status(404).json({ error: 'Product not found' });
       return;
     }
