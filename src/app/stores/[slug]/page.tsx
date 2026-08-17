@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
-import { getCommerceStore, getStoreSearchPath } from "@/lib/commerce-routes";
+import { commerceStores, getCommerceStore, getStoreSearchPath } from "@/lib/commerce-routes";
 import { toSiteUrl } from "@/lib/site-url";
 
 interface PageProps {
@@ -90,6 +90,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
+export const dynamicParams = false;
+
 export function generateStaticParams() {
-  return [];
+  return commerceStores.map((store) => ({ slug: store.slug }));
 }
