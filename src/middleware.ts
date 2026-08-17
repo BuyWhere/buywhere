@@ -301,30 +301,27 @@ function normalizePathname(pathname: string): string {
  * redirect" which keeps the URL in the index indefinitely.  Returning 410 Gone
  * tells Google to drop the URL cleanly.
  */
+// ⚠️ GUARD (BUY-57626 postmortem): this is the ONLY list allowed to 410 blog
+// URLs, and it must stay short, explicit, and human-reviewed. Adding a slug
+// here tells Google to PERMANENTLY drop the page. The 2026-06..08 incident:
+// a default-deny allowlist deindexed 33 commercial pages for 2 months. Do not
+// "optimise" the blog gate back to an allowlist.
 const DEAD_BLOG_SLUGS = new Set([
   "where-to-buy-airpods-singapore",
   "where-to-buy-apple-watch-singapore",
   "where-to-buy-bose-qc45-singapore",
-  "where-to-buy-dji-mini-4-pro-singapore",
   "where-to-buy-dyson-singapore",
-  "where-to-buy-dyson-v15-singapore",
   "where-to-buy-fitbit-singapore",
   "where-to-buy-gopro-singapore",
   "where-to-buy-ipad-singapore",
-  "where-to-buy-iphone-16-singapore",
   "where-to-buy-iphone-singapore",
   "where-to-buy-kindle-singapore",
-  "where-to-buy-laptop-singapore",
   "where-to-buy-logitech-mx-master-singapore",
-  "where-to-buy-macbook-air-m3-singapore",
   "where-to-buy-macbook-singapore",
   "where-to-buy-meta-quest-3-singapore",
-  "where-to-buy-nintendo-switch-singapore",
-  "where-to-buy-ps5-singapore",
   "where-to-buy-roborock-singapore",
   "where-to-buy-samsung-galaxy-s-singapore",
   "where-to-buy-samsung-tv-singapore",
-  "where-to-buy-sony-wh-1000xm5-singapore",
   "where-to-buy-steam-deck-singapore",
   "where-to-buy-xbox-series-x-singapore",
 ]);
@@ -409,7 +406,15 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
       return isDocsHost ? "/blog" : null;
     }
 
-    return ACTIVE_BLOG_SLUGS.has(slug) ? (isDocsHost ? normalizedPath : null) : (DEAD_BLOG_SLUGS.has(slug) ? null : "__DEAD_BLOG_SLUG__");
+    // ⚠️ GUARD (BUY-57626 postmortem, 2026-08-18): DO NOT reintroduce
+    // default-deny here. A previous version 410'd every slug not on the static
+    // ACTIVE_BLOG_SLUGS list — but posts are also published OUTSIDE this repo
+    // (4seen publishing system, generated commercial pages), so 33 live
+    // commercial/developer posts returned 410 for ~2 months and were deindexed
+    // by Google. Explicit DEAD_BLOG_SLUGS (checked via isDeadBlogSlug) is the
+    // ONLY thing allowed to 410 a blog URL. Unknown slugs MUST fall through to
+    // the app, which hard-404s naturally (BUY-70666) if truly absent.
+    return isDocsHost ? normalizedPath : null;
   }
 
   // Real published docs (in ACTIVE_DOC_PATHS) serve directly — checked FIRST so they are not caught by the
@@ -436,7 +441,9 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
 
   if (normalizedPath.startsWith("/docs/blog/posts/")) {
     const slug = normalizedPath.slice("/docs/blog/posts/".length);
-    return ACTIVE_BLOG_SLUGS.has(slug) ? `/blog/${slug}` : "__DEAD_BLOG_SLUG__";
+    // BUY-57626 guard: redirect every non-dead slug to /blog/<slug>; the app
+    // 404s unknowns. Never default-deny (see the /blog/ branch above).
+    return DEAD_BLOG_SLUGS.has(slug) ? "__DEAD_BLOG_SLUG__" : `/blog/${slug}`;
   }
 
   const apiReferenceAlias = {
