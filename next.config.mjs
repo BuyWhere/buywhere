@@ -314,6 +314,39 @@ const nextConfig = {
         destination: '/partnership',
         permanent: true,
       },
+      // BUY-70467: affiliate-intent URL aliases were returning the homepage 404
+      // shell, losing creator/partner search traffic. Redirect them to the live
+      // /partnership funnel so affiliates and influencers land on a real page.
+      {
+        source: '/affiliate',
+        destination: '/partnership',
+        permanent: true,
+      },
+      {
+        source: '/affiliate-program',
+        destination: '/partnership',
+        permanent: true,
+      },
+      {
+        source: '/partner',
+        destination: '/partnership',
+        permanent: true,
+      },
+      {
+        source: '/referrals',
+        destination: '/partnership',
+        permanent: true,
+      },
+      {
+        source: '/creators',
+        destination: '/partnership',
+        permanent: true,
+      },
+      {
+        source: '/influencers',
+        destination: '/partnership',
+        permanent: true,
+      },
       // BUY-31b6ae66: /legal and /sign-up must be configured here (not page-level
       // permanentRedirect) so production probes receive a true HTTP 308 instead of
       // the App Router shell-render trick.
