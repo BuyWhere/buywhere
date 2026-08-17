@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config';
+import { outboundProbeEnabled, liveUrlCondition } from '../lib/outboundLinkHealth';
 
 const router = Router();
 
@@ -29,12 +30,13 @@ router.get('/', async (req: Request, res: Response) => {
   }
 
   const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
+  const urlCondition = outboundProbeEnabled() ? ` AND ${liveUrlCondition()}` : '';
   const result = await db.query(
     `SELECT id, sku AS source_id, platform::text AS domain, product_url AS url,
             name AS title, price, original_price, currency, image_url,
             brand, description, category_path, rating, review_count,
             availability, updated_at, mpn
-     FROM products WHERE id IN (${placeholders})`,
+     FROM products WHERE id IN (${placeholders})${urlCondition}`,
     ids
   ).catch(() => null);
 
