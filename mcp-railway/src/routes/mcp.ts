@@ -633,7 +633,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
 
         finalParams.push(CANDIDATE_LIMIT, limit, offset);
 
-        const result = await searchClient.query(
+        let result = await searchClient.query(
           `SELECT * FROM (
              SELECT id, sku AS source, source AS domain, url, title,
                     price, currency, image_url, metadata, updated_at, region, country_code, category, category_path
@@ -645,6 +645,38 @@ async function handleSearchProducts(args: Record<string, unknown>) {
           finalParams
         );
         rows = result.rows;
+
+        // BUY-71067: if keyword FTS returns nothing in sparse TH/VN/MY, retry with
+        // first alpha token. TH "nike shoes" has no exact phrase but nike products exist.
+        if (rows.length === 0 && q.includes(' ') && queryTokenCount > 1) {
+          const broadToken = q
+            .split(/\s+/)
+            .map(token => token.replace(/[^a-z0-9]/gi, ''))
+            .find(token => token.length >= 3);
+          if (broadToken && broadToken.toLowerCase() !== q.trim().toLowerCase()) {
+            const broadParams = [...params];
+            broadParams[0] = broadToken;
+            broadParams.push(CANDIDATE_LIMIT, limit, offset);
+            try {
+              result = await searchClient.query(
+                `SELECT * FROM (
+                   SELECT id, sku AS source, source AS domain, url, title,
+                          price, currency, image_url, metadata, updated_at, region, country_code, category, category_path
+                   FROM products ${finalWhere}
+                   LIMIT $${broadParams.length - 2}
+                 ) _candidates
+                 ORDER BY updated_at DESC
+                 LIMIT $${broadParams.length - 1} OFFSET $${broadParams.length}`,
+                broadParams
+              );
+              rows = result.rows;
+              console.log(`[search_products] keyword fallback: "${q}" → "${broadToken}" returned ${rows.length} results`);
+            } catch (broadErr) {
+              console.warn('[search_products] keyword broad fallback failed:', (broadErr as Error).message);
+            }
+          }
+        }
+
         // BUY-70144: if we hit the candidate cap, use that as a lower-bound total
         total = rows.length >= CANDIDATE_LIMIT ? CANDIDATE_LIMIT : rows.length;
       }
