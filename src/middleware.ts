@@ -322,6 +322,19 @@ function legacyRedirectPath(host: string, pathname: string): string | null {
     return "/register";
   }
 
+  // BUY-70738: legacy /api-reference/{slug} aliases were returning 200 skeleton shells.
+  // Redirect to canonical /docs/ or /docs/api-reference/ pages.
+  const apiReferenceSlug = {
+    "/api-reference/authentication": "/docs/authentication",
+    "/api-reference/errors": "/docs/errors",
+    "/api-reference/search": "/docs/api-reference/search",
+    "/api-reference/products": "/docs/api-reference/get-product",
+    "/api-reference/recommendations": "/docs/api-reference/similar",
+  }[normalizedPath];
+  if (apiReferenceSlug) {
+    return apiReferenceSlug;
+  }
+
   if (normalizedPath === "/api-keys-keys") {
     return "/api-keys";
   }
