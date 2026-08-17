@@ -1099,6 +1099,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   const region = normalizedMarket.region;
   const category = (args.category as string) || '';
   const limit = 10;
+  // Keep find_best_price below the 35s MCP/client read ceiling even when the
+  // catalog GIN index is cold. Each DB statement below is budgeted from this
+  // per-call deadline before it starts, so retries cannot stack into a client
+  // transport timeout.
+  const FBP_DEADLINE_MS = parseInt(process.env.MCP_FBP_DEADLINE_MS || '28000', 10);
+  const remainingBudgetMs = (reserveMs = 750) => Math.max(0, FBP_DEADLINE_MS - (Date.now() - t0) - reserveMs);
 
   // BUY-67522: infer exact device-family queries and reject accessory results.
   const deviceFilter = buildDeviceFilter(productName, country);
@@ -1220,7 +1226,12 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
         // the 21GB search_vector GIN for ~38s, then repeat the same shape in catalogDb and
         // exceed the MCP transport ceiling. Keep SG bounded; if it times out, return
         // unavailable metadata instead of spending another 15s on the identical retry.
-        const primaryTimeoutMs = country === 'SG' ? 8000 : 20000;
+        const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
+        const primaryTimeoutByCountry: Record<string, number> = { SG: 8000, US: 12000, VN: 12000, MY: 12000 };
+        const primaryTimeoutMs = Math.min(primaryTimeoutByCountry[requestedCountry] ?? 10000, remainingBudgetMs());
+        if (primaryTimeoutMs < 1000) {
+          throw new Error('find_best_price_deadline_exhausted');
+        }
         await primaryClient.query(`SET statement_timeout = ${primaryTimeoutMs}`);
         await primaryClient.query('SET enable_seqscan = off');
         result = await primaryClient.query(
@@ -1276,23 +1287,23 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   // the MCP pool is saturated. catalogDb is a separate pool with its own connection
   // so it bypasses MCP pool starvation.
   //
-  // Tier-1 (catalogDb, primary FTS query shape): 30s for US/MY/VN, 15s for SG/TH/PH.
-  // Tier-2 (catalogDb, title ILIKE): last-resort for queries with no FTS match.
+  // Tier-1 (catalogDb, primary FTS query shape): remaining-budget capped fallback.
+  // Tier-2 (catalogDb, title ILIKE): remaining-budget capped last-resort for
+  // queries with no FTS match.
   if (result.rows.length === 0) {
     const requestedCountry = country || (region.toLowerCase() === 'us' ? 'US' : 'SG');
     const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
-    const LARGE_MARKETS = new Set(['US', 'MY', 'VN']);
-    // Large markets need more time; the primary path gives them 20s but the Railway→sakura
-    // hop adds latency so give catalogDb tier-1 30s before falling to title ILIKE.
-    const tier1Timeout = LARGE_MARKETS.has(requestedCountry) ? 30000 : 15000;
-    const tier2Timeout = 10000;
+    // BUY-70986: Respect the remaining deadline budget so we don't exceed the 35s
+    // client-read ceiling. The prior 30s tier-1 timeout exceeded the ceiling.
+    const tier1Timeout = Math.min(remainingBudgetMs(2500), 12000);
+    const tier2Timeout = Math.min(remainingBudgetMs(2500), 8000);
 
     // BUY-70661: Tier-1 — run the exact primary CTE query on catalogDb (separate pool,
     // bypasses MCP pool starvation from concurrent MCP connections on Railway).
     // BUY-70908: do not repeat the same cold SG GIN scan after the primary path already
     // timed out. The duplicate retry is what turned an 8-20s DB miss into a 35s MCP
     // timeout for sparse/no-match device queries.
-    if (!(country === 'SG' && primaryTimedOut)) {
+    if (!(country === 'SG' && primaryTimedOut) && tier1Timeout >= 1000) {
     try {
       let catalogClient;
       try {
@@ -1362,7 +1373,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
     // BUY-70661: Tier-2 — last-resort title ILIKE on catalogDb.
     // Only runs when tier-1 failed (timeout or pool starve). title ILIKE is a broad
     // catch for queries with zero FTS match but title contains the search terms.
-    if (result.rows.length === 0) {
+    if (result.rows.length === 0 && tier2Timeout >= 1000) {
       const titlePattern = `%${productName}%`;
       try {
         let catalogClient;
