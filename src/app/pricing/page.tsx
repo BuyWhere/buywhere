@@ -248,7 +248,6 @@ export default function PricingPage() {
                     <th
                       key={tier.name}
                       scope="col"
-                      aria-label={tier.highlighted ? `${tier.name}, most popular` : tier.name}
                       className={`text-center py-4 px-6 text-sm font-semibold ${
                         tier.highlighted ? "text-indigo-600" : "text-gray-900"
                       }`}
@@ -259,6 +258,7 @@ export default function PricingPage() {
                           <span aria-hidden="true" className="mt-1 ml-1 inline-flex text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
                             Popular
                           </span>
+                          <span className="sr-only"> most popular</span>
                         </span>
                       ) : (
                         <span>{tier.name}</span>
