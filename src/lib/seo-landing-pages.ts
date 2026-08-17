@@ -1104,8 +1104,9 @@ export function buildLandingProductSlug(product: Pick<LandingProduct, "name">): 
 export async function getSeoLandingFallbackProduct(
   region: string,
   productId: string,
-  slug?: string,
+  _slug?: string,
 ): Promise<LandingProduct | null> {
+  void _slug;
   const normalizedRegion = region.toUpperCase();
 
   for (const config of Object.values(seoLandingPages)) {

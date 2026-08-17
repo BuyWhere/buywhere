@@ -6,11 +6,6 @@ import { slugToSearchRedirect } from "@/lib/us-product-route";
 import { buildProductDetailGraph } from "@/lib/product-schema";
 import { renderProductLlmsSnippet } from "@/lib/llms-snippets";
 
-const INTERNAL_ORIGIN =
-  process.env.BUYWHERE_INTERNAL_ORIGIN ||
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  "https://buywhere.ai";
-
 // BUY-69630: call the API service directly via the Railway internal URL with
 // the SSR-held API key. The Next.js site has a /api/* rewrite that proxies
 // all /api/* to api.buywhere.ai/v1/* (next.config.mjs), which shadows the

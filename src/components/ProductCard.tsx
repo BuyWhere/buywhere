@@ -216,9 +216,9 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
             {deal.rating && (
               <div className="flex items-center gap-1">
                 <StarRating rating={deal.rating} />
-                <span className="text-xs text-gray-500">{deal.rating.toFixed(1)}</span>
+                <span className="text-xs text-slate-700">{deal.rating.toFixed(1)}</span>
                 {deal.review_count && (
-                  <span className="text-xs text-gray-600">({deal.review_count > 999 ? `${(deal.review_count / 1000).toFixed(1)}k` : deal.review_count})</span>
+                  <span className="text-xs text-slate-700">({deal.review_count > 999 ? `${(deal.review_count / 1000).toFixed(1)}k` : deal.review_count})</span>
                 )}
               </div>
             )}
@@ -227,10 +227,10 @@ export const ProductCard = React.memo(function ProductCard({ deal, comparisonEna
         )}
         {deal.shipping_info && (
           <div className="flex items-center gap-1 mb-2">
-            <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-3 h-3 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
             </svg>
-            <span className="text-xs text-gray-600">{deal.shipping_info}</span>
+            <span className="text-xs text-slate-700">{deal.shipping_info}</span>
           </div>
         )}
         <div className="flex items-baseline gap-2">

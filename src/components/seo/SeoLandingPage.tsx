@@ -172,7 +172,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
                 <Link
                   href={shopperCta.href}
                   prefetch={false}
-                  className="inline-flex min-h-[44px] items-center rounded-full bg-amber-800 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                  className="inline-flex min-h-[44px] items-center rounded-full bg-amber-700 px-5 py-3 text-sm font-semibold text-white shadow-sm ring-1 ring-white/20 transition-colors hover:bg-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
                 >
                   {shopperCta.label}
                 </Link>
@@ -191,7 +191,7 @@ export async function SeoLandingPage({ config }: { config: SeoLandingPageConfig 
               <Link
                 href={shopperCta.href}
                 prefetch={false}
-                className="text-sm font-semibold text-amber-800 hover:text-amber-900"
+                className="text-sm font-semibold text-amber-900 hover:text-amber-950 underline underline-offset-4 decoration-amber-900/40 hover:decoration-amber-950"
               >
                 Open full search
               </Link>

@@ -1,7 +1,6 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
-import type { Metadata } from "next";
 import Schema from "@/components/Schema";
 import { buildServiceSchema } from "@/lib/page-schema";
 import { buildPageMetadata } from "@/lib/page-metadata";
