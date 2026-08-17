@@ -17,11 +17,20 @@ const PLAN_PRICING: Record<string, { price: string; label: string; annualPrice: 
   scale: { price: "$99 / month", label: "Scale", annualPrice: "$990 / year (save 18%)" },
 };
 
+function resolveCheckoutPlan(planParam: string | undefined) {
+  if (!planParam) {
+    return "";
+  }
+
+  const requestedPlan = planParam.toLowerCase();
+  return PLAN_PRICING[requestedPlan] ? requestedPlan : canonicalizeBillingTier(planParam);
+}
+
 function metadataFromSearchParams(searchParams: Record<string, string | string[] | undefined>): Metadata {
   const planParam = Array.isArray(searchParams.plan) ? searchParams.plan[0] : searchParams.plan;
   const billingParam = Array.isArray(searchParams.billing) ? searchParams.billing[0] : searchParams.billing;
 
-  const plan = canonicalizeBillingTier(planParam ?? null);
+  const plan = resolveCheckoutPlan(planParam);
   const isAnnual = billingParam === "annual";
   const pricing = PLAN_PRICING[plan];
 
@@ -152,7 +161,7 @@ export default function CheckoutPage({
 }) {
   const planParam = searchParams?.plan;
   const billingParam = searchParams?.billing;
-  const plan = planParam ? canonicalizeBillingTier(planParam) : "";
+  const plan = resolveCheckoutPlan(planParam);
   const isAnnual = billingParam === "annual";
   const pricing = PLAN_PRICING[plan];
   const isUnsupportedPlan = planParam && !pricing;
