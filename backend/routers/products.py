@@ -1627,13 +1627,15 @@ async def get_product_deals(
 async def get_product(
     request: Request,
     product_id: int,
+    country_code: Optional[str] = Query(None, description="ISO country code (SG, US, MY, TH, VN, PH) to verify market match"),
     currency: Optional[str] = Query(None, description=f"Target currency for price conversion. Supported: {', '.join(SUPPORTED_CURRENCIES)}"),
     db: AsyncSession = Depends(get_db),
     api_key: ApiKey = Depends(get_current_api_key),
 ) -> ProductResponse:
     request.state.api_key = api_key
 
-    cache_key = f"products:item:{product_id}:{currency or 'none'}"
+    # Include country_code in cache key to avoid serving wrong-market cached products
+    cache_key = f"products:item:{product_id}:{country_code or 'none'}:{currency or 'none'}"
     cached = await cache.cache_get(cache_key)
     if cached:
         return ProductResponse(**cached)
@@ -1645,6 +1647,13 @@ async def get_product(
 
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+
+    # BUY-71266: verify market match if country_code filter is provided
+    if country_code and product.country_code != country_code.upper():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Product {product_id} belongs to {product.country_code}, not {country_code.upper()}. Use the correct market or omit country_code filter."
+        )
 
     response = _map_product(product, target_currency=currency)
     await cache.cache_set(cache_key, response.model_dump(mode="json"), ttl_seconds=600)
@@ -1676,6 +1685,10 @@ async def get_similar_products(
     if cached:
         return SimilarProductsResponse(**cached)
 
+    # BUY-71266: SET LOCAL scopes statement_timeout to this transaction to prevent
+    # 30+ second timeouts when scanning global product catalog without partition filter
+    await db.execute(text("SET LOCAL statement_timeout = '8000'"))
+
     product_result = await db.execute(
         select(Product).where(Product.id == product_id, Product.is_active == True)
     )
@@ -1694,10 +1707,13 @@ async def get_similar_products(
     max_price = source_price * Decimal("1.30")
     similar_price = _similar_price_expression(source_product)
 
+    # BUY-71266: add country_code filter to scope scan to source product's market partition
+    # (prevents 28M global row scan → statement timeout)
     query = (
         select(Product)
         .where(Product.is_active == True)
         .where(Product.id != product_id)
+        .where(Product.country_code == source_product.country_code)
         .where(Product.category == source_product.category)
         .where(Product.merchant_id != source_product.merchant_id)
         .where(similar_price >= min_price)

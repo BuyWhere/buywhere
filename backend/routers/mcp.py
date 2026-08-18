@@ -86,13 +86,25 @@ def get_mcp_server() -> Server:
                     ),
                     Tool(
                         name="get_product",
-                        description="Retrieve full details for a specific product by its BuyWhere ID.",
+                        description="Retrieve full details for a specific product by its BuyWhere ID. Provide country_code to ensure the product belongs to the requested market; otherwise cross-market leakage can occur.",
                         inputSchema={
                             "type": "object",
                             "properties": {
                                 "product_id": {
                                     "type": "integer",
                                     "description": "The BuyWhere product ID.",
+                                },
+                                "country_code": {
+                                    "type": "string",
+                                    "description": "ISO-2 country code (SG, US, MY, TH, VN, PH). Verifies the product belongs to the requested market.",
+                                },
+                                "country": {
+                                    "type": "string",
+                                    "description": "Alias for country_code.",
+                                },
+                                "region": {
+                                    "type": "string",
+                                    "description": "Alias for country_code/market (my→MY, sg→SG, us→US).",
                                 },
                             },
                             "required": ["product_id"],
@@ -255,14 +267,27 @@ async def _handle_get_product(args: dict[str, Any]) -> CallToolResult:
             content=[TextContent(type="text", text="Error: product_id is required")],
             isError=True,
         )
+    # Validate market match if country_code is provided
+    country_code = _normalize_country_arg(args)
+    params = {}
+    if country_code:
+        params["country_code"] = country_code
     try:
-        data = await _api_get(f"/v1/products/{product_id}")
+        data = await _api_get(f"/v1/products/{product_id}", params)
     except Exception as exc:
         logger.exception("get_product API error for id %r", product_id)
         return CallToolResult(
             content=[TextContent(type="text", text=f"Fetch failed: {exc}")],
             isError=True,
         )
+    # Check market mismatch after fetching
+    if country_code and isinstance(data, dict):
+        product_country = data.get("country_code")
+        if product_country and product_country != country_code:
+            return CallToolResult(
+                content=[TextContent(type="text", text=f"Product {product_id} belongs to {product_country}, not {country_code}. Use the correct market or fetch without country_code filter.")],
+                isError=True,
+            )
     return CallToolResult(content=[TextContent(type="text", text=_fmt_product_detail(data))])
 
 

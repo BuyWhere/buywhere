@@ -104,12 +104,16 @@ const TOOLS = [
   },
   {
     name: 'get_product',
-    description: 'Get a specific product by its ID, including full details and current price.',
+    description: 'Get a specific product by its ID, including full details and current price. Provide country_code/deliver_to to verify the product belongs to the requested market.',
     inputSchema: {
       type: 'object',
       required: ['id'],
       properties: {
         id: { type: 'string', description: 'Product UUID' },
+        deliver_to: { type: 'string', description: 'Buyer delivery country/market. Preferred over country_code/country when known.' },
+        country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Country to validate the product against. Alias: country.' },
+        country: { type: 'string', description: 'Alias for country_code (deprecated, use country_code)' },
+        region: { type: 'string', description: 'Alias for country_code/market (my→MY, sg→SG, us→US).' },
       },
     },
   },
@@ -748,6 +752,19 @@ async function handleGetProduct(args: Record<string, unknown>) {
     throw { code: -32602, message: 'missing required parameter: id' };
   }
 
+  // BUY-71266: accept deliver_to / country_code / country / region aliases and
+  // validate the resolved product belongs to the requested market. This is the
+  // fix for the MY→SG leakage observed in Cat A probes (5/5 MY get_product
+  // calls returned SG products when the probe did not pass country_code).
+  const REGION_TO_COUNTRY_LOCAL: Record<string, string> = {
+    sg: 'SG', us: 'US', my: 'MY', th: 'TH', vn: 'VN', gb: 'GB', uk: 'GB',
+    in: 'IN', au: 'AU', ph: 'PH', id: 'ID', sea: 'SG',
+  };
+  const rawCountry = String((args.deliver_to as string) || (args.country_code as string) || (args.country as string) || '').trim().toUpperCase();
+  const regionArg = String((args.region as string) || '').trim();
+  const regionCountry = regionArg ? (REGION_TO_COUNTRY_LOCAL[regionArg.toLowerCase()] || (/^[A-Z]{2}$/.test(regionArg) ? regionArg : '')) : '';
+  const expectedCountry = rawCountry || regionCountry;
+
   let result;
   try {
     result = await db.query(
@@ -761,7 +778,15 @@ async function handleGetProduct(args: Record<string, unknown>) {
     throw { code: -32001, message: 'Product not found' };
   }
   if (!result.rows.length) throw { code: -32001, message: 'Product not found' };
-  const product = buildProduct(result.rows[0] as Record<string, unknown>, 'SGD', false);
+  const row = result.rows[0] as Record<string, unknown>;
+  if (expectedCountry && String(row.country_code || '').toUpperCase() !== expectedCountry) {
+    throw {
+      code: -32001,
+      message: `Product ${id.trim()} belongs to ${row.country_code || 'unknown'}, not ${expectedCountry}. Use the correct market or omit country_code filter.`,
+      envelopeCode: 'MARKET_MISMATCH',
+    };
+  }
+  const product = buildProduct(row, 'SGD', false);
   // BUY-70395: agents parse content[0].text as the tool result. The old
   // markdown blob gave structured-data consumers nothing to parse while every
   // other tool returned JSON. Emit JSON as the text content and keep the
@@ -1853,9 +1878,36 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   const t0 = Date.now();
   const requestedId = (args.product_id as string || '').trim();
   const productName = (args.product_name as string || '').trim();
-  const explicitCountryCode = ((args.country_code as string) || '').toUpperCase();
+  // BUY-71266: accept all alias forms so MY probes (passing deliver_to) work correctly.
+  // BUY-71266-2: add 20s statement_timeout on catalogDb queries to prevent 30s timeouts
+  // on unfiltered global vector scans (country_code filter added to source-lookup below).
+  const REGION_TO_CC: Record<string, string> = {
+    sg: 'SG', us: 'US', my: 'MY', th: 'TH', vn: 'VN', gb: 'GB', uk: 'GB',
+    in: 'IN', au: 'AU', ph: 'PH', id: 'ID', sea: 'SG',
+  };
+  const rawCountry = String((args.deliver_to as string) || (args.country_code as string) || (args.country as string) || '').trim().toUpperCase();
+  const regionArg = String((args.region as string) || '').trim();
+  const regionCountry = regionArg ? (REGION_TO_CC[regionArg.toLowerCase()] || (/^[A-Z]{2}$/.test(regionArg) ? regionArg : '')) : '';
+  const explicitCountryCode = rawCountry || regionCountry || '';
   const countryCode = explicitCountryCode || 'SG';
   const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 10);
+  const SIMILAR_STMT_TIMEOUT_MS = 20000;
+  const withTimeout = async <T>(promise: Promise<T>): Promise<T> => {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject({ code: -32603, message: `Statement timeout after ${SIMILAR_STMT_TIMEOUT_MS}ms on find_similar` }),
+            SIMILAR_STMT_TIMEOUT_MS
+          );
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
 
   let resolvedId = requestedId;
   if (!resolvedId && productName) {
@@ -1867,7 +1919,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
       params.push(countryCode);
       conditions.push(`country_code = $${params.length}`);
     }
-    const lookupResult = await catalogDb.query(
+    const lookupResult = await withTimeout(catalogDb.query(
       // BUY-32028/70294: bound the FTS candidates BEFORE ranking. An unbounded
       // rank sort over the whole match set re-introduces the multi-second sort
       // the ts-rank guard exists to prevent. Rank only a 50-row slice.
@@ -1879,7 +1931,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
        ) _ranked_lookup_candidates
        ORDER BY _rank DESC LIMIT 1`,
       params
-    );
+    ));
     if (!lookupResult.rows.length) {
       throw { code: -32001, message: `No product found matching "${productName}" in ${countryCode}` };
     }
@@ -2109,7 +2161,19 @@ async function handleFindSimilar(args: Record<string, unknown>) {
 
   const distMap = new Map(nearResult.rows.map(r => [r.vector_key, r.distance]));
   const byKey = new Map(detailResult.rows.map(r => [vectorTable === 'search_proof.product_vectors' ? String((r as Record<string, unknown>).sku) : String((r as Record<string, unknown>).id), r]));
-  const similar = nearKeys
+  type SimilarItem = {
+    id: string;
+    sku?: unknown;
+    title?: unknown;
+    price: unknown;
+    currency?: string;
+    domain?: unknown;
+    url?: unknown;
+    image_url?: unknown;
+    country_code?: unknown;
+    similarity: number;
+  };
+  let similar: SimilarItem[] = nearKeys
     .map(id => {
       const p = byKey.get(id) as Record<string, unknown> | undefined;
       if (!p) return null;
@@ -2127,10 +2191,19 @@ async function handleFindSimilar(args: Record<string, unknown>) {
         domain: p.domain,
         url: p.url,
         image_url: p.image_url,
+        country_code: p.country_code,
         similarity: +Math.max(0, 1 - dist).toFixed(4),
-      };
+      } as SimilarItem;
     })
-    .filter(Boolean);
+    .filter((item): item is SimilarItem => item !== null);
+
+  // BUY-71266: post-filter by country_code to ensure all returned similar products
+  // belong to the requested market. The vector KNN query cannot filter by country_code
+  // (product_embeddings table has no country column), so we filter after the fact.
+  if (explicitCountryCode) {
+    const expected = explicitCountryCode.toUpperCase();
+    similar = similar.filter(p => (p.country_code as string || '').toUpperCase() === expected);
+  }
 
   return {
     product_id: sourceProductId,
