@@ -23,12 +23,31 @@ async function getProbesStatus(_req: Request, res: Response): Promise<void> {
   ).catch(() => ({ rows: [{ never_checked: '0' }] }));
 
   // BUY-71096: url_probe_log currently has no checked_at-leading index on prod.
-  // Do not scan it from this hot status endpoint; Cart only needs stable fields
-  // to activate the drift router. Precise telemetry should move to a summary
-  // table or a CONCURRENT checked_at index in a separate DDL issue.
-  const runSummary = { rows: [{ last_run_at: null, last_success_at: null }] };
-  const rowsCheckedLastRun = { rows: [{ count: '0' }] };
-  const recent = { rows: [] as { status: string; count: string }[] };
+  // Query only the trailing ~25h window so idx_url_probe_log_status_checked_at
+  // keeps the endpoint fast even as the log grows.
+  const runSummary = await db.query<{ last_run_at: string | null; last_success_at: string | null }>(
+    `SELECT MAX(checked_at) FILTER (WHERE checked_at > NOW() - INTERVAL '25 hours') AS last_run_at,
+            MAX(checked_at) FILTER (WHERE status = 'ok' AND checked_at > NOW() - INTERVAL '25 hours') AS last_success_at
+       FROM url_probe_log`
+  ).catch(() => ({ rows: [{ last_run_at: null, last_success_at: null }] }));
+
+  const lastRunAt = runSummary.rows[0]?.last_run_at;
+  const rowsCheckedLastRun = lastRunAt
+    ? await db.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count
+           FROM url_probe_log
+          WHERE checked_at > $1::timestamptz - INTERVAL '2 minutes'
+            AND checked_at <= $1::timestamptz + INTERVAL '2 minutes'`,
+        [lastRunAt]
+      ).catch(() => ({ rows: [{ count: '0' }] }))
+    : { rows: [{ count: '0' }] };
+
+  const recent = await db.query<{ status: string; count: string }>(
+    `SELECT status, COUNT(*)::text AS count
+       FROM url_probe_log
+      WHERE checked_at > NOW() - INTERVAL '24 hours'
+      GROUP BY status`
+  ).catch(() => ({ rows: [] as { status: string; count: string }[] }));
 
   res.json({
     probe_enabled: outboundProbeEnabled(),
