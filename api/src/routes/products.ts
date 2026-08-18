@@ -8,7 +8,7 @@ import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { queryLogMiddleware } from '../middleware/queryLog';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, evaluateNearMiss } from '../lib/response';
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { shipScopeForUrl } from '../lib/shipsTo';
@@ -17,21 +17,26 @@ import { recordProductView, recordProductViewsBulk } from '../lib/instrumentatio
 import { outboundProbeEnabled, liveUrlCondition } from '../lib/outboundLinkHealth';
 import { embedQuery } from '../jobs/embedProducts';
 
+const PRICE_MIN_USD = 5;
+const PRICE_MAX_USD = 10_000;
+
+function sanitizedPriceSortExpression(alias: string): string {
+  const cases = Object.entries(CURRENCY_RATES)
+    .filter(([, rate]) => Number.isFinite(rate) && rate > 0)
+    .map(([currency, rate]) => {
+      const min = PRICE_MIN_USD / rate;
+      const max = PRICE_MAX_USD / rate;
+      return `WHEN ${alias}.currency = '${currency}' AND ${alias}.price BETWEEN ${min} AND ${max} THEN ${alias}.price`;
+    })
+    .join(' ');
+  return `(CASE ${cases} END)`;
+}
+
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
 import { semanticLookup as semLookup, semanticRegister as semRegister, semanticEnabled as semEnabled } from '../lib/semanticCache';
 
 const SEARCH_CACHE_TTL_SECONDS = 3600;
-
-// BUY-71129: pull caller identity (api_key_id + key_hash) off req.apiKeyRecord
-// for thread-through attribution. Returns null when no key is bound (anonymous
-// request) so the URL builders simply omit `?k=` + `?aid=` and the resulting
-// conversion collapses to `anonymous` distinct_id as before.
-function callerContextForUrl(req: Request): { apiKeyId: string; keyHash: string } | null {
-  const rec = req.apiKeyRecord;
-  if (!rec || !rec.id || !rec.key) return null;
-  return { apiKeyId: rec.id, keyHash: hashKey(rec.key) };
-}
 
 // BUY-41572: bumped from 5s → 15s as a temporary measure so the 50-query hybrid
 // eval (BUY-41140) can complete against the live DB. Roundhouse EXPLAIN happy
@@ -136,10 +141,11 @@ async function tryTierSearch(
   // archive sorted path flaps to degraded-empty whenever dedupe/replica
   // pressure spikes, while the RAM-resident tier stays fast. Sort applies over
   // the bounded top-200 relevance candidates (same trade as archive sort_hits).
+  const tierPriceSort = sanitizedPriceSortExpression('sp');
   const TIER_SORT: Record<string, string> = {
-    // F25: match the response price sanitizer (BUY-63738) — invalid prices sort as NULL
-    price_asc: '(CASE WHEN sp.price BETWEEN 5 AND 10000 THEN sp.price END) ASC NULLS LAST',
-    price_desc: '(CASE WHEN sp.price BETWEEN 5 AND 10000 THEN sp.price END) DESC NULLS LAST',
+    // BUY-71393: match the USD-normalized response price sanitizer — invalid prices sort as NULL
+    price_asc: `${tierPriceSort} ASC NULLS LAST`,
+    price_desc: `${tierPriceSort} DESC NULLS LAST`,
     newest: 'sp.updated_at DESC',
     highest_rated: 'sp.avg_rating DESC NULLS LAST',
     most_reviewed: 'sp.review_count DESC NULLS LAST',
@@ -184,6 +190,15 @@ async function tryTierSearch(
   const limitIdx = i; params.push(p.limit + 1); i++;
   const offsetIdx = i; params.push(p.offset); i++;
   const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
+
+  // BUY-70776: tier path must respect outbound-link probe results. Because
+  // search_products does not carry url_status, we join products on id (PK)
+  // and filter out rows verified dead. The join is applied in the small final
+  // SELECTs so it does not inflate the FTS bitmap scan.
+  const probeEnabled = outboundProbeEnabled();
+  const urlStatusJoin = probeEnabled
+    ? ' JOIN products p ON p.id = sp.id AND (p.url_status IS NULL OR p.url_status <> \'dead\')'
+    : '';
 
   const cols = `sp.id, sp.source AS domain, sp.url, al.destination_url AS affiliate_url,
     sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
@@ -258,7 +273,7 @@ async function tryTierSearch(
       FROM cand ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
-    FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}
+    FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}${urlStatusJoin}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}${sortPrefix}top.rank DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -284,7 +299,7 @@ async function tryTierSearch(
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}${urlStatusJoin}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}${sortPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -295,7 +310,7 @@ async function tryTierSearch(
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}${urlStatusJoin}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}${sortPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -314,7 +329,7 @@ async function tryTierSearch(
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM pcand JOIN search_products sp ON sp.id = pcand.id${storageJoinFilter}
+    FROM pcand JOIN search_products sp ON sp.id = pcand.id${storageJoinFilter}${urlStatusJoin}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}${sortPrefix}((${phoneHandsetBoost}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -376,9 +391,9 @@ async function tryTierSearch(
     if (res.headersSent) return true;
     const hasMore = rows.length > p.limit;
     const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
-    const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact, callerContextForUrl(req)));
+    const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
     const total = p.offset + rows.length;
-    const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, undefined, p.countryCode) as unknown as Record<string, unknown>;
+    const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false) as unknown as Record<string, unknown>;
     responseBody.source = 'search_products_tier';
     annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
     redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
@@ -590,7 +605,7 @@ router.get(
     const total = parseInt(countResult.rows[0].count, 10);
     const total_pages = total === 0 ? 0 : Math.ceil(total / limit);
     const data = dataResult.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, currency, false, callerContextForUrl(req))
+      buildProduct(row as Record<string, unknown>, currency, false)
     );
 
     // BUY-52474: log a product_view per rendered result card so `product_views`
@@ -732,8 +747,6 @@ router.get(
         parsed.cached = true;
         parsed.response_time_ms = elapsed;
         const cachedProducts = parsed.products || parsed.results || parsed.data || [];
-        const nearMiss = evaluateNearMiss(cachedProducts, countryCode);
-        parsed.meta = { ...(parsed.meta || {}), ...nearMiss };
         recordProductViewsBulk({
           productIds: cachedProducts
             .map((product: { id?: string | number }) => product.id)
@@ -971,7 +984,7 @@ router.get(
     const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                al.destination_url AS affiliate_url,
                products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-               products.region, products.country_code, products.url_status, products.url_last_checked_at, ${specColumnsJoined}`;
+               products.region, products.country_code, ${specColumnsJoined}`;
 
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
@@ -992,9 +1005,9 @@ router.get(
     function buildSortOrder(): string {
       if (!effectiveSort || effectiveSort === 'relevance') return 'products.updated_at DESC';
       switch (effectiveSort) {
-        // F25: match the response price sanitizer (BUY-63738)
-        case 'price_asc': return '(CASE WHEN products.price BETWEEN 5 AND 10000 THEN products.price END) ASC NULLS LAST, products.updated_at DESC';
-        case 'price_desc': return '(CASE WHEN products.price BETWEEN 5 AND 10000 THEN products.price END) DESC NULLS LAST, products.updated_at DESC';
+        // BUY-71393: match the USD-normalized response price sanitizer
+        case 'price_asc': return `${sanitizedPriceSortExpression('products')} ASC NULLS LAST, products.updated_at DESC`;
+        case 'price_desc': return `${sanitizedPriceSortExpression('products')} DESC NULLS LAST, products.updated_at DESC`;
         case 'newest': return 'products.updated_at DESC';
         case 'highest_rated': return 'products.avg_rating DESC NULLS LAST, products.updated_at DESC';
         case 'most_reviewed': return 'products.review_count DESC NULLS LAST, products.updated_at DESC';
@@ -1056,7 +1069,7 @@ router.get(
 
       const responseTimeMs = Date.now() - requestStart;
       const fallbackProducts = dataResult.rows.map((row) =>
-        buildProduct(row as Record<string, unknown>, currency, compact, callerContextForUrl(req))
+        buildProduct(row as Record<string, unknown>, currency, compact)
       );
       const responseBody = buildSearchResponse(
         fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore
@@ -1535,7 +1548,7 @@ router.get(
     const responseTimeMs = Date.now() - requestStart;
 
     const products = dataResult.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, currency, compact, callerContextForUrl(req))
+      buildProduct(row as Record<string, unknown>, currency, compact)
     );
 
     // Apply field selection if `fields` param is specified
@@ -1566,7 +1579,7 @@ router.get(
     }
 
     const responseBody = buildSearchResponse(
-      filteredProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore ?? false, countryCode
+      filteredProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore ?? false
     );
     annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
 
@@ -1764,7 +1777,7 @@ router.get(
         `SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
                 currency, image_url, metadata, updated_at,
-                region, country_code, url_status, created_at, description, brand, mpn, gtin,
+                region, country_code, created_at, description, brand, mpn, gtin,
                 category_path, category, merchant_id, avg_rating, review_count,
                 ${discountSelect}
          FROM products
@@ -1777,7 +1790,7 @@ router.get(
       const sampleDeals = dealResult.rows;
       total = sampleDeals.length;
       deals = sampleDeals.map((row) =>
-        buildProduct(row as Record<string, unknown>, currency, false, callerContextForUrl(req))
+        buildProduct(row as Record<string, unknown>, currency, false)
       );
     } catch (err: unknown) {
       // BUY-60309: on timeout/cancel, return HTTP 200 degraded instead of crashing
@@ -1794,7 +1807,7 @@ router.get(
       dealsClient.release();
     }
 
-    const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false, degraded, undefined, countryCode);
+    const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false, degraded);
     // BUY-2026-08-13 (#36): NEVER cache a degraded (timed-out) deals payload — one slow
     // moment froze an empty response into the 1h cache and every later call re-served it
     // (the fossilized response_time_ms 4519/4554 signature). Cache real-but-empty briefly.
@@ -1846,7 +1859,7 @@ router.get(
     const result = await db.query(text, values);
 
     const products = result.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, 'SGD', false, callerContextForUrl(req))
+      buildProduct(row as Record<string, unknown>, 'SGD', false)
     );
 
     const uniqueCurrencies = [...new Set(products.map((p) => p.price.currency).filter(Boolean))];
@@ -2081,7 +2094,7 @@ router.get(
             const placeholders = knnIds.map((_, i) => `$${i + 1}`).join(',');
             const detailResult = await db.query(
               `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                      image_url, metadata, in_stock, brand, category_path, region, country_code, url_status
+                      image_url, brand, category_path, region, country_code
                FROM products
                WHERE id IN (${placeholders})`,
               knnIds
@@ -2121,7 +2134,7 @@ router.get(
         params.push(limit);
         const bcResult = await db.query(
           `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                  image_url, metadata, in_stock, brand, category_path, region, country_code, url_status
+                  image_url, brand, category_path, region, country_code
            FROM products
            WHERE ${where}
            ORDER BY updated_at DESC
@@ -2146,7 +2159,7 @@ router.get(
         ftsParams.push(needed);
         const ftsResult = await db.query(
           `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                  image_url, metadata, in_stock, brand, category_path, region, country_code, url_status
+                  image_url, brand, category_path, region, country_code
            FROM products
            WHERE ${ftsWhere}
            ORDER BY updated_at DESC
@@ -2158,10 +2171,20 @@ router.get(
     }
 
     const data = similar.slice(0, limit).map((row) => ({
-      ...buildProduct(row as Record<string, unknown>, src.currency || 'SGD', false),
+      id: row.id,
+      source: row.source_id,
+      domain: row.domain,
+      url: row.url,
+      title: row.title,
+      price: row.price ? parseFloat(row.price as string) : null,
+      currency: row.currency,
+      image_url: row.image_url || null,
+      brand: row.brand || null,
+      category_path: row.category_path || null,
+      region: row.region || null,
+      country_code: row.country_code || null,
       similarity: row._similarity ?? null,
     }));
-    const nearMiss = evaluateNearMiss(data, src.country_code || null);
 
     if (timedOut || res.headersSent) return;
     res.json({
@@ -2169,8 +2192,6 @@ router.get(
       meta: {
         source_id: id,
         count: data.length,
-        near_miss: nearMiss.near_miss,
-        near_miss_predicate_fails: nearMiss.near_miss_predicate_fails,
         method: vectorDb && !similar.length ? 'fallback' : vectorDb ? 'knn' : 'fallback',
         response_time_ms: Date.now() - start,
       },
@@ -2230,7 +2251,7 @@ router.get(
       [countryCode, currency, limit, offset]
     );
 
-    const products = result.rows.map((row: Record<string, unknown>) => buildProduct(row, currency, compact, callerContextForUrl(req)));
+    const products = result.rows.map((row: Record<string, unknown>) => buildProduct(row, currency, compact));
     const responseBody = buildSearchResponse(products, products.length, limit, offset, Date.now() - start, false);
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => {});
     res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
@@ -2282,7 +2303,7 @@ router.get(
     }
 
     const row = result.rows[0];
-    const product = buildProduct(row as Record<string, unknown>, 'SGD', false, callerContextForUrl(req));
+    const product = buildProduct(row as Record<string, unknown>, 'SGD', false);
 
     if (req.apiKeyRecord) {
       const elapsedMs = Date.now() - start;
@@ -2619,7 +2640,7 @@ export async function warmSearchCache(): Promise<void> {
       const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                  al.destination_url AS affiliate_url,
                  products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-                 products.region, products.country_code, products.url_status, products.url_last_checked_at, ${specColumnsJoined}`;
+                 products.region, products.country_code, ${specColumnsJoined}`;
 
       // BUY-32028: remove ts_rank ORDER BY (missed by e8f407dc BUY-31540 in warmSearchCache
       // CTE). The warmSearchCache path was excluded from the original fix; on broad US queries
@@ -2648,7 +2669,7 @@ export async function warmSearchCache(): Promise<void> {
       if (hasMore) result.rows.pop();
       const total = result.rows.length + (hasMore ? 1 : 0);
 
-      const products = result.rows.map((row) => buildProduct(row as Record<string, unknown>, currency, false, null));
+      const products = result.rows.map((row) => buildProduct(row as Record<string, unknown>, currency, false));
       const responseBody = buildSearchResponse(products, total, limit, offset, 0, false, undefined, hasMore);
 
       await redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS);

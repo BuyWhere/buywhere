@@ -2,7 +2,7 @@ import { CanonicalProduct, ComparisonAttribute, NearMissPredicateFail, SearchRes
 import { resolvePrecomputedAffiliateUrl } from './affiliateWrapper';
 import { buildAffiliateRedirectUrl, buildClickUrl } from './instrumentation';
 
-import { getCachedFxRates } from './fxRatesLoader';
+import { getCachedFxRates, getRate } from './fxRatesLoader';
 export const CURRENCY_RATES: Record<string, number> = {
   USD: 1, SGD: 0.74, VND: 0.000039, THB: 0.028, MYR: 0.22, GBP: 0.79,
 };
@@ -11,6 +11,23 @@ export const COUNTRY_CURRENCY: Record<string, string> = {
   SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
   ID: 'IDR', PH: 'PHP', HK: 'HKD', TW: 'TWD', AU: 'AUD',
 };
+
+const PRICE_MIN_USD = 5;
+const PRICE_MAX_USD = 10_000;
+
+/**
+ * Return the native currency min/max bounds that correspond to the configured
+ * USD-equivalent sanitizer band. Used by SQL sort tiers to keep sort order
+ * consistent with serialized prices. Falls back to the sanitizer's old
+ * hardcoded band when no rate is known.
+ */
+export function getPriceBoundsForCurrency(currency: string): { min: number; max: number } {
+  const rate = getRate(currency, CURRENCY_RATES);
+  if (rate != null && rate > 0) {
+    return { min: Math.ceil(PRICE_MIN_USD / rate), max: Math.floor(PRICE_MAX_USD / rate) };
+  }
+  return { min: PRICE_MIN_USD, max: PRICE_MAX_USD };
+}
 
 const ISO_4217_RE = /^[A-Z]{3}$/;
 const ISO_4217_CURRENCIES = new Set([
@@ -119,21 +136,20 @@ export function buildProduct(
   const currency = (row.currency as string) || defaultCurrency;
   const amount = row.price != null ? parseFloat(row.price as string) : null;
 
-  // BUY-60385: Sanitize anomalous prices from upstream affiliate/feed partners.
-  // Validation catches two categories of data-quality failures observed in production:
-  //   1. $0.00 prices — out-of-stock marker, missing price field, or parsing error
-  //   2. Prices over $10,000 — feed corruption, currency conversion unit errors
-  //   3. BUY-63738: Prices under $5 — observed $1.00 laptop prices are clearly
-  //      invalid feed errors; real laptops start at ~$400. A $5 floor catches the
-  //      obvious errors while still allowing cheap accessories ($2-3 cables, etc.).
-  // Legitimate high-end products (luxury watches, high-end appliances, jewelry)
-  // stay under $10k. When a price fails validation the amount is nullified so
-  // the FE displays nothing instead of a deceptive value.
-  const PRICE_MIN = 5;
-  const PRICE_MAX = 10_000;
-  const sanitizedAmount = (amount != null && amount >= PRICE_MIN && amount <= PRICE_MAX)
-    ? amount
-    : null;
+  // BUY-60385 / BUY-71393: Sanitize anomalous prices by USD-equivalent value.
+  // CURRENCY_RATES are USD per 1 unit of foreign currency. A native price passes
+  // when its USD equivalent sits inside the accepted utility band (~$5–$10k USD).
+  // This preserves legitimate high-value-currency rows (SGD 10,799 ≈ USD 7,991)
+  // while still nullifying feed corruption / unit errors in any currency.
+  const rate = getRate(currency, getCachedFxRates());
+  const usdEquivalent = amount != null && rate != null ? amount * rate : null;
+  const sanitizedAmount = (
+    amount != null &&
+    Number.isFinite(amount) &&
+    usdEquivalent != null &&
+    usdEquivalent >= PRICE_MIN_USD &&
+    usdEquivalent <= PRICE_MAX_USD
+  ) ? amount : null;
 
   const affiliateUrl = resolvePrecomputedAffiliateUrl(row.affiliate_url);
   const productId = String(row.id);
