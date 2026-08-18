@@ -45,6 +45,13 @@ const nextConfig = {
         destination: 'https://api.buywhere.ai/mcp/:path*',
         permanent: true,
       },
+      // BUY-71170: /trending was returning 404 (App Router page unbuilt due to root
+      // Python app/ shadowing src/app). Redirect to /compare as the closest live surface.
+      {
+        source: '/trending',
+        destination: '/compare',
+        permanent: false,
+      },
       // BUY-68368/BUY-69843: high-intent developer/API/auth aliases should not
       // fall through to homepage-branded 404 HTML shells. Route them to canonical
       // resources before the App Router renders the generic not-found page.
