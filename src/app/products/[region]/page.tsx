@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { buildProductDetailGraph } from "@/lib/product-schema";
 import { renderProductLlmsSnippet } from "@/lib/llms-snippets";
 import { toSiteUrl } from "@/lib/site-url";
@@ -56,6 +57,10 @@ const KNOWN_INDEXABLE_PRODUCT_IDS = new Set([
   "1152921027266299276",
   "1152919647186567279",
 ]);
+
+function isProductId(value: string): boolean {
+  return /^\d{8,}$/.test(value);
+}
 
 function mapApiProduct(item: ApiProductItem): ProductDetail {
   const priceObject = typeof item.price === "object" && item.price !== null ? item.price : null;
@@ -141,11 +146,15 @@ async function getProduct(productId: string): Promise<ProductDetail | null> {
 }
 
 interface PageProps {
-  params: Promise<{ productId: string }>;
+  params: { region: string };
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { productId } = await params;
+  const productId = params.region;
+  if (!isProductId(productId)) {
+    return { title: "Product Not Found", robots: { index: false, follow: true } };
+  }
+
   const product = await getProduct(productId);
   if (!product) {
     return { title: "Product Not Found", robots: { index: false, follow: true } };
@@ -178,27 +187,32 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default async function ProductIdDetailPage({ params }: PageProps) {
-  const { productId } = await params;
+export default async function ProductIdCompatibilityPage({ params }: PageProps) {
+  const productId = params.region;
+  if (!isProductId(productId)) notFound();
+
   const product = await getProduct(productId);
-  const productName = product?.name ?? product?.title ?? `BuyWhere catalog product ${productId}`;
-  const merchantName = product?.merchant_name ?? "BuyWhere catalog";
+  if (!product) notFound();
+
+  const productName = product.name ?? product.title ?? `BuyWhere catalog product ${productId}`;
+  const merchantName = product.merchant_name ?? "BuyWhere catalog";
   const pagePath = `/products/${productId}`;
   const description =
-    product?.description ??
+    product.description ??
     `Product ${productId} is a BuyWhere catalog item. Compare current merchant availability, pricing, and related products on BuyWhere.`;
-  const currency = product?.currency || "USD";
+  const currency = product.currency || "USD";
+  const ctaUrl = pickPrimaryCtaUrl(product);
   const schema = buildProductDetailGraph({
     product: {
       path: pagePath,
       name: productName,
       description,
-      image: product?.image_url ?? null,
-      brand: product?.brand ?? null,
-      category: product?.category ?? null,
+      image: product.image_url ?? null,
+      brand: product.brand ?? null,
+      category: product.category ?? null,
       sku: productId,
       offer:
-        product?.price != null
+        product.price != null
           ? {
               price: product.price,
               priceCurrency: currency,
@@ -218,98 +232,48 @@ export default async function ProductIdDetailPage({ params }: PageProps) {
     title: productName,
     description,
     currency,
-    price: product?.price ?? null,
+    price: product.price ?? null,
     availability: "catalog",
-    brand: product?.brand ?? "",
-    category: product?.category ?? "Products",
+    brand: product.brand ?? "",
+    category: product.category ?? "Products",
     merchantSlug: "catalog",
     merchantName,
     url: `https://buywhere.ai${pagePath}`,
-    imageUrl: product?.image_url ?? "",
+    imageUrl: product.image_url ?? "",
   });
-  const ctaUrl = pickPrimaryCtaUrl(product);
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
-      />
-      <script
-        type="text/llms.txt"
-        dangerouslySetInnerHTML={{ __html: llmsSnippet }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />
+      <script type="text/llms.txt" dangerouslySetInnerHTML={{ __html: llmsSnippet }} />
       <main id="main-content" className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
         <nav aria-label="breadcrumb" className="mb-6 text-sm text-gray-500">
           <ol className="flex items-center gap-2 flex-wrap">
-            <li>
-              <Link href="/" className="hover:text-indigo-600">
-                Home
-              </Link>
-            </li>
+            <li><Link href="/" className="hover:text-indigo-600">Home</Link></li>
             <li aria-hidden="true">/</li>
-            <li>
-              <Link href="/compare" className="hover:text-indigo-600">
-                Products
-              </Link>
-            </li>
+            <li><Link href="/compare" className="hover:text-indigo-600">Products</Link></li>
             <li aria-hidden="true">/</li>
             <li className="text-gray-900 font-medium line-clamp-1">{productName}</li>
           </ol>
         </nav>
-
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          {product?.image_url && (
+          {product.image_url && (
             <div className="aspect-square max-h-64 overflow-hidden bg-gray-50">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={product.image_url}
-                alt={productName}
-                className="w-full h-full object-contain p-4"
-              />
+              <img src={product.image_url} alt={productName} className="w-full h-full object-contain p-4" />
             </div>
           )}
-
           <div className="p-6">
-            <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600 mb-2">
-              BuyWhere product detail
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600 mb-2">BuyWhere product detail</p>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">{productName}</h1>
-            {product?.brand && (
-              <p className="text-sm text-gray-500 mb-4">
-                by <span className="text-gray-700 font-medium">{product.brand}</span>
-              </p>
-            )}
-            {product?.price != null && (
-              <div className="mb-4">
-                <span className="text-3xl font-bold text-indigo-600">
-                  {currency} {Number(product.price).toFixed(2)}
-                </span>
-              </div>
-            )}
+            {product.brand && <p className="text-sm text-gray-500 mb-4">by <span className="text-gray-700 font-medium">{product.brand}</span></p>}
+            {product.price != null && <div className="mb-4"><span className="text-3xl font-bold text-indigo-600">{currency} {Number(product.price).toFixed(2)}</span></div>}
             <p className="text-sm text-gray-600 mb-6">{description}</p>
             <div className="flex flex-wrap gap-3">
-              {ctaUrl && (
-                <a
-                  href={ctaUrl}
-                  target="_blank"
-                  rel="noopener noreferrer sponsored"
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                >
-                  View at {merchantName}
-                  <span aria-hidden="true">→</span>
-                </a>
-              )}
-              <Link
-                href="/compare"
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-6 py-3 text-base font-semibold text-gray-700 transition hover:border-gray-300 hover:bg-gray-50"
-              >
-                Compare products
-              </Link>
+              {ctaUrl && <a href={ctaUrl} target="_blank" rel="noopener noreferrer sponsored" className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">View at {merchantName}<span aria-hidden="true">→</span></a>}
+              <Link href="/compare" className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-6 py-3 text-base font-semibold text-gray-700 transition hover:border-gray-300 hover:bg-gray-50">Compare products</Link>
             </div>
-            {product?.category && (
-              <p className="mt-4 text-xs text-gray-500">Category: {product.category}</p>
-            )}
+            {product.category && <p className="mt-4 text-xs text-gray-500">Category: {product.category}</p>}
           </div>
         </div>
       </main>
