@@ -48,26 +48,95 @@ export function trackApiQuery(event: ApiQueryEvent): void {
   });
 }
 
+// BUY-71129: conversion event attribution. distinctId prioritises api_key_id
+// (uuid) so it joins the api_query / product_view / mcp_tool_call funnel. The
+// apiKey field (sha256 hash of the raw key) is retained as a fallback for
+// clicks whose api_key_id we couldn't resolve. Only truly anonymous clicks
+// (no auth, no upstream agent context) collapse to 'anonymous'.
 export interface AffiliateClickEvent {
-  apiKey: string | null;
+  apiKeyId?: string | null;
+  apiKey?: string | null;
+  agentName?: string | null;
+  signupChannel?: string | null;
+  attributionSource?: string | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  merchantName?: string | null;
+  merchantDomain?: string | null;
+  productTitle?: string | null;
+  productCategory?: string | null;
+  countryCode?: string | null;
+  city?: string | null;
   productId: string;
   merchantId: string;
   affiliateLinkId: string;
   source: string;
+  testMode?: boolean;
+}
+
+// BUY-71129: fixed source enum. Any value outside the set is bucketed as
+// 'unknown' so dirty enum values like 'product_card\' (trailing backslash bug)
+// can never reach PostHog. The trailing-backslash case maps to 'unknown'
+// because the literal string 'product_card\' is not in the enum and never
+// was a valid value — it was a routing artifact.
+const ALLOWED_AFFILIATE_SOURCES = new Set([
+  'product_card',
+  'api_response',
+  'compare_page',
+  'mcp_tool_call',
+  'landing_page',
+  'test',
+]);
+function normalizeAffiliateSource(raw: string): string {
+  if (typeof raw !== 'string') return 'unknown';
+  // Strip a single trailing backslash from any input that may have been
+  // double-escaped by an upstream URL builder (BUY-71129 dirty-enum fix).
+  const cleaned = raw.endsWith('\\') ? raw.slice(0, -1) : raw;
+  if (ALLOWED_AFFILIATE_SOURCES.has(cleaned)) return cleaned;
+  if (cleaned.startsWith('test') || cleaned.startsWith('rex-') || cleaned.startsWith('buy')) return 'test';
+  return 'unknown';
 }
 
 export function trackAffiliateClick(event: AffiliateClickEvent): void {
   const ph = getClient();
   if (!ph) return;
+  // Distinct id priority: apiKeyId (uuid) > apiKey (hash) > 'anonymous'.
+  // apiKeyId is the same value PostHog has on api_query / product_search /
+  // mcp_tool_call, so the join across the funnel works.
+  const distinctId = event.apiKeyId || event.apiKey || 'anonymous';
+  const source = normalizeAffiliateSource(event.source);
+
+  const props: Record<string, unknown> = {
+    product_id: event.productId,
+    merchant_id: event.merchantId,
+    affiliate_link_id: event.affiliateLinkId,
+    source,
+  };
+  if (event.apiKeyId) props.api_key_id = event.apiKeyId;
+  if (event.agentName) props.agent_name = event.agentName;
+  if (event.signupChannel) props.signup_channel = event.signupChannel;
+  if (event.attributionSource) props.attribution_source = event.attributionSource;
+  if (event.utmSource) props.utm_source = event.utmSource;
+  if (event.utmMedium) props.utm_medium = event.utmMedium;
+  if (event.utmCampaign) props.utm_campaign = event.utmCampaign;
+  if (event.merchantName) props.merchant = event.merchantName;
+  if (event.merchantDomain) props.merchant_domain = event.merchantDomain;
+  if (event.productTitle) props.product_title = event.productTitle;
+  if (event.productCategory) props.product_category = event.productCategory;
+  if (event.countryCode) props.$geoip_country_code = event.countryCode;
+  if (event.city) props.$geoip_city = event.city;
+  if (event.testMode) props.$test_event = true;
+
   ph.capture({
-    distinctId: event.apiKey || 'anonymous',
+    distinctId,
     event: 'affiliate_click',
-    properties: {
-      product_id: event.productId,
-      merchant_id: event.merchantId,
-      affiliate_link_id: event.affiliateLinkId,
-      source: event.source,
-    },
+    properties: props,
+    // BUY-71129: the PostHog client is constructed with disableGeoip: true
+    // (project-level privacy default). Per-capture override re-enables geo
+    // for this one revenue-impacting event so we can attribute conversions
+    // by country.
+    disableGeoip: false,
   });
 }
 

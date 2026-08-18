@@ -23,6 +23,16 @@ import { semanticLookup as semLookup, semanticRegister as semRegister, semanticE
 
 const SEARCH_CACHE_TTL_SECONDS = 3600;
 
+// BUY-71129: pull caller identity (api_key_id + key_hash) off req.apiKeyRecord
+// for thread-through attribution. Returns null when no key is bound (anonymous
+// request) so the URL builders simply omit `?k=` + `?aid=` and the resulting
+// conversion collapses to `anonymous` distinct_id as before.
+function callerContextForUrl(req: Request): { apiKeyId: string; keyHash: string } | null {
+  const rec = req.apiKeyRecord;
+  if (!rec || !rec.id || !rec.key) return null;
+  return { apiKeyId: rec.id, keyHash: hashKey(rec.key) };
+}
+
 // BUY-41572: bumped from 5s → 15s as a temporary measure so the 50-query hybrid
 // eval (BUY-41140) can complete against the live DB. Roundhouse EXPLAIN happy
 // path is still ~15-75ms; the 5s ceiling was below the latency budget the API
@@ -365,7 +375,7 @@ async function tryTierSearch(
     if (res.headersSent) return true;
     const hasMore = rows.length > p.limit;
     const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
-    const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
+    const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact, callerContextForUrl(req)));
     const total = p.offset + rows.length;
     const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false) as unknown as Record<string, unknown>;
     responseBody.source = 'search_products_tier';
@@ -579,7 +589,7 @@ router.get(
     const total = parseInt(countResult.rows[0].count, 10);
     const total_pages = total === 0 ? 0 : Math.ceil(total / limit);
     const data = dataResult.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, currency, false)
+      buildProduct(row as Record<string, unknown>, currency, false, callerContextForUrl(req))
     );
 
     // BUY-52474: log a product_view per rendered result card so `product_views`
@@ -1042,7 +1052,7 @@ router.get(
 
       const responseTimeMs = Date.now() - requestStart;
       const fallbackProducts = dataResult.rows.map((row) =>
-        buildProduct(row as Record<string, unknown>, currency, compact)
+        buildProduct(row as Record<string, unknown>, currency, compact, callerContextForUrl(req))
       );
       const responseBody = buildSearchResponse(
         fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore
@@ -1521,7 +1531,7 @@ router.get(
     const responseTimeMs = Date.now() - requestStart;
 
     const products = dataResult.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, currency, compact)
+      buildProduct(row as Record<string, unknown>, currency, compact, callerContextForUrl(req))
     );
 
     // Apply field selection if `fields` param is specified
@@ -1763,7 +1773,7 @@ router.get(
       const sampleDeals = dealResult.rows;
       total = sampleDeals.length;
       deals = sampleDeals.map((row) =>
-        buildProduct(row as Record<string, unknown>, currency, false)
+        buildProduct(row as Record<string, unknown>, currency, false, callerContextForUrl(req))
       );
     } catch (err: unknown) {
       // BUY-60309: on timeout/cancel, return HTTP 200 degraded instead of crashing
@@ -1832,7 +1842,7 @@ router.get(
     const result = await db.query(text, values);
 
     const products = result.rows.map((row) =>
-      buildProduct(row as Record<string, unknown>, 'SGD', false)
+      buildProduct(row as Record<string, unknown>, 'SGD', false, callerContextForUrl(req))
     );
 
     const uniqueCurrencies = [...new Set(products.map((p) => p.price.currency).filter(Boolean))];
@@ -2224,7 +2234,7 @@ router.get(
       [countryCode, currency, limit, offset]
     );
 
-    const products = result.rows.map((row: Record<string, unknown>) => buildProduct(row, currency, compact));
+    const products = result.rows.map((row: Record<string, unknown>) => buildProduct(row, currency, compact, callerContextForUrl(req)));
     const responseBody = buildSearchResponse(products, products.length, limit, offset, Date.now() - start, false);
     redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => {});
     res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
@@ -2276,7 +2286,7 @@ router.get(
     }
 
     const row = result.rows[0];
-    const product = buildProduct(row as Record<string, unknown>, 'SGD', false);
+    const product = buildProduct(row as Record<string, unknown>, 'SGD', false, callerContextForUrl(req));
 
     if (req.apiKeyRecord) {
       const elapsedMs = Date.now() - start;
@@ -2642,7 +2652,7 @@ export async function warmSearchCache(): Promise<void> {
       if (hasMore) result.rows.pop();
       const total = result.rows.length + (hasMore ? 1 : 0);
 
-      const products = result.rows.map((row) => buildProduct(row as Record<string, unknown>, currency, false));
+      const products = result.rows.map((row) => buildProduct(row as Record<string, unknown>, currency, false, null));
       const responseBody = buildSearchResponse(products, total, limit, offset, 0, false, undefined, hasMore);
 
       await redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS);

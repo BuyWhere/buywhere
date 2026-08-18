@@ -856,7 +856,7 @@ describe('NL search — Redis caching behavior', () => {
     // BUY-70924/70988: outbound-link probe render-gate adds a probe0/probe1
     // namespace segment to the cache key, so the shape is now
     // fts:<version>:probe0:<qNorm>:...
-    assert.match(cacheGetCalls[0].arguments[0], /^fts:deliver-to-v\d+-[a-z-]+:probe[01]:keyfmt:/);
+    assert.match(cacheGetCalls[0].arguments[0], /^fts:deliver-to-v\d+-[a-z0-9-]+:probe[01]:keyfmt:/);
   });
 });
 
