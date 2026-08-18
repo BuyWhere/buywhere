@@ -4,7 +4,7 @@ import { API_BASE_URL } from '../config';
 const router = Router();
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=86400, s-maxage=86400';
 
-const AI_AGENT_DESCRIPTOR = {
+export const AI_AGENT_DESCRIPTOR = {
   name: 'BuyWhere',
   description: 'Agent-native product catalog API — 300M+ products, 238,000+ direct merchants worldwide, location-aware deliver_to ranking',
   version: '1.0',
@@ -21,7 +21,7 @@ const AI_AGENT_DESCRIPTOR = {
   llms_txt: 'https://buywhere.ai/llms.txt',
 };
 
-const A2A_AGENT_CARD = {
+export const A2A_AGENT_CARD = {
   name: 'BuyWhere',
   description: 'Agent-native product catalog API for AI agent commerce',
   url: 'https://buywhere.ai',
