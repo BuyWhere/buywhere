@@ -2,7 +2,7 @@
 /**
  * P1.3-NM Near-Miss Sweep — BUY-71135
  *
- * Executes the 225-cell basket sweep (5 markets × 5 categories × 3 query lengths × 3 merchant domains)
+ * Executes the 315-cell basket sweep (7 markets × 5 categories × 3 query lengths × 3 merchant domains)
  * at 23:55Z nightly, recording per-row near_miss and near_miss_predicate_fails from Rex's classifier.
  *
  * Output: data/sweep/zrr/YYYY-MM-DD.jsonl (backward-compatible with P1.3 schema)
@@ -23,6 +23,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { URL as NodeURL } from 'node:url';
 import pg from 'pg';
 const { Pool } = pg;
 
@@ -38,8 +39,8 @@ const OUTPUT_PATH = process.env.SWEEP_OUTPUT_PATH || path.join(OUTPUT_DIR, `${ne
 const LOG_PATH = process.env.SWEEP_LOG_PATH || path.join(__dirname, '..', '..', 'logs', 'p13-sweep.log');
 const CATALOG_DATABASE_URL = process.env.CATALOG_DATABASE_URL || process.env.BUYWHERE_CATALOG_DATABASE_URL || '';
 
-// 225-cell basket definition (per P1.3 spec)
-const MARKETS = ['SG', 'US', 'MY', 'TH', 'VN'];
+// 315-cell basket definition (per P1.3 spec §6 routing: seven markets × 5 categories × 3 query lengths × 3 merchant domains)
+const MARKETS = ['SG', 'US', 'MY', 'TH', 'VN', 'ID', 'PH'];
 const CATEGORIES = ['electronics', 'fashion', 'home', 'health', 'sports'];
 const QUERY_LENGTHS = ['short', 'medium', 'long'];
 const MERCHANT_DOMAINS = ['amazon.com', 'shopee.sg', 'lazada.sg'];
@@ -76,6 +77,12 @@ const QUERY_TEMPLATES = {
 // Timeout per query (ms)
 const QUERY_TIMEOUT_MS = 15000;
 
+// BUY-71309: monitoring tier is 200 rpm; the 225-cell sweep previously finished
+// inside one Redis minute window and rate-limited the final cells. Pace requests by
+// default so the nightly run stays under that ceiling without rotating keys.
+const CONCURRENCY = Math.max(1, parseInt(process.env.SWEEP_CONCURRENCY || '1', 10));
+const MIN_DELAY_MS = Math.max(0, parseInt(process.env.SWEEP_MIN_DELAY_MS || '350', 10));
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function nowIso() {
@@ -93,6 +100,10 @@ function appendCadenceLog(event, fields = {}) {
   } catch (e) {
     console.error(`[p13-sweep] WARN: failed to append cadence log: ${e?.message || e}`);
   }
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
@@ -342,10 +353,30 @@ function findDominantPredicateFails(cells) {
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
 }
 
+/**
+ * Compute per-market metrics from cell results.
+ */
+function computeMetricsByMarket(cells) {
+  const byMarket = new Map();
+  for (const cell of cells) {
+    const m = String(cell.market).toUpperCase();
+    if (!byMarket.has(m)) byMarket.set(m, []);
+    byMarket.get(m).push(cell);
+  }
+  return [...byMarket.entries()].map(([market, marketCells]) => {
+    const m = computeCellMetrics(marketCells);
+    return {
+      market,
+      ...m,
+      predicate_fails_reason: findDominantPredicateFails(marketCells),
+    };
+  });
+}
+
 // ── Main ────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.error(`[p13-sweep] Starting P1.3-NM 225-cell sweep at ${nowIso()}`);
+  console.error(`[p13-sweep] Starting P1.3-NM 315-cell sweep at ${nowIso()}`);
   console.error(`[p13-sweep] Target: ${TARGET_URL}`);
   console.error(`[p13-sweep] Output: ${OUTPUT_PATH}`);
   appendCadenceLog('start', { output_path: OUTPUT_PATH, target_url: TARGET_URL });
@@ -356,7 +387,7 @@ async function main() {
     process.exit(1);
   }
 
-  // Build 225-cell basket
+  // Build 315-cell basket
   const cells = [];
   for (const market of MARKETS) {
     for (const category of CATEGORIES) {
@@ -369,39 +400,37 @@ async function main() {
     }
   }
 
-  console.error(`[p13-sweep] Running ${cells.length} cells...`);
+  console.error(`[p13-sweep] Running ${cells.length} cells (concurrency=${CONCURRENCY}, delay=${MIN_DELAY_MS}ms)...`);
 
   const results = [];
   let completed = 0;
   let errors = 0;
 
-  // Run cells with limited concurrency to avoid rate limiting
-  const CONCURRENCY = 5;
-
+  // Run cells with limited concurrency and an inter-cell delay to avoid the
+  // monitoring tier's 200 req/min ceiling (BUY-71309). Sequential-by-default is
+  // acceptable for a nightly 23:55Z sweep; override with SWEEP_CONCURRENCY > 1.
   async function runBatch(batch) {
-    return Promise.all(batch.map(cell =>
-      runCell(cell.market, cell.category, cell.queryLength, cell.merchantDomain, cell.tool)
-        .then(r => {
-          completed++;
-          if (r.error) errors++;
-          if (completed % 25 === 0) {
-            console.error(`[p13-sweep] Progress: ${completed}/${cells.length} (${errors} errors)`);
-          }
-          return r;
-        })
-        .catch(e => {
-          completed++;
-          errors++;
-          return {
-            ...cell,
-            error: String(e?.message || e),
-            result_count: 0,
-            near_miss: false,
-            near_miss_predicate_fails: [],
-            swept_at: nowIso(),
-          };
-        })
-    ));
+    const batchResults = [];
+    for (const cell of batch) {
+      const r = await runCell(cell.market, cell.category, cell.queryLength, cell.merchantDomain, cell.tool).catch(e => {
+        return {
+          ...cell,
+          error: String(e?.message || e),
+          result_count: 0,
+          near_miss: false,
+          near_miss_predicate_fails: [],
+          swept_at: nowIso(),
+        };
+      });
+      completed++;
+      if (r.error) errors++;
+      if (completed % 25 === 0) {
+        console.error(`[p13-sweep] Progress: ${completed}/${cells.length} (${errors} errors)`);
+      }
+      batchResults.push(r);
+      if (MIN_DELAY_MS > 0) await sleep(MIN_DELAY_MS);
+    }
+    return batchResults;
   }
 
   // Process in batches
@@ -413,6 +442,7 @@ async function main() {
 
   // Compute cell-level metrics
   const metrics = computeCellMetrics(results);
+  const marketMetrics = computeMetricsByMarket(results);
 
   console.error(`[p13-sweep] Completed: ${completed} cells, ${errors} errors`);
   console.error(`[p13-sweep] Zero-result rate: ${(metrics.zero_result_rate * 100).toFixed(2)}%`);
@@ -434,29 +464,80 @@ async function main() {
     output_path: OUTPUT_PATH,
   };
 
-  // Persist KPI breach row so monitoring.v_ceo_kpis.near_miss_rate is non-null
+  // Persist one real sweep result per market; alert_history stores breach alerts only.
+  // Parse the DSN into host/port/user/password/database so pg honours ssl.rejectUnauthorized
+  // (connectionString sslmode=require overrides Node pg's ssl object).
+  function poolFromUrl(url) {
+    const u = new NodeURL(url);
+    return new Pool({
+      host: u.hostname,
+      port: u.port ? parseInt(u.port, 10) : 5432,
+      user: u.username,
+      password: decodeURIComponent(u.password),
+      database: u.pathname ? u.pathname.slice(1) : undefined,
+      max: 1,
+      connectionTimeoutMillis: 10000,
+      ssl: { rejectUnauthorized: false },
+    });
+  }
+
   if (CATALOG_DATABASE_URL) {
     try {
-      const pool = new Pool({ connectionString: CATALOG_DATABASE_URL, max: 1, connectionTimeoutMillis: 10000 });
+      const pool = poolFromUrl(CATALOG_DATABASE_URL);
       const client = await pool.connect();
       try {
-        const dominantReason = findDominantPredicateFails(results);
-        await client.query(
-          `INSERT INTO monitoring.alert_history
-             (market, p95_ms, threshold_ms, kind, sweep_id, near_miss_rate, predicate_fails_reason, triggered_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-          ['sg', 0, 300, 'near_miss_breach', summary.sweep_id, metrics.near_miss_rate, dominantReason]
-        );
-        console.error(`[p13-sweep] Inserted near_miss_breach row for ${summary.sweep_id}`);
+        for (const m of marketMetrics) {
+          await client.query(
+            `INSERT INTO monitoring.sweep_results
+               (sweep_id, market, cell_count, zero_result_count, zero_result_rate, near_miss_count, near_miss_rate, error_count, predicate_fails_reason, swept_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+             ON CONFLICT (sweep_id, market) DO UPDATE SET
+               cell_count = EXCLUDED.cell_count,
+               zero_result_count = EXCLUDED.zero_result_count,
+               zero_result_rate = EXCLUDED.zero_result_rate,
+               near_miss_count = EXCLUDED.near_miss_count,
+               near_miss_rate = EXCLUDED.near_miss_rate,
+               error_count = EXCLUDED.error_count,
+               predicate_fails_reason = EXCLUDED.predicate_fails_reason,
+               swept_at = EXCLUDED.swept_at`,
+            [
+              summary.sweep_id,
+              m.market.toLowerCase(),
+              m.cell_count,
+              m.zero_result_count,
+              m.zero_result_rate,
+              m.near_miss_count,
+              m.near_miss_rate,
+              errors,
+              m.predicate_fails_reason,
+            ]
+          );
+        }
+        console.error(`[p13-sweep] Upserted ${marketMetrics.length} sweep_results rows for ${summary.sweep_id}`);
+
+        const breachMarkets = marketMetrics.filter(m => m.near_miss_rate >= 0.04);
+        for (const m of breachMarkets) {
+          await client.query(
+            `INSERT INTO monitoring.alert_history
+               (market, p95_ms, threshold_ms, kind, sweep_id, near_miss_rate, predicate_fails_reason, triggered_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+            [m.market.toLowerCase(), 0, 300, 'near_miss_breach', summary.sweep_id, m.near_miss_rate, m.predicate_fails_reason]
+          );
+        }
+        if (breachMarkets.length > 0) {
+          console.error(`[p13-sweep] Inserted ${breachMarkets.length} near_miss_breach alert rows for ${summary.sweep_id}`);
+        } else {
+          console.error(`[p13-sweep] No near_miss_breach alerts for ${summary.sweep_id}; all markets below 4%`);
+        }
       } finally {
         client.release();
         await pool.end();
       }
     } catch (e) {
-      console.error(`[p13-sweep] WARN: failed to insert near_miss_breach row: ${e?.message || e}`);
+      console.error(`[p13-sweep] WARN: failed to persist sweep telemetry: ${e?.message || e}`);
     }
   } else {
-    console.error('[p13-sweep] WARN: CATALOG_DATABASE_URL not set; skipping alert_history insert');
+    console.error('[p13-sweep] WARN: CATALOG_DATABASE_URL not set; skipping sweep_results insert');
   }
 
   // Write JSONL output
@@ -483,10 +564,11 @@ async function main() {
 
   console.error(`[p13-sweep] Summary: ${JSON.stringify(summary)}`);
 
-  // Exit with error if near_miss_rate exceeds 4% (per-sweep gate per P1.3 spec)
-  if (metrics.near_miss_rate >= 0.04) {
-    console.error(`[p13-sweep] WARN: Near-miss rate ${(metrics.near_miss_rate * 100).toFixed(2)}% exceeds 4% per-sweep gate`);
-    // Note: Should trigger child issue filing here (see deliverable #3)
+  // Exit with error if any market exceeds 4% (per-sweep gate per P1.3 spec)
+  const maxMarketRate = Math.max(...marketMetrics.map(m => m.near_miss_rate));
+  if (maxMarketRate >= 0.04) {
+    const breached = marketMetrics.filter(m => m.near_miss_rate >= 0.04).map(m => `${m.market}:${(m.near_miss_rate * 100).toFixed(2)}%`).join(', ');
+    console.error(`[p13-sweep] WARN: Near-miss rate exceeds 4% per-sweep gate in ${breached}`);
   }
 
   appendCadenceLog('done', {
