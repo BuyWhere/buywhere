@@ -49,7 +49,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'buy-71417-freshness-boost-v3'; // BUY-71417 v3: archive path freshness + tier re-enable under probe
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'buy-71417-freshness-boost-v4'; // BUY-71417 v4: archive fresh-hits CTE guarantees fresh candidates
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
 // unavailable, semantic/hybrid requests fall back to the keyword path.
@@ -1091,6 +1091,15 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         // and was timing out at the 15s edge. Bound first by the partition-pruned id
         // index, then rank that small slice for response relevance.
         const rankedWhereClause = useSgFreshnessGuardrail ? freshWhereClause : whereClause;
+        // BUY-71417 v4: a separate fresh-hits CTE guarantees that recently-updated rows
+        // are always in the candidate pool. The unbounded recent_hits CTE stops at the
+        // first 200 GIN matches in physical order, which can miss fresh rows entirely
+        // on head terms with millions of stale matches. fresh_hits adds at most 200
+        // rows filtered by updated_at; the planner can bitmap-and the GIN index with
+        // idx_products_updated_at, so the extra scan is cheap. Rows from both CTEs are
+        // deduplicated with UNION, ranked with the v3 freshness multiplier, and the
+        // top 200 advance to the final SELECT.
+        const archiveFreshCondition = `${rankedWhereClause.replace(/^WHERE /, '')} AND products.updated_at >= NOW() - INTERVAL '30 days'`;
         dataQuery = `
         WITH recent_hits AS MATERIALIZED (
           SELECT id, country_code
@@ -1099,6 +1108,11 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
           -- perf(search): no ORDER BY updated_at — sorting the full FTS match set
           -- (67K–millions of rows) forced a heap scan of every match (nike cold 8.2s->0.14s,
           -- espresso machine 3.7s->0.26s). LIMIT stops early; candidates ranked by ts_rank below.
+          LIMIT ${CANDIDATE_CAP}
+        ), fresh_hits AS MATERIALIZED (
+          SELECT id, country_code
+          FROM products
+          WHERE ${archiveFreshCondition}
           LIMIT ${CANDIDATE_CAP}
         ), top_ids AS (
           SELECT rh.id, rh.country_code,
@@ -1129,7 +1143,11 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                    WHEN rhp.updated_at >= '2024-01-01' THEN 0.05
                    ELSE 0.01
                  END AS rank
-          FROM recent_hits rh
+          FROM (
+            SELECT id, country_code FROM fresh_hits
+            UNION
+            SELECT id, country_code FROM recent_hits
+          ) rh
           JOIN products rhp ON rhp.id = rh.id
           ORDER BY rank DESC, rh.id DESC
         )
