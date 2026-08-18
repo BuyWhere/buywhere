@@ -453,8 +453,9 @@ router.get(
     function buildSortOrder(): string {
       if (!effectiveSort || effectiveSort === 'relevance') return 'products.updated_at DESC';
       switch (effectiveSort) {
-        case 'price_asc': return 'products.price ASC NULLS LAST, products.updated_at DESC';
-        case 'price_desc': return 'products.price DESC NULLS LAST, products.updated_at DESC';
+        // F25: match the response price sanitizer (BUY-63738)
+        case 'price_asc': return '(CASE WHEN products.price BETWEEN 5 AND 10000 THEN products.price END) ASC NULLS LAST, products.updated_at DESC';
+        case 'price_desc': return '(CASE WHEN products.price BETWEEN 5 AND 10000 THEN products.price END) DESC NULLS LAST, products.updated_at DESC';
         case 'newest': return 'products.updated_at DESC';
         case 'highest_rated': return 'products.avg_rating DESC NULLS LAST, products.updated_at DESC';
         case 'most_reviewed': return 'products.review_count DESC NULLS LAST, products.updated_at DESC';

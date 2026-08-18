@@ -137,8 +137,9 @@ async function tryTierSearch(
   // pressure spikes, while the RAM-resident tier stays fast. Sort applies over
   // the bounded top-200 relevance candidates (same trade as archive sort_hits).
   const TIER_SORT: Record<string, string> = {
-    price_asc: 'sp.price ASC NULLS LAST',
-    price_desc: 'sp.price DESC NULLS LAST',
+    // F25: match the response price sanitizer (BUY-63738) — invalid prices sort as NULL
+    price_asc: '(CASE WHEN sp.price BETWEEN 5 AND 10000 THEN sp.price END) ASC NULLS LAST',
+    price_desc: '(CASE WHEN sp.price BETWEEN 5 AND 10000 THEN sp.price END) DESC NULLS LAST',
     newest: 'sp.updated_at DESC',
     highest_rated: 'sp.avg_rating DESC NULLS LAST',
     most_reviewed: 'sp.review_count DESC NULLS LAST',
@@ -991,8 +992,9 @@ router.get(
     function buildSortOrder(): string {
       if (!effectiveSort || effectiveSort === 'relevance') return 'products.updated_at DESC';
       switch (effectiveSort) {
-        case 'price_asc': return 'products.price ASC NULLS LAST, products.updated_at DESC';
-        case 'price_desc': return 'products.price DESC NULLS LAST, products.updated_at DESC';
+        // F25: match the response price sanitizer (BUY-63738)
+        case 'price_asc': return '(CASE WHEN products.price BETWEEN 5 AND 10000 THEN products.price END) ASC NULLS LAST, products.updated_at DESC';
+        case 'price_desc': return '(CASE WHEN products.price BETWEEN 5 AND 10000 THEN products.price END) DESC NULLS LAST, products.updated_at DESC';
         case 'newest': return 'products.updated_at DESC';
         case 'highest_rated': return 'products.avg_rating DESC NULLS LAST, products.updated_at DESC';
         case 'most_reviewed': return 'products.review_count DESC NULLS LAST, products.updated_at DESC';
