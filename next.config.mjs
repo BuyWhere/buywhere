@@ -327,6 +327,14 @@ const nextConfig = {
         destination: '/register',
         permanent: true,
       },
+      // BUY-71380: /agent is the canonical AEO agent-discovery citation surface;
+      // recover it to the human-readable /agents page so answer engines and editors
+      // get a real 308 instead of a homepage-branded 404 shell.
+      {
+        source: '/agent',
+        destination: '/agents',
+        permanent: true,
+      },
       // BUY-69692: developer-intent route aliases should redirect to canonical pages
       // or return branded 404/410 with recovery hints instead of thin/empty shells.
       {
