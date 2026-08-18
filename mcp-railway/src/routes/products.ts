@@ -7,11 +7,26 @@ import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
 import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
 import { queryLogMiddleware } from '../middleware/queryLog';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { recordProductView, recordProductViewsBulk } from '../lib/instrumentation';
 import { embedQuery } from '../jobs/embedProducts';
+
+const PRICE_MIN_USD = 5;
+const PRICE_MAX_USD = 10_000;
+
+function sanitizedPriceSortExpression(alias: string): string {
+  const cases = Object.entries(CURRENCY_RATES)
+    .filter(([, rate]) => Number.isFinite(rate) && rate > 0)
+    .map(([currency, rate]) => {
+      const min = PRICE_MIN_USD / rate;
+      const max = PRICE_MAX_USD / rate;
+      return `WHEN ${alias}.currency = '${currency}' AND ${alias}.price BETWEEN ${min} AND ${max} THEN ${alias}.price`;
+    })
+    .join(' ');
+  return `(CASE ${cases} END)`;
+}
 
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
@@ -453,8 +468,9 @@ router.get(
     function buildSortOrder(): string {
       if (!effectiveSort || effectiveSort === 'relevance') return 'products.updated_at DESC';
       switch (effectiveSort) {
-        case 'price_asc': return 'products.price ASC NULLS LAST, products.updated_at DESC';
-        case 'price_desc': return 'products.price DESC NULLS LAST, products.updated_at DESC';
+        // BUY-71393: match the USD-normalized response price sanitizer
+        case 'price_asc': return `${sanitizedPriceSortExpression('products')} ASC NULLS LAST, products.updated_at DESC`;
+        case 'price_desc': return `${sanitizedPriceSortExpression('products')} DESC NULLS LAST, products.updated_at DESC`;
         case 'newest': return 'products.updated_at DESC';
         case 'highest_rated': return 'products.avg_rating DESC NULLS LAST, products.updated_at DESC';
         case 'most_reviewed': return 'products.review_count DESC NULLS LAST, products.updated_at DESC';

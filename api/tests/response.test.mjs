@@ -5,6 +5,12 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const { buildProduct, buildSearchResponse, CURRENCY_RATES, COUNTRY_CURRENCY } = require('../dist/lib/response');
 
+// BUY-71393: keep response tests deterministic regardless of whatever FX rates
+// earlier tests loaded into the module cache.
+const fxLoader = require('../dist/lib/fxRatesLoader');
+fxLoader.getCachedFxRates = () => CURRENCY_RATES;
+fxLoader.loadFxRates = async () => CURRENCY_RATES;
+
 describe('buildProduct', () => {
   const baseRow = {
     id: 'prod-1',
@@ -207,6 +213,64 @@ describe('buildSearchResponse', () => {
     assert.equal(res.data[0].id, 'p1');
     assert.equal(res.data[1].id, 'p2');
     assert.equal(res.data[2].id, 'p3');
+  });
+});
+
+describe('price sanitizer (BUY-71393)', () => {
+  const baseRow = {
+    id: 'prod-1',
+    title: 'Test Product',
+    price: 99.99,
+    currency: 'SGD',
+    domain: 'shopee_sg',
+    url: 'https://shopee.sg/product/1',
+    image_url: 'https://shopee.sg/img/1.jpg',
+    region: 'SEA',
+    country_code: 'SG',
+    updated_at: '2026-05-03T00:00:00Z',
+    metadata: { brand: 'Test', category: 'Electronics' },
+  };
+
+  it('preserves high-value SGD prices that are within the USD band', () => {
+    const product = buildProduct({ ...baseRow, price: 10799, currency: 'SGD' }, 'SGD', false);
+    assert.equal(product.price.amount, 10799);
+    assert.equal(product.price.currency, 'SGD');
+  });
+
+  it('preserves high-value THB prices that are within the USD band', () => {
+    const product = buildProduct({ ...baseRow, price: 46490, currency: 'THB' }, 'THB', false);
+    assert.equal(product.price.amount, 46490);
+    assert.equal(product.price.currency, 'THB');
+  });
+
+  it('nullifies VND prices above the USD maximum', () => {
+    const product = buildProduct({ ...baseRow, price: 300_000_000, currency: 'VND' }, 'VND', false);
+    assert.equal(product.price.amount, null);
+  });
+
+  it('preserves VND prices within the USD band', () => {
+    const product = buildProduct({ ...baseRow, price: 200_000_000, currency: 'VND' }, 'VND', false);
+    assert.equal(product.price.amount, 200_000_000);
+  });
+
+  it('nullifies USD prices above the USD maximum', () => {
+    const product = buildProduct({ ...baseRow, price: 12000, currency: 'USD' }, 'USD', false);
+    assert.equal(product.price.amount, null);
+  });
+
+  it('nullifies USD prices below the USD minimum', () => {
+    const product = buildProduct({ ...baseRow, price: 3, currency: 'USD' }, 'USD', false);
+    assert.equal(product.price.amount, null);
+  });
+
+  it('preserves GBP prices within the USD band', () => {
+    const product = buildProduct({ ...baseRow, price: 5000, currency: 'GBP' }, 'GBP', false);
+    assert.equal(product.price.amount, 5000);
+  });
+
+  it('nullifies GBP prices above the USD maximum', () => {
+    const product = buildProduct({ ...baseRow, price: 15000, currency: 'GBP' }, 'GBP', false);
+    assert.equal(product.price.amount, null);
   });
 });
 
