@@ -49,7 +49,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'buy-71417-freshness-boost'; // BUY-71417: rank freshness signal on tier; invalidate stale cached payloads
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'buy-71417-freshness-boost-v2'; // BUY-71417 v2: stronger freshness weighting
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
 // unavailable, semantic/hybrid requests fall back to the keyword path.
@@ -268,18 +268,19 @@ async function tryTierSearch(req, res, p) {
     CASE
       WHEN sp.in_stock IS NOT FALSE THEN 1.8 ELSE 1.0
     END`;
-    // BUY-71417: freshness multiplier. ts_rank alone let 92% of sampled head-query
-    // results be >30d stale (legacy 1999-2017 merchants outranked fresh rows purely
-    // on text relevance). Demote rather than filter so recall is preserved: fresh
-    // (<=30d) rows keep full rank, 30-90d rows get 0.5x, older rows 0.25x, and
-    // pre-2024 legacy inventory 0.1x. Ranks below the candidate CTE only (200 rows),
-    // so no extra scan cost.
+    // BUY-71417 v2: stronger freshness multiplier. v1's 1.0/0.5/0.25/0.1 was
+    // insufficient — stale rows with title matching the query twice still outranked
+    // fresh rows with a single match by >4x. v2: fresh (<=30d) gets 10x, 30-90d
+    // gets 1.0, 90-180d gets 0.1, post-2024 0.05, pre-2024 0.01. This gives
+    // fresh rows a clear priority while preserving recall for broad queries that have
+    // no fresh candidates.
     const freshnessBoost = `
     CASE
-      WHEN sp.updated_at >= NOW() - INTERVAL '30 days' THEN 1.0
-      WHEN sp.updated_at >= NOW() - INTERVAL '90 days' THEN 0.5
-      WHEN sp.updated_at >= '2024-01-01' THEN 0.25
-      ELSE 0.1
+      WHEN sp.updated_at >= NOW() - INTERVAL '30 days' THEN 10.0
+      WHEN sp.updated_at >= NOW() - INTERVAL '90 days' THEN 1.0
+      WHEN sp.updated_at >= NOW() - INTERVAL '180 days' THEN 0.1
+      WHEN sp.updated_at >= '2024-01-01' THEN 0.05
+      ELSE 0.01
     END`;
     const mkQuery = (match, extraFilter = '') => `
     WITH cand AS (
