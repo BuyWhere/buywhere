@@ -233,7 +233,7 @@ export default async function ProductIdCompatibilityPage({ params }: PageProps) 
     description,
     currency,
     price: product.price ?? null,
-    availability: "catalog",
+    availability: "local",
     brand: product.brand ?? "",
     category: product.category ?? "Products",
     merchantSlug: "catalog",
