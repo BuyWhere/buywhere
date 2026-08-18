@@ -13,6 +13,14 @@ const fxRatesLoader_1 = require("../lib/fxRatesLoader");
 const deviceClassifier_1 = require("../lib/deviceClassifier");
 const router = (0, express_1.Router)();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
+// BUY-71129: caller identity thread-through for click attribution. Mirrors
+// the helper in routes/products.ts.
+function callerContextForUrl(req) {
+    const rec = req.apiKeyRecord;
+    if (!rec || !rec.id || !rec.key)
+        return null;
+    return { apiKeyId: rec.id, keyHash: (0, apiKey_1.hashKey)(rec.key) };
+}
 async function acquireMcpClient() {
     let timer;
     try {
@@ -236,7 +244,7 @@ async function probeDiscountPctColumn() {
 }
 probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() => { });
 // Tool handlers
-async function handleSearchProducts(args) {
+async function handleSearchProducts(args, caller) {
     const t0 = Date.now();
     // BUY-68587 direction-correction: agents passing the natural alias `query`
     // (instead of canonical `q`) silently fell into the no-q browse branch and got
@@ -527,7 +535,7 @@ async function handleSearchProducts(args) {
         // reltuples estimate; that reports false non-zero totals for empty markets.
         total = Math.min(rows.length + offset, COUNT_CAP);
     }
-    const products = rows.map(r => (0, response_1.buildProduct)(r, currency, compact));
+    const products = rows.map(r => (0, response_1.buildProduct)(r, currency, compact, caller));
     const result = (0, response_1.buildSearchResponse)(products, total, limit, offset, Date.now() - t0, false);
     try {
         await config_1.redis.set(cacheKey, JSON.stringify(result), 'EX', 60);
@@ -535,7 +543,7 @@ async function handleSearchProducts(args) {
     catch (_) { /* cache write failure is non-fatal */ }
     return result;
 }
-async function handleGetProduct(args) {
+async function handleGetProduct(args, caller) {
     const t0 = Date.now();
     const { id } = args;
     if (!id || typeof id !== 'string' || !id.trim()) {
@@ -553,10 +561,10 @@ async function handleGetProduct(args) {
     }
     if (!result.rows.length)
         throw { code: -32001, message: 'Product not found' };
-    const product = (0, response_1.buildProduct)(result.rows[0], 'SGD', false);
+    const product = (0, response_1.buildProduct)(result.rows[0], 'SGD', false, caller);
     return (0, response_1.buildSearchResponse)([product], 1, 1, 0, Date.now() - t0, false);
 }
-async function handleCompareProducts(args) {
+async function handleCompareProducts(args, caller) {
     const t0 = Date.now();
     const ids = args.ids;
     if (!ids || !Array.isArray(ids) || ids.length < 2) {
@@ -583,10 +591,10 @@ async function handleCompareProducts(args) {
     catch {
         throw { code: -32001, message: 'Products not found' };
     }
-    const products = result.rows.map((r) => (0, response_1.buildProduct)(r, 'SGD', false));
+    const products = result.rows.map((r) => (0, response_1.buildProduct)(r, 'SGD', false, caller));
     return (0, response_1.buildSearchResponse)(products, products.length, validIds.length, 0, Date.now() - t0, false);
 }
-async function handleGetDeals(args) {
+async function handleGetDeals(args, caller) {
     const t0 = Date.now();
     void args.deliver_to;
     const minDiscount = Number(args.min_discount) || 10;
@@ -685,7 +693,7 @@ async function handleGetDeals(args) {
        ORDER BY cand.cand_discount DESC, cand.cand_updated DESC
        LIMIT ${limit} OFFSET ${offset}`, candidateParams);
         total = dataResult.rows.length;
-        products = dataResult.rows.map((r) => (0, response_1.buildProduct)(r, currency, false));
+        products = dataResult.rows.map((r) => (0, response_1.buildProduct)(r, currency, false, caller));
     }
     finally {
         // BUY-56185: discard connections poisoned by statement_timeout
@@ -1452,12 +1460,12 @@ async function handleFindSimilar(args) {
         response_time_ms: Date.now() - t0,
     };
 }
-async function dispatchTool(name, args) {
+async function dispatchTool(name, args, caller) {
     switch (name) {
-        case 'search_products': return handleSearchProducts(args);
-        case 'get_product': return handleGetProduct(args);
-        case 'compare_products': return handleCompareProducts(args);
-        case 'get_deals': return handleGetDeals(args);
+        case 'search_products': return handleSearchProducts(args, caller);
+        case 'get_product': return handleGetProduct(args, caller);
+        case 'compare_products': return handleCompareProducts(args, caller);
+        case 'get_deals': return handleGetDeals(args, caller);
         case 'list_categories': return handleListCategories(args);
         case 'find_best_price': return handleFindBestPrice(args);
         case 'ingest_products': return handleIngestProducts(args);
@@ -1660,7 +1668,7 @@ router.post('/', apiKey_1.requireApiKey, apiKey_1.checkRateLimit, (0, queryLog_1
                 // BUY-22733: surface tool name to queryLog middleware so the finish
                 // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
                 res.locals.mcpToolName = toolName;
-                const result = await dispatchTool(toolName, toolArgs);
+                const result = await dispatchTool(toolName, toolArgs, callerContextForUrl(req));
                 return res.json(jsonrpcOk(id, {
                     content: [{ type: 'text', text: JSON.stringify(result) }],
                 }));

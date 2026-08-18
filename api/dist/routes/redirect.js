@@ -211,6 +211,30 @@ const redirectHandler = async (req, res) => {
     let apiKey = null;
     if (authHeader.startsWith('Bearer '))
         apiKey = authHeader.slice(7).trim();
+    // BUY-71129: thread-through attribution. When the click came from a browser
+    // (no Bearer header), the upstream API call embedded `?k=<keyHash>&aid=<agentId>`
+    // on the /r/ URL. We use `aid` directly when present (fast path, no DB hop)
+    // and fall back to looking up the agent by key_hash (slower but still O(1)
+    // via the unique index on api_keys.key_hash). Raw apiKey from the header
+    // remains the canonical signal for server-to-server clicks.
+    const keyHashQuery = req.query.k || null;
+    const agentIdQuery = req.query.aid || null;
+    let resolvedAgentId = agentIdQuery;
+    let resolvedKeyHash = apiKey ? hashKey(apiKey) : null;
+    if (!resolvedKeyHash && keyHashQuery)
+        resolvedKeyHash = keyHashQuery;
+    if (!resolvedAgentId && resolvedKeyHash) {
+        try {
+            const agentResult = await withTimeout(config_1.db.query(`SELECT id, name, signup_channel, attribution_source
+             FROM api_keys WHERE key_hash = $1 AND is_active = true LIMIT 1`, [resolvedKeyHash]), REDIRECT_TIMEOUT_MS, 'api_keys lookup for affiliate_click attribution');
+            if (agentResult.rows.length > 0) {
+                resolvedAgentId = agentResult.rows[0].id;
+            }
+        }
+        catch (err) {
+            console.warn('[redirect] api_keys lookup failed:', err.message);
+        }
+    }
     const source = req.query.source || 'api_response';
     // Log click to DB best-effort (do not block the redirect on a slow write)
     (async () => {
@@ -223,10 +247,16 @@ const redirectHandler = async (req, res) => {
             console.warn('[redirect] click logging failed:', err.message);
         }
     })();
-    // PostHog event (fire-and-forget)
-    // Hash API key before sending to third-party analytics
+    // BUY-71129: PostHog event (fire-and-forget). Pass the resolved agent id as
+    // distinctId so the conversion joins api_query / product_search / product_view
+    // / mcp_tool_call on the same funnel. Falls back to the hashed key when no
+    // api_key_id could be resolved (defence-in-depth for legacy integrations
+    // that emit a hash but no id). The apiKey field is intentionally left null
+    // when we already have apiKeyId — trackAffiliateClick picks the strongest
+    // available signal.
     (0, posthog_1.trackAffiliateClick)({
-        apiKey: apiKey ? hashKey(apiKey) : null,
+        apiKeyId: resolvedAgentId,
+        apiKey: resolvedKeyHash,
         productId,
         merchantId,
         affiliateLinkId,

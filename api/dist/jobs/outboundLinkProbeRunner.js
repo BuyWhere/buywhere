@@ -3,8 +3,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.runOutboundLinkProbeBatch = runOutboundLinkProbeBatch;
 const config_1 = require("../config");
 const outboundLinkHealth_1 = require("../lib/outboundLinkHealth");
-const BATCH_SIZE = Math.max(1, Math.min(Number(process.env.OUTBOUND_PROBE_BATCH_SIZE) || 100, 1000));
-const CONCURRENCY = Math.max(1, Math.min(Number(process.env.OUTBOUND_PROBE_CONCURRENCY) || 8, 32));
+// Env-backed constants — re-read on each batch so the /admin/probes/sweep endpoint's
+// per-request overrides (via process.env mutations) take effect.
+function getBatchSize() {
+    return Math.max(1, Math.min(Number(process.env.OUTBOUND_PROBE_BATCH_SIZE) || 100, 100000));
+}
+function getConcurrency() {
+    return Math.max(1, Math.min(Number(process.env.OUTBOUND_PROBE_CONCURRENCY) || 8, 32));
+}
 const TIMEOUT_MS = Math.max(1000, Number(process.env.OUTBOUND_PROBE_TIMEOUT_MS) || 10000);
 const USER_AGENT = process.env.OUTBOUND_PROBE_UA || 'BuyWhereBot/1.0 (+https://buywhere.ai; outbound-link-health)';
 const REFERER = process.env.OUTBOUND_PROBE_REFERER || 'https://buywhere.ai/';
@@ -27,6 +33,7 @@ async function fetchDueRows() {
     // fall back to a primary-key-ordered scan over never-checked rows, which uses
     // idx_products_updated_at and completes in <5ms per batch.
     const dueIndexValid = await indexIsValid('idx_products_url_probe_due');
+    const batchSize = getBatchSize();
     if (dueIndexValid) {
         const result = await config_1.db.query(`SELECT id::text, merchant_id, url
          FROM products
@@ -34,7 +41,7 @@ async function fetchDueRows() {
           AND url IS NOT NULL
           AND (url_last_checked_at IS NULL OR url_last_checked_at < NOW() - INTERVAL '24 hours')
         ORDER BY url_last_checked_at NULLS FIRST, updated_at DESC
-        LIMIT $1`, [BATCH_SIZE]);
+        LIMIT $1`, [batchSize]);
         return result.rows;
     }
     console.log('[outbound-probe] idx_products_url_probe_due missing/invalid; falling back to never-checked primary-key scan');
@@ -44,7 +51,7 @@ async function fetchDueRows() {
         AND url IS NOT NULL
         AND url_last_checked_at IS NULL
       ORDER BY updated_at DESC
-      LIMIT $1`, [BATCH_SIZE]);
+      LIMIT $1`, [batchSize]);
     return result.rows;
 }
 async function probe(row) {
@@ -118,7 +125,7 @@ async function persist(result) {
 }
 async function runPool(items, worker) {
     let cursor = 0;
-    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, items.length) }, async () => {
+    await Promise.all(Array.from({ length: Math.min(getConcurrency(), items.length) }, async () => {
         while (cursor < items.length) {
             const item = items[cursor++];
             await worker(item);

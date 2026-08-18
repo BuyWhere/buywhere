@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const config_1 = require("../../config");
@@ -157,4 +190,70 @@ router.get('/admin/probes/status', auth_1.adminOrMonitoringAuth, getProbesStatus
 // BUY-71331: per-URL probe history for Cart A2 reporting.
 router.get('/v1/admin/probes/logs', auth_1.adminOrMonitoringAuth, getProbesLogs);
 router.get('/admin/probes/logs', auth_1.adminOrMonitoringAuth, getProbesLogs);
+const MAX_SYNC_BATCH = 10000;
+/**
+ * BUY-71401: Admin endpoint to trigger a one-time outbound-link probe batch.
+ *
+ * This fulfills the Day-1 baseline sweep requirement from BUY-70781 by giving
+ * Cart an on-demand trigger in addition to the recurring Railway cron worker.
+ *
+ * Query params:
+ *   - batch_size: override OUTBOUND_PROBE_BATCH_SIZE for this run (max 10000 to
+ *     keep the synchronous HTTP request within a reasonable timeout).
+ *   - concurrency: override OUTBOUND_PROBE_CONCURRENCY for this run (max 32).
+ *
+ * The recurring worker is the primary path for the 24h baseline sweep; this
+ * endpoint is useful for ad-hoc bursts, testing, or Cart-driven backfills.
+ */
+async function handleSweep(req, res) {
+    // Import dynamically so the runner reads the env vars we set below.
+    const { runOutboundLinkProbeBatch } = await Promise.resolve().then(() => __importStar(require('../../jobs/outboundLinkProbeRunner')));
+    const batchSizeOverride = req.query.batch_size ? parseInt(req.query.batch_size, 10) : null;
+    const concurrencyOverride = req.query.concurrency ? parseInt(req.query.concurrency, 10) : null;
+    if (batchSizeOverride !== null && (Number.isNaN(batchSizeOverride) || batchSizeOverride < 1)) {
+        res.status(400).json({ error: 'INVALID_BATCH_SIZE', message: 'batch_size must be a positive integer' });
+        return;
+    }
+    if (concurrencyOverride !== null && (Number.isNaN(concurrencyOverride) || concurrencyOverride < 1)) {
+        res.status(400).json({ error: 'INVALID_CONCURRENCY', message: 'concurrency must be a positive integer' });
+        return;
+    }
+    const origBatchSize = process.env.OUTBOUND_PROBE_BATCH_SIZE;
+    const origConcurrency = process.env.OUTBOUND_PROBE_CONCURRENCY;
+    try {
+        process.env.OUTBOUND_PROBE_BATCH_SIZE = String(Math.min(Math.max(batchSizeOverride ?? 100, 1), MAX_SYNC_BATCH));
+        process.env.OUTBOUND_PROBE_CONCURRENCY = String(Math.min(Math.max(concurrencyOverride ?? 8, 1), 32));
+        const results = await runOutboundLinkProbeBatch();
+        res.json({
+            success: true,
+            triggered_at: new Date().toISOString(),
+            batch_size: parseInt(process.env.OUTBOUND_PROBE_BATCH_SIZE || '100', 10),
+            concurrency: parseInt(process.env.OUTBOUND_PROBE_CONCURRENCY || '8', 10),
+            results,
+            note: `Recurring worker config is the primary sweep path. To hit the 1% baseline (3.9M products) within 24h, keep OUTBOUND_PROBE_BATCH_SIZE * runs_per_hour >= 162500.`,
+        });
+    }
+    catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error('[probes/sweep] error:', message);
+        res.status(500).json({ error: 'SWEEP_FAILED', message });
+    }
+    finally {
+        // Restore original env vars so later requests use the service defaults.
+        if (origBatchSize !== undefined) {
+            process.env.OUTBOUND_PROBE_BATCH_SIZE = origBatchSize;
+        }
+        else {
+            delete process.env.OUTBOUND_PROBE_BATCH_SIZE;
+        }
+        if (origConcurrency !== undefined) {
+            process.env.OUTBOUND_PROBE_CONCURRENCY = origConcurrency;
+        }
+        else {
+            delete process.env.OUTBOUND_PROBE_CONCURRENCY;
+        }
+    }
+}
+router.post('/v1/admin/probes/sweep', auth_1.adminOrMonitoringAuth, handleSweep);
+router.post('/admin/probes/sweep', auth_1.adminOrMonitoringAuth, handleSweep);
 exports.default = router;
