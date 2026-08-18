@@ -213,88 +213,29 @@ async function callMcpTool(toolName, args) {
  * This is the inverse of zero-result: we got results but they're not useful
  */
 function classifyNearMiss(query, results, metadata = {}) {
-  // If no results, it's a zero-result, not a near-miss
+  void query;
+  // If no results, it's a zero-result, not a near-miss.
   if (!results || results.length === 0) {
     return { near_miss: false, predicate_fails: [] };
   }
 
-  // Rex's classifier provides explicit near_miss flag
-  if (typeof metadata.near_miss === 'boolean') {
+  // Rex's classifier provides explicit near_miss flag. The MCP/REST classifier
+  // may surface this either at top level or under meta.
+  const explicitNearMiss = metadata.near_miss ?? metadata.meta?.near_miss;
+  const explicitPredicateFails = metadata.near_miss_predicate_fails ?? metadata.meta?.near_miss_predicate_fails;
+  if (typeof explicitNearMiss === 'boolean') {
     return {
-      near_miss: metadata.near_miss,
-      predicate_fails: metadata.near_miss_predicate_fails || [],
+      near_miss: explicitNearMiss,
+      predicate_fails: explicitPredicateFails || [],
     };
   }
 
-  const predicateFails = [];
-
-  // Fallback heuristic 1: merchant-domain constraint from `site:domain` operator.
-  // CALIBRATED 2026-08-18 (BUY-71316): The MCP endpoint frequently ignores or fails to honor
-  // `site:` constraints, especially across markets. Treating domain mismatch alone as a
-  // near-miss produced a 88.89% false-positive rate. It now only flags when title tokens
-  // ALSO mismatch, so a site: miss that still returns topically relevant products is not
-  // counted as a near-miss.
-  let siteDomainMismatch = false;
-  const siteMatch = query.match(/site:([a-z0-9.-]+)/i);
-  if (siteMatch) {
-    const requestedDomain = siteMatch[1].toLowerCase();
-    const hasDomainMatch = results.some(r => {
-      const url = String(r.url || r.product_url || r.link || '').toLowerCase();
-      const merchant = String(r.merchant || r.merchant_name || r.store || '').toLowerCase();
-      return url.includes(requestedDomain) || merchant.includes(requestedDomain);
-    });
-    siteDomainMismatch = !hasDomainMatch;
-  }
-
-  // Fallback heuristic 2: title-token coverage. If the query's content tokens
-  // (excluding the site: operator) are poorly represented in the result titles,
-  // the results are likely off-topic.
-  // TUNED 2026-08-18 (BUY-71316): lowered threshold from 0.3 to 0.2 to reduce false
-  // positives on short queries (1-2 tokens where a single token may be paraphrased).
-  // Also require at least 3 query tokens before applying, to avoid flagging on very short queries.
-  let titleTokenMismatch = false;
-  const contentPart = query.replace(/site:[a-z0-9.-]+\s*/gi, '').trim();
-  const queryTokens = contentPart
-    .toLowerCase()
-    .split(/\W+/)
-    .filter(t => t.length > 2);
-  if (queryTokens.length >= 3) {
-    const titles = results
-      .map(r => String(r.title || r.name || r.product_name || ''))
-      .join(' ')
-      .toLowerCase();
-    const matchedTokens = queryTokens.filter(t => titles.includes(t));
-    const coverage = matchedTokens.length / queryTokens.length;
-    if (coverage < 0.2) {
-      titleTokenMismatch = true;
-    }
-  }
-
-  // Fallback heuristic 3: if results exist but have low explicit relevance scores
-  const hasRelevanceScores = results.some(r => typeof r.relevance_score === 'number' || typeof r.score === 'number');
-  if (hasRelevanceScores) {
-    const avgScore = results.reduce((sum, r) => sum + (r.relevance_score || r.score || 0), 0) / results.length;
-    if (avgScore < 0.2) {
-      predicateFails.push('low_relevance_score');
-    }
-  }
-
-  // Near-miss requires BOTH a site: domain miss AND off-topic titles, OR a low
-  // relevance score. A site: miss alone is no longer sufficient.
-  if (siteDomainMismatch && titleTokenMismatch) {
-    predicateFails.push('merchant_domain_mismatch');
-    predicateFails.push('title_token_mismatch');
-  } else if (titleTokenMismatch) {
-    predicateFails.push('title_token_mismatch');
-  } else if (siteDomainMismatch) {
-    // Calibrated out: site: constraint not honored by MCP is a known limitation,
-    // not a catalog near-miss. Do not add merchant_domain_mismatch here.
-  }
-
-  return {
-    near_miss: predicateFails.length > 0,
-    predicate_fails: predicateFails,
-  };
+  // BUY-71316: Deprecate the sweep-local fallback heuristic. The first nightly
+  // sweep showed it was measuring query/parser quirks (`site:` ignored by MCP and
+  // title-token brittleness across markets) rather than Rex's minimum-utility
+  // near-miss predicate. Until the endpoint emits explicit classifier metadata,
+  // rows with products are not counted as near-miss by this script.
+  return { near_miss: false, predicate_fails: [] };
 }
 
 /**
@@ -302,7 +243,12 @@ function classifyNearMiss(query, results, metadata = {}) {
  */
 async function runCell(market, category, queryLength, merchantDomain, tool = 'search_products') {
   const query = QUERY_TEMPLATES[category][queryLength];
-  const queryWithMerchant = `${query} site:${merchantDomain}`;
+  // BUY-71316: Do not send `site:` operators to MCP. The live search endpoint does
+  // not reliably honor them across markets, and they distort the sweep by turning
+  // topical relevance checks into merchant-domain constraint checks. Keep the
+  // merchant_domain cell dimension for basket continuity, but measure topical
+  // relevance only until Rex's explicit near_miss classifier is live on MCP.
+  const queryWithMerchant = query;
 
   const startTime = Date.now();
   let result;
