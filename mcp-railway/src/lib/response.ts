@@ -64,6 +64,26 @@ export function formatSimilarPriceField(
   return formatPriceField(amount, currency);
 }
 
+
+// F2 (2026-08-18): Amazon Associates monetization — outbound amazon.com URLs get
+// our tracking tag when none is present. Applied at serialization so url,
+// click_url and affiliate redirects all inherit it. amazon.sg intentionally
+// EXCLUDED until the separate buywhere-22 account is confirmed (ledger R3).
+const AMAZON_US_TAG = 'buywhere-20';
+function wrapAmazonAffiliateTag(url: string): string {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    if (host === 'amazon.com' || host.endsWith('.amazon.com')) {
+      if (!u.searchParams.has('tag')) {
+        u.searchParams.set('tag', AMAZON_US_TAG);
+        return u.toString();
+      }
+    }
+  } catch { /* malformed URL — pass through untouched */ }
+  return url;
+}
+
 export function buildProduct(
   row: Record<string, unknown>,
   defaultCurrency: string,
@@ -75,7 +95,7 @@ export function buildProduct(
   const affiliateUrl = resolvePrecomputedAffiliateUrl(row.affiliate_url);
   const productId = String(row.id);
   const merchant = (row.domain as string) || '';
-  const destinationUrl = affiliateUrl ?? (row.url as string);
+  const destinationUrl = wrapAmazonAffiliateTag(affiliateUrl ?? (row.url as string));
 
   // BUY-52474: every /v1 product response now carries tracking URLs so the FE
   // naturally routes user clicks through /r/ (logs affiliate_clicks) and /api/click
