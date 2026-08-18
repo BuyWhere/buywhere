@@ -136,19 +136,29 @@ export function buildProduct(
   const currency = (row.currency as string) || defaultCurrency;
   const amount = row.price != null ? parseFloat(row.price as string) : null;
 
-  // BUY-60385 / BUY-71393: Sanitize anomalous prices by USD-equivalent value.
-  // CURRENCY_RATES are USD per 1 unit of foreign currency. A native price passes
-  // when its USD equivalent sits inside the accepted utility band (~$5–$10k USD).
-  // This preserves legitimate high-value-currency rows (SGD 10,799 ≈ USD 7,991)
-  // while still nullifying feed corruption / unit errors in any currency.
+  // BUY-60385 / BUY-71393 / BUY-71419: Sanitize anomalous prices.
+  // CURRENCY_RATES are USD per 1 unit of foreign currency.
+  // - Upper bound is always USD-equivalent when a rate is known, so high-value
+  //   currencies (SGD 10,799 ≈ USD 7,991) are not wrongly capped at 10,000 native.
+  // - Lower bound is currency-aware: USD still uses the $5 floor that catches
+  //   $1 laptop feed errors, while non-USD currencies use a native floor of 1
+  //   so legitimate low-cost accessories (PHP 125-250 ≈ USD 2-4) are not hidden.
+  // When validation fails the amount is nullified so the FE displays nothing
+  // instead of a deceptive value.
   const rate = getRate(currency, getCachedFxRates());
   const usdEquivalent = amount != null && rate != null ? amount * rate : null;
+  const minNative = currency === 'USD' ? PRICE_MIN_USD : 1;
+  const maxNative = (
+    usdEquivalent != null
+      ? Math.floor(PRICE_MAX_USD / rate!)
+      : PRICE_MAX_USD
+  );
   const sanitizedAmount = (
     amount != null &&
     Number.isFinite(amount) &&
-    usdEquivalent != null &&
-    usdEquivalent >= PRICE_MIN_USD &&
-    usdEquivalent <= PRICE_MAX_USD
+    amount >= minNative &&
+    amount <= maxNative &&
+    (currency === 'USD' || usdEquivalent == null || usdEquivalent <= PRICE_MAX_USD)
   ) ? amount : null;
 
   const affiliateUrl = resolvePrecomputedAffiliateUrl(row.affiliate_url);

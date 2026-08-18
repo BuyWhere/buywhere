@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.COUNTRY_CURRENCY = exports.CURRENCY_RATES = void 0;
+exports.getPriceBoundsForCurrency = getPriceBoundsForCurrency;
 exports.evaluateNearMiss = evaluateNearMiss;
 exports.buildProduct = buildProduct;
 exports.buildSearchResponse = buildSearchResponse;
@@ -14,6 +15,21 @@ exports.COUNTRY_CURRENCY = {
     SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
     ID: 'IDR', PH: 'PHP', HK: 'HKD', TW: 'TWD', AU: 'AUD',
 };
+const PRICE_MIN_USD = 5;
+const PRICE_MAX_USD = 10000;
+/**
+ * Return the native currency min/max bounds that correspond to the configured
+ * USD-equivalent sanitizer band. Used by SQL sort tiers to keep sort order
+ * consistent with serialized prices. Falls back to the sanitizer's old
+ * hardcoded band when no rate is known.
+ */
+function getPriceBoundsForCurrency(currency) {
+    const rate = (0, fxRatesLoader_1.getRate)(currency, exports.CURRENCY_RATES);
+    if (rate != null && rate > 0) {
+        return { min: Math.ceil(PRICE_MIN_USD / rate), max: Math.floor(PRICE_MAX_USD / rate) };
+    }
+    return { min: PRICE_MIN_USD, max: PRICE_MAX_USD };
+}
 const ISO_4217_RE = /^[A-Z]{3}$/;
 const ISO_4217_CURRENCIES = new Set([
     'AUD', 'GBP', 'HKD', 'IDR', 'MYR', 'PHP', 'SGD', 'THB', 'TWD', 'USD', 'VND',
@@ -105,21 +121,26 @@ function buildProduct(row, defaultCurrency, compact,
 caller) {
     const currency = row.currency || defaultCurrency;
     const amount = row.price != null ? parseFloat(row.price) : null;
-    // BUY-60385: Sanitize anomalous prices from upstream affiliate/feed partners.
-    // Validation catches two categories of data-quality failures observed in production:
-    //   1. $0.00 prices — out-of-stock marker, missing price field, or parsing error
-    //   2. Prices over $10,000 — feed corruption, currency conversion unit errors
-    //   3. BUY-63738: Prices under $5 — observed $1.00 laptop prices are clearly
-    //      invalid feed errors; real laptops start at ~$400. A $5 floor catches the
-    //      obvious errors while still allowing cheap accessories ($2-3 cables, etc.).
-    // Legitimate high-end products (luxury watches, high-end appliances, jewelry)
-    // stay under $10k. When a price fails validation the amount is nullified so
-    // the FE displays nothing instead of a deceptive value.
-    const PRICE_MIN = 5;
-    const PRICE_MAX = 10000;
-    const sanitizedAmount = (amount != null && amount >= PRICE_MIN && amount <= PRICE_MAX)
-        ? amount
-        : null;
+    // BUY-60385 / BUY-71393 / BUY-71419: Sanitize anomalous prices.
+    // CURRENCY_RATES are USD per 1 unit of foreign currency.
+    // - Upper bound is always USD-equivalent when a rate is known, so high-value
+    //   currencies (SGD 10,799 ≈ USD 7,991) are not wrongly capped at 10,000 native.
+    // - Lower bound is currency-aware: USD still uses the $5 floor that catches
+    //   $1 laptop feed errors, while non-USD currencies use a native floor of 1
+    //   so legitimate low-cost accessories (PHP 125-250 ≈ USD 2-4) are not hidden.
+    // When validation fails the amount is nullified so the FE displays nothing
+    // instead of a deceptive value.
+    const rate = (0, fxRatesLoader_1.getRate)(currency, (0, fxRatesLoader_1.getCachedFxRates)());
+    const usdEquivalent = amount != null && rate != null ? amount * rate : null;
+    const minNative = currency === 'USD' ? PRICE_MIN_USD : 1;
+    const maxNative = (usdEquivalent != null
+        ? Math.floor(PRICE_MAX_USD / rate)
+        : PRICE_MAX_USD);
+    const sanitizedAmount = (amount != null &&
+        Number.isFinite(amount) &&
+        amount >= minNative &&
+        amount <= maxNative &&
+        (currency === 'USD' || usdEquivalent == null || usdEquivalent <= PRICE_MAX_USD)) ? amount : null;
     const affiliateUrl = (0, affiliateWrapper_1.resolvePrecomputedAffiliateUrl)(row.affiliate_url);
     const productId = String(row.id);
     const merchant = row.domain || '';

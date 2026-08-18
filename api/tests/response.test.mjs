@@ -142,6 +142,43 @@ describe('buildProduct', () => {
     assert.equal(product.price.currency, 'SGD');
   });
 
+  it('BUY-71419: PHP accessories at 125-250 PHP retain price and availability', () => {
+    // 125 PHP ≈ $2.20, 250 PHP ≈ $4.40 — legitimate accessories, not feed errors
+    const phpRows = [
+      { ...baseRow, price: 125, currency: 'PHP', in_stock: true },
+      { ...baseRow, price: 250, currency: 'PHP', in_stock: true },
+    ];
+    for (const row of phpRows) {
+      const product = buildProduct(row, 'PHP', false);
+      assert.equal(product.price.amount, row.price, `PHP ${row.price} should not be nullified`);
+      assert.equal(product.price.currency, 'PHP');
+      assert.equal(product.availability.in_stock, true);
+      assert.equal(product.availability.status, 'in_stock');
+    }
+  });
+
+  it('BUY-71419: non-USD prices >= 1 pass through; zero/null prices are nullified', () => {
+    const belowFloor = buildProduct({ ...baseRow, price: 0, currency: 'SGD' }, 'SGD', false);
+    assert.equal(belowFloor.price.amount, null, 'SGD 0 should be nullified');
+
+    const atFloor = buildProduct({ ...baseRow, price: 1, currency: 'VND' }, 'VND', false);
+    assert.equal(atFloor.price.amount, 1, 'VND 1 should pass');
+  });
+
+  it('BUY-63738: USD prices under $5 are nullified (laptop feed errors)', () => {
+    const belowFloor = buildProduct({ ...baseRow, price: 1, currency: 'USD' }, 'USD', false);
+    assert.equal(belowFloor.price.amount, null, '$1 should be nullified');
+    assert.equal(belowFloor.availability.in_stock, false, '$1 product should be out_of_stock');
+
+    const atFloor = buildProduct({ ...baseRow, price: 4.99, currency: 'USD' }, 'USD', false);
+    assert.equal(atFloor.price.amount, null, '$4.99 should be nullified');
+  });
+
+  it('BUY-63738: USD prices at $5+ pass through', () => {
+    const atFloor = buildProduct({ ...baseRow, price: 5, currency: 'USD' }, 'USD', false);
+    assert.equal(atFloor.price.amount, 5, '$5 should pass');
+  });
+
   it('handles metadata extraction in compact mode with minimal fields', () => {
     const row = {
       ...baseRow,
