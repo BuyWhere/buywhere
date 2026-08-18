@@ -33,6 +33,8 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      // 2026-08-18 (Richmond): pricing removed — free under fair use
+      { source: '/pricing', destination: '/developers', permanent: true },
       // BUY-68319/BUY-67102: keep root-domain MCP clients on the
       // canonical API-host MCP endpoint instead of the human docs page.
       {
