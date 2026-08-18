@@ -53,7 +53,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v12-buy-70592-in-stock-ranking'; // BUY-70592: bust cached search payloads before typo/in_stock ranking fixes
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'buy-71417-freshness-boost'; // BUY-71417: rank freshness signal on tier; invalidate stale cached payloads
 
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
@@ -252,6 +252,19 @@ async function tryTierSearch(
     CASE
       WHEN sp.in_stock IS NOT FALSE THEN 1.8 ELSE 1.0
     END`;
+  // BUY-71417: freshness multiplier. ts_rank alone let 92% of sampled head-query
+  // results be >30d stale (legacy 1999-2017 merchants outranked fresh rows purely
+  // on text relevance). Demote rather than filter so recall is preserved: fresh
+  // (<=30d) rows keep full rank, 30-90d rows get 0.5x, older rows 0.25x, and
+  // pre-2024 legacy inventory 0.1x. Ranks below the candidate CTE only (200 rows),
+  // so no extra scan cost.
+  const freshnessBoost = `
+    CASE
+      WHEN sp.updated_at >= NOW() - INTERVAL '30 days' THEN 1.0
+      WHEN sp.updated_at >= NOW() - INTERVAL '90 days' THEN 0.5
+      WHEN sp.updated_at >= '2024-01-01' THEN 0.25
+      ELSE 0.1
+    END`;
   const mkQuery = (match: string, extraFilter = '') => `
     WITH cand AS (
       SELECT id, search_vector FROM search_products sp
@@ -269,7 +282,8 @@ async function tryTierSearch(
             (${laptopAccessoryPenalty}) *
             (${phoneHandsetBoost}) *
             (${phoneAccessoryPenalty}) *
-            (${inStockBoost}) AS rank
+            (${inStockBoost}) *
+            (${freshnessBoost}) AS rank
       FROM cand ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank

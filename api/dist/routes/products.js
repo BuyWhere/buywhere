@@ -18,20 +18,23 @@ const searchRelevanceTaxonomy_1 = require("../lib/searchRelevanceTaxonomy");
 const instrumentation_1 = require("../lib/instrumentation");
 const outboundLinkHealth_1 = require("../lib/outboundLinkHealth");
 const embedProducts_1 = require("../jobs/embedProducts");
+const PRICE_MIN_USD = 5;
+const PRICE_MAX_USD = 10000;
+function sanitizedPriceSortExpression(alias) {
+    const cases = Object.entries(response_1.CURRENCY_RATES)
+        .filter(([, rate]) => Number.isFinite(rate) && rate > 0)
+        .map(([currency, rate]) => {
+        const min = PRICE_MIN_USD / rate;
+        const max = PRICE_MAX_USD / rate;
+        return `WHEN ${alias}.currency = '${currency}' AND ${alias}.price BETWEEN ${min} AND ${max} THEN ${alias}.price`;
+    })
+        .join(' ');
+    return `(CASE ${cases} END)`;
+}
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
 const semanticCache_1 = require("../lib/semanticCache");
 const SEARCH_CACHE_TTL_SECONDS = 3600;
-// BUY-71129: pull caller identity (api_key_id + key_hash) off req.apiKeyRecord
-// for thread-through attribution. Returns null when no key is bound (anonymous
-// request) so the URL builders simply omit `?k=` + `?aid=` and the resulting
-// conversion collapses to `anonymous` distinct_id as before.
-function callerContextForUrl(req) {
-    const rec = req.apiKeyRecord;
-    if (!rec || !rec.id || !rec.key)
-        return null;
-    return { apiKeyId: rec.id, keyHash: (0, apiKey_1.hashKey)(rec.key) };
-}
 // BUY-41572: bumped from 5s → 15s as a temporary measure so the 50-query hybrid
 // eval (BUY-41140) can complete against the live DB. Roundhouse EXPLAIN happy
 // path is still ~15-75ms; the 5s ceiling was below the latency budget the API
@@ -46,7 +49,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v12-buy-70592-in-stock-ranking'; // BUY-70592: bust cached search payloads before typo/in_stock ranking fixes
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'buy-71417-freshness-boost'; // BUY-71417: rank freshness signal on tier; invalidate stale cached payloads
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
 // unavailable, semantic/hybrid requests fall back to the keyword path.
@@ -119,10 +122,11 @@ async function tryTierSearch(req, res, p) {
     // archive sorted path flaps to degraded-empty whenever dedupe/replica
     // pressure spikes, while the RAM-resident tier stays fast. Sort applies over
     // the bounded top-200 relevance candidates (same trade as archive sort_hits).
+    const tierPriceSort = sanitizedPriceSortExpression('sp');
     const TIER_SORT = {
-        // F25: match the response price sanitizer (BUY-63738) — invalid prices sort as NULL
-        price_asc: '(CASE WHEN sp.price BETWEEN 5 AND 10000 THEN sp.price END) ASC NULLS LAST',
-        price_desc: '(CASE WHEN sp.price BETWEEN 5 AND 10000 THEN sp.price END) DESC NULLS LAST',
+        // BUY-71393: match the USD-normalized response price sanitizer — invalid prices sort as NULL
+        price_asc: `${tierPriceSort} ASC NULLS LAST`,
+        price_desc: `${tierPriceSort} DESC NULLS LAST`,
         newest: 'sp.updated_at DESC',
         highest_rated: 'sp.avg_rating DESC NULLS LAST',
         most_reviewed: 'sp.review_count DESC NULLS LAST',
@@ -206,6 +210,14 @@ async function tryTierSearch(req, res, p) {
     params.push(p.offset);
     i++;
     const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
+    // BUY-70776: tier path must respect outbound-link probe results. Because
+    // search_products does not carry url_status, we join products on id (PK)
+    // and filter out rows verified dead. The join is applied in the small final
+    // SELECTs so it does not inflate the FTS bitmap scan.
+    const probeEnabled = (0, outboundLinkHealth_1.outboundProbeEnabled)();
+    const urlStatusJoin = probeEnabled
+        ? ' JOIN products p ON p.id = sp.id AND (p.url_status IS NULL OR p.url_status <> \'dead\')'
+        : '';
     const cols = `sp.id, sp.source AS domain, sp.url, al.destination_url AS affiliate_url,
     sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
@@ -256,6 +268,19 @@ async function tryTierSearch(req, res, p) {
     CASE
       WHEN sp.in_stock IS NOT FALSE THEN 1.8 ELSE 1.0
     END`;
+    // BUY-71417: freshness multiplier. ts_rank alone let 92% of sampled head-query
+    // results be >30d stale (legacy 1999-2017 merchants outranked fresh rows purely
+    // on text relevance). Demote rather than filter so recall is preserved: fresh
+    // (<=30d) rows keep full rank, 30-90d rows get 0.5x, older rows 0.25x, and
+    // pre-2024 legacy inventory 0.1x. Ranks below the candidate CTE only (200 rows),
+    // so no extra scan cost.
+    const freshnessBoost = `
+    CASE
+      WHEN sp.updated_at >= NOW() - INTERVAL '30 days' THEN 1.0
+      WHEN sp.updated_at >= NOW() - INTERVAL '90 days' THEN 0.5
+      WHEN sp.updated_at >= '2024-01-01' THEN 0.25
+      ELSE 0.1
+    END`;
     const mkQuery = (match, extraFilter = '') => `
     WITH cand AS (
       SELECT id, search_vector FROM search_products sp
@@ -273,11 +298,12 @@ async function tryTierSearch(req, res, p) {
             (${laptopAccessoryPenalty}) *
             (${phoneHandsetBoost}) *
             (${phoneAccessoryPenalty}) *
-            (${inStockBoost}) AS rank
+            (${inStockBoost}) *
+            (${freshnessBoost}) AS rank
       FROM cand ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
-    FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}
+    FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}${urlStatusJoin}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}${sortPrefix}top.rank DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -302,7 +328,7 @@ async function tryTierSearch(req, res, p) {
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}${urlStatusJoin}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}${sortPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -313,7 +339,7 @@ async function tryTierSearch(req, res, p) {
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}${urlStatusJoin}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}${sortPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -332,7 +358,7 @@ async function tryTierSearch(req, res, p) {
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM pcand JOIN search_products sp ON sp.id = pcand.id${storageJoinFilter}
+    FROM pcand JOIN search_products sp ON sp.id = pcand.id${storageJoinFilter}${urlStatusJoin}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}${sortPrefix}((${phoneHandsetBoost}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -402,9 +428,9 @@ async function tryTierSearch(req, res, p) {
             return true;
         const hasMore = rows.length > p.limit;
         const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
-        const products = pageRows.map((r) => (0, response_1.buildProduct)(r, p.currency, p.compact, callerContextForUrl(req)));
+        const products = pageRows.map((r) => (0, response_1.buildProduct)(r, p.currency, p.compact));
         const total = p.offset + rows.length;
-        const responseBody = (0, response_1.buildSearchResponse)(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, undefined, p.countryCode);
+        const responseBody = (0, response_1.buildSearchResponse)(products, total, p.limit, p.offset, Date.now() - p.requestStart, false);
         responseBody.source = 'search_products_tier';
         annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
         config_1.redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => { });
@@ -605,7 +631,7 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
     ]);
     const total = parseInt(countResult.rows[0].count, 10);
     const total_pages = total === 0 ? 0 : Math.ceil(total / limit);
-    const data = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, false, callerContextForUrl(req)));
+    const data = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, false));
     // BUY-52474: log a product_view per rendered result card so `product_views`
     // grows from real /v1 list traffic. Fire-and-forget; idempotency is
     // enforced in the helper.
@@ -735,8 +761,6 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             parsed.cached = true;
             parsed.response_time_ms = elapsed;
             const cachedProducts = parsed.products || parsed.results || parsed.data || [];
-            const nearMiss = (0, response_1.evaluateNearMiss)(cachedProducts, countryCode);
-            parsed.meta = { ...(parsed.meta || {}), ...nearMiss };
             (0, instrumentation_1.recordProductViewsBulk)({
                 productIds: cachedProducts
                     .map((product) => product.id)
@@ -969,7 +993,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                al.destination_url AS affiliate_url,
                products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-               products.region, products.country_code, products.url_status, products.url_last_checked_at, ${specColumnsJoined}`;
+               products.region, products.country_code, ${specColumnsJoined}`;
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
     const useFtsRanking = (!effectiveSort || effectiveSort === 'relevance') && ftsParamIdx;
@@ -989,9 +1013,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         if (!effectiveSort || effectiveSort === 'relevance')
             return 'products.updated_at DESC';
         switch (effectiveSort) {
-            // F25: match the response price sanitizer (BUY-63738)
-            case 'price_asc': return '(CASE WHEN products.price BETWEEN 5 AND 10000 THEN products.price END) ASC NULLS LAST, products.updated_at DESC';
-            case 'price_desc': return '(CASE WHEN products.price BETWEEN 5 AND 10000 THEN products.price END) DESC NULLS LAST, products.updated_at DESC';
+            // BUY-71393: match the USD-normalized response price sanitizer
+            case 'price_asc': return `${sanitizedPriceSortExpression('products')} ASC NULLS LAST, products.updated_at DESC`;
+            case 'price_desc': return `${sanitizedPriceSortExpression('products')} DESC NULLS LAST, products.updated_at DESC`;
             case 'newest': return 'products.updated_at DESC';
             case 'highest_rated': return 'products.avg_rating DESC NULLS LAST, products.updated_at DESC';
             case 'most_reviewed': return 'products.review_count DESC NULLS LAST, products.updated_at DESC';
@@ -1045,7 +1069,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         if (hasMore)
             dataResult.rows = dataResult.rows.slice(0, limit);
         const responseTimeMs = Date.now() - requestStart;
-        const fallbackProducts = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact, callerContextForUrl(req)));
+        const fallbackProducts = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
         const responseBody = (0, response_1.buildSearchResponse)(fallbackProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore);
         annotateDeliverTo(responseBody, deliverTo, includeUnshippable, q);
         config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
@@ -1500,7 +1524,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         dataResult.rows = dataResult.rows.slice(0, limit);
     }
     const responseTimeMs = Date.now() - requestStart;
-    const products = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact, callerContextForUrl(req)));
+    const products = dataResult.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
     // Apply field selection if `fields` param is specified
     let filteredProducts = products;
     if (fields && fields.length > 0) {
@@ -1527,7 +1551,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             });
         }
     }
-    const responseBody = (0, response_1.buildSearchResponse)(filteredProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore ?? false, countryCode);
+    const responseBody = (0, response_1.buildSearchResponse)(filteredProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore ?? false);
     annotateDeliverTo(responseBody, deliverTo, includeUnshippable, q);
     // Cache result in Redis (fire-and-forget)
     config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
@@ -1702,7 +1726,7 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
         const dealResult = await dealsClient.query(`SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
                 currency, image_url, metadata, updated_at,
-                region, country_code, url_status, created_at, description, brand, mpn, gtin,
+                region, country_code, created_at, description, brand, mpn, gtin,
                 category_path, category, merchant_id, avg_rating, review_count,
                 ${discountSelect}
          FROM products
@@ -1711,7 +1735,7 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
          LIMIT ${dealLimitParam}::int OFFSET ${dealOffsetParam}::int`, dealParams);
         const sampleDeals = dealResult.rows;
         total = sampleDeals.length;
-        deals = sampleDeals.map((row) => (0, response_1.buildProduct)(row, currency, false, callerContextForUrl(req)));
+        deals = sampleDeals.map((row) => (0, response_1.buildProduct)(row, currency, false));
     }
     catch (err) {
         // BUY-60309: on timeout/cancel, return HTTP 200 degraded instead of crashing
@@ -1729,7 +1753,7 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     finally {
         dealsClient.release();
     }
-    const responseBody = (0, response_1.buildSearchResponse)(deals, total, limit, offset, Date.now() - start, false, degraded, undefined, countryCode);
+    const responseBody = (0, response_1.buildSearchResponse)(deals, total, limit, offset, Date.now() - start, false, degraded);
     // BUY-2026-08-13 (#36): NEVER cache a degraded (timed-out) deals payload — one slow
     // moment froze an empty response into the 1h cache and every later call re-served it
     // (the fossilized response_time_ms 4519/4554 signature). Cache real-but-empty briefly.
@@ -1767,7 +1791,7 @@ router.get('/compare', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiK
     }
     const { text, values } = (0, compare_query_1.buildCompareProductsQuery)(ids);
     const result = await config_1.db.query(text, values);
-    const products = result.rows.map((row) => (0, response_1.buildProduct)(row, 'SGD', false, callerContextForUrl(req)));
+    const products = result.rows.map((row) => (0, response_1.buildProduct)(row, 'SGD', false));
     const uniqueCurrencies = [...new Set(products.map((p) => p.price.currency).filter(Boolean))];
     const currenciesMixed = uniqueCurrencies.length > 1;
     const responseBody = (0, response_1.buildSearchResponse)(products, products.length, ids.length, 0, Date.now() - start, false);
@@ -1940,7 +1964,7 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
                     // Fetch full product details from main DB.
                     const placeholders = knnIds.map((_, i) => `$${i + 1}`).join(',');
                     const detailResult = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                      image_url, metadata, in_stock, brand, category_path, region, country_code, url_status
+                      image_url, brand, category_path, region, country_code
                FROM products
                WHERE id IN (${placeholders})`, knnIds);
                     const detailById = new Map(detailResult.rows.map((row) => [String(row.id), row]));
@@ -1978,7 +2002,7 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
             }
             params.push(limit);
             const bcResult = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                  image_url, metadata, in_stock, brand, category_path, region, country_code, url_status
+                  image_url, brand, category_path, region, country_code
            FROM products
            WHERE ${where}
            ORDER BY updated_at DESC
@@ -2003,7 +2027,7 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
             }
             ftsParams.push(needed);
             const ftsResult = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                  image_url, metadata, in_stock, brand, category_path, region, country_code, url_status
+                  image_url, brand, category_path, region, country_code
            FROM products
            WHERE ${ftsWhere}
            ORDER BY updated_at DESC
@@ -2012,10 +2036,20 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
         }
     }
     const data = similar.slice(0, limit).map((row) => ({
-        ...(0, response_1.buildProduct)(row, src.currency || 'SGD', false),
+        id: row.id,
+        source: row.source_id,
+        domain: row.domain,
+        url: row.url,
+        title: row.title,
+        price: row.price ? parseFloat(row.price) : null,
+        currency: row.currency,
+        image_url: row.image_url || null,
+        brand: row.brand || null,
+        category_path: row.category_path || null,
+        region: row.region || null,
+        country_code: row.country_code || null,
         similarity: row._similarity ?? null,
     }));
-    const nearMiss = (0, response_1.evaluateNearMiss)(data, src.country_code || null);
     if (timedOut || res.headersSent)
         return;
     res.json({
@@ -2023,8 +2057,6 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
         meta: {
             source_id: id,
             count: data.length,
-            near_miss: nearMiss.near_miss,
-            near_miss_predicate_fails: nearMiss.near_miss_predicate_fails,
             method: config_1.vectorDb && !similar.length ? 'fallback' : config_1.vectorDb ? 'knn' : 'fallback',
             response_time_ms: Date.now() - start,
         },
@@ -2071,7 +2103,7 @@ router.get('/featured', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApi
          AND price IS NOT NULL
        ORDER BY id DESC
        LIMIT $3 OFFSET $4`, [countryCode, currency, limit, offset]);
-    const products = result.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact, callerContextForUrl(req)));
+    const products = result.rows.map((row) => (0, response_1.buildProduct)(row, currency, compact));
     const responseBody = (0, response_1.buildSearchResponse)(products, products.length, limit, offset, Date.now() - start, false);
     config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', 300).catch(() => { });
     res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
@@ -2109,7 +2141,7 @@ router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, 
         return;
     }
     const row = result.rows[0];
-    const product = (0, response_1.buildProduct)(row, 'SGD', false, callerContextForUrl(req));
+    const product = (0, response_1.buildProduct)(row, 'SGD', false);
     if (req.apiKeyRecord) {
         const elapsedMs = Date.now() - start;
         // BUY-31298: feed behavioral context through res.locals; trackApiUsage via
@@ -2423,7 +2455,7 @@ async function warmSearchCache() {
             const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                  al.destination_url AS affiliate_url,
                  products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-                 products.region, products.country_code, products.url_status, products.url_last_checked_at, ${specColumnsJoined}`;
+                 products.region, products.country_code, ${specColumnsJoined}`;
             // BUY-32028: remove ts_rank ORDER BY (missed by e8f407dc BUY-31540 in warmSearchCache
             // CTE). The warmSearchCache path was excluded from the original fix; on broad US queries
             // (laptop+US = 70k+ matches) the CTE materializes all matches before LIMIT and
@@ -2449,7 +2481,7 @@ async function warmSearchCache() {
             if (hasMore)
                 result.rows.pop();
             const total = result.rows.length + (hasMore ? 1 : 0);
-            const products = result.rows.map((row) => (0, response_1.buildProduct)(row, currency, false, null));
+            const products = result.rows.map((row) => (0, response_1.buildProduct)(row, currency, false));
             const responseBody = (0, response_1.buildSearchResponse)(products, total, limit, offset, 0, false, undefined, hasMore);
             await config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS);
             warmed++;
