@@ -191,6 +191,15 @@ async function tryTierSearch(
   const offsetIdx = i; params.push(p.offset); i++;
   const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
 
+  // BUY-70776: tier path must respect outbound-link probe results. Because
+  // search_products does not carry url_status, we join products on id (PK)
+  // and filter out rows verified dead. The join is applied in the small final
+  // SELECTs so it does not inflate the FTS bitmap scan.
+  const probeEnabled = outboundProbeEnabled();
+  const urlStatusJoin = probeEnabled
+    ? ' JOIN products p ON p.id = sp.id AND (p.url_status IS NULL OR p.url_status <> \'dead\')'
+    : '';
+
   const cols = `sp.id, sp.source AS domain, sp.url, al.destination_url AS affiliate_url,
     sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
@@ -264,7 +273,7 @@ async function tryTierSearch(
       FROM cand ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
-    FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}
+    FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}${urlStatusJoin}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}${sortPrefix}top.rank DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -290,7 +299,7 @@ async function tryTierSearch(
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}${urlStatusJoin}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}${sortPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -301,7 +310,7 @@ async function tryTierSearch(
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}${urlStatusJoin}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}${sortPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -320,7 +329,7 @@ async function tryTierSearch(
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM pcand JOIN search_products sp ON sp.id = pcand.id${storageJoinFilter}
+    FROM pcand JOIN search_products sp ON sp.id = pcand.id${storageJoinFilter}${urlStatusJoin}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}${sortPrefix}((${phoneHandsetBoost}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
