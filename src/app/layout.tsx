@@ -96,6 +96,11 @@ export default function RootLayout({
         {/* BUY-69954 re-fix PWA head polish: explicit theme-color for page-level brand chrome.
             Metadata-only themeColor was missing across public routes in production. */}
         <meta name="theme-color" content="#4F46E5" />
+        {/* impact.com publisher application site verification (2026-08-18).
+            Impact's snippet uses a literal value= attribute, so this stays a raw
+            tag — the Metadata API would render content= instead. Do not remove:
+            deleting it un-verifies the affiliate account. */}
+        <meta name="impact-site-verification" value="4dbc85d5-932d-4e25-a10d-7ca03be575cd" />
         {/* Safari pinned-tab mask icon (BUY-67512). mask-icon requires a
             monochrome SVG; Next's Metadata API has no field for it. */}
         <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#4F46E5" />
