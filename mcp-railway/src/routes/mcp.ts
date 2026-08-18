@@ -1891,15 +1891,19 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   const explicitCountryCode = rawCountry || regionCountry || '';
   const countryCode = explicitCountryCode || 'SG';
   const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 10);
-  const SIMILAR_STMT_TIMEOUT_MS = 20000;
-  const withTimeout = async <T>(promise: Promise<T>): Promise<T> => {
+  const SIMILAR_STMT_TIMEOUT_MS = 4500;
+  const withTimeout = async <T>(promise: Promise<T>, phase: string): Promise<T> => {
     let timer: NodeJS.Timeout | undefined;
     try {
       return await Promise.race([
         promise,
         new Promise<never>((_, reject) => {
           timer = setTimeout(
-            () => reject({ code: -32603, message: `Statement timeout after ${SIMILAR_STMT_TIMEOUT_MS}ms on find_similar` }),
+            () => reject({
+              code: -32001,
+              message: `No similar products found in ${countryCode} (${phase} timed out after ${SIMILAR_STMT_TIMEOUT_MS}ms)`,
+              envelopeCode: 'NOT_FOUND',
+            }),
             SIMILAR_STMT_TIMEOUT_MS
           );
         }),
@@ -1931,7 +1935,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
        ) _ranked_lookup_candidates
        ORDER BY _rank DESC LIMIT 1`,
       params
-    ));
+    ), 'product lookup');
     if (!lookupResult.rows.length) {
       throw { code: -32001, message: `No product found matching "${productName}" in ${countryCode}` };
     }
@@ -2158,7 +2162,7 @@ async function handleFindSimilar(args: Record<string, unknown>) {
       ? `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url, country_code FROM products WHERE sku IN (${ph}) AND is_active = true`
       : `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url, country_code FROM products WHERE id = ANY($1::bigint[]) AND is_active = true`,
     vectorTable === 'search_proof.product_vectors' ? nearKeys : [nearKeys] as unknown as unknown[]
-  ));
+  ), 'similar detail');
 
   const distMap = new Map(nearResult.rows.map(r => [r.vector_key, r.distance]));
   const byKey = new Map(detailResult.rows.map(r => [vectorTable === 'search_proof.product_vectors' ? String((r as Record<string, unknown>).sku) : String((r as Record<string, unknown>).id), r]));
