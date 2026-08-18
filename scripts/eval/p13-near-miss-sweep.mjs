@@ -31,7 +31,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ── Configuration ────────────────────────────────────────────────────────────
 
 const TARGET_URL = process.env.TARGET_URL || process.env.BUYWHERE_MCP_URL || 'https://mcp.buywhere.ai/mcp';
-const API_KEY = process.env.BUYWHERE_API_KEY || process.env.MCP_TESTING_API_KEY || '';
+const API_KEY = process.env.BUYWHERE_API_KEY || process.env.BUYWHERE_MONITORING_API_KEY || process.env.MCP_TESTING_API_KEY || '';
 
 const OUTPUT_DIR = process.env.SWEEP_OUTPUT_DIR || path.join(__dirname, '..', '..', 'data', 'sweep', 'zrr');
 const OUTPUT_PATH = process.env.SWEEP_OUTPUT_PATH || path.join(OUTPUT_DIR, `${new Date().toISOString().split('T')[0]}.jsonl`);
@@ -405,8 +405,8 @@ async function main() {
   appendCadenceLog('start', { output_path: OUTPUT_PATH, target_url: TARGET_URL });
 
   if (!API_KEY) {
-    console.error('[p13-sweep] ERROR: BUYWHERE_API_KEY not set');
-    appendCadenceLog('failure', { output_path: OUTPUT_PATH, error: 'BUYWHERE_API_KEY not set' });
+    console.error('[p13-sweep] ERROR: BUYWHERE_API_KEY or BUYWHERE_MONITORING_API_KEY not set');
+    appendCadenceLog('failure', { output_path: OUTPUT_PATH, error: 'BUYWHERE_API_KEY or BUYWHERE_MONITORING_API_KEY not set' });
     process.exit(1);
   }
 
