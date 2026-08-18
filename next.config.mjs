@@ -393,6 +393,11 @@ const nextConfig = {
         permanent: true,
       },
       {
+        source: '/agent',
+        destination: '/agents',
+        permanent: true,
+      },
+      {
         source: '/ai-agents',
         destination: '/agents',
         permanent: true,
