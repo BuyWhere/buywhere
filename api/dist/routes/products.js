@@ -18,6 +18,19 @@ const searchRelevanceTaxonomy_1 = require("../lib/searchRelevanceTaxonomy");
 const instrumentation_1 = require("../lib/instrumentation");
 const outboundLinkHealth_1 = require("../lib/outboundLinkHealth");
 const embedProducts_1 = require("../jobs/embedProducts");
+const PRICE_MIN_USD = 5;
+const PRICE_MAX_USD = 10000;
+function sanitizedPriceSortExpression(alias) {
+    const cases = Object.entries(response_1.CURRENCY_RATES)
+        .filter(([, rate]) => Number.isFinite(rate) && rate > 0)
+        .map(([currency, rate]) => {
+        const min = PRICE_MIN_USD / rate;
+        const max = PRICE_MAX_USD / rate;
+        return `WHEN ${alias}.currency = '${currency}' AND ${alias}.price BETWEEN ${min} AND ${max} THEN ${alias}.price`;
+    })
+        .join(' ');
+    return `(CASE ${cases} END)`;
+}
 // BUY-31302: 1-hour TTL (was 120s). Reduces cold-miss frequency from every 2min to every 1hr.
 // Combined with startup warm-up, cold cache drops to <1s for all seeded queries.
 const semanticCache_1 = require("../lib/semanticCache");
@@ -36,7 +49,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'deliver-to-v11-availability-in-stock'; // BUY-70574: bust cached search payloads missing availability.in_stock
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'buy-71417-freshness-boost'; // BUY-71417: rank freshness signal on tier; invalidate stale cached payloads
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
 // unavailable, semantic/hybrid requests fall back to the keyword path.
@@ -109,9 +122,11 @@ async function tryTierSearch(req, res, p) {
     // archive sorted path flaps to degraded-empty whenever dedupe/replica
     // pressure spikes, while the RAM-resident tier stays fast. Sort applies over
     // the bounded top-200 relevance candidates (same trade as archive sort_hits).
+    const tierPriceSort = sanitizedPriceSortExpression('sp');
     const TIER_SORT = {
-        price_asc: 'sp.price ASC NULLS LAST',
-        price_desc: 'sp.price DESC NULLS LAST',
+        // BUY-71393: match the USD-normalized response price sanitizer — invalid prices sort as NULL
+        price_asc: `${tierPriceSort} ASC NULLS LAST`,
+        price_desc: `${tierPriceSort} DESC NULLS LAST`,
         newest: 'sp.updated_at DESC',
         highest_rated: 'sp.avg_rating DESC NULLS LAST',
         most_reviewed: 'sp.review_count DESC NULLS LAST',
@@ -195,6 +210,14 @@ async function tryTierSearch(req, res, p) {
     params.push(p.offset);
     i++;
     const orderPrefix = dtIdx ? `(sp.country_code = $${dtIdx}) DESC NULLS LAST, ` : '';
+    // BUY-70776: tier path must respect outbound-link probe results. Because
+    // search_products does not carry url_status, we join products on id (PK)
+    // and filter out rows verified dead. The join is applied in the small final
+    // SELECTs so it does not inflate the FTS bitmap scan.
+    const probeEnabled = (0, outboundLinkHealth_1.outboundProbeEnabled)();
+    const urlStatusJoin = probeEnabled
+        ? ' JOIN products p ON p.id = sp.id AND (p.url_status IS NULL OR p.url_status <> \'dead\')'
+        : '';
     const cols = `sp.id, sp.source AS domain, sp.url, al.destination_url AS affiliate_url,
     sp.title, sp.price, sp.currency, sp.image_url, sp.region, sp.country_code, sp.updated_at, sp.in_stock,
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
@@ -240,6 +263,24 @@ async function tryTierSearch(req, res, p) {
         OR array_to_string(sp.category_path, ' ') LIKE '%laptop%'
       THEN 2.0 ELSE 1.0
     END`;
+    // BUY-70592: boost in-stock products for VN/TH laptop and phone queries
+    const inStockBoost = `
+    CASE
+      WHEN sp.in_stock IS NOT FALSE THEN 1.8 ELSE 1.0
+    END`;
+    // BUY-71417: freshness multiplier. ts_rank alone let 92% of sampled head-query
+    // results be >30d stale (legacy 1999-2017 merchants outranked fresh rows purely
+    // on text relevance). Demote rather than filter so recall is preserved: fresh
+    // (<=30d) rows keep full rank, 30-90d rows get 0.5x, older rows 0.25x, and
+    // pre-2024 legacy inventory 0.1x. Ranks below the candidate CTE only (200 rows),
+    // so no extra scan cost.
+    const freshnessBoost = `
+    CASE
+      WHEN sp.updated_at >= NOW() - INTERVAL '30 days' THEN 1.0
+      WHEN sp.updated_at >= NOW() - INTERVAL '90 days' THEN 0.5
+      WHEN sp.updated_at >= '2024-01-01' THEN 0.25
+      ELSE 0.1
+    END`;
     const mkQuery = (match, extraFilter = '') => `
     WITH cand AS (
       SELECT id, search_vector FROM search_products sp
@@ -256,11 +297,13 @@ async function tryTierSearch(req, res, p) {
             (${laptopBoost}) *
             (${laptopAccessoryPenalty}) *
             (${phoneHandsetBoost}) *
-            (${phoneAccessoryPenalty}) AS rank
+            (${phoneAccessoryPenalty}) *
+            (${inStockBoost}) *
+            (${freshnessBoost}) AS rank
       FROM cand ORDER BY rank DESC LIMIT 200
     )
     SELECT ${cols}, top.rank AS _fts_rank
-    FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}
+    FROM top JOIN search_products sp ON sp.id = top.id${storageJoinFilter}${urlStatusJoin}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}${sortPrefix}top.rank DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -285,7 +328,7 @@ async function tryTierSearch(req, res, p) {
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}${urlStatusJoin}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}${sortPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -296,7 +339,7 @@ async function tryTierSearch(req, res, p) {
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}
+    FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}${urlStatusJoin}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}${sortPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -315,7 +358,7 @@ async function tryTierSearch(req, res, p) {
       LIMIT 1000
     )
     SELECT ${cols}, 0 AS _fts_rank
-    FROM pcand JOIN search_products sp ON sp.id = pcand.id${storageJoinFilter}
+    FROM pcand JOIN search_products sp ON sp.id = pcand.id${storageJoinFilter}${urlStatusJoin}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
     ORDER BY ${orderPrefix}${sortPrefix}((${phoneHandsetBoost}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -709,6 +752,100 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         || q.toLowerCase().trim();
     const cacheKey = `fts:${SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION}:${(0, outboundLinkHealth_1.outboundProbeEnabled)() ? 'probe1' : 'probe0'}:${qNorm}:${domain || ''}:${region || ''}:${countryCode || ''}:${category || ''}:${categoryId || ''}:${categoryPath?.join(',') || ''}:${brand || ''}:${merchantId || ''}:${availability || ''}:${currency}:${minPrice ?? ''}:${maxPrice ?? ''}:${limit}:${offset}:${sort || ''}:${fields?.join(',') || ''}:${compact ? 'c' : 'f'}:${searchMode}:${deliverTo || ''}:${includeUnshippable ? '1' : '0'}`;
     res.locals.cacheHit = false;
+    try {
+        const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
+        if (cached) {
+            res.locals.cacheHit = true;
+            const parsed = JSON.parse(cached);
+            const elapsed = Date.now() - requestStart;
+            parsed.cached = true;
+            parsed.response_time_ms = elapsed;
+            const cachedProducts = parsed.products || parsed.results || parsed.data || [];
+            (0, instrumentation_1.recordProductViewsBulk)({
+                productIds: cachedProducts
+                    .map((product) => product.id)
+                    .filter(Boolean),
+                source: 'products.search.cache',
+                queryHash: q ? (0, crypto_1.createHash)('sha256').update(q.toLowerCase()).digest('hex').slice(0, 32) : null,
+                req,
+            });
+            res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
+            res.set('X-Cache', 'HIT');
+            return res.json(parsed);
+        }
+        // Semantic cache (2026-08-06): vector-similar reuse within the same scope.
+        // Scope = cacheKey minus the qNorm segment (qNorm can contain no colons).
+        if ((0, semanticCache_1.semanticEnabled)() && q && offset === 0) {
+            const semParts = cacheKey.split(':');
+            const semScope = `a1:${semParts[1]}:${semParts[2]}|${semParts.slice(4).join(':')}`;
+            let semVec = null;
+            const semGk = process.env.GEMINI_API_KEY ?? '';
+            if (semGk)
+                semVec = await getCachedQueryEmbedding(q, semGk);
+            const semHit = await (0, semanticCache_1.semanticLookup)(config_1.redis, semScope, qNorm, semVec);
+            res.locals.semScope = semScope;
+            res.locals.semQNorm = qNorm;
+            res.locals.semVec = semVec;
+            res.locals.semCacheKey = cacheKey;
+            if (semHit) {
+                res.locals.cacheHit = true;
+                const semParsed = JSON.parse(semHit.body);
+                semParsed.cached = true;
+                semParsed.semantic_cache = true;
+                semParsed.response_time_ms = Date.now() - requestStart;
+                res.set('Cache-Control', 'public, max-age=30, s-maxage=30');
+                res.set('X-Cache', 'HIT-SEMANTIC');
+                return res.json(semParsed);
+            }
+        }
+    }
+    catch (_) {
+        // Redis miss or error — fall through to DB
+    }
+    // BUY-33987: only active products are surfaced to API consumers; the partial
+    // GIN index `products_*_search_vector_idx WHERE is_active = true` lets the
+    // planner skip dead rows and the inactive non-leaf rows that previously
+    // bloated the bitmap. EXPLAIN ANALYZE on roundhouse (post-fix) shows the
+    // planner switches to the partial index and execution drops to ~15-30ms.
+    // BUY-60385: Exclude zero-price products from search results (deceptive $0.00
+    // prices from upstream feeds). A meaningful price > $0 is a basic data quality
+    // requirement for any product listing. Products with $0 prices are either
+    // out-of-stock markers, missing price fields, or feed parsing errors.
+    // BUY-61117: make the RAM-fitting search tier the default for keyword search.
+    // Hermes QA found the archive path still returns degraded:true,total=0 for
+    // common cold broad queries across SG+US. Tier-first preserves Richmond's
+    // single-table archive constraints because it falls through unchanged on any
+    // tier error, and SEARCH_USE_TIER=0 remains a runtime kill switch.
+    const useSearchTier = !(0, outboundLinkHealth_1.outboundProbeEnabled)() && (req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0'));
+    // BUY-67275 durable (2026-08-16): the tier now honors sort directly
+    // (TIER_SORT in tryTierSearch), so sorted queries take the fast RAM path
+    // and no longer flap to degraded-empty under replica pressure. Tier miss
+    // still falls through to the archive sorted path.
+    if (q && searchMode === 'keyword' && useSearchTier) {
+        const handled = await tryTierSearch(req, res, {
+            q, countryCode, currency, limit, offset, minPrice, maxPrice,
+            category, brand, domain, compact, requestStart, cacheKey, sort,
+            deliverTo, includeUnshippable,
+        });
+        if (handled)
+            return;
+    }
+    const baseConditions = ['is_active = true', 'price > 0'];
+    // BUY-70776: when the outbound-link probe sweep is active, exclude rows whose
+    // URL has been verified dead. The probe flips url_status to 'dead' on confirmed
+    // 404/410/etc. Dead rows remain in the DB so they can reappear if the probe
+    // later finds the URL healthy; the filter only gates the read path.
+    if ((0, outboundLinkHealth_1.outboundProbeEnabled)()) {
+        baseConditions.push((0, outboundLinkHealth_1.liveUrlCondition)());
+    }
+    // BUY-69621: HARD-exclude storage/SSD categories from device-typed queries
+    // (laptop/phone/…). Flows through baseConditions into every archive + hybrid
+    // candidate WHERE (recent_hits, non-FTS branch, fts_cand, semantic
+    // vectorFilterQuery). No-op (fail-open) for storage queries and non-device
+    // queries. Unqualified `category` matches the unaliased `products` table.
+    const storageExclProducts = (0, searchRelevanceTaxonomy_1.deviceStorageExclusionFragmentProducts)(q);
+    if (storageExclProducts)
+        baseConditions.push(`1 = 1${storageExclProducts}`);
     const baseParams = [];
     let baseIdx = 1;
     if (minPrice !== undefined || maxPrice !== undefined) {
@@ -876,8 +1013,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
         if (!effectiveSort || effectiveSort === 'relevance')
             return 'products.updated_at DESC';
         switch (effectiveSort) {
-            case 'price_asc': return 'products.price ASC NULLS LAST, products.updated_at DESC';
-            case 'price_desc': return 'products.price DESC NULLS LAST, products.updated_at DESC';
+            // BUY-71393: match the USD-normalized response price sanitizer
+            case 'price_asc': return `${sanitizedPriceSortExpression('products')} ASC NULLS LAST, products.updated_at DESC`;
+            case 'price_desc': return `${sanitizedPriceSortExpression('products')} DESC NULLS LAST, products.updated_at DESC`;
             case 'newest': return 'products.updated_at DESC';
             case 'highest_rated': return 'products.avg_rating DESC NULLS LAST, products.updated_at DESC';
             case 'most_reviewed': return 'products.review_count DESC NULLS LAST, products.updated_at DESC';
@@ -970,7 +1108,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                      OR rhp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
                      OR array_to_string(rhp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
                    THEN 0.25 ELSE 1.0
-                 END AS rank
+                 END *
+                 CASE WHEN COALESCE(rhp.in_stock, true) IS NOT FALSE THEN 1.8 ELSE 1.0 END AS rank
           FROM recent_hits rh
           JOIN products rhp ON rhp.id = rh.id
           ORDER BY rank DESC, rh.id DESC
@@ -1079,7 +1218,9 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                 -- perf(search): no ORDER BY updated_at (same early-stop fix as recent_hits above)
                 LIMIT ${CANDIDATE_CAP}
               ), top_ids AS (
-                SELECT rc.id, rc.country_code, ts_rank(rcp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) AS rank
+                SELECT rc.id, rc.country_code,
+                       ts_rank(rcp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
+                       CASE WHEN COALESCE(rcp.in_stock, true) IS NOT FALSE THEN 1.8 ELSE 1.0 END AS rank
                 FROM recent_candidates rc
                 JOIN products rcp ON rcp.id = rc.id
                 ORDER BY rank DESC, rc.id DESC
@@ -1978,7 +2119,6 @@ router.get('/:id', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, 
     }
     const probeEnabled = (0, outboundLinkHealth_1.outboundProbeEnabled)();
     let result;
-    const probeEnabled = (0, outboundLinkHealth_1.outboundProbeEnabled)();
     try {
         result = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url,
                 title, price, currency, image_url, metadata, updated_at,

@@ -853,7 +853,7 @@ describe('NL search — Redis caching behavior', () => {
     // cache-busting token that changes per ranking fix (v8→v9→v10…). Assert the
     // shape, not the literal version, so a legitimate bump doesn't rot this test
     // (BUY-70294: it had been pinned to v8 through two bumps).
-    assert.match(cacheGetCalls[0].arguments[0], /^fts:deliver-to-v\d+-[a-z-]+:keyfmt:/);
+    assert.match(cacheGetCalls[0].arguments[0], /^fts:(deliver-to-v\d+-[a-z-]+|buy-\d+-[a-z-]+):(?:probe[01]:)?keyfmt:/);
   });
 });
 
