@@ -1,8 +1,14 @@
 import { db } from '../config';
 import { classifyProbeResult, outboundProbeEnabled, UrlProbeStatus } from '../lib/outboundLinkHealth';
 
-const BATCH_SIZE = Math.max(1, Math.min(Number(process.env.OUTBOUND_PROBE_BATCH_SIZE) || 100, 1000));
-const CONCURRENCY = Math.max(1, Math.min(Number(process.env.OUTBOUND_PROBE_CONCURRENCY) || 8, 32));
+// Env-backed constants — re-read on each batch so the /admin/probes/sweep endpoint's
+// per-request overrides (via process.env mutations) take effect.
+function getBatchSize(): number {
+  return Math.max(1, Math.min(Number(process.env.OUTBOUND_PROBE_BATCH_SIZE) || 100, 100_000));
+}
+function getConcurrency(): number {
+  return Math.max(1, Math.min(Number(process.env.OUTBOUND_PROBE_CONCURRENCY) || 8, 32));
+}
 const TIMEOUT_MS = Math.max(1000, Number(process.env.OUTBOUND_PROBE_TIMEOUT_MS) || 10000);
 const USER_AGENT = process.env.OUTBOUND_PROBE_UA || 'BuyWhereBot/1.0 (+https://buywhere.ai; outbound-link-health)';
 const REFERER = process.env.OUTBOUND_PROBE_REFERER || 'https://buywhere.ai/';
@@ -46,6 +52,7 @@ async function fetchDueRows(): Promise<ProbeRow[]> {
   // fall back to a primary-key-ordered scan over never-checked rows, which uses
   // idx_products_updated_at and completes in <5ms per batch.
   const dueIndexValid = await indexIsValid('idx_products_url_probe_due');
+  const batchSize = getBatchSize();
   if (dueIndexValid) {
     const result = await db.query<ProbeRow>(
       `SELECT id::text, merchant_id, url
@@ -55,7 +62,7 @@ async function fetchDueRows(): Promise<ProbeRow[]> {
           AND (url_last_checked_at IS NULL OR url_last_checked_at < NOW() - INTERVAL '24 hours')
         ORDER BY url_last_checked_at NULLS FIRST, updated_at DESC
         LIMIT $1`,
-      [BATCH_SIZE]
+      [batchSize]
     );
     return result.rows;
   }
@@ -69,7 +76,7 @@ async function fetchDueRows(): Promise<ProbeRow[]> {
         AND url_last_checked_at IS NULL
       ORDER BY updated_at DESC
       LIMIT $1`,
-    [BATCH_SIZE]
+    [batchSize]
   );
   return result.rows;
 }
@@ -150,7 +157,7 @@ async function persist(result: ProbeResult): Promise<void> {
 
 async function runPool<T>(items: T[], worker: (item: T) => Promise<void>): Promise<void> {
   let cursor = 0;
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, items.length) }, async () => {
+  await Promise.all(Array.from({ length: Math.min(getConcurrency(), items.length) }, async () => {
     while (cursor < items.length) {
       const item = items[cursor++];
       await worker(item);

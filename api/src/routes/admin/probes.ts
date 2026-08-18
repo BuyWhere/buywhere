@@ -212,60 +212,48 @@ router.get('/admin/probes/status', adminOrMonitoringAuth, getProbesStatus);
 router.get('/v1/admin/probes/logs', adminOrMonitoringAuth, getProbesLogs);
 router.get('/admin/probes/logs', adminOrMonitoringAuth, getProbesLogs);
 
+const MAX_SYNC_BATCH = 10_000;
+
 /**
- * BUY-71401: Admin endpoint to trigger a one-time bulk sweep of all products for outbound-link probing.
+ * BUY-71401: Admin endpoint to trigger a one-time outbound-link probe batch.
  *
- * This fulfills the Day-1 baseline sweep requirement from BUY-70781 by allowing Cart to either:
- * 1. Run a one-time admin endpoint to enqueue all products, OR
- * 2. Run with a configurable batch size for the recurring worker.
+ * This fulfills the Day-1 baseline sweep requirement from BUY-70781 by giving
+ * Cart an on-demand trigger in addition to the recurring Railway cron worker.
  *
  * Query params:
- *   - limit: number of rows to process (default 100, max 1000000). Use 'all' to process all never-checked.
- *   - batch_size: override the OUTBOUND_PROBE_BATCH_SIZE env var for this run.
- *   - concurrency: override the OUTBOUND_PROBE_CONCURRENCY env var for this run.
+ *   - batch_size: override OUTBOUND_PROBE_BATCH_SIZE for this run (max 10000 to
+ *     keep the synchronous HTTP request within a reasonable timeout).
+ *   - concurrency: override OUTBOUND_PROBE_CONCURRENCY for this run (max 32).
  *
- * Acceptance criteria (BUY-71401):
- *   - Within 24h of trigger, at least 1% of the catalog (3.9M products) has url_last_checked_at populated.
- *   - /admin/probes/status reflects the increased throughput and reduced approx_never_checked count.
+ * The recurring worker is the primary path for the 24h baseline sweep; this
+ * endpoint is useful for ad-hoc bursts, testing, or Cart-driven backfills.
  */
-router.post('/v1/admin/probes/sweep', adminOrMonitoringAuth, async (req: Request, res: Response): Promise<void> => {
-  // Import dynamically to avoid circular deps and allow the runner to work standalone
+async function handleSweep(req: Request, res: Response): Promise<void> {
+  // Import dynamically so the runner reads the env vars we set below.
   const { runOutboundLinkProbeBatch } = await import('../../jobs/outboundLinkProbeRunner');
 
-  const rawLimit = req.query.limit as string | undefined;
   const batchSizeOverride = req.query.batch_size ? parseInt(req.query.batch_size as string, 10) : null;
   const concurrencyOverride = req.query.concurrency ? parseInt(req.query.concurrency as string, 10) : null;
 
-  // Store originals and apply overrides if provided
+  if (batchSizeOverride !== null && (Number.isNaN(batchSizeOverride) || batchSizeOverride < 1)) {
+    res.status(400).json({ error: 'INVALID_BATCH_SIZE', message: 'batch_size must be a positive integer' });
+    return;
+  }
+  if (concurrencyOverride !== null && (Number.isNaN(concurrencyOverride) || concurrencyOverride < 1)) {
+    res.status(400).json({ error: 'INVALID_CONCURRENCY', message: 'concurrency must be a positive integer' });
+    return;
+  }
+
   const origBatchSize = process.env.OUTBOUND_PROBE_BATCH_SIZE;
   const origConcurrency = process.env.OUTBOUND_PROBE_CONCURRENCY;
 
   try {
-    if (batchSizeOverride) {
-      process.env.OUTBOUND_PROBE_BATCH_SIZE = String(Math.min(Math.max(batchSizeOverride, 1), 1000000));
-    }
-    if (concurrencyOverride) {
-      process.env.OUTBOUND_PROBE_CONCURRENCY = String(Math.min(Math.max(concurrencyOverride, 1), 32));
-    }
-
-    let limit = 100; // default
-    if (rawLimit === 'all') {
-      // For 'all', we need to figure out how many never-checked rows exist
-      // and run multiple batches until done. For now, set a very high batch size.
-      limit = 1000000; // 1M max per call to avoid timeout
-    } else if (rawLimit) {
-      limit = parseInt(rawLimit, 10);
-      if (isNaN(limit) || limit < 1) {
-        res.status(400).json({ error: 'INVALID_LIMIT', message: 'limit must be a positive integer or "all"' });
-        return;
-      }
-      limit = Math.min(limit, 1000000); // cap at 1M
-    }
-
-    // Override batch size if limit is smaller
-    if (batchSizeOverride === null && limit !== 1000000) {
-      process.env.OUTBOUND_PROBE_BATCH_SIZE = String(limit);
-    }
+    process.env.OUTBOUND_PROBE_BATCH_SIZE = String(
+      Math.min(Math.max(batchSizeOverride ?? 100, 1), MAX_SYNC_BATCH)
+    );
+    process.env.OUTBOUND_PROBE_CONCURRENCY = String(
+      Math.min(Math.max(concurrencyOverride ?? 8, 1), 32)
+    );
 
     const results = await runOutboundLinkProbeBatch();
 
@@ -275,14 +263,14 @@ router.post('/v1/admin/probes/sweep', adminOrMonitoringAuth, async (req: Request
       batch_size: parseInt(process.env.OUTBOUND_PROBE_BATCH_SIZE || '100', 10),
       concurrency: parseInt(process.env.OUTBOUND_PROBE_CONCURRENCY || '8', 10),
       results,
-      note: 'To achieve 1% baseline (3.9M products) within 24h, run with batch_size=100000+ every few minutes until approx_never_checked drops significantly.',
+      note: `Recurring worker config is the primary sweep path. To hit the 1% baseline (3.9M products) within 24h, keep OUTBOUND_PROBE_BATCH_SIZE * runs_per_hour >= 162500.`,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[probes/sweep] error:', message);
     res.status(500).json({ error: 'SWEEP_FAILED', message });
   } finally {
-    // Restore original env vars
+    // Restore original env vars so later requests use the service defaults.
     if (origBatchSize !== undefined) {
       process.env.OUTBOUND_PROBE_BATCH_SIZE = origBatchSize;
     } else {
@@ -294,73 +282,9 @@ router.post('/v1/admin/probes/sweep', adminOrMonitoringAuth, async (req: Request
       delete process.env.OUTBOUND_PROBE_CONCURRENCY;
     }
   }
-});
+}
 
-// Alias at /admin/probes/sweep for Cart convenience
-router.post('/admin/probes/sweep', adminOrMonitoringAuth, async (req: Request, res: Response): Promise<void> => {
-  // Re-use the /v1/admin/probes/sweep handler
-  const originalUrl = req.originalUrl;
-  req.originalUrl = req.originalUrl.replace('/admin/probes/sweep', '/v1/admin/probes/sweep');
-  // Express routing will match the /v1 route now - we need to call it directly
-  const { runOutboundLinkProbeBatch } = await import('../../jobs/outboundLinkProbeRunner');
-
-  const rawLimit = req.query.limit as string | undefined;
-  const batchSizeOverride = req.query.batch_size ? parseInt(req.query.batch_size as string, 10) : null;
-  const concurrencyOverride = req.query.concurrency ? parseInt(req.query.concurrency as string, 10) : null;
-
-  const origBatchSize = process.env.OUTBOUND_PROBE_BATCH_SIZE;
-  const origConcurrency = process.env.OUTBOUND_PROBE_CONCURRENCY;
-
-  try {
-    if (batchSizeOverride) {
-      process.env.OUTBOUND_PROBE_BATCH_SIZE = String(Math.min(Math.max(batchSizeOverride, 1), 1000000));
-    }
-    if (concurrencyOverride) {
-      process.env.OUTBOUND_PROBE_CONCURRENCY = String(Math.min(Math.max(concurrencyOverride, 1), 32));
-    }
-
-    let limit = 100;
-    if (rawLimit === 'all') {
-      limit = 1000000;
-    } else if (rawLimit) {
-      limit = parseInt(rawLimit, 10);
-      if (isNaN(limit) || limit < 1) {
-        res.status(400).json({ error: 'INVALID_LIMIT', message: 'limit must be a positive integer or "all"' });
-        return;
-      }
-      limit = Math.min(limit, 1000000);
-    }
-
-    if (batchSizeOverride === null && limit !== 1000000) {
-      process.env.OUTBOUND_PROBE_BATCH_SIZE = String(limit);
-    }
-
-    const results = await runOutboundLinkProbeBatch();
-
-    res.json({
-      success: true,
-      triggered_at: new Date().toISOString(),
-      batch_size: parseInt(process.env.OUTBOUND_PROBE_BATCH_SIZE || '100', 10),
-      concurrency: parseInt(process.env.OUTBOUND_PROBE_CONCURRENCY || '8', 10),
-      results,
-      note: 'To achieve 1% baseline (3.9M products) within 24h, run with batch_size=100000+ every few minutes until approx_never_checked drops significantly.',
-    });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error('[probes/sweep] error:', message);
-    res.status(500).json({ error: 'SWEEP_FAILED', message });
-  } finally {
-    if (origBatchSize !== undefined) {
-      process.env.OUTBOUND_PROBE_BATCH_SIZE = origBatchSize;
-    } else {
-      delete process.env.OUTBOUND_PROBE_BATCH_SIZE;
-    }
-    if (origConcurrency !== undefined) {
-      process.env.OUTBOUND_PROBE_CONCURRENCY = origConcurrency;
-    } else {
-      delete process.env.OUTBOUND_PROBE_CONCURRENCY;
-    }
-  }
-});
+router.post('/v1/admin/probes/sweep', adminOrMonitoringAuth, handleSweep);
+router.post('/admin/probes/sweep', adminOrMonitoringAuth, handleSweep);
 
 export default router;
