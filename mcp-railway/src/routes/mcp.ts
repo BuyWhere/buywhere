@@ -993,7 +993,7 @@ async function handleListCategories(args: Record<string, unknown>) {
       if (poisonedCategoryCache) {
         redis.del(cacheKey).catch(() => {});
       } else {
-        return { ...parsed, meta: { ...parsed.meta, cached: true, response_time_ms: Date.now() - t0 } };
+        return { ...parsed, categories: parsed.categories ?? parsed.data, meta: { ...parsed.meta, cached: true, response_time_ms: Date.now() - t0 } };
       }
     }
   } catch (_) {}
@@ -1002,7 +1002,7 @@ async function handleListCategories(args: Record<string, unknown>) {
   const inflight = categoryListInflight.get(country);
   if (inflight) {
     const result = await inflight;
-    return { ...result, meta: { ...result.meta, cached: true, response_time_ms: Date.now() - t0 } };
+    return { ...result, categories: result.categories ?? result.data, meta: { ...result.meta, cached: true, response_time_ms: Date.now() - t0 } };
   }
 
   // 3. No in-flight query — start one and register it so concurrent callers coalesce
