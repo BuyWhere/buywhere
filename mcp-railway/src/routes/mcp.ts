@@ -2152,12 +2152,13 @@ async function handleFindSimilar(args: Record<string, unknown>) {
   const ph = nearKeys.map((_, i) => `$${i + 1}`).join(',');
   // BUY-70113: bind ids as bigint (products_pkey) — `id::text IN (...)` is a
   // catalog-wide Seq Scan and the 30s statement_timeout kills the whole call.
-  const detailResult = await catalogDb.query(
+  // BUY-71266: add country_code to SELECT so post-filter can enforce market match.
+  const detailResult = await withTimeout(catalogDb.query(
     vectorTable === 'search_proof.product_vectors'
-      ? `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url FROM products WHERE sku IN (${ph}) AND is_active = true`
-      : `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url FROM products WHERE id = ANY($1::bigint[]) AND is_active = true`,
+      ? `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url, country_code FROM products WHERE sku IN (${ph}) AND is_active = true`
+      : `SELECT id::text AS id, sku, title, price, currency, source AS domain, url, image_url, country_code FROM products WHERE id = ANY($1::bigint[]) AND is_active = true`,
     vectorTable === 'search_proof.product_vectors' ? nearKeys : [nearKeys] as unknown as unknown[]
-  );
+  ));
 
   const distMap = new Map(nearResult.rows.map(r => [r.vector_key, r.distance]));
   const byKey = new Map(detailResult.rows.map(r => [vectorTable === 'search_proof.product_vectors' ? String((r as Record<string, unknown>).sku) : String((r as Record<string, unknown>).id), r]));
