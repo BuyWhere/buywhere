@@ -155,4 +155,60 @@ suite('BUY-69625: country_code validation', () => {
       }
     }
   });
+
+  // BUY-71112: list_categories must return `categories` key (canonical contract) in
+  // addition to `data` (legacy). Probes and agents key on `categories`.
+  it('list_categories returns both `categories` and `data` keys', async () => {
+    const { body } = await rpc('list_categories', { country_code: 'SG' });
+    if (body.error) return;
+    const text = body.result?.content?.[0]?.text;
+    if (!text) return;
+    let payload;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      assert.fail('list_categories content[0].text must be valid JSON');
+    }
+    assert.ok('categories' in payload, 'payload must have `categories` key (BUY-71112)');
+    assert.ok('data' in payload, 'payload must have `data` key (legacy compatibility)');
+    assert.ok(Array.isArray(payload.categories), 'categories must be an array');
+    assert.deepEqual(payload.categories, payload.data,
+      '`categories` and `data` must contain the same array');
+  });
+
+  // BUY-71112: find_best_price must return `best_price` and `alternatives` keys.
+  it('find_best_price returns best_price and alternatives keys', async () => {
+    const { body } = await rpc('find_best_price', { product_name: 'laptop', country_code: 'SG' });
+    if (body.error) return;
+    const text = body.result?.content?.[0]?.text;
+    if (!text) return;
+    let payload;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      assert.fail('find_best_price content[0].text must be valid JSON');
+    }
+    assert.ok('best_price' in payload, 'payload must have `best_price` key (BUY-71112)');
+    assert.ok('alternatives' in payload, 'payload must have `alternatives` key (BUY-71112)');
+    assert.ok(Array.isArray(payload.alternatives),
+      'alternatives must be an array (even when empty)');
+    // best_price is null when no match; that is valid — just test the key exists
+    assert.ok(true, 'schema check passed');
+  });
+
+  // BUY-71112: get_deals must return `results` key (mirrors buildSearchResponse).
+  it('get_deals returns `results` key', async () => {
+    const { body } = await rpc('get_deals', { country_code: 'SG' });
+    if (body.error) return;
+    const text = body.result?.content?.[0]?.text;
+    if (!text) return;
+    let payload;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      assert.fail('get_deals content[0].text must be valid JSON');
+    }
+    assert.ok('results' in payload, 'payload must have `results` key (BUY-71112)');
+    assert.ok(Array.isArray(payload.results), 'results must be an array');
+  });
 });

@@ -64,6 +64,37 @@ export function formatSimilarPriceField(
   return formatPriceField(amount, currency);
 }
 
+
+// F2 (2026-08-18): Amazon Associates monetization — outbound amazon.com URLs get
+// our tracking tag when none is present. Applied at serialization so url,
+// click_url and affiliate redirects all inherit it. amazon.sg intentionally
+// EXCLUDED until the separate buywhere-22 account is confirmed (ledger R3).
+// buywhere-20 (US) and buywhere-22 (SG) are one linked account (Richmond,
+// 2026-08-18); reporting is per-program, so each storefront must carry ITS tag.
+// The correct tag is FORCED — this also repairs precomputed affiliate links that
+// were bulk-built in April with the US tag on amazon.sg. Other-country amazon
+// domains are left untouched (no program tag for them yet).
+const AMAZON_TAGS: Record<string, string> = {
+  'amazon.com': 'buywhere-20',
+  'amazon.sg': 'buywhere-22',
+};
+function wrapAmazonAffiliateTag(url: string): string {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    for (const [domain, tag] of Object.entries(AMAZON_TAGS)) {
+      if (host === domain || host.endsWith('.' + domain)) {
+        if (u.searchParams.get('tag') !== tag) {
+          u.searchParams.set('tag', tag);
+          return u.toString();
+        }
+        break;
+      }
+    }
+  } catch { /* malformed URL — pass through untouched */ }
+  return url;
+}
+
 export function buildProduct(
   row: Record<string, unknown>,
   defaultCurrency: string,
@@ -75,7 +106,7 @@ export function buildProduct(
   const affiliateUrl = resolvePrecomputedAffiliateUrl(row.affiliate_url);
   const productId = String(row.id);
   const merchant = (row.domain as string) || '';
-  const destinationUrl = affiliateUrl ?? (row.url as string);
+  const destinationUrl = wrapAmazonAffiliateTag(affiliateUrl ?? (row.url as string));
 
   // BUY-52474: every /v1 product response now carries tracking URLs so the FE
   // naturally routes user clicks through /r/ (logs affiliate_clicks) and /api/click
@@ -163,7 +194,12 @@ export function buildSearchResponse(
   hasMore?: boolean,
 ): SearchResponse {
   return {
+    // BUY-71275: preserve stable agent contract while staying compatible with
+    // the newer REST-style envelopes that appeared during the 08:20Z regression.
+    products,
     results: products,
+    items: products,
+    data: products,
     total,
     page: { limit, offset },
     response_time_ms: responseTimeMs,

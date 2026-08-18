@@ -33,6 +33,8 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      // 2026-08-18 (Richmond): pricing removed — free under fair use
+      { source: '/pricing', destination: '/developers', permanent: true },
       // BUY-68319/BUY-67102: keep root-domain MCP clients on the
       // canonical API-host MCP endpoint instead of the human docs page.
       {
@@ -44,6 +46,13 @@ const nextConfig = {
         source: '/mcp/:path*',
         destination: 'https://api.buywhere.ai/mcp/:path*',
         permanent: true,
+      },
+      // BUY-71170: /trending was returning 404 (App Router page unbuilt due to root
+      // Python app/ shadowing src/app). Redirect to /compare as the closest live surface.
+      {
+        source: '/trending',
+        destination: '/compare',
+        permanent: false,
       },
       // BUY-68368/BUY-69843: high-intent developer/API/auth aliases should not
       // fall through to homepage-branded 404 HTML shells. Route them to canonical
@@ -314,6 +323,39 @@ const nextConfig = {
         destination: '/partnership',
         permanent: true,
       },
+      // BUY-70467: affiliate-intent URL aliases were returning the homepage 404
+      // shell, losing creator/partner search traffic. Redirect them to the live
+      // /partnership funnel so affiliates and influencers land on a real page.
+      {
+        source: '/affiliate',
+        destination: '/partnership',
+        permanent: true,
+      },
+      {
+        source: '/affiliate-program',
+        destination: '/partnership',
+        permanent: true,
+      },
+      {
+        source: '/partner',
+        destination: '/partnership',
+        permanent: true,
+      },
+      {
+        source: '/referrals',
+        destination: '/partnership',
+        permanent: true,
+      },
+      {
+        source: '/creators',
+        destination: '/partnership',
+        permanent: true,
+      },
+      {
+        source: '/influencers',
+        destination: '/partnership',
+        permanent: true,
+      },
       // BUY-31b6ae66: /legal and /sign-up must be configured here (not page-level
       // permanentRedirect) so production probes receive a true HTTP 308 instead of
       // the App Router shell-render trick.
@@ -325,6 +367,14 @@ const nextConfig = {
       {
         source: '/sign-up',
         destination: '/register',
+        permanent: true,
+      },
+      // BUY-71380: /agent is the canonical AEO agent-discovery citation surface;
+      // recover it to the human-readable /agents page so answer engines and editors
+      // get a real 308 instead of a homepage-branded 404 shell.
+      {
+        source: '/agent',
+        destination: '/agents',
         permanent: true,
       },
       // BUY-69692: developer-intent route aliases should redirect to canonical pages
@@ -342,6 +392,11 @@ const nextConfig = {
       {
         source: '/sdk',
         destination: '/developers',
+        permanent: true,
+      },
+      {
+        source: '/agent',
+        destination: '/agents',
         permanent: true,
       },
       {

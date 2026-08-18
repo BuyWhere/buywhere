@@ -90,7 +90,30 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
   const authHeader = req.headers['authorization'] || '';
   let apiKey: string | null = null;
   if (authHeader.startsWith('Bearer ')) apiKey = authHeader.slice(7).trim();
-  const source = req.query.source as string || 'api_response';
+
+  // BUY-71129: thread-through attribution. See api/src/routes/redirect.ts for
+  // full rationale. Browser clicks carry `?k=<keyHash>&aid=<agentId>` from the
+  // upstream API call; we resolve api_key_id from the unique key_hash index
+  // when only `k` is present.
+  const keyHashQuery = (req.query.k as string | undefined) || null;
+  const agentIdQuery = (req.query.aid as string | undefined) || null;
+  let resolvedAgentId: string | null = agentIdQuery;
+  let resolvedKeyHash: string | null = apiKey ? hashKey(apiKey) : null;
+  if (!resolvedKeyHash && keyHashQuery) resolvedKeyHash = keyHashQuery;
+
+  if (!resolvedAgentId && resolvedKeyHash) {
+    try {
+      const agentResult = await db.query(
+        `SELECT id FROM api_keys WHERE key_hash = $1 AND is_active = true LIMIT 1`,
+        [resolvedKeyHash]
+      );
+      if (agentResult.rows.length > 0) resolvedAgentId = agentResult.rows[0].id;
+    } catch (err) {
+      console.warn('[redirect] api_keys lookup failed:', (err as Error).message);
+    }
+  }
+
+  const source = (req.query.source as string | undefined) || 'api_response';
 
   // Log click to DB (before redirect)
   await db.query(
@@ -100,10 +123,11 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
     [apiKey, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl]
   );
 
-  // PostHog event (fire-and-forget)
-  // Hash API key before sending to third-party analytics
+  // PostHog event (fire-and-forget). BUY-71129: prefer api_key_id as the
+  // distinctId so the conversion joins the api_query / product_search funnel.
   trackAffiliateClick({
-    apiKey: apiKey ? hashKey(apiKey) : null,
+    apiKeyId: resolvedAgentId,
+    apiKey: resolvedKeyHash,
     productId,
     merchantId,
     affiliateLinkId,

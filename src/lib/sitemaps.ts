@@ -1,5 +1,5 @@
 import { getAllBlogPosts } from "@/lib/blog";
-import { PRODUCT_TAXONOMY, US_CATEGORY_META } from "@/lib/taxonomy";
+import { ACTIVE_COMPARE_STATIC_SLUGS, PRODUCT_TAXONOMY, US_CATEGORY_META } from "@/lib/taxonomy";
 import { getUSProducts, type USProductForSitemap } from "@/lib/us-products";
 import { getSGProducts, type SGProductForSitemap } from "@/lib/sg-products";
 import { toSiteUrl } from "@/lib/site-url";
@@ -559,10 +559,9 @@ export async function getCompareSitemapEntries(): Promise<SitemapUrlEntry[]> {
   };
 
   addEntry("/compare", 0.9);
-  addEntry("/compare/us", 0.9);
 
-  for (const category of PRODUCT_TAXONOMY) {
-    addEntry(`/compare/${category.slug}`, 0.8);
+  for (const slug of ACTIVE_COMPARE_STATIC_SLUGS) {
+    addEntry(`/compare/${slug}`, slug === "us" ? 0.9 : 0.8);
   }
 
   for (const pair of await getCompareCategoryPairs()) {

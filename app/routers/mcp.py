@@ -26,20 +26,6 @@ _request_auth: contextvars.ContextVar[str] = contextvars.ContextVar("mcp_auth", 
 
 _api_server: Server | None = None
 
-# Country argument normalization — accepts country_code, country, or region aliases
-# to match how agents and probes invoke the tools (e.g. country: "SG" or region: "sg").
-_REG_TO_CC: dict[str, str] = {
-    "sg": "SG", "us": "US", "my": "MY", "th": "TH", "vn": "VN",
-    "ph": "PH", "gb": "GB", "uk": "GB", "in": "IN", "au": "AU",
-}
-
-
-def _normalize_country_arg(args: dict[str, Any]) -> str:
-    """Return an uppercased country code from country_code/country/region args, or ''."""
-    raw = args.get("country_code") or args.get("country") or args.get("region") or ""
-    key = str(raw).strip().lower()
-    return _REG_TO_CC.get(key) or (raw.strip().upper() if raw.strip() else "")
-
 
 def get_mcp_server() -> Server:
     global _api_server
@@ -112,10 +98,6 @@ def get_mcp_server() -> Server:
                                     "type": "string",
                                     "description": "Product name or search query.",
                                 },
-                                "q": {
-                                    "type": "string",
-                                    "description": "Alias for product_name (deprecated, use product_name).",
-                                },
                                 "category": {
                                     "type": "string",
                                     "description": "Optional category to narrow the search.",
@@ -133,7 +115,8 @@ def get_mcp_server() -> Server:
                         description=(
                             "Find products with significant price drops compared to their original "
                             "price. Returns deals sorted by discount percentage with current price, "
-                            "original price, and savings."
+                            "original price, and savings. Strongly recommend passing country_code to "
+                            "scope the scan to a single partition and avoid cross-market timeouts."
                         ),
                         inputSchema={
                             "type": "object",
@@ -155,6 +138,10 @@ def get_mcp_server() -> Server:
                                     "default": 10,
                                     "minimum": 1,
                                     "maximum": 50,
+                                },
+                                "country_code": {
+                                    "type": "string",
+                                    "description": "ISO-2 country code (SG, US, MY, TH, VN, PH). Scopes the scan to one partition for fast responses.",
                                 },
                             },
                             "required": [],
@@ -222,10 +209,9 @@ async def _handle_search_products(args: dict[str, Any]) -> CallToolResult:
     for key in ("category", "min_price", "max_price", "source"):
         if args.get(key) is not None:
             params[key] = args[key]
-    country_code = _normalize_country_arg(args)
     # country_code scopes the GIN scan to a single market (7.8M rows for SG vs 28M total)
-    if country_code:
-        params["country_code"] = country_code
+    if args.get("country_code"):
+        params["country_code"] = str(args["country_code"]).upper()
 
     try:
         data = await _api_get("/v1/search", params)
@@ -269,8 +255,6 @@ async def _handle_get_product(args: dict[str, Any]) -> CallToolResult:
 async def _handle_find_best_price(args: dict[str, Any]) -> CallToolResult:
     product_name = str(args.get("product_name", "")).strip()
     if not product_name:
-        product_name = str(args.get("q", "")).strip()
-    if not product_name:
         return CallToolResult(
             content=[TextContent(type="text", text="Error: product_name is required")],
             isError=True,
@@ -278,9 +262,8 @@ async def _handle_find_best_price(args: dict[str, Any]) -> CallToolResult:
     params = {"q": product_name}
     if args.get("category"):
         params["category"] = args["category"]
-    country_code = _normalize_country_arg(args)
-    if country_code:
-        params["country_code"] = country_code
+    if args.get("country_code"):
+        params["country_code"] = str(args["country_code"]).upper()
 
     try:
         p = await _api_get("/v1/products/best-price", params)
@@ -316,14 +299,10 @@ async def _handle_get_deals(args: dict[str, Any]) -> CallToolResult:
     params = {"min_discount_pct": min_discount_pct, "limit": limit}
     if args.get("category"):
         params["category"] = args["category"]
+    # BUY-71334: propagate country_code to scope the deals query to a single partition
+    # and avoid cross-market statement_timeout.
     if args.get("country_code"):
         params["country_code"] = str(args["country_code"]).upper()
-    elif args.get("country"):
-        params["country_code"] = str(args["country"]).upper()
-    elif args.get("region"):
-        region = str(args["region"]).lower()
-        if region in {"sg", "us", "my", "th", "vn", "ph"}:
-            params["country_code"] = region.upper()
 
     try:
         data = await _api_get("/v1/deals", params)

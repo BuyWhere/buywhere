@@ -32,8 +32,8 @@ const TRAILING_WINDOW_DAYS = 7;
 const MIN_RUNS_FOR_MEDIAN = 5;          // need at least 5 runs to compute meaningful median
 
 function buildClient() {
-  const raw = process.env.DATABASE_URL || process.env.CANONICAL_DATABASE_URL || process.env.BUYWHERE_DATABASE_URL;
-  if (!raw) throw new Error('Set DATABASE_URL, CANONICAL_DATABASE_URL, or BUYWHERE_DATABASE_URL.');
+  const raw = process.env.CANONICAL_DATABASE_URL || process.env.MAGLEV_DB_URL || process.env.DATABASE_URL || process.env.BUYWHERE_DATABASE_URL;
+  if (!raw) throw new Error('Set CANONICAL_DATABASE_URL, MAGLEV_DB_URL, DATABASE_URL, or BUYWHERE_DATABASE_URL for the canonical DB.');
   return new Client({
     connectionString: raw,
     connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS || DEFAULT_CONNECTION_TIMEOUT_MS),
@@ -205,7 +205,7 @@ async function main() {
     };
 
     if (opts.json) {
-      console.log(JSON.stringify(report, null, 2));
+      process.stdout.write(JSON.stringify(report) + "\n");
     } else {
       console.log(`\n=== Lane Yield Guard ===`);
       console.log(`Overall: ${overall}`);

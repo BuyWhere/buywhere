@@ -50,7 +50,13 @@ export interface CanonicalProduct {
 }
 
 export interface SearchResponse {
+  // BUY-71275: keep all agent-facing collection aliases in sync.
+  // Historical clients validated `products`; TS MCP builds used `results`;
+  // Cart probes/REST docs also accept `items`; a live deploy briefly returned `data`.
+  products: CanonicalProduct[];
   results: CanonicalProduct[];
+  items: CanonicalProduct[];
+  data: CanonicalProduct[];
   total: number;
   page: { limit: number; offset: number };
   response_time_ms: number;

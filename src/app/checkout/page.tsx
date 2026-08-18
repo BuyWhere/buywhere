@@ -4,6 +4,8 @@ import { Suspense } from "react";
 import { toSiteUrl } from "@/lib/site-url";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
 import CheckoutClient from "./CheckoutClient";
 import { canonicalizeBillingTier } from "@/lib/billing";
 
@@ -170,84 +172,100 @@ export default function CheckoutPage({
   const showPlanShell = plan && pricing;
   const showRecovery = isUnsupportedPlan;
 
+  // BUY-71383: SSR-safe structured data for the checkout entry point.
+  // No cart or user-specific data is exposed.
+  const schema = buildWebPageSchema({
+    path: "/checkout",
+    name: "Checkout | BuyWhere",
+    description:
+      "Complete your BuyWhere subscription checkout. Review your selected plan and continue to Stripe to activate your developer account.",
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: "Checkout", path: "/checkout" },
+    ],
+  });
+
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
-      <Nav />
+    <>
+      <Schema data={schema} />
+      <div className="flex min-h-screen flex-col bg-slate-50">
+        <Nav />
 
-      <main id="main-content" tabIndex={-1} className="flex-1">
-        <section className="py-16">
-          <div className="mx-auto max-w-3xl px-4 sm:px-6">
-            <div className="rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
-              <div className="inline-flex rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-indigo-700">
-                Stripe checkout
-              </div>
+        <main id="main-content" tabIndex={-1} className="flex-1">
+          <section className="py-16">
+            <div className="mx-auto max-w-3xl px-4 sm:px-6">
+              <div className="rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
+                <div className="inline-flex rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-indigo-700">
+                  Stripe checkout
+                </div>
 
-              {showRecovery ? (
-                // Unsupported plan: render recovery shell
-                <>
-                  <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900">
-                    Checkout plan unavailable.
-                  </h1>
-                  <p className="mt-4 text-sm leading-7 text-slate-600">
-                    The plan &quot;{planParam}&quot; is not available. Choose Starter, Pro, or Scale from our pricing page.
-                  </p>
-                  <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                    <Link
-                      href="/pricing"
-                      className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
-                    >
-                      View pricing
-                    </Link>
-                  </div>
-                </>
-              ) : showPlanShell ? (
-                // Plan-specific shell with pricing
-                <>
-                  <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900">
-                    Complete checkout.
-                  </h1>
-                  <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="inline-flex rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
-                          {pricing.label}
+                {showRecovery ? (
+                  // Unsupported plan: render recovery shell
+                  <>
+                    <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900">
+                      Checkout plan unavailable.
+                    </h1>
+                    <p className="mt-4 text-sm leading-7 text-slate-600">
+                      The plan &quot;{planParam}&quot; is not available. Choose Starter, Pro, or Scale from our pricing page.
+                    </p>
+                    <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                      <Link
+                        href="/pricing"
+                        className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
+                      >
+                        View pricing
+                      </Link>
+                    </div>
+                  </>
+                ) : showPlanShell ? (
+                  // Plan-specific shell with pricing
+                  <>
+                    <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900">
+                      Complete checkout.
+                    </h1>
+                    <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="inline-flex rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+                            {pricing.label}
+                          </div>
+                          <div className="mt-3 text-2xl font-semibold text-slate-900">
+                            {isAnnual ? pricing.annualPrice : pricing.price}
+                          </div>
+                          <p className="mt-1 text-sm text-slate-500">
+                            {isAnnual ? "billed annually" : "billed monthly"}
+                          </p>
                         </div>
-                        <div className="mt-3 text-2xl font-semibold text-slate-900">
-                          {isAnnual ? pricing.annualPrice : pricing.price}
-                        </div>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {isAnnual ? "billed annually" : "billed monthly"}
-                        </p>
                       </div>
                     </div>
-                  </div>
-                  <p className="mt-4 text-sm leading-7 text-slate-600">
-                    Review your selected plan, then continue to Stripe to activate your subscription on the same developer account.
-                  </p>
-                </>
-              ) : (
-                // Default shell
-                <>
-                  <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900">
-                    Complete checkout.
-                  </h1>
-                  <p className="mt-4 text-sm leading-7 text-slate-600">
-                    Review your selected plan, then continue to Stripe to activate your subscription on the same developer account.
-                  </p>
-                </>
-              )}
+                    <p className="mt-4 text-sm leading-7 text-slate-600">
+                      Review your selected plan, then continue to Stripe to activate your subscription on the same developer account.
+                    </p>
+                  </>
+                ) : (
+                  // Default shell
+                  <>
+                    <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900">
+                      Complete checkout.
+                    </h1>
+                    <p className="mt-4 text-sm leading-7 text-slate-600">
+                      Review your selected plan, then continue to Stripe to activate your subscription on the same developer account.
+                    </p>
+                  </>
+                )}
 
-              {/* BUY-70191: Suspense boundary allows SSR to render H1/copy first,
-                  then hydrates the interactive client component. */}
-              <Suspense fallback={<CheckoutLoadingSkeleton />}>
-                <CheckoutClient />
-              </Suspense>
+                {/* BUY-70191: Suspense boundary allows SSR to render H1/copy first,
+                    then hydrates the interactive client component. */}
+                <Suspense fallback={<CheckoutLoadingSkeleton />}>
+                  <CheckoutClient />
+                </Suspense>
+              </div>
             </div>
-          </div>
-        </section>
-      </main>
+          </section>
+        </main>
 
-      <Footer />
-    </div>
+        <Footer />
+      </div>
+    </>
   );
 }

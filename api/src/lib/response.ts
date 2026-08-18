@@ -1,4 +1,4 @@
-import { CanonicalProduct, ComparisonAttribute, SearchResponse } from '../types/product';
+import { CanonicalProduct, ComparisonAttribute, NearMissPredicateFail, SearchResponse } from '../types/product';
 import { resolvePrecomputedAffiliateUrl } from './affiliateWrapper';
 import { buildAffiliateRedirectUrl, buildClickUrl } from './instrumentation';
 
@@ -9,6 +9,7 @@ export const CURRENCY_RATES: Record<string, number> = {
 
 export const COUNTRY_CURRENCY: Record<string, string> = {
   SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
+  ID: 'IDR', PH: 'PHP', HK: 'HKD', TW: 'TWD', AU: 'AUD',
 };
 
 const PRICE_MIN_USD = 5;
@@ -28,6 +29,53 @@ export function getPriceBoundsForCurrency(currency: string): { min: number; max:
   return { min: PRICE_MIN_USD, max: PRICE_MAX_USD };
 }
 
+const ISO_4217_RE = /^[A-Z]{3}$/;
+const ISO_4217_CURRENCIES = new Set([
+  'AUD', 'GBP', 'HKD', 'IDR', 'MYR', 'PHP', 'SGD', 'THB', 'TWD', 'USD', 'VND',
+]);
+const MINIMUM_UTILITY_ALLOWED_AVAILABILITY = new Set(['in_stock', 'out_of_stock', 'preorder', 'discontinued', 'unknown']);
+
+function hiddenProductField(product: CanonicalProduct, key: string): unknown {
+  return (product as unknown as Record<string, unknown>)[key];
+}
+
+function hasUsableImageUrl(imageUrl: string | null): boolean {
+  if (!imageUrl) return false;
+  if (imageUrl.startsWith('data:image/svg+xml')) return true; // BUY-63954 branded SVG fallback
+  return true; // BUY-63507 content probing is upstream; this hook consumes its selected URL.
+}
+
+export function evaluateNearMiss(
+  products: CanonicalProduct[],
+  expectedCountryCode?: string | null,
+): { near_miss: boolean; near_miss_predicate_fails: NearMissPredicateFail[] } {
+  if (products.length !== 1) return { near_miss: false, near_miss_predicate_fails: [] };
+
+  const product = products[0];
+  const fails: NearMissPredicateFail[] = [];
+  const currency = product.price?.currency;
+  const countryCode = (expectedCountryCode || product.country_code || '').toUpperCase();
+  const expectedCurrency = COUNTRY_CURRENCY[countryCode];
+
+  if (product.price?.amount == null || product.price.amount <= 0 || (expectedCurrency && currency !== expectedCurrency)) {
+    fails.push('price');
+  }
+  if (!currency || !ISO_4217_RE.test(currency) || !ISO_4217_CURRENCIES.has(currency)) {
+    fails.push('currency');
+  }
+  if (!product.availability || !MINIMUM_UTILITY_ALLOWED_AVAILABILITY.has(product.availability.status)) {
+    fails.push('availability');
+  }
+  if (!hasUsableImageUrl(product.image_url)) {
+    fails.push('image_url');
+  }
+  if (!product.url || hiddenProductField(product, 'url_status') === 'dead') {
+    fails.push('merchant_url');
+  }
+
+  return { near_miss: fails.length > 0, near_miss_predicate_fails: fails };
+}
+
 function normalizeImageUrl(imageUrl: unknown): string | null {
   if (typeof imageUrl !== 'string' || imageUrl.trim() === '') return null;
 
@@ -41,43 +89,106 @@ function normalizeImageUrl(imageUrl: unknown): string | null {
   return imageUrl;
 }
 
+
+// F2 (2026-08-18): Amazon Associates monetization — outbound amazon.com URLs get
+// our tracking tag when none is present. Applied at serialization so url,
+// click_url and affiliate redirects all inherit it. amazon.sg intentionally
+// EXCLUDED until the separate buywhere-22 account is confirmed (ledger R3).
+// buywhere-20 (US) and buywhere-22 (SG) are one linked account (Richmond,
+// 2026-08-18); reporting is per-program, so each storefront must carry ITS tag.
+// The correct tag is FORCED — this also repairs precomputed affiliate links that
+// were bulk-built in April with the US tag on amazon.sg. Other-country amazon
+// domains are left untouched (no program tag for them yet).
+const AMAZON_TAGS: Record<string, string> = {
+  'amazon.com': 'buywhere-20',
+  'amazon.sg': 'buywhere-22',
+};
+function wrapAmazonAffiliateTag(url: string): string {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    for (const [domain, tag] of Object.entries(AMAZON_TAGS)) {
+      if (host === domain || host.endsWith('.' + domain)) {
+        if (u.searchParams.get('tag') !== tag) {
+          u.searchParams.set('tag', tag);
+          return u.toString();
+        }
+        break;
+      }
+    }
+  } catch { /* malformed URL — pass through untouched */ }
+  return url;
+}
+
 export function buildProduct(
   row: Record<string, unknown>,
   defaultCurrency: string,
   compact: boolean,
+  // BUY-71129: caller context for thread-through attribution. The api_key_id
+  // + key_hash travel with /r/ and /api/click URLs as `?k=` + `?aid=` so the
+  // redirect handler can attribute the conversion back to the originating
+  // agent even when the browser click carries no Bearer header.
+  caller?: {
+    apiKeyId?: string | null;
+    keyHash?: string | null;
+  } | null,
 ): CanonicalProduct {
   const currency = (row.currency as string) || defaultCurrency;
   const amount = row.price != null ? parseFloat(row.price as string) : null;
 
-  // BUY-60385 / BUY-71393: Sanitize anomalous prices by USD-equivalent value.
-  // CURRENCY_RATES are USD per 1 unit of foreign currency. A native price passes
-  // when its USD equivalent sits inside the accepted utility band (~$5–$10k USD).
-  // This preserves legitimate high-value-currency rows (SGD 10,799 ≈ USD 7,991)
-  // while still nullifying feed corruption / unit errors in any currency.
+  // BUY-60385 / BUY-71393 / BUY-71419: Sanitize anomalous prices.
+  // CURRENCY_RATES are USD per 1 unit of foreign currency.
+  // - Upper bound is always USD-equivalent when a rate is known, so high-value
+  //   currencies (SGD 10,799 ≈ USD 7,991) are not wrongly capped at 10,000 native.
+  // - Lower bound is currency-aware: USD still uses the $5 floor that catches
+  //   $1 laptop feed errors, while non-USD currencies use a native floor of 1
+  //   so legitimate low-cost accessories (PHP 125-250 ≈ USD 2-4) are not hidden.
+  // When validation fails the amount is nullified so the FE displays nothing
+  // instead of a deceptive value.
   const rate = getRate(currency, getCachedFxRates());
   const usdEquivalent = amount != null && rate != null ? amount * rate : null;
+  const minNative = currency === 'USD' ? PRICE_MIN_USD : 1;
+  const maxNative = (
+    usdEquivalent != null
+      ? Math.floor(PRICE_MAX_USD / rate!)
+      : PRICE_MAX_USD
+  );
   const sanitizedAmount = (
     amount != null &&
     Number.isFinite(amount) &&
-    usdEquivalent != null &&
-    usdEquivalent >= PRICE_MIN_USD &&
-    usdEquivalent <= PRICE_MAX_USD
+    amount >= minNative &&
+    amount <= maxNative &&
+    (currency === 'USD' || usdEquivalent == null || usdEquivalent <= PRICE_MAX_USD)
   ) ? amount : null;
 
   const affiliateUrl = resolvePrecomputedAffiliateUrl(row.affiliate_url);
   const productId = String(row.id);
   const merchant = (row.domain as string) || '';
-  const destinationUrl = affiliateUrl ?? (row.url as string);
+  const destinationUrl = wrapAmazonAffiliateTag(affiliateUrl ?? (row.url as string));
 
   // BUY-52474: every /v1 product response now carries tracking URLs so the FE
   // naturally routes user clicks through /r/ (logs affiliate_clicks) and /api/click
   // (logs clicks). The raw merchant URL is still in `url` for agents/SEO use;
   // `affiliate_url` keeps its precomputed wrapper when present.
+  // BUY-71129: thread `k` (api_key hash) + `aid` (api_key_id) when caller has
+  // an authenticated key, so the redirect handler can attribute the eventual
+  // conversion event back to the originating agent.
   const clickUrl = destinationUrl
-    ? buildClickUrl({ productId, destinationUrl, merchantId: merchant || null })
+    ? buildClickUrl({
+        productId,
+        destinationUrl,
+        merchantId: merchant || null,
+        keyHash: caller?.keyHash ?? null,
+        agentId: caller?.apiKeyId ?? null,
+      })
     : null;
   const affiliateRedirectUrl = destinationUrl
-    ? buildAffiliateRedirectUrl({ productId, source: 'product_card' })
+    ? buildAffiliateRedirectUrl({
+        productId,
+        source: 'product_card',
+        keyHash: caller?.keyHash ?? null,
+        agentId: caller?.apiKeyId ?? null,
+      })
     : null;
   const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
 
@@ -95,6 +206,8 @@ export function buildProduct(
     region: (row.region as string) || null,
     country_code: (row.country_code as string) || null,
     updated_at: (row.updated_at as string) || null,
+    // BUY-71396: expose render-gate freshness for A2 metric
+    url_last_checked_at: (row.url_last_checked_at as string) || null,
     // CAT-08: expose stock status as a top-level boolean when known.
     ...(row.in_stock != null && { in_stock: row.in_stock as boolean }),
     // BUY-70574/BUY-70043: basket verification consumes availability.in_stock.
@@ -153,6 +266,11 @@ export function buildProduct(
     base.discount_pct = parseFloat(row.discount_pct as string);
   }
 
+  Object.defineProperty(base, 'url_status', {
+    value: (row as Record<string, unknown>).url_status ?? null,
+    enumerable: false,
+  });
+
   return base;
 }
 
@@ -165,8 +283,15 @@ export function buildSearchResponse(
   cached: boolean,
   degraded?: boolean,
   hasMore?: boolean,
+  expectedCountryCode?: string | null,
 ): SearchResponse {
+  const nearMiss = evaluateNearMiss(products, expectedCountryCode);
   return {
+    // BUY-71275: preserve stable agent contract while staying compatible with
+    // newer REST envelopes; all aliases point to the same array reference.
+    products,
+    results: products,
+    items: products,
     data: products,
     meta: {
       total,
@@ -174,6 +299,8 @@ export function buildSearchResponse(
       offset,
       response_time_ms: responseTimeMs,
       cached,
+      near_miss: nearMiss.near_miss,
+      near_miss_predicate_fails: nearMiss.near_miss_predicate_fails,
       ...(degraded != null && { degraded }),
       ...(hasMore != null && { has_more: hasMore }),
     },

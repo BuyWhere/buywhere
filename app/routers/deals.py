@@ -113,10 +113,8 @@ def _to_deal_item(p: Product) -> DealItem:
 async def get_deals(
     request: Request,
     category: Optional[str] = Query(None, description="Filter by product category"),
-    country_code: Optional[str] = Query(None, description="Filter by ISO country code (SG, US, MY, TH, VN, PH)"),
-    country: Optional[str] = Query(None, description="Alias for country_code"),
-    currency: Optional[str] = Query(None, description="Filter by currency (SGD, USD, etc.)"),
     min_discount_pct: float = Query(default=10.0, ge=0, le=100, description="Minimum discount % (default 10)"),
+    country_code: Optional[str] = Query(None, description="ISO-2 country code(s), comma-separated (SG, US, MY, TH, VN, PH). Scopes the scan to one partition for fast responses."),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
@@ -126,17 +124,14 @@ async def get_deals(
     request.state.api_key = api_key
 
     threshold_pct = min_discount_pct
-    market = (country_code or country or "").upper() or None
-    if market and not currency:
-        currency = {
-            "SG": "SGD",
-            "US": "USD",
-            "MY": "MYR",
-            "TH": "THB",
-            "VN": "VND",
-            "PH": "PHP",
-        }.get(market)
-    currency = currency.upper() if currency else None
+
+    # Hard cap: no single deals query should block for more than 8s (BUY-71334).
+    # SQLAlchemy 2.0 autobegin starts a transaction on the first execute, so
+    # SET LOCAL scopes the timeout to this transaction only.
+    try:
+        await db.execute(text("SET LOCAL statement_timeout = '8000'"))
+    except Exception:
+        pass  # Non-fatal — proceed without timeout if the session state doesn't allow it
 
     # BUY-59774 fix: use the generated discount_pct column which is covered by the
     # existing idx_products_partitioned_deals_partial index (partial on discount_pct
@@ -149,12 +144,15 @@ async def get_deals(
         .where(text("discount_pct >= :min_pct").bindparams(min_pct=threshold_pct))
     )
 
+    # BUY-71334: country filter in WHERE clause → partition pruning + country-aware
+    # deals index. Without it the query scans ALL partitions under load.
+    if country_code:
+        country_codes = [c.strip().upper() for c in country_code.split(",") if c.strip()]
+        if country_codes:
+            base_query = base_query.where(Product.country_code.in_(country_codes))
+
     if category:
         base_query = base_query.where(Product.category.ilike(f"%{category}%"))
-    if market:
-        base_query = base_query.where(Product.country_code == market)
-    if currency:
-        base_query = base_query.where(Product.currency == currency)
 
     # Sort by discount depth (largest discount first)
     base_query = base_query.order_by(text("discount_pct DESC"))

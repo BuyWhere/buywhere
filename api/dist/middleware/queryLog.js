@@ -118,11 +118,15 @@ function queryLogMiddleware(endpoint) {
             const isAgent = classifyIsAgent(req);
             // Extract query text from common params
             const queryText = req.query.q || req.query.ids || null;
+            // BUY-2026-08-17: log the caller's market so deliver_to adoption is
+            // measurable (column existed since the deliver_to launch; no insert path
+            // ever populated it — adoption read as 0% forever).
+            const logCountry = ((req.query.deliver_to || req.query.country_code || req.query.country) || '').toUpperCase().slice(0, 2) || null;
             config_1.db.query(`INSERT INTO query_log
           (api_key_id, agent_name, agent_framework, sdk_language, is_agent,
            endpoint, query_text, result_count, response_time_ms,
-           status_code, ip_address, user_agent, cache_hit)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`, [
+           status_code, ip_address, user_agent, cache_hit, country_code)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`, [
                 apiKeyRecord?.id ?? null,
                 apiKeyRecord?.agentName ?? null,
                 req.agentInfo?.framework || 'unknown',
@@ -136,6 +140,7 @@ function queryLogMiddleware(endpoint) {
                 req.ip || null,
                 (req.headers['user-agent'] || '').slice(0, 500),
                 res.locals.cacheHit ?? null,
+                logCountry,
             ]).catch(() => {
                 // Fire-and-forget — don't crash on log failure
             });
