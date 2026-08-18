@@ -403,7 +403,11 @@ export async function checkRateLimit(req: Request, res: Response, next: NextFunc
     return;
   }
 
+  res.locals.rateLimitRemaining = Math.max(0, req.apiKeyRecord.rpmLimit - rpmCount);
+
   if (rpmCount > req.apiKeyRecord.rpmLimit) {
+    res.locals.rateLimited = true;
+    res.locals.rateLimitRemaining = 0;
     if (isMcpJsonRpcRequest(req)) {
       sendMcpPerMinuteLimitError(req, res, req.apiKeyRecord.tier, req.apiKeyRecord.rpmLimit);
     } else {

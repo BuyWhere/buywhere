@@ -1,4 +1,4 @@
-import { CanonicalProduct, ComparisonAttribute, NearMissPredicateFail, SearchResponse } from '../types/product';
+import { CanonicalProduct, ComparisonAttribute, EmptinessReason, NearMissPredicateFail, SearchConfidence, SearchResponse, EmptinessDiagnostic } from '../types/product';
 import { resolvePrecomputedAffiliateUrl } from './affiliateWrapper';
 import { buildAffiliateRedirectUrl, buildClickUrl } from './instrumentation';
 
@@ -303,6 +303,125 @@ export function buildSearchResponse(
       near_miss_predicate_fails: nearMiss.near_miss_predicate_fails,
       ...(degraded != null && { degraded }),
       ...(hasMore != null && { has_more: hasMore }),
+    },
+  };
+}
+
+/**
+ * BUY-71542 / P2.6: build the emptiness_reason/confidence/diagnostic triplet
+ * for an empty MCP response. Centralized so every tool can call this with
+ * the signals it actually observed — heuristics per spec §4.
+ */
+export interface EmptinessSignals {
+  /** Did the catalog have ANY rows for this region/country? */
+  regionHasAnyData: boolean;
+  /** Did the catalog have ANY rows for this category (when the caller asked for one)? */
+  categoryHasAnyData: boolean;
+  /** Did a downstream call (DB / vector / redis) raise an error? */
+  apiError: boolean;
+  /** Did we hit a rate limit / quota? */
+  rateLimited: boolean;
+  /** Is the requested region one we ever index? */
+  regionSupported: boolean;
+  /** Was a category filter present and recognized? */
+  categoryRequested: boolean;
+  /** Caller-passed category string (lowercased/trimmed). */
+  requestedCategory?: string | null;
+  /** Caller-passed country code (uppercased). */
+  requestedCountry?: string | null;
+  /** Optional rate_limit_remaining signal from the rate-limiter. */
+  rateLimitRemaining?: number | null;
+}
+
+/** Known country codes the catalog actively indexes (covers all 5 SEA + US). */
+export const SUPPORTED_REGIONS = new Set(['SG', 'US', 'MY', 'TH', 'VN', 'PH', 'ID']);
+
+/**
+ * Determine emptiness_reason + confidence + diagnostic from observed signals.
+ *
+ * Heuristics (per spec §4):
+ * - api_error  ⇒ reason=api_error, confidence=low, engine_status=error.
+ * - rateLimited ⇒ reason=quota, confidence=low, engine_status=degraded.
+ * - region not supported ⇒ reason=region_unsupported, confidence=low.
+ * - region supported but no rows at all ⇒ reason=no_data, confidence=high.
+ * - category requested but no rows for category ⇒ reason=category_unsupported,
+ *   confidence=low (caller may want to widen the query).
+ * - region has rows but query/filters exclude all of them ⇒ reason=no_match,
+ *   confidence=high.
+ */
+export function deriveEmptiness(signals: EmptinessSignals): {
+  emptiness_reason: EmptinessReason;
+  confidence: SearchConfidence;
+  diagnostic: EmptinessDiagnostic;
+} {
+  if (signals.apiError) {
+    return {
+      emptiness_reason: 'api_error',
+      confidence: 'low',
+      diagnostic: {
+        engine_status: 'error',
+        indexed_for_region: signals.regionSupported,
+        category_recognized: signals.categoryRequested && signals.categoryHasAnyData,
+        rate_limit_remaining: signals.rateLimitRemaining ?? null,
+      },
+    };
+  }
+  if (signals.rateLimited) {
+    return {
+      emptiness_reason: 'quota',
+      confidence: 'low',
+      diagnostic: {
+        engine_status: 'degraded',
+        indexed_for_region: signals.regionSupported,
+        category_recognized: signals.categoryRequested && signals.categoryHasAnyData,
+        rate_limit_remaining: signals.rateLimitRemaining ?? 0,
+      },
+    };
+  }
+  if (signals.requestedCountry && !signals.regionSupported) {
+    return {
+      emptiness_reason: 'region_unsupported',
+      confidence: 'low',
+      diagnostic: {
+        engine_status: 'ok',
+        indexed_for_region: false,
+        category_recognized: signals.categoryRequested && signals.categoryHasAnyData,
+        rate_limit_remaining: signals.rateLimitRemaining ?? null,
+      },
+    };
+  }
+  if (signals.categoryRequested && signals.regionHasAnyData && !signals.categoryHasAnyData) {
+    return {
+      emptiness_reason: 'category_unsupported',
+      confidence: 'low',
+      diagnostic: {
+        engine_status: 'ok',
+        indexed_for_region: true,
+        category_recognized: false,
+        rate_limit_remaining: signals.rateLimitRemaining ?? null,
+      },
+    };
+  }
+  if (!signals.regionHasAnyData) {
+    return {
+      emptiness_reason: 'no_data',
+      confidence: 'high',
+      diagnostic: {
+        engine_status: 'ok',
+        indexed_for_region: signals.regionSupported,
+        category_recognized: signals.categoryRequested && signals.categoryHasAnyData,
+        rate_limit_remaining: signals.rateLimitRemaining ?? null,
+      },
+    };
+  }
+  return {
+    emptiness_reason: 'no_match',
+    confidence: 'high',
+    diagnostic: {
+      engine_status: 'ok',
+      indexed_for_region: true,
+      category_recognized: signals.categoryRequested && signals.categoryHasAnyData,
+      rate_limit_remaining: signals.rateLimitRemaining ?? null,
     },
   };
 }
