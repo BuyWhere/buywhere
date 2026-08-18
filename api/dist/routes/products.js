@@ -49,7 +49,7 @@ const SEARCH_HANDLER_TIMEOUT_MS = Math.max(2000, Number(process.env.SEARCH_HANDL
 // pay the same 10s timeout floor on every identical query.
 const SEARCH_DEGRADED_CACHE_TTL_SECONDS = Math.max(5, Number(process.env.SEARCH_DEGRADED_CACHE_TTL_SECONDS) || 30);
 const SG_SEARCH_FRESHNESS_GUARDRAIL_HOURS = 48;
-const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'buy-71417-freshness-boost-v2'; // BUY-71417 v2: stronger freshness weighting
+const SG_SEARCH_FRESHNESS_GUARDRAIL_CACHE_VERSION = 'buy-71417-freshness-boost-v3'; // BUY-71417 v3: archive path freshness + tier re-enable under probe
 // BUY-52082: public /v1/products/search now consumes keyword|semantic|hybrid
 // using the same Jina + pgvector stack as the MCP tool. If vector infra is
 // unavailable, semantic/hybrid requests fall back to the keyword path.
@@ -817,7 +817,13 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     // common cold broad queries across SG+US. Tier-first preserves Richmond's
     // single-table archive constraints because it falls through unchanged on any
     // tier error, and SEARCH_USE_TIER=0 remains a runtime kill switch.
-    const useSearchTier = !(0, outboundLinkHealth_1.outboundProbeEnabled)() && (req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0'));
+    // BUY-71417 v3: re-enable the tier under the outbound-link probe. The tier
+    // already applies the BUY-70776 dead-url filter via urlStatusJoin (PK join
+    // on the bounded final SELECT), so disabling it under the probe only routed
+    // 100% of traffic to the archive path — where the BUY-71417 freshness
+    // multiplier never ran, leaving the stale-rate probe at 82.6% after v2
+    // shipped. Tier errors still fall through to the archive path unchanged.
+    const useSearchTier = req.query._tier === '1' || (req.query._tier !== '0' && process.env.SEARCH_USE_TIER !== '0');
     // BUY-67275 durable (2026-08-16): the tier now honors sort directly
     // (TIER_SORT in tryTierSearch), so sorted queries take the fast RAM path
     // and no longer flap to degraded-empty under replica pressure. Tier miss
@@ -1110,7 +1116,19 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                      OR array_to_string(rhp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
                    THEN 0.25 ELSE 1.0
                  END *
-                 CASE WHEN COALESCE(rhp.in_stock, true) IS NOT FALSE THEN 1.8 ELSE 1.0 END AS rank
+                 CASE WHEN COALESCE(rhp.in_stock, true) IS NOT FALSE THEN 1.8 ELSE 1.0 END *
+                 -- BUY-71417 v3: same freshness multiplier as the tier path. v2 only
+                 -- touched tryTierSearch, but the tier is disabled under the outbound
+                 -- probe (pre-v3), so every /v1/products/search row came from this
+                 -- archive query with no freshness signal — the stale-rate probe stayed
+                 -- at 82.6% after the v2 deploy.
+                 CASE
+                   WHEN rhp.updated_at >= NOW() - INTERVAL '30 days' THEN 10.0
+                   WHEN rhp.updated_at >= NOW() - INTERVAL '90 days' THEN 1.0
+                   WHEN rhp.updated_at >= NOW() - INTERVAL '180 days' THEN 0.1
+                   WHEN rhp.updated_at >= '2024-01-01' THEN 0.05
+                   ELSE 0.01
+                 END AS rank
           FROM recent_hits rh
           JOIN products rhp ON rhp.id = rh.id
           ORDER BY rank DESC, rh.id DESC
