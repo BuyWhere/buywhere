@@ -792,10 +792,11 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: ReturnType
   // BUY-71431: surface timed_out flag when the query hit statement_timeout,
   // so monitoring can track degradation instead of counting empty as 'no deals'.
   if (dealsTimedOut && result && typeof result === 'object') {
-    (result as Record<string, unknown>).timed_out = true;
-    (result as Record<string, unknown>).unavailable = true;
-    if ((result as Record<string, unknown>).meta && typeof (result as Record<string, unknown>).meta === 'object') {
-      ((result as Record<string, unknown>).meta as Record<string, unknown>).message = 'Deals temporarily unavailable; please retry.';
+    const r = result as unknown as Record<string, unknown>;
+    r.timed_out = true;
+    r.unavailable = true;
+    if (r.meta && typeof r.meta === 'object') {
+      (r.meta as Record<string, unknown>).message = 'Deals temporarily unavailable; please retry.';
     }
   }
 
