@@ -152,6 +152,16 @@ export function createApp() {
 
   // MCP / OpenAI plugin discovery
   app.use('/.well-known', wellknownRouter);
+  // BUY-71169: serve agent descriptors at root for Wave and other AI agent probes
+  const { AI_AGENT_DESCRIPTOR, A2A_AGENT_CARD } = require('./routes/wellknown');
+  app.get('/agent', (_req, res) => {
+    res.set('Cache-Control', 'public, max-age=3600, s-maxage=3600');
+    res.json(A2A_AGENT_CARD);
+  });
+  app.get('/ai-agent', (_req, res) => {
+    res.set('Cache-Control', 'public, max-age=3600, s-maxage=3600');
+    res.json(AI_AGENT_DESCRIPTOR);
+  });
   const serveOpenApi = (_req: express.Request, res: express.Response) => {
     sendOpenApiSpec(res);
   };
