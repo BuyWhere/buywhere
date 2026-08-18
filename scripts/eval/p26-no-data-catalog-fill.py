@@ -339,7 +339,10 @@ def main() -> int:
 
     should_file = args.file_issues or args.dry_run
     for cell in cells_to_process:
-        result = file_child_issue(cell, SWEEP_DATE, args.dry_run, cfg)
+        if should_file:
+            result = file_child_issue(cell, SWEEP_DATE, args.dry_run, cfg)
+        else:
+            result = file_child_issue(cell, SWEEP_DATE, True, cfg)
         filed_results.append(result)
 
         slug = f"no-data-{cell.get('market','')}-{cell.get('category','')}-{cell.get('query_length','')}".lower()
