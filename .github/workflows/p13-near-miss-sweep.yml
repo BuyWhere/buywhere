@@ -9,7 +9,7 @@ on:
 env:
   BUYWHERE_MCP_URL: https://api.buywhere.ai/mcp
   CATALOG_DATABASE_URL: ${{ secrets.CATALOG_DATABASE_URL }}
-  BUYWHERE_API_KEY: ${{ secrets.BUYWHERE_MONITORING_API_KEY }}
+  BUYWHERE_API_KEY: ${{ secrets.BUYWHERE_MCP_API_KEY }}
 
 jobs:
   sweep:
