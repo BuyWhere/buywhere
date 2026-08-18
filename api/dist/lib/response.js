@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.COUNTRY_CURRENCY = exports.CURRENCY_RATES = void 0;
+exports.evaluateNearMiss = evaluateNearMiss;
 exports.buildProduct = buildProduct;
 exports.buildSearchResponse = buildSearchResponse;
 const affiliateWrapper_1 = require("./affiliateWrapper");
@@ -11,7 +12,48 @@ exports.CURRENCY_RATES = {
 };
 exports.COUNTRY_CURRENCY = {
     SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
+    ID: 'IDR', PH: 'PHP', HK: 'HKD', TW: 'TWD', AU: 'AUD',
 };
+const ISO_4217_RE = /^[A-Z]{3}$/;
+const ISO_4217_CURRENCIES = new Set([
+    'AUD', 'GBP', 'HKD', 'IDR', 'MYR', 'PHP', 'SGD', 'THB', 'TWD', 'USD', 'VND',
+]);
+const MINIMUM_UTILITY_ALLOWED_AVAILABILITY = new Set(['in_stock', 'out_of_stock', 'preorder', 'discontinued', 'unknown']);
+function hiddenProductField(product, key) {
+    return product[key];
+}
+function hasUsableImageUrl(imageUrl) {
+    if (!imageUrl)
+        return false;
+    if (imageUrl.startsWith('data:image/svg+xml'))
+        return true; // BUY-63954 branded SVG fallback
+    return true; // BUY-63507 content probing is upstream; this hook consumes its selected URL.
+}
+function evaluateNearMiss(products, expectedCountryCode) {
+    if (products.length !== 1)
+        return { near_miss: false, near_miss_predicate_fails: [] };
+    const product = products[0];
+    const fails = [];
+    const currency = product.price?.currency;
+    const countryCode = (expectedCountryCode || product.country_code || '').toUpperCase();
+    const expectedCurrency = exports.COUNTRY_CURRENCY[countryCode];
+    if (product.price?.amount == null || product.price.amount <= 0 || (expectedCurrency && currency !== expectedCurrency)) {
+        fails.push('price');
+    }
+    if (!currency || !ISO_4217_RE.test(currency) || !ISO_4217_CURRENCIES.has(currency)) {
+        fails.push('currency');
+    }
+    if (!product.availability || !MINIMUM_UTILITY_ALLOWED_AVAILABILITY.has(product.availability.status)) {
+        fails.push('availability');
+    }
+    if (!hasUsableImageUrl(product.image_url)) {
+        fails.push('image_url');
+    }
+    if (!product.url || hiddenProductField(product, 'url_status') === 'dead') {
+        fails.push('merchant_url');
+    }
+    return { near_miss: fails.length > 0, near_miss_predicate_fails: fails };
+}
 function normalizeImageUrl(imageUrl) {
     if (typeof imageUrl !== 'string' || imageUrl.trim() === '')
         return null;
@@ -125,9 +167,14 @@ function buildProduct(row, defaultCurrency, compact) {
     if (row.discount_pct != null) {
         base.discount_pct = parseFloat(row.discount_pct);
     }
+    Object.defineProperty(base, 'url_status', {
+        value: row.url_status ?? null,
+        enumerable: false,
+    });
     return base;
 }
-function buildSearchResponse(products, total, limit, offset, responseTimeMs, cached, degraded, hasMore) {
+function buildSearchResponse(products, total, limit, offset, responseTimeMs, cached, degraded, hasMore, expectedCountryCode) {
+    const nearMiss = evaluateNearMiss(products, expectedCountryCode);
     return {
         data: products,
         meta: {
@@ -136,6 +183,8 @@ function buildSearchResponse(products, total, limit, offset, responseTimeMs, cac
             offset,
             response_time_ms: responseTimeMs,
             cached,
+            near_miss: nearMiss.near_miss,
+            near_miss_predicate_fails: nearMiss.near_miss_predicate_fails,
             ...(degraded != null && { degraded }),
             ...(hasMore != null && { has_more: hasMore }),
         },

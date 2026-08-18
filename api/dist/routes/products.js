@@ -393,7 +393,7 @@ async function tryTierSearch(req, res, p) {
         const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
         const products = pageRows.map((r) => (0, response_1.buildProduct)(r, p.currency, p.compact));
         const total = p.offset + rows.length;
-        const responseBody = (0, response_1.buildSearchResponse)(products, total, p.limit, p.offset, Date.now() - p.requestStart, false);
+        const responseBody = (0, response_1.buildSearchResponse)(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, undefined, p.countryCode);
         responseBody.source = 'search_products_tier';
         annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
         config_1.redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => { });
@@ -724,6 +724,8 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             parsed.cached = true;
             parsed.response_time_ms = elapsed;
             const cachedProducts = parsed.products || parsed.results || parsed.data || [];
+            const nearMiss = (0, response_1.evaluateNearMiss)(cachedProducts, countryCode);
+            parsed.meta = { ...(parsed.meta || {}), ...nearMiss };
             (0, instrumentation_1.recordProductViewsBulk)({
                 productIds: cachedProducts
                     .map((product) => product.id)
@@ -956,7 +958,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
     const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                al.destination_url AS affiliate_url,
                products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-               products.region, products.country_code, ${specColumnsJoined}`;
+               products.region, products.country_code, products.url_status, ${specColumnsJoined}`;
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
     const useFtsRanking = (!effectiveSort || effectiveSort === 'relevance') && ftsParamIdx;
@@ -1513,7 +1515,7 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
             });
         }
     }
-    const responseBody = (0, response_1.buildSearchResponse)(filteredProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore ?? false);
+    const responseBody = (0, response_1.buildSearchResponse)(filteredProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore ?? false, countryCode);
     annotateDeliverTo(responseBody, deliverTo, includeUnshippable, q);
     // Cache result in Redis (fire-and-forget)
     config_1.redis.set(cacheKey, JSON.stringify(responseBody), 'EX', SEARCH_CACHE_TTL_SECONDS).catch(() => { });
@@ -1688,7 +1690,7 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
         const dealResult = await dealsClient.query(`SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
                 currency, image_url, metadata, updated_at,
-                region, country_code, created_at, description, brand, mpn, gtin,
+                region, country_code, url_status, created_at, description, brand, mpn, gtin,
                 category_path, category, merchant_id, avg_rating, review_count,
                 ${discountSelect}
          FROM products
@@ -1715,7 +1717,7 @@ router.get('/deals', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey
     finally {
         dealsClient.release();
     }
-    const responseBody = (0, response_1.buildSearchResponse)(deals, total, limit, offset, Date.now() - start, false, degraded);
+    const responseBody = (0, response_1.buildSearchResponse)(deals, total, limit, offset, Date.now() - start, false, degraded, undefined, countryCode);
     // BUY-2026-08-13 (#36): NEVER cache a degraded (timed-out) deals payload — one slow
     // moment froze an empty response into the 1h cache and every later call re-served it
     // (the fossilized response_time_ms 4519/4554 signature). Cache real-but-empty briefly.
@@ -1926,7 +1928,7 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
                     // Fetch full product details from main DB.
                     const placeholders = knnIds.map((_, i) => `$${i + 1}`).join(',');
                     const detailResult = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                      image_url, brand, category_path, region, country_code
+                      image_url, metadata, in_stock, brand, category_path, region, country_code, url_status
                FROM products
                WHERE id IN (${placeholders})`, knnIds);
                     const detailById = new Map(detailResult.rows.map((row) => [String(row.id), row]));
@@ -1964,7 +1966,7 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
             }
             params.push(limit);
             const bcResult = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                  image_url, brand, category_path, region, country_code
+                  image_url, metadata, in_stock, brand, category_path, region, country_code, url_status
            FROM products
            WHERE ${where}
            ORDER BY updated_at DESC
@@ -1989,7 +1991,7 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
             }
             ftsParams.push(needed);
             const ftsResult = await config_1.db.query(`SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                  image_url, brand, category_path, region, country_code
+                  image_url, metadata, in_stock, brand, category_path, region, country_code, url_status
            FROM products
            WHERE ${ftsWhere}
            ORDER BY updated_at DESC
@@ -1998,20 +2000,10 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
         }
     }
     const data = similar.slice(0, limit).map((row) => ({
-        id: row.id,
-        source: row.source_id,
-        domain: row.domain,
-        url: row.url,
-        title: row.title,
-        price: row.price ? parseFloat(row.price) : null,
-        currency: row.currency,
-        image_url: row.image_url || null,
-        brand: row.brand || null,
-        category_path: row.category_path || null,
-        region: row.region || null,
-        country_code: row.country_code || null,
+        ...(0, response_1.buildProduct)(row, src.currency || 'SGD', false),
         similarity: row._similarity ?? null,
     }));
+    const nearMiss = (0, response_1.evaluateNearMiss)(data, src.country_code || null);
     if (timedOut || res.headersSent)
         return;
     res.json({
@@ -2019,6 +2011,8 @@ router.get('/:id/similar', agentDetect_1.agentDetectMiddleware, apiKey_1.require
         meta: {
             source_id: id,
             count: data.length,
+            near_miss: nearMiss.near_miss,
+            near_miss_predicate_fails: nearMiss.near_miss_predicate_fails,
             method: config_1.vectorDb && !similar.length ? 'fallback' : config_1.vectorDb ? 'knn' : 'fallback',
             response_time_ms: Date.now() - start,
         },
@@ -2417,7 +2411,7 @@ async function warmSearchCache() {
             const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                  al.destination_url AS affiliate_url,
                  products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-                 products.region, products.country_code, ${specColumnsJoined}`;
+                 products.region, products.country_code, products.url_status, ${specColumnsJoined}`;
             // BUY-32028: remove ts_rank ORDER BY (missed by e8f407dc BUY-31540 in warmSearchCache
             // CTE). The warmSearchCache path was excluded from the original fix; on broad US queries
             // (laptop+US = 70k+ matches) the CTE materializes all matches before LIMIT and

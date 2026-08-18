@@ -1,4 +1,4 @@
-import { CanonicalProduct, ComparisonAttribute, SearchResponse } from '../types/product';
+import { CanonicalProduct, ComparisonAttribute, NearMissPredicateFail, SearchResponse } from '../types/product';
 import { resolvePrecomputedAffiliateUrl } from './affiliateWrapper';
 import { buildAffiliateRedirectUrl, buildClickUrl } from './instrumentation';
 
@@ -9,7 +9,55 @@ export const CURRENCY_RATES: Record<string, number> = {
 
 export const COUNTRY_CURRENCY: Record<string, string> = {
   SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
+  ID: 'IDR', PH: 'PHP', HK: 'HKD', TW: 'TWD', AU: 'AUD',
 };
+
+const ISO_4217_RE = /^[A-Z]{3}$/;
+const ISO_4217_CURRENCIES = new Set([
+  'AUD', 'GBP', 'HKD', 'IDR', 'MYR', 'PHP', 'SGD', 'THB', 'TWD', 'USD', 'VND',
+]);
+const MINIMUM_UTILITY_ALLOWED_AVAILABILITY = new Set(['in_stock', 'out_of_stock', 'preorder', 'discontinued', 'unknown']);
+
+function hiddenProductField(product: CanonicalProduct, key: string): unknown {
+  return (product as unknown as Record<string, unknown>)[key];
+}
+
+function hasUsableImageUrl(imageUrl: string | null): boolean {
+  if (!imageUrl) return false;
+  if (imageUrl.startsWith('data:image/svg+xml')) return true; // BUY-63954 branded SVG fallback
+  return true; // BUY-63507 content probing is upstream; this hook consumes its selected URL.
+}
+
+export function evaluateNearMiss(
+  products: CanonicalProduct[],
+  expectedCountryCode?: string | null,
+): { near_miss: boolean; near_miss_predicate_fails: NearMissPredicateFail[] } {
+  if (products.length !== 1) return { near_miss: false, near_miss_predicate_fails: [] };
+
+  const product = products[0];
+  const fails: NearMissPredicateFail[] = [];
+  const currency = product.price?.currency;
+  const countryCode = (expectedCountryCode || product.country_code || '').toUpperCase();
+  const expectedCurrency = COUNTRY_CURRENCY[countryCode];
+
+  if (product.price?.amount == null || product.price.amount <= 0 || (expectedCurrency && currency !== expectedCurrency)) {
+    fails.push('price');
+  }
+  if (!currency || !ISO_4217_RE.test(currency) || !ISO_4217_CURRENCIES.has(currency)) {
+    fails.push('currency');
+  }
+  if (!product.availability || !MINIMUM_UTILITY_ALLOWED_AVAILABILITY.has(product.availability.status)) {
+    fails.push('availability');
+  }
+  if (!hasUsableImageUrl(product.image_url)) {
+    fails.push('image_url');
+  }
+  if (!product.url || hiddenProductField(product, 'url_status') === 'dead') {
+    fails.push('merchant_url');
+  }
+
+  return { near_miss: fails.length > 0, near_miss_predicate_fails: fails };
+}
 
 function normalizeImageUrl(imageUrl: unknown): string | null {
   if (typeof imageUrl !== 'string' || imageUrl.trim() === '') return null;
@@ -159,6 +207,11 @@ export function buildProduct(
     base.discount_pct = parseFloat(row.discount_pct as string);
   }
 
+  Object.defineProperty(base, 'url_status', {
+    value: (row as Record<string, unknown>).url_status ?? null,
+    enumerable: false,
+  });
+
   return base;
 }
 
@@ -171,7 +224,9 @@ export function buildSearchResponse(
   cached: boolean,
   degraded?: boolean,
   hasMore?: boolean,
+  expectedCountryCode?: string | null,
 ): SearchResponse {
+  const nearMiss = evaluateNearMiss(products, expectedCountryCode);
   return {
     data: products,
     meta: {
@@ -180,6 +235,8 @@ export function buildSearchResponse(
       offset,
       response_time_ms: responseTimeMs,
       cached,
+      near_miss: nearMiss.near_miss,
+      near_miss_predicate_fails: nearMiss.near_miss_predicate_fails,
       ...(degraded != null && { degraded }),
       ...(hasMore != null && { has_more: hasMore }),
     },
