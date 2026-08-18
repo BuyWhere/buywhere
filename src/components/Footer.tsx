@@ -55,6 +55,8 @@ export default function Footer() {
             <ul aria-labelledby="footer-h-connect" className="space-y-2 text-sm text-gray-500" role="list">
               <li role="listitem"><a href="https://t.me/buywhere_bot" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600">Telegram</a></li>
               <li><a href="https://github.com/BuyWhere/buywhere-mcp" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600">GitHub</a></li>
+              {/* Sovrn Commerce publisher verification link (2026-08-18) — required on-site for account review; do not remove */}
+              <li><a href="https://sovrn.co/7pu732q" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600">Deals via Sovrn</a></li>
             </ul>
           </div>
         </div>
