@@ -33,6 +33,23 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      // BUY-71531: sitemap rename backward-compat — old <name>.xml paths now
+      // return 404 after the sitemap-*.xml rename. Add 301 redirects so
+      // crawlers that cached the old names get permanent redirects instead
+      // of HTML 404 shells (which GSC treats as soft 404 / sitemap errors).
+      { source: '/pages.xml', destination: '/sitemap-pages.xml', permanent: true },
+      { source: '/products.xml', destination: '/sitemap-products.xml', permanent: true },
+      { source: '/categories.xml', destination: '/sitemap-categories.xml', permanent: true },
+      { source: '/merchants.xml', destination: '/sitemap-merchants.xml', permanent: true },
+      { source: '/compare.xml', destination: '/sitemap-compare.xml', permanent: true },
+      { source: '/comparisons.xml', destination: '/sitemap-comparisons.xml', permanent: true },
+      { source: '/blog.xml', destination: '/sitemap-blog.xml', permanent: true },
+      { source: '/brands.xml', destination: '/sitemap-brands.xml', permanent: true },
+      { source: '/stores.xml', destination: '/sitemap-stores.xml', permanent: true },
+      { source: '/docs.xml', destination: '/sitemap-docs.xml', permanent: true },
+      // BUY-71531: also redirect the legacy sitemap-index.xml name
+      { source: '/sitemap-index.xml', destination: '/sitemap.xml', permanent: true },
+
       // 2026-08-18 (Richmond): pricing removed — free under fair use
       { source: '/pricing', destination: '/developers', permanent: true },
       // BUY-68319/BUY-67102: keep root-domain MCP clients on the
