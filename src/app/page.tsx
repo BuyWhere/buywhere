@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { TrustLayer } from "@/components/TrustLayer";
+import { LiveStats } from "@/components/LiveStats";
 import { PopularComparisons } from "@/components/PopularComparisons";
 import { HomeProductSearch } from "@/components/HomeProductSearch";
 
@@ -331,6 +332,7 @@ export default function HomePage() {
       </section>
 
       {/* Trust strip */}
+      <LiveStats />
       <TrustLayer />
       <section role="region" aria-label="Content section" className="py-20 bg-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">

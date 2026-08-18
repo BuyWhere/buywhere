@@ -25,6 +25,7 @@ import ingestRouter from './routes/ingest';
 import catalogRouter from './routes/catalog';
 import keysRouter from './routes/keys';
 import usageRouter from './routes/usage';
+import publicStatsRouter from './routes/publicStats';
 import webhooksRouter from './routes/webhooks';
 import monitoringRouter from './monitoring/routes';
 import { latencyMiddleware } from './monitoring/middleware';
@@ -268,6 +269,7 @@ export function createApp() {
   app.use('/v1/analytics', analyticsRouter);
   app.use('/v1/revenue', revenueRouter);
   app.use('/v1/catalog', catalogRouter);
+  app.use('/v1/stats', publicStatsRouter);
   app.use('/v1/keys', keysRouter);
   app.use('/v1/usage', usageRouter);
   app.use('/v1/compare', aiCrawlerHeaders, compareSlugRouter);
