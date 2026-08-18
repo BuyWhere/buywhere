@@ -194,9 +194,12 @@ export function buildSearchResponse(
   hasMore?: boolean,
 ): SearchResponse {
   return {
+    // BUY-71275: preserve stable agent contract while staying compatible with
+    // the newer REST-style envelopes that appeared during the 08:20Z regression.
+    products,
     results: products,
-    // BUY-71163: agents/Cart expect `items` (matches REST /v1/search docs).
     items: products,
+    data: products,
     total,
     page: { limit, offset },
     response_time_ms: responseTimeMs,
