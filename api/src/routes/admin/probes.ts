@@ -117,7 +117,9 @@ async function getProbesLogs(req: Request, res: Response): Promise<void> {
     const total = Number(countResult.rows[0]?.total || '0');
 
     const lastRow = rows[rows.length - 1];
-    const nextCursor = lastRow ? `${lastRow.checked_at}:${lastRow.id}` : null;
+    const nextCursor = lastRow
+      ? `${(lastRow.checked_at as unknown as Date).toISOString ? (lastRow.checked_at as unknown as Date).toISOString() : lastRow.checked_at}:${lastRow.id}`
+      : null;
 
     res.json({
       data: rows,

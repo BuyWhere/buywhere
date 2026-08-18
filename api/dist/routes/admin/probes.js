@@ -83,7 +83,9 @@ async function getProbesLogs(req, res) {
         const rows = rowsResult.rows;
         const total = Number(countResult.rows[0]?.total || '0');
         const lastRow = rows[rows.length - 1];
-        const nextCursor = lastRow ? `${lastRow.checked_at}:${lastRow.id}` : null;
+        const nextCursor = lastRow
+            ? `${lastRow.checked_at.toISOString ? lastRow.checked_at.toISOString() : lastRow.checked_at}:${lastRow.id}`
+            : null;
         res.json({
             data: rows,
             pagination: {
