@@ -259,6 +259,11 @@ export function buildSearchResponse(
 ): SearchResponse {
   const nearMiss = evaluateNearMiss(products, expectedCountryCode);
   return {
+    // BUY-71275: preserve stable agent contract while staying compatible with
+    // newer REST envelopes; all aliases point to the same array reference.
+    products,
+    results: products,
+    items: products,
     data: products,
     meta: {
       total,

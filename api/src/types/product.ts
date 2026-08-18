@@ -67,6 +67,10 @@ export interface SearchMeta {
 }
 
 export interface SearchResponse {
+  // BUY-71275: keep all MCP/agent-facing search collection aliases in sync.
+  products: CanonicalProduct[];
+  results: CanonicalProduct[];
+  items: CanonicalProduct[];
   data: CanonicalProduct[];
   meta: SearchMeta;
 }
