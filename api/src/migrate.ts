@@ -147,6 +147,8 @@ CREATE TABLE IF NOT EXISTS url_probe_log (
 );
 CREATE INDEX IF NOT EXISTS idx_url_probe_log_product_checked_at ON url_probe_log(product_id, checked_at DESC);
 CREATE INDEX IF NOT EXISTS idx_url_probe_log_status_checked_at ON url_probe_log(status, checked_at DESC);
+-- BUY-71331: checked_at-leading index for the /v1/admin/probes/logs cursor pagination.
+CREATE INDEX IF NOT EXISTS idx_url_probe_log_checked_at_id ON url_probe_log(checked_at DESC, id DESC);
 -- BUY-70924: products URL status indexes are created CONCURRENTLY in
 -- runMigrations() (ensureUrlProbeIndexes) so the build does not lock the live
 -- ingest pipeline. Do not add non-CONCURRENT product indexes to this transaction.
