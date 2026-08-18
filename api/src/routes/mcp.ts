@@ -716,6 +716,7 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: ReturnType
   // a structured -32603 envelope to the MCP client instead of hanging the request.
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
+  let dealsTimedOut = false;
   const dealsClient = await db.connect().catch((err: unknown) => {
     console.error('[mcp] get_deals db.connect failed:', err);
     throw { code: -32603, message: 'Database unavailable' };
@@ -724,7 +725,7 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: ReturnType
     // BUY-64112: strict discount-first query only. The prior recent-window sample
     // + laptop/watch fallback returned keyword rows with discount_pct=0 and hid
     // real discounted products. Query the indexed discount predicate directly.
-    await dealsClient.query('SET statement_timeout = 15000'); // 2026-08-15: fail fast — a 60s DB hang dead-airs the MCP transport
+    await dealsClient.query('SET statement_timeout = 20000'); // 2026-08-15: fail fast — a 60s DB hang dead-airs the MCP transport
     // BUY-68615: force index path on production catalog DB.
     // At 400M+ rows, the planner may choose seqscan even with the discount index,
     // which times out. Bounded LIMIT + enable_seqscan=off ensures the index is used.
@@ -762,6 +763,19 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: ReturnType
     products = dataResult.rows.map((r: Record<string, unknown>) =>
       buildProduct(r, currency, false, caller)
     );
+  } catch (err: unknown) {
+    // BUY-71431: catch SQLSTATE 57014 (statement_timeout) and return empty results
+    // instead of propagating as -32603 RPC error. Under I/O pressure (autovacuum,
+    // DDL scans), the 20s timeout may still fire on heavily filtered discount scans.
+    const pgErr = err as { code?: string };
+    if (pgErr?.code === '57014') {
+      console.warn('[get_deals] statement_timeout for currency=', currency, 'country=', effectiveCountry);
+      dealsTimedOut = true;
+      products = [];
+      total = 0;
+    } else {
+      throw err;
+    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);
@@ -773,6 +787,17 @@ async function handleGetDeals(args: Record<string, unknown>, caller?: ReturnType
   // so callers can distinguish "no live deals" from "server bug".
   if ((region || effectiveCountry) && products.length === 0) {
     (result as { unavailable?: boolean }).unavailable = true;
+  }
+
+  // BUY-71431: surface timed_out flag when the query hit statement_timeout,
+  // so monitoring can track degradation instead of counting empty as 'no deals'.
+  if (dealsTimedOut && result && typeof result === 'object') {
+    const r = result as unknown as Record<string, unknown>;
+    r.timed_out = true;
+    r.unavailable = true;
+    if (r.meta && typeof r.meta === 'object') {
+      (r.meta as Record<string, unknown>).message = 'Deals temporarily unavailable; please retry.';
+    }
   }
 
   redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
@@ -1003,7 +1028,7 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
   let result: { rows: Record<string, unknown>[] };
   let ftsTimedOut = false;
   try {
-    await bestPriceClient.query('SET statement_timeout = 10000');
+    await bestPriceClient.query('SET statement_timeout = 20000');
     const requestedCountry = country;
     const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
     const conditions: string[] = ['is_active = true', 'price > 0'];
