@@ -49,6 +49,14 @@ jobs:
     name: Deploy site to Railway
     runs-on: ubuntu-latest
     steps:
+      - name: Refuse non-main refs (BUY-64967 postmortem)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::PRODUCTION DEPLOYS MUST COME FROM main. You dispatched from '${GITHUB_REF}'."
+          echo "::error::Deploying a feature branch to production ships a stale build and silently reverts newer main content (this 410'd the whole July blog catch-up batch on 2026-07-29)."
+          echo "::error::Merge your branch to main first; the push to main deploys automatically."
+          exit 1
+
       - uses: actions/checkout@v4
 
       - name: Set up Node.js

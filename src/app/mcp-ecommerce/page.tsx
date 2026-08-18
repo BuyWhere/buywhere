@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Script from "next/script";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
@@ -17,12 +16,24 @@ export const metadata: Metadata = {
   alternates: {
     canonical: toSiteUrl("/mcp-ecommerce"),
   },
+  robots: {
+    index: true,
+    follow: true,
+  },
   openGraph: {
     title: "MCP for Ecommerce: The Complete Guide to Product Search MCP Servers (2026)",
     description:
       "Learn how AI agents search real products, compare prices, and discover deals using MCP for ecommerce. Complete guide with setup instructions and real-world use cases.",
     type: "article",
     url: toSiteUrl("/mcp-ecommerce"),
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "MCP for Ecommerce — BuyWhere",
+      },
+    ],
   },
 };
 
@@ -30,6 +41,25 @@ function buildStructuredData(productCountPhrase: string) {
   return {
   "@context": "https://schema.org",
   "@graph": [
+    {
+      // BUY-69732: Home > MCP for Ecommerce breadcrumb for the guide route.
+      "@type": "BreadcrumbList",
+      "@id": "https://buywhere.ai/mcp-ecommerce#breadcrumb",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: "https://buywhere.ai",
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "MCP for Ecommerce",
+          item: "https://buywhere.ai/mcp-ecommerce",
+        },
+      ],
+    },
     {
       "@type": "Article",
       "@id": "https://buywhere.ai/mcp-ecommerce#article",
@@ -154,11 +184,13 @@ export default async function McpEcommercePage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
-      <Script id="structured-data" type="application/ld+json" strategy="afterInteractive">
-        {JSON.stringify(structuredData)}
-      </Script>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <Nav />
 
+      <main id="main-content">
       <section className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(79,70,229,0.12),_transparent_40%),linear-gradient(135deg,#0f172a_0%,#1e1b4b_100%)] text-white">
         <div className="mx-auto max-w-6xl px-4 py-24 sm:px-6">
           <div className="max-w-3xl">
@@ -245,7 +277,7 @@ export default async function McpEcommercePage() {
               <li><strong>Multi-retailer aggregation</strong> — Lazada, Shopee, Amazon, and more</li>
               <li><strong>Price comparison</strong> across markets in a single tool call</li>
               <li><strong>Deal discovery</strong> — active promotions and price drops</li>
-              <li><strong>A2A protocol discovery</strong> via Agent Card at <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-sm text-slate-800">buywhere.ai/.well-known/agent.json</code></li>
+              <li><strong>Agent card discovery</strong> via <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-sm text-slate-800">buywhere.ai/.well-known/agent.json</code></li>
             </ul>
             <p className="mt-6 text-lg leading-8 text-slate-700">
               <strong>Setup time:</strong> 60 seconds. <Link href="/api-keys" className="font-medium text-indigo-600 underline decoration-indigo-200 underline-offset-4">Get your free API key</Link>.
@@ -331,7 +363,7 @@ Sony WH-1000XM5 (US)        — $329.99 @ Amazon US`}</pre>
             <div className="rounded-2xl border border-slate-200 bg-white p-8">
               <h3 className="text-xl font-bold text-slate-900">AI-to-AI Commerce</h3>
               <p className="mt-4 text-lg leading-8 text-slate-700">
-                With A2A protocol support, one agent can discover BuyWhere autonomously, search products, and hand results to another agent for checkout.
+                One agent can discover BuyWhere via its agent card, search products, and hand results to another agent for checkout.
               </p>
             </div>
           </div>
@@ -423,6 +455,7 @@ Sony WH-1000XM5 (US)        — $329.99 @ Amazon US`}</pre>
         </div>
       </section>
 
+      </main>
       <Footer />
     </div>
   );

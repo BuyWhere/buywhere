@@ -32,10 +32,15 @@ export const metadata: Metadata = {
       },
     ],
   },
+  robots: {
+    index: true,
+    follow: true,
+  },
   twitter: {
     card: "summary_large_image",
     title: "Compare US Product Prices - Amazon vs Walmart vs Target | BuyWhere",
     description: "Compare prices for popular products across Amazon, Walmart, and Target. Find the best deals on electronics, home goods, and more.",
+    images: ["/og-image.png"],
   },
   alternates: {
     canonical: toSiteUrl("/compare/us"),

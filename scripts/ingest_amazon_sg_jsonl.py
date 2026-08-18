@@ -89,7 +89,14 @@ def main():
         print(f'File {filepath} does not exist')
         sys.exit(1)
 
-    conn = psycopg2.connect(os.getenv('DATABASE_URL'))
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    import catalog_guard  # fail-fast: bulk writes only ever target maglev
+    conn = psycopg2.connect(catalog_guard.resolve_catalog_url())
+    _gc = conn.cursor()
+    catalog_guard.assert_catalog_cursor(_gc)
+    _gc.close()
     cur = conn.cursor()
     total = 0
     with open(filepath) as file:

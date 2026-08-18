@@ -26,7 +26,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-DB_URL = "postgresql+asyncpg://buywhere:buywhere@172.18.0.4:5432/buywhere"
+import sys as _sys
+from pathlib import Path as _P
+_sys.path.insert(0, str(_P(__file__).resolve().parent.parent))
+import catalog_guard  # fail-fast: bulk writes only ever target maglev
+DB_URL = catalog_guard.resolve_catalog_url(driver="asyncpg")
 
 class IngestionRunFixer:
     def __init__(self):
@@ -34,6 +38,7 @@ class IngestionRunFixer:
         self.Session = sessionmaker(self.engine, class_=AsyncSession, expire_on_commit=False)
         
     async def __aenter__(self):
+        await catalog_guard.assert_catalog_async_engine(self.engine)
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):

@@ -1,15 +1,26 @@
-import { buildSitemapResponse, getAllRegionMerchantListingSitemapEntries, renderUrlSet } from "@/lib/sitemaps";
+import {
+  buildSitemapResponse,
+  renderUrlSet,
+  getProductSitemapEntries,
+} from "@/lib/sitemaps";
 
-// Dynamic at the route level (regenerated on every request) so the
-// runtime env (BUYWHERE_API_KEY / BUYWHERE_API_INTERNAL_URL) is used —
-// the Railway build environment does NOT have those vars, so ISR
-// pre-render would hit /v1/merchants unauthenticated and produce an
-// empty sitemap (BUY-42890). Rate-limit safety is provided by an
-// in-memory cache inside getAllRegionMerchantListingSitemapEntries
-// (see src/lib/sitemaps.ts), keyed by region, TTL 1h, mutex-deduped.
+// BUY-65819: sitemap-products.xml must contain US-only product URLs.
+// SG product URLs belong in sitemap-products-sg.xml (BUY-65557).
+// This restores the baseline of ~100 US-only URLs (23,688B) from mid-July.
+// Prior regression: 200 URLs (100 US + 100 SG) with all SG entries 410 Gone.
 export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
-  const entries = await getAllRegionMerchantListingSitemapEntries();
-  return buildSitemapResponse(renderUrlSet(entries));
+  const usEntries = await getProductSitemapEntries();
+
+  // BUY-70448: guard against silently shipping an empty 200 sitemap.
+  // An empty <urlset> breaks crawler discovery and SEO.
+  if (usEntries.length === 0) {
+    return new Response("Sitemap temporarily unavailable — no products found", {
+      status: 503,
+      headers: { "Content-Type": "text/plain" },
+    });
+  }
+
+  return buildSitemapResponse(renderUrlSet(usEntries));
 }

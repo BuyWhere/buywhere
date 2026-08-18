@@ -8,10 +8,11 @@ const stripe_1 = __importDefault(require("stripe"));
 const config_1 = require("../config");
 const router = (0, express_1.Router)();
 const stripe = process.env.STRIPE_SECRET_KEY
-    ? new stripe_1.default(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-05-27.dahlia' })
+    ? new stripe_1.default(process.env.STRIPE_SECRET_KEY)
     : null;
 const PAPERCLIP_BASE_URL = process.env.UPTIMEROBOT_WEBHOOK_RELAY_URL?.trim() || '';
 const PAPERCLIP_API_KEY = process.env.UPTIMEROBOT_WEBHOOK_RELAY_API_KEY?.trim() || '';
+const UPTIMEROBOT_API_KEY = process.env.UPTIMEROBOT_API_KEY?.trim() || process.env.UPTIMEROBOT_KEY?.trim() || '';
 const COMPANY_ID = '177bc805-e3c8-4336-84cb-8e1e482d5a17';
 const ISSUES_ENDPOINT = `${PAPERCLIP_BASE_URL}/api/companies/${COMPANY_ID}/issues`;
 const REX_AGENT_ID = '8ca957f8-0911-4e81-a963-e2cf54c97d44';
@@ -75,10 +76,13 @@ const alertStatus = (alert) => {
     }
     return 'other';
 };
+// BUY-57479/BUY-57480: Dedup key must be strictly the monitorID. Falling back
+// to friendly_name caused dedup misses when two UptimeRobot accounts share a
+// numeric monitor ID with different friendly names (root cause of BUY-57476).
 const dedupKey = (alert, status) => {
-    const monitorID = alert.monitorID || alert.monitorFriendlyName || alert.monitorName || alert.monitor_name;
-    if (!monitorID)
+    if (alert.monitorID == null)
         return null;
+    const monitorID = String(alert.monitorID);
     return `${DEDUP_PREFIX}${monitorID}:${status}`;
 };
 const claimDedupSlot = async (key) => {
@@ -93,28 +97,85 @@ const claimDedupSlot = async (key) => {
         return true;
     }
 };
+const monitorCache = new Map();
+const MONITOR_CACHE_TTL_MS = 5 * 60 * 1000;
+const fetchMonitorFromUptimeRobot = async (monitorID) => {
+    if (!UPTIMEROBOT_API_KEY)
+        return null;
+    const cached = monitorCache.get(monitorID);
+    if (cached && cached.expiresAt > Date.now())
+        return cached.value;
+    try {
+        const body = new URLSearchParams({
+            api_key: UPTIMEROBOT_API_KEY,
+            format: 'json',
+            monitors: monitorID,
+        });
+        const res = await fetch('https://api.uptimerobot.com/v2/getMonitors', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString(),
+        });
+        if (!res.ok) {
+            console.warn(`[webhooks/uptime-robot] getMonitors ${monitorID} -> ${res.status}`);
+            monitorCache.set(monitorID, { value: null, expiresAt: Date.now() + 60000 });
+            return null;
+        }
+        const data = await res.json();
+        const mon = data.monitors?.[0] ?? null;
+        monitorCache.set(monitorID, { value: mon, expiresAt: Date.now() + MONITOR_CACHE_TTL_MS });
+        return mon;
+    }
+    catch (err) {
+        console.warn(`[webhooks/uptime-robot] getMonitors ${monitorID} failed:`, err.message);
+        return null;
+    }
+};
+const hostnameOf = (url) => {
+    try {
+        return new URL(url).hostname.toLowerCase();
+    }
+    catch {
+        return null;
+    }
+};
 const createPaperclipIssue = async (alert, isDown) => {
     if (!PAPERCLIP_BASE_URL || !PAPERCLIP_API_KEY) {
         console.warn('[webhooks/uptime-robot] Relay not configured (missing URL or API key)');
         return;
     }
-    const friendlyName = alert.monitorFriendlyName || alert.monitorName || alert.monitor_name || 'unknown';
-    const monitorURL = alert.monitorURL || 'unknown';
+    // BUY-57479/BUY-57480: prefer authoritative monitor data from UptimeRobot v2.
+    const monitorIDStr = alert.monitorID != null ? String(alert.monitorID) : '';
+    const authoritativeMonitor = monitorIDStr ? await fetchMonitorFromUptimeRobot(monitorIDStr) : null;
+    const alertFriendlyName = alert.monitorFriendlyName || alert.monitorName || alert.monitor_name || 'unknown';
+    const alertMonitorURL = alert.monitorURL || 'unknown';
+    const friendlyName = authoritativeMonitor?.friendly_name || alertFriendlyName;
+    const monitorURL = authoritativeMonitor?.url || alertMonitorURL;
+    // BUY-57480: if the alert URL hostname disagrees with the authoritative
+    // monitor URL hostname, mark the incident as possibly-mislabeled and include
+    // both URLs so on-call sees the disagreement.
+    const alertHost = hostnameOf(alertMonitorURL);
+    const authHost = hostnameOf(monitorURL);
+    const hostMismatch = !!(alertHost && authHost && alertHost !== authHost);
     const alertDetails = alert.alertDetails || alert.alert_details || '';
     const status = isDown ? 'DOWN' : 'UP';
     const timestamp = new Date().toISOString();
-    const title = `[INCIDENT] ${status} — ${friendlyName}`;
+    const titlePrefix = hostMismatch ? '[possibly-mislabeled] ' : '';
+    const title = `${titlePrefix}[INCIDENT] ${status} — ${friendlyName}`;
     const description = [
         `**Service:** ${friendlyName}`,
         `**Status:** ${status}`,
         `**Time:** ${timestamp}`,
         `**Check URL:** ${monitorURL}`,
     ];
+    if (hostMismatch) {
+        description.push('', '**⚠️ URL MISMATCH:**', '| Source | URL | Host |', '| --- | --- | --- |', `| UptimeRobot monitor.url (authoritative) | ${monitorURL} | ${authHost} |`, `| Alert payload monitorURL | ${alertMonitorURL} | ${alertHost} |`);
+    }
     if (alertDetails) {
         description.push(`**Details:** ${alertDetails}`);
     }
-    if (alert.monitorID) {
-        description.push(`**Monitor ID:** ${alert.monitorID}`);
+    if (monitorIDStr) {
+        description.push(`**Monitor ID:** ${monitorIDStr}`);
     }
     const issuePayload = {
         title,
@@ -145,6 +206,94 @@ const createPaperclipIssue = async (alert, isDown) => {
     catch (error) {
         console.error('[webhooks/uptime-robot] Paperclip API request failed:', error);
     }
+};
+const OPEN_INCIDENT_STATUSES = ['todo', 'in_progress', 'in_review', 'backlog'];
+const findOpenIncidentByMonitor = async (monitorID, friendlyName, monitorURL) => {
+    if (!PAPERCLIP_BASE_URL || !PAPERCLIP_API_KEY)
+        return null;
+    const host = hostnameOf(monitorURL);
+    const needles = [];
+    if (monitorID)
+        needles.push(`**Monitor ID:** ${monitorID}`);
+    if (friendlyName && friendlyName !== 'unknown')
+        needles.push(friendlyName);
+    if (host)
+        needles.push(host);
+    for (const status of OPEN_INCIDENT_STATUSES) {
+        const url = `${ISSUES_ENDPOINT}?status=${encodeURIComponent(status)}&limit=50`;
+        try {
+            const res = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${PAPERCLIP_API_KEY}` },
+            });
+            if (!res.ok) {
+                console.warn(`[webhooks/uptime-robot] findOpenIncident list status=${status} -> ${res.status}`);
+                continue;
+            }
+            const data = (await res.json());
+            const issues = Array.isArray(data) ? data : (data?.issues ?? []);
+            for (const issue of issues) {
+                const haystack = `${issue.title || ''}\n${issue.description || ''}`;
+                const isDownIncident = /\[INCIDENT\]\s*DOWN/i.test(issue.title || '');
+                if (!isDownIncident)
+                    continue;
+                if (needles.some((n) => haystack.includes(n))) {
+                    return issue;
+                }
+            }
+        }
+        catch (err) {
+            console.warn('[webhooks/uptime-robot] findOpenIncident request failed:', err.message);
+        }
+    }
+    return null;
+};
+const closePaperclipIncident = async (issueId, recoverySummary) => {
+    if (!PAPERCLIP_BASE_URL || !PAPERCLIP_API_KEY)
+        return false;
+    const patchUrl = `${PAPERCLIP_BASE_URL}/api/issues/${issueId}`;
+    try {
+        const res = await fetch(patchUrl, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${PAPERCLIP_API_KEY}`,
+            },
+            body: JSON.stringify({
+                status: 'done',
+                comment: `\u{1F7E2} **Auto-resolved by UP-recovery (BUY-47930).** ${recoverySummary}`,
+            }),
+        });
+        if (!res.ok) {
+            const body = await res.text().catch(() => '');
+            console.warn(`[webhooks/uptime-robot] closePaperclipIncident ${issueId} -> ${res.status}: ${body}`);
+            return false;
+        }
+        console.log(`[webhooks/uptime-robot] Resolved open DOWN incident ${issueId} via UP-recovery.`);
+        return true;
+    }
+    catch (err) {
+        console.warn('[webhooks/uptime-robot] closePaperclipIncident request failed:', err.message);
+        return false;
+    }
+};
+// Resolves the matching open DOWN incident for an UP event; returns true if an
+// incident was found and closed so the caller can skip a redundant UP issue.
+const resolveDownIncidentOnUp = async (alert) => {
+    const monitorIDStr = alert.monitorID != null ? String(alert.monitorID) : '';
+    const authoritativeMonitor = monitorIDStr ? await fetchMonitorFromUptimeRobot(monitorIDStr) : null;
+    const friendlyName = authoritativeMonitor?.friendly_name
+        || alert.monitorFriendlyName
+        || alert.monitorName
+        || alert.monitor_name
+        || 'unknown';
+    const monitorURL = authoritativeMonitor?.url || alert.monitorURL || 'unknown';
+    const open = await findOpenIncidentByMonitor(monitorIDStr, friendlyName, monitorURL);
+    if (!open) {
+        console.log(`[webhooks/uptime-robot] UP-recovery: no open DOWN incident matched monitor=${monitorIDStr} (${friendlyName}).`);
+        return false;
+    }
+    const summary = `Monitor ${friendlyName} (${monitorURL}) reported UP at ${new Date().toISOString()}. Matching DOWN incident ${open.identifier || open.id} auto-closed.`;
+    return closePaperclipIncident(open.id, summary);
 };
 router.post('/uptime-robot', async (req, res) => {
     const payload = req.body;
@@ -194,7 +343,20 @@ router.post('/uptime-robot', async (req, res) => {
                     return;
                 }
             }
-            void createPaperclipIssue(payload, false);
+            // BUY-47930: resolve the matching open DOWN incident; only create a
+            // standalone UP issue if no open DOWN incident matched, to avoid
+            // leaving stale in_progress incidents and spurious UP tickets.
+            void (async () => {
+                try {
+                    const resolved = await resolveDownIncidentOnUp(payload);
+                    if (!resolved) {
+                        await createPaperclipIssue(payload, false);
+                    }
+                }
+                catch (err) {
+                    console.error('[webhooks/uptime-robot] UP-recovery error:', err);
+                }
+            })();
         }
         else {
             console.log(`[webhooks/uptime-robot] Alert type ${payload?.alertType ?? payload?.alert_type}: ${friendlyName} (${monitorURL}) — ${alertDetails}`);

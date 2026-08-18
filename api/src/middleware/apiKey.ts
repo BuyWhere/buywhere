@@ -1,10 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { request as httpRequest } from 'http';
 import { request as httpsRequest } from 'https';
 import { db, redis, FREE_TIER, TIER_LIMITS } from '../config';
 import { sendError, ErrorCode } from './errors';
-import { sendSpecError, sendDailyLimitError, sendPerMinuteLimitError } from './errors';
+import { buildRateLimitEnvelope, sendSpecError, sendDailyLimitError, sendPerMinuteLimitError } from './errors';
 
 const PAPERCLIP_API_URL_FALLBACKS = ['https://api.paperclip.ai', 'https://paperclip.richteo.com'];
 const PAPERCLIP_API_URLS = [...new Set([
@@ -346,6 +346,40 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
   next();
 }
 
+export function isMcpJsonRpcRequest(req: Request): boolean {
+  return typeof req.body === 'object'
+    && req.body !== null
+    && req.body.jsonrpc === '2.0'
+    && typeof req.body.method === 'string';
+}
+
+// BUY-70114: request_id is always a server-generated UUID for traceability.
+function mcpRequestId(_id: unknown): string {
+  return randomUUID();
+}
+
+function sendMcpPerMinuteLimitError(req: Request, res: Response, tier: string, limit: number): void {
+  const retryAfter = Math.ceil(60 - (Date.now() % 60000) / 1000);
+  const resetAt = new Date(Date.now() + retryAfter * 1000).toISOString();
+  const message = `Rate limit of ${limit} requests/min exceeded for ${tier.charAt(0).toUpperCase()}${tier.slice(1)} tier.`;
+  const id = (req.body as { id?: unknown }).id ?? null;
+  res.set('Retry-After', String(retryAfter));
+  res.status(429).json({
+    jsonrpc: '2.0',
+    id,
+    request_id: mcpRequestId(id),
+    timestamp: new Date().toISOString(),
+    error: {
+      code: 429,
+      message,
+      data: {
+        envelope: buildRateLimitEnvelope(retryAfter, limit, 0, resetAt, message),
+        retry_after_seconds: retryAfter,
+      },
+    },
+  });
+}
+
 export async function checkRateLimit(req: Request, res: Response, next: NextFunction): Promise<void> {
   if (!req.apiKeyRecord) {
     next();
@@ -370,7 +404,11 @@ export async function checkRateLimit(req: Request, res: Response, next: NextFunc
   }
 
   if (rpmCount > req.apiKeyRecord.rpmLimit) {
-    sendPerMinuteLimitError(res, req.apiKeyRecord.tier, req.apiKeyRecord.rpmLimit);
+    if (isMcpJsonRpcRequest(req)) {
+      sendMcpPerMinuteLimitError(req, res, req.apiKeyRecord.tier, req.apiKeyRecord.rpmLimit);
+    } else {
+      sendPerMinuteLimitError(res, req.apiKeyRecord.tier, req.apiKeyRecord.rpmLimit);
+    }
     return;
   }
 

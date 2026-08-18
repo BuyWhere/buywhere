@@ -145,8 +145,9 @@ export default function ApiKeysPage() {
       </Script>
       <Nav />
 
-      {/* Header */}
-      <section className="bg-indigo-600 text-white py-16">
+      <main id="main-content" tabIndex={-1} className="flex-1">
+        {/* Header */}
+        <section className="bg-indigo-600 text-white py-16">
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
           <div className="inline-flex items-center gap-2 bg-indigo-500 text-indigo-100 text-xs font-medium px-3 py-1 rounded-full mb-4">
             <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
@@ -339,6 +340,8 @@ export default function ApiKeysPage() {
           )}
         </div>
       </section>
+
+      </main>
 
       <Footer />
     </div>

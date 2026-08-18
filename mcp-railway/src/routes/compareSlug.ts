@@ -143,7 +143,11 @@ router.get('/:slug', async (req: Request, res: Response) => {
   }
 
   const page = pageResult.rows[0];
-  const productIds = (page.product_ids || []).filter((id) => typeof id === 'string' && id.length > 0);
+  // product_ids is BIGINT[] — filter to valid numeric IDs
+  const productIds = (page.product_ids || []).filter((id): id is string => {
+    const num = Number(id);
+    return typeof id === 'string' && id.length > 0 && !isNaN(num);
+  });
 
   if (productIds.length === 0) {
     res.status(404).json({ error: 'No products linked' });
@@ -162,7 +166,7 @@ router.get('/:slug', async (req: Request, res: Response) => {
             price, currency, url, source, is_active, updated_at, gtin,
             sku, mpn
      FROM products
-     WHERE id = ANY($1::uuid[]) AND url IS NOT NULL
+     WHERE id = ANY($1::bigint[]) AND url IS NOT NULL
      ORDER BY price::numeric ASC NULLS LAST`,
     [productIds]
   ).catch(() => null);

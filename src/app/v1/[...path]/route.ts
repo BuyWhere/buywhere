@@ -1,24 +1,113 @@
 import { NextRequest } from "next/server";
 
-function buildRedirectUrl(request: NextRequest, path: string[]): string {
-  const pathname = path.length > 0 ? `/v1/${path.join("/")}` : "/v1";
-  const url = new URL(`https://api.buywhere.ai${pathname}`);
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://api.buywhere.ai";
+
+export async function GET(
+  request: NextRequest,
+  context: { params: { path: string[] } },
+): Promise<Response> {
+  const pathSuffix = context.params.path.join("/");
+  const targetUrl = new URL(`/v1/${pathSuffix}`, API_BASE);
   request.nextUrl.searchParams.forEach((value, key) => {
-    url.searchParams.append(key, value);
+    targetUrl.searchParams.append(key, value);
   });
-  return url.toString();
+
+  const headers = new Headers();
+  for (const [key, value] of Array.from(request.headers.entries())) {
+    if (
+      key === "host" ||
+      key === "connection" ||
+      key.startsWith("x-forwarded")
+    )
+      continue;
+    headers.set(key, value);
+  }
+
+  const response = await fetch(targetUrl.toString(), {
+    method: request.method,
+    headers,
+    body:
+      request.method !== "GET" && request.method !== "HEAD"
+        ? await request.arrayBuffer()
+        : undefined,
+  });
+
+  const responseHeaders = new Headers(response.headers);
+  responseHeaders.delete("transfer-encoding");
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: responseHeaders,
+  });
 }
 
-export function GET(
+export async function HEAD(
   request: NextRequest,
   context: { params: { path: string[] } },
-): Response {
-  return Response.redirect(buildRedirectUrl(request, context.params.path), 308);
+): Promise<Response> {
+  const pathSuffix = context.params.path.join("/");
+  const targetUrl = new URL(`/v1/${pathSuffix}`, API_BASE);
+  request.nextUrl.searchParams.forEach((value, key) => {
+    targetUrl.searchParams.append(key, value);
+  });
+
+  const headers = new Headers();
+  for (const [key, value] of Array.from(request.headers.entries())) {
+    if (
+      key === "host" ||
+      key === "connection" ||
+      key.startsWith("x-forwarded")
+    )
+      continue;
+    headers.set(key, value);
+  }
+
+  const response = await fetch(targetUrl.toString(), {
+    method: "HEAD",
+    headers,
+  });
+
+  return new Response(null, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
 }
 
-export function HEAD(
+export async function POST(
   request: NextRequest,
   context: { params: { path: string[] } },
-): Response {
-  return Response.redirect(buildRedirectUrl(request, context.params.path), 308);
+): Promise<Response> {
+  const pathSuffix = context.params.path.join("/");
+  const targetUrl = new URL(`/v1/${pathSuffix}`, API_BASE);
+  request.nextUrl.searchParams.forEach((value, key) => {
+    targetUrl.searchParams.append(key, value);
+  });
+
+  const headers = new Headers();
+  for (const [key, value] of Array.from(request.headers.entries())) {
+    if (
+      key === "host" ||
+      key === "connection" ||
+      key.startsWith("x-forwarded")
+    )
+      continue;
+    headers.set(key, value);
+  }
+
+  const response = await fetch(targetUrl.toString(), {
+    method: "POST",
+    headers,
+    body: await request.arrayBuffer(),
+  });
+
+  const responseHeaders = new Headers(response.headers);
+  responseHeaders.delete("transfer-encoding");
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: responseHeaders,
+  });
 }

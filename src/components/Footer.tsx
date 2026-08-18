@@ -2,12 +2,7 @@ import Link from "next/link";
 import NewsletterBanner from "@/components/NewsletterBanner";
 import { AffiliateDisclosure } from "@/components/ui/AffiliateDisclosure";
 
-// Hoist the copyright year to a module-level constant so the server-rendered
-// HTML never recomputes it during render. Computing `new Date().getFullYear()`
-// inside the JSX evaluates on both server and client; if the server and client
-// clocks cross a year boundary between SSR and hydration, React throws
-// Minified error #418/#422 (hydration mismatch). BUY-60203.
-const COPYRIGHT_YEAR = new Date().getFullYear();
+const COPYRIGHT_YEAR = 2026;
 
 export default function Footer() {
   return (
@@ -17,11 +12,7 @@ export default function Footer() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           <div className="col-span-2 md:col-span-1">
-            <div className="flex items-center gap-2 font-bold text-lg text-indigo-600 mb-3">
-              <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
-                <rect width="28" height="28" rx="6" fill="#4f46e5" />
-                <path d="M7 10h14M7 14h10M7 18h12" stroke="white" strokeWidth="2" strokeLinecap="round" />
-              </svg>
+            <div className="font-bold text-lg text-indigo-600 mb-3">
               BuyWhere
             </div>
             <p className="text-sm text-gray-500 leading-relaxed">
@@ -45,6 +36,8 @@ export default function Footer() {
               <li role="listitem"><Link href="/about" className="hover:text-indigo-600">About</Link></li>
               <li><Link href="/use-cases" className="hover:text-indigo-600">Use Cases</Link></li>
               <li><Link href="/contact" className="hover:text-indigo-600">Contact</Link></li>
+              <li><Link href="/docs" className="hover:text-indigo-600">Help &amp; Support</Link></li>
+              <li><a href="https://status.buywhere.ai" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600">System Status</a></li>
             </ul>
           </div>
 

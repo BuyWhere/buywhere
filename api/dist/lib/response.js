@@ -12,6 +12,19 @@ exports.CURRENCY_RATES = {
 exports.COUNTRY_CURRENCY = {
     SG: 'SGD', US: 'USD', GB: 'GBP', VN: 'VND', TH: 'THB', MY: 'MYR',
 };
+function normalizeImageUrl(imageUrl) {
+    if (typeof imageUrl !== 'string' || imageUrl.trim() === '')
+        return null;
+    try {
+        const parsed = new URL(imageUrl);
+        if (parsed.hostname.toLowerCase() === 'source.unsplash.com')
+            return null;
+    }
+    catch {
+        return imageUrl;
+    }
+    return imageUrl;
+}
 function buildProduct(row, defaultCurrency, compact) {
     const currency = row.currency || defaultCurrency;
     const amount = row.price != null ? parseFloat(row.price) : null;
@@ -19,11 +32,15 @@ function buildProduct(row, defaultCurrency, compact) {
     // Validation catches two categories of data-quality failures observed in production:
     //   1. $0.00 prices — out-of-stock marker, missing price field, or parsing error
     //   2. Prices over $10,000 — feed corruption, currency conversion unit errors
+    //   3. BUY-63738: Prices under $5 — observed $1.00 laptop prices are clearly
+    //      invalid feed errors; real laptops start at ~$400. A $5 floor catches the
+    //      obvious errors while still allowing cheap accessories ($2-3 cables, etc.).
     // Legitimate high-end products (luxury watches, high-end appliances, jewelry)
     // stay under $10k. When a price fails validation the amount is nullified so
     // the FE displays nothing instead of a deceptive value.
+    const PRICE_MIN = 5;
     const PRICE_MAX = 10000;
-    const sanitizedAmount = (amount != null && amount > 0 && amount <= PRICE_MAX)
+    const sanitizedAmount = (amount != null && amount >= PRICE_MIN && amount <= PRICE_MAX)
         ? amount
         : null;
     const affiliateUrl = (0, affiliateWrapper_1.resolvePrecomputedAffiliateUrl)(row.affiliate_url);
@@ -41,18 +58,28 @@ function buildProduct(row, defaultCurrency, compact) {
         ? (0, instrumentation_1.buildAffiliateRedirectUrl)({ productId, source: 'product_card' })
         : null;
     const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
+    const inStock = row.in_stock != null
+        ? row.in_stock
+        : sanitizedAmount != null && sanitizedAmount > 0;
     const base = {
         id: productId,
         title: row.title,
         price: { amount: sanitizedAmount, currency },
         merchant,
         url: destinationUrl,
-        image_url: row.image_url || null,
+        image_url: normalizeImageUrl(row.image_url),
         region: row.region || null,
         country_code: row.country_code || null,
         updated_at: row.updated_at || null,
         // CAT-08: expose stock status as a top-level boolean when known.
         ...(row.in_stock != null && { in_stock: row.in_stock }),
+        // BUY-70574/BUY-70043: basket verification consumes availability.in_stock.
+        // When feeds omit explicit stock, positive-price catalog rows are minimally
+        // considered available so agent commerce flows have a usable availability signal.
+        availability: {
+            in_stock: inStock,
+            status: inStock ? 'in_stock' : 'out_of_stock',
+        },
         ...(affiliateUrl != null && { affiliate_url: affiliateUrl }),
         ...(clickUrl != null && { click_url: clickUrl }),
         ...(affiliateRedirectUrl != null && { affiliate_redirect_url: affiliateRedirectUrl }),
@@ -100,12 +127,17 @@ function buildProduct(row, defaultCurrency, compact) {
     }
     return base;
 }
-function buildSearchResponse(products, total, limit, offset, responseTimeMs, cached) {
+function buildSearchResponse(products, total, limit, offset, responseTimeMs, cached, degraded, hasMore) {
     return {
-        results: products,
-        total,
-        page: { limit, offset },
-        response_time_ms: responseTimeMs,
-        cached,
+        data: products,
+        meta: {
+            total,
+            limit,
+            offset,
+            response_time_ms: responseTimeMs,
+            cached,
+            ...(degraded != null && { degraded }),
+            ...(hasMore != null && { has_more: hasMore }),
+        },
     };
 }

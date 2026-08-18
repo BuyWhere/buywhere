@@ -17,7 +17,7 @@ const tiers = [
     name: "Free",
     price: "$0",
     period: "/mo",
-    description: "Get started with the BuyWhere API at no cost.",
+    description: "Get started with the BuyWhere API at no cost — no credit card required.",
     requests: "100 req/day",
     rateLimit: "10 req/min",
     bulk: false,
@@ -84,7 +84,7 @@ function CheckIcon({ on }: { on: boolean }) {
     );
   }
   return (
-    <svg className="w-5 h-5 text-indigo-500 mx-auto" viewBox="0 0 20 20" fill="none">
+    <svg className="w-5 h-5 text-white mx-auto" viewBox="0 0 20 20" fill="none">
       <path
         d="M4 10l4.5 4.5L16 6"
         stroke="currentColor"
@@ -113,6 +113,11 @@ export default function PricingPage() {
       { price: '29', priceCurrency: 'USD' },
       { price: '99', priceCurrency: 'USD' },
     ],
+    // BUY-69732: Home > Pricing breadcrumb for the pricing route.
+    breadcrumb: [
+      { name: 'Home', path: '/' },
+      { name: 'Pricing', path: '/pricing' },
+    ],
   });
   return (
     <>
@@ -125,7 +130,7 @@ export default function PricingPage() {
       <section className="py-16 border-b border-gray-100 text-center">
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Simple, transparent pricing</h1>
-          <p className="text-lg text-gray-500">Start free. Scale as you grow. No hidden fees.</p>
+          <p className="text-lg text-gray-500">Start free — no credit card required. Scale as you grow. No hidden fees.</p>
         </div>
       </section>
 
@@ -173,7 +178,7 @@ export default function PricingPage() {
                   </p>
                   {tier.trial && (
                     <p
-                      className={`text-xs mt-1 font-semibold ${tier.highlighted ? "text-amber-300" : "text-indigo-600"}`}
+                      className={`text-xs mt-1 font-semibold ${tier.highlighted ? "text-amber-200" : "text-indigo-600"}`}
                     >
                       {tier.trial}
                     </p>
@@ -243,16 +248,20 @@ export default function PricingPage() {
                     <th
                       key={tier.name}
                       scope="col"
+                      aria-label={tier.highlighted ? `${tier.name}, most popular` : tier.name}
                       className={`text-center py-4 px-6 text-sm font-semibold ${
                         tier.highlighted ? "text-indigo-600" : "text-gray-900"
                       }`}
                     >
-                      <span className="sr-only">{tier.name}</span>
-                      <span aria-hidden="true" className="block">{tier.name}</span>
-                      {tier.highlighted && (
-                        <span aria-hidden="true" className="mt-1 inline-flex text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                          Popular
+                      {tier.highlighted ? (
+                        <span>
+                          {tier.name}{" "}
+                          <span aria-hidden="true" className="mt-1 ml-1 inline-flex text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                            Popular
+                          </span>
                         </span>
+                      ) : (
+                        <span>{tier.name}</span>
                       )}
                     </th>
                   ))}

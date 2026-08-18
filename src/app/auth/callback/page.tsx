@@ -1,0 +1,45 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import Nav from "@/components/Nav";
+import Footer from "@/components/Footer";
+
+export const metadata: Metadata = {
+  title: "Authentication Callback — BuyWhere",
+  description: "Authentication callback page for BuyWhere developer login flow.",
+  robots: { index: false, follow: false },
+};
+
+export default function AuthCallbackPage() {
+  return (
+    <div className="flex min-h-screen flex-col bg-slate-50">
+      <Nav />
+      <main id="main-content" className="flex-1 py-16">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6">
+          <div className="rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+              Authentication Callback
+            </h1>
+            <p className="mt-4 text-sm leading-7 text-slate-600">
+              Processing authentication callback. If you are not redirected automatically, please continue.
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
+              >
+                Go to dashboard
+              </Link>
+              <Link
+                href="/login"
+                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                Sign in again
+              </Link>
+            </div>
+          </div>
+        </div>
+      </main>
+      <Footer />
+    </div>
+  );
+}

@@ -17,6 +17,16 @@ const SEARCH_HISTORY_KEY = 'bw_search_history';
 const SEARCH_HISTORY_LIMIT = 8;
 const SUGGESTED_SEARCHES = ['wireless headphones', 'running shoes', 'espresso machine', 'gaming laptop'];
 
+// Exclude the currently-active query from the suggested-chips set so users
+// never see a chip that would just resubmit the same search (dead-end UX).
+// BUY-69618: case-insensitive + trim so "Gaming Laptop" / "  gaming laptop "
+// both match a chip labeled "gaming laptop".
+function filterSuggestedSearches(activeQuery: string): string[] {
+  const needle = activeQuery.trim().toLowerCase();
+  if (!needle) return SUGGESTED_SEARCHES;
+  return SUGGESTED_SEARCHES.filter((suggestion) => suggestion.toLowerCase() !== needle);
+}
+
 const COUNTRY_OPTIONS = [
   { value: 'us', label: 'United States', apiValue: 'US', currency: 'USD' },
   { value: 'sg', label: 'Singapore', apiValue: 'SG', currency: 'SGD' },
@@ -98,8 +108,76 @@ function formatMerchantName(value?: string | null) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+// BUY-65559: price sanity bounds.
+//
+// The catalog ingest lane (BUY-52807 family) has historically emitted sentinel
+// prices — `amount: 1` when the Google Shopping scraper could not parse the
+// merchant's product page, and `amount: 0` from a handful of Shopify feeds.
+// Those sentinels reached the card as ordinary finite numbers and rendered as
+// "$1.00" / "$0.00", so a RTX 5050 gaming laptop was listed at a dollar.
+//
+// `isPlausiblePrice` is the render-side backstop: anything outside the bounds
+// is coerced to `null` in `normalizeProduct`, which routes it through the
+// existing "Price unavailable" copy instead of showing a fabricated number.
+// A missing price is honest; a wrong price is not.
+//
+// The guard deliberately fails OPEN — hiding a real product from search is a
+// worse failure than showing one odd price, so every bound below is set where
+// no genuine retail offer lives, and anything ambiguous keeps its price.
+const MAX_PLAUSIBLE_PRICE = 10_000_000;
+
+// Universal sentinel floor. Nothing in the catalog legitimately retails below
+// this: the cheapest real rows sampled across gaming laptops, cables,
+// keychains, stickers and screen protectors were $5.50-$6.99. Scraper
+// sentinels cluster at 0, 0.01 and 1, so this bound separates them cleanly
+// without a title heuristic that could misread a real product.
+const ABSOLUTE_MIN_PRICE = 3;
+
+// A second, narrower floor for big-ticket devices, where even $40 is clearly a
+// data error. Applied ONLY when the title is unambiguously a primary device —
+// accessories and collectibles are excluded first, because "Laptop Cooling
+// Pad" ($38) and "Pop Television Action Figure" ($9.99) are real products
+// whose titles merely borrow a high-value keyword.
+const HIGH_VALUE_PRODUCT_PATTERN =
+  /\b(laptop|notebook|macbook|desktop|imac|smartphone|iphone|television|refrigerator|dishwasher|playstation|xbox)\b/;
+const HIGH_VALUE_MIN_PRICE = 50;
+
+// Titles that borrow a high-value keyword while describing something cheap.
+// "Pop Television" is Funko's collectible line, not a TV; a "SIM card holder
+// for iPhone 13 Pro" is not an iPhone. Every entry here was observed as a real
+// live catalog row that the floor would otherwise have hidden. The trailing
+// `s?` matches plural titles ("Ponchos - iPhone") as well as singular.
+const HIGH_VALUE_FALSE_FRIEND_PATTERN =
+  /\b(action figure|figurine|funko|pop television|collectible|plush|poster|keychain|sticker|decal|magnet|mug|t-shirt|tee|toy|lego|replica|miniature|keyboard|mouse|screen protector|tempered glass|poncho|holder|mount|strap|band|grip|ring|wallet|pouch|tripod|stylus|lens|film|clip|skin|sleeve|case|cover)s?\b/;
+
+// A "for <device>" / "compatible with <device>" title is describing something
+// made FOR the device, not the device itself.
+const ACCESSORY_PREPOSITION_PATTERN = /\b(for|compatible with|fits|designed for)\b/;
+
+function isPlausiblePrice(price: number | null, product: { name: string; category: string | null }): boolean {
+  if (price === null || !Number.isFinite(price)) return false;
+
+  // Zero, negative, or absurd is never a real offer, whatever the item.
+  if (price <= 0 || price > MAX_PLAUSIBLE_PRICE) return false;
+
+  // Sentinel territory — below any genuine retail price in the catalog.
+  if (price < ABSOLUTE_MIN_PRICE) return false;
+
+  const text = `${product.name} ${product.category || ''}`.toLowerCase();
+
+  if (HIGH_VALUE_PRODUCT_PATTERN.test(text) && price < HIGH_VALUE_MIN_PRICE) {
+    // Fail open for anything that only looks like a big-ticket device.
+    if (HIGH_VALUE_FALSE_FRIEND_PATTERN.test(text)) return true;
+    if (ACCESSORY_PREPOSITION_PATTERN.test(text)) return true;
+    if (isAccessoryProduct({ name: product.name, category: product.category } as SearchCardProduct)) return true;
+    return false;
+  }
+
+  return true;
+}
+
 function formatPrice(price: number | null, currency: string) {
-  if (price === null) return 'Price unavailable';
+  if (price === null || !Number.isFinite(price)) return 'Price unavailable';
 
   try {
     return new Intl.NumberFormat(currency === 'SGD' ? 'en-SG' : 'en-US', {
@@ -112,6 +190,31 @@ function formatPrice(price: number | null, currency: string) {
   }
 }
 
+// BUY-69615: Centralized blocklist of known-bad image hosts that return 4xx/5xx
+// even with valid browser User-Agents. Mirrors the HOTLINK_BLOCKED_HOSTS set in
+// src/lib/seo-landing-pages.ts. These hosts cause console noise and broken-image
+// fallbacks when included in search cards.
+const SEARCH_IMAGE_BLOCKED_HOSTS = new Set([
+  // Generic test/synthetic hosts (existing)
+  'example.sg', 'example.com', 'example.net', 'example.org',
+  // Unsplash placeholder (existing)
+  'source.unsplash.com', 'images.unsplash.com',
+  // Hotlink-protected merchant CDNs (added for BUY-69615)
+  'c1.neweggimages.com', // Returns HTTP 400 for all requests
+  'www.neweggimages.com',
+  'www.harveynorman.com.sg', // Returns HTTP 404 for most images
+  'harveynorman.com.sg',
+  // BUY-67241: mediadecathlon content host returns hard 410 (max-age=2592000)
+  'contents.mediadecathlon.com',
+  'www.mediadecathlon.com',
+  // BUY-67241: cdn.shopify.com wireless-headphones catalog rows return mixed
+  // 200/404/410 (JBL, Sony, Beats break in QA 2026-08-09T02:13Z); filter the
+  // whole host and render BrandedPlaceholder instead.
+  'cdn.shopify.com',
+  'shopify.com',
+  'www.shopify.com',
+]);
+
 function hasUsableProductImage(value?: string | null) {
   if (!value) return false;
 
@@ -122,9 +225,24 @@ function hasUsableProductImage(value?: string | null) {
     const search = imageUrl.search.toLowerCase();
     const fullUrl = `${hostname}${pathname}${search}`;
 
+    // BUY-69615: Check centralized blocklist first
+    if (SEARCH_IMAGE_BLOCKED_HOSTS.has(hostname)) return false;
     if (hostname.includes('source.unsplash.com') || fullUrl.includes('source.unsplash.com')) return false;
     if (hostname.includes('images.unsplash.com') || fullUrl.includes('images.unsplash.com')) return false;
     if (hostname.includes('unsplash.com')) return false;
+    // BUY-69614: Some Amazon catalog rows carry ASIN-like placeholders in the
+    // image path (for example /images/I/B10162807901._AC_SY360_.jpg). Amazon
+    // returns HTTP 400 for those assets, which creates QA console noise before
+    // our render-side onError fallback can hide the broken image.
+    if (hostname === 'm.media-amazon.com' && /\/images\/i\/b\d{10,}\._/.test(pathname)) return false;
+    // BUY-68364: synthetic fixture image hosts must never reach the browser in
+    // production search cards. They resolve as NXDOMAIN (for example,
+    // images.example.sg/products/SYNTH_08012/1.jpg), which creates visible broken
+    // image noise before the render-side fallback can take over.
+    if (hostname === 'example.sg' || hostname.endsWith('.example.sg')) return false;
+    if (hostname === 'example.com' || hostname.endsWith('.example.com')) return false;
+    if (hostname === 'example.net' || hostname.endsWith('.example.net')) return false;
+    if (hostname === 'example.org' || hostname.endsWith('.example.org')) return false;
     if (fullUrl.includes('placeholder')) return false;
     if (fullUrl.includes('image-unavailable')) return false;
     if (fullUrl.includes('no-image')) return false;
@@ -132,20 +250,290 @@ function hasUsableProductImage(value?: string | null) {
     if (fullUrl.includes('missing-image')) return false;
     if (fullUrl.includes('generic')) return false;
 
+    // BUY-67241: subdomain wildcards for the always-410 / mixed-410 hosts.
+    // The Set above catches apex + www; matches here catch subdomains like
+    // burst.shopifycdn.com and static.mediadecathlon.com.
+    if (hostname.endsWith('.mediadecathlon.com')) return false;
+    if (hostname.endsWith('.shopify.com')) return false;
+    if (hostname.endsWith('.shopifycdn.com')) return false;
+
     return true;
   } catch {
     return false;
   }
 }
 
-function sortProductsByImageQuality(products: SearchCardProduct[]) {
-  return [...products].sort((leftProduct, rightProduct) => {
-    const leftHasImage = leftProduct.imageUrl ? 1 : 0;
-    const rightHasImage = rightProduct.imageUrl ? 1 : 0;
+// BUY-63738: Re-rank search results for product-category queries.
+// Priorities (descending):
+//   1. Has usable image (filter out generic placeholders)
+//   2. Has valid price (not null)
+//   3. Is primary product (not accessory)
+//   4. ts_rank from API (preserved within same tier)
+const ACCESSORY_KEYWORDS = [
+  'skin', 'skins', 'decal', 'decals', 'sticker', 'stickers',
+  'sleeve', 'sleeves', 'case', 'cases', 'cover', 'covers', 'protector', 'protectors',
+  'backpack', 'backpacks', 'bag', 'bags', 'briefcase', 'briefcases', 'messenger',
+  'shell', 'shells', 'pad', 'pads', 'cooler', 'coolers',
+  'adapter', 'adapters', 'dock', 'docks', 'hub', 'hubs',
+  'lock', 'locks', 'charger', 'chargers', 'cable', 'cables',
+  'stand', 'stands', 'mat', 'mats', 'tablet',
+];
 
-    if (leftHasImage !== rightHasImage) return rightHasImage - leftHasImage;
+function isAccessoryProduct(product: SearchCardProduct): boolean {
+  const titleLower = product.name.toLowerCase();
+
+  // BUY-63738: Detect accessories (backpacks, skins, sleeves, etc.).
+  // Strategy: products with accessory keywords are accessories UNLESS the title
+  // is clearly a primary laptop/notebook/macbook product.
+  const hasAccessoryKeyword = ACCESSORY_KEYWORDS.some(keyword => titleLower.includes(keyword));
+
+  if (!hasAccessoryKeyword) return false;
+
+  // If title contains "laptop" and the title STARTS with or centers on a real laptop
+  // (not an accessory for laptop), it's a laptop product.
+  // E.g., "ASUS TUF Gaming F16 Laptop Intel..." = laptop
+  // E.g., "Backpack Gaming Backpack For Laptop" = accessory
+  // E.g., "Robotic Doodle Laptop Skin" = accessory
+  // E.g., "MacBook Pro Case Cover" = accessory
+
+  // Heuristic: if accessory keyword appears BEFORE "laptop/notebook/macbook", it's an accessory
+  const accessoryIdx = ACCESSORY_KEYWORDS.reduce((minIdx, kw) => {
+    const idx = titleLower.indexOf(kw);
+    return idx >= 0 && (minIdx < 0 || idx < minIdx) ? idx : minIdx;
+  }, -1);
+
+  const laptopMatch = titleLower.match(/\b(laptop|notebook|macbook)\b/);
+  const laptopIdx = laptopMatch ? laptopMatch.index! : -1;
+
+  // Accessory word appears before laptop word = accessory (e.g., "Backpack for Laptop")
+  if (accessoryIdx >= 0 && laptopIdx >= 0 && accessoryIdx < laptopIdx) {
+    return true;
+  }
+
+  // Accessory word appears after laptop word and is a common suffix pattern
+  // E.g., "Laptop Skin", "MacBook Case" = accessory
+  if (accessoryIdx >= 0 && laptopIdx >= 0 && accessoryIdx > laptopIdx) {
+    // If the accessory keyword is within 20 chars of the laptop word, it's likely a modifier (accessory)
+    return (accessoryIdx - laptopIdx) < 25;
+  }
+
+  // Only accessory keyword (no laptop) = accessory
+  return true;
+}
+
+// BUY-68365: Detect category-vs-query mismatch for complete-device queries.
+// "Gaming laptop" should rank complete laptops, not "for Gaming PC Gaming Laptop"
+// SSDs / cables / sleeves. The product's `category` field is the source of truth;
+// the title is polluted by marketing copy that targets FTS tokens.
+// Map each device-shaped query token to the canonical category strings that
+// cover the device itself. A product whose category is set and does NOT match
+// any of the allowed strings is considered a category mismatch.
+const COMPLETE_DEVICE_TOKENS: Array<{ token: RegExp; allowedCategories: string[] }> = [
+  {
+    token: /\b(laptops?|notebooks?|macbooks?|chromebooks?|gaming\s+laptops?|ultrabooks?)\b/i,
+    allowedCategories: [
+      'laptops', 'laptop', 'notebooks', 'notebook', 'macbooks', 'macbook',
+      'chromebooks', 'chromebook', 'ultrabooks', 'ultrabook', 'gaming laptops',
+      'computers', 'computer', 'pc laptops', '2-in-1 laptops',
+    ],
+  },
+  {
+    token: /\b(phones?|smartphones?|iphones?|android\s+phones?|cell\s+phones?)\b/i,
+    allowedCategories: [
+      'smartphones', 'smartphone', 'mobile phones', 'mobile phone', 'cell phones',
+      'cell phone', 'phones', 'phone', 'iphones', 'iphone', 'android phones',
+      'unlocked phones', 'telephones',
+    ],
+  },
+  {
+    token: /\b(monitors?|displays?|computer\s+monitors?)\b/i,
+    allowedCategories: [
+      'monitors', 'monitor', 'computer monitors', 'computer monitor',
+      'displays', 'display', 'monitors & displays',
+    ],
+  },
+  {
+    token: /\b(televisions?|tvs?|smart\s+tvs?)\b/i,
+    allowedCategories: [
+      'televisions', 'television', 'tvs', 'tv', 'smart tvs', 'smart tv',
+      'tv, video & home audio',
+    ],
+  },
+  {
+    token: /\b(playstations?|xbox(es)?|nintendo\s+switch|consoles?)\b/i,
+    allowedCategories: [
+      'playstation', 'xbox', 'nintendo switch', 'nintendo', 'video game consoles',
+      'game consoles', 'consoles',
+    ],
+  },
+  {
+    token: /\b(refrigerators?|fridges?|freezers?)\b/i,
+    allowedCategories: [
+      'refrigerators', 'refrigerator', 'fridges', 'freezers', 'freezer',
+      'appliances', 'major appliances',
+    ],
+  },
+  {
+    token: /\b(dishwashers?)\b/i,
+    allowedCategories: [
+      'dishwashers', 'dishwasher', 'appliances', 'major appliances',
+    ],
+  },
+];
+
+function isCategoryMismatchedForDeviceQuery(query: string, product: SearchCardProduct): boolean {
+  if (!product.category) return false; // empty category → no penalty; let other heuristics decide
+  const queryLower = query.toLowerCase();
+  const categoryLower = product.category.toLowerCase();
+  for (const { token, allowedCategories } of COMPLETE_DEVICE_TOKENS) {
+    if (!token.test(queryLower)) continue;
+    const match = allowedCategories.some((allowed) => categoryLower.includes(allowed));
+    if (!match) return true;
+  }
+  return false;
+}
+
+function rankProduct(product: SearchCardProduct, query: string = ''): number {
+  let score = 0;
+  // Has usable image
+  if (product.imageUrl) score += 100;
+  // Has valid price
+  if (product.price !== null) score += 50;
+  // Not an accessory
+  if (!isAccessoryProduct(product)) score += 25;
+  // BUY-68365: Demote category-vs-query mismatches on complete-device queries.
+  // A "Storage" SSD must not rank among the top "gaming laptop" results even
+  // when the marketing title contains "for Gaming PC Gaming Laptop Desktop".
+  if (query && isCategoryMismatchedForDeviceQuery(query, product)) score -= 500;
+  return score;
+}
+
+function sortProductsByRelevance(products: SearchCardProduct[], query: string = '') {
+  return [...products].sort((leftProduct, rightProduct) => {
+    const leftScore = rankProduct(leftProduct, query);
+    const rightScore = rankProduct(rightProduct, query);
+    if (leftScore !== rightScore) return rightScore - leftScore;
     return 0;
   });
+}
+
+
+// BUY-67977: derive a brand from the product title when the API did not
+// supply one. The catalog ingest lane (BUY-52807 family) leaves `brand` and
+// `metadata.brand` blank for the vast majority of products, but every
+// product title begins with the brand (e.g. "JBL Everest 310…",
+// "Sony MDR-100ABN/B…", "Beats by Dr. Dre Solo3…"). Without a derived brand,
+// only the small minority of rows that happen to carry `metadata.category`
+// render any subtitle line — which broke grid-row visual alignment. We use
+// the first leading token(s) that look brand-shaped: starts with a letter,
+// is not all-digits, and is not a generic product noun ("Wireless",
+// "Headphones", "Ear", "ANC", "Pro", …).
+//
+// We deliberately keep the heuristic conservative so it never invents a brand
+// from a generic noun like "Studio" or "Premium" — when the first token is
+// ambiguous we return null and let the reserved slot render empty (PR #431's
+// `min-h-[1.25rem]` keeps row alignment either way).
+const TITLE_BRANDS_BLOCKLIST = new Set([
+  // Product categories / descriptors.
+  'wireless', 'bluetooth', 'headphones', 'headphone', 'earbuds', 'earbud',
+  'ear', 'earpiece', 'over-ear', 'on-ear', 'in-ear', 'over',
+  // Marketing / quality adjectives.
+  'new', 'premium', 'pro', 'plus', 'mini', 'max', 'ultra', 'lite',
+  'anc', 'hifi', 'hi-fi', 'stereo', 'mono', 'noise', 'cancelling',
+  'cancellation', 'portable', 'foldable', 'folding',
+  'studio', 'series', 'version', 'generation', 'gen', 'model',
+  'official', 'original', 'authentic', 'genuine', 'brand', 'newest',
+  'latest', 'best', 'top', 'quality', 'high', 'low', 'cheap', 'expensive',
+  'free', 'shipping', 'sale', 'discount', 'limited', 'edition',
+  'special', 'classic', 'deluxe', 'standard', 'edition',
+  // Connectivity / port descriptors.
+  'usb', 'usb-c', 'type-c', 'wired', 'cordless', 'rechargeable',
+  // Colors / finishes — never a real brand when it appears as a leading token.
+  'black', 'white', 'blue', 'red', 'green', 'yellow', 'pink', 'purple',
+  'orange', 'grey', 'gray', 'silver', 'gold', 'rose', 'midnight',
+  'space', 'starlight', 'graphite', 'natural', 'matte', 'glossy',
+  // Common English function / generic words that show up as leading tokens
+  // in generic, brand-less titles.
+  'the', 'a', 'an', 'and', 'or', 'for', 'with', 'to', 'from', 'in', 'on',
+  'at', 'by', 'of', 'this', 'that', 'these', 'those', 'my', 'your', 'our',
+  // Single letters (rejected here so we don't pick them up after skipping
+  // other tokens; the length check in isLikelyBrandToken also enforces this).
+  'x', 'i',
+]);
+
+function isLikelyBrandToken(token: string): boolean {
+  if (!token) return false;
+  // Strip leading/trailing punctuation EXCEPT internal periods ("Dr.", "Inc.").
+  // We deliberately keep periods so "Dr." survives into the candidate.
+  const cleaned = token.replace(/^[^A-Za-z0-9.]+|[^A-Za-z0-9.]+$/g, '');
+  if (!cleaned) return false;
+  // Must start with a letter.
+  if (!/^[A-Za-z]/.test(cleaned)) return false;
+  // Require at least 2 characters so single-letter shapes like "X" are
+  // rejected (those are usually model numbers, not brand names).
+  if (cleaned.length < 2) return false;
+  // Reject all-digit tokens (model numbers).
+  if (/^\d+$/.test(cleaned)) return false;
+  // Reject tokens that look like model numbers: contain a digit within 4 chars
+  // of the start (e.g. "W820Nb", "WH-1000XM5", "MTU02LL/A").
+  if (/^[A-Za-z]*\d/.test(cleaned) && cleaned.length <= 12) return false;
+  // Reject generic product nouns.
+  if (TITLE_BRANDS_BLOCKLIST.has(cleaned.toLowerCase())) return false;
+  // Reject function words.
+  if (/^(by|for|of|and|with|to|from|the|a|an)$/i.test(cleaned)) return false;
+  return true;
+}
+
+// BUY-67977: Multi-word brand extraction for titles like
+// "Beats by Dr. Dre Solo3 Wireless Headphones" → "Beats by Dr. Dre"
+// "Audio-Technica ATH-CKS50TW2 Wireless Headphones" → "Audio-Technica"
+// "JBL Everest 310 On-Ear Wireless Headphones" → "JBL"
+//
+// Rules:
+//   - Take the first leading token that passes isLikelyBrandToken.
+//   - If the next token is "by" and the token after is a brand-shaped
+//     capitalized word, keep "First by Brand" up to two more title-cased
+//     tokens (matches "Beats by Dr. Dre" exactly).
+//   - Otherwise the brand is just the first token.
+function deriveBrandFromTitle(title: string | null | undefined): string | null {
+  if (!title || typeof title !== 'string') return null;
+  const tokens = title.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return null;
+
+  // Strip surrounding punctuation but PRESERVE internal periods so
+  // "Dr." survives into the candidate string ("Beats by Dr. Dre").
+  const clean = (s: string): string => s.replace(/^[^A-Za-z0-9.]+|[^A-Za-z0-9.]+$/g, '');
+
+  // Find the first brand-shaped token.
+  let idx = 0;
+  while (idx < tokens.length && !isLikelyBrandToken(clean(tokens[idx]))) {
+    idx += 1;
+  }
+  if (idx >= tokens.length) return null;
+
+  // Handle "First by Brand Name" pattern (e.g. "Beats by Dr. Dre").
+  // We only extend when the next token is exactly "by" (case-insensitive) and
+  // the token after that is also brand-shaped — caps to 3 total tokens so we
+  // never span onto a model number or product noun.
+  let endIdx = idx + 1;
+  const next = clean(tokens[idx + 1] ?? '').toLowerCase().replace(/\.$/, '');
+  if (next === 'by' && tokens[idx + 2] && isLikelyBrandToken(clean(tokens[idx + 2]))) {
+    const afterBy2 = clean(tokens[idx + 3] ?? '');
+    endIdx = idx + 3; // include "by Brand"
+    // Optional fourth token if also brand-shaped (e.g. "Beats by Dr. Dre").
+    if (
+      afterBy2 &&
+      isLikelyBrandToken(afterBy2) &&
+      // Don't extend if the fourth token would cross into a model-number zone.
+      !/\d/.test(afterBy2)
+    ) {
+      endIdx = idx + 4;
+    }
+  }
+
+  const candidate = tokens.slice(idx, endIdx).map(clean).filter(Boolean).join(' ');
+  if (!candidate || candidate.length > 32) return null;
+  return candidate;
 }
 
 function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): SearchCardProduct {
@@ -172,18 +560,45 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
       ? item.image || null
       : null;
 
+  const name = item.name || item.title || 'Untitled product';
+  const category = item.category || specCategory;
+  const finitePrice = Number.isFinite(numericPrice) ? numericPrice : null;
+
   return {
     id: String(item.id),
-    name: item.name || item.title || 'Untitled product',
-    price: Number.isFinite(numericPrice) ? numericPrice : null,
+    name,
+    // BUY-65559: drop implausible sentinel prices to null so the card renders
+    // "Price unavailable" instead of a fabricated "$1.00" / "$0.00".
+    price: isPlausiblePrice(finitePrice, { name, category }) ? finitePrice : null,
     currency: priceCurrency || fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
     imageUrl,
     href: item.affiliate_redirect_url || item.click_url || item.affiliate_url || item.buy_url || item.url || '#',
-    brand: item.brand || specBrand,
-    category: item.category || specCategory,
+    // BUY-67977: derive brand from the title when the API does not provide
+    // one, so the meta slot renders a consistent brand line across all cards
+    // in a grid row (rather than only the rare rows where the ingest lane
+    // populated `metadata.brand`).
+    brand: item.brand || specBrand || deriveBrandFromTitle(name),
+    category,
   };
 }
+
+// BUY-65559: exported for the price-sanity regression test.
+// BUY-68365: also exported for the category-mismatch regression test.
+// BUY-67977: also exported for the brand-derivation regression test.
+export const __test__ = {
+  isPlausiblePrice,
+  formatPrice,
+  normalizeProduct,
+  rankProduct,
+  sortProductsByRelevance,
+  isAccessoryProduct,
+  isCategoryMismatchedForDeviceQuery,
+  deriveBrandFromTitle,
+  hasUsableProductImage,
+  HIGH_VALUE_MIN_PRICE,
+  MAX_PLAUSIBLE_PRICE,
+};
 
 function normalizeSearchHistoryQuery(value: string) {
   return value.trim().replace(/\s+/g, ' ');
@@ -245,7 +660,10 @@ function SearchInputSkeleton() {
 
 function SearchResultsSkeleton() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-hidden="true">
+    <div
+      className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+      aria-hidden="true"
+    >
       {Array.from({ length: 8 }).map((_, index) => (
         <div key={index} className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
           <div className="aspect-[4/3] animate-pulse bg-slate-200" />
@@ -281,7 +699,7 @@ function SearchProgressIndicator({ startedAt }: { startedAt: number }) {
 
   return (
     <div className="flex flex-col items-center gap-3 py-6" role="status" aria-live="polite">
-      <div className="flex items-center gap-2 text-sm text-slate-500">
+      <div className="flex items-center gap-2 text-sm text-slate-600">
         <span className="text-lg">{phase.icon}</span>
         <span>{phase.message}</span>
       </div>
@@ -300,18 +718,82 @@ function SearchProgressIndicator({ startedAt }: { startedAt: number }) {
 
 
 function SearchCard({ product }: { product: SearchCardProduct }) {
+  // BUY-67973: track image lifecycle so the literal "Product image" text no
+  // longer sits on top of loaded imagery. We render three mutually exclusive
+  // states:
+  //   - loading (default): subtle radial-gradient skeleton (no overlay text)
+  //   - loaded: the actual <img> with no fallback text
+  //   - error: the existing BrandedPlaceholder (no overlay text)
+  const [imageState, setImageState] = useState<'loading' | 'loaded' | 'error'>(
+    product.imageUrl ? 'loading' : 'error'
+  );
+
+  useEffect(() => {
+    setImageState(product.imageUrl ? 'loading' : 'error');
+  }, [product.imageUrl]);
+
+  // Branded placeholder for broken/missing images - shows brand + product name
+  // Similar to ProductGridImage's BrandedPlaceholder (BUY-63851 fix)
+  function BrandedPlaceholder() {
+    const brandText = (product.brand || 'BuyWhere').slice(0, 18);
+    const productLabel = product.name.slice(0, 26);
+
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 p-4">
+        <div className="mb-2 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" className="w-full max-w-[180px] drop-shadow-sm">
+            <defs>
+              <linearGradient id="searchCardBg" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0" stopColor="#fff7ed" />
+                <stop offset="1" stopColor="#fde68a" />
+              </linearGradient>
+            </defs>
+            <rect width="400" height="300" fill="url(#searchCardBg)" />
+            <rect x="40" y="40" width="320" height="220" rx="24" fill="#ffffff" stroke="#fcd34d" strokeWidth="3" />
+            <g transform="translate(140 80)" fill="none" stroke="#b45309" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="0" y="0" width="120" height="90" rx="12" fill="#fef3c7" />
+              <circle cx="60" cy="40" r="14" fill="#f59e0b" stroke="none" />
+              <path d="M0 70 L40 35 L80 60 L120 25" stroke="#b45309" />
+            </g>
+            <text x="200" y="208" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="22" fontWeight="700" fill="#0f172a">
+              {brandText}
+            </text>
+            <text x="200" y="236" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="14" fontWeight="500" fill="#475569">
+              {productLabel}
+            </text>
+            <text x="200" y="258" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="11" fontWeight="600" letterSpacing="2" fill="#92400e">
+              BUYWHERE
+            </text>
+          </svg>
+        </div>
+        {product.brand && (
+          <span className="text-xs text-slate-600">{product.brand}</span>
+        )}
+      </div>
+    );
+  }
+
   return (
     <a
+      data-testid="search-product-card"
       href={product.href}
       target="_blank"
       rel="noopener noreferrer"
-      className="group relative flex h-full flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
+      className="group relative flex h-full min-h-[460px] min-w-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-1 hover:border-amber-200 hover:shadow-xl"
     >
-      <div className="relative aspect-[4/3] border-b border-slate-100 bg-slate-100">
-        <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))] text-sm font-semibold text-slate-600">
-          Product image
-        </div>
-        {product.imageUrl ? (
+      <div
+        className="relative w-full max-h-[220px] shrink-0 overflow-hidden border-b border-slate-100 bg-slate-100"
+        style={{ aspectRatio: '4/3', maxHeight: '220px' }}
+        data-testid="search-product-media"
+      >
+        {imageState === 'loading' ? (
+          <div
+            className="absolute inset-0 animate-pulse bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))]"
+            data-testid="search-product-image-loading"
+            aria-hidden="true"
+          />
+        ) : null}
+        {product.imageUrl && imageState !== 'error' ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={product.imageUrl}
@@ -319,44 +801,61 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
             loading="lazy"
             decoding="async"
             referrerPolicy="no-referrer"
+            onLoad={() => setImageState('loaded')}
             onError={(event) => {
-              event.currentTarget.style.display = 'none';
+              event.currentTarget.removeAttribute('src');
+              setImageState('error');
             }}
-            className="relative z-10 h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-[1.03]"
+            // BUY-64266: drop group-hover:scale-[1.03] which pushed the rightmost
+            // card image beyond the grid column on desktop. Keep BUY-64736's
+            // max-h-[220px] / max-w-full / object-contain bounds so the image
+            // can never exceed its 220px-tall card frame.
+            className="relative z-10 block h-full w-full max-h-[220px] max-w-full object-contain p-2"
+            style={{ maxHeight: '220px', width: '100%', objectFit: 'contain' }}
+            data-testid="search-product-image"
           />
-        ) : (
-          <div className="relative z-10 flex h-full items-center justify-center text-4xl text-slate-600">◎</div>
-        )}
-        <div className="absolute right-2 top-2">
+        ) : imageState === 'error' || !product.imageUrl ? (
+          <BrandedPlaceholder />
+        ) : null}
+        <div className="absolute right-2 top-2 z-20">
           <CompareSelectButton product={product} className="h-9 w-9" />
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-2.5 bg-white p-3.5">
-        <div className="flex min-h-7 items-start justify-between gap-2">
-          <MerchantBadge merchant={product.merchant} className="shrink-0" />
-          <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
-            Shop
-            <ExternalLink className="h-3 w-3" />
-          </span>
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-2.5 bg-white p-3.5" data-testid="search-product-details">
+        {/* BUY-68743: drop the redundant "Shop ↗" pill — the merchant name
+            and verified checkmark are already conveyed by MerchantBadge on the
+            left, and the whole card wraps the deal URL, so a second visual CTA
+            at the top competed with the primary "View Deal" button below.
+            Keep MerchantBadge informational and View Deal the single CTA. */}
+        <div className="flex min-h-7 items-center">
+          <MerchantBadge merchant={product.merchant} className="min-w-0" />
         </div>
 
         <div className="space-y-1.5">
           <h2
-            className="line-clamp-3 text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
+            className="line-clamp-2 text-base font-semibold leading-snug text-slate-950 transition-colors group-hover:text-amber-700"
           >
             {product.name}
           </h2>
-          <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-            {product.brand ? <span>{product.brand}</span> : null}
-            {product.category ? <span>{product.category}</span> : null}
+          {/* BUY-67977: reserve a single-line slot so cards with no brand/category
+              don't collapse to 0 height and break grid row alignment. */}
+          <div className="flex min-h-[1.25rem] flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-600">
+            {product.brand ? <span className="line-clamp-1">{product.brand}</span> : null}
+            {product.category ? <span className="line-clamp-1">{product.category}</span> : null}
           </div>
         </div>
 
         <div className="mt-auto space-y-2.5 border-t border-slate-100 pt-2.5">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Current price</p>
-            <p className="mt-0.5 text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
+          {/* BUY-65455: label + price on a single baseline-aligned row so the
+              numeric price is visually adjacent to the 'Current price' label
+              (previously they were disconnected: a floating pill on the image
+              + the label here). BUY-67976: bumped label + metadata from
+              text-slate-500 (~4.76:1) to text-slate-600 (~7.58:1) so VidMee
+              passes WCAG AA 4.5:1 against the white card background. */}
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">Current price</p>
+            <p className="text-xl font-bold tracking-tight text-slate-950">{formatPrice(product.price, product.currency)}</p>
           </div>
           <span className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-colors group-hover:bg-amber-600">
             View Deal
@@ -372,6 +871,8 @@ export default function SearchResultsClient({
   initialQuery = '',
   initialCountry = 'us',
 }: SearchResultsClientProps) {
+  const initialSearchQuery = initialQuery.trim();
+  const hasInitialSearchQuery = initialSearchQuery.length >= MIN_QUERY_LENGTH;
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchParamsString = searchParams?.toString() ?? '';
@@ -379,13 +880,13 @@ export default function SearchResultsClient({
   const [isNavigating, startTransition] = useTransition();
   const [query, setQuery] = useState(initialQuery);
   const [country, setCountry] = useState<CountryValue>(normalizeCountry(initialCountry));
-  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery.trim());
+  const [debouncedQuery, setDebouncedQuery] = useState(initialSearchQuery);
   const [products, setProducts] = useState<SearchCardProduct[]>([]);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
-  const [loadingInitial, setLoadingInitial] = useState(false);
+  const [loadingInitial, setLoadingInitial] = useState(hasInitialSearchQuery);
   const [searchStartTime, setSearchStartTime] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -394,9 +895,15 @@ export default function SearchResultsClient({
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeHistoryIndex, setActiveHistoryIndex] = useState(-1);
+  const [hasHydrated, setHasHydrated] = useState(false);
   const lastRequestKeyRef = useRef<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchFieldRef = useRef<HTMLLabelElement>(null);
+
+  // Track hydration state to avoid server/client mismatch
+  useEffect(() => {
+    setHasHydrated(true);
+  }, []);
 
   const persistSearchHistory = useCallback((searchTerm: string) => {
     setSearchHistory((currentHistory) => {
@@ -569,8 +1076,9 @@ export default function SearchResultsClient({
         setDegraded(false);
         setDegradedHint(null);
       }
-      const normalizedItems = sortProductsByImageQuality(
-        rawItems.map((item) => normalizeProduct(item, activeCountry.currency))
+      const normalizedItems = sortProductsByRelevance(
+        rawItems.map((item) => normalizeProduct(item, activeCountry.currency)),
+        query
       ).slice(0, PAGE_SIZE);
       const fetchedPageIsFull = rawItems.length >= SEARCH_FETCH_LIMIT;
 
@@ -651,16 +1159,47 @@ export default function SearchResultsClient({
       <Header />
 
       <main id="main-content" className="flex-1">
-        <section className="border-b border-amber-100 bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.22),_rgba(255,247,237,0.85)_38%,_rgba(255,255,255,1)_80%)]">
+        {/* Mobile compact summary — shows result count on mobile only (not an H1) */}
+        {hasActiveSearch && hasHydrated ? (
+          <div
+            data-testid="search-mobile-summary"
+
+
+            className="mx-auto block max-w-7xl whitespace-normal break-words px-4 py-3 text-sm font-semibold text-slate-700 md:hidden"
+
+          >
+            <span className="text-amber-700">{activeCountry.label.toUpperCase()}</span>
+            <span className="mx-2 text-slate-300">/</span>
+            <span>
+              {loadingInitial
+                ? 'Searching...'
+                : `${total.toLocaleString()} results for “${debouncedQuery}”`}
+            </span>
+          </div>
+        ) : null}
+
+        <section className="hidden border-b border-amber-100 bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.22),_rgba(255,247,237,0.85)_38%,_rgba(255,255,255,1)_80%)] md:block">
           <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${hasActiveSearch ? 'py-5 lg:py-6' : 'py-10 lg:py-14'}`}>
             <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">Product search</p>
-              <h1 className={`${hasActiveSearch ? 'mt-2 text-3xl sm:text-4xl' : 'mt-3 text-4xl sm:text-5xl'} font-semibold tracking-tight text-slate-950`}>
-                {query.trim() ? `Search results for "${query.trim()}"` : "Find live catalog results without leaving BuyWhere"}
-              </h1>
-              <p className={`${hasActiveSearch ? 'sr-only' : 'mt-4'} max-w-2xl text-base leading-7 text-slate-600 sm:text-lg`}>
-                Search BuyWhere&apos;s product index by query and country, then jump directly to retailer listings.
-              </p>
+              {/* Hide the hero H1 + eyebrow when an active search is running so the query
+                  isn't echoed twice. The result-count heading below becomes the single,
+                  unified results header (rendered as <h1> for SEO semantics).
+
+                  BUY-69622: During SSR, if initialQuery exists, the hero H1 is hidden
+                  and only the result-count H1 (below) renders to avoid duplicate H1s.
+                  This ensures crawlers see the actual search query in the H1, not
+                  a loading placeholder. */}
+              {hasActiveSearch || initialQuery ? null : (
+                <>
+                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">Product search</p>
+                  <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
+                    Find live catalog results without leaving BuyWhere
+                  </h1>
+                  <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
+                    Search BuyWhere&apos;s product index by query and country, then jump directly to retailer listings.
+                  </p>
+                </>
+              )}
             </div>
 
             <div className={`${hasActiveSearch ? 'mt-5 rounded-[28px] p-3 md:p-4' : 'mt-8 rounded-[32px] p-4 md:p-6'} border border-white/80 bg-white/80 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)] backdrop-blur`}>
@@ -809,14 +1348,17 @@ export default function SearchResultsClient({
                 </label>
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+              {/* BUY-68744: WCAG-AAA-compliant pill colors. Previous amber-50/amber-800
+                  pairing computed to 6.37:1 — passes AA but VidMee flagged low
+                  legibility and recommended darker text / neutral background. */}
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-600">
                 <span>Suggested:</span>
-                {SUGGESTED_SEARCHES.map((suggestion) => (
+                {filterSuggestedSearches(debouncedQuery).map((suggestion) => (
                   <button
                     key={suggestion}
                     type="button"
                     onClick={() => runSearch(suggestion)}
-                    className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 font-medium text-amber-800 transition hover:border-amber-300 hover:bg-amber-100"
+                    className="rounded-full border border-slate-300 bg-slate-100 px-3 py-1.5 font-medium text-slate-900 transition hover:border-slate-400 hover:bg-slate-200"
                   >
                     {suggestion}
                   </button>
@@ -826,7 +1368,7 @@ export default function SearchResultsClient({
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+        <section className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
           {showSearchPrompt ? (
             <div className="rounded-[28px] border border-dashed border-slate-300 bg-white/90 p-8 text-center shadow-sm">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-600">Start browsing</p>
@@ -845,31 +1387,31 @@ export default function SearchResultsClient({
 
           {!showSearchPrompt && !error ? (
             <div className="space-y-6">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
-                    {activeCountry.label}
-                  </p>
-                  <h2 className="mt-1 text-2xl font-semibold text-slate-950">
-                    {loadingInitial ? (
-                      <>
-                        Searching catalog...
-                        <span className="ml-2 animate-pulse text-lg leading-none">&bull;&bull;&bull;</span>
-                      </>
-                    ) : (
-                      `${total.toLocaleString()} results for “${debouncedQuery}”`
-                    )}
-                  </h2>
-                </div>
-                <Link
-                  href="/"
-                  className="inline-flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
-                >
-                  Back to homepage
-                </Link>
+              {/* BUY-63238: Removed the redundant 'Back to homepage' CTA from the
+                  results header. The sticky header logo already provides homepage
+                  navigation on every viewport, so the CTA was duplicating it in the
+                  highest-value slot and (previously) pushed product cards below the
+                  fold on mobile. Keep the result-count heading alone above the grid.
+
+                  BUY-69622: The H1 is now rendered with actual query text during SSR
+                  (via initialQuery prop), not with "Searching catalog..." skeleton.
+                  Loading indicator is rendered below as a separate element with
+                  role="status" (BUY-69622 a11y fix). */}
+              <div className="hidden md:block">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
+                  {activeCountry.label}
+                </p>
+                <h1 className="mt-1 text-2xl font-semibold text-slate-950">
+                  {hasHydrated && !loadingInitial
+                    ? `${total.toLocaleString()} results for “${debouncedQuery}”`
+                    : `${initialQuery ? `Search results for “${initialQuery}”` : 'Search Products — BuyWhere'}`}
+                </h1>
               </div>
 
-              {loadingInitial ? (
+              {/* BUY-69622: Only render loading indicator after hydration to avoid
+                  SSR showing "Searching..." in the initial HTML. The H1 above now
+                  provides meaningful server-rendered content instead. */}
+              {loadingInitial && hasHydrated ? (
                 <>
                   <SearchProgressIndicator startedAt={searchStartTime ?? Date.now()} />
                   <SearchResultsSkeleton />
@@ -922,7 +1464,7 @@ export default function SearchResultsClient({
                     Try a broader term, switch countries, or start with one of these popular searches.
                   </p>
                   <div className="mt-5 flex flex-wrap gap-2">
-                    {SUGGESTED_SEARCHES.map((suggestion) => (
+                    {filterSuggestedSearches(debouncedQuery).map((suggestion) => (
                       <button
                         key={suggestion}
                         type="button"
@@ -938,7 +1480,9 @@ export default function SearchResultsClient({
 
               {!loadingInitial && products.length > 0 ? (
                 <>
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <div
+                    className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                  >
                     {products.map((product) => (
                       <SearchCard key={product.id} product={product} />
                     ))}

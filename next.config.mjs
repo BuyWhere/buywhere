@@ -7,8 +7,8 @@ const nextConfig = {
   // of also returning 410.  Middleware already handles 301 → non-slash for
   // valid pages, so this flag lets 410 pages pass through unchanged.
   output: 'standalone',
-  distDir: '.next-deploy',
-  // BUY-59983: /_next/image was returning HTTP 400 for every product image
+  distDir: '\.next-deploy',
+  // BUY-59983: /\\_next/image was returning HTTP 400 for every product image
   // because no remotePatterns were configured, so Next.js rejected every
   // upstream host the catalog uses.  The list below is the union of hosts
   // observed in /api/products/search results plus the QA-fixture domains
@@ -33,9 +33,398 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      // BUY-68319/BUY-67102: keep root-domain MCP clients on the
+      // canonical API-host MCP endpoint instead of the human docs page.
       {
         source: '/mcp',
-        destination: '/integrate',
+        destination: 'https://api.buywhere.ai/mcp',
+        permanent: true,
+      },
+      {
+        source: '/mcp/:path*',
+        destination: 'https://api.buywhere.ai/mcp/:path*',
+        permanent: true,
+      },
+      // BUY-71170: /trending was returning 404 (App Router page unbuilt due to root
+      // Python app/ shadowing src/app). Redirect to /compare as the closest live surface.
+      {
+        source: '/trending',
+        destination: '/compare',
+        permanent: false,
+      },
+      // BUY-68368/BUY-69843: high-intent developer/API/auth aliases should not
+      // fall through to homepage-branded 404 HTML shells. Route them to canonical
+      // resources before the App Router renders the generic not-found page.
+      {
+        source: '/signup',
+        destination: '/login',
+        permanent: true,
+      },
+      {
+        source: '/developer',
+        destination: '/developers',
+        permanent: true,
+      },
+      {
+        source: '/api-docs',
+        destination: '/docs',
+        permanent: true,
+      },
+      // BUY-70180: docs.buywhere.ai now redirects to the root domain while
+      // preserving paths, so keep common legacy docs API URLs recoverable before
+      // the root-domain /api/* proxy rewrites them to the JSON API service.
+      {
+        source: '/api/reference',
+        destination: '/docs/api-reference/search',
+        permanent: true,
+      },
+      {
+        source: '/api/get-product',
+        destination: '/docs/api-reference/get-product',
+        permanent: true,
+      },
+      {
+        source: '/api-reference',
+        destination: '/docs/api-reference/search',
+        permanent: true,
+      },
+      // BUY-70738: legacy /api-reference/{slug} aliases returning 200 skeleton shells.
+      // Redirect to canonical /docs/ or /docs/api-reference/ pages.
+      {
+        source: '/api-reference/authentication',
+        destination: '/docs/authentication',
+        permanent: true,
+      },
+      {
+        source: '/api-reference/errors',
+        destination: '/docs/errors',
+        permanent: true,
+      },
+      {
+        source: '/api-reference/search',
+        destination: '/docs/api-reference/search',
+        permanent: true,
+      },
+      {
+        source: '/api-reference/products',
+        destination: '/docs/api-reference/get-product',
+        permanent: true,
+      },
+      {
+        source: '/api-reference/recommendations',
+        destination: '/docs/api-reference/similar',
+        permanent: true,
+      },
+      {
+        source: '/developers/docs',
+        destination: '/docs',
+        permanent: true,
+      },
+      {
+        source: '/developers/api',
+        destination: '/docs/api-reference/search',
+        permanent: true,
+      },
+      // BUY-69805/BUY-69843: legacy docs/API guide aliases that previously
+      // 410'd now reconcile to canonical live docs pages so users and crawlers
+      // don't hit gone URLs.  Next.js redirects are evaluated before middleware,
+      // so these win over the middleware's __GONE__.
+      {
+        source: '/docs/guides',
+        destination: '/docs',
+        permanent: true,
+      },
+      {
+        source: '/docs/api-reference',
+        destination: '/docs/api-reference/search',
+        permanent: true,
+      },
+      {
+        source: '/docs/api-reference/search-products',
+        destination: '/docs/api-reference/search',
+        permanent: true,
+      },
+      {
+        source: '/docs/api-reference/find-best-price',
+        destination: '/docs/api-reference/search',
+        permanent: true,
+      },
+      {
+        source: '/docs/api-reference/get-deals',
+        destination: '/docs/api-reference/deals',
+        permanent: true,
+      },
+      {
+        source: '/swagger.json',
+        destination: 'https://api.buywhere.ai/openapi.json',
+        permanent: true,
+      },
+      // BUY-69843: top-level product index is intentionally consolidated into
+      // the compare hub. Configure the redirect here (not page.tsx) so production
+      // probes receive a true redirect instead of an App Router shell.
+      {
+        source: '/products',
+        destination: '/compare',
+        permanent: true,
+      },
+      // BUY-68406: common feed-discovery aliases at the site root previously
+      // fell through to the homepage HTML 404 shell. Redirect them to the
+      // canonical blog feed (which serves real RSS 2.0 XML) so feed readers
+      // and crawlers get a machine-readable response on any of these paths.
+      {
+        source: '/rss.xml',
+        destination: '/blog/rss.xml',
+        permanent: true,
+      },
+      {
+        source: '/feed.xml',
+        destination: '/blog/rss.xml',
+        permanent: true,
+      },
+      {
+        source: '/atom.xml',
+        destination: '/blog/rss.xml',
+        permanent: true,
+      },
+      // BUY-68536: plausible developer/account aliases should recover to the
+      // canonical private dashboard or API-key acquisition page instead of the
+      // generic shopping 404 shell.
+      {
+        source: '/developer-dashboard',
+        destination: '/dashboard',
+        permanent: true,
+      },
+      {
+        source: '/developers/dashboard',
+        destination: '/dashboard',
+        permanent: true,
+      },
+      {
+        source: '/account/api-keys',
+        destination: '/api-keys',
+        permanent: true,
+      },
+      {
+        source: '/developers/api-keys',
+        destination: '/api-keys',
+        permanent: true,
+      },
+      // BUY-68551: common account payment, invoice, and subscription aliases
+      // should recover to the noindex private account shell with a route-aware
+      // tab hint instead of serving the generic homepage-branded 404 shell.
+      {
+        source: '/billing/portal',
+        destination: '/account?tab=billing',
+        permanent: true,
+      },
+      {
+        source: '/portal-session',
+        destination: '/account?tab=billing',
+        permanent: true,
+      },
+      {
+        source: '/portal-session/create',
+        destination: '/account?tab=billing',
+        permanent: true,
+      },
+      {
+        source: '/checkout/session',
+        destination: '/account?tab=billing',
+        permanent: true,
+      },
+      {
+        source: '/billing/portal-session',
+        destination: '/account?tab=billing',
+        permanent: true,
+      },
+      {
+        source: '/saved-payment',
+        destination: '/account?tab=payment-methods',
+        permanent: true,
+      },
+      {
+        source: '/saved-payments',
+        destination: '/account?tab=payment-methods',
+        permanent: true,
+      },
+      {
+        source: '/payment-methods',
+        destination: '/account?tab=payment-methods',
+        permanent: true,
+      },
+      {
+        source: '/account/payment-methods',
+        destination: '/account?tab=payment-methods',
+        permanent: true,
+      },
+      {
+        source: '/invoices',
+        destination: '/account?tab=invoices',
+        permanent: true,
+      },
+      {
+        source: '/billing/invoices',
+        destination: '/account?tab=invoices',
+        permanent: true,
+      },
+      {
+        source: '/account/invoices',
+        destination: '/account?tab=invoices',
+        permanent: true,
+      },
+      {
+        source: '/subscription-management',
+        destination: '/account?tab=subscription',
+        permanent: true,
+      },
+      {
+        source: '/manage-subscription',
+        destination: '/account?tab=subscription',
+        permanent: true,
+      },
+      {
+        source: '/account/subscription',
+        destination: '/account?tab=subscription',
+        permanent: true,
+      },
+      // BUY-68422: redirect help/support routes to docs
+      {
+        source: '/help',
+        destination: '/docs',
+        permanent: true,
+      },
+      {
+        source: '/support',
+        destination: '/docs',
+        permanent: true,
+      },
+      {
+        source: '/help-center',
+        destination: '/docs',
+        permanent: true,
+      },
+      {
+        source: '/knowledge-base',
+        destination: '/docs',
+        permanent: true,
+      },
+      {
+        source: '/kb',
+        destination: '/docs',
+        permanent: true,
+      },
+      // BUY-67767: /affiliates is the legacy affiliate-program URL. Redirect
+      // at the routing layer so direct HTML requests get a real 308 before
+      // the App Router page stub runs.
+      {
+        source: '/affiliates',
+        destination: '/partnership',
+        permanent: true,
+      },
+      // BUY-70467: affiliate-intent URL aliases were returning the homepage 404
+      // shell, losing creator/partner search traffic. Redirect them to the live
+      // /partnership funnel so affiliates and influencers land on a real page.
+      {
+        source: '/affiliate',
+        destination: '/partnership',
+        permanent: true,
+      },
+      {
+        source: '/affiliate-program',
+        destination: '/partnership',
+        permanent: true,
+      },
+      {
+        source: '/partner',
+        destination: '/partnership',
+        permanent: true,
+      },
+      {
+        source: '/referrals',
+        destination: '/partnership',
+        permanent: true,
+      },
+      {
+        source: '/creators',
+        destination: '/partnership',
+        permanent: true,
+      },
+      {
+        source: '/influencers',
+        destination: '/partnership',
+        permanent: true,
+      },
+      // BUY-31b6ae66: /legal and /sign-up must be configured here (not page-level
+      // permanentRedirect) so production probes receive a true HTTP 308 instead of
+      // the App Router shell-render trick.
+      {
+        source: '/legal',
+        destination: '/privacy',
+        permanent: true,
+      },
+      {
+        source: '/sign-up',
+        destination: '/register',
+        permanent: true,
+      },
+      // BUY-69692: developer-intent route aliases should redirect to canonical pages
+      // or return branded 404/410 with recovery hints instead of thin/empty shells.
+      {
+        source: '/api-reference/pricing',
+        destination: '/pricing',
+        permanent: true,
+      },
+      {
+        source: '/developers/pricing',
+        destination: '/pricing',
+        permanent: true,
+      },
+      {
+        source: '/sdk',
+        destination: '/developers',
+        permanent: true,
+      },
+      {
+        source: '/ai-agents',
+        destination: '/agents',
+        permanent: true,
+      },
+      {
+        source: '/llms',
+        destination: '/developers',
+        permanent: true,
+      },
+      {
+        source: '/docs/pricing',
+        destination: '/pricing',
+        permanent: true,
+      },
+      {
+        source: '/docs/sdk',
+        destination: '/developers',
+        permanent: true,
+      },
+      {
+        source: '/docs/mcp',
+        destination: '/docs',
+        permanent: true,
+      },
+      // BUY-70145: legacy MCP server docs URL should recover to the canonical
+      // MCP integration guide instead of the branded 410 recovery page.
+      {
+        source: '/docs/mcp-server',
+        destination: '/docs/guides/mcp-integration',
+        permanent: true,
+      },
+      // BUY-70108: /docs/sdks and /docs/examples are returning 410s; redirect to canonical pages
+      {
+        source: '/docs/sdks',
+        destination: '/developers',
+        permanent: true,
+      },
+      {
+        source: '/docs/examples',
+        destination: '/docs',
         permanent: true,
       },
       {
@@ -48,6 +437,29 @@ const nextConfig = {
         ],
         destination: 'https://buywhere.ai/:path*',
         permanent: true,
+      },
+    ];
+  },
+  async rewrites() {
+    return [
+      // /api/v1/* → api.buywhere.ai/v1/*  (canonical v1 path)
+      {
+        source: '/api/v1/:path*',
+        destination: 'https://api.buywhere.ai/v1/:path*',
+      },
+      // /api/* → api.buywhere.ai/v1/*  (legacy v0-style root-domain API calls)
+      {
+        source: '/api/:path*',
+        destination: 'https://api.buywhere.ai/v1/:path*',
+      },
+      // /mcp, /mcp/* → mcp.buywhere.ai/mcp/*
+      {
+        source: '/mcp/:path*',
+        destination: 'https://mcp.buywhere.ai/mcp/:path*',
+      },
+      {
+        source: '/mcp',
+        destination: 'https://mcp.buywhere.ai/mcp',
       },
     ];
   },

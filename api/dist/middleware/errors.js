@@ -36,6 +36,7 @@ exports.ErrorCode = {
     // 422
     VALIDATION_ERROR: 'VALIDATION_ERROR',
     // 429
+    RATE_LIMITED: 'RATE_LIMITED',
     RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
     // 500
     INTERNAL_ERROR: 'INTERNAL_ERROR',
@@ -43,6 +44,8 @@ exports.ErrorCode = {
     UPSTREAM_ERROR: 'UPSTREAM_ERROR',
     // 503
     SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
+    // 422
+    MARKET_UNSUPPORTED: 'MARKET_UNSUPPORTED',
 };
 const HTTP_STATUS_MAP = {
     INVALID_PARAMETER: 400,
@@ -63,10 +66,12 @@ const HTTP_STATUS_MAP = {
     ENDPOINT_DEPRECATED: 405,
     CONFLICT: 409,
     VALIDATION_ERROR: 422,
+    RATE_LIMITED: 429,
     RATE_LIMIT_EXCEEDED: 429,
     INTERNAL_ERROR: 500,
     UPSTREAM_ERROR: 502,
     SERVICE_UNAVAILABLE: 503,
+    MARKET_UNSUPPORTED: 400,
 };
 const DEFAULT_MESSAGES = {
     INVALID_PARAMETER: 'Invalid parameter provided.',
@@ -87,6 +92,7 @@ const DEFAULT_MESSAGES = {
     ENDPOINT_DEPRECATED: 'This endpoint is deprecated. See docs for replacement.',
     CONFLICT: 'Resource conflict.',
     VALIDATION_ERROR: 'Validation failed.',
+    RATE_LIMITED: 'Rate limit exceeded. Please reduce request volume.',
     RATE_LIMIT_EXCEEDED: 'Rate limit exceeded. Please reduce request volume.',
     INTERNAL_ERROR: 'An unexpected error occurred. Please try again later.',
     UPSTREAM_ERROR: 'An upstream service error occurred.',
@@ -104,9 +110,10 @@ function buildErrorEnvelope(code, message, detail) {
 }
 function buildRateLimitEnvelope(retryAfter, limit, remaining, resetAt, message) {
     return {
-        ...buildErrorEnvelope(exports.ErrorCode.RATE_LIMIT_EXCEEDED, message),
+        ...buildErrorEnvelope(exports.ErrorCode.RATE_LIMITED, message),
         rate_limit: {
             retry_after: retryAfter,
+            retry_after_seconds: retryAfter,
             limit,
             remaining,
             reset_at: resetAt,
@@ -130,37 +137,67 @@ function sendSpecError(res, error, message, statusCode) {
 }
 const TIER_UPGRADE = {
     free: { next: 'Starter', price: 29 },
+    verified_agent: { next: 'Starter', price: 29 },
     starter: { next: 'Pro', price: 99 },
     pro: null,
+    scale: null,
 };
+// The highest-leverage 429 nudge: what should THIS tier do next? For unverified
+// keys the best step is FREE (verify email -> 200 rpm / 10k day, a 10x jump),
+// not "go pay". For verified/free -> paid Starter. Returns a structured hint
+// used by both the per-minute and daily limit responses.
+function nextStepForTier(tier) {
+    if (tier === 'unverified') {
+        return {
+            action: 'verify_email',
+            message: 'Verify your email to unlock 200 requests/min and 10,000/day — free, no card. POST /v1/auth/resend-verification { "email": "..." }.',
+            url: 'https://api.buywhere.ai/v1/auth/resend-verification',
+        };
+    }
+    const up = TIER_UPGRADE[tier];
+    if (up) {
+        return {
+            action: 'upgrade',
+            message: `Upgrade to ${up.next} at $${up.price}/mo for higher limits.`,
+            url: 'https://buywhere.ai/pricing',
+        };
+    }
+    return null;
+}
 function sendDailyLimitError(res, tier, limit, resetAt) {
-    const upgrade = TIER_UPGRADE[tier];
-    let message;
-    if (upgrade) {
-        message = `Daily limit of ${limit.toLocaleString()} requests exceeded for ${capitalize(tier)} tier. Upgrade to ${upgrade.next} at $${upgrade.price}/mo.`;
-    }
-    else {
-        message = `Daily limit of ${limit.toLocaleString()} requests reached. Resets at midnight UTC.`;
-    }
+    const step = nextStepForTier(tier);
+    const base = `Daily limit of ${limit.toLocaleString()} requests reached for ${capitalize(tier)} tier (resets at midnight UTC).`;
+    const message = step ? `${base} ${step.message}` : base;
     res.set('Retry-After', String(Math.max(1, Math.ceil((new Date(resetAt).getTime() - Date.now()) / 1000))));
     res.status(429).json({
+        ...buildRateLimitEnvelope(Math.max(1, Math.ceil((new Date(resetAt).getTime() - Date.now()) / 1000)), limit, 0, resetAt, message),
         error: 'rate_limit_exceeded',
         message,
         tier,
         limit,
         reset_at: resetAt,
+        retry_after_seconds: Math.max(1, Math.ceil((new Date(resetAt).getTime() - Date.now()) / 1000)),
+        next_step: step?.action ?? null,
+        next_step_url: step?.url ?? null,
         upgrade_url: 'https://buywhere.ai/pricing',
     });
 }
 function sendPerMinuteLimitError(res, tier, limit) {
     const retryAfter = Math.ceil(60 - (Date.now() % 60000) / 1000);
+    const step = nextStepForTier(tier);
+    const base = `Rate limit of ${limit} requests/min exceeded for ${capitalize(tier)} tier.`;
+    const message = step ? `${base} ${step.message}` : base;
     res.set('Retry-After', String(retryAfter));
     res.status(429).json({
+        ...buildRateLimitEnvelope(retryAfter, limit, 0, new Date(Date.now() + retryAfter * 1000).toISOString(), message),
         error: 'rate_limit_exceeded',
-        message: `Rate limit of ${limit} requests/min exceeded for ${capitalize(tier)} tier.`,
+        message,
         tier,
         limit,
         window: '60s',
+        retry_after_seconds: retryAfter,
+        next_step: step?.action ?? null,
+        next_step_url: step?.url ?? null,
         upgrade_url: 'https://buywhere.ai/pricing',
     });
 }

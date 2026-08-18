@@ -139,11 +139,22 @@ export const TIER_LIMITS: Record<string, { rpm: number; daily: number; monthlyCa
 };
 // Vector DB pool — separate Railway Postgres with pgvector 0.8 (BUY-41135).
 // Null when VECTOR_DB_URL is unset; consumers must check before using.
+//
+// BUY-41137: set statement_timeout so slow KNN queries fail fast instead of
+// hanging for the idleTimeout window and exhausting the pool (max=5).
+const vectorStatementTimeout = parseInt(process.env.VECTOR_STATEMENT_TIMEOUT || '10000');
+
 export const vectorDb: Pool | null = process.env.VECTOR_DB_URL
-  ? new Pool({
-      connectionString: process.env.VECTOR_DB_URL,
-      max: 5,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
-    })
+  ? (() => {
+      const pool = new Pool({
+        connectionString: process.env.VECTOR_DB_URL!,
+        max: 5,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+      });
+      pool.on('connect', (client) => {
+        client.query(`SET statement_timeout = ${vectorStatementTimeout}`).catch(() => {});
+      });
+      return pool;
+    })()
   : null;

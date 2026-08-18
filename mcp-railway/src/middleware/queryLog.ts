@@ -68,6 +68,11 @@ function extractResultCount(body: unknown, statusCode: number): number | null {
     return null;
   }
 
+  // Timeout/degraded empty responses are NOT true zero-result searches —
+  // logging them as 0 poisons the zero-result KPI. Log null instead.
+  // (Ported from api/ 215777d on 2026-08-13 — this tree was missed: duplicate-tree trap.)
+  const meta = b.meta as Record<string, unknown> | undefined;
+  if (meta && meta.degraded === true && Array.isArray(b.data) && b.data.length === 0) return null;
   if (Array.isArray(b.data)) return b.data.length;
   if (Array.isArray(b.results)) return b.results.length;
   if (b.data && typeof b.data === 'object') return 1;
@@ -106,12 +111,17 @@ export function queryLogMiddleware(endpoint: string) {
       // Extract query text from common params
       const queryText = (req.query.q as string) || (req.query.ids as string) || null;
 
+      // BUY-2026-08-17: log the caller's market so deliver_to adoption is
+      // measurable (column existed since the deliver_to launch; no insert path
+      // ever populated it — adoption read as 0% forever).
+      const logCountry = (((req.query.deliver_to || req.query.country_code || req.query.country) as string) || '').toUpperCase().slice(0, 2) || null;
+
       db.query(
         `INSERT INTO query_log
           (api_key_id, agent_name, agent_framework, sdk_language, is_agent,
            endpoint, query_text, result_count, response_time_ms,
-           status_code, ip_address, user_agent)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+           status_code, ip_address, user_agent, country_code)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
         [
           apiKeyRecord?.id ?? null,
           apiKeyRecord?.agentName ?? null,
@@ -125,6 +135,7 @@ export function queryLogMiddleware(endpoint: string) {
           res.statusCode,
           req.ip || null,
           (req.headers['user-agent'] || '').slice(0, 500),
+          logCountry,
         ]
       ).catch(() => {
         // Fire-and-forget — don't crash on log failure

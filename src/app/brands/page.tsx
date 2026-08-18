@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { commerceBrands } from '@/lib/commerce-routes';
 
 export const revalidate = 900;
 
@@ -16,10 +17,11 @@ async function getBrands(): Promise<Brand[]> {
     const res = await fetch(`${baseUrl}/api/v1/brands`, {
       next: { revalidate: 900 },
     });
-    if (!res.ok) return [];
-    return res.json();
+    if (!res.ok) return commerceBrands.map((brand) => ({ ...brand, product_count: brand.productCount ?? 0 }));
+    const data = (await res.json()) as Brand[];
+    return data.length > 0 ? data : commerceBrands.map((brand) => ({ ...brand, product_count: brand.productCount ?? 0 }));
   } catch {
-    return [];
+    return commerceBrands.map((brand) => ({ ...brand, product_count: brand.productCount ?? 0 }));
   }
 }
 
@@ -28,6 +30,29 @@ export const metadata: Metadata = {
   description:
     'Browse popular brands and find the best prices across retailers. Compare deals on Apple, Samsung, Sony, Nike, and more.',
   alternates: { canonical: '/brands' },
+  openGraph: {
+    title: 'Shop by Brand — BuyWhere AI',
+    description:
+      'Browse popular brands and find the best prices across retailers. Compare deals on Apple, Samsung, Sony, Nike, and more.',
+    url: '/brands',
+    siteName: 'BuyWhere',
+    type: 'website',
+    images: [
+      {
+        url: '/brands/opengraph-image',
+        width: 1200,
+        height: 630,
+        alt: 'Shop by Brand — BuyWhere',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Shop by Brand — BuyWhere AI',
+    description:
+      'Browse popular brands and find the best prices across retailers.',
+    images: ['/brands/opengraph-image'],
+  },
 };
 
 export default async function BrandsPage() {
@@ -48,7 +73,7 @@ export default async function BrandsPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <main className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      <main id="main-content" className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <div className="container mx-auto px-4 py-16">
           <header className="mb-12">
             <h1 className="text-4xl font-bold text-blue-800 mb-4">
@@ -65,7 +90,7 @@ export default async function BrandsPage() {
                 {brands.map((brand) => (
                   <Link
                     key={brand.slug}
-                    href={`/brand/${brand.slug}`}
+                    href={`/brands/${brand.slug}`}
                     className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow text-center group"
                   >
                     {brand.logo_url && (

@@ -8,7 +8,87 @@ const API_BASE_URL = (
 ).replace(/\/$/, '');
 
 const API_KEY = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || '';
-const ALLOWED_PARAMS = new Set(['q', 'country', 'country_code', 'limit', 'cursor', 'offset']);
+const ALLOWED_PARAMS = new Set(['q', 'country', 'country_code', 'category', 'limit', 'cursor', 'offset', 'deliver_to', 'include_unshippable']);
+// BUY-69727: Full device-query + storage-category detection for client-side demotion.
+// Mirrors the isDeviceQuery / isStorageQuery logic from api/src/lib/searchRelevanceTaxonomy.ts
+// to ensure all-words scanning (not just first word).
+const DEVICE_QUERY_TOKENS = [
+  'laptop', 'desktop', 'phone', 'tablet', 'monitor', 'smartwatch', 'earbud', 'headphone', 'console', 'ipad',
+];
+const STORAGE_QUERY_TOKENS = new Set(['ssd', 'hdd', 'nvme', 'storage', 'hard', 'drive']);
+const STORAGE_CATEGORY_TOKENS = [
+  'storage', 'internal ssd', 'solid state drive', 'solid state', 'hard drive',
+  'nvme ssd', 'external ssd', 'internal drive', 'usb drive', 'memory card',
+];
+const PHONE_PRODUCT_TOKENS = [
+  'iphone', 'samsung galaxy', 'galaxy s', 'galaxy z', 'google pixel', 'pixel',
+  'android', 'smartphone', 'cell phone', 'mobile phone', 'unlocked phone',
+  'dual sim', '5g', '4g', 'nokia', 'motorola', 'moto ', 'oneplus', 'xiaomi',
+  'redmi', 'realme', 'infinix', 'oppo', 'vivo', 'sony xperia', 'feature phone',
+  'keypad phone',
+];
+const PHONE_ACCESSORY_TOKENS = [
+  'accessory', 'accessories', 'case', 'cover', 'protector', 'charger', 'charging',
+  'cable', 'holder', 'mount', 'stand', 'pouch', 'wallet', 'crossbody', 'lanyard',
+  'strap', 'armband', 'tripod', 'selfie stick', 'power bank', 'battery pack',
+];
+
+function classifyDeviceQuery(query: string): { isDevice: boolean; isStorage: boolean } {
+  const words = normalizeText(query).split(/\s+/).filter(Boolean);
+  let isDevice = false, isStorage = false;
+  for (const w of words) {
+    for (const fam of DEVICE_QUERY_TOKENS) {
+      if (w.length >= fam.length && w.startsWith(fam)) { isDevice = true; break; }
+    }
+    if (STORAGE_QUERY_TOKENS.has(w)) isStorage = true;
+  }
+  // Cap: don't trigger on long queries where device is incidental
+  if (words.length > 4) isDevice = false;
+  return { isDevice, isStorage };
+}
+
+function itemCategoryLower(item: Record<string, unknown>): string {
+  const meta = item.metadata as Record<string, unknown> | null | undefined;
+  const cat = typeof meta?.category === 'string' ? meta.category.toLowerCase() :
+    (typeof item.category === 'string' ? item.category.toLowerCase() : '');
+  return cat;
+}
+
+function isStorageCategoryItem(item: Record<string, unknown>): boolean {
+  const cat = itemCategoryLower(item);
+  if (!cat) return false;
+  return STORAGE_CATEGORY_TOKENS.some((tok) => cat.includes(tok));
+}
+
+const ACCESSORY_KEYWORDS = [
+  'adapter',
+  'battery',
+  'cable',
+  'case',
+  'charger',
+  'charging',
+  'cover',
+  'ear pad',
+  'ear pads',
+  'ear cushion',
+  'ear cushions',
+  'earcup',
+  'earcups',
+  'foam',
+  'holder',
+  'mount',
+  'pad',
+  'pads',
+  'part',
+  'parts',
+  'protector',
+  'replacement',
+  'sleeve',
+  'stand',
+  'strap',
+  'usb',
+];
+const QUERY_STOP_WORDS = new Set(['a', 'an', 'and', 'best', 'for', 'in', 'of', 'the', 'to', 'with']);
 
 type SearchFallbackItem = {
   id: string;
@@ -273,6 +353,120 @@ function normalizeUpstreamItems(items: Record<string, unknown>[], countryCode: s
   });
 }
 
+function normalizeText(value: unknown) {
+  return typeof value === 'string' ? value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() : '';
+}
+
+function coreQueryWords(query: string) {
+  return normalizeText(query)
+    .split(/\s+/)
+    .filter((word) => word.length > 1 && !QUERY_STOP_WORDS.has(word));
+}
+
+function itemSearchText(item: Record<string, unknown>) {
+  const meta = item.metadata as Record<string, unknown> | null | undefined;
+  return [item.name, item.title, item.brand, item.category, meta?.category]
+    .map(normalizeText)
+    .filter(Boolean)
+    .join(' ');
+}
+
+function isPhoneProductItem(item: Record<string, unknown>) {
+  const searchText = itemSearchText(item);
+  return PHONE_PRODUCT_TOKENS.some((token) => searchText.includes(token));
+}
+
+function isPhoneAccessoryItem(item: Record<string, unknown>) {
+  const category = itemCategoryLower(item);
+  const searchText = itemSearchText(item);
+  if (category.includes('phone accessory') || category.includes('cell phone accessory')) return true;
+  if (isPhoneProductItem(item)) return false;
+  return PHONE_ACCESSORY_TOKENS.some((token) => searchText.includes(token));
+}
+
+function isAccessoryItem(item: Record<string, unknown>, queryWords: string[]) {
+  const searchText = itemSearchText(item);
+  if (!searchText) return false;
+
+  const hasAccessoryKeyword = ACCESSORY_KEYWORDS.some((keyword) => searchText.includes(keyword));
+  if (!hasAccessoryKeyword) return false;
+  if (queryWords.length === 0) return true;
+
+  const matchedQueryWords = queryWords.filter((word) => searchText.includes(word)).length;
+  return matchedQueryWords / queryWords.length < 0.5;
+}
+
+function dedupeKey(item: Record<string, unknown>) {
+  const name = normalizeText(item.name || item.title);
+  const brand = normalizeText(item.brand);
+  if (!name) return '';
+
+  return `${brand}:${name}`
+    .replace(/\b(new|sale|deal|official|authentic|original)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .slice(0, 80);
+}
+
+function deduplicateItems(items: Record<string, unknown>[]) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = dedupeKey(item);
+    if (!key) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function rankAndClassifyItems(items: Record<string, unknown>[], query: string) {
+  const queryWords = coreQueryWords(query);
+  const { isDevice, isStorage } = classifyDeviceQuery(query);
+  let dedupedItems = deduplicateItems(items);
+
+  // BUY-69727: Demote storage-category items for device queries (not storage queries).
+  if (isDevice && !isStorage) {
+    const primary: Record<string, unknown>[] = [], demoted: Record<string, unknown>[] = [];
+    for (const item of dedupedItems) {
+      if (isStorageCategoryItem(item)) demoted.push(item);
+      else primary.push(item);
+    }
+    dedupedItems = [...primary, ...demoted];
+  }
+
+  // BUY-69753: The live `phone` query has enough actual handset rows after rank
+  // 10, but generic phone accessories/holders dominate the head. Promote handset
+  // rows before the generic accessory pass so the top page satisfies device intent
+  // without deleting accessories from longer-tail results.
+  if (isDevice && !isStorage && query.toLowerCase().includes('phone')) {
+    const phones: Record<string, unknown>[] = [], rest: Record<string, unknown>[] = [];
+    for (const item of dedupedItems) {
+      if (isPhoneProductItem(item)) phones.push(item);
+      else rest.push(item);
+    }
+    dedupedItems = [...phones, ...rest];
+  }
+
+  const primaryItems: Record<string, unknown>[] = [];
+  const accessoryItems: Record<string, unknown>[] = [];
+
+  dedupedItems.forEach((item) => {
+    const isAccessoryByKeyword = isAccessoryItem(item, queryWords);
+    // For phone queries, also demote phone-accessory items
+    const isPhoneAccessory = isDevice && !isStorage && query.toLowerCase().includes('phone')
+      ? isPhoneAccessoryItem(item)
+      : false;
+    const isAccessory = isAccessoryByKeyword || isPhoneAccessory;
+    const classifiedItem = { ...item, isAccessory, product_type: isAccessory ? 'accessory' : item.product_type };
+    if (isAccessory) {
+      accessoryItems.push(classifiedItem);
+    } else {
+      primaryItems.push(classifiedItem);
+    }
+  });
+
+  return [...primaryItems, ...accessoryItems];
+}
+
 export async function GET(request: NextRequest) {
   if (!API_KEY) {
     return NextResponse.json(
@@ -324,7 +518,7 @@ export async function GET(request: NextRequest) {
 
     const itemKey = data?.items ? 'items' : data?.results ? 'results' : data?.products ? 'products' : data?.data ? 'data' : null;
     if (itemKey && Array.isArray(data[itemKey]) && data[itemKey].length > 0) {
-      data[itemKey] = normalizeUpstreamItems(data[itemKey], countryCode);
+      data[itemKey] = rankAndClassifyItems(normalizeUpstreamItems(data[itemKey], countryCode), query);
       if (itemKey !== 'data' && data.data) data.data = data[itemKey];
       if (itemKey !== 'items' && data.items) data.items = data[itemKey];
       if (itemKey !== 'results' && data.results) data.results = data[itemKey];

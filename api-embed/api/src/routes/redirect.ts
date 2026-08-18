@@ -90,7 +90,30 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
   const authHeader = req.headers['authorization'] || '';
   let apiKey: string | null = null;
   if (authHeader.startsWith('Bearer ')) apiKey = authHeader.slice(7).trim();
-  const source = req.query.source as string || 'api_response';
+
+  // BUY-71129: thread-through attribution. See api/src/routes/redirect.ts for
+  // full rationale. Browser clicks carry `?k=<keyHash>&aid=<agentId>` from the
+  // upstream API call; we resolve api_key_id from the unique key_hash index
+  // when only `k` is present.
+  const keyHashQuery = (req.query.k as string | undefined) || null;
+  const agentIdQuery = (req.query.aid as string | undefined) || null;
+  let resolvedAgentId: string | null = agentIdQuery;
+  let resolvedKeyHash: string | null = apiKey ? hashKey(apiKey) : null;
+  if (!resolvedKeyHash && keyHashQuery) resolvedKeyHash = keyHashQuery;
+
+  if (!resolvedAgentId && resolvedKeyHash) {
+    try {
+      const agentResult = await db.query(
+        `SELECT id FROM api_keys WHERE key_hash = $1 AND is_active = true LIMIT 1`,
+        [resolvedKeyHash]
+      );
+      if (agentResult.rows.length > 0) resolvedAgentId = agentResult.rows[0].id;
+    } catch (err) {
+      console.warn('[redirect] api_keys lookup failed:', (err as Error).message);
+    }
+  }
+
+  const source = (req.query.source as string | undefined) || 'api_response';
 
   // Log click to DB (before redirect)
   await db.query(
@@ -100,10 +123,11 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
     [apiKey, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl]
   );
 
-  // PostHog event (fire-and-forget)
-  // Hash API key before sending to third-party analytics
+  // PostHog event (fire-and-forget). BUY-71129: prefer api_key_id as the
+  // distinctId so the conversion joins the api_query / product_search funnel.
   trackAffiliateClick({
-    apiKey: apiKey ? hashKey(apiKey) : null,
+    apiKeyId: resolvedAgentId,
+    apiKey: resolvedKeyHash,
     productId,
     merchantId,
     affiliateLinkId,
@@ -122,6 +146,49 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
       res.status(403).json({ error: 'Destination not permitted' });
       return;
     }
+  }
+
+  // BUY-63045: check link_health table before redirecting.
+  // If the destination is known-dead (checked within 24h), serve a friendly
+  // error page instead of sending the user to a broken merchant site.
+  if (finalUrl !== destinationUrl) {
+    // Awin-wrapped URLs skip the health check (the tracking URL is different from the destination)
+    res.redirect(302, finalUrl);
+    return;
+  }
+
+  try {
+    const healthResult = await db.query(
+      `SELECT http_status, is_alive, error_message, checked_at
+         FROM link_health
+        WHERE destination_url = $1
+          AND checked_at > NOW() - INTERVAL '24 hours'
+        LIMIT 1`,
+      [destinationUrl]
+    );
+
+    if (healthResult.rows.length > 0) {
+      const health = healthResult.rows[0];
+      if (!health.is_alive) {
+        const hostname = (() => { try { return new URL(destinationUrl).hostname; } catch { return 'the merchant site'; } })();
+        console.warn(`[redirect] suppressing dead link: ${hostname} (status=${health.http_status}, checked=${health.checked_at})`);
+        res.status(503).send(`<!DOCTYPE html>
+<html><head><title>Merchant temporarily unavailable</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{font-family:system-ui,sans-serif;max-width:600px;margin:80px auto;padding:20px;text-align:center;color:#334155}
+h1{font-size:1.5rem;margin-bottom:1rem}p{line-height:1.6}a{color:#d97706;font-weight:600}</style>
+</head><body>
+<h1>Merchant temporarily unavailable</h1>
+<p>${hostname} is currently experiencing issues and may not load correctly.</p>
+<p>Try again later or check other deals for this product.</p>
+<a href="javascript:history.back()">← Back to results</a>
+</body></html>`);
+        return;
+      }
+    }
+  } catch (healthErr) {
+    // Health lookup failed — fall through to the redirect (best-effort)
+    console.warn(`[redirect] link_health lookup failed: ${(healthErr as Error)?.message}`);
   }
 
   res.redirect(302, finalUrl);

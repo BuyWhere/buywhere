@@ -10,8 +10,9 @@ Checks:
 3. Redis connectivity
 4. Zombie ingestion runs (stuck in 'running' > 1h)
 5. Data freshness (products updated recently)
-6. Ingestion run success rate (last 24h / 7d)
-7. Source-level health
+6. Empty-success detection (completed but zero inserts)
+7. Ingestion run success rate (last 24h / 7d)
+8. Source-level health
 
 Exit codes:
   0 - healthy
@@ -34,6 +35,9 @@ from datetime import datetime, timezone, timedelta
 
 import psycopg2
 import redis as redis_lib
+
+# Threshold below which a "completed" run is treated as empty-success
+EMPTY_SUCCESS_MIN_ROWS = 100
 
 try:
     import urllib.request
@@ -253,6 +257,84 @@ class HealthCheck:
         except Exception as e:
             return self.add_result(check, "critical", f"Redis connection failed: {e}")
 
+
+    def check_empty_success(self):
+        """Detect runs that report status=completed but inserted effectively zero rows."""
+        check = "empty_success"
+        if not self.db_url:
+            return self.add_result(check, "skipped", "No database connection")
+
+        try:
+            conn = psycopg2.connect(self.db_url)
+            cur = conn.cursor()
+
+            # Count completed runs in last 24h with rows_inserted < threshold
+            cur.execute(
+                """
+                SELECT
+                    source,
+                    COUNT(*) AS empty_count,
+                    MIN(started_at) AS earliest,
+                    MAX(started_at) AS latest
+                FROM ingestion_runs
+                WHERE status IN ('completed', 'completed_with_issues')
+                  AND COALESCE(rows_inserted, 0) < %s
+                  AND started_at > NOW() - INTERVAL '24 hours'
+                GROUP BY source
+                HAVING COUNT(*) >= 3
+                ORDER BY empty_count DESC;
+            """,
+                (EMPTY_SUCCESS_MIN_ROWS,),
+            )
+            empty_sources = [
+                {"source": r[0], "empty_count": r[1], "earliest": str(r[2]), "latest": str(r[3])}
+                for r in cur.fetchall()
+            ]
+
+            # Total completed runs in last 24h
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM ingestion_runs
+                WHERE status IN ('completed', 'completed_with_issues')
+                  AND started_at > NOW() - INTERVAL '24 hours';
+            """
+            )
+            total_completed = cur.fetchone()[0]
+
+            conn.close()
+
+            total_empty = sum(s["empty_count"] for s in empty_sources)
+            empty_pct = round(total_empty / total_completed * 100, 1) if total_completed > 0 else 0
+
+            detail = {
+                "empty_success_sources": empty_sources,
+                "total_empty_runs": total_empty,
+                "total_completed_runs": total_completed,
+                "empty_pct": empty_pct,
+                "threshold_min_rows": EMPTY_SUCCESS_MIN_ROWS,
+            }
+
+            if empty_pct > 50 and total_empty >= 10:
+                return self.add_result(
+                    check,
+                    "critical",
+                    f"Empty-success dominance: {empty_pct}% of completed runs ({total_empty}/{total_completed}) inserted <{EMPTY_SUCCESS_MIN_ROWS} rows",
+                    detail,
+                )
+            elif total_empty >= 5:
+                return self.add_result(
+                    check,
+                    "warning",
+                    f"{total_empty} empty-success runs (inserted <{EMPTY_SUCCESS_MIN_ROWS} rows) in {len(empty_sources)} lanes",
+                    detail,
+                )
+
+            return self.add_result(
+                check, "ok", f"Empty-success runs: {total_empty}/{total_completed} ({empty_pct}%)", detail
+            )
+        except Exception as e:
+            return self.add_result(check, "critical", f"Could not check empty-success: {e}")
+
     def check_ingestion_success_rate(self):
         check = "ingestion_success_rate"
         if not self.db_url:
@@ -317,6 +399,7 @@ class HealthCheck:
         self.check_api_health()
         self.check_database()
         self.check_redis()
+        self.check_empty_success()
         self.check_ingestion_success_rate()
         return self.summary()
 

@@ -89,11 +89,12 @@ export async function warmupMcpCaches(): Promise<void> {
     } else if (colInfo.rows[0].is_generated === 'NEVER') {
       console.warn('[mcp-warmup] plain discount_pct column detected; skipping destructive startup DDL. Run a migration off the request service.');
     }
-    // BUY-58273: correct shape — must match the production index definition exactly.
+    // BUY-64112: keep this shape aligned with api/src/migrate.ts so the strict
+    // discount_pct deals query can use the same index after startup warmup.
     await queryWithWarmupBudget(client, `
       CREATE INDEX IF NOT EXISTS idx_products_deals_discount_pct
-        ON products (discount_pct)
-        WHERE discount_pct > 0
+        ON products (currency, discount_pct DESC)
+        WHERE discount_pct IS NOT NULL AND price > 0
     `);
     // BUY-56635: country-aware deals index. The plain (currency, discount_pct DESC)
     // index is not used when the MCP deals query also filters by country_code;
@@ -168,6 +169,10 @@ export async function warmupMcpCaches(): Promise<void> {
     }
     if (countrySummaryHasData) {
       await queryWithWarmupBudget(client, `REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary_by_country`);
+      // BUY-70428: keep category summary reads hot after startup refresh; cold
+      // cache reads timed out at the old 2s budget and served placeholder rows.
+      await queryWithWarmupBudget(client, `SELECT pg_prewarm('mcp_category_summary_by_country', mode => 'read')`);
+      await queryWithWarmupBudget(client, `SELECT pg_prewarm('idx_mcp_catsum_cc_count', mode => 'read')`);
     }
 
     for (const country of ['SG', 'US', 'VN', 'TH', 'MY']) {
@@ -215,6 +220,20 @@ export async function refreshCategorySummaries(): Promise<void> {
     const summaryRefresh = await queryWithWarmupBudget(client, `REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary`);
     const countrySummaryRefresh = await queryWithWarmupBudget(client, `REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary_by_country`);
     if (!summaryRefresh || !countrySummaryRefresh) return;
+
+    // BUY-70428: the REFRESH CONCURRENTLY evicts the matview/index from the small
+    // Railway shared_buffers (127MB). The next category read then incurs all I/O
+    // and can time out under I/O contention, cascading to placeholder stubs.
+    // pg_prewarm the matview back into the buffer cache immediately after refresh
+    // so the next read is fast. Use 'read' mode (reads existing data into cache).
+    // Do this in a separate statement with its own timeout — failures are non-fatal.
+    try {
+      await client.query(`SET statement_timeout = 10000`);
+      await client.query(`SELECT pg_prewarm('mcp_category_summary_by_country', mode => 'read')`);
+      await client.query(`SELECT pg_prewarm('idx_mcp_catsum_cc_count', mode => 'read')`);
+    } catch (e) {
+      console.warn('[category-refresh] pg_prewarm failed:', (e as Error).message);
+    }
 
     for (const country of CATEGORY_REFRESH_COUNTRIES) {
       const t0 = Date.now();

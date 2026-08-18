@@ -31,7 +31,7 @@ function DevDropdown() {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="true"
         aria-expanded={open}
-        className="flex items-center gap-1 hover:text-indigo-600 transition-colors focus:outline-none"
+        className="flex items-center gap-1 rounded-sm hover:text-indigo-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1"
       >
         Developers
         <svg
@@ -54,6 +54,7 @@ function DevDropdown() {
             <Link
               key={href}
               href={href}
+              prefetch={false}
               role="menuitem"
               onClick={() => setOpen(false)}
               className="flex flex-col px-4 py-3 hover:bg-indigo-50 transition-colors"
@@ -75,34 +76,31 @@ export default function Nav() {
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg text-indigo-600" aria-label="BuyWhere Home">
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <rect width="28" height="28" rx="6" fill="#4f46e5" />
-            <path d="M7 10h14M7 14h10M7 18h12" stroke="white" strokeWidth="2" strokeLinecap="round" />
-          </svg>
+        <Link href="/" className="mr-4 lg:mr-6 font-bold text-lg text-indigo-600" aria-label="BuyWhere Home">
           <span>BuyWhere</span>
         </Link>
 
         {/* Desktop nav */}
-        <nav id="main-navigation" className="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600" aria-label="Main navigation">
+        <nav id="main-navigation" className="hidden lg:flex items-center gap-6 text-sm font-medium text-gray-600" aria-label="Main navigation">
           <DevDropdown />
-          <Link href="/challenge" className="hover:text-indigo-600 transition-colors">Challenge</Link>
-          <Link href="/merchants" className="hover:text-indigo-600 transition-colors">Merchants</Link>
-          <Link href="/partners" className="hover:text-indigo-600 transition-colors">Partners</Link>
-          <Link href="/pricing" className="hover:text-indigo-600 transition-colors">Pricing</Link>
-          <Link href="/about" className="hover:text-indigo-600 transition-colors">About</Link>
-          <Link href="/blog" className="hover:text-indigo-600 transition-colors">Blog</Link>
+          <Link href="/challenge" prefetch={false} className="hover:text-indigo-600 transition-colors">Challenge</Link>
+          <Link href="/merchants" prefetch={false} className="hover:text-indigo-600 transition-colors">Merchants</Link>
+          <Link href="/partners" prefetch={false} className="hover:text-indigo-600 transition-colors">Partners</Link>
+          <Link href="/pricing" prefetch={false} className="hover:text-indigo-600 transition-colors">Pricing</Link>
+          <Link href="/about" prefetch={false} className="hover:text-indigo-600 transition-colors">About</Link>
+          <Link href="/blog" prefetch={false} className="hover:text-indigo-600 transition-colors">Blog</Link>
           <div className="flex items-center gap-3 ml-4 pl-4 border-l border-gray-200">
-            <Link href="/login" className="hover:text-indigo-600 transition-colors">Log In</Link>
-            <Link href="/register" className="rounded-lg bg-indigo-600 px-4 py-2 text-white transition-colors hover:bg-indigo-700">
+            <Link href="/login" prefetch={false} className="hover:text-indigo-600 transition-colors">Log In</Link>
+            <Link href="/register" prefetch={false} className="rounded-lg bg-indigo-600 px-4 py-2 text-white transition-colors hover:bg-indigo-700">
               Sign Up
             </Link>
           </div>
         </nav>
 
-        {/* Mobile hamburger — always rendered so SSR and CSR match. CSS hides on lg+ screens. */}
+        {/* Mobile hamburger — rendered from <lg (1024px) so the 8-item desktop nav
+            doesn't overflow at tablet (768-1023px). */}
         <button
-          className="md:hidden p-2 rounded-lg hover:bg-gray-100"
+          className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
           onClick={() => setOpen(!open)}
           aria-label={open ? "Close menu" : "Open menu"}
           aria-expanded={open}
@@ -122,7 +120,7 @@ export default function Nav() {
       {open && (
         <nav
           id="mobile-nav"
-          className="md:hidden border-t border-gray-100 bg-white px-4 pb-4 flex flex-col gap-1 text-sm font-medium text-gray-700"
+          className="lg:hidden border-t border-gray-100 bg-white px-4 pb-4 flex flex-col gap-1 text-sm font-medium text-gray-700"
           aria-label="Mobile navigation"
         >
           {/* Developer section */}
@@ -148,6 +146,7 @@ export default function Nav() {
                 <Link
                   key={href}
                   href={href}
+                  prefetch={false}
                   onClick={() => { setOpen(false); setDevOpen(false); }}
                   className="py-1.5 hover:text-indigo-600"
                 >
@@ -157,15 +156,15 @@ export default function Nav() {
               ))}
             </div>
           )}
-          <Link href="/challenge" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Challenge</Link>
-          <Link href="/merchants" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Merchants</Link>
-          <Link href="/partners" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Partners</Link>
-          <Link href="/pricing" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Pricing</Link>
-          <Link href="/about" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">About</Link>
-          <Link href="/blog" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Blog</Link>
+          <Link href="/challenge" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Challenge</Link>
+          <Link href="/merchants" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Merchants</Link>
+          <Link href="/partners" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Partners</Link>
+          <Link href="/pricing" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Pricing</Link>
+          <Link href="/about" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">About</Link>
+          <Link href="/blog" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Blog</Link>
           <div className="pt-3 mt-3 border-t border-gray-100 flex flex-col gap-3">
-            <Link href="/login" onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Log In</Link>
-            <Link href="/register" onClick={() => setOpen(false)} className="rounded-lg bg-indigo-600 px-4 py-2 text-center text-white font-semibold">
+            <Link href="/login" prefetch={false} onClick={() => setOpen(false)} className="py-2 hover:text-indigo-600">Log In</Link>
+            <Link href="/register" prefetch={false} onClick={() => setOpen(false)} className="rounded-lg bg-indigo-600 px-4 py-2 text-center text-white font-semibold">
               Sign Up
             </Link>
           </div>
