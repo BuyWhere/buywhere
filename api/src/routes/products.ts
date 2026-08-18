@@ -971,7 +971,7 @@ router.get(
     const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                al.destination_url AS affiliate_url,
                products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-               products.region, products.country_code, products.url_status, ${specColumnsJoined}`;
+               products.region, products.country_code, products.url_status, products.url_last_checked_at, ${specColumnsJoined}`;
 
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
@@ -2619,7 +2619,7 @@ export async function warmSearchCache(): Promise<void> {
       const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                  al.destination_url AS affiliate_url,
                  products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-                 products.region, products.country_code, products.url_status, ${specColumnsJoined}`;
+                 products.region, products.country_code, products.url_status, products.url_last_checked_at, ${specColumnsJoined}`;
 
       // BUY-32028: remove ts_rank ORDER BY (missed by e8f407dc BUY-31540 in warmSearchCache
       // CTE). The warmSearchCache path was excluded from the original fix; on broad US queries

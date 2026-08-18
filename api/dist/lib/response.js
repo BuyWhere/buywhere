@@ -67,7 +67,42 @@ function normalizeImageUrl(imageUrl) {
     }
     return imageUrl;
 }
-function buildProduct(row, defaultCurrency, compact) {
+// F2 (2026-08-18): Amazon Associates monetization — outbound amazon.com URLs get
+// our tracking tag when none is present. Applied at serialization so url,
+// click_url and affiliate redirects all inherit it. amazon.sg intentionally
+// EXCLUDED until the separate buywhere-22 account is confirmed (ledger R3).
+// buywhere-20 (US) and buywhere-22 (SG) are one linked account (Richmond,
+// 2026-08-18); reporting is per-program, so each storefront must carry ITS tag.
+// The correct tag is FORCED — this also repairs precomputed affiliate links that
+// were bulk-built in April with the US tag on amazon.sg. Other-country amazon
+// domains are left untouched (no program tag for them yet).
+const AMAZON_TAGS = {
+    'amazon.com': 'buywhere-20',
+    'amazon.sg': 'buywhere-22',
+};
+function wrapAmazonAffiliateTag(url) {
+    try {
+        const u = new URL(url);
+        const host = u.hostname.toLowerCase();
+        for (const [domain, tag] of Object.entries(AMAZON_TAGS)) {
+            if (host === domain || host.endsWith('.' + domain)) {
+                if (u.searchParams.get('tag') !== tag) {
+                    u.searchParams.set('tag', tag);
+                    return u.toString();
+                }
+                break;
+            }
+        }
+    }
+    catch { /* malformed URL — pass through untouched */ }
+    return url;
+}
+function buildProduct(row, defaultCurrency, compact, 
+// BUY-71129: caller context for thread-through attribution. The api_key_id
+// + key_hash travel with /r/ and /api/click URLs as `?k=` + `?aid=` so the
+// redirect handler can attribute the conversion back to the originating
+// agent even when the browser click carries no Bearer header.
+caller) {
     const currency = row.currency || defaultCurrency;
     const amount = row.price != null ? parseFloat(row.price) : null;
     // BUY-60385: Sanitize anomalous prices from upstream affiliate/feed partners.
@@ -88,16 +123,30 @@ function buildProduct(row, defaultCurrency, compact) {
     const affiliateUrl = (0, affiliateWrapper_1.resolvePrecomputedAffiliateUrl)(row.affiliate_url);
     const productId = String(row.id);
     const merchant = row.domain || '';
-    const destinationUrl = affiliateUrl ?? row.url;
+    const destinationUrl = wrapAmazonAffiliateTag(affiliateUrl ?? row.url);
     // BUY-52474: every /v1 product response now carries tracking URLs so the FE
     // naturally routes user clicks through /r/ (logs affiliate_clicks) and /api/click
     // (logs clicks). The raw merchant URL is still in `url` for agents/SEO use;
     // `affiliate_url` keeps its precomputed wrapper when present.
+    // BUY-71129: thread `k` (api_key hash) + `aid` (api_key_id) when caller has
+    // an authenticated key, so the redirect handler can attribute the eventual
+    // conversion event back to the originating agent.
     const clickUrl = destinationUrl
-        ? (0, instrumentation_1.buildClickUrl)({ productId, destinationUrl, merchantId: merchant || null })
+        ? (0, instrumentation_1.buildClickUrl)({
+            productId,
+            destinationUrl,
+            merchantId: merchant || null,
+            keyHash: caller?.keyHash ?? null,
+            agentId: caller?.apiKeyId ?? null,
+        })
         : null;
     const affiliateRedirectUrl = destinationUrl
-        ? (0, instrumentation_1.buildAffiliateRedirectUrl)({ productId, source: 'product_card' })
+        ? (0, instrumentation_1.buildAffiliateRedirectUrl)({
+            productId,
+            source: 'product_card',
+            keyHash: caller?.keyHash ?? null,
+            agentId: caller?.apiKeyId ?? null,
+        })
         : null;
     const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
     const inStock = row.in_stock != null
@@ -113,6 +162,8 @@ function buildProduct(row, defaultCurrency, compact) {
         region: row.region || null,
         country_code: row.country_code || null,
         updated_at: row.updated_at || null,
+        // BUY-71396: expose render-gate freshness for A2 metric
+        url_last_checked_at: row.url_last_checked_at || null,
         // CAT-08: expose stock status as a top-level boolean when known.
         ...(row.in_stock != null && { in_stock: row.in_stock }),
         // BUY-70574/BUY-70043: basket verification consumes availability.in_stock.
@@ -176,6 +227,11 @@ function buildProduct(row, defaultCurrency, compact) {
 function buildSearchResponse(products, total, limit, offset, responseTimeMs, cached, degraded, hasMore, expectedCountryCode) {
     const nearMiss = evaluateNearMiss(products, expectedCountryCode);
     return {
+        // BUY-71275: preserve stable agent contract while staying compatible with
+        // newer REST envelopes; all aliases point to the same array reference.
+        products,
+        results: products,
+        items: products,
         data: products,
         meta: {
             total,

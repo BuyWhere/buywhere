@@ -24,6 +24,8 @@ export interface CanonicalProduct {
     status: 'in_stock' | 'out_of_stock';
   };
   updated_at: string | null;
+  // BUY-71396: render-gate freshness timestamp (A2 metric)
+  url_last_checked_at?: string | null;
   // Compact-mode only (agent-optimized extras):
   canonical_id?: string;
   normalized_price_usd?: number | null;
