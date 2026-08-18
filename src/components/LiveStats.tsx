@@ -32,7 +32,7 @@ export async function LiveStats() {
 
   const items = [
     { label: "products indexed", value: compact(stats.products_indexed) },
-    { label: "merchant catalogs", value: compact(stats.merchants_total) },
+    { label: "merchants with live products", value: compact(stats.merchants_with_products) },
     { label: "API requests, last 24h", value: compact(stats.requests_24h) },
     { label: "shopping clicks, last 7 days", value: compact(stats.outbound_clicks_7d) },
   ];
