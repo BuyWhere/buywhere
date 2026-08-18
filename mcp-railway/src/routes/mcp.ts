@@ -7,6 +7,7 @@ import { queryLogMiddleware } from '../middleware/queryLog';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
 import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, formatPriceField, formatSimilarPriceField, isSentinelPrice, PRICE_UNAVAILABLE_TEXT } from '../lib/response';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
+import type { CanonicalProduct, SearchResponse } from '../types/product';
 
 // formatPriceLine: formats a price for MCP text display (mirrors formatPriceField logic
 // but returns a human-readable string; used by formatProductForMcp only).
@@ -927,12 +928,22 @@ async function handleGetDeals(args: Record<string, unknown>) {
     releaseClientSafely(dealsClient);
   }
 
-  const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false);
+  const result = buildSearchResponse(products, total, limit, offset, Date.now() - t0, false) as SearchResponse & {
+    deals?: CanonicalProduct[];
+    products?: CanonicalProduct[];
+    items?: CanonicalProduct[];
+    unavailable?: boolean;
+  };
+  // BUY-71163: preserve the canonical search `results` envelope while exposing
+  // the documented get_deals aliases Cart/agent clients validate.
+  result.deals = products;
+  result.products = products;
+  result.items = products;
   // BUY-60076: surface `unavailable:true` when the strict + regional fallback
   // returned zero rows, mirroring api/src/routes/mcp.ts so callers can
   // distinguish "no live deals" from "server bug".
   if ((region || country) && products.length === 0) {
-    (result as { unavailable?: boolean }).unavailable = true;
+    result.unavailable = true;
   }
 
   redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
@@ -1125,7 +1136,7 @@ async function handleListCategories(args: Record<string, unknown>) {
         cached: false,
       };
       meta.unavailable = allCountsZero;
-      // BUY-71112: include both `categories` and `data` so probes/clients that
+      // BUY-71112/BUY-71163: include both `categories` and `data` so probes/clients that
       // key on `categories` (canonical contract) keep working while older
       // consumers parsing `data` don't break.
       const data = { categories: rows, data: rows, meta };
@@ -1555,6 +1566,8 @@ async function handleFindBestPrice(args: Record<string, unknown>) {
 
   return {
     best_price: data[0] ?? null,
+    best: data[0] ?? null,
+    offers: data,
     alternatives: data.slice(1),
     meta,
   };

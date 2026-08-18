@@ -164,6 +164,8 @@ export function buildSearchResponse(
 ): SearchResponse {
   return {
     results: products,
+    // BUY-71163: agents/Cart expect `items` (matches REST /v1/search docs).
+    items: products,
     total,
     page: { limit, offset },
     response_time_ms: responseTimeMs,

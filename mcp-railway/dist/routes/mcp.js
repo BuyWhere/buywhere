@@ -599,22 +599,26 @@ async function handleSearchProducts(args) {
            ORDER BY updated_at DESC
            LIMIT $${finalParams.length - 1} OFFSET $${finalParams.length}`, finalParams);
                 rows = result.rows;
-                // BUY-71067: if keyword FTS returns nothing in sparse TH/VN/MY, retry with first alpha token
+                // BUY-71067: if keyword FTS returns nothing in sparse TH/VN/MY, retry with
+                // first alpha token. TH "nike shoes" has no exact phrase but nike products exist.
                 if (rows.length === 0 && q.includes(' ') && queryTokenCount > 1) {
-                    const broadToken = q.split(/\s+/).map(token => token.replace(/[^a-z0-9]/gi, '')).find(token => token.length >= 3);
+                    const broadToken = q
+                        .split(/\s+/)
+                        .map(token => token.replace(/[^a-z0-9]/gi, ''))
+                        .find(token => token.length >= 3);
                     if (broadToken && broadToken.toLowerCase() !== q.trim().toLowerCase()) {
                         const broadParams = [...params];
                         broadParams[0] = broadToken;
                         broadParams.push(CANDIDATE_LIMIT, limit, offset);
                         try {
                             result = await searchClient.query(`SELECT * FROM (
-                                SELECT id, sku AS source, source AS domain, url, title,
-                                       price, currency, image_url, metadata, updated_at, region, country_code, category, category_path
-                                FROM products ${finalWhere}
-                                LIMIT $${broadParams.length - 2}
-                              ) _candidates
-                              ORDER BY updated_at DESC
-                              LIMIT $${broadParams.length - 1} OFFSET $${broadParams.length}`, broadParams);
+                   SELECT id, sku AS source, source AS domain, url, title,
+                          price, currency, image_url, metadata, updated_at, region, country_code, category, category_path
+                   FROM products ${finalWhere}
+                   LIMIT $${broadParams.length - 2}
+                 ) _candidates
+                 ORDER BY updated_at DESC
+                 LIMIT $${broadParams.length - 1} OFFSET $${broadParams.length}`, broadParams);
                             rows = result.rows;
                             console.log(`[search_products] keyword fallback: "${q}" → "${broadToken}" returned ${rows.length} results`);
                         }
@@ -844,6 +848,11 @@ async function handleGetDeals(args) {
         releaseClientSafely(dealsClient);
     }
     const result = (0, response_1.buildSearchResponse)(products, total, limit, offset, Date.now() - t0, false);
+    // BUY-71163: preserve the canonical search `results` envelope while exposing
+    // the documented get_deals aliases Cart/agent clients validate.
+    result.deals = products;
+    result.products = products;
+    result.items = products;
     // BUY-60076: surface `unavailable:true` when the strict + regional fallback
     // returned zero rows, mirroring api/src/routes/mcp.ts so callers can
     // distinguish "no live deals" from "server bug".
@@ -1032,7 +1041,7 @@ async function handleListCategories(args) {
                 cached: false,
             };
             meta.unavailable = allCountsZero;
-            // BUY-71112: include both `categories` and `data` so probes/clients that
+            // BUY-71112/BUY-71163: include both `categories` and `data` so probes/clients that
             // key on `categories` (canonical contract) keep working while older
             // consumers parsing `data` don't break.
             const data = { categories: rows, data: rows, meta };
@@ -1453,6 +1462,8 @@ async function handleFindBestPrice(args) {
     }
     return {
         best_price: data[0] ?? null,
+        best: data[0] ?? null,
+        offers: data,
         alternatives: data.slice(1),
         meta,
     };

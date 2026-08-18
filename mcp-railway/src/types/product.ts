@@ -51,6 +51,8 @@ export interface CanonicalProduct {
 
 export interface SearchResponse {
   results: CanonicalProduct[];
+  // BUY-71163: agents/Cart heartbeat validates `items` key.
+  items?: CanonicalProduct[];
   total: number;
   page: { limit: number; offset: number };
   response_time_ms: number;
