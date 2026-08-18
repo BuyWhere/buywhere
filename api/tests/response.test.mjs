@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { buildProduct, buildSearchResponse, CURRENCY_RATES, COUNTRY_CURRENCY } = require('../dist/lib/response');
+const { buildProduct, buildSearchResponse, CURRENCY_RATES, COUNTRY_CURRENCY, evaluateNearMiss } = require('../dist/lib/response');
 
 describe('buildProduct', () => {
   const baseRow = {
@@ -218,5 +218,77 @@ describe('COUNTRY_CURRENCY', () => {
     assert.equal(COUNTRY_CURRENCY.VN, 'VND');
     assert.equal(COUNTRY_CURRENCY.TH, 'THB');
     assert.equal(COUNTRY_CURRENCY.MY, 'MYR');
+  });
+});
+
+describe('evaluateNearMiss', () => {
+  const goodProduct = {
+    id: 'p1', title: 'P1', price: { amount: 99, currency: 'SGD' },
+    merchant: 'shop', url: 'https://shop.sg/p1', image_url: 'https://shop.sg/img.jpg',
+    region: null, country_code: 'SG', updated_at: null, availability: { in_stock: true, status: 'in_stock' },
+    has_affiliate_tracking: false, is_affiliate: false,
+  };
+  it('returns near_miss=false for zero rows', () => {
+    const result = evaluateNearMiss([]);
+    assert.equal(result.near_miss, false);
+    assert.deepEqual(result.near_miss_predicate_fails, []);
+  });
+  it('returns near_miss=false for multiple rows', () => {
+    const result = evaluateNearMiss([goodProduct, { ...goodProduct, id: 'p2' }]);
+    assert.equal(result.near_miss, false);
+  });
+  it('returns near_miss=false for single good row', () => {
+    const result = evaluateNearMiss([goodProduct], 'SG');
+    assert.equal(result.near_miss, false);
+    assert.deepEqual(result.near_miss_predicate_fails, []);
+  });
+  it('flags missing price', () => {
+    const result = evaluateNearMiss([{ ...goodProduct, price: { amount: null, currency: 'SGD' } }], 'SG');
+    assert.equal(result.near_miss, true);
+    assert.ok(result.near_miss_predicate_fails.includes('price'));
+  });
+  it('flags zero price', () => {
+    const result = evaluateNearMiss([{ ...goodProduct, price: { amount: 0, currency: 'SGD' } }], 'SG');
+    assert.equal(result.near_miss, true);
+    assert.ok(result.near_miss_predicate_fails.includes('price'));
+  });
+  it('flags wrong currency for country', () => {
+    const result = evaluateNearMiss([{ ...goodProduct, price: { amount: 10, currency: 'USD' } }], 'SG');
+    assert.equal(result.near_miss, true);
+    assert.ok(result.near_miss_predicate_fails.includes('price'));
+  });
+  it('flags missing currency', () => {
+    const result = evaluateNearMiss([{ ...goodProduct, price: { amount: 10, currency: null } }], 'SG');
+    assert.equal(result.near_miss, true);
+    assert.ok(result.near_miss_predicate_fails.includes('currency'));
+  });
+  it('flags non-ISO currency', () => {
+    const result = evaluateNearMiss([{ ...goodProduct, price: { amount: 10, currency: 'XYZ' } }], 'SG');
+    assert.equal(result.near_miss, true);
+    assert.ok(result.near_miss_predicate_fails.includes('currency'));
+  });
+  it('flags missing availability', () => {
+    const result = evaluateNearMiss([{ ...goodProduct, availability: undefined }], 'SG');
+    assert.equal(result.near_miss, true);
+    assert.ok(result.near_miss_predicate_fails.includes('availability'));
+  });
+  it('flags missing image_url', () => {
+    const result = evaluateNearMiss([{ ...goodProduct, image_url: null }], 'SG');
+    assert.equal(result.near_miss, true);
+    assert.ok(result.near_miss_predicate_fails.includes('image_url'));
+  });
+  it('accepts branded SVG as usable image', () => {
+    const result = evaluateNearMiss([{ ...goodProduct, image_url: 'data:image/svg+xml;base64,PHN2Zz4=' }], 'SG');
+    assert.equal(result.near_miss, false);
+  });
+  it('flags dead merchant URL via url_status', () => {
+    const result = evaluateNearMiss([{ ...goodProduct, url_status: 'dead' }], 'SG');
+    assert.equal(result.near_miss, true);
+    assert.ok(result.near_miss_predicate_fails.includes('merchant_url'));
+  });
+  it('flags missing URL', () => {
+    const result = evaluateNearMiss([{ ...goodProduct, url: '' }], 'SG');
+    assert.equal(result.near_miss, true);
+    assert.ok(result.near_miss_predicate_fails.includes('merchant_url'));
   });
 });

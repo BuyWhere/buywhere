@@ -48,12 +48,17 @@ export interface CanonicalProduct {
   affiliate_disclosure?: string;
 }
 
+export type NearMissPredicateFail = 'price' | 'currency' | 'availability' | 'image_url' | 'merchant_url';
+
 export interface SearchMeta {
   total: number;
   limit: number;
   offset: number;
   response_time_ms: number;
   cached: boolean;
+  // BUY-71134 / P1.3-NM: additive telemetry for the nightly zero-result sweep.
+  near_miss?: boolean;
+  near_miss_predicate_fails?: NearMissPredicateFail[];
   // BUY-60309: degraded flag when deals query timed out or was cancelled
   degraded?: boolean;
   // BUY-67275: true when more pages exist. Previously hasMore was (incorrectly)

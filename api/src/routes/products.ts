@@ -8,7 +8,7 @@ import { agentDetectMiddleware } from '../middleware/agentDetect';
 import { trackProductSearch, trackProductView } from '../analytics/posthog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { queryLogMiddleware } from '../middleware/queryLog';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY } from '../lib/response';
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, evaluateNearMiss } from '../lib/response';
 import { buildCompareProductsQuery, UUID_RE, PRODUCT_ID_RE } from '../lib/compare-query';
 import { preprocessSearchQuery } from '../lib/queryPreprocessor';
 import { shipScopeForUrl } from '../lib/shipsTo';
@@ -367,7 +367,7 @@ async function tryTierSearch(
     const pageRows = hasMore ? rows.slice(0, p.limit) : rows;
     const products = pageRows.map((r) => buildProduct(r as Record<string, unknown>, p.currency, p.compact));
     const total = p.offset + rows.length;
-    const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false) as unknown as Record<string, unknown>;
+    const responseBody = buildSearchResponse(products, total, p.limit, p.offset, Date.now() - p.requestStart, false, undefined, undefined, p.countryCode) as unknown as Record<string, unknown>;
     responseBody.source = 'search_products_tier';
     annotateDeliverTo(responseBody, p.deliverTo, p.includeUnshippable !== false, p.q);
     redis.set(p.cacheKey, JSON.stringify(responseBody), 'EX', 3600).catch(() => {});
@@ -721,6 +721,8 @@ router.get(
         parsed.cached = true;
         parsed.response_time_ms = elapsed;
         const cachedProducts = parsed.products || parsed.results || parsed.data || [];
+        const nearMiss = evaluateNearMiss(cachedProducts, countryCode);
+        parsed.meta = { ...(parsed.meta || {}), ...nearMiss };
         recordProductViewsBulk({
           productIds: cachedProducts
             .map((product: { id?: string | number }) => product.id)
@@ -958,7 +960,7 @@ router.get(
     const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                al.destination_url AS affiliate_url,
                products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-               products.region, products.country_code, ${specColumnsJoined}`;
+               products.region, products.country_code, products.url_status, ${specColumnsJoined}`;
 
     const VALID_SORT = new Set(['relevance', 'price_asc', 'price_desc', 'newest', 'highest_rated', 'most_reviewed']);
     const effectiveSort = sort && VALID_SORT.has(sort) ? sort : undefined;
@@ -1552,7 +1554,7 @@ router.get(
     }
 
     const responseBody = buildSearchResponse(
-      filteredProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore ?? false
+      filteredProducts, total, limit, offset, responseTimeMs, false, undefined, hasMore ?? false, countryCode
     );
     annotateDeliverTo(responseBody as unknown as Record<string, unknown>, deliverTo, includeUnshippable, q);
 
@@ -1750,7 +1752,7 @@ router.get(
         `SELECT id, sku AS source_id, source AS domain, url,
                 title, price, (metadata->>'original_price')::numeric AS original_price,
                 currency, image_url, metadata, updated_at,
-                region, country_code, created_at, description, brand, mpn, gtin,
+                region, country_code, url_status, created_at, description, brand, mpn, gtin,
                 category_path, category, merchant_id, avg_rating, review_count,
                 ${discountSelect}
          FROM products
@@ -1780,7 +1782,7 @@ router.get(
       dealsClient.release();
     }
 
-    const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false, degraded);
+    const responseBody = buildSearchResponse(deals, total, limit, offset, Date.now() - start, false, degraded, undefined, countryCode);
     // BUY-2026-08-13 (#36): NEVER cache a degraded (timed-out) deals payload — one slow
     // moment froze an empty response into the 1h cache and every later call re-served it
     // (the fossilized response_time_ms 4519/4554 signature). Cache real-but-empty briefly.
@@ -2067,7 +2069,7 @@ router.get(
             const placeholders = knnIds.map((_, i) => `$${i + 1}`).join(',');
             const detailResult = await db.query(
               `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                      image_url, brand, category_path, region, country_code
+                      image_url, metadata, in_stock, brand, category_path, region, country_code, url_status
                FROM products
                WHERE id IN (${placeholders})`,
               knnIds
@@ -2107,7 +2109,7 @@ router.get(
         params.push(limit);
         const bcResult = await db.query(
           `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                  image_url, brand, category_path, region, country_code
+                  image_url, metadata, in_stock, brand, category_path, region, country_code, url_status
            FROM products
            WHERE ${where}
            ORDER BY updated_at DESC
@@ -2132,7 +2134,7 @@ router.get(
         ftsParams.push(needed);
         const ftsResult = await db.query(
           `SELECT id, sku AS source_id, source AS domain, url, title, price, currency,
-                  image_url, brand, category_path, region, country_code
+                  image_url, metadata, in_stock, brand, category_path, region, country_code, url_status
            FROM products
            WHERE ${ftsWhere}
            ORDER BY updated_at DESC
@@ -2144,20 +2146,10 @@ router.get(
     }
 
     const data = similar.slice(0, limit).map((row) => ({
-      id: row.id,
-      source: row.source_id,
-      domain: row.domain,
-      url: row.url,
-      title: row.title,
-      price: row.price ? parseFloat(row.price as string) : null,
-      currency: row.currency,
-      image_url: row.image_url || null,
-      brand: row.brand || null,
-      category_path: row.category_path || null,
-      region: row.region || null,
-      country_code: row.country_code || null,
+      ...buildProduct(row as Record<string, unknown>, src.currency || 'SGD', false),
       similarity: row._similarity ?? null,
     }));
+    const nearMiss = evaluateNearMiss(data, src.country_code || null);
 
     if (timedOut || res.headersSent) return;
     res.json({
@@ -2165,6 +2157,8 @@ router.get(
       meta: {
         source_id: id,
         count: data.length,
+        near_miss: nearMiss.near_miss,
+        near_miss_predicate_fails: nearMiss.near_miss_predicate_fails,
         method: vectorDb && !similar.length ? 'fallback' : vectorDb ? 'knn' : 'fallback',
         response_time_ms: Date.now() - start,
       },
@@ -2613,7 +2607,7 @@ export async function warmSearchCache(): Promise<void> {
       const joinedColumns = `products.id, products.sku AS source_id, products.source AS domain, products.url,
                  al.destination_url AS affiliate_url,
                  products.title, products.price, products.currency, products.image_url, products.metadata, products.updated_at,
-                 products.region, products.country_code, ${specColumnsJoined}`;
+                 products.region, products.country_code, products.url_status, ${specColumnsJoined}`;
 
       // BUY-32028: remove ts_rank ORDER BY (missed by e8f407dc BUY-31540 in warmSearchCache
       // CTE). The warmSearchCache path was excluded from the original fix; on broad US queries
