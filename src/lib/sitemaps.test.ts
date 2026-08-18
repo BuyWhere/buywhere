@@ -170,16 +170,23 @@ test("getStaticSitemapEntries includes /about (BUY-70427)", () => {
   assert.ok(urls.has("https://buywhere.ai/about"), "expected /about in sitemap-pages.xml");
 });
 
+test("getStaticSitemapEntries excludes intentionally redirected /pricing (BUY-71478)", () => {
+  const entries = getStaticSitemapEntries();
+  const urls = new Set(entries.map((e) => e.url));
+  assert.ok(!urls.has("https://buywhere.ai/pricing"), "redirected /pricing must not appear in sitemap-pages.xml");
+});
+
 test("getStaticSitemapEntries count is 231 (matches the post-fix prod target) or fewer (BUY-57452 / BUY-70427)", () => {
   // BUY-57452 pre-fix: 239 <url> blocks (230 unique). Post-fix: 230 <url> blocks.
-  // BUY-70427 adds the live /about brand route, so the expected ceiling is now 231.
-  // We accept <=231 to tolerate future removals (e.g. soft-404 slugs)
-  // without breaking the test. We assert <=231 strictly so any future
+  // BUY-70427 adds the live /about brand route, so the ceiling was 231.
+  // BUY-71478 removes the redirected /pricing entry, so the ceiling is now 230.
+  // We accept <=230 to tolerate future removals (e.g. soft-404 slugs)
+  // without breaking the test. We assert <=230 strictly so any future
   // re-emission of removed hardcoded entries surfaces here, not in GSC.
   const entries = getStaticSitemapEntries();
   assert.ok(
-    entries.length <= 231,
-    `sitemap-pages.xml emitted ${entries.length} entries; expected <= 231`,
+    entries.length <= 230,
+    `sitemap-pages.xml emitted ${entries.length} entries; expected <= 230`,
   );
 });
 

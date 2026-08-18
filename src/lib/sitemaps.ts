@@ -304,7 +304,8 @@ const STATIC_SITEMAP_ROUTES = [
   { path: "/partnership", priority: 0.8, changeFrequency: "weekly" as const },
   { path: "/partners", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/use-cases", priority: 0.8, changeFrequency: "monthly" as const },
-  { path: "/pricing", priority: 0.8, changeFrequency: "monthly" as const },
+  // BUY-71478: /pricing intentionally redirects to /developers after pricing was removed,
+  // so do not advertise it as a distinct canonical page in sitemap-pages.xml.
   { path: "/about", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/accessibility", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/contact", priority: 0.5, changeFrequency: "monthly" as const },

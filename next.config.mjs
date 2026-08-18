@@ -381,12 +381,12 @@ const nextConfig = {
       // or return branded 404/410 with recovery hints instead of thin/empty shells.
       {
         source: '/api-reference/pricing',
-        destination: '/pricing',
+        destination: '/developers',
         permanent: true,
       },
       {
         source: '/developers/pricing',
-        destination: '/pricing',
+        destination: '/developers',
         permanent: true,
       },
       {
@@ -411,7 +411,7 @@ const nextConfig = {
       },
       {
         source: '/docs/pricing',
-        destination: '/pricing',
+        destination: '/developers',
         permanent: true,
       },
       {
