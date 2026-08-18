@@ -57,6 +57,21 @@ Savings: Buy from US Merchant, save up to $68 on Sony WH-1000XM5.
 | `get_deals` | Current price drops and promotions across markets |
 | `list_categories` | Available product category taxonomy |
 | `find_best_price` | Find lowest price for a product across all merchants |
+| `find_similar` | "More like this" — nearest neighbours by semantic similarity |
+
+### Search modes
+
+`search_products` accepts a `mode` parameter:
+
+| Mode | Behaviour |
+|------|-----------|
+| `hybrid` *(default)* | RRF blend of full-text and vector search |
+| `keyword` | Full-text search only — no vector path |
+| `semantic` | Vector similarity only |
+
+> **Tip:** if `search_products` returns `Internal error: different vector dimensions`,
+> pass `mode: "keyword"` to bypass the vector path while the embedding index is
+> being rebuilt.
 
 ## Claude Desktop Setup
 
@@ -99,7 +114,21 @@ Same config — add to your MCP settings file:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `BUYWHERE_API_KEY` | (required) | API key from [buywhere.ai/api-keys](https://buywhere.ai/api-keys) |
-| `BUYWHERE_API_URL` | `https://api.buywhere.ai/mcp` | Custom API base URL |
+| `BUYWHERE_API_URL` | `https://api.buywhere.ai` | API base URL, **without** a `/mcp` suffix — the server appends `/mcp` itself. (A trailing `/mcp` is tolerated for backwards compatibility.) |
+
+## Contributing
+
+This package advertises its own copy of the tool schemas while proxying calls to
+the live `/mcp` endpoint, so the two can silently drift apart. Before publishing:
+
+```bash
+npm run build
+BUYWHERE_API_KEY=bw_live_xxxx npm run check-drift
+```
+
+`check-drift` diffs the package's advertised tools against the live
+`tools/list` contract and exits non-zero on any missing tool, missing
+parameter, or enum mismatch.
 
 ## Links
 

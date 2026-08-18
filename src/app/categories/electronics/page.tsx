@@ -76,7 +76,7 @@ export default function ElectronicsCategoryPage() {
   };
 
   return (
-    <div className="min-h-[60vh] py-12">
+    <main id="main-content" className="min-h-[60vh] py-12">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkup) }}
@@ -280,6 +280,6 @@ export default function ElectronicsCategoryPage() {
           </Link>
         </section>
       </div>
-    </div>
+    </main>
   );
 }

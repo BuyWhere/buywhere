@@ -10,7 +10,10 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
 
-DB_URL = "postgresql+asyncpg://postgres:uzxujl66t16mzzsr3unqcw8e0v54yutb@roundhouse.proxy.rlwy.net:27479/railway"
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import catalog_guard  # fail-fast: bulk writes only ever target maglev
+DB_URL = catalog_guard.resolve_catalog_url(driver="asyncpg")
 
 MERCHANTS_NDJSON = Path("/home/paperclip/buywhere-api/data/social_commerce/pinterest_merchants.ndjson")
 
@@ -37,6 +40,7 @@ async def ingest_merchants():
         return
 
     engine = create_async_engine(DB_URL, echo=False)
+    await catalog_guard.assert_catalog_async_engine(engine)
 
     # Production schema only has: id, name, source, country, onboarding_stage, created_at
     upsert_sql = text("""

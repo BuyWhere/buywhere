@@ -2,12 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import Schema from "@/components/Schema";
+import { buildWebPageSchema } from "@/lib/page-schema";
 import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "Build With BuyWhere Challenge — Win an M3 MacBook Air",
   description:
     "Build an AI shopping agent using BuyWhere's API or MCP tools. Win an M3 MacBook Air, $1,000 in API credits, and BuyWhere swag. Open to all developers.",
+  robots: {
+    index: true,
+    follow: true,
+  },
   alternates: {
     canonical: toSiteUrl("/challenge"),
   },
@@ -17,6 +23,14 @@ export const metadata: Metadata = {
       "Build an AI shopping agent using BuyWhere's API or MCP tools. Win an M3 MacBook Air, $1,000 in API credits, and BuyWhere swag.",
     url: toSiteUrl("/challenge"),
     type: "website",
+    images: [{ url: toSiteUrl("/og-image.png"), width: 1200, height: 630, alt: "Build With BuyWhere Challenge" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Build With BuyWhere Challenge",
+    description:
+      "Build an AI shopping agent using BuyWhere's API or MCP tools. Win an M3 MacBook Air, $1,000 in API credits, and BuyWhere swag.",
+    images: [toSiteUrl("/og-image.png")],
   },
 };
 
@@ -45,6 +59,27 @@ const judgingCriteria = [
   { name: "Creativity", weight: "10%", desc: "Originality of the concept. Bonus for novel agent patterns or unique integrations." },
 ];
 
+const challengeSchema = buildWebPageSchema({
+  path: "/challenge",
+  name: "Build With BuyWhere Challenge",
+  description:
+    "Build an AI shopping agent using BuyWhere's API or MCP tools. Win an M3 MacBook Air, API credits, and BuyWhere swag.",
+  extraTypes: [
+    {
+      "@type": "Event",
+      "@id": `${toSiteUrl("/challenge")}#event`,
+      name: "Build With BuyWhere Challenge",
+      description:
+        "A developer challenge for building AI shopping agents with BuyWhere's API or MCP tools.",
+      url: toSiteUrl("/challenge"),
+      organizer: { "@id": "https://buywhere.ai/#organization" },
+      eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode",
+      eventStatus: "https://schema.org/EventScheduled",
+      image: toSiteUrl("/og-image.png"),
+    },
+  ],
+});
+
 const steps = [
   {
     step: "1",
@@ -69,6 +104,7 @@ const steps = [
 export default function ChallengePage() {
   return (
     <div className="flex min-h-screen flex-col bg-white">
+      <Schema data={challengeSchema} />
       <Nav />
 
       <main id="main-content" className="flex-1">

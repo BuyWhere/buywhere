@@ -1,7 +1,6 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
-import type { Metadata } from "next";
 import Schema from "@/components/Schema";
 import { buildServiceSchema } from "@/lib/page-schema";
 import { buildPageMetadata } from "@/lib/page-metadata";
@@ -73,6 +72,7 @@ export default function MerchantsPage() {
       <div className="flex flex-col min-h-screen">
         <Nav />
 
+        <main id="main-content" tabIndex={-1}>
       {/* Hero */}
       <section className="bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-900 text-white py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -190,6 +190,7 @@ export default function MerchantsPage() {
         </div>
       </section>
 
+      </main>
       <Footer />
     </div>
   </>

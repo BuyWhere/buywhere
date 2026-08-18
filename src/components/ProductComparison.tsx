@@ -249,6 +249,14 @@ function ProductCard({ product, isMobile }: { product: Product; isMobile?: boole
           productQuery={product.name}
           maxPlatforms={isSingleRetailer ? 1 : 3}
           className="mt-2"
+          prices={product.prices
+            .filter((p) => p.url && p.url !== '#')
+            .map((p) => ({
+              platform: p.merchant,
+              price: p.price,
+              url: p.url,
+              inStock: p.inStock ?? true,
+            }))}
         />
         {coverageInfo && (
           <div className={`text-xs ${coverageInfo.color} mt-2 font-medium`}>
@@ -802,6 +810,7 @@ function ProductComparisonClient({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkup) }}
       />
 
+      <main id="main-content">
       <section className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white py-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center gap-3 mb-4">
@@ -1027,6 +1036,7 @@ function ProductComparisonClient({
           </div>
         </div>
       </section>
+      </main>
 
       <Footer />
     </div>

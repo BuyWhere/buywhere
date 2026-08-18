@@ -9,6 +9,7 @@ import matter from "gray-matter";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
+import Schema from "@/components/Schema";
 
 const docsDirectory = path.join(process.cwd(), "docs");
 
@@ -109,6 +110,43 @@ function getDocBySlug(slugParts: string[]) {
   return docs.find((doc) => doc.slug === slug);
 }
 
+function buildDocSchema(doc: DocRecord) {
+  const path = `/docs/${doc.slug}`;
+  const isGuide = doc.slug.startsWith("guides/");
+  const isApiReference = doc.slug.startsWith("api-reference/");
+  const dateModified = doc.lastUpdated || "2026-08-14";
+  const article = {
+    "@context": "https://schema.org",
+    "@type": isApiReference ? ["TechArticle", "APIReference"] : isGuide ? ["TechArticle", "HowTo"] : "TechArticle",
+    headline: doc.title,
+    name: doc.title,
+    description: doc.description,
+    url: toSiteUrl(path),
+    dateModified,
+    author: {
+      "@type": "Organization",
+      name: doc.author || "BuyWhere",
+      url: toSiteUrl("/"),
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "BuyWhere",
+      url: toSiteUrl("/"),
+      logo: {
+        "@type": "ImageObject",
+        url: toSiteUrl("/og-image.png"),
+      },
+    },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": toSiteUrl(path),
+    },
+    image: [toSiteUrl("/og-image.png")],
+  };
+
+  return article;
+}
+
 // Only the published docs are valid slugs; anything else 404s at the routing layer
 export const dynamicParams = false;
 
@@ -141,10 +179,24 @@ export async function generateMetadata({ params }: DocRouteParams): Promise<Meta
       type: "website",
       url: toSiteUrl(`/docs/${doc.slug}`),
       siteName: "BuyWhere Documentation",
+      images: [
+        {
+          url: toSiteUrl("/og-image.png"),
+          width: 1200,
+          height: 630,
+          alt: doc.title,
+        },
+      ],
     },
     robots: {
       index: true,
       follow: true,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: doc.title,
+      description: doc.description,
+      images: [toSiteUrl("/og-image.png")],
     },
   };
 }
@@ -171,8 +223,11 @@ export default function DocPage({ params }: DocRouteParams) {
     }
   };
 
+  const schema = buildDocSchema(doc);
+
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
+      <Schema data={schema} />
       <Nav />
 
       <main id="main-content" className="flex-1">
@@ -219,9 +274,9 @@ export default function DocPage({ params }: DocRouteParams) {
                 remarkPlugins={[remarkGfm]}
                 components={{
                   h1: ({ children }) => (
-                    <h1 className="mt-10 text-3xl font-bold tracking-tight text-slate-900 first:mt-0">
+                    <div className="mt-10 text-3xl font-bold tracking-tight text-slate-900 first:mt-0">
                       {children}
-                    </h1>
+                    </div>
                   ),
                   h2: ({ children }) => (
                     <h2 className="mt-10 text-2xl font-semibold tracking-tight text-slate-900">

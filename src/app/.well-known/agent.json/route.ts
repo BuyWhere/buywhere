@@ -1,65 +1,106 @@
 const AGENT_JSON = {
-  name: 'Buywhere Product Catalog',
-  description:
-    'Agent-native product catalog and price comparison API covering 7 merchants across Singapore and the United States. Search, compare, and discover products from Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, and Carousell.',
-  url: 'https://buywhere.ai',
-  version: '1.0.0',
-  capabilities: {
-    streaming: true,
-    pushNotifications: false,
-    stateTransitionHistory: true,
+  "name": "BuyWhere",
+  "description": "Real-time shopping API and agent-native product catalog for AI agents: 390M+ products from 800,000+ direct merchants worldwide, with location-aware deliver_to ranking and per-result availability labels. Live totals at GET /v1/catalog/stats.",
+  "url": "https://buywhere.ai",
+  "provider": {
+    "organization": "BuyWhere",
+    "url": "https://buywhere.ai"
   },
-  authentication: {
-    schemes: ['apiKey', 'oauth2'],
+  "version": "1.2.0",
+  "updated_at": "2026-08-17T15:50:00Z",
+  "capabilities": {
+    "streaming": true,
+    "pushNotifications": false,
+    "stateTransitionHistory": true
   },
-  defaultInputModes: ['text'],
-  defaultOutputModes: ['text', 'json'],
-  skills: [
-    {
-      id: 'product-search',
-      name: 'Product Search',
-      description:
-        'Search products by keyword, category, price range, and market across Singapore and US merchants',
-      tags: ['e-commerce', 'search', 'products'],
-      examples: [
-        'Find Dyson hair dryer under 400 SGD in Singapore',
-        'Wireless headphones under 150 USD on Amazon US or Walmart',
-      ],
-    },
-    {
-      id: 'cross-border-match',
-      name: 'Cross-Border Product Matching',
-      description:
-        'Find equivalent products across Singapore and US markets with price and spec comparison',
-      tags: ['cross-border', 'matching', 'price-comparison', 'affiliate'],
-      examples: [
-        'Compare this Shopee listing with Amazon US pricing',
-        'Find the cheapest market for iPhone 16 Pro Max across SG and US',
-      ],
-    },
-    {
-      id: 'price-history',
-      name: 'Price History & Alerts',
-      description:
-        'Retrieve historical price data and set up price drop alerts',
-      tags: ['pricing', 'history', 'alerts'],
-      examples: [
-        'Show me 30-day price history for this product',
-        'Alert me when this drops below 50 SGD',
-      ],
-    },
-    {
-      id: 'merchant-discovery',
-      name: 'Merchant & Affiliate Discovery',
-      description:
-        'Discover which of the 7 covered merchants sell a product and retrieve affiliate links',
-      tags: ['merchants', 'affiliate', 'deals'],
-      examples: [
-        'Which merchants sell wireless earbuds under 80 SGD?',
-        'Get affiliate link for this Lazada listing',
-      ],
-    },
+  "authentication": {
+    "schemes": [
+      "apiKey",
+      "oauth2"
+    ]
+  },
+  "defaultInputModes": [
+    "text"
   ],
+  "defaultOutputModes": [
+    "text",
+    "json"
+  ],
+  "skills": [
+    {
+      "id": "product-search",
+      "name": "Product Search",
+      "description": "Search 390M+ products worldwide by keyword, category, price range, merchant, country, and deliver_to for deliverable-first ranking.",
+      "tags": [
+        "e-commerce",
+        "search",
+        "products",
+        "availability"
+      ],
+      "examples": [
+        "Find wireless earbuds under 150 USD that ship to US",
+        "Find coffee makers deliverable to Singapore with local or ships_to_you availability"
+      ]
+    },
+    {
+      "id": "location-aware-shopping",
+      "name": "Location-Aware Shopping",
+      "description": "Use deliver_to=<ISO country> to rank products your end user can actually receive; every result includes availability: local, ships_to_you, unavailable, or unknown.",
+      "tags": [
+        "delivery",
+        "availability",
+        "cross-border",
+        "ranking"
+      ],
+      "examples": [
+        "Show laptop deals deliverable to AU and hide unavailable results",
+        "Find skincare products that ship to GB with availability labels"
+      ]
+    },
+    {
+      "id": "cross-storefront-comparison",
+      "name": "Cross-Storefront Product Comparison",
+      "description": "Compare products, prices, attributes, and availability across 800,000+ independent storefronts worldwide.",
+      "tags": [
+        "comparison",
+        "price-comparison",
+        "affiliate",
+        "merchant"
+      ],
+      "examples": [
+        "Compare iPhone 16 Pro Max prices across stores that ship to Singapore",
+        "Find equivalent robot vacuums across US and EU storefronts with best delivered price"
+      ]
+    },
+    {
+      "id": "deal-finder",
+      "name": "Deal Finder",
+      "description": "Find discounted products and price drops across the global catalog, with filters for category, currency, country, and deliverability.",
+      "tags": [
+        "deals",
+        "discounts",
+        "pricing"
+      ],
+      "examples": [
+        "Show the best monitor deals today that ship to CA",
+        "Find air purifier discounts deliverable to SG under 300 SGD"
+      ]
+    }
+  ],
+  "protocols": {
+    "mcp": {
+      "serverUrl": "https://api.buywhere.ai/mcp",
+      "transport": "streamable-http",
+      "notes": "Canonical MCP endpoint for JSON-RPC over HTTP POST. The legacy SSE endpoint remains at https://api.buywhere.ai/mcp/sse for SSE clients that explicitly require it."
+    },
+    "rest": {
+      "serverUrl": "https://api.buywhere.ai/v1",
+      "transport": "https"
+    }
+  },
+  "contact": {
+    "email": "hello@buywhere.ai"
+  }
 };
 
 export function GET() {

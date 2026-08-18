@@ -3,6 +3,16 @@ export interface ProductPrice {
   currency: string;
 }
 
+// BUY-65559 / BUY-65685: Sentinel-price guard (parallel to PR #36 in @buywhere/mcp).
+// When the catalog row has a sentinel amount (< 10 from the ingest pipeline,
+// written as `1` placeholder when the merchant page had no parseable price),
+// the JSON-RPC tool output now substitutes `price` with a string hint
+// ("see merchant (price unavailable in catalog) — click through to confirm")
+// instead of the structured object. AI agents cannot accidentally format
+// `price.amount` as `.00` when the field is a string. Until BUY-52807 ships
+// an ingest-time sanity bound, this is the band-aid.
+export type ProductPriceField = ProductPrice | string;
+
 export interface ComparisonAttribute {
   key: string;
   label: string;
@@ -12,7 +22,7 @@ export interface ComparisonAttribute {
 export interface CanonicalProduct {
   id: string;
   title: string;
-  price: ProductPrice;
+  price: ProductPriceField;
   merchant: string;
   url: string;
   image_url: string | null;
@@ -41,8 +51,12 @@ export interface CanonicalProduct {
 
 export interface SearchResponse {
   results: CanonicalProduct[];
+  // BUY-71163: agents/Cart heartbeat validates `items` key.
+  items?: CanonicalProduct[];
   total: number;
   page: { limit: number; offset: number };
   response_time_ms: number;
   cached: boolean;
+  // BUY-67275: see api tree — hasMore was previously fed into `cached`.
+  has_more?: boolean;
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { toSiteUrl } from "@/lib/site-url";
+import { stripMerchantTenantSuffix } from "@/lib/merchant-name";
 
 const BASE_URL = "https://buywhere.ai";
 // Origin used to call BuyWhere's own Next.js route handlers from a server
@@ -13,6 +14,45 @@ const INTERNAL_ORIGIN =
   process.env.NEXT_PUBLIC_SITE_URL ||
   BASE_URL;
 
+// Build-time validation: warn if any SEO config has future dates in dateModified/refreshedLabel.
+// Catching these at build/test time prevents future/placeholder dates from reaching production.
+// Exported so tests can call it. (BUY-63853)
+export function validateSeoLandingConfigDates(config: SeoLandingPageConfig): string[] {
+  const warnings: string[] = [];
+  const now = Date.now();
+
+  // Check refreshedLabel for future dates
+  if (config.refreshedLabel) {
+    const match = config.refreshedLabel.match(/(?:Updated|Refreshed)\s+(\w+\s+\d{1,2},?\s+\d{4})/i);
+    if (match) {
+      const ts = Date.parse(match[1]);
+      if (Number.isFinite(ts) && ts > now) {
+        warnings.push(
+          `${config.slug}: refreshedLabel "${config.refreshedLabel}" has future date (${match[1]})`
+        );
+      }
+    }
+  }
+
+  // Check dateModified for future dates
+  if (config.dateModified) {
+    const ts = Date.parse(config.dateModified);
+    if (Number.isFinite(ts) && ts > now) {
+      warnings.push(`${config.slug}: dateModified "${config.dateModified}" is in the future`);
+    }
+  }
+
+  // Check datePublished for future dates
+  if (config.datePublished) {
+    const ts = Date.parse(config.datePublished);
+    if (Number.isFinite(ts) && ts > now) {
+      warnings.push(`${config.slug}: datePublished "${config.datePublished}" is in the future`);
+    }
+  }
+
+  return warnings;
+}
+
 export type LandingProduct = {
   id: string;
   updatedAt?: string | null;
@@ -25,6 +65,7 @@ export type LandingProduct = {
   productUrl?: string | null;
   brand: string | null;
   category: string | null;
+  countryCode?: string | null;
 };
 
 type SearchApiItem = {
@@ -49,6 +90,7 @@ type SearchApiItem = {
   brand?: string | null;
   updated_at?: string | null;
   category?: string | null;
+  country_code?: string | null;
 };
 
 type SearchApiResponseMeta = {
@@ -92,6 +134,15 @@ export type SeoLandingPageConfig = {
   description: string;
   heroEyebrow: string;
   heroTitle: string;
+  /**
+   * Optional template for the hero <h1> that gets the live catalog floor price
+   * substituted at render time. Use {floorPrice} as the placeholder. When set,
+   * the rendered headline, JSON-LD article headline, breadcrumb name, and
+   * CollectionPage name all use the substituted string (so they stay in sync
+   * with whatever the live product snapshot shows). When omitted, falls back to
+   * the static heroTitle. (BUY-66320)
+   */
+  heroTitleTemplate?: string;
   heroBody: string;
   canonicalPath: string;
   country: "US" | "SG";
@@ -104,7 +155,34 @@ export type SeoLandingPageConfig = {
   minPrice?: number;
   /** Terms that must appear in live search products to avoid unrelated broad-query matches */
   requiredProductTerms?: string[];
+  /**
+   * GPU tokens that MUST appear in the product name. Used by SEO landing pages
+   * that promise a specific GPU generation in the hero copy (e.g. RTX 5070/5080
+   * picks). Items missing every token are dropped, even if they pass the broader
+   * `requiredProductTerms` filter. BUY-67622.
+   */
+  requiredGpuTokens?: string[];
+  /**
+   * BUY-67622 (v3): hero-promised brands that MUST rank above the broader
+   * `requiredProductTerms` set. E.g. the /best-robot-vacuums-2026 hero
+   * specifically names "Roomba & Roborock", but `requiredProductTerms` may
+   * legitimately include Shark / Eufy too (comparisonRows mention them).
+   * Without this sort, a Shark card can land at position 1 on a page whose
+   * hero promises Roomba/Roborock — which was exactly the QA reopen at
+   * 2026-08-14T02:15Z. Products matching any term here are promoted to
+   * the top of the live card set; products matching ONLY the broader
+   * requiredProductTerms stay eligible but rank behind them.
+   */
+  heroFeaturedBrands?: string[];
+  /** Upstream category filter used to constrain broad catalog searches */
+  searchCategory?: string;
+  /** Strictly reject product parts and accessories from live catalog cards */
+  excludeAccessories?: boolean;
+  /** Render a denser desktop hero and two-column cards so complete offer data is visible above the fold */
+  compactCatalogCards?: boolean;
   refreshedLabel?: string;
+  datePublished?: string;
+  dateModified?: string;
   productSectionTitle: string;
   comparisonSectionTitle: string;
   comparisonColumns: string[];
@@ -140,9 +218,41 @@ export type SeoLandingPageConfig = {
 
 function formatMerchantName(value?: string | null) {
   if (!value) return "BuyWhere seller";
-  return value
-    .replace(/[_-]+/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  // BUY-66324: strip internal tenant/database suffixes before title-casing so
+  // upstream values like "shopify_buy30620_stock" or "BUY30590 RETAILER
+  // BESTBUY" don't leak raw ingest IDs into the product cards, comparison
+  // tables, or JSON-LD seller names. stripMerchantTenantSuffix is the same
+  // helper MerchantBadge uses, so the public render is identical.
+  return stripMerchantTenantSuffix(value);
+}
+
+/**
+ * Resolve the rendered hero <h1> text. When a config provides a template with a
+ * {floorPrice} placeholder, substitute the live catalog's lowest price (from
+ * the snapshot used to render the page). Falls back to the static heroTitle
+ * when no template is set, or when the live catalog is empty (e.g. transient
+ * upstream outage). (BUY-66320)
+ */
+export function resolveHeroTitle(
+  config: Pick<SeoLandingPageConfig, "heroTitle" | "heroTitleTemplate" | "currency">,
+  products: LandingProduct[]
+): string {
+  if (!config.heroTitleTemplate) return config.heroTitle;
+
+  const prices = products
+    .map((p) => (p.price !== null && p.price !== undefined ? Number(p.price) : null))
+    .filter((n): n is number => n !== null && Number.isFinite(n) && n > 0);
+
+  if (prices.length === 0) return config.heroTitle;
+
+  const floor = Math.min(...prices);
+  const formatted = new Intl.NumberFormat(config.currency === "SGD" ? "en-SG" : "en-US", {
+    style: "currency",
+    currency: config.currency,
+    maximumFractionDigits: 0,
+  }).format(floor);
+
+  return config.heroTitleTemplate.replace(/\{floorPrice\}/g, formatted);
 }
 
 function normalizeExternalHref(...values: Array<string | null | undefined>) {
@@ -165,7 +275,70 @@ function normalizeExternalHref(...values: Array<string | null | undefined>) {
   return "#";
 }
 
-function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPrice?: number): LandingProduct | null {
+// BUY-67622: redirect hosts whose products routinely leak dev-store fixtures,
+// non-US fulfilment domains, or refurb/clearance resellers into SEO guide
+// live cards. Filtered at the normalizeProduct boundary so the offending rows
+// never reach the SSR HTML. Conservative: only includes hosts observed in the
+// live catalog data for BUY-67622, not trusted US retailers.
+const LOW_TRUST_REDIRECT_HOST_PATTERNS: RegExp[] = [
+  /(^|\.)dev6booster\.myshopify\.com$/i,
+  /(^|\.)aimtofind\.myshopify\.com$/i,
+  /(^|\.)kimstore-enterprise-corp\.myshopify\.com$/i,
+  /(^|\.)matrixwarehouse\.co\.za$/i,
+  /(^|\.)mhcworld\.co\.za$/i,
+  /(^|\.)itadstore\.co\.za$/i,
+  /(^|\.)wellbots\.com$/i,
+  /(^|\.)tvoutlet\.ca$/i,
+];
+
+// BUY-67622 (v2): raw upstream merchant IDs whose products have repeatedly
+// leaked junk rows (Shopify dev-store fixtures, unharvested batches, and
+// scraper caches) into SEO guide live cards. The merchant field on
+// SearchApiItem is the raw ingest ID (e.g. "shopify_wellbots_com",
+// "shopify_unharvested_batch", "shopify_buy30620_stock"), so a simple
+// substring match catches the family without breaking legitimate Shopify
+// storefronts that flow through the proper downstream pipeline.
+const LOW_TRUST_MERCHANT_PATTERNS: RegExp[] = [
+  /^shopify_wellbots_com$/i,
+  /^shopify_unharvested_batch$/i,
+  /^shopify_buy30620_stock$/i,
+  /^shopify_buy30620_crate$/i,
+  /^shopify_scrape$/i,
+  /^shopify_unharvested$/i,
+];
+
+function isLowTrustMerchant(merchant: string | null | undefined): boolean {
+  if (!merchant) return false;
+  const m = merchant.toLowerCase();
+  return LOW_TRUST_MERCHANT_PATTERNS.some((re) => re.test(m));
+}
+
+function isLowTrustRedirectHost(href: string | null | undefined): boolean {
+  if (!href || href === "#") return false;
+  try {
+    const host = new URL(href).hostname.toLowerCase();
+    return LOW_TRUST_REDIRECT_HOST_PATTERNS.some((re) => re.test(host));
+  } catch {
+    return false;
+  }
+}
+
+function landingCategoryLabel(searchCategory?: string, itemCategory?: string | null): string | null {
+  if (itemCategory?.trim()) return itemCategory;
+  switch (searchCategory) {
+    case "robot_vacuums":
+      return "Robot Vacuums";
+    case "laptops":
+    case "gaming_laptops":
+      return "Laptops";
+    case "air_purifiers":
+      return "Air Purifiers";
+    default:
+      return null;
+  }
+}
+
+function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPrice?: number, searchCategory?: string): LandingProduct | null {
   // Currency guard: only keep products priced in the page's currency. The
   // upstream catalog frequently returns wrong-region rows (e.g. INR/PHP/GBP
   // "laptop" listings for an SG page) that would otherwise displace honest
@@ -199,7 +372,38 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     return null;
   }
 
+  // BUY-67622: reject products whose Buy link points at known low-trust
+  // Shopify dev stores or non-US fulfilment domains. The redirect URL is
+  // selected from affiliate_redirect_url / click_url / url in priority order
+  // (see normalizeExternalHref below); if any candidate host matches the
+  // denylist, the product is dropped entirely so it can never displace an
+  // honest fallback. We inspect the same candidates `normalizeExternalHref`
+  // will consider so a dev-shopify redirect URL stored on any field trips
+  // the filter.
+  const redirectCandidates = [
+    item.affiliate_redirect_url,
+    item.click_url,
+    item.affiliate_url,
+    item.buy_url,
+    item.product_url,
+    item.url,
+  ];
+
+  // BUY-67622 (v2): reject products whose raw upstream merchant ID is a known
+  // junk source (Shopify dev-store fixtures, unharvested batches, scraper
+  // caches). The merchant field carries the raw ingest ID before normalization
+  // (e.g. "shopify_wellbots_com", "shopify_unharvested_batch"), so matching
+  // here lets us drop the rows BEFORE they ever reach the live card set,
+  // regardless of which redirect-URL field they happen to use.
+  if (isLowTrustMerchant(item.merchant)) {
+    return null;
+  }
+  if (redirectCandidates.some(isLowTrustRedirectHost)) {
+    return null;
+  }
+
   const imageUrl = item.image_url || item.image || null;
+  const category = landingCategoryLabel(searchCategory, item.category || null);
 
   return {
     id: String(item.id),
@@ -207,7 +411,14 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
     price: Number.isFinite(numericPrice) ? numericPrice : null,
     currency: priceCurrency || fallbackCurrency,
     merchant: formatMerchantName(item.merchant_name || item.merchant || item.source),
-    imageUrl: isUsableProductImage(imageUrl) ? imageUrl : null,
+    // Prefer the catalog product photo. getSeoLandingProducts probes the URL
+    // before rendering; if it is dead/hotlink-blocked we drop/top-up or repair
+    // through a category-aware fallback. The previous unconditional branded SVG
+    // made every live row look like a generic illustration, which is exactly the
+    // BUY-68366 QA failure on the SEO landing pages.
+    imageUrl: isUsableProductImage(imageUrl)
+      ? imageUrl
+      : brandedProductPlaceholderSvg(item.brand || null, item.name || null, category),
     href: normalizeExternalHref(
       item.affiliate_redirect_url,
       item.click_url,
@@ -217,10 +428,31 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string, minPric
       item.url,
     ),
     brand: item.brand || null,
-    category: item.category || null,
+    category,
     updatedAt: item.updated_at || null,
+    // BUY-69925: expose product's country for SSR-layer filtering
+    countryCode: (item as SearchApiItem).country_code ?? null,
   };
 }
+
+// Hosts that historically serve 200 to bots but 403/404 inside a browser.
+// Treat them as unreachable so the placeholder path takes over instead of
+// rendering a broken-image icon on the live SEO landing pages.
+// BUY-69615: Added c1.neweggimages.com - returns HTTP 400 for all image requests
+const HOTLINK_BLOCKED_HOSTS = new Set([
+  "courts.com.sg",
+  "www.courts.com.sg",
+  "dlcdnwebimgs.asus.com",
+  "www.asus.com",
+  "shopifycdn.com",
+  "cdn.shopify.com",
+  "elescat.store",
+  "source.unsplash.com",
+  "c1.neweggimages.com",
+  "www.neweggimages.com",
+  "www.harveynorman.com.sg",
+  "harveynorman.com.sg",
+]);
 
 function isUsableProductImage(imageUrl?: string | null) {
   if (!imageUrl) return false;
@@ -228,9 +460,374 @@ function isUsableProductImage(imageUrl?: string | null) {
 
   try {
     const url = new URL(imageUrl);
-    return url.hostname !== "source.unsplash.com";
+    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
+    return !url.hostname.endsWith(".elescat.store");
   } catch {
     return false;
+  }
+}
+
+/**
+ * Pick a category-aware silhouette path so each card visually represents the
+ * product's category instead of always showing the same generic laptop icon.
+ * Returns inline SVG <path>/<rect>/<circle> children positioned inside the
+ * 400×300 viewBox used by brandedProductPlaceholderSvg. The shapes are drawn
+ * at the origin (0,0) of an inner group that the caller translates by
+ * (140,80), so silhouette coordinates are relative to a 120-wide by ~150-tall
+ * drawing area centred around (200, 155).
+ *
+ * Categories sourced from BUY-63954 evidence: laptop, robot vacuum, phone,
+ * headphone, air purifier, TV, camera, watch, tablet, shoe, kitchen.
+ */
+function categorySilhouette(category?: string | null, name?: string | null): string {
+  const text = `${category || ""} ${name || ""}`.toLowerCase();
+  if (/\brobot\s*vacuum|roomba|deebot|robovac/.test(text)) {
+    return `
+      <ellipse cx='60' cy='110' rx='95' ry='28' fill='#fde68a' stroke='#b45309' stroke-width='4'/>
+      <ellipse cx='60' cy='100' rx='90' ry='22' fill='#fff7ed' stroke='#b45309' stroke-width='3'/>
+      <rect x='30' y='40' width='60' height='30' rx='6' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
+      <circle cx='60' cy='80' r='5' fill='#b45309'/>`;
+  }
+  if (/\bheadphone|earbud|earphone|airpod/.test(text)) {
+    return `
+      <path d='M-20 30 Q-20 -30 60 -30 Q140 -30 140 30' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round'/>
+      <rect x='-30' y='25' width='28' height='48' rx='8' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
+      <rect x='122' y='25' width='28' height='48' rx='8' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
+      <circle cx='-16' cy='73' r='9' fill='#f59e0b'/>
+      <circle cx='136' cy='73' r='9' fill='#f59e0b'/>`;
+  }
+  if (/\bphone|iphone|galaxy\s*s|pixel/.test(text)) {
+    return `
+      <rect x='20' y='0' width='80' height='150' rx='14' fill='#fef3c7' stroke='#b45309' stroke-width='4'/>
+      <rect x='30' y='20' width='60' height='100' rx='4' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
+      <circle cx='60' cy='135' r='4' fill='#b45309'/>`;
+  }
+  if (/\bair\s*purifier|hepa/.test(text)) {
+    return `
+      <rect x='15' y='0' width='90' height='150' rx='16' fill='#fef3c7' stroke='#b45309' stroke-width='4'/>
+      <circle cx='60' cy='40' r='10' fill='#f59e0b'/>
+      <rect x='35' y='70' width='50' height='60' rx='4' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
+      <circle cx='60' cy='130' r='6' fill='#b45309'/>`;
+  }
+  if (/\btv|television|qled|oled/.test(text)) {
+    return `
+      <rect x='-50' y='20' width='220' height='120' rx='8' fill='#fef3c7' stroke='#b45309' stroke-width='4'/>
+      <rect x='-40' y='30' width='200' height='100' rx='4' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
+      <rect x='40' y='140' width='40' height='10' fill='#b45309'/>
+      <rect x='10' y='148' width='100' height='6' rx='3' fill='#b45309'/>`;
+  }
+  if (/\bcamera|dslr|mirrorless/.test(text)) {
+    return `
+      <rect x='-20' y='40' width='160' height='90' rx='10' fill='#fef3c7' stroke='#b45309' stroke-width='4'/>
+      <rect x='40' y='25' width='40' height='20' rx='4' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
+      <circle cx='60' cy='85' r='32' fill='#fff7ed' stroke='#b45309' stroke-width='3'/>
+      <circle cx='60' cy='85' r='18' fill='#fde68a' stroke='#b45309' stroke-width='2'/>`;
+  }
+  if (/\bwatch|smartwatch|apple\s*watch/.test(text)) {
+    return `
+      <rect x='30' y='15' width='60' height='60' rx='10' fill='#fef3c7' stroke='#b45309' stroke-width='4'/>
+      <rect x='40' y='25' width='40' height='40' rx='4' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
+      <path d='M40 15 L35 -10 L85 -10 L80 15' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
+      <path d='M40 75 L35 100 L85 100 L80 75' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
+      <circle cx='60' cy='45' r='6' fill='#f59e0b'/>`;
+  }
+  if (/\btablet|ipad/.test(text)) {
+    return `
+      <rect x='-10' y='10' width='140' height='130' rx='10' fill='#fef3c7' stroke='#b45309' stroke-width='4'/>
+      <rect x='0' y='22' width='120' height='100' rx='4' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
+      <circle cx='60' cy='130' r='4' fill='#b45309'/>`;
+  }
+  if (/\bshoe|sneaker|running/.test(text)) {
+    return `
+      <path d='M-40 130 Q-30 90 20 90 L80 90 Q120 90 150 130 Z' fill='#fef3c7' stroke='#b45309' stroke-width='4'/>
+      <path d='M-40 130 L150 130 L140 145 L-30 145 Z' fill='#b45309'/>
+      <path d='M30 90 L35 75 L55 75 L60 90' fill='none' stroke='#b45309' stroke-width='3'/>`;
+  }
+  if (/\bcoffee|espresso|kitchen|blender|toaster|airfryer/.test(text)) {
+    return `
+      <rect x='10' y='30' width='100' height='110' rx='8' fill='#fef3c7' stroke='#b45309' stroke-width='4'/>
+      <rect x='10' y='45' width='100' height='10' fill='#b45309'/>
+      <circle cx='60' cy='100' r='22' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
+      <path d='M110 60 Q135 60 135 90 Q135 115 110 115' fill='none' stroke='#b45309' stroke-width='4'/>`;
+  }
+  // default: laptop (BUY-63954 evidence shows laptops on the affected pages)
+  return `
+    <rect x='0' y='0' width='120' height='80' rx='8' fill='#fef3c7' stroke='#b45309' stroke-width='3'/>
+    <rect x='10' y='10' width='100' height='60' rx='2' fill='#fff7ed' stroke='#b45309' stroke-width='2'/>
+    <rect x='-10' y='80' width='140' height='8' rx='3' fill='#b45309'/>
+    <rect x='50' y='88' width='20' height='4' rx='2' fill='#b45309'/>`;
+}
+
+/**
+ * Build a brand-aware SVG data URL that ProductGridImage renders as the
+ * canonical catalog-snapshot image. BUY-63954: live SSR was emitting upstream
+ * CDN image URLs (cdn.shopify, hnsgsfp.imgix, fairprice, pisces.bbystatic) that
+ * load fine for human users but fail inside QA's headless screenshot
+ * environment, triggering the <img> onError path and rendering a generic slate
+ * silhouette — which QA correctly flagged as "placeholder icons instead of
+ * real product photos". The deterministic branded SVG renders identically in
+ * SSR and any browser/headless environment, so the Live Catalog Snapshot
+ * always shows a polished, clearly-branded product card.
+ *
+ * The silhouette is category-aware (robot vacuum / phone / headphone / air
+ * purifier / TV / camera / watch / tablet / shoe / appliance / laptop) so each
+ * card visually represents its category instead of always showing the same
+ * laptop icon.
+ */
+function brandedProductPlaceholderSvg(
+  brand?: string | null,
+  name?: string | null,
+  category?: string | null,
+): string {
+  const clean = (s: string) => s.replace(/[<>&"']/g, "").trim();
+  const brandText = clean(brand || "").slice(0, 18) || "BuyWhere";
+  const categoryText = clean(category || "").slice(0, 22) || "Featured product";
+  const productLabel = clean(name || "").slice(0, 36) || categoryText;
+  const silhouette = categorySilhouette(category, name);
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'>
+  <defs>
+    <linearGradient id='bg' x1='0' x2='1' y1='0' y2='1'>
+      <stop offset='0' stop-color='#fff7ed'/>
+      <stop offset='1' stop-color='#fde68a'/>
+    </linearGradient>
+  </defs>
+  <rect width='400' height='300' fill='url(#bg)'/>
+  <rect x='40' y='40' width='320' height='220' rx='24' fill='#ffffff' stroke='#fcd34d' stroke-width='3'/>
+  <g transform='translate(140 80)' fill='none' stroke='#b45309' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'>${silhouette}
+  </g>
+  <text x='200' y='218' text-anchor='middle' font-family='system-ui,sans-serif' font-size='20' font-weight='700' fill='#0f172a'>${brandText}</text>
+  <text x='200' y='244' text-anchor='middle' font-family='system-ui,sans-serif' font-size='13' font-weight='500' fill='#475569'>${productLabel}</text>
+  <text x='200' y='262' text-anchor='middle' font-family='system-ui,sans-serif' font-size='11' font-weight='600' letter-spacing='2' fill='#92400e'>BUYWHERE</text>
+</svg>`;
+  // RFC 2397 requires either `;charset=<chars>` or `;base64`. The previous
+  // `;utf8,` parameter is malformed and modern browsers (Chromium, Firefox)
+  // reject the data URL, fall through to the <img> onError handler, and render
+  // the generic slate-placeholder from ProductGridImage — which is exactly
+  // what QA reported on air-purifier-singapore (BUY-64260). Use the
+  // standards-compliant `;charset=utf-8,` form so the branded SVG renders.
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * Verify that a remote image URL actually responds 2xx. Live search results
+ * frequently include image URLs from third-party CDNs (asus.com, courts.com.sg,
+ * shopifycdn, etc.) that return 404/403 in the browser even though the
+ * search API considered the product usable. Without this probe the SEO
+ * landing page would SSR with an <img> that fails to load and lands on the
+ * Placeholder (BUY-64729).
+ */
+// BUY-69736: exported so the regression test can probe it directly.
+export async function verifyReachableImage(imageUrl: string | null, timeoutMs = 2500): Promise<boolean> {
+  if (!imageUrl) return false;
+  if (imageUrl.startsWith("data:image/svg+xml")) return true;
+  try {
+    const url = new URL(imageUrl);
+    // Known hotlink-protected hosts always serve a broken image in the browser
+    // even when the HEAD probe is green. Skip the probe and mark them
+    // unreachable so the branded placeholder path takes over.
+    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
+    // Treat these hosts as always-reachable; probing them at SSR is wasteful
+    // and Amazon's CDN often blocks non-browser UAs.
+    if (
+      url.hostname === "m.media-amazon.com" ||
+      url.hostname.endsWith(".media-amazon.com") ||
+      url.hostname === "images-na.ssl-images-amazon.com"
+    ) {
+      return true;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(imageUrl, {
+        method: "HEAD",
+        signal: controller.signal,
+        // CDN image servers may return 405 on HEAD; fall back to a ranged GET.
+        redirect: "follow",
+      });
+      // BUY-69736: a 200 OK is not enough — some CDNs answer 200 with an
+      // HTML error page for missing assets. Require an image/* content type
+      // so text/html error pages are treated as unreachable and the branded
+      // SVG placeholder path takes over.
+      if (res.ok) {
+        const contentType = (res.headers.get("content-type") || "").toLowerCase();
+        return contentType.startsWith("image/");
+      }
+      if (res.status === 405 || res.status === 403) {
+        // Some image hosts (Cloudflare, Shopify CDN) forbid HEAD. Allow only
+        // when the response indicates actual blocking (403 -> false). 405 -> retry GET.
+        if (res.status === 405) {
+          const get = await fetch(imageUrl, {
+            method: "GET",
+            signal: controller.signal,
+            redirect: "follow",
+            headers: { Range: "bytes=0-0" },
+          });
+          if (!(get.ok || get.status === 206)) return false;
+          const getContentType = (get.headers.get("content-type") || "").toLowerCase();
+          return getContentType.startsWith("image/");
+        }
+        return false;
+      }
+      return false;
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return false;
+  }
+}
+
+// BUY-63507: image-content probe. A 200 OK on an image URL is not enough —
+// many third-party product photos are 1:1 squares (1500x1500, 1200x1200) with
+// the actual product centered on a large white background. When the SEO
+// catalog card renders such an image with `object-cover` inside an
+// `aspect-[4/3]` frame, the cover transform crops top and bottom. For a 1:1
+// source scaled into a 4:3 box the crop lands on the centered product — but
+// the white margins at the top and bottom still bleed into the visible frame
+// when the source product occupies less than ~50% of the source height. QA
+// (BUY-63507, vidmee://asset/vidmee_ss_1ca68079995d260ebee255ea) reports the
+// card as "appears blank/white"; QA on Zephyrus G16 (vidmee_ss_47fd25fecb4d...)
+// reports the laptop lid cut off above the keyboard base.
+//
+// The cheapest reliable signal we can read at SSR without an image library is
+// the source aspect ratio embedded in the JPEG SOF / PNG IHDR header. Square
+// product photos are the highest-risk shape for our 4:3 cards — drop them
+// and let the next live product fill the slot. The filter is conservative:
+// non-square images (the majority of merchant photos) pass through.
+function parseImageDimensions(buffer: ArrayBuffer | Uint8Array): { w: number; h: number } | null {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  // PNG: 8-byte signature, then IHDR width @ offset 16, height @ offset 20.
+  if (bytes.length >= 24 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    const w = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+    const h = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+    if (w > 0 && h > 0) return { w, h };
+    return null;
+  }
+  // JPEG: walk markers until we hit SOF0/SOF1/SOF2/SOF3 (0xC0..0xC3). The SOF
+  // segment has the dimensions at offset 5/6 (height) and 7/8 (width) from
+  // the segment start.
+  if (bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    let i = 2;
+    while (i < bytes.length - 9) {
+      if (bytes[i] !== 0xff) return null;
+      const marker = bytes[i + 1];
+      if (marker === 0xd9 || marker === 0xda) return null; // EOI or SOS — no more SOF ahead
+      if (marker >= 0xc0 && marker <= 0xc3) {
+        const h = (bytes[i + 5] << 8) | bytes[i + 6];
+        const w = (bytes[i + 7] << 8) | bytes[i + 8];
+        if (w > 0 && h > 0) return { w, h };
+        return null;
+      }
+      const segLen = (bytes[i + 2] << 8) | bytes[i + 3];
+      i += 2 + segLen;
+    }
+  }
+  // WebP / AVIF / unknown — skip and return null. The existing
+  // verifyReachableImage check already filtered those out at this stage.
+  return null;
+}
+
+const SQUARE_ASPECT_TOLERANCE = 0.06; // |AR - 1| <= 0.06 → treat as square
+const SQUARE_FILE_SIZE_THRESHOLD = 250 * 1024; // < 250 KB square product photos are likely centered-on-white
+
+function isSquareAspect(dims: { w: number; h: number }): boolean {
+  const ar = dims.w / dims.h;
+  return Math.abs(ar - 1) <= SQUARE_ASPECT_TOLERANCE;
+}
+
+/**
+ * Verify that an image's actual pixel dimensions are compatible with our
+ * aspect-[4/3] / object-cover catalog cards. Returns false for square
+ * product photos whose centered subject leaves large white margins that
+ * render as "blank" cards (BUY-63507). Returns true for any image whose
+ * dimensions can't be parsed (WebP, AVIF, exotic formats) — the existing
+ * verifyReachableImage check already filtered those out.
+ *
+ * Cost: a single ranged GET of the first 24 KB. Content-Length headers are
+ * insufficient because Shopify / Cloudflare often omit them; we need the
+ * bytes themselves to find the JPEG SOF marker or PNG IHDR chunk. We also
+ * read the Content-Length response header to factor in file size — a 1:1
+ * photo at 120 KB is almost always a small subject on a white background
+ * (BUY-63507: Gigabyte A16, Zephyrus G16), while a 1:1 photo at 968 KB is
+ * a rich product shot that fills the frame even when square.
+ */
+async function verifyUsableImageContent(
+  imageUrl: string,
+  timeoutMs = 3000,
+): Promise<boolean> {
+  try {
+    const url = new URL(imageUrl);
+    // BUY-63954: data: URIs (our deterministic branded SVG card) bypass the
+    // JPEG/PNG shape probe — there are no SOF/IHDR markers to parse and the
+    // SVG already renders identically in every browser/headless environment.
+    if (url.protocol === "data:") return true;
+    if (HOTLINK_BLOCKED_HOSTS.has(url.hostname)) return false;
+    // Amazon CDN: known good landscape product photos — skip the probe.
+    if (
+      url.hostname === "m.media-amazon.com" ||
+      url.hostname.endsWith(".media-amazon.com") ||
+      url.hostname === "images-na.ssl-images-amazon.com"
+    ) {
+      return true;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(imageUrl, {
+        method: "GET",
+        signal: controller.signal,
+        redirect: "follow",
+      });
+      if (!res.ok && res.status !== 206) return true; // probe failed → don't double-block, the reachable check already gated this
+      // Read at most the first 32 KB into a Uint8Array. JPEG SOF / PNG IHDR
+      // markers sit in the first few KB; we add a buffer for DQT/DHT segments
+      // that may precede SOF.
+      const reader = res.body?.getReader();
+      if (!reader) return true;
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      const LIMIT = 32 * 1024;
+      while (total < LIMIT) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (total + value.byteLength > LIMIT) {
+          const slice = value.subarray(0, LIMIT - total);
+          chunks.push(slice);
+          total += slice.byteLength;
+          // Cancel further reads; we have enough header bytes.
+          try { await reader.cancel(); } catch { /* noop */ }
+          break;
+        }
+        chunks.push(value);
+        total += value.byteLength;
+      }
+      const buf = new Uint8Array(total);
+      let offset = 0;
+      for (const c of chunks) {
+        buf.set(c, offset);
+        offset += c.byteLength;
+      }
+      const dims = parseImageDimensions(buf);
+      if (!dims) return true; // unknown format — pass through, the existing onError fallback handles failures
+      if (!isSquareAspect(dims)) return true; // non-square → safe to keep
+      // Square: keep only when the file is rich enough that the subject likely
+      // fills the frame. Small square JPEGs are the high-risk "blank/white"
+      // case (BUY-63507: 1500x1500 @ 127KB Gigabyte A16, 1200x1200 @ 120KB
+      // Zephyrus G16). Large square JPEGs (e.g. 1200x1200 @ 968KB ProArt P16)
+      // have enough detail to render correctly.
+      const contentLength = Number(res.headers.get("content-length") || "0");
+      if (contentLength > 0 && contentLength < SQUARE_FILE_SIZE_THRESHOLD) {
+        return false;
+      }
+      // No content-length header — we can't tell how big the full file is,
+      // so be conservative and keep the image. The reachable check already
+      // gates truly dead URLs.
+      return true;
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return true; // probe failed — pass through; the reachable check is enough to gate dead URLs
   }
 }
 
@@ -238,6 +835,209 @@ function productMatchesRequiredTerms(product: LandingProduct, requiredTerms?: st
   if (!requiredTerms || requiredTerms.length === 0) return true;
   const haystack = [product.name, product.brand, product.category].filter(Boolean).join(" ").toLowerCase();
   return requiredTerms.some((term) => haystack.includes(term.toLowerCase()));
+}
+
+// BUY-67622: every-token gate for hero-driven GPU claims. When the page
+// promises a specific GPU generation (e.g. "RTX 5070 & 5080 Picks"), drop any
+// product whose name doesn't mention at least one of the listed GPU tokens —
+// even if the broader `requiredProductTerms` filter would have let it pass.
+// Tokens are matched as substrings; include the regex pattern when you need
+// word boundaries (e.g. use "RTX 5070" not just "5070" to avoid matching
+// monitor model numbers).
+function productMatchesGpuTokens(product: LandingProduct, gpuTokens?: string[]): boolean {
+  if (!gpuTokens || gpuTokens.length === 0) return true;
+  const haystack = [product.name, product.brand].filter(Boolean).join(" ").toLowerCase();
+  return gpuTokens.some((token) => haystack.includes(token.toLowerCase()));
+}
+
+// BUY-67622 (v3): promote hero-named brands (e.g. "Roomba", "Roborock") to the
+// top of the live card set so the FIRST visible card matches the hero copy.
+// Used as a stable comparator — products matching a heroFeaturedBrands term
+// always rank above products that only matched the broader requiredProductTerms
+// set (e.g. Shark/Eufy on the robot page). Items matching neither (i.e. that
+// don't pass productMatchesRequiredTerms at all) never reach this point.
+function compareHeroFeatured(
+  a: LandingProduct,
+  b: LandingProduct,
+  heroFeaturedBrands?: string[],
+): number {
+  if (!heroFeaturedBrands || heroFeaturedBrands.length === 0) return 0;
+  const aHaystack = [a.name, a.brand, a.category].filter(Boolean).join(" ").toLowerCase();
+  const bHaystack = [b.name, b.brand, b.category].filter(Boolean).join(" ").toLowerCase();
+  const aFeatured = heroFeaturedBrands.some((t) => aHaystack.includes(t.toLowerCase()));
+  const bFeatured = heroFeaturedBrands.some((t) => bHaystack.includes(t.toLowerCase()));
+  if (aFeatured && !bFeatured) return -1;
+  if (bFeatured && !aFeatured) return 1;
+  return 0;
+}
+
+// BUY-66320 (v4): identify the product that substantiates the hero's
+// "from {floorPrice}" claim — i.e. the same lowest positive price that
+// resolveHeroTitle formats into the <h1>. Kept deliberately in lockstep with
+// resolveHeroTitle's price filter (positive, finite) so the headline and the
+// promoted card can never disagree.
+export function findFloorPriceProductId(products: LandingProduct[]): string | null {
+  let bestId: string | null = null;
+  let bestPrice = Number.POSITIVE_INFINITY;
+  for (const p of products) {
+    const n = p.price !== null && p.price !== undefined ? Number(p.price) : null;
+    if (n === null || !Number.isFinite(n) || n <= 0) continue;
+    if (n < bestPrice) {
+      bestPrice = n;
+      bestId = p.id;
+    }
+  }
+  return bestId;
+}
+
+// BUY-66320 (v4): reconciles two rules that previously fought each other on
+// /best-robot-vacuums-2026 and caused a reopen loop:
+//
+//   * BUY-66320 made the hero read "from {floorPrice}" off the live catalog
+//     minimum ($560 Shark Navigator).
+//   * BUY-67622 (v3) then re-sorted hero-named brands (Roomba/Roborock) to the
+//     front, burying that $560 card at position 3 behind $1,299 and $999.
+//
+// Net effect: the headline advertised a price the shopper could not see in the
+// first cards. The fix scopes the two rules to disjoint slots rather than
+// flipping one off (which would just reopen the other ticket):
+//
+//   1. The single floor-price card leads, so the "from $X" claim is provable at
+//      position 1.
+//   2. Among every OTHER card, hero-named brands still rank first — BUY-67622's
+//      intent is preserved for the rest of the grid.
+//
+// Because the two rules no longer overlap, this ordering is deterministic and
+// cannot oscillate between the two tickets.
+export function compareLandingCardOrder(
+  a: LandingProduct,
+  b: LandingProduct,
+  heroFeaturedBrands: string[] | undefined,
+  floorProductId: string | null,
+): number {
+  if (floorProductId) {
+    const aFloor = a.id === floorProductId;
+    const bFloor = b.id === floorProductId;
+    if (aFloor && !bFloor) return -1;
+    if (bFloor && !aFloor) return 1;
+  }
+  return compareHeroFeatured(a, b, heroFeaturedBrands);
+}
+
+const PRODUCT_ACCESSORY_RE =
+  /\b(?:accessor(?:y|ies)(?:\s+(?:package|kit|set))?|fabric cleaner|replacement\s+(?:battery|batteries|brush(?:es)?|dust bags?|filter(?:s)?|kit|mop pads?|motor|nozzles?|parts?|roller(?:s)?|side brush(?:es)?|water tanks?)|vacuum\s+(?:accessor(?:y|ies)|parts?|supply|supplies)|(?:\d+[- ]?pack|pack of \d+)\s+(?:replacement\s+)?(?:brush(?:es)?|dust bags?|filter(?:s)?|mop pads?|roller(?:s)?|side brush(?:es)?)|(?:brush(?:es)?|dust bags?|filter(?:s)?|mop pads?|roller(?:s)?|side brush(?:es)?)\s+(?:kit|set)\s+(?:for|compatible with))\b/i;
+const NON_FLOOR_ROBOT_VACUUM_RE = /\b(?:cordless|handheld|pool|stick|upright)\b/i;
+const COMPLETE_ROBOT_VACUUM_RE = /\b(?:robot(?:ic)?\s+vacuums?|roomba|deebot)\b/i;
+
+// BUY-63381: laptop accessory regex. The previous "laptop" keyword match in
+// `requiredProductTerms` let unrelated accessories pass whenever the
+// accessory name happened to contain "laptop" — e.g. "CARBONADO 30 L Backpack
+// Gaming Backpack For Laptop" or "Robotic Doodle Laptop Ideapad Gaming 3
+// Laptop Skin". The QA re-verification at 2026-07-29T18:17Z still saw those
+// items in the live deals section for /best-gaming-laptops-us. Match the
+// accessory-style keywords explicitly so we never let skins, sleeves,
+// backpacks, stands, decals, stickers, covers, or laptop coolers reach the
+// product cards regardless of how the upstream search API classifies them.
+const LAPTOP_ACCESSORY_RE =
+  /(?:laptop\s+(?:skin|skins|sleeve|sleeves|cover|covers|case|cases|stand|stands|cooler|coolers|bag|bags|backpack|backpacks|sticker|stickers|decal|decals|charger|chargers|adapter|adapters|battery|batteries)|(?:laptop\s+)?cooling\s*pad|(?:laptop\s+)?cooler\s*(?:stand|mount)?|\bbackpack(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bsleeve(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bskin(?:s)?(?:\s+(?:for|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bsticker(?:s)?(?:\s+(?:for|of|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\bdecal(?:s)?(?:\s+(?:for|of|compatible\s+with)\s+(?:a\s+)?(?:laptop|notebook|macbook|gaming))?|\breplacement\s+(?:battery|batteries|adapter|adapters|charger|chargers|keyboard|fan|fans|hinge|screen|hdd|ssd|ram|memory)|compatible\s+with\s+(?:laptop|notebook|macbook|gaming\s+laptop))/i;
+// Require at least one "true laptop" signal in the product text so we never
+// accept a generic accessory that mentions a laptop model name in passing.
+// Tokens here are intentionally NOT bare "laptop" — that single word is too
+// weak (a backpack or sleeve can include it as a noun, not a product type).
+// Require at least one "true laptop" signal in the product text so we never
+// accept a generic accessory that mentions a laptop model name in passing.
+// "laptop" is included as a fallback — the LAPTOP_ACCESSORY_RE check runs
+// first and excludes anything whose text looks like a skin/sleeve/backpack,
+// so the bare "laptop" token here is safe: products that survive that
+// check are real laptops, not accessories that happen to mention laptops.
+const LAPTOP_REQUIRED_TOKENS = [
+  "laptop",
+  "notebook",
+  "ultrabook",
+  "chromebook",
+  "macbook",
+  "macbook pro",
+  "macbook air",
+  "zenbook",
+  "vivobook",
+  "xps",
+  "rog ",
+  "tuf ",
+  "legion",
+  "ideapad",
+  "thinkpad",
+  "yoga",
+  "swift ",
+  "aspire",
+  "omen",
+  "predator",
+  "alienware",
+  "razer blade",
+  "msi ",
+  "nvidia rtx",
+  "geforce rtx",
+  "rtx 30",
+  "rtx 40",
+  "rtx 50",
+];
+// Gaming-laptop specific tokens: require a strong gaming signal so the page
+// never degrades to a generic laptop catalog (which would itself start
+// pulling in accessories once we relax the terms). Excludes bare "laptop".
+const GAMING_LAPTOP_REQUIRED_TOKENS = [
+  "gaming laptop",
+  "rog",
+  "legion",
+  "alienware",
+  "omen",
+  "predator",
+  "tuf",
+  "msi",
+  "razer blade",
+  "nvidia rtx",
+  "geforce rtx",
+  "rtx 30",
+  "rtx 40",
+  "rtx 50",
+];
+
+export function isCompleteRobotVacuum(product: Pick<LandingProduct, "name" | "brand" | "category">) {
+  const text = [product.name, product.brand, product.category].filter(Boolean).join(" ");
+  return (
+    COMPLETE_ROBOT_VACUUM_RE.test(text) &&
+    !PRODUCT_ACCESSORY_RE.test(text) &&
+    !NON_FLOOR_ROBOT_VACUUM_RE.test(text)
+  );
+}
+
+function isExcludedAccessory(product: LandingProduct, config: SeoLandingPageConfig) {
+  if (!config.excludeAccessories) return false;
+  const text = [product.name, product.brand, product.category].filter(Boolean).join(" ");
+  if (config.searchCategory === "robot_vacuums") return !isCompleteRobotVacuum(product);
+  if (config.searchCategory === "gaming_laptops") {
+    // BUY-63381: never let laptop skins, sleeves, backpacks, decals, stickers,
+    // stands, or coolers reach the gaming laptop cards regardless of how the
+    // upstream search API classifies them. Also reject anything that fails
+    // the strict gaming-laptop required-token match — see
+    // `productMatchesRequiredTerms` for the AND-style filter.
+    if (LAPTOP_ACCESSORY_RE.test(text)) return true;
+    return !matchesAnyToken(text, GAMING_LAPTOP_REQUIRED_TOKENS);
+  }
+  if (config.searchCategory === "laptops") {
+    // Generic laptop landing pages should still exclude obvious accessories
+    // (skins, sleeves, backpacks, decals) so /laptop-singapore and /laptop-us
+    // don't drift into the same accessory noise.
+    if (LAPTOP_ACCESSORY_RE.test(text)) return true;
+    return !matchesAnyToken(text, LAPTOP_REQUIRED_TOKENS);
+  }
+  if (config.searchCategory === "air_purifiers") {
+    return !/\b(?:air\s*purifier|purifier|hepa|dyson|philips|xiaomi|sharp|sterra|coway|levoit|blueair)\b/i.test(text);
+  }
+  return PRODUCT_ACCESSORY_RE.test(text);
+}
+
+function matchesAnyToken(text: string, tokens: string[]) {
+  const haystack = text.toLowerCase();
+  return tokens.some((token) => haystack.includes(token.toLowerCase()));
 }
 
 function hasUsableLiveCard(product: LandingProduct) {
@@ -268,8 +1068,17 @@ function withLiveProductDetailUrl(product: LandingProduct, country: string): Lan
   return { ...product, productUrl: buildProductDetailUrl(product, country) };
 }
 
-function withFallbackSearchUrl(product: LandingProduct): LandingProduct {
-  return { ...product, productUrl: product.href };
+// Fallback editorial products don't carry a real outbound merchant URL, so their
+// card CTA must not loop back to /search?q=... (which recreates the "View offer
+// loops internally" bug from BUY-61931). Point the card at the internal product
+// detail page instead: /products/{region}/{slug}/{id} resolves these curated IDs
+// via getSeoLandingFallbackProduct, so it never 404s. The fallback href (e.g.
+// "/search?q=...") is intentionally NOT promoted to productUrl — it stays
+// relative, so ProductGridCard's isMerchantOffer check stays false and renders
+// an honest "View details" label rather than a fake "Buy at {merchant}" button
+// with no real merchant destination.
+function withFallbackDetailUrl(product: LandingProduct, country: string): LandingProduct {
+  return { ...product, productUrl: buildProductDetailUrl(product, country) };
 }
 
 
@@ -287,11 +1096,17 @@ export function buildLandingProductSlug(product: Pick<LandingProduct, "name">): 
     .slice(0, 80);
 }
 
-export function getSeoLandingFallbackProduct(
+// BUY-69736: async + image repair. The PDP route renders curated fallback
+// rows verbatim when the catalog product fetch misses; without this repair a
+// dead or hotlink-blocked curated image URL reaches the browser as-is and the
+// PDP shows a broken-image icon. Mirrors the repair pipeline
+// getSeoLandingProducts already applies to the same rows (line ~855).
+export async function getSeoLandingFallbackProduct(
   region: string,
   productId: string,
-  slug?: string,
-): LandingProduct | null {
+  _slug?: string,
+): Promise<LandingProduct | null> {
+  void _slug;
   const normalizedRegion = region.toUpperCase();
 
   for (const config of Object.values(seoLandingPages)) {
@@ -300,13 +1115,29 @@ export function getSeoLandingFallbackProduct(
     for (const product of config.fallbackProducts) {
       if (product.id !== productId) continue;
 
+      // Match by productId and region; slug is informational only and can
+      // differ from buildLandingProductSlug(product.name) because JSON-LD
+      // Offer.url slugs are derived from upstream merchant product titles.
+      // BUY-69630: relax the strict byte-equality guard to allow PDPs to
+      // render for catalog productIds even when the URL slug is mangled.
       const detailUrl = buildProductDetailUrl(product, config.country);
-      if (slug && detailUrl !== `/products/${region.toLowerCase()}/${slug}/${productId}`) {
-        continue;
+
+      // BUY-69736: probe the curated image; replace with the branded SVG
+      // placeholder when the URL is dead/blocked/serves HTML.
+      let imageUrl = product.imageUrl;
+      if (imageUrl) {
+        const reachable = await verifyReachableImage(imageUrl);
+        if (!reachable) {
+          console.warn(
+            `[seo] replacing unreachable fallback image for product ${product.id} on PDP: ${imageUrl}`
+          );
+          imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
+        }
       }
 
       return {
         ...product,
+        imageUrl,
         productUrl: detailUrl,
       };
     }
@@ -315,7 +1146,11 @@ export function getSeoLandingFallbackProduct(
   return null;
 }
 
-export function getSeoLandingFallbackProductBySlug(region: string, slug: string): LandingProduct | null {
+// BUY-69736: same image repair for the by-slug variant used by generateMetadata.
+export async function getSeoLandingFallbackProductBySlug(
+  region: string,
+  slug: string,
+): Promise<LandingProduct | null> {
   const normalizedRegion = region.toUpperCase();
   const normalizedSlug = decodeURIComponent(slug).toLowerCase();
 
@@ -325,8 +1160,20 @@ export function getSeoLandingFallbackProductBySlug(region: string, slug: string)
     for (const product of config.fallbackProducts) {
       if (buildLandingProductSlug(product) !== normalizedSlug) continue;
 
+      let imageUrl = product.imageUrl;
+      if (imageUrl) {
+        const reachable = await verifyReachableImage(imageUrl);
+        if (!reachable) {
+          console.warn(
+            `[seo] replacing unreachable fallback image for product ${product.id} on PDP: ${imageUrl}`
+          );
+          imageUrl = brandedProductPlaceholderSvg(product.brand, product.name, product.category);
+        }
+      }
+
       return {
         ...product,
+        imageUrl,
         productUrl: buildProductDetailUrl(product, config.country),
       };
     }
@@ -336,7 +1183,25 @@ export function getSeoLandingFallbackProductBySlug(region: string, slug: string)
 }
 
 export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promise<LandingProduct[]> {
-  const fallback = config.fallbackProducts.filter(isTrustedFallbackProduct);
+  // Filter and repair fallback products up-front: trustcheck + image probe.
+  // The static fallback list (e.g. Dyson/Philips/Xiaomi URLs in
+  // config.fallbackProducts) can also contain dead CDN URLs — replacing the
+  // image with a brand-coloured SVG here means the page never falls back to a
+  // generic placeholder icon when live products are unavailable (BUY-64729).
+  const trustedFallback = config.fallbackProducts.filter(isTrustedFallbackProduct);
+  const fallback = await Promise.all(
+    trustedFallback.map(async (fb) => {
+      if (!fb.imageUrl) {
+        return { ...fb, imageUrl: brandedProductPlaceholderSvg(fb.brand, fb.name, fb.category) };
+      }
+      const reachable = await verifyReachableImage(fb.imageUrl);
+      if (reachable) return fb;
+      console.warn(
+        `[seo] replacing unreachable fallback image for product ${fb.id} on ${config.slug}: ${fb.imageUrl}`
+      );
+      return { ...fb, imageUrl: brandedProductPlaceholderSvg(fb.brand, fb.name, fb.category) };
+    }),
+  );
 
   // Try the broad query first, then progressively fall back to brand-specific
   // backup queries. Broad queries on the product search API frequently time out
@@ -353,8 +1218,17 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       const params = new URLSearchParams({
         q: query,
         country: config.country,
-        limit: "8",
+        // BUY-69925: filter to US-merchant products only. The API's deliver_to
+        // + include_unshippable=false gates out foreign merchants (e.g. a UAE
+        // store selling in USD) that would otherwise leak into US-specific SEO
+        // pages. This ensures US retailers in the deals snapshot are actually US.
+        deliver_to: config.country,
+        include_unshippable: "false",
+        limit: config.excludeAccessories ? "24" : "8",
       });
+      if (config.searchCategory) {
+        params.set("category", config.searchCategory);
+      }
 
       // Route through BuyWhere's own /api/products/search route handler rather
       // than the external product API. The route handler injects the backend
@@ -392,10 +1266,22 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
       }
 
       for (const item of items) {
-        const product = normalizeProduct(item, config.currency, config.minPrice);
+        const product = normalizeProduct(item, config.currency, config.minPrice, config.searchCategory);
         if (!product) continue;
+        // BUY-69925: reject products whose merchant/market country differs from the
+        // page's target country. This is the SSR-layer gate for non-US merchants
+        // (e.g. a UAE store selling in USD) that pass the currency check but
+        // shouldn't appear in a US-specific SEO page's deals snapshot. It runs as
+        // defense-in-depth alongside the API-side include_unshippable=false filter.
+        if (product.countryCode && product.countryCode !== config.country) continue;
         if (!hasUsableLiveCard(product)) continue;
+        if (isExcludedAccessory(product, config)) continue;
         if (!productMatchesRequiredTerms(product, config.requiredProductTerms)) continue;
+        // BUY-67622: when the page promises a specific GPU generation in the
+        // hero copy (e.g. RTX 5070/5080 picks), the live card set MUST match
+        // that promise — drop products whose name lacks every required GPU
+        // token even if they otherwise pass the requiredProductTerms OR-gate.
+        if (!productMatchesGpuTokens(product, config.requiredGpuTokens)) continue;
         if (!seenIds.has(product.id)) {
           seenIds.add(product.id);
           collected.push(product);
@@ -408,30 +1294,111 @@ export async function getSeoLandingProducts(config: SeoLandingPageConfig): Promi
     }
   }
 
-  if (collected.length >= 4) {
-    return collected.slice(0, 8).map((p) => withLiveProductDetailUrl(p, config.country));
+  // Verify every collected product's image is actually reachable. Live search
+  // results from third-party CDNs (asus.com, courts.com.sg, shopifycdn, ...)
+  // frequently return 404/403 even though the search API itself succeeded. If
+  // we leave a dead URL in the rendered HTML the browser shows a generic
+  // broken-image icon instead of a real product thumbnail (BUY-64729).
+  //
+  // We probe URLs in parallel with a short per-request timeout. Unreachable
+  // products are DROPPED entirely from the live card set instead of being
+  // replaced with a branded SVG placeholder. QA re-verification at
+  // 2026-07-29T10:12Z still flagged the branded-SVG fallback as a "generic
+  // placeholder" because the page no longer shows real product photos — and
+  // the QA expectation is "Live Catalog Snapshot shows real product
+  // thumbnails with prices and merchant badges".
+  //
+  // When the dropped count brings the live card set below 4, the
+  // fallback-top-up branch (below) substitutes curated fallbackProducts
+  // which have known-good real image URLs (Apple CDN, Dell CDN, Philips,
+  // Roborock, Dyson, Xiaomi, etc.).
+  const verified: LandingProduct[] = [];
+  const probeResults = await Promise.all(
+    collected.map(async (product) => {
+      if (!product.imageUrl) return false;
+      // BUY-63507: chain the reachable probe with a content-shape probe. A 200
+      // OK on a 1:1 product photo with heavy white margins renders as a
+      // "blank/white" card under our aspect-[4/3] + object-cover layout. The
+      // content probe drops those products so the next live result fills the
+      // slot instead.
+      const reachable = await verifyReachableImage(product.imageUrl);
+      if (!reachable) return false;
+      return verifyUsableImageContent(product.imageUrl);
+    })
+  );
+  for (let i = 0; i < collected.length; i++) {
+    if (probeResults[i]) {
+      verified.push(collected[i]);
+    } else {
+      // BUY-706xx / BUY-69752: do NOT keep live rows whose photos fail the
+      // reachability/content probe. QA treats the branded SVG as a placeholder,
+      // and retaining 4+ placeholder-backed live rows prevents the curated
+      // fallback-photo top-up below from ever running. Drop the row so the page
+      // prefers real product photos over placeholder graphics.
+      seenIds.delete(collected[i].id);
+    }
+  }
+
+  // Carry seenIds across the verified list so fallback top-up dedup still works.
+  const verifiedProducts = verified;
+
+  if (verifiedProducts.length >= 4) {
+    // BUY-67622 (v3): stable-sort so hero-promised brands lead. Without this,
+    // a Shark card can land at position 1 on a page whose hero promises
+    // "Roomba & Roborock Deals".
+    // BUY-66320 (v4): but the card backing the hero's "from {floorPrice}" claim
+    // leads ahead of them, so the advertised price is visible at position 1.
+    // Computing the floor over the pre-slice set also guarantees that card
+    // survives slice(0, 8) — so the rendered floor always equals the hero floor.
+    const floorId = findFloorPriceProductId(verifiedProducts);
+    const featured = [...verifiedProducts].sort((a, b) =>
+      compareLandingCardOrder(a, b, config.heroFeaturedBrands, floorId),
+    );
+    return featured.slice(0, 8).map((p) => withLiveProductDetailUrl(p, config.country));
   }
 
   // If we got some (but fewer than 4) real products, top up with fallbacks so
   // the page always shows at least 4 cards. Prefer real data first.
-  if (collected.length > 0) {
+  if (verifiedProducts.length > 0) {
+    const topUp: LandingProduct[] = [...verifiedProducts];
     for (const fb of fallback) {
-      if (collected.length >= 4) break;
+      if (topUp.length >= 4) break;
       if (!seenIds.has(fb.id)) {
         seenIds.add(fb.id);
-        collected.push(withFallbackSearchUrl(fb));
+        topUp.push(withFallbackDetailUrl(fb, config.country));
       }
     }
-    return collected.slice(0, 8).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
+    // BUY-67622 (v3): keep hero-promised brands at the front of the partial top-up too.
+    // BUY-66320 (v4): floor-price card still leads (see compareLandingCardOrder).
+    const topUpFloorId = findFloorPriceProductId(topUp);
+    const featuredTopUp = [...topUp].sort((a, b) =>
+      compareLandingCardOrder(a, b, config.heroFeaturedBrands, topUpFloorId),
+    );
+    return featuredTopUp.slice(0, 8).map((p) => (p.productUrl ? p : withLiveProductDetailUrl(p, config.country)));
   }
 
   // No real products from any query — show curated fallback products (with real
   // names, prices, merchants, and deep-link search hrefs) rather than an empty
   // page. These are honest editorial picks, not empty skeleton cards.
-  return fallback.slice(0, 8).map(withFallbackSearchUrl);
+  // BUY-67622 (v3): when falling back entirely, still promote heroFeaturedBrands
+  // matches so the page top still reflects the hero promise.
+  // BUY-66320 (v4): and lead with the floor-price card. This branch is no longer
+  // gated on heroFeaturedBrands — the "from {floorPrice}" promise must hold on
+  // curated-fallback renders too, where resolveHeroTitle reads the same list.
+  if (fallback.length > 1) {
+    const fallbackFloorId = findFloorPriceProductId(fallback);
+    const featuredFallback = [...fallback].sort((a, b) =>
+      compareLandingCardOrder(a, b, config.heroFeaturedBrands, fallbackFloorId),
+    );
+    return featuredFallback.slice(0, 8).map((fb) => withFallbackDetailUrl(fb, config.country));
+  }
+  return fallback.slice(0, 8).map((fb) => withFallbackDetailUrl(fb, config.country));
 }
 
-export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata {
+export function buildSeoLandingMetadata(
+  config: SeoLandingPageConfig,
+  products?: LandingProduct[],
+): Metadata {
   const canonical = toSiteUrl(config.canonicalPath);
 
   // Build hreflang language alternates: each provided locale -> its canonical path URL.
@@ -449,8 +1416,16 @@ export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata 
   const ogLocaleAlternate =
     config.country === "US" ? "en_SG" : "en_US";
 
+  // BUY-67622 v4: when generateMetadata threads the live products through, use
+  // the resolved hero title (the live catalog floor price) for the <title>,
+  // og:title, twitter:title, and og:image:alt — so the SEO meta tags match the
+  // visible H1 the page renders. When products are omitted (e.g. older
+  // callers, or a transient upstream outage), fall back to the static
+  // config.title for graceful degradation. (BUY-67622)
+  const seoTitle = products ? resolveHeroTitle(config, products) : config.title;
+
   return {
-    title: config.title,
+    title: seoTitle,
     description: config.description,
     alternates: {
       canonical,
@@ -463,7 +1438,7 @@ export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata 
       "og:locale:alternate": ogLocaleAlternate,
     },
     openGraph: {
-      title: config.title,
+      title: seoTitle,
       description: config.description,
       url: canonical,
       type: "article",
@@ -474,21 +1449,125 @@ export function buildSeoLandingMetadata(config: SeoLandingPageConfig): Metadata 
           url: "/og-image.png",
           width: 1200,
           height: 630,
-          alt: config.title,
+          alt: seoTitle,
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
-      title: config.title,
+      title: seoTitle,
       description: config.description,
       images: ["/og-image.png"],
+    },
+    robots: {
+      index: true,
+      follow: true,
     },
   };
 }
 
 export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: LandingProduct[]) {
   const canonical = toSiteUrl(config.canonicalPath);
+  // BUY-66320: resolve the same hero title the page renders so the JSON-LD
+  // article headline, breadcrumb, and CollectionPage name stay in sync with
+  // the live catalog floor (the previous static heroTitle drifted when the
+  // upstream catalog changed).
+  const resolvedHeroTitle = resolveHeroTitle(config, products);
+
+  // Deduplicate products by name so each distinct product becomes a top-level
+  // Product node with an AggregateOffer summarising every merchant listing it.
+  // Falls back to the page's curated fallbackProducts when live search is empty.
+  const schemaProducts = (products && products.length > 0 ? products : config.fallbackProducts) || [];
+  const productGroups = Array.from(
+    schemaProducts
+      .filter((p) => p && p.name)
+      .reduce<Map<string, LandingProduct[]>>((acc, p) => {
+        const key = p.name.trim().toLowerCase();
+        const list = acc.get(key);
+        if (list) {
+          list.push(p);
+        } else {
+          acc.set(key, [p]);
+        }
+        return acc;
+      }, new Map())
+      .values()
+  );
+
+  const productNodes = productGroups.map((group) => {
+    const reference = group[0];
+    const priced = group.filter((p) => p.price !== null && p.price !== undefined);
+    const prices = priced.map((p) => Number(p.price)).filter((n) => Number.isFinite(n));
+    const lowPrice = prices.length > 0 ? Math.min(...prices) : null;
+    const currency = reference.currency || config.currency;
+
+    return {
+      "@type": "Product",
+      "@id": `${canonical}#product-${reference.id}`,
+      name: reference.name,
+      brand: reference.brand
+        ? {
+            "@type": "Brand",
+            name: reference.brand,
+          }
+        : undefined,
+      category: reference.category || undefined,
+      image: reference.imageUrl || undefined,
+      description: `${reference.name} price comparison across ${group.length} ${
+        group.length === 1 ? "retailer" : "retailers"
+      } on BuyWhere.`,
+      // BUY-69663: aggregateRating intentionally absent. The previous block
+      // synthesized a constant 4.8 / (1240 + n*37) rating for every product —
+      // fabricated review markup is a rich-result manual-action risk and
+      // feeds answer engines data we do not have. Emit ratings only from a
+      // real merchant-feed rating source (product-schema.ts enforces this).
+      offers:
+        prices.length > 0
+          ? {
+              "@type": "AggregateOffer",
+              priceCurrency: currency,
+              offerCount: group.length,
+              lowPrice,
+              availability: "https://schema.org/InStock",
+              sellers: group.map((p) => ({
+                "@type": "Organization",
+                name: p.merchant,
+              })),
+            }
+          : {
+              "@type": "AggregateOffer",
+              priceCurrency: currency,
+              offerCount: group.length,
+              availability: "https://schema.org/InStock",
+            },
+    };
+  });
+
+  const articleNode = {
+    "@type": "Article",
+    "@id": `${canonical}#article`,
+    headline: resolvedHeroTitle,
+    description: config.description,
+    image: `${BASE_URL}/og-image.png`,
+    inLanguage: config.locale.replace("_", "-"),
+    datePublished: config.datePublished || "2026-06-29",
+    dateModified: config.dateModified || "2026-07-25",
+    mainEntityOfPage: canonical,
+    about: {
+      "@type": "Thing",
+      name: config.searchQuery,
+    },
+    author: {
+      "@type": "Organization",
+      "@id": `${BASE_URL}/#organization`,
+      name: "BuyWhere",
+    },
+    publisher: {
+      "@type": "Organization",
+      "@id": `${BASE_URL}/#organization`,
+      name: "BuyWhere",
+    },
+  };
 
   return {
     "@context": "https://schema.org",
@@ -506,7 +1585,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
           {
             "@type": "ListItem",
             position: 2,
-            name: config.heroTitle,
+            name: resolvedHeroTitle,
             item: canonical,
           },
         ],
@@ -514,7 +1593,7 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
       {
         "@type": "CollectionPage",
         "@id": `${canonical}#collection`,
-        name: config.heroTitle,
+        name: resolvedHeroTitle,
         description: config.description,
         url: canonical,
         mainEntityOfPage: canonical,
@@ -565,6 +1644,8 @@ export function buildSeoLandingSchema(config: SeoLandingPageConfig, products: La
           })),
         },
       },
+      articleNode,
+      ...productNodes,
       {
         "@type": "FAQPage",
         "@id": `${canonical}#faq`,
@@ -597,6 +1678,9 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "air purifier",
+    searchCategory: "air_purifiers",
+    excludeAccessories: true,
+    compactCatalogCards: true,
     backupQueries: ["Coway air purifier", "Levoit air purifier", "Blueair air purifier", "Xiaomi air purifier"],
     minPrice: 50,
     requiredProductTerms: ["air purifier", "purifier", "hepa", "dyson", "philips", "xiaomi", "sharp", "sterra", "coway", "levoit", "blueair"],
@@ -685,9 +1769,12 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "laptop",
+    searchCategory: "laptops",
+    excludeAccessories: true,
     backupQueries: ["MacBook laptop", "ASUS laptop", "Lenovo laptop", "Dell laptop"],
     minPrice: 300,
     requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
+    compactCatalogCards: true,
     productSectionTitle: "Live laptop offers across Singapore",
     comparisonSectionTitle: "Popular laptop picks at a glance",
     comparisonColumns: ["Model", "Price", "Weight", "Chip", "Best For"],
@@ -751,8 +1838,14 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
       label: "View developer docs",
     },
     fallbackProducts: [
-      { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: "https://store.storeimages.cdn-apple.com/4982/as-images.apple.com/is/macbook-air-13-m3-midnight-select-202402", href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
-      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://dlcdnwebimgs.asus.com/gain/6d9f8b3f-c4d4-4f69-bd04-9d98ee9f3f03/", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
+      // BUY-65560: store.storeimages.cdn-apple.com returns 404 from the live SEO
+      // build host (and is hotlink-blocked in many regions), so the MacBook Air
+      // card was falling through to the BuyWhere SVG placeholder on
+      // /laptop-singapore. Swap to a confirmed-200 Unsplash laptop photo until
+      // we can source a real merchant feed URL from the Apple Store SG product
+      // page (filed as a follow-up against the catalog ingest lane).
+      { id: "lp1", name: "MacBook Air 13 M3", price: 1499, currency: "SGD", merchant: "Apple Store", imageUrl: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&q=80", href: "/search?q=MacBook+Air+M3&country=sg", brand: "Apple", category: "Laptops" },
+      { id: "lp2", name: "ASUS Zenbook 14 OLED", price: 1699, currency: "SGD", merchant: "ASUS Singapore", imageUrl: "https://dlcdnwebimgs.asus.com/gain/53d4a89d-7321-473b-bfc9-505466b60408/w800", href: "/search?q=ASUS+Zenbook+14+OLED&country=sg", brand: "ASUS", category: "Laptops" },
       { id: "lp3", name: "Lenovo Yoga 7i", price: 1549, currency: "SGD", merchant: "Lenovo", imageUrl: "https://p1-ofp.static.pub/medias/bWFzdGVyfHJvb3R8MzAxNTMwfGltYWdlL3BuZ3xoNzkvaDhmLzE0MTkxMjY3ODk1MzI2LnBuZ3xhOGYyMWY3NTQzZWUxNzI5ZWRkMmM2OWM4MjA5MzFkYTY1NTMxZDE2MDEwNzI2NzI3ZjQ2OTAxNGYzODI5ZGYw/lenovo-yoga-7i-2-in-1-14-intel-hero.png", href: "/search?q=Lenovo+Yoga+7i&country=sg", brand: "Lenovo", category: "Laptops" },
       { id: "lp4", name: "Acer Swift Go 14", price: 1199, currency: "SGD", merchant: "Shopee", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/s/w/swift-go-14-sfg14-72-silver-01.png", href: "/search?q=Acer+Swift+Go+14&country=sg", brand: "Acer", category: "Laptops" },
       { id: "lp5", name: "Dell XPS 14", price: 2199, currency: "SGD", merchant: "Dell", imageUrl: "https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/page/uber/0125/xps-14-9440-laptop-800x620.png", href: "/search?q=Dell+XPS+14&country=sg", brand: "Dell", category: "Laptops" },
@@ -773,9 +1866,18 @@ export const seoLandingPages: Record<string, SeoLandingPageConfig> = {
     currency: "USD",
     locale: "en_US",
     searchQuery: "gaming laptop",
+    searchCategory: "gaming_laptops",
+    excludeAccessories: true,
 backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator laptop", "gaming laptop NVIDIA RTX"],
     minPrice: 300,
     requiredProductTerms: ["gaming laptop", "laptop", "rog", "legion", "alienware", "omen", "predator", "tuf", "msi", "nvidia rtx"],
+    // BUY-67622: hero claims "RTX 5070 & 5080 Picks". Older generation GPUs
+    // (e.g. 2020-era TUF F15 with GTX 1650, dev6booster.myshopify.com redirect,
+    // or RTX 5060 "best value" rows in the live catalog) are filtered out by
+    // this AND-style GPU token gate on top of the broader requiredProductTerms
+    // OR-gate. v2: drop "rtx 50" — it was substring-matching "RTX 5060",
+    // "RTX 5050", etc., letting 50-series-but-not-5070/5080 cards leak through.
+    requiredGpuTokens: ["rtx 5070", "rtx 5080"],
     hreflangAlternates: { "en-SG": "/best-gaming-laptop-singapore" },
     productSectionTitle: "Live gaming laptop deals across US retailers",
     comparisonSectionTitle: "Top gaming laptop picks at a glance",
@@ -841,20 +1943,28 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       label: "Explore the API",
     },
     fallbackProducts: [
-      { id: "g1", name: "ASUS ROG Zephyrus G16", price: 1999, currency: "USD", merchant: "Best Buy", imageUrl: "https://dlcdnwebimgs.asus.com/gain/70b05f13-cd55-4487-887a-8225f23ba395/", href: "/search?q=ASUS+ROG+Zephyrus+G16&country=us", brand: "ASUS", category: "Gaming Laptops" },
-      { id: "g2", name: "Lenovo Legion Pro 7i", price: 2299, currency: "USD", merchant: "Lenovo", imageUrl: "https://p1-ofp.static.pub/medias/bWFzdGVyfHJvb3R8Mzc2NTYyfGltYWdlL3BuZ3xoNWYvaGNhLzE0MTk2NzgzNjQ0MTkwLnBuZ3wxODhhZjI5ZjMzN2UyMWI1ZTcyZThjMGYwNTcyOTM1YTllYmQ0ZDU3Y2E4Y2QwMGY1YmNhODQ1MTVkZTRhZGEw/lenovo-legion-pro-7i-16-intel-hero.png", href: "/search?q=Lenovo+Legion+Pro+7i&country=us", brand: "Lenovo", category: "Gaming Laptops" },
-      { id: "g3", name: "Alienware m16 R3", price: 2499, currency: "USD", merchant: "Dell", imageUrl: "https://i.dell.com/is/image/DellContent/content/dam/ss2/product-images/dell-client-products/notebooks/alienware-notebooks/alienware-m16-r2/media-gallery/laptop-aw-m16r2-nt-bk-gallery-1.psd", href: "/search?q=Alienware+m16+R3&country=us", brand: "Alienware", category: "Gaming Laptops" },
-      { id: "g4", name: "HP Omen Transcend 14", price: 1699, currency: "USD", merchant: "HP", imageUrl: "https://ssl-product-images.www8-hp.com/digmedialib/prodimg/lowres/c08855874.png", href: "/search?q=HP+Omen+Transcend+14&country=us", brand: "HP", category: "Gaming Laptops" },
-      { id: "g5", name: "Acer Predator Helios Neo 16", price: 1499, currency: "USD", merchant: "Acer", imageUrl: "https://static-ecapac.acer.com/media/catalog/product/p/r/predator-helios-neo-16-phn16-72-black-01.png", href: "/search?q=Acer+Predator+Helios+Neo+16&country=us", brand: "Acer", category: "Gaming Laptops" },
-      { id: "g6", name: "ASUS TUF Gaming A15", price: 1199, currency: "USD", merchant: "Amazon", imageUrl: "https://dlcdnwebimgs.asus.com/gain/d77fe2b2-2307-4ba0-904e-df5d15cc48b5/", href: "/search?q=ASUS+TUF+Gaming+A15&country=us", brand: "ASUS", category: "Gaming Laptops" },
+      // BUY-69736: replaced dead/wrong curated images with live-catalog-verified
+      // product photos (each URL returns HTTP 200 + image/* and is the exact
+      // image BuyWhere's own catalog serves for that model):
+      // g1 was a generic Intel Optane laptop photo (wrong product).
+      // g3 was a Dell Akamai URL returning 403 Access Denied.
+      // g4 was a 10-byte "Not found" PNG.
+      // g5 was an Acer wordmark logo, not a product photo.
+      // g6 was an Acer Nitro 5 photo on the ASUS TUF PDP (the QA ticket).
+      { id: "g1", name: "ASUS ROG Zephyrus G16", price: 1999, currency: "USD", merchant: "Best Buy", imageUrl: "https://cdn.shopify.com/s/files/1/0823/1567/3883/files/download_a7ddefe9-0f1e-4cf6-93b2-4dd1f6556aa3.png?v=1778825118", href: "/search?q=ASUS+ROG+Zephyrus+G16&country=us", brand: "ASUS", category: "Gaming Laptops" },
+      { id: "g2", name: "Lenovo Legion Pro 7i", price: 2299, currency: "USD", merchant: "Lenovo", imageUrl: "https://cdn.shopify.com/s/files/1/0622/7050/5109/files/Legion-Pro-7-16IAX10H_01_a36a4c10-d9ef-4e1a-b94e-b3e58846d93b.jpg?v=1772980345", href: "/search?q=Lenovo+Legion+Pro+7i&country=us", brand: "Lenovo", category: "Gaming Laptops" },
+      { id: "g3", name: "Alienware m16 R3", price: 2499, currency: "USD", merchant: "Dell", imageUrl: "https://cdn.shopify.com/s/files/1/0254/2144/7246/files/0a51c504-ca45-4cbf-91f2-2950269dd00f.jpg?v=1770772011", href: "/search?q=Alienware+m16+R3&country=us", brand: "Alienware", category: "Gaming Laptops" },
+      { id: "g4", name: "HP Omen Transcend 14", price: 1699, currency: "USD", merchant: "HP", imageUrl: "https://cdn.shopify.com/s/files/1/0355/8296/7943/files/1000000017762.jpg?v=1739358567", href: "/search?q=HP+Omen+Transcend+14&country=us", brand: "HP", category: "Gaming Laptops" },
+      { id: "g5", name: "Acer Predator Helios Neo 16", price: 1499, currency: "USD", merchant: "Acer", imageUrl: "https://cdn.shopify.com/s/files/1/0577/7371/9758/files/a_5_017c5486-6dfc-4bad-a6f9-e8a2b3fe4c18.jpg?v=1778759781", href: "/search?q=Acer+Predator+Helios+Neo+16&country=us", brand: "Acer", category: "Gaming Laptops" },
+      { id: "g6", name: "ASUS TUF Gaming A15", price: 1199, currency: "USD", merchant: "Amazon", imageUrl: "https://cdn.shopify.com/s/files/1/0355/8296/7943/products/0197105129795_824c30c1-67f1-4829-b28d-508e09f6f16a.jpg?v=1681799113", href: "/search?q=ASUS+TUF+Gaming+A15&country=us", brand: "ASUS", category: "Gaming Laptops" },
     ],
     showRelatedCategory: true,
   },
   "iphone-16-price-singapore": {
     slug: "iphone-16-price-singapore",
-    title: "Cheapest iPhone 16 in Singapore 2026 | Compare Prices Across Apple, Shopee, Lazada",
+    title: "Cheapest iPhone 16 in Singapore 2026 | Price Compare",
     description:
-      "Find the cheapest iPhone 16 in Singapore with live BuyWhere results, retailer benchmarks, and quick guidance across Apple Store, Shopee, Lazada, Amazon.sg, Challenger, and Courts.",
+      "Compare the cheapest iPhone 16 prices in Singapore across Apple, Shopee, Lazada, Amazon.sg, Challenger and Courts with live results.",
     heroEyebrow: "Singapore Price Tracker",
     heroTitle: "Cheapest iPhone 16 in Singapore",
     heroBody:
@@ -864,6 +1974,9 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "iPhone 16",
+    refreshedLabel: "Refreshed July 25, 2026",
+    datePublished: "2026-06-29",
+    dateModified: "2026-07-25",
     backupQueries: ["iPhone 16 Pro", "iPhone 15", "iPhone 14", "Apple iPhone"],
     productSectionTitle: "Live iPhone 16 offers across Singapore",
     comparisonSectionTitle: "Retailer price benchmarks",
@@ -915,6 +2028,31 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
         answer:
           "If you do not need the phone immediately, waiting for 9.9, 11.11, or 12.12 usually gives you a better chance of seeing the lowest price.",
       },
+      {
+        question: "Where is the safest place to buy an iPhone 16 in Singapore?",
+        answer:
+          "Apple Store Online is the safest official channel, while Shopee Mall and LazMall authorised resellers are reliable marketplace options with clear warranty terms.",
+      },
+      {
+        question: "Which iPhone 16 storage size should I buy in Singapore?",
+        answer:
+          "The 128GB iPhone 16 is the best-value choice for most Singapore buyers, while 256GB is safer if you shoot a lot of 4K video, keep many offline apps, or plan to use the phone for four years or more.",
+      },
+      {
+        question: "Is iPhone 16 still worth buying in 2026 or should I wait for iPhone 17?",
+        answer:
+          "The iPhone 16 is still worth buying in 2026 if you find a strong Singapore discount or need a phone now. Wait for iPhone 17 only if you can delay and want the newest camera, chip, and launch-window trade-in offers.",
+      },
+      {
+        question: "Does iPhone 16 support Apple Intelligence in Singapore?",
+        answer:
+          "Yes. iPhone 16 models support Apple Intelligence features where Apple makes them available for your language, region, and iOS version. Check Apple's Singapore availability notes before buying for a specific feature.",
+      },
+      {
+        question: "Does the Singapore iPhone 16 warranty work overseas?",
+        answer:
+          "Apple's iPhone warranty is region-specific. A unit bought in Singapore is serviceable at Apple Authorised Service Providers in Singapore; check coverage before buying for use abroad.",
+      },
     ],
     shopperCta: {
       title: "Compare iPhone 16 prices in Singapore",
@@ -935,16 +2073,23 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
       { id: "i4", name: "Apple iPhone 16 256GB", price: 1459, currency: "SGD", merchant: "Amazon.sg", imageUrl: null, href: "/search?q=iPhone%2016%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
       { id: "i5", name: "Apple iPhone 16 128GB", price: 1279, currency: "SGD", merchant: "Challenger", imageUrl: null, href: "/search?q=iPhone%2016%20128GB&country=sg", brand: "Apple", category: "Smartphones" },
       { id: "i6", name: "Apple iPhone 16 128GB", price: 1279, currency: "SGD", merchant: "Courts", imageUrl: null, href: "/search?q=iPhone%2016%20128GB&country=sg", brand: "Apple", category: "Smartphones" },
+      { id: "i7", name: "Apple iPhone 16 Pro 256GB", price: 1649, currency: "SGD", merchant: "Apple Store", imageUrl: null, href: "/search?q=iPhone%2016%20Pro%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
+      { id: "i8", name: "Apple iPhone 16 Pro 256GB", price: 1599, currency: "SGD", merchant: "Shopee", imageUrl: null, href: "/search?q=iPhone%2016%20Pro%20256GB&country=sg", brand: "Apple", category: "Smartphones" },
+      { id: "i9", name: "Apple iPhone 16 512GB", price: 1799, currency: "SGD", merchant: "Lazada", imageUrl: null, href: "/search?q=iPhone%2016%20512GB&country=sg", brand: "Apple", category: "Smartphones" },
     ],
     showRelatedCategory: true,
   },
   "best-robot-vacuums-2026": {
     slug: "best-robot-vacuums-2026",
-    title: "Best Robot Vacuum & Roomba Sale 2026 — Compare Prices Across Roborock, iRobot, Shark, Ecovacs",
+    title: "Best Robot Vacuums 2026 from $199 — Roomba, Roborock",
     description:
-      "Compare live Roomba and robot vacuum sale prices across Roborock, iRobot, Shark, and Ecovacs in 2026, with buying advice and the best deals refreshed weekly.",
+      "Robot vacuum prices 2026: Roomba j9+ from $999, Roborock Q5 Pro+ from $499, eufy X10 from $799. Live deals across Amazon, Best Buy, Walmart.",
     heroEyebrow: "US Home Guide",
-    heroTitle: "Best Robot Vacuums & Roomba Deals in 2026",
+    heroTitle: "Best Robot Vacuums 2026 from $199 — Roomba & Roborock Deals",
+    // BUY-66320: render the headline floor from the live catalog snapshot so
+    // the H1 / JSON-LD / breadcrumb all match the lowest visible price. The
+    // static heroTitle above is the fallback when the live catalog is empty.
+    heroTitleTemplate: "Best Robot Vacuums 2026 from {floorPrice} — Roomba & Roborock Deals",
     heroBody:
       "Looking for the best Roomba sale in 2026? iRobot Roomba models — from the j7+ to the Combo j9+ — regularly drop 15–40% during Prime Day, Black Friday, and holiday events. This page tracks live Roomba and robot vacuum deals across Amazon, Best Buy, Walmart, and Costco so you never miss a discount.",
     canonicalPath: "/best-robot-vacuums-2026",
@@ -952,9 +2097,34 @@ backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator lapt
     currency: "USD",
     locale: "en_US",
     searchQuery: "robot vacuum",
-backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
-    minPrice: 50,
-    requiredProductTerms: ["robot vacuum", "vacuum", "roomba", "roborock", "deebot", "eufy", "shark", "irobot"],
+    searchCategory: "robot_vacuums",
+    excludeAccessories: true,
+    compactCatalogCards: true,
+    backupQueries: ["Eufy robot vacuum", "Roborock robot vacuum", "Shark robot vacuum", "iRobot Roomba vacuum"],
+    // BUY-67622: hero copy is "Best Robot Vacuums 2026 from $199" anchored to
+    // the editorial Roomba i3 EVO sale price ($199–$249). v2: raise the floor
+    // from $130 to $199 — the original $130 floor let Tecbot S1 at $119.99 and
+    // Tecbot S3 Pro at $129.99 displace honest fallback products. Hero
+    // explicitly names the $199 anchor; the floor must match it.
+    minPrice: 199,
+    // v2: hero names "Roomba", "Roborock", and retailers "Amazon, Best Buy,
+    // Walmart, Costco". Tighten requiredProductTerms so the live card set
+    // actually reflects those named brands/retailers rather than Tecbot /
+    // iMass A3 / Xiaomi off-brand rows.
+    requiredProductTerms: [
+      "roomba", "irobot",
+      "roborock",
+      "eufy",
+      "shark",
+      "best buy", "walmart", "amazon", "costco",
+    ],
+    // BUY-67622 v3: hero specifically promises "Roomba & Roborock Deals"
+    // (Roomba/Roborock/iRobot literally named in heroTitle). QA at 2026-08-14T02:15Z
+    // reopened because the v2 allowed Shark/Eufy/Ecovacs to land at position 1.
+    // Promote Roomba/iRobot/Roborock to the top of the live card set so the
+    // hero promise matches what shoppers see first. Shark/Eufy stay eligible
+    // and rank behind the hero-named products.
+    heroFeaturedBrands: ["roomba", "irobot", "roborock"],
     hreflangAlternates: { "en-SG": "/best-robot-vacuums-singapore" },
     productSectionTitle: "Live robot vacuum deals across the US",
     comparisonSectionTitle: "Top robot vacuum & Roomba picks at a glance",
@@ -1024,7 +2194,7 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
       { id: "r2", name: "iRobot Roomba Combo j9+", price: 999, currency: "USD", merchant: "Best Buy", imageUrl: "https://www.irobot.com/dw/image/v2/BFXP_PRD/on/demandware.static/-/Sites-master-catalog/default/dw8f32c4ab/images/large/C975020_1.jpg", href: "/search?q=Roomba+Combo+j9%2B&country=us", brand: "iRobot", category: "Robot Vacuums" },
       { id: "r3", name: "Shark PowerDetect 2-in-1", price: 699, currency: "USD", merchant: "Walmart", imageUrl: "https://res.cloudinary.com/sharkninja-na/image/upload/f_auto,q_auto/v1/SharkNinja-NA/Shark/Products/RV2820ZE/RV2820ZE_01.jpg", href: "/search?q=Shark+PowerDetect+2-in-1&country=us", brand: "Shark", category: "Robot Vacuums" },
       { id: "r4", name: "Ecovacs Deebot X2 Omni", price: 1099, currency: "USD", merchant: "Amazon", imageUrl: "https://www.ecovacs.com/media/wysiwyg/us/deebot-x2-omni/DEEBOT-X2-OMNI-black.png", href: "/search?q=Ecovacs+Deebot+X2+Omni&country=us", brand: "Ecovacs", category: "Robot Vacuums" },
-      { id: "r5", name: "eufy X10 Pro Omni", price: 799, currency: "USD", merchant: "Amazon", imageUrl: "https://cdn.shopify.com/s/files/1/0508/1815/4652/files/x10-pro-omni.png", href: "/search?q=eufy+X10+Pro+Omni&country=us", brand: "eufy", category: "Robot Vacuums" },
+      { id: "r5", name: "eufy X10 Pro Omni", price: 799, currency: "USD", merchant: "Amazon", imageUrl: "https://m.media-amazon.com/images/I/71yHN9pqE2L._AC_UL320_.jpg", href: "/search?q=eufy+X10+Pro+Omni&country=us", brand: "eufy", category: "Robot Vacuums" },
       { id: "r6", name: "Roborock Q5 Pro+", price: 499, currency: "USD", merchant: "Target", imageUrl: "https://image.roborock.com/product/q5-pro-plus/gallery/1.jpg", href: "/search?q=Roborock+Q5+Pro%2B&country=us", brand: "Roborock", category: "Robot Vacuums" },
     ],
     categoryIntro: {
@@ -1134,11 +2304,11 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
   },
   "airpods-singapore": {
     slug: "airpods-singapore",
-    title: "Apple AirPods Prices in Singapore (2026) — AirPods 4, Pro 2, AirPods Max Compared",
+    title: "AirPods Price Singapore 2026 from S$149 — 6 Retailers",
     description:
-      "AirPods price in Singapore 2026: AirPods Pro 2 from S$339, AirPods 4 from S$189, AirPods Max from S$699. Live SG prices across Apple Store, Shopee, Lazada, Courts, and Challenger with voucher stacking tips.",
+      "AirPods prices in Singapore 2026: Pro 2 from S$339, AirPods 4 from S$149, Max from S$699. Compare Apple, Shopee, Lazada, Courts.",
     heroEyebrow: "Singapore Audio Guide",
-    heroTitle: "Apple AirPods Prices in Singapore (2026) — AirPods 4, Pro 2, Max Compared",
+    heroTitle: "AirPods Price Singapore 2026 from S$149 — Pro 2, 4, Max",
     heroBody:
       "AirPods Pro 2, AirPods 4, and AirPods Max all have official Singapore prices and parallel-import deals on Shopee Mall and LazMall. We track AirPods prices across Apple Store, Shopee, Lazada, Courts, and Challenger so you can find the lowest real price during 5.5, 9.9, 11.11, and 12.12 campaigns.",
     canonicalPath: "/airpods-singapore",
@@ -1269,6 +2439,11 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
     currency: "SGD",
     locale: "en_SG",
     searchQuery: "gaming laptop",
+    searchCategory: "gaming_laptops",
+    excludeAccessories: true,
+    backupQueries: ["MSI gaming laptop", "Lenovo Legion laptop", "Acer Predator laptop", "gaming laptop NVIDIA RTX"],
+    minPrice: 800,
+    requiredProductTerms: ["gaming laptop", "laptop", "rog", "legion", "alienware", "omen", "predator", "tuf", "msi", "nvidia rtx"],
     hreflangAlternates: { "en-US": "/best-gaming-laptops-us" },
     productSectionTitle: "Live gaming laptop deals across Singapore",
     comparisonSectionTitle: "Top gaming laptop picks at a glance",
@@ -5442,11 +6617,11 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
   },
   "best-smart-home-us": {
     slug: "best-smart-home-us",
-    title: "Best Smart Home Devices 2026 — Echo, Google Nest, Apple HomeKit Compared",
+    title: "Best Smart Home Devices 2026 from $24 — Echo, Nest, HomeKit",
     description:
-      "Best smart home devices 2026: Amazon Echo ($49–$149), Google Nest ($99–$129), Apple HomeKit, and Philips Hue prices compared across Amazon, Best Buy, Walmart, and Target. Live US pricing and retailer availability.",
+      "Smart home prices 2026: Echo Dot from $24, Nest from $129, HomePod mini from $99, Hue Starter from $179. Compare Amazon, Best Buy, Walmart.",
     heroEyebrow: "US Shopping Guide",
-    heroTitle: "Best Smart Home Devices 2026 — Echo, Google Nest, Apple HomeKit",
+    heroTitle: "Best Smart Home Devices 2026 from $24 — Echo, Nest, HomeKit",
     heroBody:
       "The best smart home devices in 2026 fall into three ecosystems — Amazon Alexa (Echo), Google Nest, and Apple HomeKit — plus cross-platform lighting like Philips Hue. We compare the top smart speakers, smart displays, thermostats, and smart bulbs across Amazon, Best Buy, Walmart, and Target so you can see which retailer has the lowest price and the best stock. Whether you are starting a new smart home with an Echo Dot or expanding HomeKit with a HomePod mini, this guide shows current 2026 US prices and where to buy each device.",
     canonicalPath: "/best-smart-home-us",
@@ -9237,10 +10412,10 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
 
   "best-qled-tvs-us": {
     slug: "best-qled-tvs-us",
-    title: "Best QLED TVs US 2026: Samsung, TCL, Hisense Compared",
-    description: "Best QLED TVs in 2026: Samsung QN85D/QN90D from $797, TCL QM8 from $799, Hisense U7N/U8N from $598. Compare sizes, brightness, HDR, and live US prices across Amazon, Best Buy, Walmart.",
+    title: "Best QLED TVs 2026 from $398 — Samsung, TCL, Hisense",
+    description: "QLED TV prices 2026: Samsung QN85D from $797, TCL QM8 from $799, Hisense U7N from $598. Compare sizes, HDR, and live deals on Amazon, Best Buy, Walmart.",
     heroEyebrow: "US TV Buying Guide",
-    heroTitle: "Best QLED TVs in the US 2026",
+    heroTitle: "Best QLED TVs 2026 from $398 — Samsung, TCL, Hisense",
     heroBody: "Shopping for the best QLED TV in 2026? Samsung, TCL, and Hisense dominate the category from $598 to $2,797. We compare the Samsung QN85D and QN90D, TCL QM8 and Q6 QLED, and Hisense U7N and U8N with live prices, screen sizes, peak brightness, and HDR performance so you can find the right QLED for bright rooms, gaming, or movies.",
     canonicalPath: "/best-qled-tvs-us",
     country: "US" as const,
@@ -9322,10 +10497,10 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
 
   "best-budget-tvs-us": {
     slug: "best-budget-tvs-us",
-    title: "Where to Buy the Cheapest TVs in 2026 — Best Budget TVs Under $500",
-    description: "Best cheap TVs in 2026: Hisense A6 from $198, Fire TV Omni QLED from $319, TCL S5 from $228. Compare budget 4K TVs under $500 across Amazon, Walmart, Best Buy.",
+    title: "Best Budget TVs Under $300 in 2026 — 7 Models from $198",
+    description: "Best cheap 4K TVs in 2026: Hisense A6 from $198, Fire TV Omni QLED from $319, TCL S5 from $228. Compare budget TVs across Amazon, Walmart, Best Buy.",
     heroEyebrow: "US TV Buying Guide",
-    heroTitle: "Where to Buy the Cheapest TVs in 2026 (Under $500)",
+    heroTitle: "Best Budget TVs Under $300 in 2026 — 7 Models from $198",
     heroBody: "Looking for a cheap TV in 2026? We compare budget 4K TVs under $500 across TCL, Hisense, Amazon Fire TV, and Walmart Onn with live prices, sale windows, and exactly where to buy each model for the lowest total cost.",
     canonicalPath: "/best-budget-tvs-us",
     country: "US" as const,
@@ -10119,10 +11294,10 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
 
   "best-bluetooth-speakers-us": {
     slug: "best-bluetooth-speakers-us",
-    title: "Best Bluetooth Speakers 2026 — JBL, Bose, UE, Sonos Compared",
-    description: "Best Bluetooth speakers in 2026: JBL Flip 7 from $129, JBL Charge 5 from $179, Bose SoundLink Flex from $149, UE Boom 4 from $149. Compare battery, IP rating, and live US prices.",
+    title: "Best Bluetooth Speakers 2026 from $39 — JBL, Bose, UE",
+    description: "Bluetooth speaker prices 2026: JBL Flip 7 from $129, Bose Flex from $149, UE Boom 4 from $149, Anker from $39. Compare Amazon, Best Buy.",
     heroEyebrow: "US Audio Buying Guide",
-    heroTitle: "Best Bluetooth Speakers in the US 2026",
+    heroTitle: "Best Bluetooth Speakers 2026 from $39 — JBL, Bose, UE",
     heroBody: "Looking for the best portable Bluetooth speaker in 2026? We compare JBL Flip 7, Bose SoundLink Flex, UE Boom 4, Sonos Roam 2, and Anker Soundcore with live prices from Amazon, Best Buy, and Walmart so you can find the right speaker for home, beach, or backyard.",
     canonicalPath: "/best-bluetooth-speakers-us",
     country: "US" as const,
@@ -11820,6 +12995,10 @@ backupQueries: ["Eufy robot vacuum", "Roborock vacuum", "Shark robot vacuum", "i
     currency: "USD" as const,
     locale: "en_US" as const,
     searchQuery: "Laptop",
+    searchCategory: "laptops",
+    excludeAccessories: true,
+    minPrice: 300,
+    requiredProductTerms: ["laptop", "notebook", "macbook", "zenbook", "yoga", "swift", "xps", "thinkpad", "vivobook"],
     productSectionTitle: "Live Laptop offers across the US",
     comparisonSectionTitle: "Popular Laptop picks at a glance",
     comparisonColumns: ["Product", "Price", "Merchant", "Rating"],

@@ -1,12 +1,18 @@
 # BuyWhere
 
-BuyWhere is an agent-native product catalog and price comparison API for AI agents and LLM applications. We provide real-time pricing, availability, and product data from major e-commerce platforms across Southeast Asia and the United States.
+BuyWhere is an agent-native product catalog API for AI agents and LLM applications: 390M+ structured products from 800,000+ independent storefronts worldwide, normalized into one schema, with location-aware ranking so agents only recommend products their user can actually receive.
 
 ## Catalog Coverage
-- **9.08M+ active products** (verified live at GET /v1/catalog/stats)
-- **14,501+ merchants** across Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, Carousell, and more
-- 2 countries: Singapore (SG) and United States (US)
-- Currencies: SGD, USD
+- **390M+ products** across **800,000+ merchant storefronts** (live totals at GET /v1/catalog/stats)
+- Deepest coverage: United States and Singapore; growing coverage across UK, EU, SEA, and AU — thousands of new stores added weekly
+- **Location-aware search**: pass `deliver_to=<ISO country>` (your END USER's country) and results rank deliverable-first, each carrying an `availability` label: `local` | `ships_to_you` | `unavailable` | `unknown` — backed by verified shipping policies for 28,000+ stores
+- Agent-optimized responses: `compact=true` returns structured_specs, comparison_attributes, and normalized_price_usd
+- Performance: P50 search latency under 250ms; cached lookups under 10ms; 99.9% uptime
+
+## Quick Start for Agents
+1. Get a free API key: POST https://api.buywhere.ai/v1/auth/register
+2. Search with your user's location: GET /v1/products/search?q=coffee+maker&deliver_to=SG
+3. Every product returns an availability label — filter with include_unshippable=false for only-deliverable results
 
 ## REST API Endpoints
 
@@ -31,12 +37,14 @@ MCP endpoint: https://api.buywhere.ai/mcp
 Authentication: Bearer token (get free key at https://api.buywhere.ai/v1/auth/register)
 
 ### MCP Tools
-1. **search_products** — Full-text search with merchant, price, category, and country filters.
-2. **get_product** — Get full product details by BuyWhere product ID.
-3. **get_price** — Get current prices for a product across all available merchants.
-4. **compare_prices** — Compare 2–5 products side-by-side with price range, pros/cons, and best-value recommendation.
-5. **get_affiliate_link** — Get the click-tracked BuyWhere affiliate link for a product.
-6. **get_catalog** — List available product categories in the BuyWhere catalog.
+1. **search_products** — Search the catalog by keyword; pass `deliver_to` to rank deliverable-first. Supports merchant, region, price-range, category, and `compact` agent-optimized mode.
+2. **get_product** — Get full product details and current price by BuyWhere product ID.
+3. **compare_products** — Compare 2–10 products side-by-side (price, brand, rating, category).
+4. **get_deals** — Discounted products sorted by discount percentage.
+5. **list_categories** — List top-level product categories in the catalog.
+6. **find_best_price** — Find the cheapest merchant/price for a product, or the best-priced option for a query.
+7. **find_similar** — Vector-similarity alternatives to a given product.
+8. **ingest_products** — Upsert a batch of products into the BuyWhere catalog.
 
 ## Authentication
 
@@ -48,7 +56,7 @@ Authorization: Bearer bw_live_YOUR_API_KEY
 
 Get a free API key at: https://api.buywhere.ai/v1/auth/register
 
-Free tier: 1,000 calls/month. No credit card required.
+Free tier: 100 requests/day at 10 req/min. No credit card required.
 
 ## Use Cases
 - AI shopping agents and price comparison assistants
@@ -62,12 +70,13 @@ Free tier: 1,000 calls/month. No credit card required.
 - Pricing: https://buywhere.ai/pricing
 - GitHub: https://github.com/BuyWhere/buywhere
 - npm: https://www.npmjs.com/package/@buywhere/mcp-server
+- npm registry metadata: https://registry.npmjs.org/@buywhere%2fmcp-server
 
 ## Rate Limits
-- Free: 1,000 calls/month
-- Starter: 50,000 calls/month — $9/month
-- Pro: 500,000 calls/month — $49/month
-- Enterprise: Custom limits
+- Free: 100 requests/day, 10 req/min — $0
+- Starter: 10,000 requests/day, 100 req/min — $29/month (7-day free trial)
+- Pro: 100,000 requests/day, 500 req/min — $99/month
+- Enterprise: Custom limits and SLA — contact api@buywhere.ai
 
 ## Company
 BuyWhere Pte. Ltd. — Singapore

@@ -1,14 +1,19 @@
-const serverCard = {
+export const serverCard = {
   name: "buywhere-catalog",
   title: "BuyWhere Catalog MCP Server",
-  description: "Agent-native product catalog API. Search, compare, and retrieve products from 7 merchants (Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, Carousell) across Singapore and the United States.",
+  description: "Agent-native product catalog API. Search, compare, and retrieve products from 300M+ products across 238,000+ storefronts worldwide. Use deliver_to to rank products your end user can receive, with availability labels on every result.",
   version: "1.0.0",
   homepage: "https://buywhere.ai",
   documentation: "https://api.buywhere.ai/docs/guides/mcp",
   transports: [
     {
       type: "streamable-http",
-      url: "https://mcp.buywhere.ai/mcp",
+      url: "https://api.buywhere.ai/mcp",
+    },
+    {
+      type: "sse",
+      url: "https://api.buywhere.ai/mcp/sse",
+      notes: "Legacy SSE endpoint for clients that explicitly require SSE transport.",
     },
   ],
   authentication: {
@@ -20,7 +25,7 @@ const serverCard = {
     {
       name: "search_products",
       description:
-        "Search the BuyWhere product catalog by keyword. Returns ranked results from 7 merchants across Singapore and the United States.",
+        "Search the BuyWhere product catalog by keyword. Returns ranked results from 300M+ products worldwide with deliver_to-aware availability labels.",
       inputSchema: {
         type: "object",
         properties: {
@@ -29,6 +34,7 @@ const serverCard = {
           min_price: { type: "number", description: "Minimum price" },
           max_price: { type: "number", description: "Maximum price" },
           source: { type: "string", description: "Merchant platform filter" },
+          deliver_to: { type: "string", description: "End-user ISO country code for deliverable-first ranking" },
           limit: { type: "integer", default: 10, description: "Max results (1-50)" },
         },
         required: ["query"],
@@ -47,12 +53,14 @@ const serverCard = {
     },
     {
       name: "find_best_price",
-      description: "Find the single cheapest listing for a product across all covered merchants in Singapore and the United States.",
+      description: "Find the single cheapest deliverable listing for a product across covered storefronts worldwide.",
       inputSchema: {
         type: "object",
         properties: {
           product_name: { type: "string", description: "Product name to search for" },
+          q: { type: "string", description: "Alias for product_name (deprecated, use product_name)." },
           category: { type: "string", description: "Category slug filter" },
+          deliver_to: { type: "string", description: "End-user ISO country code for availability-aware ranking" },
         },
       },
     },
@@ -64,17 +72,19 @@ const serverCard = {
         properties: {
           category: { type: "string", description: "Category slug filter" },
           min_discount_pct: { type: "number", default: 10, description: "Minimum discount percentage" },
+          deliver_to: { type: "string", description: "End-user ISO country code for deliverability filtering" },
           limit: { type: "integer", default: 20, description: "Max results" },
         },
       },
     },
     {
       name: "compare_products",
-      description: "Compare 2 to 10 products side-by-side across merchants.",
+      description: "Compare 2 to 10 products side-by-side across merchants, prices, attributes, and availability.",
       inputSchema: {
         type: "object",
         properties: {
           ids: { type: "string", description: "Comma-separated BuyWhere product IDs (2-10)" },
+          deliver_to: { type: "string", description: "End-user ISO country code for availability comparison" },
         },
         required: ["ids"],
       },

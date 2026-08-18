@@ -19,8 +19,19 @@ import { getFreshnessTier } from "@/lib/freshness";
 import type { DataFreshness } from "@/lib/freshness";
 import { buildCompareIndexMetadata } from "@/lib/seo-category-metadata";
 import { toSiteUrl } from "@/lib/site-url";
+import { inferCategoryFromQuery, filterOffersByCategory } from "@/lib/compare-category-filter";
+
 
 export const metadata = buildCompareIndexMetadata();
+
+// BUY-67036: Chrome RSC navigation requests carry Next-Router-State-Tree
+// + __PAGE__ searchParams. Next 14.2.35 re-runs the page server-side
+// against state-tree-derived params. With async loadComparisonOffers +
+// the implicit route metadata, the streaming pass can fail and return 500.
+// Forcing dynamic rendering on every request makes the re-render safe
+// (matches /categories/[slug]/[country]).
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const API_BASE_URL =
   process.env.BUYWHERE_API_INTERNAL_URL ||
@@ -35,28 +46,64 @@ const API_KEY =
   process.env.BUYWHERE_API_INTERNAL_KEY;
 
 type ComparePageProps = {
-  searchParams?: {
+  searchParams: Promise<{
     q?: string;
     ids?: string;
     country?: string;
     country_code?: string;
-  };
+  }>;
 };
 
+// BUY-69732: same CollectionPage entity as before, now inside a @graph so the
+// route also carries a BreadcrumbList (Home > Compare) alongside it.
 const schemaMarkup = {
   "@context": "https://schema.org",
-  "@type": "CollectionPage",
-  "@id": `${toSiteUrl("/compare/")}#collection`,
-  name: "Compare Product Prices by Market",
-  description:
-    "Compare prices on electronics, fashion, home goods, beauty products, and more across the US and Southeast Asia.",
-  url: toSiteUrl("/compare/"),
-  mainEntityOfPage: toSiteUrl("/compare/"),
-  publisher: {
-    "@type": "Organization",
-    "@id": `${toSiteUrl("/#organization")}`,
-    name: "BuyWhere",
-  },
+  "@graph": [
+    {
+      "@type": "BreadcrumbList",
+      "@id": `${toSiteUrl("/compare")}#breadcrumb`,
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: toSiteUrl("/"),
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Compare",
+          item: toSiteUrl("/compare"),
+        },
+      ],
+    },
+    {
+      "@type": "CollectionPage",
+      "@id": `${toSiteUrl("/compare/")}#collection`,
+      name: "Compare Product Prices by Market",
+      description:
+        "Compare prices on electronics, fashion, home goods, beauty products, and more across the US and Southeast Asia.",
+      url: toSiteUrl("/compare/"),
+      mainEntityOfPage: toSiteUrl("/compare/"),
+      isPartOf: { "@id": `${toSiteUrl("/compare")}#webpage` },
+      publisher: {
+        "@type": "Organization",
+        "@id": `${toSiteUrl("/#organization")}`,
+        name: "BuyWhere",
+      },
+    },
+    {
+      "@type": "WebPage",
+      "@id": `${toSiteUrl("/compare")}#webpage`,
+      url: toSiteUrl("/compare"),
+      name: "Compare Product Prices by Market",
+      description:
+        "Compare prices on electronics, fashion, home goods, beauty products, and more across the US and Southeast Asia.",
+      inLanguage: "en-US",
+      isPartOf: { "@id": "https://buywhere.ai/#website" },
+      breadcrumb: { "@id": `${toSiteUrl("/compare")}#breadcrumb` },
+    },
+  ],
 };
 
 async function fetchJson(url: string) {
@@ -64,21 +111,57 @@ async function fetchJson(url: string) {
     throw new Error("BUYWHERE API key is required for compare page live offers");
   }
 
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${API_KEY}`,
-    },
-    next: { revalidate: 300 },
-  });
+  // BUY-65450: /compare is a high-intent conversion page (rows show retailer
+  // prices and "Open retailer" CTAs). 5-minute Next.js cache combined with
+  // the upstream API's 10-minute cache meant stale "Price unavailable" rows
+  // lingered for up to 10 min after prices had been updated in the database.
+  // Tighten to 60s so a fix or ingest is visible within ~1 minute.
+  //
+  // Also retry on 429 (rate limit) up to 3 times with exponential backoff so
+  // a brief over-cap burst from any Tune/MCP probe falls back gracefully
+  // instead of returning "No results found" for what is otherwise a live
+  // catalog page.
+  const maxAttempts = 3;
+  let lastResponse: Response | null = null;
+  let lastError: unknown = null;
 
-  if (!response.ok) {
-    throw new Error(`API request failed with ${response.status}`);
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${API_KEY}`,
+        },
+        next: { revalidate: 60, tags: ["compare-offers"] },
+      });
+
+      if (response.ok) {
+        return response.json();
+      }
+
+      lastResponse = response;
+
+      if (response.status !== 429 || attempt === maxAttempts - 1) {
+        throw new Error(`API request failed with ${response.status}`);
+      }
+
+      const retryAfterHeader = response.headers.get("retry-after");
+      const retryAfterSeconds = retryAfterHeader ? Math.max(1, Number(retryAfterHeader) || 1) : 0;
+      const backoffMs = retryAfterSeconds > 0
+        ? retryAfterSeconds * 1000
+        : Math.min(2000, 250 * 2 ** attempt);
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+    } catch (error) {
+      lastError = error;
+      if (attempt === maxAttempts - 1) throw error;
+    }
   }
 
-  return response.json();
+  throw lastError ?? new Error(`API request failed with ${lastResponse?.status ?? "unknown"}`);
 }
 
 async function fetchOffersByQuery(query: string, country?: string): Promise<ComparisonOffer[]> {
+  const inferredCategory = inferCategoryFromQuery(query);
+
   const params = new URLSearchParams({
     q: query,
     limit: "8",
@@ -86,6 +169,10 @@ async function fetchOffersByQuery(query: string, country?: string): Promise<Comp
 
   if (country) {
     params.set("country_code", country);
+  }
+
+  if (inferredCategory) {
+    params.set("category", inferredCategory);
   }
 
   const data = await fetchJson(`${API_BASE_URL}/v1/products/search?${params.toString()}`);
@@ -99,9 +186,18 @@ async function fetchOffersByQuery(query: string, country?: string): Promise<Comp
           ? data.results
           : [];
 
-  return sortComparisonOffers(
+  const allOffers = sortComparisonOffers(
     rawItems.map((item: Record<string, unknown>) => normalizeComparisonOffer(item)).filter(hasRetailerHref),
   );
+
+  if (inferredCategory && allOffers.length > 0) {
+    const { filtered, keptCount } = filterOffersByCategory(allOffers, inferredCategory);
+    if (keptCount > 0) {
+      return filtered;
+    }
+  }
+
+  return allOffers;
 }
 
 async function fetchOffersByIds(ids: string[]): Promise<ComparisonOffer[]> {
@@ -199,7 +295,7 @@ function ComparisonSearchForm({
           Compare now
         </button>
       </div>
-      <p className="mt-3 text-sm text-indigo-100">
+      <p className="search-form-caption mt-3 text-sm text-[#CBD5E1]">
         Compare by search query or direct product IDs. We sort results by the cheapest available offer first.
       </p>
     </form>
@@ -467,12 +563,32 @@ function CategoryGrid() {
 }
 
 export default async function CompareIndexPage({ searchParams }: ComparePageProps) {
-  const query = searchParams?.q?.trim() || "";
-  const rawIds = searchParams?.ids || "";
+  // BUY-67036: await the searchParams Promise (Next 15 style) so the
+  // route resolver doesn't trip the legacy sync-searchParams code path
+  // that throws 'The router state header was sent but could not be parsed.'
+  // on RSC navigation re-render.
+  let resolved: Awaited<ComparePageProps['searchParams']> = {};
+  try {
+    resolved = await searchParams;
+  } catch {
+    resolved = {};
+  }
+  const query = (resolved?.q ?? "").trim();
+  const rawIds = resolved?.ids ?? "";
   const ids = parseIdsParam(rawIds);
-  const country = (searchParams?.country_code || searchParams?.country)?.trim().toLowerCase();
+  const country = (resolved?.country_code ?? resolved?.country ?? "").trim().toLowerCase();
   const showComparison = query.length > 0 || ids.length > 0;
-  const offers = showComparison ? await loadComparisonOffers(query, ids, country) : [];
+  // BUY-67036: belt-and-suspenders around loadComparisonOffers so that even
+  // if the internal try/catch misses something during RSC re-render, the
+  // route still returns 200 with the empty-state UI rather than 500.
+  let offers: ComparisonOffer[] = [];
+  if (showComparison) {
+    try {
+      offers = await loadComparisonOffers(query, ids, country);
+    } catch {
+      offers = [];
+    }
+  }
   const emptyStateTitle = query
     ? `No results found for “${query}”`
     : ids.length > 0
@@ -494,17 +610,18 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkup) }}
       />
 
-      <section className="bg-gradient-to-br from-indigo-700 via-slate-900 to-sky-900 text-white py-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-amber-300">Comparison workspace</p>
+      <main id="main-content" tabIndex={-1} className="flex-1">
+        <section className="bg-gradient-to-br from-indigo-700 via-slate-900 to-sky-900 text-white py-20">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6">
+            <div className="max-w-3xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-amber-600">Comparison workspace</p>
             <h1 className="mt-4 text-4xl sm:text-5xl font-bold">
-              Side-by-side retailer pricing at <span className="text-amber-300">/compare</span>
+              Side-by-side retailer pricing at <span className="text-amber-600">/compare</span>
             </h1>
             <p className="mt-5 text-lg text-indigo-100">
               Search one product or paste explicit IDs to compare price, availability, imagery, and affiliate destinations without context switching.
             </p>
-            <p className="mt-4 text-xs uppercase tracking-[0.22em] text-indigo-200/80">
+            <p className="hero-metadata mt-4 text-xs uppercase tracking-[0.22em] text-[#CBD5E1]">
               Last refreshed: June 18, 2026 · live data cached for 5 minutes
             </p>
           </div>
@@ -600,6 +717,8 @@ export default async function CompareIndexPage({ searchParams }: ComparePageProp
           </ul>
         </div>
       </section>
+
+      </main>
 
       <Footer />
     </div>

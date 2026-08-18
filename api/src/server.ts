@@ -3,6 +3,7 @@ import cors from 'cors';
 import compression from 'compression';
 import { Sentry, sentryRequestHandler } from './sentry';
 import authRouter from './routes/auth';
+import billingRouter from './routes/billing';
 import productsRouter from './routes/products';
 import categoriesRouter from './routes/categories';
 import redirectRouter from './routes/redirect';
@@ -31,13 +32,13 @@ import { histogramLatencyMiddleware } from './middleware/latency';
 import adminUptimeRouter from './routes/admin/uptime';
 import adminMetricsRouter from './routes/admin/metrics';
 import adminFxRefreshRouter from './routes/admin/fxRefresh';
+import adminProbesRouter from './routes/admin/probes';
 import { db, redis } from './config';
 
 const DISCOVERY_CACHE_CONTROL = 'public, max-age=3600, s-maxage=3600';
 const AGENTS_TXT_CONTENT = `# BuyWhere AI Agents Discovery
 User-agent: *
 MCP: https://api.buywhere.ai/mcp/sse
-A2A: https://api.buywhere.ai/.well-known/agent.json
 API: https://api.buywhere.ai/v1
 API-Docs: https://api.buywhere.ai/docs
 Auth: X-API-Key
@@ -151,6 +152,16 @@ export function createApp() {
 
   // MCP / OpenAI plugin discovery
   app.use('/.well-known', wellknownRouter);
+  // BUY-71169: serve agent descriptors at root for Wave and other AI agent probes
+  const { AI_AGENT_DESCRIPTOR, A2A_AGENT_CARD } = require('./routes/wellknown');
+  app.get('/agent', (_req, res) => {
+    res.set('Cache-Control', 'public, max-age=3600, s-maxage=3600');
+    res.json(A2A_AGENT_CARD);
+  });
+  app.get('/ai-agent', (_req, res) => {
+    res.set('Cache-Control', 'public, max-age=3600, s-maxage=3600');
+    res.json(AI_AGENT_DESCRIPTOR);
+  });
   const serveOpenApi = (_req: express.Request, res: express.Response) => {
     sendOpenApiSpec(res);
   };
@@ -216,7 +227,28 @@ export function createApp() {
   // /api/mcp — backwards-compatible alias (BUY-30153)
   app.use('/api/mcp', mcpRouter);
 
-  // v1 API
+  // v1 API — root descriptor for /v1 discovery
+  app.get('/v1', (_req, res) => {
+    res.json({
+      name: 'BuyWhere REST API',
+      description: 'Agent-native product catalog API: product search, price comparison, and merchant data.',
+      version: '1.0.0',
+      openapi: 'https://api.buywhere.ai/openapi.json',
+      docs: 'https://api.buywhere.ai/docs',
+      auth: 'X-API-Key or Bearer token',
+      register: 'POST https://api.buywhere.ai/v1/auth/register',
+      routes: {
+        products: '/v1/products',
+        search: '/v1/products/search',
+        bestPrice: '/v1/products/best-price',
+        categories: '/v1/categories',
+        merchants: '/v1/merchants',
+      },
+      contact: 'hello@buywhere.ai',
+    });
+  });
+  app.use('/v1/billing/webhook', express.raw({ type: 'application/json' }));
+  app.use('/v1/billing', billingRouter);
   app.use('/v1/auth', authRouter);
   app.use('/v1/developers', authRouter);
   app.use('/v1/products', productsRouter);
@@ -279,6 +311,19 @@ export function createApp() {
   app.use('/p', aiCrawlerHeaders, pagesRouter);           // /p/:id — product page
   app.use('/c', aiCrawlerHeaders, publicCategoriesRouter); // /c/:slug — category page
   app.use('/compare', aiCrawlerHeaders, publicCompareRouter); // /compare?ids=id1,id2 — comparison page
+
+  // BUY-66004: keep the legacy API-host blog discovery path public. The full
+  // blog lives on the web app, but monitors probe api.buywhere.ai/blog and must
+  // never be intercepted by root-mounted admin auth middleware.
+  app.get('/blog', (_req, res) => {
+    res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
+    res.set('X-Robots-Tag', 'ai-index');
+    res.set('Link', '<https://buywhere.ai/blog>; rel="canonical"');
+    res.type('text/markdown; charset=utf-8').send(
+      '# BuyWhere Blog\n\n' +
+      'Read BuyWhere product comparison guides, shopping research, and AI commerce updates at https://buywhere.ai/blog\n'
+    );
+  });
 
   // Sitemaps
   app.use('/sitemap-compare.xml', sitemapCompareRouter);
@@ -354,6 +399,118 @@ export function createApp() {
 
   // P95 monitoring endpoints (BUY-31208)
   app.use(monitoringRouter);
+  // BUY-66254: Public discovery routes — mounted BEFORE admin routers (which are
+  // at root level and may have router-level auth in older builds). These must
+  // be public so crawlers and AEO can discover the developer portal.
+  app.get('/developers', (_req, res) => {
+    const proto = ((_req.headers['x-forwarded-proto'] as string) || _req.protocol).split(',')[0].trim();
+    const host = (_req.headers['x-forwarded-host'] as string) || _req.get('host') || 'buywhere.ai';
+    const base = `${proto}://${host}`;
+    res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
+    res.type('text/markdown; charset=utf-8').send(
+      `# BuyWhere Developer Portal\n\n` +
+      `**Base URL:** ${base}/v1\n\n` +
+      `## Quick Links\n\n` +
+      `- [API Reference](/docs)\n` +
+      `- [OpenAPI Spec](/openapi.json)\n` +
+      `- [MCP Integration](/docs/guides/mcp)\n` +
+      `- [Register API Key](/v1/auth/register)\n\n` +
+      `## Endpoints\n\n` +
+      `- \`GET /v1/products/search?q=<query>\` — Search products\n` +
+      `- \`GET /v1/products/:id\` — Get product by ID\n` +
+      `- \`GET /v1/categories\` — List categories\n` +
+      `- \`POST /mcp\` — MCP server\n\n` +
+      `## Authentication\n\n` +
+      `Use \`X-API-Key\` header or \`Authorization: Bearer <key>\`.\n` +
+      `Get a free key at ${base}/v1/auth/register\n`
+    );
+  });
+
+  app.get('/developers/robots.txt', (_req, res) => {
+    res.set('Content-Signal', 'ai-train=no, search=yes, ai-input=yes');
+    res.type('text/plain').send(
+      [
+        'User-agent: *',
+        'Allow: /developers',
+        'Allow: /v1/auth/register',
+        'Disallow: /v1/',
+        '',
+        'Sitemap: https://api.buywhere.ai/sitemap.xml',
+      ].join('\n')
+    );
+  });
+
+  app.get('/developers/sitemap-index.xml', (req, res) => {
+    const proto = ((req.headers['x-forwarded-proto'] as string) || req.protocol).split(',')[0].trim();
+    const host = (req.headers['x-forwarded-host'] as string) || req.get('host') || 'buywhere.ai';
+    const base = `${proto}://${host}`;
+    const now = new Date().toISOString().slice(0, 10);
+    const xml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      '  <sitemap>',
+      `    <loc>${base}/developers/sitemap.xml</loc>`,
+      `    <lastmod>${now}</lastmod>`,
+      '  </sitemap>',
+      '</sitemapindex>',
+    ].join('\n');
+    res.set('Content-Type', 'application/xml; charset=utf-8');
+    res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
+    res.send(xml);
+  });
+
+  app.get('/developers/sitemap.xml', (req, res) => {
+    const proto = ((req.headers['x-forwarded-proto'] as string) || req.protocol).split(',')[0].trim();
+    const host = (req.headers['x-forwarded-host'] as string) || req.get('host') || 'buywhere.ai';
+    const base = `${proto}://${host}`;
+    const now = new Date().toISOString().slice(0, 10);
+    const xml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      `  <url><loc>${base}/developers</loc><lastmod>${now}</lastmod></url>`,
+      `  <url><loc>${base}/developers/signup</loc><lastmod>${now}</lastmod></url>`,
+      '</urlset>',
+    ].join('\n');
+    res.set('Content-Type', 'application/xml; charset=utf-8');
+    res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
+    res.send(xml);
+  });
+
+  // Public discovery paths for developer robots/sitemap sub-paths
+  app.get('/developers/robots/sitemap/us', (req, res) => {
+    const proto = ((req.headers['x-forwarded-proto'] as string) || req.protocol).split(',')[0].trim();
+    const host = (req.headers['x-forwarded-host'] as string) || req.get('host') || 'buywhere.ai';
+    const base = `${proto}://${host}`;
+    const now = new Date().toISOString().slice(0, 10);
+    const xml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      `  <url><loc>${base}/us</loc><lastmod>${now}</lastmod></url>`,
+      `  <url><loc>${base}/us/signup</loc><lastmod>${now}</lastmod></url>`,
+      '</urlset>',
+    ].join('\n');
+    res.set('Content-Type', 'application/xml; charset=utf-8');
+    res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
+    res.send(xml);
+  });
+
+  app.get('/us/robots/sitemap/us', (req, res) => {
+    const proto = ((req.headers['x-forwarded-proto'] as string) || req.protocol).split(',')[0].trim();
+    const host = (req.headers['x-forwarded-host'] as string) || req.get('host') || 'buywhere.ai';
+    const base = `${proto}://${host}`;
+    const now = new Date().toISOString().slice(0, 10);
+    const xml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      `  <url><loc>${base}/us</loc><lastmod>${now}</lastmod></url>`,
+      `  <url><loc>${base}/us/signup</loc><lastmod>${now}</lastmod></url>`,
+      '</urlset>',
+    ].join('\n');
+    res.set('Content-Type', 'application/xml; charset=utf-8');
+    res.set('Cache-Control', DISCOVERY_CACHE_CONTROL);
+    res.send(xml);
+  });
+
 
   // BUY-22737 / BUY-35381: admin endpoints (uptime + metrics).
   // Auth is handled inside each router via Authorization: Bearer <admin key>.
@@ -363,6 +520,9 @@ export function createApp() {
   // BUY-52476 / BUY-55347: admin endpoint to force-refresh fx_rates.
   // Auth is handled inside the router via Authorization: Bearer <admin key>.
   app.use(adminFxRefreshRouter);
+
+  // BUY-70776: outbound-link probe status debug endpoint.
+  app.use(adminProbesRouter);
 
   // 404 fallback
   app.use((_req, res) => {

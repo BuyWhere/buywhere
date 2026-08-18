@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import Script from "next/script";
 import Nav from "@/components/Nav";
@@ -15,8 +14,10 @@ export const metadata = buildPageMetadata({
   path: "/quickstart",
 });
 
-const curlExample = `curl -sS "https://api.buywhere.ai/v1/products/search?q=wireless+headphones&limit=5" \\
-  -H "Authorization: Bearer bw_beta_your_key_here"`;
+const curlExample = `# Always pass deliver_to (buyer's country) — it scopes the search to that
+# market so results come back in ~200ms instead of timing out on a global scan.
+curl -sS "https://api.buywhere.ai/v1/products/search?q=wireless+headphones&deliver_to=SG&limit=5" \\
+  -H "Authorization: Bearer bw_live_your_key_here"`;
 
 const responseExample = `{
   "data": [
@@ -25,9 +26,9 @@ const responseExample = `{
       "title": "Sony WH-1000XM5 Wireless Headphones",
       "price": 429.0,
       "currency": "SGD",
-      "domain": "lazada.sg",
+      "domain": "hifisolutions.sg",
       "url": "https://...",
-      "source": "lazada_sg",
+      "source": "shopify_hifisolutions",
       "country_code": "SG"
     }
   ],
@@ -44,7 +45,7 @@ const mcpConfig = `{
       "command": "npx",
       "args": ["-y", "@buywhere/mcp-server"],
       "env": {
-        "BUYWHERE_API_KEY": "bw_beta_your_key_here"
+        "BUYWHERE_API_KEY": "bw_live_your_key_here"
       }
     }
   }
@@ -115,7 +116,7 @@ export default function QuickstartPage() {
         name: "How do I get started with the BuyWhere API?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Get a free API key at buywhere.ai/api-keys in under a minute — no credit card required. Then make your first request to GET /v1/products/search with a bearer token and a natural-language query like 'wireless headphones'. You will get structured product results back instantly."
+          text: "Get a free API key at buywhere.ai/api-keys in under a minute — no credit card required. Verify your email to unlock 200 requests/min and 10,000/day (still free). Then make your first request to GET /v1/products/search with a bearer token, a natural-language query like 'wireless headphones', and deliver_to set to your buyer's country. You will get structured product results back in about 200ms."
         }
       },
       {
@@ -180,6 +181,7 @@ export default function QuickstartPage() {
       </Script>
       <Nav />
 
+      <main id="main-content" tabIndex={-1}>
       <section className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(79,70,229,0.18),_transparent_38%),linear-gradient(135deg,#0f172a_0%,#111827_48%,#1e1b4b_100%)] text-white">
         <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-20 sm:px-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
@@ -332,7 +334,7 @@ export default function QuickstartPage() {
                 <li>Base URL: <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">https://api.buywhere.ai</code></li>
                 <li>Auth: <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">Authorization: Bearer YOUR_KEY</code></li>
                 <li>Required query: <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">q</code></li>
-                <li>Helpful starter params: <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">limit</code>, <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">country_code</code>, <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">domain</code>, <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">min_price</code>, <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">max_price</code></li>
+                <li>Helpful starter params: <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">deliver_to</code> (buyer country — always pass it), <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">limit</code>, <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">country_code</code>, <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">domain</code>, <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">min_price</code>, <code className="rounded bg-white px-1.5 py-0.5 text-slate-900">max_price</code></li>
               </ul>
             </div>
           </div>
@@ -404,6 +406,7 @@ export default function QuickstartPage() {
       </section>
 
       <PopularComparisons variant="footer" />
+      </main>
       <Footer />
     </div>
   </>

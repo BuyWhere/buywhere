@@ -89,16 +89,30 @@ async function warmupMcpCaches() {
     `).catch(e => console.warn('[mcp-warmup] deals index skipped:', e.message));
     console.log('[mcp-warmup] discount_pct column and index verified.');
 
+    // BUY-70000: composite index for find_best_price query pattern:
+    // WHERE is_active = true AND price > 0 AND country_code = $1 ORDER BY price ASC
+    // Without this, fbp scans all country_code rows and sorts by price (slow on 14M+).
+    await client.query(`
+      CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_products_fbp_country_price
+        ON products (country_code, is_active, price)
+        WHERE is_active = true AND price > 0
+    `).catch(e => console.warn('[mcp-warmup] fbp index skipped:', e.message));
+    console.log('[mcp-warmup] find_best_price composite index verified.');
+
     await client.query(`
       CREATE MATERIALIZED VIEW IF NOT EXISTS mcp_category_summary_by_country AS
         SELECT country_code,
-               category_path[1] AS slug,
-               category_path[1] AS name,
-               COUNT(*)         AS product_count
-        FROM products
-        WHERE country_code IS NOT NULL
-          AND category_path[1] IS NOT NULL
-        GROUP BY country_code, category_path[1]
+               slug,
+               slug AS name,
+               COUNT(*) AS product_count
+        FROM (
+          SELECT country_code,
+                 COALESCE(category_path[1], NULLIF(lower(regexp_replace(category, '\\s+', '-', 'g')), '')) AS slug
+          FROM products
+          WHERE country_code IS NOT NULL
+        ) _cat
+        WHERE slug IS NOT NULL AND slug <> ''
+        GROUP BY country_code, slug
         ORDER BY country_code, product_count DESC
     `);
 

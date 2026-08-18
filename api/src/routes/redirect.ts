@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { createHash } from 'crypto';
 import { db } from '../config';
 import { trackAffiliateClick } from '../analytics/posthog';
+import { fallbackForBrokenDestination } from '../lib/brokenDestinationFallbacks';
+import { outboundProbeEnabled } from '../lib/outboundLinkHealth';
 
 function hashKey(rawKey: string): string {
   return createHash('sha256').update(rawKey).digest('hex');
@@ -122,14 +124,17 @@ function withTimeout<T>(promise: Promise<T>, ms: number, context: string): Promi
   ]);
 }
 
-// GET /r/:affiliateSlug/:productId
+// GET /r/:affiliateSlug/:productId and /r/direct/:merchantId/:productId
 // Log the affiliate click then redirect to destination
-router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => {
-  const { affiliateSlug, productId } = req.params;
+const redirectHandler = async (req: Request, res: Response) => {
+  const affiliateSlug = req.params.affiliateSlug || 'direct';
+  const productId = req.params.productId;
 
-  let merchantId = 'unknown';
+  const probeEnabled = outboundProbeEnabled();
+  let merchantId = req.params.merchantId || 'unknown';
   let affiliateLinkId = '';
   let destinationUrl: string | null = null;
+  let urlStatus: string | null = null;
 
   // BUY-60548: The affiliateSlug (e.g. 'direct') is only a routing hint — the
   // affiliate_links table has no 'platform'/'slug' column, so the previous
@@ -142,9 +147,15 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
   try {
     const linkResult = await withTimeout(
       db.query(
-        `SELECT id, merchant_id, affiliate_url, destination_url
-         FROM affiliate_links WHERE product_id = $1
-         ORDER BY affiliate_url NULLS LAST, destination_url LIMIT 1`,
+        probeEnabled
+          ? `SELECT al.id, al.merchant_id, al.affiliate_url, al.destination_url, p.url_status
+               FROM affiliate_links al
+               LEFT JOIN products p ON p.id::text = al.product_id
+              WHERE al.product_id = $1
+              ORDER BY al.affiliate_url NULLS LAST, al.destination_url LIMIT 1`
+          : `SELECT id, merchant_id, affiliate_url, destination_url, NULL::text AS url_status
+               FROM affiliate_links WHERE product_id = $1
+              ORDER BY affiliate_url NULLS LAST, destination_url LIMIT 1`,
         [productId]
       ),
       REDIRECT_TIMEOUT_MS,
@@ -157,6 +168,7 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
       affiliateLinkId = String(link.id);
       // Prefer explicit affiliate_url over destination_url (which may be empty)
       destinationUrl = link.affiliate_url || link.destination_url;
+      urlStatus = link.url_status || null;
     }
   } catch (err) {
     console.warn('[redirect] affiliate_links lookup failed:', (err as Error).message);
@@ -164,11 +176,14 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
 
   // Product fallback runs in its own try/catch so an affiliate_links failure
   // (or a missing link) still resolves the real merchant URL.
+  // BUY-70776: select url_status so we can return 410 on confirmed dead links.
   if (!destinationUrl) {
     try {
       const productResult = await withTimeout(
         db.query(
-          `SELECT url, merchant_id FROM products WHERE id = $1`,
+          probeEnabled
+            ? `SELECT url, merchant_id, url_status FROM products WHERE id = $1`
+            : `SELECT url, merchant_id, NULL::text AS url_status FROM products WHERE id = $1`,
           [productId]
         ),
         REDIRECT_TIMEOUT_MS,
@@ -177,6 +192,7 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
       if (productResult.rows.length > 0) {
         destinationUrl = productResult.rows[0].url;
         merchantId = productResult.rows[0].merchant_id || 'unknown';
+        urlStatus = productResult.rows[0].url_status || null;
       }
     } catch (err) {
       console.warn('[redirect] products lookup failed:', (err as Error).message);
@@ -188,11 +204,81 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
     return;
   }
 
+  // BUY-70776: if the probe flag is on and this URL is confirmed dead, return 410.
+  // Log was_dead_at_click so we can measure false-positives from the probe sweep.
+  if (outboundProbeEnabled() && urlStatus === 'dead') {
+    const authHeader = req.headers['authorization'] || '';
+    let apiKey: string | null = null;
+    if (authHeader.startsWith('Bearer ')) apiKey = authHeader.slice(7).trim();
+    const source = req.query.source as string || 'api_response';
+    (async () => {
+      try {
+        await withTimeout(
+          db.query(
+            `INSERT INTO affiliate_clicks
+               (api_key, affiliate_slug, product_id, merchant_id, affiliate_link_id, source, destination_url, was_dead_at_click)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,true)`,
+            [apiKey, affiliateSlug, productId, merchantId, affiliateLinkId, source, destinationUrl]
+          ),
+          REDIRECT_TIMEOUT_MS,
+          'affiliate_clicks insert (dead)'
+        );
+      } catch (err) {
+        console.warn('[redirect] dead-click logging failed:', (err as Error).message);
+      }
+    })();
+    res.status(410).json({
+      error: 'gone',
+      product_id: productId,
+      merchant_id: merchantId,
+      message: 'This product link has been verified as no longer available.',
+    });
+    return;
+  }
+
+  const brokenDestinationFallback = fallbackForBrokenDestination(destinationUrl);
+  if (brokenDestinationFallback) {
+    console.warn(`[redirect] replacing confirmed broken destination for product ${productId}`);
+    destinationUrl = brokenDestinationFallback;
+  }
+
   // Determine API key for attribution
   const authHeader = req.headers['authorization'] || '';
   let apiKey: string | null = null;
   if (authHeader.startsWith('Bearer ')) apiKey = authHeader.slice(7).trim();
-  const source = req.query.source as string || 'api_response';
+
+  // BUY-71129: thread-through attribution. When the click came from a browser
+  // (no Bearer header), the upstream API call embedded `?k=<keyHash>&aid=<agentId>`
+  // on the /r/ URL. We use `aid` directly when present (fast path, no DB hop)
+  // and fall back to looking up the agent by key_hash (slower but still O(1)
+  // via the unique index on api_keys.key_hash). Raw apiKey from the header
+  // remains the canonical signal for server-to-server clicks.
+  const keyHashQuery = (req.query.k as string | undefined) || null;
+  const agentIdQuery = (req.query.aid as string | undefined) || null;
+  let resolvedAgentId: string | null = agentIdQuery;
+  let resolvedKeyHash: string | null = apiKey ? hashKey(apiKey) : null;
+  if (!resolvedKeyHash && keyHashQuery) resolvedKeyHash = keyHashQuery;
+
+  if (!resolvedAgentId && resolvedKeyHash) {
+    try {
+      const agentResult = await withTimeout(
+        db.query(
+          `SELECT id, name, signup_channel, attribution_source
+             FROM api_keys WHERE key_hash = $1 AND is_active = true LIMIT 1`,
+          [resolvedKeyHash]
+        ),
+        REDIRECT_TIMEOUT_MS,
+        'api_keys lookup for affiliate_click attribution'
+      );
+      if (agentResult.rows.length > 0) {
+        resolvedAgentId = agentResult.rows[0].id;
+      }
+    } catch (err) {
+      console.warn('[redirect] api_keys lookup failed:', (err as Error).message);
+    }
+  }
+
+  const source = (req.query.source as string | undefined) || 'api_response';
 
   // Log click to DB best-effort (do not block the redirect on a slow write)
   (async () => {
@@ -212,10 +298,16 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
     }
   })();
 
-  // PostHog event (fire-and-forget)
-  // Hash API key before sending to third-party analytics
+  // BUY-71129: PostHog event (fire-and-forget). Pass the resolved agent id as
+  // distinctId so the conversion joins api_query / product_search / product_view
+  // / mcp_tool_call on the same funnel. Falls back to the hashed key when no
+  // api_key_id could be resolved (defence-in-depth for legacy integrations
+  // that emit a hash but no id). The apiKey field is intentionally left null
+  // when we already have apiKeyId — trackAffiliateClick picks the strongest
+  // available signal.
   trackAffiliateClick({
-    apiKey: apiKey ? hashKey(apiKey) : null,
+    apiKeyId: resolvedAgentId,
+    apiKey: resolvedKeyHash,
     productId,
     merchantId,
     affiliateLinkId,
@@ -237,6 +329,9 @@ router.get('/:affiliateSlug/:productId', async (req: Request, res: Response) => 
   }
 
   res.redirect(302, finalUrl);
-});
+};
+
+router.get('/direct/:merchantId/:productId', redirectHandler);
+router.get('/:affiliateSlug/:productId', redirectHandler);
 
 export default router;

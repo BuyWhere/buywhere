@@ -1,3 +1,8 @@
+# deploy-railway — deploys buywhere-api to Railway via GraphQL (BUY-47993).
+# Uses serviceInstanceDeployV2 (same pattern as deploy-www.yml) instead of
+# `railway up` CLI, which requires a different token type than the GitHub
+# secret RAILWAY_TOKEN provides. The GraphQL mutation works with project-scoped
+# tokens and triggers Railway to build from the connected GitHub repo.
 name: Deploy API to Railway
 
 on:
@@ -12,35 +17,59 @@ concurrency:
   group: buywhere-api-railway-production
   cancel-in-progress: false
 
+env:
+  SERVICE_ID: 945e8a6d-6f89-41f1-8256-b8cc6a872a33
+  ENV_ID: ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae
+  GQL: https://backboard.railway.com/graphql/v2
+
 jobs:
   deploy:
     name: Deploy to Railway
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          fetch-depth: 2
 
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
-      - name: Deploy buywhere-api to Railway
-        run: |
-          railway up \
-            --service 945e8a6d-6f89-41f1-8256-b8cc6a872a33 \
-            --environment ebcb2ca2-f5e8-4713-a3e1-48c92e2b23ae \
-            --message "gha deploy-railway ${GITHUB_SHA}" \
-            --detach
+      - name: Trigger Railway deploy of this SHA
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          set -euo pipefail
+          RESP=$(curl -sf "$GQL" \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+            -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$SERVICE_ID\\\", environmentId: \\\"$ENV_ID\\\", commitSha: \\\"$GITHUB_SHA\\\") }\"}")
+          DID=$(echo "$RESP" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['serviceInstanceDeployV2'])")
+          echo "deployment: $DID"
+          for i in $(seq 1 36); do
+            S=$(curl -sf "$GQL" -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+              -d "{\"query\":\"query { deployment(id: \\\"$DID\\\") { status } }\"}" \
+              | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['deployment']['status'])")
+            echo "[$i] $S"
+            case "$S" in SUCCESS) exit 0;; FAILED|CRASHED|REMOVED) exit 1;; esac
+            sleep 25
+          done
+          exit 1
+
+      - name: Auto-rollback on failure
+        if: failure()
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          PREV=$(git rev-parse HEAD~1)
+          echo "Rolling back to $PREV"
+          curl -sf "$GQL" \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" -H "User-Agent: Mozilla/5.0" \
+            -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$SERVICE_ID\\\", environmentId: \\\"$ENV_ID\\\", commitSha: \\\"$PREV\\\") }\"}" || true
 
       - name: Smoke test Railway endpoint
         run: |
-          echo "Waiting 120s for deploy to complete..."
-          sleep 120
+          set -euo pipefail
+          echo "Waiting 30s for deploy to settle..."
+          sleep 30
           echo "=== Smoke testing api.buywhere.ai ==="
           for ENDPOINT in /health "/v1/ingest/health"; do
             HTTP=$(curl -s -o /dev/null -w "%{http_code}" "https://api.buywhere.ai${ENDPOINT}")

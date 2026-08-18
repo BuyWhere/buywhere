@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.queryLogMiddleware = queryLogMiddleware;
 const config_1 = require("../config");
+const semanticCache_1 = require("../lib/semanticCache");
 const posthog_1 = require("../analytics/posthog");
 // Known human User-Agent patterns — browsers, Googlebot, etc.
 const HUMAN_UA_PATTERNS = [
@@ -70,6 +71,11 @@ function extractResultCount(body, statusCode) {
         }
         return null;
     }
+    // Timeout/degraded empty responses are NOT true zero-result searches —
+    // logging them as 0 poisons the zero-result KPI. Log null instead.
+    const meta = b.meta;
+    if (meta && meta.degraded === true && Array.isArray(b.data) && b.data.length === 0)
+        return null;
     if (Array.isArray(b.data))
         return b.data.length;
     if (Array.isArray(b.results))
@@ -97,6 +103,14 @@ function queryLogMiddleware(endpoint) {
         };
         // Hook into response finish to capture status code, timing, and result count
         res.once('finish', () => {
+            // Central semantic-cache registration (2026-08-06): the search route stashes
+            // scope/qNorm/vector/cacheKey on cache miss; every successful store path
+            // (tier, archive, fallback) then gets registered here exactly once.
+            if (res.locals.semScope && res.locals.semQNorm && res.locals.semCacheKey &&
+                res.statusCode === 200 && (res.locals.resultCount ?? 0) > 0 &&
+                res.locals.cacheHit !== true) {
+                (0, semanticCache_1.semanticRegister)(config_1.redis, res.locals.semScope, res.locals.semQNorm, res.locals.semVec ?? null, res.locals.semCacheKey).catch(() => { });
+            }
             const apiKeyRecord = req.apiKeyRecord;
             // Log all requests — unauthenticated ones recorded with null api_key_id
             // so we capture total demand even before API key adoption ramps up.
@@ -104,11 +118,15 @@ function queryLogMiddleware(endpoint) {
             const isAgent = classifyIsAgent(req);
             // Extract query text from common params
             const queryText = req.query.q || req.query.ids || null;
+            // BUY-2026-08-17: log the caller's market so deliver_to adoption is
+            // measurable (column existed since the deliver_to launch; no insert path
+            // ever populated it — adoption read as 0% forever).
+            const logCountry = ((req.query.deliver_to || req.query.country_code || req.query.country) || '').toUpperCase().slice(0, 2) || null;
             config_1.db.query(`INSERT INTO query_log
           (api_key_id, agent_name, agent_framework, sdk_language, is_agent,
            endpoint, query_text, result_count, response_time_ms,
-           status_code, ip_address, user_agent)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`, [
+           status_code, ip_address, user_agent, cache_hit, country_code)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`, [
                 apiKeyRecord?.id ?? null,
                 apiKeyRecord?.agentName ?? null,
                 req.agentInfo?.framework || 'unknown',
@@ -121,6 +139,8 @@ function queryLogMiddleware(endpoint) {
                 res.statusCode,
                 req.ip || null,
                 (req.headers['user-agent'] || '').slice(0, 500),
+                res.locals.cacheHit ?? null,
+                logCountry,
             ]).catch(() => {
                 // Fire-and-forget — don't crash on log failure
             });

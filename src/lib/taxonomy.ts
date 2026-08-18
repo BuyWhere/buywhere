@@ -7,6 +7,23 @@ export interface TaxonomyCategory {
   regions: ('us' | 'sg' | 'sea')[];
 }
 
+// Static /compare/{slug} routes that are backed by real App Router pages.
+// Keep sitemap emission and middleware's hard-404 guard aligned so crawlers are
+// only sent to compare URLs that can serve 200 landing pages.
+export const ACTIVE_COMPARE_STATIC_SLUGS = [
+  "us",
+  "automotive",
+  "beauty",
+  "electronics",
+  "fashion",
+  "food-beverages",
+  "health-wellness",
+  "home-living",
+  "pet-supplies",
+  "sports-outdoors",
+  "toys-games",
+] as const;
+
 export const PRODUCT_TAXONOMY: TaxonomyCategory[] = [
   {
     id: 'electronics',
@@ -33,10 +50,26 @@ export const PRODUCT_TAXONOMY: TaxonomyCategory[] = [
     regions: ['us', 'sg', 'sea'],
   },
   {
+    id: 'home-kitchen',
+    name: 'Home & Kitchen',
+    slug: 'home-kitchen',
+    description: 'Compare prices on cookware, appliances, decor, and household essentials',
+    icon: '🍳',
+    regions: ['us', 'sg', 'sea'],
+  },
+  {
     id: 'beauty',
     name: 'Beauty',
     slug: 'beauty',
     description: 'Discover beauty products across top retailers',
+    icon: '💄',
+    regions: ['us', 'sg', 'sea'],
+  },
+  {
+    id: 'health-beauty',
+    name: 'Health & Beauty',
+    slug: 'health-beauty',
+    description: 'Discover skincare, personal care, wellness, and beauty products across top retailers',
     icon: '💄',
     regions: ['us', 'sg', 'sea'],
   },
@@ -86,6 +119,22 @@ export const PRODUCT_TAXONOMY: TaxonomyCategory[] = [
     slug: 'pet-supplies',
     description: 'Pet food, toys, and care products',
     icon: '🐕',
+    regions: ['us', 'sg', 'sea'],
+  },
+  {
+    id: 'books-stationery',
+    name: 'Books & Stationery',
+    slug: 'books-stationery',
+    description: 'Compare books, notebooks, office supplies, school supplies, and stationery deals',
+    icon: '📚',
+    regions: ['us', 'sg', 'sea'],
+  },
+  {
+    id: 'baby-products',
+    name: 'Baby Products',
+    slug: 'baby-products',
+    description: 'Compare diapers, feeding essentials, strollers, nursery gear, and baby care products',
+    icon: '🍼',
     regions: ['us', 'sg', 'sea'],
   },
 ];

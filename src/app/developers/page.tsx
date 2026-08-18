@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import Script from "next/script";
 import Nav from "@/components/Nav";
@@ -10,7 +9,7 @@ import { buildPageMetadata } from "@/lib/page-metadata";
 export const metadata = buildPageMetadata({
   title: "Developer Portal — BuyWhere MCP & API for AI Agents",
   description:
-    "BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff starting in Singapore, expanding across Southeast Asia.",
+    "BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff spanning 238,000+ storefronts worldwide, with deliver_to ranking so agents only surface products their user can receive.",
   path: "/developers",
 });
 
@@ -20,14 +19,14 @@ const mcpConfig = `{
       "command": "npx",
       "args": ["-y", "@buywhere/mcp-server"],
       "env": {
-        "BUYWHERE_API_KEY": "bw_beta_your_key_here"
+        "BUYWHERE_API_KEY": "bw_live_your_key_here"
       }
     }
   }
 }`;
 
 const curlExample = `curl -sS "https://api.buywhere.ai/v1/products/search?q=wireless+headphones&limit=5" \\
-  -H "Authorization: Bearer bw_beta_your_key_here"`;
+  -H "Authorization: Bearer bw_live_your_key_here"`;
 
 const organizationSchema = {
   "@context": "https://schema.org",
@@ -197,6 +196,7 @@ export default function DevelopersPage() {
       </Script>
       <Nav />
 
+      <main id="main-content" tabIndex={-1}>
       <section className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(79,70,229,0.15),_transparent_40%),linear-gradient(135deg,#0f172a_0%,#1e1b4b_100%)] text-white">
         <div className="mx-auto max-w-6xl px-4 py-24 sm:px-6">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.15em] text-indigo-200">
@@ -206,7 +206,7 @@ export default function DevelopersPage() {
             Launch your shopping agent with one clear setup path.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-slate-300">
-            BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff starting in Singapore, expanding across Southeast Asia.
+            BuyWhere gives AI agents a product catalog layer for live product discovery, comparison, and merchant handoff spanning 238,000+ storefronts worldwide, with deliver_to ranking so agents only surface products their user can receive.
           </p>
           <p className="mt-4 max-w-2xl text-base leading-7 text-slate-400">
             Start with one API request, then add the published MCP package when you want BuyWhere tools inside Claude Desktop, Cursor, or another MCP client.
@@ -232,9 +232,9 @@ export default function DevelopersPage() {
       <section className="bg-indigo-950 text-indigo-100 py-4">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 text-sm font-medium text-center">
-            <span>3.7M+ products</span>
+            <span>300M+ products</span>
             <span className="hidden sm:block text-indigo-600">·</span>
-            <span>7 SG retailers</span>
+            <span>238,000+ direct merchants</span>
             <span className="hidden sm:block text-indigo-600">·</span>
             <span>Real-time pricing</span>
           </div>
@@ -292,6 +292,7 @@ export default function DevelopersPage() {
 
       <TrustLayer />
       <PopularComparisons variant="footer" />
+      </main>
       <Footer />
     </div>
   );

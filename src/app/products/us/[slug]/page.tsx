@@ -1,9 +1,10 @@
 import { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { permanentRedirect } from "next/navigation";
 import USProductDetail from "@/components/USProductDetail";
 import { toSiteUrl } from "@/lib/site-url";
-import { resolveUSProductRoute } from "@/lib/us-product-route";
+import { resolveUSProductRoute, slugToSearchRedirect } from "@/lib/us-product-route";
 import { normalizeUSMerchantPrice, type USProduct, type USProductOfferApiItem } from "@/lib/us-products";
+import { renderProductLlmsSnippet } from "@/lib/llms-snippets";
 
 interface PageProps {
   params: { slug: string };
@@ -11,9 +12,10 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedProduct = await resolveUSProductRoute(params.slug);
-  if (!resolvedProduct) return { title: "Product Not Found" };
+  if (!resolvedProduct) return { title: "Product Not Found", robots: { index: false, follow: false } };
 
   const pageUrl = toSiteUrl(`/products/us/${resolvedProduct.slug}`);
+  const socialImage = `/api/og-image?title=${encodeURIComponent(resolvedProduct.name)}`;
 
   return {
     title: `${resolvedProduct.name} - BuyWhere`,
@@ -28,19 +30,25 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       type: "website",
       images: [
         {
-          url: "/og-image.png",
+          url: socialImage,
           width: 1200,
           height: 630,
           alt: `${resolvedProduct.name} - Compare prices on BuyWhere US`,
         },
       ],
     },
+    twitter: {
+      card: "summary_large_image",
+      title: `${resolvedProduct.name} - BuyWhere`,
+      description: `Compare prices for ${resolvedProduct.name} across Amazon, Walmart, Target, and Best Buy.`,
+      images: [socialImage],
+    },
   };
 }
 
 async function fetchUSProductSSR(productId: string): Promise<USProduct | undefined> {
   const baseUrl = process.env.BUYWHERE_API_INTERNAL_URL || process.env.NEXT_PUBLIC_BUYWHERE_API_URL || "https://api.buywhere.ai";
-  const apiKey = process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
+  const apiKey = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
   const numericId = parseInt(productId.replace(/[^0-9]/g, ""), 10) || 1;
 
   try {
@@ -82,14 +90,97 @@ function resolvedProductName(productId: string): string {
   return `Product ${productId}`;
 }
 
+function buildResolvedProductFallback(resolvedProduct: Awaited<ReturnType<typeof resolveUSProductRoute>>): USProduct | undefined {
+  if (!resolvedProduct) return undefined;
+
+  return {
+    id: resolvedProduct.id,
+    name: resolvedProduct.name,
+    image: "/og-image.png",
+    description: `Compare current catalog offers and merchant options for ${resolvedProduct.name} on BuyWhere US.`,
+    specs: {
+      Region: "United States",
+      "Catalog source": "BuyWhere US product sitemap",
+    },
+    prices: [
+      {
+        merchant: "BuyWhere Catalog",
+        price: null,
+        url: slugToSearchRedirect(resolvedProduct.slug),
+        inStock: true,
+        lastUpdated: resolvedProduct.lastUpdated,
+        price_missing_reason: "retailer_unavailable",
+      },
+    ],
+    overallRating: 0,
+    reviewCount: 0,
+    brand: "",
+    sku: `SKU-${resolvedProduct.id}`,
+    lastUpdated: resolvedProduct.lastUpdated,
+  };
+}
+
 export default async function USProductSlugPage({ params }: PageProps) {
   const resolvedProduct = await resolveUSProductRoute(params.slug);
 
   if (!resolvedProduct) {
-    notFound();
+    // Slug is unknown OR the US product catalog is unreachable (e.g. the API
+    // now requires `BUYWHERE_API_KEY` and this deploy hasn't been provisioned
+    // with one yet). Don't drop the user on a misleading "Product Not Found"
+    // 404 — bounce them to a real search results page derived from the slug,
+    // where the merchant offer CTAs still work.
+    permanentRedirect(slugToSearchRedirect(params.slug));
   }
 
-  const initialData = await fetchUSProductSSR(resolvedProduct.id);
+  const initialData = await fetchUSProductSSR(resolvedProduct.id) ?? buildResolvedProductFallback(resolvedProduct);
 
-  return <USProductDetail productId={resolvedProduct.id} initialData={initialData} />;
+  // Compute an absolute image URL for JSON-LD structured data:
+  // - Prefer a real product image from the API response.
+  // - Otherwise fall back to the dynamic OG card (which is always available and
+  //   carries the product name visually even when no product image exists).
+  const apiProductImage = initialData?.image && initialData.image.startsWith("http")
+    ? initialData.image
+    : null;
+  const jsonLdImageUrl = apiProductImage ?? toSiteUrl(`/api/og-image?title=${encodeURIComponent(resolvedProduct.name)}`);
+  const pageUrl = toSiteUrl(`/products/us/${resolvedProduct.slug}`);
+
+  // BUY-70312: per-product llms.txt block. Multi-merchant pages (USProductDetail
+  // renders an offer matrix) emit a min-max range.
+  const offerPrices = (initialData?.prices ?? [])
+    .map((p) => parseFloat((p.price ?? "").replace(/[^0-9.]/g, "")))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const llmsSnippet = renderProductLlmsSnippet({
+    country: "us",
+    productId: resolvedProduct.id,
+    title: resolvedProduct.name,
+    description: `Compare prices for ${resolvedProduct.name} across US retailers on BuyWhere.`,
+    currency: "USD",
+    ...(offerPrices.length > 1
+      ? {
+          minPrice: Math.min(...offerPrices),
+          maxPrice: Math.max(...offerPrices),
+        }
+      : { price: offerPrices.length === 1 ? offerPrices[0] : null }),
+    availability: offerPrices.length > 0 ? "local" : "unknown",
+    brand: initialData?.brand || "",
+    category: "",
+    merchantSlug: "",
+    merchantName: null,
+    url: pageUrl,
+    imageUrl: apiProductImage ?? "",
+  });
+
+  return (
+    <>
+      <script
+        type="text/llms.txt"
+        dangerouslySetInnerHTML={{ __html: llmsSnippet }}
+      />
+      <USProductDetail
+        productId={resolvedProduct.id}
+        initialData={initialData}
+        jsonLdImageUrl={jsonLdImageUrl}
+      />
+    </>
+  );
 }

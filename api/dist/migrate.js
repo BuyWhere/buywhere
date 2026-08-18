@@ -21,6 +21,10 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS gtin           VARCHAR(14);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS mpn            VARCHAR(100);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS avg_rating     NUMERIC;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS review_count   INTEGER;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS url_status     TEXT NOT NULL DEFAULT 'ok';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS url_last_checked_at TIMESTAMPTZ;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS url_status_reason TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS url_dead_at     TIMESTAMPTZ;
 
 -- Full-text search support on products table
 CREATE INDEX IF NOT EXISTS idx_products_search_vector ON products USING GIN(search_vector);
@@ -124,10 +128,82 @@ CREATE TABLE IF NOT EXISTS affiliate_clicks (
   destination_url TEXT NOT NULL,
   clicked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS was_dead_at_click BOOLEAN NOT NULL DEFAULT false;
 
 CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_api_key ON affiliate_clicks(api_key);
 CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_product ON affiliate_clicks(product_id);
 CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_clicked_at ON affiliate_clicks(clicked_at);
+
+-- Append-only outbound URL probe history. Current status lives on products for fast render-gates.
+CREATE TABLE IF NOT EXISTS url_probe_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id TEXT NOT NULL,
+  merchant_id TEXT,
+  url TEXT NOT NULL,
+  status TEXT NOT NULL,
+  reason TEXT,
+  http_status INTEGER,
+  checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  latency_ms INTEGER,
+  error TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_url_probe_log_product_checked_at ON url_probe_log(product_id, checked_at DESC);
+CREATE INDEX IF NOT EXISTS idx_url_probe_log_status_checked_at ON url_probe_log(status, checked_at DESC);
+-- BUY-70924: products URL status indexes are created CONCURRENTLY in
+-- runMigrations() (ensureUrlProbeIndexes) so the build does not lock the live
+-- ingest pipeline. Do not add non-CONCURRENT product indexes to this transaction.
+
+-- BUY-70932: merchant-adapter recheck queue for dead->ok URL flips.
+-- Oracle consumes this queue to re-ingest / re-map merchant URLs. A trigger
+-- below auto-enqueues whenever products.url_status flips from 'dead' to 'ok',
+-- so the probe worker (Cart) does not need to know the queue schema.
+CREATE TABLE IF NOT EXISTS merchant_adapter_recheck_queue (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id        BIGINT NOT NULL,
+  merchant_id       TEXT NOT NULL,
+  old_status        TEXT NOT NULL,
+  new_status        TEXT NOT NULL,
+  url               TEXT,
+  detected_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  processed_at      TIMESTAMPTZ,
+  processed_by      TEXT,
+  result            TEXT,
+  retry_count       INTEGER NOT NULL DEFAULT 0,
+  quarantined_at    TIMESTAMPTZ,
+  quarantine_reason TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_merchant_adapter_recheck_queue_unprocessed
+  ON merchant_adapter_recheck_queue (detected_at ASC)
+  WHERE processed_at IS NULL AND quarantined_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_merchant_adapter_recheck_queue_product
+  ON merchant_adapter_recheck_queue (product_id, detected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_merchant_adapter_recheck_queue_merchant
+  ON merchant_adapter_recheck_queue (merchant_id, detected_at DESC)
+  WHERE processed_at IS NULL AND quarantined_at IS NULL;
+
+-- Trigger function: enqueue dead->ok flips.
+CREATE OR REPLACE FUNCTION trg_products_url_status_dead_to_ok_queue()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.url_status IS DISTINCT FROM NEW.url_status
+     AND OLD.url_status = 'dead'
+     AND NEW.url_status = 'ok' THEN
+    INSERT INTO merchant_adapter_recheck_queue (
+      product_id, merchant_id, old_status, new_status, url, detected_at
+    ) VALUES (
+      NEW.id, NEW.merchant_id, OLD.url_status, NEW.url_status, NEW.url,
+      COALESCE(NEW.url_last_checked_at, NOW())
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS products_url_status_dead_to_ok_queue ON products;
+CREATE TRIGGER products_url_status_dead_to_ok_queue
+  AFTER UPDATE OF url_status ON products
+  FOR EACH ROW
+  EXECUTE FUNCTION trg_products_url_status_dead_to_ok_queue();
 
 -- Affiliate links registry
 CREATE TABLE IF NOT EXISTS affiliate_links (
@@ -175,11 +251,11 @@ WHERE category_path = '{}' OR array_length(category_path, 1) = 0;
 -- GEO fields (BUY-1970, BUY-1979): columns and indexes handled at top of migration
 
 -- Comparison pages curation table (BUY-2273)
--- product_ids: array of products.id (uuid) rows that represent this SKU across retailers
+-- product_ids: array of products.id (bigint) rows that represent this SKU across retailers
 CREATE TABLE IF NOT EXISTS comparison_pages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   slug TEXT UNIQUE NOT NULL,
-  product_ids UUID[] NOT NULL DEFAULT '{}',
+  product_ids BIGINT[] NOT NULL DEFAULT '{}',
   category TEXT NOT NULL CHECK (category IN ('electronics','grocery','home','health')),
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published','archived')),
   expert_summary TEXT,
@@ -192,21 +268,29 @@ CREATE TABLE IF NOT EXISTS comparison_pages (
 
 CREATE INDEX IF NOT EXISTS idx_comparison_pages_published ON comparison_pages(status) WHERE status = 'published';
 
--- Convert existing BIGINT[] column to UUID[] if table was created before schema alignment (BUY-2270)
+-- BUY-60005: products.id is BIGINT, so comparison_pages.product_ids MUST be BIGINT[].
+-- An earlier migration (BUY-2270) aligned this column to UUID[], which silently dropped
+-- every seeded product_id (the seed inserts BIGINT[] values), leaving all rows with {}.
+-- That made /v1/compare/:slug return 404 for every comparison page. Align to BIGINT[]
+-- and recover any product_ids still stored as UUID text (best-effort cast to BIGINT).
 DO $$
 DECLARE col_type TEXT;
 BEGIN
   SELECT udt_name INTO col_type
   FROM information_schema.columns
   WHERE table_name = 'comparison_pages' AND column_name = 'product_ids';
-  IF col_type = '_int8' THEN
+  IF col_type = '_uuid' THEN
     ALTER TABLE comparison_pages ALTER COLUMN product_ids DROP DEFAULT;
-    ALTER TABLE comparison_pages ALTER COLUMN product_ids TYPE UUID[] USING '{}'::UUID[];
+    -- UUID text → BIGINT: strip non-digits and cast. Non-numeric UUIDs become NULL (dropped).
+    ALTER TABLE comparison_pages ALTER COLUMN product_ids TYPE BIGINT[]
+      USING ARRAY(SELECT CASE WHEN v ~ '^[0-9]+$' THEN v::BIGINT ELSE NULL END
+                  FROM unnest(product_ids::text[]) AS v);
     ALTER TABLE comparison_pages ALTER COLUMN product_ids SET DEFAULT '{}';
   END IF;
 END$$;
 
--- Add affiliate_url to affiliate_links if not present (BUY-2274)
+-- Add affiliate_url to affiliate_links if not present (BUY-2274, BUY-60824)
+ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS affiliate_url TEXT;
 
 -- Price refresh job log (BUY-2274)
 CREATE TABLE IF NOT EXISTS price_refresh_log (
@@ -250,6 +334,7 @@ CREATE TABLE IF NOT EXISTS query_log (
   status_code INTEGER NOT NULL DEFAULT 200,
   ip_address INET,
   user_agent TEXT,
+  cache_hit BOOLEAN,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -443,8 +528,118 @@ BEGIN
 END
 $$;
 `;
+function quoteIdentifier(identifier) {
+    return `"${identifier.replace(/"/g, '""')}"`;
+}
+function quoteQualifiedIdentifier(qualifiedIdentifier) {
+    return qualifiedIdentifier.split('.').map(quoteIdentifier).join('.');
+}
+async function ensureUrlProbeIndexes() {
+    const targetTable = 'public.products';
+    const indexes = [
+        {
+            name: 'idx_products_url_probe_due',
+            createSql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_products_url_probe_due
+                    ON ${targetTable} (url_last_checked_at)
+                    WHERE is_active = true AND url IS NOT NULL`,
+        },
+        {
+            name: 'idx_products_url_status',
+            createSql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_products_url_status
+                    ON ${targetTable} (url_status)`,
+        },
+    ];
+    for (const idx of indexes) {
+        try {
+            const existsValid = await config_1.db.query(`SELECT 1 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+          WHERE i.indrelid = '${targetTable}'::regclass AND c.relname = $1 AND i.indisvalid`, [idx.name]);
+            if (existsValid.rows.length > 0) {
+                console.log(`[migration] ${idx.name} already valid.`);
+                continue;
+            }
+            const client = await config_1.db.connect();
+            try {
+                await client.query('SET statement_timeout = 1800000');
+                await client.query('SET lock_timeout = 60000');
+                await client.query(idx.createSql);
+                console.log(`[migration] ${idx.name} created.`);
+            }
+            finally {
+                client.release();
+            }
+        }
+        catch (err) {
+            console.warn(`[migration] ${idx.name} create failed (non-fatal): ${err.message?.slice(0, 200)}`);
+        }
+    }
+}
+async function ensureStrictDealsIndexes() {
+    const partitions = await config_1.db.query(`SELECT c.oid::regclass::text AS table_name
+       FROM pg_inherits i
+       JOIN pg_class c ON c.oid = i.inhrelid
+      WHERE i.inhparent = 'public.products'::regclass
+      ORDER BY c.oid::regclass::text`);
+    const targetTables = partitions.rows.length > 0
+        ? partitions.rows.map((row) => row.table_name)
+        : ['public.products'];
+    for (const tableName of targetTables) {
+        const safeSuffix = tableName.replace(/^public\./, '').replace(/[^a-zA-Z0-9_]/g, '_');
+        const quotedTableName = quoteQualifiedIdentifier(tableName);
+        const expectedIndexes = [
+            {
+                name: `idx_buy64112_deals_country_${safeSuffix}`,
+                tableName,
+                createSql: `
+          CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy64112_deals_country_${safeSuffix}
+            ON ${quotedTableName} (currency, country_code, discount_pct DESC)
+            WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
+              AND country_code IS NOT NULL
+        `,
+            },
+            {
+                name: `idx_buy64112_deals_region_${safeSuffix}`,
+                tableName,
+                createSql: `
+          CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy64112_deals_region_${safeSuffix}
+            ON ${quotedTableName} (currency, region, discount_pct DESC)
+            WHERE discount_pct IS NOT NULL AND price > 0 AND is_active = true
+              AND region IS NOT NULL
+        `,
+            },
+        ];
+        for (const expectedIndex of expectedIndexes) {
+            try {
+                const client = await config_1.db.connect();
+                try {
+                    await client.query('SET statement_timeout = 1800000');
+                    await client.query('SET lock_timeout = 60000');
+                    await client.query(expectedIndex.createSql);
+                    console.log(`[migration] ${expectedIndex.name} verified for ${expectedIndex.tableName}.`);
+                }
+                finally {
+                    client.release();
+                }
+            }
+            catch (err) {
+                console.warn(`[migration] ${expectedIndex.name} strict index verify failed (non-fatal): ${err.message?.slice(0, 200)}`);
+            }
+        }
+    }
+}
 async function runMigrations() {
     console.log('Running migrations...');
+    // BUY-60824: run tiny redirect-critical schema patches before the monolithic
+    // migration block. The full block can time out while building product indexes;
+    // this column must still be present so /r/:affiliateSlug/:productId can read
+    // affiliate_url instead of falling back to stale/empty destination_url.
+    try {
+        await config_1.db.query('SET lock_timeout = 5000');
+        await config_1.db.query('ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS affiliate_url TEXT');
+        console.log('[migration] affiliate_links.affiliate_url verified (BUY-60824).');
+    }
+    catch (err) {
+        console.warn(`[migration] affiliate_url preflight failed (non-fatal): ${err.message?.slice(0, 200)}`);
+    }
     // Run full migration block as-is (best-effort, may fail on extensions or
     // products columns if those tables/perms don't exist yet).
     try {
@@ -465,30 +660,44 @@ async function runMigrations() {
     // Idempotent; drops any stale ON ONLY constraint/index and creates a proper
     // partitioned unique index that works with ON CONFLICT on the partitioned table.
     try {
-        console.log('[migration] Ensuring products partitioned UNIQUE index (sku, source, country_code) (BUY-56217)...');
-        const uqClient = await config_1.db.connect();
-        try {
-            // 5-min statement timeout: with 14M+ rows the index build can take a while.
-            // 60s lock timeout: do not block live ingest traffic.
-            await uqClient.query('SET statement_timeout = 300000');
-            await uqClient.query('SET lock_timeout = 60000');
-            await uqClient.query(PRODUCTS_UNIQUE_CONSTRAINT_DDL);
-            console.log('[migration] products partitioned UNIQUE index verified (BUY-56217).');
+        // 2026-07-15: skip the 3-col build when the valid 2-col unique already exists.
+        // products is NOT partitioned (relkind='r'); the (sku,source) unique index is
+        // valid and the ingest schema guard (BUY-56338) discovers + uses it as the
+        // ON CONFLICT target. The 3-col CONCURRENT build can never finish on the live
+        // archive (ops watchdogs cancel >30min CIC by design), so attempting it here
+        // just failed with a lock timeout on every deploy.
+        const twoCol = await config_1.db.query(`SELECT 1 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+        WHERE i.indrelid = 'products'::regclass AND c.relname = 'products_sku_source_unique'
+          AND i.indisunique AND i.indisvalid`);
+        if (twoCol.rows.length > 0) {
+            console.log('[migration] products (sku, source) UNIQUE index valid — skipping 3-col build (BUY-56217 superseded 2026-07-15).');
         }
-        finally {
-            uqClient.release();
-        }
-        // Verify the unique index is now in place — emit a clear error if not.
-        // We check pg_index (not pg_constraint) because we CREATE UNIQUE INDEX
-        // (not ALTER TABLE ADD CONSTRAINT) to get a proper partitioned index.
-        const uqVerify = await config_1.db.query(`SELECT 1 FROM pg_index i
+        else {
+            console.log('[migration] Ensuring products partitioned UNIQUE index (sku, source, country_code) (BUY-56217)...');
+            const uqClient = await config_1.db.connect();
+            try {
+                // 5-min statement timeout: with 14M+ rows the index build can take a while.
+                // 60s lock timeout: do not block live ingest traffic.
+                await uqClient.query('SET statement_timeout = 300000');
+                await uqClient.query('SET lock_timeout = 60000');
+                await uqClient.query(PRODUCTS_UNIQUE_CONSTRAINT_DDL);
+                console.log('[migration] products partitioned UNIQUE index verified (BUY-56217).');
+            }
+            finally {
+                uqClient.release();
+            }
+            // Verify the unique index is now in place — emit a clear error if not.
+            // We check pg_index (not pg_constraint) because we CREATE UNIQUE INDEX
+            // (not ALTER TABLE ADD CONSTRAINT) to get a proper partitioned index.
+            const uqVerify = await config_1.db.query(`SELECT 1 FROM pg_index i
         JOIN pg_class c ON c.oid = i.indexrelid
        WHERE i.indrelid = 'products'::regclass
          AND c.relname = 'products_sku_source_country_unique'
          AND i.indisunique AND i.indisvalid`);
-        if (uqVerify.rowCount === 0) {
-            throw new Error('Unique index products_sku_source_country_unique not found after CREATE — manual intervention required');
-        }
+            if (uqVerify.rowCount === 0) {
+                throw new Error('Unique index products_sku_source_country_unique not found after CREATE — manual intervention required');
+            }
+        } // end else (3-col build only when 2-col unique absent)
     }
     catch (err) {
         console.error(`[migration] FATAL: products UNIQUE index failed (BUY-56217): ${err.message?.slice(0, 200)}`);
@@ -589,6 +798,16 @@ async function runMigrations() {
     catch (err) {
         console.warn(`[migration] Index dedup step failed (non-fatal): ${err.message?.slice(0, 200)}`);
     }
+    // BUY-64112: repair stale deal indexes before the legacy generated-column gate
+    // below. Production has a populated plain discount_pct column; even if converting
+    // it to GENERATED is deferred/fails, strict get_deals must still use the column
+    // index path instead of seq-scanning the live products table.
+    await ensureStrictDealsIndexes();
+    // BUY-70924: outbound-link probe indexes on products must be built CONCURRENTLY
+    // to avoid locking the live ingest pipeline. Each index gets its own checkout
+    // with a long statement_timeout and short lock_timeout so a transient lock wait
+    // fails this step but does not block startup or ingest.
+    await ensureUrlProbeIndexes();
     // BUY-22324: discount_pct GENERATED STORED column — must detect and fix a plain
     // (non-generated) column left by a prior migration failure.
     // Uses guarded CASE with regex to prevent dirty original_price from failing inserts.
@@ -675,6 +894,17 @@ async function runMigrations() {
     }
     catch (err) {
         console.warn(`[migration] products_source_no_legacy_google_shopping constraint failed (non-fatal): ${err.message?.slice(0, 200)}`);
+    }
+    // BUY-62708: ensure query_log.cache_hit exists independently of the MIGRATION block
+    // (added to CREATE TABLE inside MIGRATION, but live DBs created before BUY-62708 ran
+    // never received the ALTER because migrate.ts does not execute /migrations/*.sql
+    // standalone files; this preflight closes that gap idempotently).
+    try {
+        await config_1.db.query('ALTER TABLE query_log ADD COLUMN IF NOT EXISTS cache_hit boolean');
+        console.log('[migration] query_log.cache_hit column ensured (BUY-62708).');
+    }
+    catch (err) {
+        console.warn(`[migration] query_log.cache_hit preflight failed (non-fatal): ${err.message?.slice(0, 200)}`);
     }
     // Separately ensure merchants tables exist — not blocked by failures above.
     try {

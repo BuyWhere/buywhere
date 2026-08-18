@@ -1,7 +1,21 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import { getSeoLandingFallbackProduct } from "@/lib/seo-landing-pages";
+import { slugToSearchRedirect } from "@/lib/us-product-route";
+import { buildProductDetailGraph } from "@/lib/product-schema";
+import { renderProductLlmsSnippet } from "@/lib/llms-snippets";
+
+// BUY-69630: call the API service directly via the Railway internal URL with
+// the SSR-held API key. The Next.js site has a /api/* rewrite that proxies
+// all /api/* to api.buywhere.ai/v1/* (next.config.mjs), which shadows the
+// internal /api/products/[id] route handler. Calling the API service directly
+// bypasses the rewrite and the SSR runtime already holds BUYWHERE_API_KEY.
+const API_INTERNAL_URL = (
+  process.env.BUYWHERE_API_INTERNAL_URL ||
+  "https://api.buywhere.ai"
+).replace(/\/$/, "");
+const API_KEY = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
 
 interface ProductDetail {
   id: string | number;
@@ -15,9 +29,78 @@ interface ProductDetail {
   merchant_id?: string;
   merchant_name?: string;
   data_updated_at?: string;
+  // Outbound CTA target. Prefer affiliate redirect, then click-through, then
+  // generic buy/product URL. The SSR PDP renders a primary action button only
+  // when one of these is present (see BUY-65451).
+  affiliate_redirect_url?: string | null;
+  click_url?: string | null;
+  affiliate_url?: string | null;
+  buy_url?: string | null;
+  product_url?: string | null;
 }
 
-function landingProductToDetail(product: ReturnType<typeof getSeoLandingFallbackProduct>): ProductDetail | null {
+interface ApiProductItem {
+  id: string | number;
+  name?: string | null;
+  title?: string | null;
+  price?: number | { amount?: number | string | null; currency?: string | null } | null;
+  image_url?: string | null;
+  category?: string | null;
+  brand?: string | null;
+  merchant?: string | null;
+  merchant_name?: string | null;
+  updated_at?: string | null;
+  click_url?: string | null;
+  affiliate_redirect_url?: string | null;
+  affiliate_url?: string | null;
+  buy_url?: string | null;
+  url?: string | null;
+  product_url?: string | null;
+}
+
+function mapApiProduct(item: ApiProductItem): ProductDetail {
+  const priceValue =
+    typeof item.price === "object" && item.price !== null
+      ? item.price.amount
+      : (item.price as number | undefined);
+  return {
+    id: item.id,
+    name: item.name ?? item.title ?? undefined,
+    title: item.title ?? item.name ?? undefined,
+    price: priceValue != null ? Number(priceValue) : undefined,
+    image_url: item.image_url ?? null,
+    category: item.category ?? undefined,
+    brand: item.brand ?? undefined,
+    merchant_name: item.merchant ?? item.merchant_name ?? undefined,
+    data_updated_at: item.updated_at ?? undefined,
+    affiliate_redirect_url: item.affiliate_redirect_url ?? null,
+    click_url: item.click_url ?? null,
+    affiliate_url: item.affiliate_url ?? null,
+    buy_url: item.buy_url ?? null,
+    product_url: item.url ?? item.product_url ?? null,
+  };
+}
+
+function pickPrimaryCtaUrl(detail: ProductDetail | null | undefined): string | null {
+  if (!detail) return null;
+  const candidates = [
+    detail.affiliate_redirect_url,
+    detail.click_url,
+    detail.affiliate_url,
+    detail.buy_url,
+    detail.product_url,
+  ];
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim() && value.trim() !== "#") {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
+// BUY-69736: getSeoLandingFallbackProduct is now async (it probes + repairs
+// the curated image URL), so the type is a Promise resolution.
+function landingProductToDetail(product: Awaited<ReturnType<typeof getSeoLandingFallbackProduct>>): ProductDetail | null {
   if (!product) return null;
 
   return {
@@ -29,35 +112,42 @@ function landingProductToDetail(product: ReturnType<typeof getSeoLandingFallback
     category: product.category ?? undefined,
     brand: product.brand ?? undefined,
     merchant_name: product.merchant,
+    affiliate_redirect_url: null,
+    click_url: null,
+    affiliate_url: null,
+    buy_url: null,
+    product_url: null,
   };
 }
 
 async function getProduct(productId: string, merchantSlug: string): Promise<ProductDetail | null> {
-  const baseUrl =
-    process.env.BUYWHERE_API_INTERNAL_URL ||
-    process.env.NEXT_PUBLIC_BUYWHERE_API_URL ||
-    "https://api.buywhere.ai";
-  const apiKey =
-    process.env.BUYWHERE_API_KEY ||
-    process.env.NEXT_PUBLIC_BUYWHERE_API_KEY ||
-    "";
-  const headers: Record<string, string> = apiKey
-    ? { Authorization: `Bearer ${apiKey}` }
-    : {};
-
-  try {
-    const res = await fetch(`${baseUrl}/v1/products/${encodeURIComponent(productId)}`, {
-      headers,
-      next: { revalidate: 3600 },
-      signal: AbortSignal.timeout(5000),
-    });
-    if (res.ok) {
-      const data = (await res.json()) as ProductDetail;
-      if (data?.id) return data;
+  // BUY-69630: fetch the live catalog record directly from the internal API
+  // service using the SSR-held API key. The site's /api/* rewrite shadows the
+  // internal Next.js route handler, so SSR calls the API service directly.
+  if (API_KEY) {
+    try {
+      const res = await fetch(`${API_INTERNAL_URL}/v1/products/${encodeURIComponent(productId)}`, {
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${API_KEY}`,
+        },
+        next: { revalidate: 3600 },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        const payload = (await res.json()) as ProductDetail | { data?: ApiProductItem[] };
+        const item = Array.isArray((payload as { data?: ApiProductItem[] }).data)
+          ? (payload as { data: ApiProductItem[] }).data[0]
+          : (payload as ProductDetail);
+        if (item?.id) return mapApiProduct(item as ApiProductItem);
+      }
+    } catch (err) {
+      console.warn(`[products/us] internal API error for ${productId}:`, err);
     }
-  } catch {}
+  }
 
-  return landingProductToDetail(getSeoLandingFallbackProduct("us", productId, merchantSlug));
+  // Fallback to curated SEO landing page fallback products
+  return landingProductToDetail(await getSeoLandingFallbackProduct("us", productId, merchantSlug));
 }
 
 interface PageProps {
@@ -95,6 +185,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         ? [{ url: product.image_url, width: 800, height: 800, alt: productName }]
         : [{ url: "/og-image.png", width: 1200, height: 630, alt: productName }],
     },
+    twitter: {
+      card: "summary_large_image",
+      title: `${productName} — ${merchantName} | BuyWhere US`,
+      description: `Buy ${productName} from ${merchantName} in the US.`,
+      images: product.image_url
+        ? [product.image_url]
+        : ["/og-image.png"],
+    },
   };
 }
 
@@ -103,60 +201,74 @@ export default async function USProductDetailPage({ params }: PageProps) {
 
   const product = await getProduct(productId, merchantSlug);
   if (!product) {
-    notFound();
+    // The card on every SEO landing page links here via `product.productUrl`
+    // (built by `buildProductDetailUrl` in `seo-landing-pages.ts`). When the
+    // product id is a live catalog result not present in the curated fallback
+    // list AND the upstream `/v1/products/{id}` lookup fails, drop the user on
+    // a real search results page derived from the slug instead of a misleading
+    // 404. This matches the behaviour of `/products/us/[slug]/page.tsx`.
+    permanentRedirect(slugToSearchRedirect(merchantSlug));
   }
 
   const productName = product.name ?? product.title ?? `Product ${productId}`;
   const merchantName =
     product.merchant_name ??
     merchantSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  const canonicalUrl = `https://buywhere.ai/products/us/${merchantSlug}/${productId}/`;
 
-  const productSchema = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: productName,
-    description:
-      product.description ??
-      `${productName} available from ${merchantName} in the US.`,
-    url: canonicalUrl,
-    ...(product.image_url && { image: product.image_url }),
-    ...(product.brand && { brand: { "@type": "Brand", name: product.brand } }),
-    ...(product.price != null && {
-      offers: {
-        "@type": "Offer",
-        priceCurrency: "USD",
-        price: product.price,
-        availability: "https://schema.org/InStock",
-        seller: { "@type": "Organization", name: merchantName },
-      },
-    }),
-  };
-
-  const breadcrumbSchema = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Home", item: "https://buywhere.ai/" },
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: `${merchantName} Products`,
-        item: `https://buywhere.ai/us/${merchantSlug}/products/`,
-      },
-      { "@type": "ListItem", position: 3, name: productName, item: canonicalUrl },
+  // BUY-69663: shared JSON-LD graph replaces the duplicated inline Product +
+  // Breadcrumb blocks — publisher-anchored @graph, ratings only from real data.
+  const pagePath = `/products/us/${merchantSlug}/${productId}/`;
+  const description =
+    product.description ?? `${productName} available from ${merchantName} in the US.`;
+  const schema = buildProductDetailGraph({
+    product: {
+      path: pagePath,
+      name: productName,
+      description,
+      image: product.image_url ?? null,
+      brand: product.brand ?? null,
+      category: product.category ?? null,
+      sku: product.id != null ? String(product.id) : null,
+      offer:
+        product.price != null
+          ? {
+              price: product.price,
+              priceCurrency: "USD",
+              sellerName: merchantName,
+            }
+          : null,
+    },
+    breadcrumb: [
+      { name: "Home", path: "/" },
+      { name: `${merchantName} Products`, path: `/us/${merchantSlug}/products/` },
+      { name: productName, path: pagePath },
     ],
-  };
+  });
+  const llmsSnippet = renderProductLlmsSnippet({
+    country: "us",
+    productId,
+    title: productName,
+    description,
+    currency: "USD",
+    price: product.price ?? null,
+    availability: "local",
+    brand: product.brand ?? "",
+    category: product.category ?? "",
+    merchantSlug,
+    merchantName,
+    url: `https://buywhere.ai${pagePath}`,
+    imageUrl: product.image_url ?? "",
+  });
 
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
       />
       <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+        type="text/llms.txt"
+        dangerouslySetInnerHTML={{ __html: llmsSnippet }}
       />
       <main id="main-content" className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
         <nav aria-label="breadcrumb" className="mb-6 text-sm text-gray-500">
@@ -211,6 +323,36 @@ export default async function USProductDetailPage({ params }: PageProps) {
               </div>
             )}
 
+            {(() => {
+              const ctaUrl = pickPrimaryCtaUrl(product);
+              const fallbackHref = `/us/${merchantSlug}/products/`;
+              const targetUrl = ctaUrl ?? fallbackHref;
+              const isExternal = ctaUrl
+                ? /^https?:\/\//i.test(ctaUrl)
+                : false;
+              // BUY-65451: PDP must ship a primary action button so SEO landing
+              // cards don't dead-end on a detail page without an exit. Fall
+              // back to the merchant listing on BuyWhere when no affiliate URL
+              // is on the product record.
+              return (
+                <div className="mb-6">
+                  <a
+                    href={targetUrl}
+                    {...(isExternal
+                      ? {
+                          target: "_blank",
+                          rel: "noopener noreferrer sponsored",
+                        }
+                      : {})}
+                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                  >
+                    {ctaUrl ? `View at ${merchantName}` : `View all from ${merchantName}`}
+                    <span aria-hidden="true">→</span>
+                  </a>
+                </div>
+              );
+            })()}
+
             <p className="text-sm text-gray-600 mb-4">
               Available from{" "}
               <span className="text-gray-700 font-medium">{merchantName}</span>{" "}
@@ -224,7 +366,7 @@ export default async function USProductDetailPage({ params }: PageProps) {
             )}
 
             {product.category && (
-              <p className="mt-4 text-xs text-gray-400">
+              <p className="mt-4 text-xs text-gray-500">
                 Category: {product.category}
               </p>
             )}

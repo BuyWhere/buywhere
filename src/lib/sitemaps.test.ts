@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { getCategorySitemapEntries, getCompareSitemapEntries, getStaticSitemapEntries } from "@/lib/sitemaps";
 import { toSiteUrl } from "@/lib/site-url";
+import { ACTIVE_COMPARE_STATIC_SLUGS, PRODUCT_TAXONOMY } from "@/lib/taxonomy";
 
-test("getCategorySitemapEntries uses canonical (no trailing slash) URLs", () => {
-  const entries = getCategorySitemapEntries();
+test("getCategorySitemapEntries uses canonical (no trailing slash) URLs", async () => {
+  const entries = await getCategorySitemapEntries();
   for (const entry of entries) {
     const path = new URL(entry.url).pathname;
     assert.ok(
@@ -14,8 +15,8 @@ test("getCategorySitemapEntries uses canonical (no trailing slash) URLs", () => 
   }
 });
 
-test("getCompareSitemapEntries uses canonical (no trailing slash) URLs", () => {
-  const entries = getCompareSitemapEntries();
+test("getCompareSitemapEntries uses canonical (no trailing slash) URLs", async () => {
+  const entries = await getCompareSitemapEntries();
   for (const entry of entries) {
     const path = new URL(entry.url).pathname;
     assert.ok(
@@ -25,8 +26,26 @@ test("getCompareSitemapEntries uses canonical (no trailing slash) URLs", () => {
   }
 });
 
-test("getCategorySitemapEntries excludes soft-404 slugs flagged in BUY-39762 / BUY-41940", () => {
-  const entries = getCategorySitemapEntries();
+test("getCompareSitemapEntries only emits known static compare landing pages (BUY-71003)", async () => {
+  const entries = await getCompareSitemapEntries();
+  const paths = entries.map((e) => new URL(e.url).pathname);
+
+  assert.ok(paths.includes("/compare"), "expected /compare in sitemap-compare.xml");
+  for (const slug of ACTIVE_COMPARE_STATIC_SLUGS) {
+    assert.ok(paths.includes(`/compare/${slug}`), `expected /compare/${slug} in sitemap-compare.xml`);
+  }
+
+  const activeStatic = new Set<string>(ACTIVE_COMPARE_STATIC_SLUGS.map((slug) => `/compare/${slug}`));
+  for (const category of PRODUCT_TAXONOMY) {
+    const path = `/compare/${category.slug}`;
+    if (!activeStatic.has(path)) {
+      assert.ok(!paths.includes(path), `${path} is not backed by a static compare page and must not be emitted`);
+    }
+  }
+});
+
+test("getCategorySitemapEntries excludes soft-404 slugs flagged in BUY-39762 / BUY-41940", async () => {
+  const entries = await getCategorySitemapEntries();
   const urls = entries.map((e) => e.url);
   for (const slug of ["books-stationery", "garden-outdoor", "pet-supplies", "sports-outdoors"]) {
     assert.ok(
@@ -36,11 +55,11 @@ test("getCategorySitemapEntries excludes soft-404 slugs flagged in BUY-39762 / B
   }
 });
 
-test("getCategorySitemapEntries includes only real category slugs that exist in PRODUCT_TAXONOMY", () => {
-  const entries = getCategorySitemapEntries();
+test("getCategorySitemapEntries includes only real category slugs that exist in PRODUCT_TAXONOMY", async () => {
+  const entries = await getCategorySitemapEntries();
   const categoryPaths = entries
     .map((e) => new URL(e.url).pathname)
-    .filter((p) => p.startsWith("/categories/") && p !== "/categories");
+    .filter((p) => /^\/categories\/[^/]+$/.test(p));
   // Sanity: at least the known-good slugs are present.
   for (const slug of ["electronics", "fashion", "home-living", "beauty-health", "grocery"]) {
     assert.ok(
@@ -48,6 +67,28 @@ test("getCategorySitemapEntries includes only real category slugs that exist in 
       `expected /categories/${slug} in sitemap`,
     );
   }
+});
+
+test("getCategorySitemapEntries emits API category-country combinations once (BUY-65150)", async () => {
+  const entries = await getCategorySitemapEntries();
+  const categoryCountryPaths = entries
+    .map((e) => new URL(e.url).pathname)
+    .filter((path) => /^\/categories\/[^/]+\/(us|sg|my|th|id|ph|vn)$/.test(path));
+
+  assert.ok(
+    categoryCountryPaths.length >= 250,
+    `expected at least 250 category-country URLs; got ${categoryCountryPaths.length}`,
+  );
+  assert.equal(
+    new Set(categoryCountryPaths).size,
+    categoryCountryPaths.length,
+    "category-country URLs should be unique",
+  );
+  assert.equal(
+    categoryCountryPaths.length % 7,
+    0,
+    "every API category should have all seven country variants",
+  );
 });
 
 // BUY-42727: the merchant sitemap URL builder must emit canonical-form
@@ -123,14 +164,47 @@ test("getStaticSitemapEntries contains the 9 previously-duplicate URLs (BUY-5745
   }
 });
 
-test("getStaticSitemapEntries count is 230 (matches the post-fix prod target) or fewer (BUY-57452)", () => {
-  // Pre-fix: 239 <url> blocks (230 unique). Post-fix: 230 <url> blocks.
-  // We accept <=230 to tolerate future removals (e.g. soft-404 slugs)
-  // without breaking the test. We assert <=230 strictly so any future
+test("getStaticSitemapEntries includes /about (BUY-70427)", () => {
+  const entries = getStaticSitemapEntries();
+  const urls = new Set(entries.map((e) => e.url));
+  assert.ok(urls.has("https://buywhere.ai/about"), "expected /about in sitemap-pages.xml");
+});
+
+test("getStaticSitemapEntries count is 231 (matches the post-fix prod target) or fewer (BUY-57452 / BUY-70427)", () => {
+  // BUY-57452 pre-fix: 239 <url> blocks (230 unique). Post-fix: 230 <url> blocks.
+  // BUY-70427 adds the live /about brand route, so the expected ceiling is now 231.
+  // We accept <=231 to tolerate future removals (e.g. soft-404 slugs)
+  // without breaking the test. We assert <=231 strictly so any future
   // re-emission of removed hardcoded entries surfaces here, not in GSC.
   const entries = getStaticSitemapEntries();
   assert.ok(
-    entries.length <= 230,
-    `sitemap-pages.xml emitted ${entries.length} entries; expected <= 230`,
+    entries.length <= 231,
+    `sitemap-pages.xml emitted ${entries.length} entries; expected <= 231`,
   );
+});
+
+
+test("getCompareSitemapEntries includes every canonical populated category pair once (BUY-65161)", async () => {
+  const entries = await getCompareSitemapEntries();
+  const comparePairPaths = entries
+    .map((e) => new URL(e.url).pathname)
+    .filter((p) => p.startsWith("/compare/") && p.includes("-vs-"));
+
+  assert.ok(
+    comparePairPaths.length >= 500,
+    `expected at least 500 category pair URLs; got ${comparePairPaths.length}`,
+  );
+
+  assert.equal(
+    new Set(comparePairPaths).size,
+    comparePairPaths.length,
+    "category pair URLs should be unique",
+  );
+
+  for (const path of comparePairPaths) {
+    const pairSlug = path.replace("/compare/", "");
+    const [left, right] = pairSlug.split("-vs-");
+    assert.ok(left < right, `${path} should use deterministic canonical slug ordering`);
+    assert.ok(!comparePairPaths.includes(`/compare/${right}-vs-${left}`), `${path} should not have a symmetric duplicate`);
+  }
 });

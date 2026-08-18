@@ -2,9 +2,29 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const config_1 = require("../config");
+const outboundLinkHealth_1 = require("../lib/outboundLinkHealth");
 const posthog_1 = require("../analytics/posthog");
 const router = (0, express_1.Router)();
 const CACHE_TTL_SECONDS = 300; // 5 min
+function slugifyCategory(value) {
+    return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+const COMPARE_CATEGORY_ALIASES = {
+    electronics: [
+        'Electronics', 'Laptops', 'Desktops', 'Computer Accessories', 'Computer Components',
+        'Headphones', 'Speakers', 'Microphones', 'Cell Phones', 'Tablets', 'Phone Accessories',
+        'Televisions', 'Streaming Devices', 'Wearable Technology', 'Video Games', 'PC Gaming',
+    ],
+    fashion: ['Fashion', 'Clothing', 'Shoes', 'Bags', 'Accessories'],
+    'home-living': ['Home & Living', 'Home', 'Kitchen', 'Home Appliances', 'Furniture', 'Home Decor'],
+    beauty: ['Beauty', 'Beauty & Personal Care', 'Skincare', 'Makeup'],
+    'sports-outdoors': ['Sports & Outdoors', 'Sports', 'Outdoors', 'Fitness'],
+    'health-wellness': ['Health & Wellness', 'Health', 'Wellness', 'Vitamins', 'Supplements'],
+    'toys-games': ['Toys & Games', 'Toys', 'Games', 'Video Games'],
+    'food-beverages': ['Food & Beverages', 'Food', 'Beverages', 'Grocery', 'Groceries'],
+    automotive: ['Automotive', 'Car Accessories', 'Auto Parts'],
+    'pet-supplies': ['Pet Supplies', 'Pets', 'Pet Food'],
+};
 // Slug validation: kebab-case ASCII, ≤70 chars
 function isValidSlug(slug) {
     return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug) && slug.length <= 70;
@@ -100,6 +120,65 @@ function retailerMeta(source) {
 function formatPrice(price) {
     return `S$${price.toFixed(2)}`;
 }
+/**
+ * When a slug is not a comparison_page, try to resolve it as a category.
+ * Uses COMPARE_CATEGORY_ALIASES (hardcoded mapping) to find matching products,
+ * avoiding expensive ILIKE queries on the large products table.
+ * Returns true if a response was sent, false if category also not found.
+ */
+async function handleCategoryCompareFallback(slug, req, res) {
+    const normalizedSlug = slugifyCategory(slug);
+    const currency = (req.query.country === 'US' || req.query.region === 'us') ? 'USD' : 'SGD';
+    const aliasNames = COMPARE_CATEGORY_ALIASES[normalizedSlug] || [];
+    const categoryLabel = aliasNames[0];
+    if (aliasNames.length === 0) {
+        return false;
+    }
+    // Use ILIKE with leading wildcard - uses gin_trgm_ops index, fast
+    const limit = Math.min(parseInt(req.query.limit || '50'), 100);
+    const offset = parseInt(req.query.offset || '0');
+    // Build ILIKE conditions for each alias name with leading wildcard
+    // Note: We use normalizedSlug to match the slug itself (e.g., "electronics" matches "Electronics Accessories")
+    const pattern = `%${normalizedSlug}%`;
+    const urlCondition = (0, outboundLinkHealth_1.outboundProbeEnabled)() ? ` AND ${(0, outboundLinkHealth_1.liveUrlCondition)()}` : '';
+    const productsResult = await config_1.db.query(`SELECT id, title, brand, image_url, price, currency, url, source, is_active,
+            updated_at, sku, mpn
+     FROM products
+     WHERE currency = $1 AND category ILIKE $2${urlCondition}
+     ORDER BY updated_at DESC
+     LIMIT $3 OFFSET $4`, [currency, pattern, limit, offset]).catch(() => null);
+    const rows = productsResult?.rows ?? [];
+    // Group products by SKU / title — each unique product row becomes a product entry
+    // with its prices[] array containing this one merchant listing
+    const products = rows.map((row) => ({
+        id: row.id,
+        name: row.title,
+        brand: row.brand || '',
+        sku: row.sku || `SKU-${row.id.slice(0, 8)}`,
+        prices: [{
+                merchant: row.source,
+                price: row.price || '0',
+                url: row.url,
+                in_stock: row.is_active !== false,
+                rating: 0,
+                last_updated: row.updated_at,
+            }],
+    }));
+    const payload = {
+        slug: normalizedSlug,
+        category: categoryLabel,
+        products,
+        meta: {
+            limit,
+            offset,
+            total: products.length,
+        },
+    };
+    res.set('Cache-Control', `public, max-age=${CACHE_TTL_SECONDS}`);
+    res.set('X-Cache', 'CATEGORY-FALLBACK');
+    res.json(payload);
+    return true;
+}
 // GET /v1/compare/:slug — public comparison page payload
 // 5-min Redis cache; 404 on draft/archived/missing
 router.get('/:slug', async (req, res) => {
@@ -129,21 +208,31 @@ router.get('/:slug', async (req, res) => {
      FROM comparison_pages
      WHERE slug = $1 AND status = 'published'`, [slug]).catch(() => null);
     if (!pageResult || pageResult.rows.length === 0) {
+        // Not a comparison page slug — try resolving as a category
+        const catRes = await handleCategoryCompareFallback(slug, req, res);
+        if (catRes)
+            return;
         res.status(404).json({ error: 'Not found' });
         return;
     }
     const page = pageResult.rows[0];
-    const productIds = (page.product_ids || []).filter((id) => typeof id === 'string' && id.length > 0);
+    // product_ids is BIGINT[] — filter to valid numeric IDs
+    const productIds = (page.product_ids || []).filter((id) => {
+        const num = Number(id);
+        return typeof id === 'string' && id.length > 0 && !isNaN(num);
+    });
     if (productIds.length === 0) {
         res.status(404).json({ error: 'No products linked' });
         return;
     }
     // Fetch all products in this comparison group, ordered by SGD price ascending
+    // BUY-70776: when the probe flag is on, exclude rows whose URL has been confirmed dead.
+    const urlCondition = (0, outboundLinkHealth_1.outboundProbeEnabled)() ? ` AND ${(0, outboundLinkHealth_1.liveUrlCondition)()}` : '';
     const productsResult = await config_1.db.query(`SELECT id, title, brand, image_url, description, category_path,
             price, currency, url, source, is_active, updated_at, gtin,
             sku, mpn
      FROM products
-     WHERE id = ANY($1::uuid[]) AND url IS NOT NULL
+     WHERE id = ANY($1::bigint[]) AND url IS NOT NULL${urlCondition}
      ORDER BY price::numeric ASC NULLS LAST`, [productIds]).catch(() => null);
     const rows = productsResult?.rows ?? [];
     const canonical = rows[0]; // used for product card (first/cheapest row)

@@ -200,7 +200,7 @@ export default function WishlistPageClient() {
             <p className="text-sm font-semibold uppercase tracking-[0.24em] text-amber-300">Wishlist</p>
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div>
-                <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">Saved products to track</h1>
+                <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">Saved products to track | BuyWhere</h1>
                 <p className="mt-3 max-w-2xl text-sm text-slate-300 sm:text-base">
                   Keep a shortlist of products, revisit the latest price, and jump back out when a deal looks ready.
                 </p>

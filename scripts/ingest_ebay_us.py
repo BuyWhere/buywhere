@@ -16,7 +16,11 @@ from sqlalchemy.orm import sessionmaker
 import asyncio
 
 # Database configuration
-DB_URL = "postgresql+asyncpg://buywhere:buywhere@172.18.0.4:5432/buywhere"
+import sys as _sys
+from pathlib import Path as _P
+_sys.path.insert(0, str(_P(__file__).resolve().parent.parent))
+import catalog_guard  # fail-fast: bulk writes only ever target maglev
+DB_URL = catalog_guard.resolve_catalog_url(driver="asyncpg")
 
 # eBay configuration
 MERCHANT_ID = "ebay_us"
@@ -251,6 +255,7 @@ async def main():
     
     # Create database engine
     engine = create_async_engine(DB_URL)
+    await catalog_guard.assert_catalog_async_engine(engine)
     
     try:
         merchant_id = None

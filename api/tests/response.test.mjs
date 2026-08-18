@@ -88,6 +88,17 @@ describe('buildProduct', () => {
     assert.equal(product.price.amount, null);
   });
 
+  it('exposes availability.in_stock and falls back to positive-price rows as in stock', () => {
+    const product = buildProduct(baseRow, 'SGD', false);
+    assert.deepEqual(product.availability, { in_stock: true, status: 'in_stock' });
+  });
+
+  it('honors explicit out-of-stock rows in availability.in_stock', () => {
+    const product = buildProduct({ ...baseRow, in_stock: false }, 'SGD', false);
+    assert.equal(product.in_stock, false);
+    assert.deepEqual(product.availability, { in_stock: false, status: 'out_of_stock' });
+  });
+
   it('handles missing image_url', () => {
     const row = { ...baseRow, image_url: null };
     const product = buildProduct(row, 'SGD', false);

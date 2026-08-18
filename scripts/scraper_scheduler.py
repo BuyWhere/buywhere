@@ -10,7 +10,8 @@ Usage:
     python scripts/scraper_scheduler.py --platform carousell_sg --test-limit 50
 
 Environment variables:
-    SCRAPERAPI_KEY     Required. ScraperAPI proxy key.
+    SCRAPERAPI_KEY     Optional. RETIRED 2026-08-07 — proxy subscriptions cancelled;
+                       scrapers run direct-fetch only (consent-based crawling policy).
     BUYWHERE_API_KEY   Optional. Required only when not using --scrape-only.
     RUN_BUDGET_SECONDS Default: 14400 (4 h). Max wall-clock per invocation.
     MAX_RESTARTS       Default: 50. Max restart loops before exiting.
@@ -232,7 +233,7 @@ async def _run_continuous(platform: str, args: argparse.Namespace) -> None:
             "BUYWHERE_API_KEY": os.environ.get("BUYWHERE_API_KEY", ""),
         }
         if not env["SCRAPERAPI_KEY"]:
-            _log("ERROR: SCRAPERAPI_KEY is not set; cannot run scraper")
+            _log("NOTE: SCRAPERAPI_KEY not set (retired 2026-08-07) — running direct-fetch")
             state = _read_state(platform)
             state["last_status"] = "error_no_scraperapi_key"
             _write_state(platform, state)
@@ -332,8 +333,7 @@ def main() -> None:
             "BUYWHERE_API_KEY": os.environ.get("BUYWHERE_API_KEY", ""),
         }
         if not env["SCRAPERAPI_KEY"]:
-            _log("ERROR: SCRAPERAPI_KEY is required")
-            sys.exit(1)
+            _log("NOTE: SCRAPERAPI_KEY not set (retired 2026-08-07) — running direct-fetch")
         env = {k: v for k, v in env.items() if v}
         result = subprocess.run(cmd, cwd=str(BUYWHERE_API_DIR), env=env)
         sys.exit(result.returncode)

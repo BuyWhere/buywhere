@@ -13,9 +13,7 @@ import { adminAuth } from './auth';
 
 const router = Router();
 
-router.use(adminAuth);
-
-router.post('/v1/admin/fx/refresh', async (_req: Request, res: Response) => {
+router.post('/v1/admin/fx/refresh', adminAuth, async (_req: Request, res: Response) => {
   const startedAt = Date.now();
   try {
     const result = await runFxRefresh();

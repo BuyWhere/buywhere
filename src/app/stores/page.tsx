@@ -2,6 +2,7 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { commerceStores, type CommerceStoreEntry } from "@/lib/commerce-routes";
 import { toSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
@@ -15,42 +16,57 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  openGraph: {
+    title: "Stores — Shop Across Top Retailers | BuyWhere",
+    description:
+      "Browse stores covered by BuyWhere's product catalog. Compare prices across Shopee, Lazada, Amazon, Walmart, and more.",
+    url: toSiteUrl("/stores"),
+    siteName: "BuyWhere",
+    type: "website",
+    images: [
+      {
+        url: "/stores/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "Browse Stores — BuyWhere",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Stores — Shop Across Top Retailers | BuyWhere",
+    description:
+      "Browse stores covered by BuyWhere's product catalog. Compare prices across top retailers.",
+    images: ["/stores/opengraph-image"],
+  },
 };
 
-interface StoreEntry {
-  name: string;
-  slug: string;
-  country: string;
-  productCount?: number;
-  url: string;
-}
-
-const stores: StoreEntry[] = [
-  { name: "Shopee Singapore", slug: "shopee_sg", country: "Singapore", productCount: 820000, url: "/search?q=&source=shopee_sg&country=sg" },
-  { name: "Lazada Singapore", slug: "lazada_sg", country: "Singapore", productCount: 650000, url: "/search?q=&source=lazada_sg&country=sg" },
-  { name: "Amazon US", slug: "amazon_us", country: "United States", productCount: 1247500, url: "/search?q=&source=amazon_us&country=us" },
-  { name: "Walmart US", slug: "walmart_us", country: "United States", productCount: 890000, url: "/search?q=&source=walmart_us&country=us" },
-  { name: "Target US", slug: "target_us", country: "United States", productCount: 420000, url: "/search?q=&source=target_us&country=us" },
-  { name: "Best Buy US", slug: "bestbuy_us", country: "United States", productCount: 310000, url: "/search?q=&source=bestbuy_us&country=us" },
-  { name: "Carousell Singapore", slug: "carousell_sg", country: "Singapore", productCount: 185000, url: "/search?q=&source=carousell_sg&country=sg" },
-  { name: "Shopee Malaysia", slug: "shopee_my", country: "Malaysia", productCount: 540000, url: "/search?q=&source=shopee_my&country=my" },
-  { name: "Shopee Thailand", slug: "shopee_th", country: "Thailand", productCount: 410000, url: "/search?q=&source=shopee_th&country=th" },
-  { name: "Shopee Philippines", slug: "shopee_ph", country: "Philippines", productCount: 380000, url: "/search?q=&source=shopee_ph&country=ph" },
-  { name: "Shopee Indonesia", slug: "shopee_id", country: "Indonesia", productCount: 620000, url: "/search?q=&source=shopee_id&country=id" },
-  { name: "Shopee Vietnam", slug: "shopee_vn", country: "Vietnam", productCount: 350000, url: "/search?q=&source=shopee_vn&country=vn" },
-  { name: "Yahoo Shopping Japan", slug: "yahoo_jp", country: "Japan", productCount: 275000, url: "/search?q=&source=yahoo_jp&country=jp" },
-];
+const stores = commerceStores;
 
 export default function StoresPage() {
-  const countryGroups = stores.reduce<Record<string, StoreEntry[]>>((acc, store) => {
+  const countryGroups = stores.reduce<Record<string, CommerceStoreEntry[]>>((acc, store) => {
     (acc[store.country] ??= []).push(store);
     return acc;
   }, {});
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: 'Browse Stores',
+    description: 'Browse stores covered by BuyWhere\'s product catalog. Compare prices across Shopee, Lazada, Amazon, Walmart, and more.',
+    url: toSiteUrl('/stores'),
+    numberOfItems: stores.length,
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       <Nav />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
+      <main id="main-content">
       <section className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <h1 className="text-4xl font-bold mb-4">Browse Stores</h1>
@@ -69,7 +85,7 @@ export default function StoresPage() {
                 {entries.map((store) => (
                   <Link
                     key={store.slug}
-                    href={store.url}
+                    href={`/stores/${store.slug}`}
                     className="block p-5 bg-gray-50 rounded-xl border border-gray-100 hover:border-indigo-200 hover:shadow-sm transition-all"
                   >
                     <h3 className="font-semibold text-gray-900">{store.name}</h3>
@@ -78,7 +94,7 @@ export default function StoresPage() {
                         {store.productCount.toLocaleString()} products
                       </p>
                     )}
-                  </Link>
+              </Link>
                 ))}
               </div>
             </div>
@@ -101,6 +117,7 @@ export default function StoresPage() {
         </div>
       </section>
 
+      </main>
       <Footer />
     </div>
   );

@@ -169,11 +169,11 @@ WHERE category_path = '{}' OR array_length(category_path, 1) = 0;
 -- GEO fields (BUY-1970, BUY-1979): columns and indexes handled at top of migration
 
 -- Comparison pages curation table (BUY-2273)
--- product_ids: array of products.id (uuid) rows that represent this SKU across retailers
+-- product_ids: array of products.id (bigint) rows that represent this SKU across retailers
 CREATE TABLE IF NOT EXISTS comparison_pages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   slug TEXT UNIQUE NOT NULL,
-  product_ids UUID[] NOT NULL DEFAULT '{}',
+  product_ids BIGINT[] NOT NULL DEFAULT '{}',
   category TEXT NOT NULL CHECK (category IN ('electronics','grocery','home','health')),
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published','archived')),
   expert_summary TEXT,
@@ -186,16 +186,18 @@ CREATE TABLE IF NOT EXISTS comparison_pages (
 
 CREATE INDEX IF NOT EXISTS idx_comparison_pages_published ON comparison_pages(status) WHERE status = 'published';
 
--- Convert existing BIGINT[] column to UUID[] if table was created before schema alignment (BUY-2270)
+-- Convert existing UUID[] column to BIGINT[] (BUY-60005)
 DO $$
 DECLARE col_type TEXT;
 BEGIN
   SELECT udt_name INTO col_type
   FROM information_schema.columns
   WHERE table_name = 'comparison_pages' AND column_name = 'product_ids';
-  IF col_type = '_int8' THEN
+  IF col_type = '_uuid' THEN
     ALTER TABLE comparison_pages ALTER COLUMN product_ids DROP DEFAULT;
-    ALTER TABLE comparison_pages ALTER COLUMN product_ids TYPE UUID[] USING '{}'::UUID[];
+    ALTER TABLE comparison_pages ALTER COLUMN product_ids TYPE BIGINT[]
+      USING ARRAY(SELECT CASE WHEN v ~ '^[0-9]+$' THEN v::BIGINT ELSE NULL END
+                  FROM unnest(product_ids::text[]) AS v);
     ALTER TABLE comparison_pages ALTER COLUMN product_ids SET DEFAULT '{}';
   END IF;
 END$$;
@@ -726,6 +728,63 @@ export async function runMigrations() {
     console.warn(`[migration] search_vector backfill timed out or failed (non-fatal, trigger covers new rows): ${err.message?.slice(0, 200)}`);
   }
 
+
+  // BUY-69363: Ensure category summary materialized views exist.
+  // These are required by MCP list_categories. If missing, all categories return zero.
+  // CREATE MATERIALIZED VIEW IF NOT EXISTS is idempotent; first population takes ~10 min
+  // on ~127M rows so we use an extended statement_timeout (same as discount_pct).
+  try {
+    const mcClient = await db.connect();
+    try {
+      await mcClient.query('SET statement_timeout = 600000'); // 10 min for initial population
+      await mcClient.query('SET lock_timeout = 10000');
+
+      await mcClient.query(`
+        CREATE MATERIALIZED VIEW IF NOT EXISTS mcp_category_summary AS
+          SELECT category_path[1] AS slug,
+                 category_path[1] AS name,
+                 COUNT(*)         AS product_count
+          FROM products
+          WHERE category_path[1] IS NOT NULL
+          GROUP BY category_path[1]
+          ORDER BY product_count DESC
+      `);
+      await mcClient.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS mcp_category_summary_slug_idx
+          ON mcp_category_summary (slug)
+      `);
+      await mcClient.query(`
+        CREATE MATERIALIZED VIEW IF NOT EXISTS mcp_category_summary_by_country AS
+          SELECT country_code,
+                 category_path[1] AS slug,
+                 category_path[1] AS name,
+                 COUNT(*)         AS product_count
+          FROM products
+          WHERE country_code IS NOT NULL
+            AND category_path[1] IS NOT NULL
+          GROUP BY country_code, category_path[1]
+          ORDER BY country_code, product_count DESC
+      `);
+      await mcClient.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS mcp_category_summary_by_country_pk_idx
+          ON mcp_category_summary_by_country (country_code, slug)
+      `);
+
+      const { rows: [{ cnt }] } = await mcClient.query(`SELECT COUNT(*) AS cnt FROM mcp_category_summary_by_country`);
+      if (parseInt(cnt, 10) > 0) {
+        await mcClient.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary`);
+        await mcClient.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY mcp_category_summary_by_country`);
+      }
+      console.log(`[migration] mcp_category_summary_by_country ensured (BUY-69363), ${cnt} rows.`);
+    } finally {
+      await mcClient.query('RESET statement_timeout').catch(() => {});
+      await mcClient.query('RESET lock_timeout').catch(() => {});
+      mcClient.release();
+    }
+  } catch (err: any) {
+    console.warn(`[migration] category summary matview creation failed (non-fatal, MCP warmup will retry): ${err.message?.slice(0, 200)}`);
+
+  }
   // BUY-32082: P95 monitoring schema — stores latency samples and alert history for
   // all 5 markets (SG, US, MY, VN, TH). The p95_latency table is written by the
   // monitoring job every 5 minutes; alert_history tracks threshold breaches.

@@ -19,6 +19,10 @@ export interface CanonicalProduct {
   region: string | null;
   country_code: string | null;
   in_stock?: boolean;
+  availability?: {
+    in_stock: boolean;
+    status: 'in_stock' | 'out_of_stock';
+  };
   updated_at: string | null;
   // Compact-mode only (agent-optimized extras):
   canonical_id?: string;
@@ -52,6 +56,9 @@ export interface SearchMeta {
   cached: boolean;
   // BUY-60309: degraded flag when deals query timed out or was cancelled
   degraded?: boolean;
+  // BUY-67275: true when more pages exist. Previously hasMore was (incorrectly)
+  // fed into `cached`, so cached lied on every multi-page response.
+  has_more?: boolean;
 }
 
 export interface SearchResponse {

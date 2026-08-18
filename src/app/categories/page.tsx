@@ -50,7 +50,7 @@ const schemaMarkup = {
 
 export default function CategoriesPage() {
   return (
-    <div className="min-h-[60vh] py-12">
+    <main id="main-content" className="min-h-[60vh] py-12">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkup) }}
@@ -90,7 +90,7 @@ export default function CategoriesPage() {
                 <span className="font-semibold text-gray-900 dark:text-white text-base">
                   {category.name}
                 </span>
-                <span className="block text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                <span className="block text-sm text-gray-600 dark:text-gray-500 mt-0.5">
                   {category.count} products
                 </span>
               </div>
@@ -99,7 +99,7 @@ export default function CategoriesPage() {
                 height="20"
                 viewBox="0 0 20 20"
                 fill="none"
-                className="text-gray-400 flex-shrink-0"
+                className="text-gray-500 flex-shrink-0"
               >
                 <path
                   d="M7 4l6 6-6 6"
@@ -113,6 +113,6 @@ export default function CategoriesPage() {
           ))}
         </div>
       </div>
-    </div>
+    </main>
   );
 }

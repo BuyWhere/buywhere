@@ -28,6 +28,14 @@ export function buildProduct(
   row: Record<string, unknown>,
   defaultCurrency: string,
   compact: boolean,
+  // BUY-71129: caller context for thread-through attribution. The api_key_id
+  // + key_hash travel with /r/ and /api/click URLs as `?k=` + `?aid=` so the
+  // redirect handler can attribute the conversion back to the originating
+  // agent even when the browser click carries no Bearer header.
+  caller?: {
+    apiKeyId?: string | null;
+    keyHash?: string | null;
+  } | null,
 ): CanonicalProduct {
   const currency = (row.currency as string) || defaultCurrency;
   const amount = row.price != null ? parseFloat(row.price as string) : null;
@@ -36,11 +44,15 @@ export function buildProduct(
   // Validation catches two categories of data-quality failures observed in production:
   //   1. $0.00 prices — out-of-stock marker, missing price field, or parsing error
   //   2. Prices over $10,000 — feed corruption, currency conversion unit errors
+  //   3. BUY-63738: Prices under $5 — observed $1.00 laptop prices are clearly
+  //      invalid feed errors; real laptops start at ~$400. A $5 floor catches the
+  //      obvious errors while still allowing cheap accessories ($2-3 cables, etc.).
   // Legitimate high-end products (luxury watches, high-end appliances, jewelry)
   // stay under $10k. When a price fails validation the amount is nullified so
   // the FE displays nothing instead of a deceptive value.
+  const PRICE_MIN = 5;
   const PRICE_MAX = 10_000;
-  const sanitizedAmount = (amount != null && amount > 0 && amount <= PRICE_MAX)
+  const sanitizedAmount = (amount != null && amount >= PRICE_MIN && amount <= PRICE_MAX)
     ? amount
     : null;
 
@@ -53,13 +65,31 @@ export function buildProduct(
   // naturally routes user clicks through /r/ (logs affiliate_clicks) and /api/click
   // (logs clicks). The raw merchant URL is still in `url` for agents/SEO use;
   // `affiliate_url` keeps its precomputed wrapper when present.
+  // BUY-71129: thread `k` (api_key hash) + `aid` (api_key_id) when caller has
+  // an authenticated key, so the redirect handler can attribute the eventual
+  // conversion event back to the originating agent.
   const clickUrl = destinationUrl
-    ? buildClickUrl({ productId, destinationUrl, merchantId: merchant || null })
+    ? buildClickUrl({
+        productId,
+        destinationUrl,
+        merchantId: merchant || null,
+        keyHash: caller?.keyHash ?? null,
+        agentId: caller?.apiKeyId ?? null,
+      })
     : null;
   const affiliateRedirectUrl = destinationUrl
-    ? buildAffiliateRedirectUrl({ productId, source: 'product_card' })
+    ? buildAffiliateRedirectUrl({
+        productId,
+        source: 'product_card',
+        keyHash: caller?.keyHash ?? null,
+        agentId: caller?.apiKeyId ?? null,
+      })
     : null;
   const hasAffiliateTracking = Boolean(affiliateUrl || affiliateRedirectUrl);
+
+  const inStock = row.in_stock != null
+    ? row.in_stock as boolean
+    : sanitizedAmount != null && sanitizedAmount > 0;
 
   const base: CanonicalProduct = {
     id: productId,
@@ -73,6 +103,13 @@ export function buildProduct(
     updated_at: (row.updated_at as string) || null,
     // CAT-08: expose stock status as a top-level boolean when known.
     ...(row.in_stock != null && { in_stock: row.in_stock as boolean }),
+    // BUY-70574/BUY-70043: basket verification consumes availability.in_stock.
+    // When feeds omit explicit stock, positive-price catalog rows are minimally
+    // considered available so agent commerce flows have a usable availability signal.
+    availability: {
+      in_stock: inStock,
+      status: inStock ? 'in_stock' : 'out_of_stock',
+    },
     ...(affiliateUrl != null && { affiliate_url: affiliateUrl }),
     ...(clickUrl != null && { click_url: clickUrl }),
     ...(affiliateRedirectUrl != null && { affiliate_redirect_url: affiliateRedirectUrl }),
@@ -133,6 +170,7 @@ export function buildSearchResponse(
   responseTimeMs: number,
   cached: boolean,
   degraded?: boolean,
+  hasMore?: boolean,
 ): SearchResponse {
   return {
     data: products,
@@ -143,6 +181,7 @@ export function buildSearchResponse(
       response_time_ms: responseTimeMs,
       cached,
       ...(degraded != null && { degraded }),
+      ...(hasMore != null && { has_more: hasMore }),
     },
   };
 }

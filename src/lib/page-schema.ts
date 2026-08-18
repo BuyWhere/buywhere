@@ -114,11 +114,14 @@ export type SoftwareApplicationInput = {
   applicationCategory?: string;
   operatingSystem?: string;
   offers?: { price: string; priceCurrency: string }[];
+  // BUY-69732: optional breadcrumb rendered as a BreadcrumbList node in the
+  // same @graph, mirroring buildWebPageSchema's `breadcrumb` input.
+  breadcrumb?: { name: string; path: string }[];
 };
 
 export function buildSoftwareApplicationSchema(input: SoftwareApplicationInput) {
   const url = toSiteUrl(input.path);
-  const graph = [
+  const graph: object[] = [
     ...baseGraph(),
     {
       "@type": "SoftwareApplication",
@@ -143,8 +146,27 @@ export function buildSoftwareApplicationSchema(input: SoftwareApplicationInput) 
       description: input.description,
       isPartOf: { "@id": WEBSITE_ID },
       about: { "@id": ORGANIZATION_ID },
+      ...(input.breadcrumb && input.breadcrumb.length > 0
+        ? {
+            breadcrumb: {
+              "@id": `${url}#breadcrumb`,
+            },
+          }
+        : {}),
     },
   ];
+  if (input.breadcrumb && input.breadcrumb.length > 0) {
+    graph.push({
+      "@type": "BreadcrumbList",
+      "@id": `${url}#breadcrumb`,
+      itemListElement: input.breadcrumb.map((crumb, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        name: crumb.name,
+        item: toSiteUrl(crumb.path),
+      })),
+    });
+  }
   return {
     "@context": "https://schema.org",
     "@graph": graph,
@@ -231,11 +253,14 @@ export type CollectionPageInput = {
   path: string;
   name: string;
   description: string;
+  // BUY-69732: optional breadcrumb rendered as a BreadcrumbList node in the
+  // same @graph, mirroring buildWebPageSchema's `breadcrumb` input.
+  breadcrumb?: { name: string; path: string }[];
 };
 
 export function buildCollectionPageSchema(input: CollectionPageInput) {
   const url = toSiteUrl(input.path);
-  const graph = [
+  const graph: object[] = [
     ...baseGraph(),
     {
       "@type": "CollectionPage",
@@ -247,8 +272,27 @@ export function buildCollectionPageSchema(input: CollectionPageInput) {
       isPartOf: { "@id": WEBSITE_ID },
       about: { "@id": ORGANIZATION_ID },
       publisher: { "@id": ORGANIZATION_ID },
+      ...(input.breadcrumb && input.breadcrumb.length > 0
+        ? {
+            breadcrumb: {
+              "@id": `${url}#breadcrumb`,
+            },
+          }
+        : {}),
     },
   ];
+  if (input.breadcrumb && input.breadcrumb.length > 0) {
+    graph.push({
+      "@type": "BreadcrumbList",
+      "@id": `${url}#breadcrumb`,
+      itemListElement: input.breadcrumb.map((crumb, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        name: crumb.name,
+        item: toSiteUrl(crumb.path),
+      })),
+    });
+  }
   return {
     "@context": "https://schema.org",
     "@graph": graph,

@@ -73,7 +73,7 @@ router.post('/', requireAdminKey, async (req: Request, res: Response) => {
   const result = await db.query(
     `INSERT INTO comparison_pages
        (slug, product_ids, category, status, expert_summary, hero_image_url, published_at, metadata)
-     VALUES ($1, $2::uuid[], $3, $4, $5, $6, $7, $8)
+     VALUES ($1, $2::bigint[], $3, $4, $5, $6, $7, $8)
      RETURNING *`,
     [
       slug,
@@ -153,9 +153,9 @@ router.patch('/:id', requireAdminKey, async (req: Request, res: Response) => {
   };
 
   if (slug !== undefined) addField(slug, 'slug');
-  // product_ids passed as UUID[] literal
+  // product_ids passed as BIGINT[] literal
   if (product_ids !== undefined) {
-    setClauses.push(`product_ids = $${idx++}::uuid[]`);
+    setClauses.push(`product_ids = $${idx++}::bigint[]`);
     params.push(product_ids);
   }
   addField(category, 'category');

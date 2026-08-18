@@ -101,12 +101,12 @@ async function triggerBackgroundRefresh() {
         const lock = await config_1.redis.set(REFRESH_LOCK_KEY, '1', 'EX', REFRESH_LOCK_TTL, 'NX');
         if (lock !== 'OK')
             return;
-        const exact = await tryExactCount(45000);
-        if (exact) {
-            await config_1.redis.set(CACHE_KEY, JSON.stringify(exact), 'EX', CACHE_TTL);
-            console.log('[catalog/stats] background exact refresh ok: %d products', exact.total_products);
-            return;
-        }
+        // DISABLED 2026-07-03: the exact count(*) over ~220M products was routed to the
+        // SEARCH replica (BUY-45692) and ran on startup + every 10min + every /stats request
+        // (p95 monitors probe /stats continuously). Each 45s full scan evicted the search
+        // working set from the 4GB shared_buffers -> /v1/products/search 504s even on warm
+        // terms. reltuples + 0.1% TABLESAMPLE estimates are plenty for a stats endpoint.
+        // tryExactCount() is retained but no longer called from the hot path.
         const stats = await collectStats();
         await config_1.redis.set(CACHE_KEY, JSON.stringify(stats), 'EX', CACHE_TTL);
         console.log('[catalog/stats] background estimate refresh ok: %d products', stats.total_products);

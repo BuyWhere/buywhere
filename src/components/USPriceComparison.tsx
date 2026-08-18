@@ -400,7 +400,8 @@ const schemaMarkup = {
          dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkup) }}
        />
 
-      <section className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white py-16">
+      <main id="main-content" tabIndex={-1} className="flex-1">
+        <section className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white py-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center gap-3 mb-4">
             <span className="px-2 py-0.5 bg-white/15 text-white text-xs font-medium rounded-full">
@@ -552,6 +553,7 @@ const schemaMarkup = {
           <ScrapingVsBuyWhere />
         </div>
       </section>
+      </main>
 
       <Footer />
     </div>

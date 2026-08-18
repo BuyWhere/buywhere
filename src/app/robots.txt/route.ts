@@ -25,7 +25,9 @@ Sitemap: https://buywhere.ai/sitemap.xml
 Sitemap: https://buywhere.ai/sitemap-compare.xml
 
 LLMs-Txt: https://buywhere.ai/llms.txt
+LLMs-Full-Txt: https://buywhere.ai/.well-known/llms-full.txt
 Agent-Card: https://buywhere.ai/.well-known/agent.json
+Plugin: https://buywhere.ai/.well-known/ai-plugin.json
 `;
 
 export function GET() {

@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { toSiteUrl } from "@/lib/site-url";
 import { resolveSGProductRoute } from "@/lib/sg-product-route";
+import { renderProductLlmsSnippet } from "@/lib/llms-snippets";
 
 interface PageProps {
   params: { slug: string };
@@ -80,6 +81,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       card: "summary_large_image",
       title: `${resolvedProduct.name} - Compare Prices Singapore | BuyWhere`,
       description: `Compare prices for ${resolvedProduct.name} across Lazada, Shopee, Amazon SG, FairPrice, and top Singapore retailers.`,
+      images: ["/og-image.png"],
     },
     robots: {
       index: true,
@@ -130,11 +132,41 @@ export default async function SGProductSlugPage({ params }: PageProps) {
     ],
   };
 
+  // BUY-70312: per-product llms.txt block. The SG slug page renders a
+  // multi-merchant price matrix, so emit a min-max range when offers exist.
+  const numericPrices = availablePrices
+    .map((p) => parseFloat((p.price || "0").replace(/[^0-9.]/g, "")))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const llmsSnippet = renderProductLlmsSnippet({
+    country: "sg",
+    productId: resolvedProduct.id,
+    title: resolvedProduct.name,
+    description: `Compare prices for ${resolvedProduct.name} across top Singapore retailers on BuyWhere.`,
+    currency: "SGD",
+    ...(numericPrices.length > 1
+      ? {
+          minPrice: Math.min(...numericPrices),
+          maxPrice: Math.max(...numericPrices),
+        }
+      : { price: numericPrices[0] ?? null }),
+    availability: numericPrices.length > 0 ? "local" : "unknown",
+    brand: "",
+    category: "",
+    merchantSlug: "",
+    merchantName: null,
+    url: pageUrl,
+    imageUrl: "",
+  });
+
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }}
+      />
+      <script
+        type="text/llms.txt"
+        dangerouslySetInnerHTML={{ __html: llmsSnippet }}
       />
       <script
         type="application/ld+json"

@@ -7,6 +7,10 @@ import { PopularComparisons } from "@/components/PopularComparisons";
 import { HomeProductSearch } from "@/components/HomeProductSearch";
 
 export const metadata: Metadata = {
+  robots: {
+    index: true,
+    follow: true,
+  },
   alternates: {
     canonical: "/",
   },
@@ -16,7 +20,7 @@ const audiences = [
   {
     icon: "🤖",
     title: "AI Agent Developers",
-    desc: "Query a structured, normalized product catalog from your agent. One API, one schema, cross-market product discovery for Singapore and Southeast Asia.",
+    desc: "One API, one schema, 300M+ products. Pass deliver_to with your user's country and get deliverable-first results with availability labels — local, ships_to_you, or unavailable — on every product.",
     cta: "Read the docs",
     ctaHref: "/developers",
   },
@@ -42,8 +46,8 @@ const valueProps = [
     desc: "Product, merchant, and catalog data is normalized so LLM-powered agents can search, rank, compare, and recommend with less prompt overhead and fewer brittle parsing failures.",
   },
   {
-    title: "Commerce-ready regional coverage",
-    desc: "Start with region-aware coverage across Singapore and Southeast Asia so your agent can answer market-specific shopping and availability questions without rebuilding the stack for each geography.",
+    title: "Location-aware by design",
+    desc: "Tell BuyWhere where your user is (deliver_to=SG, US, ...) and results rank deliverable-first, each labeled local, ships_to_you, or unavailable — backed by verified shipping policies for 28,000+ stores. No more recommending products your user can't receive.",
   },
   {
     title: "Why not scraping, Amazon APIs, or Google Shopping?",
@@ -123,7 +127,7 @@ const webApplicationSchema = {
   "@id": "https://buywhere.ai/#webapp",
   name: "BuyWhere API",
   description:
-    "Product catalog API and MCP server for AI agents. Search, compare, and discover products across Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, and Carousell — 7 merchants in Singapore and the United States.",
+    "Product catalog API and MCP server for AI agents. 300M+ products from 238,000+ direct merchants worldwide — normalized, deduplicated, location-aware. deliver_to ranking, availability labels, sub-250ms search.",
   applicationCategory: "BusinessApplication",
   operatingSystem: "Any",
   url: "https://buywhere.ai",
@@ -142,14 +146,14 @@ const webApplicationSchema = {
     availability: "https://schema.org/InStock",
   },
   keywords:
-    "MCP, Model Context Protocol, AI agent, product catalog, price comparison API, shopping agent, product search API, commerce API, Singapore, Lazada, Shopee, Amazon, Southeast Asia",
+    "MCP, Model Context Protocol, AI agent, product catalog, product search API, commerce API, agentic commerce, deliver_to, availability API, shopping agent, LangChain shopping tool, OpenAI function calling commerce",
   softwareVersion: "1.0",
   browserRequirements: "Supports all modern browsers and MCP-compatible AI clients",
 };
 
 const codeSnippet = `import requests
 
-API_KEY = "bw_beta_your_key_here"
+API_KEY = "bw_live_your_key_here"
 
 response = requests.get(
     "https://api.buywhere.ai/v1/products/search",
@@ -224,7 +228,7 @@ const jsonLd = {
       url: "https://buywhere.ai",
       name: "BuyWhere",
       description:
-        "MCP server and product catalog API for AI agents. Search, compare, and discover products across Shopee, Lazada, Amazon SG, Amazon US, Walmart, FairPrice, and Carousell.",
+        "MCP server and product catalog API for AI agents. 300M+ products from 238,000+ direct merchants worldwide, with location-aware deliver_to ranking and availability labels.",
       publisher: { "@id": "https://buywhere.ai/#organization" },
       inLanguage: "en",
       potentialAction: {
@@ -249,7 +253,7 @@ const jsonLd = {
       description:
         "Model Context Protocol server for AI agents — search and compare products across Singapore, Southeast Asia, and US markets.",
       keywords:
-        "MCP, Model Context Protocol, AI agent, product catalog, price comparison API, shopping agent, product search API, commerce API, Singapore, Lazada, Shopee, Amazon, Southeast Asia",
+        "MCP, Model Context Protocol, AI agent, product catalog, product search API, commerce API, agentic commerce, deliver_to, availability API, shopping agent, LangChain shopping tool, OpenAI function calling commerce",
       offers: {
         "@type": "Offer",
         price: "0",
@@ -284,37 +288,43 @@ export default function HomePage() {
       <main id="main-content" role="main" tabIndex={-1} aria-label="Main content">
       {/* Hero */}
       <section role="region" aria-label="Content section" className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 text-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 md:py-24">
-          <div className="max-w-3xl mx-auto text-center mb-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white bg-white px-3 py-1 text-sm font-bold text-indigo-900 shadow-sm mb-6">
-              <span className="w-2 h-2 bg-green-600 rounded-full"></span>
-              Search millions of products across Singapore &amp; the US
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-20 md:pt-20 md:pb-24 xl:pt-24 xl:pb-28">
+          <div className="max-w-3xl mx-auto text-center mb-6">
+            <div className="hero-badge mx-auto inline-flex max-w-[18rem] flex-row flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-2xl border border-white bg-white px-4 py-2 text-center text-xs font-bold text-indigo-900 shadow-sm sm:max-w-none sm:flex-nowrap sm:items-center sm:gap-x-2 sm:rounded-full sm:px-3 sm:py-1 sm:text-left sm:text-sm">
+              <span className="inline-flex shrink-0 items-center gap-x-1.5">
+                <span className="status-dot inline-block h-2 w-2 shrink-0 rounded-full bg-green-600" aria-hidden="true"></span>
+                <span className="whitespace-nowrap">300M+ products</span>
+              </span>
+              <span className="hidden sm:inline" aria-hidden="true">·</span>
+              <span className="whitespace-nowrap">238,000+ merchants</span>
+              <span className="hidden sm:inline" aria-hidden="true">·</span>
+              <span className="whitespace-nowrap">One API</span>
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6">
               Find the best prices across every store.
             </h1>
             <p className="text-xl font-semibold text-white mb-8 leading-relaxed">
-              Compare products from Lazada, Shopee, Amazon, FairPrice, Carousell, and more — all in one search.
+              One search across 238,000+ storefronts worldwide — deepest coverage in the US and Singapore, with thousands of new stores added every week.
             </p>
           </div>
           <HomeProductSearch />
           <div className="max-w-3xl mx-auto text-center mt-8">
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
+            <div className="flex flex-col gap-3 justify-center mb-6 md:flex-row md:gap-4">
               <Link
                 href="/compare"
-                className="inline-flex items-center justify-center px-6 py-3 bg-white text-indigo-700 font-semibold rounded-xl hover:bg-indigo-50 transition-colors"
+                className="inline-flex w-full items-center justify-center px-8 py-4 bg-white text-indigo-700 font-bold text-lg rounded-xl shadow-sm hover:bg-indigo-50 transition-colors sm:w-auto"
               >
                 Browse price comparisons →
               </Link>
               <Link
                 href="/developers"
-                className="inline-flex items-center justify-center rounded-xl border border-white bg-white px-6 py-3 font-bold text-indigo-900 transition-colors hover:bg-indigo-50"
+                className="inline-flex w-full items-center justify-center rounded-lg border border-white/70 bg-white/10 px-4 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-700 sm:w-auto"
               >
-                Developers: Get API access
+                For developers →
               </Link>
             </div>
-            <p className="text-sm font-semibold text-white">
-              Powered by structured product data from 7+ merchants across Singapore and Southeast Asia.
+            <p className="text-base font-semibold text-white">
+              300M+ structured products from 238,000+ merchant catalogs — normalized, deduplicated, and location-aware.
             </p>
           </div>
         </div>
@@ -326,7 +336,7 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Who BuyWhere is for</h2>
-            <p className="text-lg text-gray-500 max-w-2xl mx-auto">
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               A two-sided infrastructure layer connecting AI-powered demand with merchant supply.
             </p>
           </div>
@@ -338,7 +348,7 @@ export default function HomePage() {
               >
                 <div className="text-3xl mb-4">{a.icon}</div>
                 <h3 className="font-semibold text-gray-900 mb-2">{a.title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed flex-1 mb-4">{a.desc}</p>
+                <p className="text-sm text-gray-600 leading-relaxed flex-1 mb-4">{a.desc}</p>
                 <Link
                   href={a.ctaHref}
                   className="text-sm text-indigo-600 font-medium hover:text-indigo-700 transition-colors"
@@ -356,7 +366,7 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">How BuyWhere works</h2>
-            <p className="text-lg text-gray-500 max-w-2xl mx-auto">
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               A neutral, agent-native product layer connecting merchant catalogs to AI-driven demand.
             </p>
           </div>
@@ -372,7 +382,7 @@ export default function HomePage() {
                   {s.step}
                 </div>
                 <h3 className="font-semibold text-gray-900 mb-2">{s.title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{s.desc}</p>
+                <p className="text-sm text-gray-600 leading-relaxed">{s.desc}</p>
               </div>
             ))}
           </div>
@@ -390,7 +400,7 @@ export default function HomePage() {
               </p>
               <Link
                 href="/developers"
-                className="inline-flex items-center text-indigo-400 font-medium hover:text-indigo-300 transition-colors"
+                className="inline-flex items-center text-indigo-300 font-medium hover:text-indigo-200 transition-colors"
               >
                 View docs →
               </Link>
@@ -417,7 +427,7 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Why developers use BuyWhere</h2>
-            <p className="text-lg text-gray-500 max-w-2xl mx-auto">
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               The approved developer-first positioning, translated directly into the live landing page.
             </p>
           </div>
@@ -431,7 +441,7 @@ export default function HomePage() {
                   0{index + 1}
                 </div>
                 <h3 className="font-semibold text-gray-900 mb-3">{f.title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{f.desc}</p>
+                <p className="text-sm text-gray-600 leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -447,7 +457,7 @@ export default function HomePage() {
                Platform APIs surface their own inventory first. Amazon APIs return Amazon products. Shopee returns Shopee products. Google Shopping returns shopping results, not a normalized product layer. For an AI agent trying to find the best match across the market, those are distribution channels — not the cross-merchant system of record.
              </p>
              <p className="text-gray-600 leading-relaxed mb-8">
-               BuyWhere has no inventory to sell and no platform to favour. We index products across Singapore and Southeast Asia into a single, structured API so AI agents can call one normalized, cross-merchant product layer instead of reconciling one platform&rsquo;s version of the market.
+               BuyWhere has no inventory to sell and no platform to favour. We index 288 million products from 238,000+ independent storefronts worldwide into a single, structured API — with MCP tools, an agent card, LangChain and OpenAI-tools SDKs, and an agent-optimized compact mode — so AI agents call one normalized, cross-merchant product layer instead of reconciling one platform&rsquo;s version of the market.
              </p>
              <Link
                href="/about"
@@ -464,7 +474,7 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="max-w-3xl mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">FAQ for agent builders</h2>
-            <p className="text-lg text-gray-500">
+            <p className="text-lg text-gray-600">
               Answer-engine friendly questions and answers based on the approved AEO plan.
             </p>
           </div>
@@ -484,7 +494,7 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="max-w-3xl mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-3">Price comparison guides</h2>
-            <p className="text-gray-500 leading-relaxed">
+            <p className="text-gray-600 leading-relaxed">
               Compare prices across merchants for the most searched products in Singapore, the US, and Southeast Asia.
             </p>
             <p className="mt-3 text-xs uppercase tracking-[0.22em] text-indigo-600">

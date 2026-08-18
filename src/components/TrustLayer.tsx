@@ -25,23 +25,23 @@ const trustIndicators = [
         <polyline points="12,6 12,12 16,14" />
       </svg>
     ),
-    label: 'Avg. Latency',
-    value: '120ms',
-    badge: 'P50',
+    label: 'Search Latency',
+    value: '<250ms',
+    badge: 'P50 · cache hits <10ms',
     badgeColor: 'bg-slate-100 text-slate-700',
   },
 ];
 
 export function TrustLayer() {
   return (
-    <section className="py-16 bg-gray-50 border-t border-gray-100" aria-labelledby="trust-heading">
+    <section className="pt-10 pb-16 bg-gray-50 border-t border-gray-100" aria-labelledby="trust-heading">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           <div>
             <h2 id="trust-heading" className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
               Built for Reliability
             </h2>
-            <p className="text-gray-500 mb-8 leading-relaxed">
+            <p className="text-gray-600 mb-8 leading-relaxed">
               BuyWhere is production-ready infrastructure. We provide predictable latency, high uptime, and transparent versioning so your agents always know what to expect.
             </p>
             <div className="flex flex-col sm:flex-row gap-6">

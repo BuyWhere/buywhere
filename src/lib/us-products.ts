@@ -173,7 +173,7 @@ function normalizeUSProductItem(item: ProductListApiItem): USProductForSitemap |
 
 async function loadUSProductsFromApi(): Promise<USProductForSitemap[]> {
   const baseUrl = process.env.BUYWHERE_API_INTERNAL_URL || process.env.NEXT_PUBLIC_BUYWHERE_API_URL || "https://api.buywhere.ai";
-  const apiKey = process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
+  const apiKey = process.env.BUYWHERE_API_KEY || process.env.NEXT_PUBLIC_BUYWHERE_API_KEY || "";
   const products: USProductForSitemap[] = [];
   const seenIds = new Set<string>();
   let offset = 0;
