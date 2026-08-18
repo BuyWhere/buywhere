@@ -69,15 +69,26 @@ export function formatSimilarPriceField(
 // our tracking tag when none is present. Applied at serialization so url,
 // click_url and affiliate redirects all inherit it. amazon.sg intentionally
 // EXCLUDED until the separate buywhere-22 account is confirmed (ledger R3).
-const AMAZON_US_TAG = 'buywhere-20';
+// buywhere-20 (US) and buywhere-22 (SG) are one linked account (Richmond,
+// 2026-08-18); reporting is per-program, so each storefront must carry ITS tag.
+// The correct tag is FORCED — this also repairs precomputed affiliate links that
+// were bulk-built in April with the US tag on amazon.sg. Other-country amazon
+// domains are left untouched (no program tag for them yet).
+const AMAZON_TAGS: Record<string, string> = {
+  'amazon.com': 'buywhere-20',
+  'amazon.sg': 'buywhere-22',
+};
 function wrapAmazonAffiliateTag(url: string): string {
   try {
     const u = new URL(url);
     const host = u.hostname.toLowerCase();
-    if (host === 'amazon.com' || host.endsWith('.amazon.com')) {
-      if (!u.searchParams.has('tag')) {
-        u.searchParams.set('tag', AMAZON_US_TAG);
-        return u.toString();
+    for (const [domain, tag] of Object.entries(AMAZON_TAGS)) {
+      if (host === domain || host.endsWith('.' + domain)) {
+        if (u.searchParams.get('tag') !== tag) {
+          u.searchParams.set('tag', tag);
+          return u.toString();
+        }
+        break;
       }
     }
   } catch { /* malformed URL — pass through untouched */ }
