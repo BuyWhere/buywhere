@@ -67,6 +67,8 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
+        api_version: { type: 'string', enum: ['v1', 'v2'], description: 'Tool surface version. v1 (default) keeps deliver_to optional for backward compatibility. v2 (BUY-71817, P2.7) requires deliver_to as a non-empty ISO-3166 alpha-2 string; calls without it return INVALID_ARGUMENT. Recommended for new integrations.', default: 'v1' },
+        deliver_to: { type: 'string', description: 'Buyer\'s ISO 3166-1 alpha-2 country code (e.g. "SG", "US", "MY", "TH", "VN"). ALWAYS pass this — it scopes results to products deliverable to that market, ranks them local-first, and labels availability per row. Takes precedence over country_code and country. REQUIRED on api_version=v2.', pattern: '^[A-Z]{2}$' },
         q: { type: 'string', description: 'Keyword search query' },
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
@@ -116,6 +118,8 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
+        api_version: { type: 'string', enum: ['v1', 'v2'], description: 'Tool surface version. v1 (default) keeps deliver_to optional for backward compatibility. v2 (BUY-71817, P2.7) requires deliver_to as a non-empty ISO-3166 alpha-2 string; calls without it return INVALID_ARGUMENT. Recommended for new integrations.', default: 'v1' },
+        deliver_to: { type: 'string', description: 'Buyer\'s ISO 3166-1 alpha-2 country code (e.g. "SG", "US"). REQUIRED on api_version=v2.', pattern: '^[A-Z]{2}$' },
         min_discount: { type: 'number', description: 'Minimum discount percentage (default 10)', default: 10 },
         currency: { type: 'string', description: 'Filter by currency code (SGD, USD, MYR, VND, THB). Defaults to SGD.', default: 'SGD' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
@@ -145,6 +149,8 @@ const TOOLS = [
       type: 'object',
       required: ['product_name'],
       properties: {
+        api_version: { type: 'string', enum: ['v1', 'v2'], description: 'Tool surface version. v1 (default) keeps deliver_to optional for backward compatibility. v2 (BUY-71817, P2.7) requires deliver_to as a non-empty ISO-3166 alpha-2 string; calls without it return INVALID_ARGUMENT. Recommended for new integrations.', default: 'v1' },
+        deliver_to: { type: 'string', description: 'Buyer\'s ISO 3166-1 alpha-2 country code (e.g. "SG", "US"). REQUIRED on api_version=v2.', pattern: '^[A-Z]{2}$' },
         product_name: { type: 'string', description: 'Product name to find best price for (e.g., "iphone 15 pro 256gb", "samsung galaxy s24")' },
         category: { type: 'string', description: 'Category to filter by (e.g., "electronics", "fashion")' },
         country_code: { type: 'string', enum: ['SG', 'MY', 'TH', 'PH', 'VN', 'ID', 'US'], description: 'Country to search in (defaults to SG). Alias: country.' },
@@ -227,12 +233,15 @@ async function handleSearchProducts(args: Record<string, unknown>) {
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
   const domain = (args.domain as string) || '';
   const region = (args.region as string) || '';
-  // country_code is canonical; `country` kept as alias for backward compat
+  // BUY-71817 / P2.7: deliver_to takes precedence over country_code/country (matches
+  // normalizeMcpMarket used by get_deals/find_best_price). When v2 caller passes
+  // deliver_to=SG we want the same SG-scoped result as v1 with deliver_to=SG, so
+  // we resolve through the same precedence chain here.
   // BUY-6598: Default to SG for search queries. BUY-31962: skip default for
   // empty-q browse mode — no index on country_code makes filtered scan slow,
   // and recent rows are predominantly US/null so SG filter finds nothing.
-  const rawCountry = (((args.country_code as string) || (args.country as string)) || '').toUpperCase();
-  const hasExplicitCountry = !!(args.country_code || args.country);
+  const rawCountry = (((args.deliver_to as string) || (args.country_code as string) || (args.country as string)) || '').toUpperCase();
+  const hasExplicitCountry = !!(args.deliver_to || args.country_code || args.country);
   const country = rawCountry || (q && !region ? 'SG' : '');
   const category = (args.category as string) || '';
   const minPrice = args.min_price != null ? Number(args.min_price) : null;
@@ -1284,6 +1293,27 @@ async function handleFindSimilar(args: Record<string, unknown>) {
 }
 
 async function dispatchTool(name: string, args: Record<string, unknown>) {
+  // BUY-71817 / P2.7: enforce `deliver_to` REQUIRED on the v2 surface.
+  // v1 callers (the existing fleet — Tune, Cart sweep, Tune probes, etc.) are
+  // unaffected because they default to api_version=v1 or omit the flag entirely.
+  // v2 callers must pass a non-empty ISO-3166 alpha-2 country code.
+  // Gate fires BEFORE the handler so we never touch the DB / cache for a
+  // guaranteed-malformed request. Returns INVALID_ARGUMENT (HTTP 400) via
+  // the standard JSON-RPC error envelope so existing 4xx telemetry picks it up.
+  const V2_DELIVER_TO_TOOLS = new Set(['search_products', 'get_deals', 'find_best_price']);
+  if (V2_DELIVER_TO_TOOLS.has(name) && args.api_version === 'v2') {
+    const dt = args.deliver_to;
+    if (typeof dt !== 'string' || !/^[A-Za-z]{2}$/.test(dt)) {
+      throw {
+        code: -32602,
+        message:
+          `INVALID_ARGUMENT: deliver_to is REQUIRED on api_version=v2 for tool '${name}'. ` +
+          `Pass an ISO 3166-1 alpha-2 country code (e.g. "SG", "US", "MY", "TH", "VN").`,
+      };
+    }
+    // Normalize to uppercase so the rest of the handler sees the canonical form.
+    args.deliver_to = dt.toUpperCase();
+  }
   switch (name) {
     case 'search_products':  return handleSearchProducts(args);
     case 'get_product':      return handleGetProduct(args);

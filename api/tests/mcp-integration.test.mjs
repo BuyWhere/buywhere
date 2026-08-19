@@ -775,3 +775,166 @@ describe('MCP JSON-RPC — protocol compliance', () => {
     assert.equal(data.meta.limit, 100);
   });
 });
+
+// BUY-71817 / P2.7 — v2 tool surface runtime gate.
+// v1 callers (omit api_version OR pass v1) must keep working unchanged.
+// v2 callers must pass deliver_to; missing deliver_to returns -32602 INVALID_ARGUMENT.
+describe('P2.7 — v2 deliver_to gate (runtime)', () => {
+  it('search_products v2 without deliver_to returns -32602 INVALID_ARGUMENT', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 100, method: 'tools/call',
+        params: { name: 'search_products', arguments: { q: 'laptop', api_version: 'v2' } },
+      }),
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.ok(body.error, 'Expected JSON-RPC error envelope');
+    assert.equal(body.error.code, -32602);
+    assert.match(body.error.message, /INVALID_ARGUMENT/);
+    assert.match(body.error.message, /deliver_to is REQUIRED/);
+  });
+
+  it('get_deals v2 without deliver_to returns -32602 INVALID_ARGUMENT', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 101, method: 'tools/call',
+        params: { name: 'get_deals', arguments: { min_discount: 10, api_version: 'v2' } },
+      }),
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.ok(body.error, 'Expected JSON-RPC error envelope');
+    assert.equal(body.error.code, -32602);
+    assert.match(body.error.message, /INVALID_ARGUMENT/);
+  });
+
+  it('find_best_price v2 without deliver_to returns -32602 INVALID_ARGUMENT', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 102, method: 'tools/call',
+        params: { name: 'find_best_price', arguments: { product_name: 'iphone 15', api_version: 'v2' } },
+      }),
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.ok(body.error, 'Expected JSON-RPC error envelope');
+    assert.equal(body.error.code, -32602);
+    assert.match(body.error.message, /INVALID_ARGUMENT/);
+  });
+
+  it('v2 with malformed deliver_to (too long) returns -32602 INVALID_ARGUMENT', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 103, method: 'tools/call',
+        params: { name: 'search_products', arguments: { q: 'laptop', api_version: 'v2', deliver_to: 'SG_EXTRA' } },
+      }),
+    });
+    const body = await res.json();
+    assert.ok(body.error);
+    assert.equal(body.error.code, -32602);
+  });
+
+  it('v2 with non-string deliver_to returns -32602 INVALID_ARGUMENT', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 104, method: 'tools/call',
+        params: { name: 'search_products', arguments: { q: 'laptop', api_version: 'v2', deliver_to: 12345 } },
+      }),
+    });
+    const body = await res.json();
+    assert.ok(body.error);
+    assert.equal(body.error.code, -32602);
+  });
+
+  it('v2 with deliver_to=SG succeeds (parity with v1+deliver_to=SG)', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 105, method: 'tools/call',
+        params: { name: 'search_products', arguments: { q: 'laptop', api_version: 'v2', deliver_to: 'SG' } },
+      }),
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.ok(body.result, 'v2 with valid deliver_to must succeed');
+    const data = JSON.parse(body.result.content[0].text);
+    assert.ok(Array.isArray(data.data));
+  });
+
+  it('v1 caller (no api_version) without deliver_to still succeeds', async () => {
+    // v1 regression guard: existing callers that don't know about api_version
+    // must keep working with deliver_to omitted (defaults to v1 soft contract).
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 106, method: 'tools/call',
+        params: { name: 'search_products', arguments: { q: 'laptop' } },
+      }),
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.ok(body.result, 'v1 caller must not be blocked by the v2 gate');
+  });
+
+  it('v1 caller with explicit api_version=v1 without deliver_to still succeeds', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 107, method: 'tools/call',
+        params: { name: 'search_products', arguments: { q: 'laptop', api_version: 'v1' } },
+      }),
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.ok(body.result, 'api_version=v1 must not enforce the v2 gate');
+  });
+
+  it('v2 lower-case deliver_to is normalized (no error)', async () => {
+    // The dispatcher normalizes "sg" -> "SG". The handler receives uppercase
+    // and behaves the same as v1+deliver_to=SG. Test path: no -32602 error.
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-key' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 108, method: 'tools/call',
+        params: { name: 'search_products', arguments: { q: 'laptop', api_version: 'v2', deliver_to: 'sg' } },
+      }),
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.ok(body.result, 'v2 with lowercase deliver_to should be normalized and succeed');
+  });
+
+  it('tools/list advertises api_version enum on the three v2 tools', async () => {
+    const res = await fetch(`http://localhost:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 109, method: 'tools/list' }),
+    });
+    const body = await res.json();
+    for (const toolName of ['search_products', 'get_deals', 'find_best_price']) {
+      const t = body.result.tools.find((x) => x.name === toolName);
+      assert.ok(t, `${toolName} not found in tools/list`);
+      const props = t.inputSchema.properties;
+      assert.ok(props.api_version, `${toolName} missing api_version property`);
+      assert.deepEqual(props.api_version.enum, ['v1', 'v2']);
+      assert.equal(props.api_version.default, 'v1');
+      assert.ok(props.deliver_to, `${toolName} missing deliver_to property`);
+      assert.equal(props.deliver_to.type, 'string');
+    }
+  });
+});
