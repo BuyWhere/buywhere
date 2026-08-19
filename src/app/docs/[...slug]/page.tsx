@@ -9,6 +9,7 @@ import matter from "gray-matter";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { toSiteUrl } from "@/lib/site-url";
+import Schema from "@/components/Schema";
 
 const docsDirectory = path.join(process.cwd(), "docs");
 
