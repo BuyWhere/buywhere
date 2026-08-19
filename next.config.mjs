@@ -233,6 +233,27 @@ const nextConfig = {
         destination: '/partnership',
         permanent: true,
       },
+      // BUY-71825: AEO regression fixes - restore agent and compare/sg surfaces.
+      // /agent was returning 404 noindex shell; redirect to canonical /agents page.
+      {
+        source: '/agent',
+        destination: '/agents',
+        permanent: true,
+      },
+      // BUY-71825: /agent.json was returning 404 noindex shell; redirect to canonical
+      // agent metadata at /.well-known/agent.json (served by src/app/.well-known/agent.json/route.ts).
+      {
+        source: '/agent.json',
+        destination: '/.well-known/agent.json',
+        permanent: true,
+      },
+      // BUY-71825: /compare/sg was returning 200 but with noindex + no H1 (not indexable).
+      // "sg" is a country code, not a category slug - redirect to /compare landing.
+      {
+        source: '/compare/sg',
+        destination: '/compare',
+        permanent: true,
+      },
       {
         source: '/:path*',
         has: [
