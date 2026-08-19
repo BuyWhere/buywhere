@@ -108,13 +108,17 @@ async function getProduct(productId: string): Promise<ProductDetail | null> {
         next: { revalidate: 3600 },
         signal: AbortSignal.timeout(5000),
       });
-      if (res.ok) {
-        const payload = (await res.json()) as ProductDetail | { data?: ApiProductItem[] };
-        const item = Array.isArray((payload as { data?: ApiProductItem[] }).data)
-          ? (payload as { data: ApiProductItem[] }).data[0]
-          : (payload as ProductDetail);
-        if (item?.id) return mapApiProduct(item as ApiProductItem);
+      // BUY-71642 gate #3: enforce HTTP status, not just JSON body content.
+      // The /api/products/[id] route returns 404 for unknown ids, but that
+      // status must propagate to the page render (not become a soft-200).
+      if (!res.ok) {
+        throw new Error(`product_fetch_${res.status}`);
       }
+      const payload = (await res.json()) as ProductDetail | { data?: ApiProductItem[] };
+      const item = Array.isArray((payload as { data?: ApiProductItem[] }).data)
+        ? (payload as { data: ApiProductItem[] }).data[0]
+        : (payload as ProductDetail);
+      if (item?.id) return mapApiProduct(item as ApiProductItem);
     } catch (err) {
       console.warn(`[/p/${productId}] internal API error:`, err);
     }
