@@ -8,6 +8,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { MerchantBadge } from '@/components/ui/MerchantBadge';
 import { CompareSelectButton } from '@/components/compare/CompareSelectButton';
+import { ProductGridImage } from '@/components/seo/ProductGridImage';
 import { openUpgradeIntentPrompt } from '@/lib/upgrade-intent-prompt';
 
 const PAGE_SIZE = 20;
@@ -670,61 +671,26 @@ function SearchProgressIndicator({ startedAt }: { startedAt: number }) {
 
 
 function SearchCard({ product }: { product: SearchCardProduct }) {
-  // BUY-67973: track image lifecycle so the literal "Product image" text no
-  // longer sits on top of loaded imagery. We render three mutually exclusive
-  // states:
-  //   - loading (default): subtle radial-gradient skeleton (no overlay text)
-  //   - loaded: the actual <img> with no fallback text
-  //   - error: the existing BrandedPlaceholder (no overlay text)
-  const [imageState, setImageState] = useState<'loading' | 'loaded' | 'error'>(
-    product.imageUrl ? 'loading' : 'error'
-  );
-
-  useEffect(() => {
-    setImageState(product.imageUrl ? 'loading' : 'error');
-  }, [product.imageUrl]);
-
-  // Branded placeholder for broken/missing images - shows brand + product name
-  // Similar to ProductGridImage's BrandedPlaceholder (BUY-63851 fix)
-  function BrandedPlaceholder() {
-    const brandText = (product.brand || 'BuyWhere').slice(0, 18);
-    const productLabel = product.name.slice(0, 26);
-
-    return (
-      <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 p-4">
-        <div className="mb-2 flex items-center justify-center">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" className="w-full max-w-[180px] drop-shadow-sm">
-            <defs>
-              <linearGradient id="searchCardBg" x1="0" x2="1" y1="0" y2="1">
-                <stop offset="0" stopColor="#fff7ed" />
-                <stop offset="1" stopColor="#fde68a" />
-              </linearGradient>
-            </defs>
-            <rect width="400" height="300" fill="url(#searchCardBg)" />
-            <rect x="40" y="40" width="320" height="220" rx="24" fill="#ffffff" stroke="#fcd34d" strokeWidth="3" />
-            <g transform="translate(140 80)" fill="none" stroke="#b45309" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="0" y="0" width="120" height="90" rx="12" fill="#fef3c7" />
-              <circle cx="60" cy="40" r="14" fill="#f59e0b" stroke="none" />
-              <path d="M0 70 L40 35 L80 60 L120 25" stroke="#b45309" />
-            </g>
-            <text x="200" y="208" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="22" fontWeight="700" fill="#0f172a">
-              {brandText}
-            </text>
-            <text x="200" y="236" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="14" fontWeight="500" fill="#475569">
-              {productLabel}
-            </text>
-            <text x="200" y="258" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="11" fontWeight="600" letterSpacing="2" fill="#92400e">
-              BUYWHERE
-            </text>
-          </svg>
-        </div>
-        {product.brand && (
-          <span className="text-xs text-slate-600">{product.brand}</span>
-        )}
-      </div>
-    );
-  }
-
+  // BUY-71856: Source-of-truth parity with /laptop-singapore ProductGridCard.
+  //
+  // Previously SearchCard had its own inline <img> + generic hardcoded SVG
+  // placeholder. /laptop-singapore's ProductGridCard delegates to
+  // `ProductGridImage` (canonical BUY-63954 component), whose `clientCategorySilhouette()`
+  // helper renders a category-aware SVG (laptop, robot-vacuum, headphone, etc.)
+  // when the API `image_url` is missing or fails to load.
+  //
+  // Re-using `ProductGridImage` here means:
+  //   1. `product.imageUrl` (the only field populated by the API per
+  //      hasUsableProductImage()) is rendered as <img src>.
+  //   2. On `<img onError>` → the same branded SVG placeholder as
+  //      /laptop-singapore, not a different hardcoded one.
+  //   3. The `category` field flows through so the onError silhouette matches
+  //      the product (e.g. "laptop" → laptop silhouette, not a generic box).
+  //
+  // We keep the SearchCard-specific layout (CompareSelectButton overlay,
+  // max-h-[220px] frame, View Deal CTA, MerchantBadge) — only the image +
+  // fallback block is replaced. /laptop-singapore and /search are intentionally
+  // NOT collapsed to the same component (the issue's hard constraint).
   return (
     <a
       data-testid="search-product-card"
@@ -738,37 +704,14 @@ function SearchCard({ product }: { product: SearchCardProduct }) {
         style={{ aspectRatio: '4/3', maxHeight: '220px' }}
         data-testid="search-product-media"
       >
-        {imageState === 'loading' ? (
-          <div
-            className="absolute inset-0 animate-pulse bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_rgba(248,250,252,0.96)_55%,_rgba(226,232,240,0.96))]"
-            data-testid="search-product-image-loading"
-            aria-hidden="true"
-          />
-        ) : null}
-        {product.imageUrl && imageState !== 'error' ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={product.imageUrl}
-            alt={product.name}
-            loading="lazy"
-            decoding="async"
-            referrerPolicy="no-referrer"
-            onLoad={() => setImageState('loaded')}
-            onError={(event) => {
-              event.currentTarget.removeAttribute('src');
-              setImageState('error');
-            }}
-            // BUY-64266: drop group-hover:scale-[1.03] which pushed the rightmost
-            // card image beyond the grid column on desktop. Keep BUY-64736's
-            // max-h-[220px] / max-w-full / object-contain bounds so the image
-            // can never exceed its 220px-tall card frame.
-            className="relative z-10 block h-full w-full max-h-[220px] max-w-full object-contain p-2"
-            style={{ maxHeight: '220px', width: '100%', objectFit: 'contain' }}
-            data-testid="search-product-image"
-          />
-        ) : imageState === 'error' || !product.imageUrl ? (
-          <BrandedPlaceholder />
-        ) : null}
+        <ProductGridImage
+          src={product.imageUrl || ''}
+          alt={product.name}
+          brand={product.brand}
+          merchant={product.merchant}
+          category={product.category}
+          className="relative z-10 block h-full w-full max-h-[220px] max-w-full object-contain p-2"
+        />
         <div className="absolute right-2 top-2 z-20">
           <CompareSelectButton product={product} className="h-9 w-9" />
         </div>
