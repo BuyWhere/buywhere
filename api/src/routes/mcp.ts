@@ -2,24 +2,17 @@ import { randomUUID } from 'crypto';
 import { Router, Request, Response, NextFunction } from 'express';
 import { db, redis, vectorDb } from '../config';
 import { embedQuery } from '../jobs/embedProducts';
-import { requireApiKey, checkRateLimit, hashKey } from '../middleware/apiKey';
+import { requireApiKey, checkRateLimit } from '../middleware/apiKey';
 import { queryLogMiddleware } from '../middleware/queryLog';
 import { recordQueryCacheLookup } from '../monitoring/cacheStats';
 import { buildErrorEnvelope, ErrorCode, ErrorCodeType } from '../middleware/errors';
-import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES, deriveEmptiness, SUPPORTED_REGIONS } from '../lib/response';
+import { buildProduct, buildSearchResponse, COUNTRY_CURRENCY, CURRENCY_RATES } from '../lib/response';
+import { readDb } from '../lib/readReplica';
 import { getCachedFxRates } from '../lib/fxRatesLoader';
 import { buildDeviceFilter } from '../lib/deviceClassifier';
 
 const router = Router();
 const MCP_DB_ACQUIRE_TIMEOUT_MS = parseInt(process.env.MCP_DB_ACQUIRE_TIMEOUT_MS || '1000', 10);
-
-// BUY-71129: caller identity thread-through for click attribution. Mirrors
-// the helper in routes/products.ts.
-function callerContextForUrl(req: Request): { apiKeyId: string; keyHash: string } | null {
-  const rec = req.apiKeyRecord;
-  if (!rec || !rec.id || !rec.key) return null;
-  return { apiKeyId: rec.id, keyHash: hashKey(rec.key) };
-}
 
 async function acquireMcpClient() {
   let timer: NodeJS.Timeout | undefined;
@@ -91,12 +84,11 @@ function normalizeMcpMarket(args: Record<string, unknown>, defaultCountry = ''):
 const TOOLS = [
   {
     name: 'search_products',
-    description: 'Search the BuyWhere product catalog by keyword. Always pass deliver_to when the buyer market is known; it takes precedence over country_code/country and prevents all-market scans. Returns a results array where each item has: id, title, price ({amount, currency}), normalized_price_usd, merchant, url, image_url, region, country_code, click_url, affiliate_redirect_url, and updated_at. Covers e-commerce platforms across Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US. Use compact=true for agent-optimized responses adding structured_specs, comparison_attributes, and normalized_price_usd fields.',
+    description: 'Search the BuyWhere product catalog by keyword. Always pass deliver_to when the buyer market is known; it takes precedence over country_code/country and prevents all-market scans. Returns schema.org/Product entities with name, description, image, and offers (schema.org/AggregateOffer with lowPrice, highPrice, priceCurrency). Covers e-commerce platforms across Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US. Use compact=true for agent-optimized responses with structured_specs, comparison_attributes, and normalized_price_usd fields.',
     inputSchema: {
       type: 'object',
       properties: {
         q: { type: 'string', description: 'Keyword search query' },
-        query: { type: 'string', description: 'Alias for q (accepted for agent convenience; use q)' },
         domain: { type: 'string', description: 'Filter by merchant platform (e.g. lazada, shopee, amazon)' },
         region: { type: 'string', description: 'Filter by region (sea, us, eu, au)' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Filter by ISO country code. Also infers default currency for price filters (SG→SGD, US→USD, VN→VND, TH→THB, MY→MYR).' },
@@ -119,7 +111,7 @@ const TOOLS = [
       type: 'object',
       required: ['id'],
       properties: {
-        id: { type: 'string', description: 'Product ID (numeric catalog ID)' },
+        id: { type: 'string', description: 'Product UUID' },
       },
     },
   },
@@ -142,7 +134,7 @@ const TOOLS = [
   },
   {
     name: 'get_deals',
-    description: 'Get discounted products sorted by discount percentage. Returns a results array where each item has: id, title, price ({amount, currency}), normalized_price_usd, merchant, url, image_url, region, country_code, click_url, and updated_at. Also includes original_price and discount_pct when available. Covers Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US e-commerce. Supports currency, region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters.',
+    description: 'Get discounted products sorted by discount percentage. Returns schema.org/Product entities with schema.org/Offer properties: price, priceCurrency, availability, originalPrice, and discountPercentage. Covers Singapore, Malaysia, Indonesia, Thailand, Vietnam, and US e-commerce. Supports currency, region (sea, us, eu, au) and country (SG, US, VN, MY, ...) filters.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -171,7 +163,7 @@ const TOOLS = [
   },
   {
     name: 'find_best_price',
-    description: 'Use this whenever a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X" or "where can I buy X for the lowest price". Returns a results array where each item has: id, title, price ({amount, currency}), normalized_price_usd, merchant, url, image_url, region, country_code, click_url, and updated_at. Results are from across all merchants. Also includes structured_specs and comparison_attributes when available.',
+    description: 'Use this whenever a user asks about prices, wants to find the cheapest option, or asks "what\'s the best price for X" or "where can I buy X for the lowest price". Returns schema.org/Product entities with schema.org/AggregateOffer (lowPrice, offerCount, priceCurrency) across all merchants.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -191,7 +183,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        product_id: { type: 'string', description: 'Numeric catalog product ID (products.id; mutually exclusive with product_name). For legacy vector rows, an exact SKU is also accepted.' },
+        product_id: { type: 'string', description: 'Catalog product id (products.id; mutually exclusive with product_name). For legacy vector rows, an exact SKU is also accepted.' },
         product_name: { type: 'string', description: 'Product name to find similar items for (auto-resolves to best-matching product ID). Preferred when agent starts with a name/query.' },
         country_code: { type: 'string', enum: ['SG', 'US', 'VN', 'TH', 'MY'], description: 'Country to scope product_name lookup (defaults to SG)' },
         limit: { type: 'integer', description: 'Number of similar products to return (1-10, default 10)', default: 10 },
@@ -252,13 +244,34 @@ async function probeDiscountPctColumn(): Promise<boolean> {
 probeDiscountPctColumn().then(result => { _hasDiscountPct = result; }).catch(() => {});
 
 // Tool handlers
-async function handleSearchProducts(args: Record<string, unknown>, caller: ReturnType<typeof callerContextForUrl> | undefined, ctx: McpToolContext) {
+// BUY-65939: known FTS stem mismatches — single-word commerce terms that don't
+// match the indexed search_vector vocabulary. Maps to indexed phrase forms.
+// This is a targeted fix to avoid unbounded ILIKE heap scans on the 400M+ table.
+const FTS_STEM_FIX: Record<string, string> = {
+  'phone': 'mobile phone',
+  'android': 'android phone',
+  'iphone': 'iphone phone',
+  'tablet': 'tablet computer',
+  'watch': 'smart watch',
+  'earbuds': 'wireless earbuds',
+  'headphones': 'wireless headphones',
+  'camera': 'digital camera',
+  'speaker': 'bluetooth speaker',
+  'laptop': 'laptop computer',
+  'notebook': 'laptop computer',
+};
+
+function normalizeFtsStem(q: string): string {
+  if (!q) return q;
+  const normalized = q.toLowerCase().trim();
+  return FTS_STEM_FIX[normalized] || q;
+}
+
+async function handleSearchProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
-  // BUY-68587 direction-correction: agents passing the natural alias `query`
-  // (instead of canonical `q`) silently fell into the no-q browse branch and got
-  // 0 rows with a reltuples-derived "total" (~397M) that looked like fabricated
-  // cache data. Accept the alias so the query actually runs.
-  const q = (args.q as string) || (args.query as string) || '';
+  const rawQ = (args.q as string) || '';
+  // BUY-65939: normalize FTS stem mismatches to indexed phrase forms
+  const q = normalizeFtsStem(rawQ);
   const mode = (args.mode as string) || 'hybrid';
   const geminiKey = process.env.GEMINI_API_KEY ?? '';
   const useVector = vectorDb != null && geminiKey !== '' && q !== '' && mode !== 'keyword';
@@ -281,16 +294,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller: Retur
   const currency = country ? (COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
   const COUNT_CAP = 1001;
 
-  // BUY-68652: mode-aware cache key. Include mode in key so semantic/hybrid cannot
-  // be satisfied by keyword results (and vice versa). When embedding fails and we
-  // fall through to keyword, use 'kw' suffix to prevent polluting the semantic cache.
-  const effectiveCacheMode = useVector ? mode : 'kw';
-  const cacheKey = `fts:v7:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
-  // BUY-68652: true if we ended up serving keyword FTS rows for a semantic/hybrid
-  // request (embed/vector unavailable). The result must be cached under the 'kw'
-  // suffix, never the requested-mode key, or cached keyword rows get served as
-  // "semantic" within the 60s TTL.
-  let keywordFallbackServed = !useVector;
+  const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
   try {
     const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
     if (cached) {
@@ -366,33 +370,20 @@ async function handleSearchProducts(args: Record<string, unknown>, caller: Retur
       if (useVector) {
         // Embed query (retrieval.query task); Redis-cache 60s keyed by base64 query
         let queryVec: string | null = null;
-        let embedTimedOut = false;
         try {
           const embedKey = `qembed:${Buffer.from(q).toString('base64').slice(0, 48)}`;
           queryVec = await recordQueryCacheLookup(redis, embedKey, () => redis.get(embedKey));
           if (!queryVec) {
-            // BUY-70290: cap embed latency at 3s — Gemini API occasionally hangs
-            // for 12-18s, turning a fast FTS search into a multi-second ordeal.
-            queryVec = await Promise.race([
-              embedQuery(q, geminiKey),
-              new Promise<null>((_resolve, reject) =>
-                setTimeout(() => reject(new Error('embed timeout after 3000ms')), 3000)
-              ),
-            ]);
-            if (queryVec) {
-              await redis.set(embedKey, queryVec, 'EX', 60).catch(() => {});
-            }
+            queryVec = await embedQuery(q, geminiKey);
+            await redis.set(embedKey, queryVec, 'EX', 60).catch(() => {});
           }
         } catch (embedErr) {
-          console.warn('[search] embed query failed/timeout, falling back to FTS:', (embedErr as Error).message);
-          queryVec = null;
-          embedTimedOut = true;
+          console.warn('[search] embed query failed, falling back to FTS:', (embedErr as Error).message);
         }
 
-        if (queryVec && vectorDb && !embedTimedOut) {
+        if (queryVec && vectorDb) {
           let candidateIds: string[] = [];
           let vectorCandidateIds: string[] | null = null;
-          let hybridFtsTotal = 0;
 
           if (mode === 'semantic') {
             // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
@@ -437,7 +428,6 @@ async function handleSearchProducts(args: Record<string, unknown>, caller: Retur
             } catch (ftsErr) {
               console.warn('[search] hybrid FTS query failed:', (ftsErr as Error).message);
             }
-            hybridFtsTotal = Math.min(ftsRows.length, 200); // use bounded FTS fetch as a catalog estimate
             const ftsRank = new Map(ftsRows.map((r, i) => [r.id, i + 1]));
             const vecRank = new Map(vecRows.map((r, i) => [r.product_id, i + 1]));
             const allIds = new Set([...ftsRank.keys(), ...vecRank.keys()]);
@@ -454,13 +444,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller: Retur
           if (vectorCandidateIds !== null) {
             candidateIds = vectorCandidateIds;
           }
-          // BUY-68652: hybrid must report the catalog/page total, not the small RRF
-          // candidate cardinality (e.g. 5). Semantic reports its own candidate count;
-          // if the vector leg failed entirely, candidateIds is empty → zero total.
-          // Use hybridFtsTotal (bounded FTS count) as a catalog estimate.
-          total = mode === 'hybrid'
-            ? Math.min(Math.max(hybridFtsTotal, candidateIds.length), COUNT_CAP)
-            : candidateIds.length;
+          total = candidateIds.length;
           const pageIds = candidateIds.slice(offset, offset + limit);
 
           if (pageIds.length === 0) {
@@ -489,7 +473,6 @@ async function handleSearchProducts(args: Record<string, unknown>, caller: Retur
           }
         } else {
           // Embed failed — fall through to keyword FTS
-          keywordFallbackServed = true;
           const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
           params.push(CANDIDATE_LIMIT, limit, offset);
           const result = await searchClient.query(
@@ -570,9 +553,8 @@ async function handleSearchProducts(args: Record<string, unknown>, caller: Retur
     );
   }
 
-  if (q && mode !== 'semantic') {
-    const resultCount = (rows as Record<string, unknown>[]).length;
-    total = resultCount >= limit ? COUNT_CAP : Math.min(resultCount + offset, COUNT_CAP);
+  if (q) {
+    total = Math.min((rows as Record<string, unknown>[]).length + offset, COUNT_CAP);
   }
 
   // Defense in depth for buyer-market routing: SQL includes country_code/region
@@ -589,44 +571,22 @@ async function handleSearchProducts(args: Record<string, unknown>, caller: Retur
     );
   }
 
-  if (!q && (country || region || category)) {
-    // Browse mode fetches recent rows through idx_products_updated_at and applies
-    // market/category filters in memory because country_code scans are too slow on
-    // the 398M-row products table. Do not pair a filtered page with the global
-    // reltuples estimate; that reports false non-zero totals for empty markets.
-    total = Math.min((rows as Record<string, unknown>[]).length + offset, COUNT_CAP);
-  }
-
   const products = (rows as Record<string, unknown>[]).map(r =>
-    buildProduct(r, currency, compact, caller)
+    buildProduct(r, currency, compact)
   );
 
   const result = buildSearchResponse(
     products, total!, limit, offset, Date.now() - t0, false
   );
 
-  // BUY-71542 / P2.6: apply emptiness metadata to empty search responses
-  await applyEmptiness('search_products', result as unknown as Record<string, unknown>, ctx, {
-    regionSupported: country ? SUPPORTED_REGIONS.has(country) : true,
-    categoryRequested: !!category,
-    requestedCategory: category || null,
-    requestedCountry: country || null,
-  }, Date.now() - t0);
-
   try {
-    // BUY-68652: if the requested mode was semantic/hybrid but embed/vector failed
-    // and we served keyword FTS, cache under the 'kw'-suffixed key so the semantic
-    // cache never gets polluted with keyword rows.
-    const writeKey = keywordFallbackServed && (mode === 'semantic' || mode === 'hybrid')
-      ? cacheKey.replace(/:(semantic|hybrid)$/, ':kw')
-      : cacheKey;
-    await redis.set(writeKey, JSON.stringify(result), 'EX', 60);
+    await redis.set(cacheKey, JSON.stringify(result), 'EX', 60);
   } catch (_) { /* cache write failure is non-fatal */ }
 
   return result;
 }
 
-async function handleGetProduct(args: Record<string, unknown>, caller: ReturnType<typeof callerContextForUrl> | undefined, _ctx: McpToolContext) {
+async function handleGetProduct(args: Record<string, unknown>) {
   const t0 = Date.now();
   const { id } = args;
 
@@ -647,13 +607,11 @@ async function handleGetProduct(args: Record<string, unknown>, caller: ReturnTyp
     throw { code: -32001, message: 'Product not found' };
   }
   if (!result.rows.length) throw { code: -32001, message: 'Product not found' };
-  const product = buildProduct(result.rows[0] as Record<string, unknown>, 'SGD', false, caller);
-  // BUY-71542 / P2.6: get_product always returns 1 product or throws NOT_FOUND;
-  // no emptiness metadata needed (the error path is a JSON-RPC error, not 200).
+  const product = buildProduct(result.rows[0] as Record<string, unknown>, 'SGD', false);
   return buildSearchResponse([product], 1, 1, 0, Date.now() - t0, false);
 }
 
-async function handleCompareProducts(args: Record<string, unknown>, caller: ReturnType<typeof callerContextForUrl> | undefined, _ctx: McpToolContext) {
+async function handleCompareProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
   const ids = args.ids as string[];
   if (!ids || !Array.isArray(ids) || ids.length < 2) {
@@ -682,11 +640,11 @@ async function handleCompareProducts(args: Record<string, unknown>, caller: Retu
   } catch {
     throw { code: -32001, message: 'Products not found' };
   }
-  const products = result.rows.map((r: Record<string, unknown>) => buildProduct(r, 'SGD', false, caller));
+  const products = result.rows.map((r: Record<string, unknown>) => buildProduct(r, 'SGD', false));
   return buildSearchResponse(products, products.length, validIds.length, 0, Date.now() - t0, false);
 }
 
-async function handleGetDeals(args: Record<string, unknown>, caller: ReturnType<typeof callerContextForUrl> | undefined, ctx: McpToolContext) {
+async function handleGetDeals(args: Record<string, unknown>) {
   const t0 = Date.now();
   void (args.deliver_to as string);
   const minDiscount = Number(args.min_discount) || 10;
@@ -751,16 +709,15 @@ async function handleGetDeals(args: Record<string, unknown>, caller: ReturnType<
   // a structured -32603 envelope to the MCP client instead of hanging the request.
   let products: ReturnType<typeof buildProduct>[] = [];
   let total = 0;
-  let dealsTimedOut = false;
-  const dealsClient = await db.connect().catch((err: unknown) => {
-    console.error('[mcp] get_deals db.connect failed:', err);
+  const dealsClient = await readDb().connect().catch((err: unknown) => {
+    console.error('[mcp] get_deals readDb.connect failed:', err);
     throw { code: -32603, message: 'Database unavailable' };
   });
   try {
     // BUY-64112: strict discount-first query only. The prior recent-window sample
     // + laptop/watch fallback returned keyword rows with discount_pct=0 and hid
     // real discounted products. Query the indexed discount predicate directly.
-    await dealsClient.query('SET statement_timeout = 20000'); // 2026-08-15: fail fast — a 60s DB hang dead-airs the MCP transport
+    await dealsClient.query('SET statement_timeout = 15000'); // 2026-08-15: fail fast — a 60s DB hang dead-airs the MCP transport
     // BUY-68615: force index path on production catalog DB.
     // At 400M+ rows, the planner may choose seqscan even with the discount index,
     // which times out. Bounded LIMIT + enable_seqscan=off ensures the index is used.
@@ -796,21 +753,8 @@ async function handleGetDeals(args: Record<string, unknown>, caller: ReturnType<
     );
     total = dataResult.rows.length;
     products = dataResult.rows.map((r: Record<string, unknown>) =>
-      buildProduct(r, currency, false, caller)
+      buildProduct(r, currency, false)
     );
-  } catch (err: unknown) {
-    // BUY-71431: catch SQLSTATE 57014 (statement_timeout) and return empty results
-    // instead of propagating as -32603 RPC error. Under I/O pressure (autovacuum,
-    // DDL scans), the 20s timeout may still fire on heavily filtered discount scans.
-    const pgErr = err as { code?: string };
-    if (pgErr?.code === '57014') {
-      console.warn('[get_deals] statement_timeout for currency=', currency, 'country=', effectiveCountry);
-      dealsTimedOut = true;
-      products = [];
-      total = 0;
-    } else {
-      throw err;
-    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(dealsClient);
@@ -823,24 +767,6 @@ async function handleGetDeals(args: Record<string, unknown>, caller: ReturnType<
   if ((region || effectiveCountry) && products.length === 0) {
     (result as { unavailable?: boolean }).unavailable = true;
   }
-
-  // BUY-71431: surface timed_out flag when the query hit statement_timeout,
-  // so monitoring can track degradation instead of counting empty as 'no deals'.
-  if (dealsTimedOut && result && typeof result === 'object') {
-    const r = result as unknown as Record<string, unknown>;
-    r.timed_out = true;
-    r.unavailable = true;
-    if (r.meta && typeof r.meta === 'object') {
-      (r.meta as Record<string, unknown>).message = 'Deals temporarily unavailable; please retry.';
-    }
-  }
-
-  // BUY-71542 / P2.6: apply emptiness metadata
-  await applyEmptiness('get_deals', result as unknown as Record<string, unknown>, ctx, {
-    apiError: dealsTimedOut,
-    regionSupported: effectiveCountry ? SUPPORTED_REGIONS.has(effectiveCountry) : true,
-    requestedCountry: effectiveCountry || null,
-  }, Date.now() - t0);
 
   redis.set(cacheKey, JSON.stringify(result), 'EX', 60).catch(() => {});
 
@@ -861,7 +787,7 @@ function buildHardcodedCategories() {
   ];
 }
 
-async function handleListCategories(args: Record<string, unknown>, ctx: McpToolContext) {
+async function handleListCategories(args: Record<string, unknown>) {
   const t0 = Date.now();
   void (args.deliver_to as string);
   const country = normalizeMcpMarket(args, 'SG').country;
@@ -872,14 +798,7 @@ async function handleListCategories(args: Record<string, unknown>, ctx: McpToolC
     const cached = await redis.get(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
-      // BUY-68656: check for poisoned cache (unavailable=true but rows exist with all-zero counts)
-      const poisonedCategoryCache = parsed?.meta?.unavailable === true &&
-        Array.isArray(parsed.data) &&
-        parsed.data.length > 0 &&
-        parsed.data.every((row: { product_count?: unknown }) => Number(row.product_count) === 0);
-      if (poisonedCategoryCache) {
-        redis.del(cacheKey).catch(() => {});
-      } else if (Array.isArray(parsed.data) && parsed.data.length > 0) {
+      if (Array.isArray(parsed.data) && parsed.data.length > 0) {
         return { ...parsed, meta: { ...parsed.meta, cached: true, response_time_ms: Date.now() - t0 } };
       }
     }
@@ -1024,22 +943,7 @@ async function handleListCategories(args: Record<string, unknown>, ctx: McpToolC
   categoryListInflight.set(country, queryPromise);
   try {
     const rows = await Promise.race([queryPromise.then(r => r.data), hardTimeoutPromise]);
-    const allZero = rows.every((r: { product_count: number }) => Number(r.product_count) === 0);
-    const result: Record<string, unknown> = {
-      data: rows,
-      meta: {
-        total: rows.length,
-        country_code: country,
-        response_time_ms: Date.now() - t0,
-        cached: false,
-        unavailable: allZero,
-      },
-    };
-    // BUY-71542 / P2.6: emptiness metadata (data is non-empty here because of hardcoded fallback)
-    await applyEmptiness('list_categories', result, ctx, {
-      regionSupported: SUPPORTED_REGIONS.has(country),
-      requestedCountry: country,
-    }, Date.now() - t0);
+    const result = { data: rows, meta: { total: rows.length, country_code: country, response_time_ms: Date.now() - t0, cached: false, unavailable: false } };
     return result;
   } catch (err) {
     // If the promise rejects, return hardcoded categories with a warning
@@ -1059,7 +963,7 @@ async function handleListCategories(args: Record<string, unknown>, ctx: McpToolC
   }
 }
 
-async function handleFindBestPrice(args: Record<string, unknown>, ctx: McpToolContext) {
+async function handleFindBestPrice(args: Record<string, unknown>) {
   const t0 = Date.now();
   void (args.deliver_to as string);
   const productName = ((args.product_name as string) || (args.q as string) || '').trim();
@@ -1089,10 +993,9 @@ async function handleFindBestPrice(args: Record<string, unknown>, ctx: McpToolCo
     console.warn('[find_best_price] db.connect failed:', err.message);
     throw { code: -32603, message: 'Database connection timeout' };
   });
-  let fbpResult: { rows: Record<string, unknown>[] };
-  let ftsTimedOut = false;
+  let result: { rows: Record<string, unknown>[] };
   try {
-    await bestPriceClient.query('SET statement_timeout = 20000');
+    await bestPriceClient.query('SET statement_timeout = 10000');
     const requestedCountry = country;
     const minPrice = deviceFilter.minLocal > 0 ? deviceFilter.minLocal : 0;
     const conditions: string[] = ['is_active = true', 'price > 0'];
@@ -1107,7 +1010,7 @@ async function handleFindBestPrice(args: Record<string, unknown>, ctx: McpToolCo
     }
     params.push(CANDIDATE_POOL);
     const candidateWhere = conditions.join(' AND ');
-    fbpResult = await bestPriceClient.query(
+    result = await bestPriceClient.query(
       `WITH cand AS (
          SELECT id, price, updated_at
          FROM products
@@ -1120,32 +1023,21 @@ async function handleFindBestPrice(args: Record<string, unknown>, ctx: McpToolCo
          LIMIT $${params.length + 1}
        )
        SELECT p.id, p.title, p.price, p.currency, p.source AS domain, p.url, p.image_url,
-              p.country_code, p.updated_at, p.category, p.category_path, p.metadata, p.in_stock
+              p.country_code, p.updated_at, p.category, p.category_path, p.metadata
        FROM page_ids pi
        JOIN products p ON p.id = pi.id
        ORDER BY pi.price ASC, pi.updated_at DESC`,
       [...params, limit]
     );
-  } catch (err: unknown) {
-    // BUY-70222: catch SQLSTATE 57014 (statement_timeout) and fail open with a
-    // structured empty response instead of surfacing JSON-RPC -32603 to callers.
-    const pgErr = err as { code?: string };
-    if (pgErr?.code === '57014') {
-      console.warn('[find_best_price] FTS timed out for country=', country, 'product=', productName);
-      ftsTimedOut = true;
-      fbpResult = { rows: [] };
-    } else {
-      throw err;
-    }
   } finally {
     // BUY-56185: discard connections poisoned by statement_timeout
     releaseClientSafely(bestPriceClient);
   }
 
   // BUY-69738: filter by category in-memory instead of SQL (ILIKE causes heap scan at scale)
-  if (category && fbpResult.rows.length > 0) {
+  if (category && result.rows.length > 0) {
     const catLower = category.toLowerCase();
-    fbpResult.rows = fbpResult.rows.filter(r =>
+    result.rows = result.rows.filter(r =>
       ((r.category as string) || '').toLowerCase().includes(catLower)
     );
   }
@@ -1191,7 +1083,7 @@ async function handleFindBestPrice(args: Record<string, unknown>, ctx: McpToolCo
   let guardApplied = false;
   let medianUsd: number | null = null;
   let minAllowedUsd: number | null = null;
-  let finalRows = fbpResult.rows.filter(r => !isAccessory(r));
+  let finalRows = result.rows.filter(r => !isAccessory(r));
 
   if (finalRows.length >= 3) {
     const sortedUsd = finalRows.map(rowToUsd).sort((a, b) => a - b);
@@ -1203,9 +1095,9 @@ async function handleFindBestPrice(args: Record<string, unknown>, ctx: McpToolCo
     const filtered = finalRows.filter(r => rowToUsd(r) >= (minAllowedUsd as number));
     if (filtered.length > 0) {
       finalRows = filtered;
-      guardApplied = filtered.length < fbpResult.rows.filter(r => !isAccessory(r)).length;
+      guardApplied = filtered.length < result.rows.filter(r => !isAccessory(r)).length;
       if (guardApplied) {
-        console.log(`[find_best_price] BUY-63229 outlier guard: rejected ${fbpResult.rows.filter(r => !isAccessory(r)).length - filtered.length}/${fbpResult.rows.filter(r => !isAccessory(r)).length} candidates. median_usd=${(medianUsd as number).toFixed(2)}, min_allowed_usd=${(minAllowedUsd as number).toFixed(2)}, product="${productName}", country=${country}`);
+        console.log(`[find_best_price] BUY-63229 outlier guard: rejected ${result.rows.filter(r => !isAccessory(r)).length - filtered.length}/${result.rows.filter(r => !isAccessory(r)).length} candidates. median_usd=${(medianUsd as number).toFixed(2)}, min_allowed_usd=${(minAllowedUsd as number).toFixed(2)}, product="${productName}", country=${country}`);
       }
     }
   }
@@ -1223,11 +1115,10 @@ async function handleFindBestPrice(args: Record<string, unknown>, ctx: McpToolCo
       url: r.url as string,
       image_url: r.image_url as string,
       country_code: r.country_code as string,
-      in_stock: r.in_stock !== false,
     };
   });
 
-  const result: Record<string, unknown> = {
+  return {
     best_price: data[0] ?? null,
     alternatives: data.slice(1),
     meta: {
@@ -1237,25 +1128,13 @@ async function handleFindBestPrice(args: Record<string, unknown>, ctx: McpToolCo
       ...(minAllowedUsd != null ? { min_allowed_usd: Math.round(minAllowedUsd * 100) / 100 } : {}),
       country: country || (region.toLowerCase() === 'us' ? 'US' : 'SG'),
       response_time_ms: Date.now() - t0,
-      ...(ftsTimedOut ? { timed_out: true, unavailable: true, message: 'Best-price search temporarily unavailable; please retry.' } : {}),
     },
   };
-
-  // BUY-71542 / P2.6: apply emptiness metadata
-  await applyEmptiness('find_best_price', result, ctx, {
-    apiError: ftsTimedOut,
-    regionSupported: country ? SUPPORTED_REGIONS.has(country) : true,
-    categoryRequested: !!category,
-    requestedCategory: category || null,
-    requestedCountry: country || null,
-  }, Date.now() - t0);
-
-  return result;
 }
 
 // BUY-31929: MCP tool to ingest products — delegates to the same logic as
 // POST /v1/ingest/products but via JSON-RPC tool call.
-async function handleIngestProducts(args: Record<string, unknown>, _ctx: McpToolContext) {
+async function handleIngestProducts(args: Record<string, unknown>) {
   const t0 = Date.now();
   const source = String(args.source || '');
   const products = args.products;
@@ -1529,7 +1408,7 @@ async function handleIngestProducts(args: Record<string, unknown>, _ctx: McpTool
 }
 
 
-async function handleFindSimilar(args: Record<string, unknown>, ctx: McpToolContext) {
+async function handleFindSimilar(args: Record<string, unknown>) {
   const t0 = Date.now();
   const requestedId = (args.product_id as string || '').trim();
   const productName = (args.product_name as string || '').trim();
@@ -1547,16 +1426,7 @@ async function handleFindSimilar(args: Record<string, unknown>, ctx: McpToolCont
       conditions.push(`country_code = $${params.length}`);
     }
     const lookupResult = await db.query(
-      // BUY-32028/70294: bound the FTS candidates BEFORE ranking. An unbounded
-      // rank sort over the whole match set re-introduces the multi-second sort
-      // the ts-rank guard exists to prevent. Rank only a 50-row slice.
-      `SELECT id, sku FROM (
-         SELECT id, sku, ts_rank(search_vector, plainto_tsquery('english', $1)) AS _rank
-         FROM (
-           SELECT id, sku, search_vector FROM products WHERE ${conditions.join(' AND ')} LIMIT 50
-         ) _lookup_candidates
-       ) _ranked_lookup_candidates
-       ORDER BY _rank DESC LIMIT 1`,
+      `SELECT id, sku FROM products WHERE ${conditions.join(' AND ')} ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC LIMIT 1`,
       params
     );
     if (!lookupResult.rows.length) {
@@ -1696,7 +1566,7 @@ async function handleFindSimilar(args: Record<string, unknown>, ctx: McpToolCont
     })
     .filter(Boolean);
 
-  const result: Record<string, unknown> = {
+  return {
     product_id: sourceProductId,
     requested_product_id: requestedId || undefined,
     matched_product_name: productName || undefined,
@@ -1706,224 +1576,20 @@ async function handleFindSimilar(args: Record<string, unknown>, ctx: McpToolCont
     meta: { vector_table: vectorTable, vector_key: vectorKey },
     response_time_ms: Date.now() - t0,
   };
-
-  // BUY-71542 / P2.6: apply emptiness metadata if vector produced neighbors
-  // but no active product rows were found for them.
-  await applyEmptiness('find_similar', result, ctx, {
-    regionSupported: SUPPORTED_REGIONS.has(countryCode),
-    requestedCountry: countryCode,
-  }, Date.now() - t0);
-
-  return result;
 }
 
-/** BUY-71542 / P2.6: per-request context threaded through dispatchTool and handlers. */
-interface McpToolContext {
-  /** True when checkRateLimit set the 429 flag on res.locals. */
-  wasRateLimited: boolean;
-  /** Remaining requests in current minute window; null if not known. */
-  rateLimitRemaining: number | null;
-}
-
-/**
- * BUY-71542 / P2.6: set rate-limit signal in res.locals so dispatchTool can read it.
- * The middleware (checkRateLimit) already writes `rateLimited: true` to res.locals
- * before sending 429 — this helper reads it back so the handler can tag the response.
- */
-function mcpToolContext(res: Response): McpToolContext {
-  return {
-    wasRateLimited: res.locals.rateLimited === true,
-    rateLimitRemaining: typeof res.locals.rateLimitRemaining === 'number' ? res.locals.rateLimitRemaining : null,
-  };
-}
-
-async function dispatchTool(
-  name: string,
-  args: Record<string, unknown>,
-  caller: ReturnType<typeof callerContextForUrl> | undefined,
-  ctx: McpToolContext,
-) {
+async function dispatchTool(name: string, args: Record<string, unknown>) {
   switch (name) {
-    case 'search_products':  return handleSearchProducts(args, caller, ctx);
-    case 'get_product':      return handleGetProduct(args, caller, ctx);
-    case 'compare_products': return handleCompareProducts(args, caller, ctx);
-    case 'get_deals':        return handleGetDeals(args, caller, ctx);
-    case 'list_categories':  return handleListCategories(args, ctx);
-    case 'find_best_price':  return handleFindBestPrice(args, ctx);
-    case 'ingest_products':  return handleIngestProducts(args, ctx);
-    case 'find_similar':     return handleFindSimilar(args, ctx);
+    case 'search_products':  return handleSearchProducts(args);
+    case 'get_product':      return handleGetProduct(args);
+    case 'compare_products': return handleCompareProducts(args);
+    case 'get_deals':        return handleGetDeals(args);
+    case 'list_categories':  return handleListCategories(args);
+    case 'find_best_price':  return handleFindBestPrice(args);
+    case 'ingest_products':  return handleIngestProducts(args);
+    case 'find_similar':     return handleFindSimilar(args);
     default:
       throw { code: -32601, message: `Unknown tool: ${name}` };
-  }
-}
-
-// BUY-71542 / P2.6 ------------------------------------------------------------
-// Emptiness telemetry. Every tool returns a 200 OK with meta.emptiness_reason
-// when its payload is empty, so callers (and v_ceo_kpis.silently_empty_rate)
-// can distinguish no_data / no_match / api_error / quota / region_unsupported /
-// category_unsupported instead of guessing from a bare empty array.
-
-interface EmptinessProbeSignals {
-  apiError?: boolean;
-  regionHasAnyData?: boolean;
-  categoryHasAnyData?: boolean;
-  regionSupported?: boolean;
-  categoryRequested?: boolean;
-  requestedCategory?: string | null;
-  requestedCountry?: string | null;
-}
-
-// Module-level cache of "does region X have any indexed products" — derived from
-// a bounded recent-rows sample (idx_products_updated_at), refreshed at most once
-// per 60s, so empty responses don't trigger unbounded country_code scans.
-const regionProbeCache = new Map<string, { hasData: boolean; categories: Set<string>; probedAt: number }>();
-const REGION_PROBE_TTL_MS = 60_000;
-
-async function probeRegionAndCategories(country: string | null): Promise<{ hasData: boolean; categories: Set<string> }> {
-  if (!country) return { hasData: true, categories: new Set() }; // unknown market — assume data exists
-  const cached = regionProbeCache.get(country);
-  if (cached && Date.now() - cached.probedAt < REGION_PROBE_TTL_MS) {
-    return { hasData: cached.hasData, categories: cached.categories };
-  }
-  try {
-    const sample = await db.query<{ country_code: string | null; category: string | null }>(
-      `SELECT country_code, category FROM (
-         SELECT country_code, category FROM products
-         WHERE is_active = true
-         ORDER BY updated_at DESC
-         LIMIT 20000
-       ) _recent`
-    );
-    const rows = sample.rows;
-    const hasData = rows.some(r => (r.country_code || '').toUpperCase() === country);
-    const categories = new Set(
-      rows.filter(r => (r.country_code || '').toUpperCase() === country)
-        .map(r => (r.category || '').toLowerCase().trim())
-        .filter(Boolean)
-    );
-    regionProbeCache.set(country, { hasData, categories, probedAt: Date.now() });
-    return { hasData, categories };
-  } catch {
-    return { hasData: true, categories: new Set() }; // probe failure — don't fabricate no_data
-  }
-}
-
-/**
- * BUY-71542 / P2.6 spec item 5: api_error empties write monitoring.alert_history.
- * alert_history's NOT NULL columns (market, p95_ms) are repurposed: market =
- * requested country (lowercased, clamped to the CHECK list), p95_ms = response
- * time; tool + detail go into resolution_notes.
- */
-async function recordApiErrorAlert(tool: string, detail: string, country: string | null, responseTimeMs: number): Promise<void> {
-  try {
-    const market = (country || 'SG').toLowerCase();
-    const safeMarket = ['sg', 'us', 'my', 'vn', 'th'].includes(market) ? market : 'sg';
-    await db.query(
-      `INSERT INTO monitoring.alert_history (market, p95_ms, threshold_ms, resolution_notes)
-       VALUES ($1, $2, $3, $4)`,
-      [safeMarket, responseTimeMs, 0, `[P2.6 mcp_empty api_error] tool=${tool} country=${country || 'n/a'}: ${detail.slice(0, 400)}`]
-    );
-  } catch (e) {
-    console.warn('[mcp:emptiness] alert_history write failed:', (e as Error).message);
-  }
-}
-
-/**
- * BUY-71542 / P2.6: record every empty MCP response for silently_empty_rate KPI.
- * Writes a row to monitoring.mcp_empty_responses regardless of reason.
- * Fire-and-forget — never blocks the response.
- */
-async function recordEmptinessTelemetry(
-  tool: string,
-  emptinessReason: string,
-  country: string | null,
-  category: string | null,
-  confidence: string,
-  responseTimeMs: number,
-): Promise<void> {
-  try {
-    await db.query(
-      `INSERT INTO monitoring.mcp_empty_responses
-         (tool_name, emptiness_reason, requested_country_code, requested_category, confidence, response_time_ms)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [tool, emptinessReason, country || null, category || null, confidence, responseTimeMs]
-    );
-  } catch (e) {
-    console.warn('[mcp:emptiness] telemetry insert failed:', (e as Error).message);
-  }
-}
-
-/**
- * Apply emptiness metadata to a tool result when its payload is empty.
- * `isEmpty(result)` decides emptiness per tool shape (search envelope with
- * products/results/data arrays, find_best_price best_price=null, list_categories
- * data=[], find_similar similar=[]).
- */
-function resultIsEmpty(result: unknown): boolean {
-  if (!result || typeof result !== 'object') return false;
-  const r = result as unknown as Record<string, unknown>;
-  for (const key of ['products', 'results', 'items', 'data', 'similar']) {
-    if (Array.isArray(r[key])) return (r[key] as unknown[]).length === 0;
-  }
-  if ('best_price' in r) return r.best_price == null;
-  if ('status' in r && 'rows_inserted' in r) return Number(r.rows_inserted) + Number(r.rows_updated) === 0 && Number(r.rows_failed) === 0;
-  return false;
-}
-
-async function applyEmptiness(
-  tool: string,
-  result: Record<string, unknown>,
-  ctx: McpToolContext,
-  signals: EmptinessProbeSignals,
-  responseTimeMs: number,
-): Promise<void> {
-  if (!resultIsEmpty(result)) return;
-
-  const requestedCountry = (signals.requestedCountry || '').toUpperCase() || null;
-  const regionSupported = signals.regionSupported ?? (requestedCountry ? SUPPORTED_REGIONS.has(requestedCountry) : true);
-  const { hasData, categories } = await probeRegionAndCategories(requestedCountry);
-  const categoryRequested = signals.categoryRequested ?? Boolean(signals.requestedCategory);
-  const categoryHasAnyData = signals.categoryHasAnyData ?? (
-    categoryRequested && signals.requestedCategory
-      ? categories.has(signals.requestedCategory.toLowerCase().trim()) ||
-        [...categories].some(c => c.includes(signals.requestedCategory!.toLowerCase().trim()))
-      : true
-  );
-
-  const derived = deriveEmptiness({
-    regionHasAnyData: signals.regionHasAnyData ?? hasData,
-    categoryHasAnyData,
-    apiError: signals.apiError === true,
-    rateLimited: ctx.wasRateLimited,
-    regionSupported,
-    categoryRequested,
-    requestedCategory: signals.requestedCategory || null,
-    requestedCountry,
-    rateLimitRemaining: ctx.rateLimitRemaining,
-  });
-
-  const meta = (result.meta && typeof result.meta === 'object')
-    ? result.meta as Record<string, unknown>
-    : {};
-  result.meta = {
-    ...meta,
-    emptiness_reason: derived.emptiness_reason,
-    confidence: derived.confidence,
-    diagnostic: derived.diagnostic,
-  };
-
-  // BUY-71542 / P2.6: write telemetry row for silently_empty_rate KPI
-  void recordEmptinessTelemetry(
-    tool,
-    derived.emptiness_reason,
-    requestedCountry,
-    signals.requestedCategory || null,
-    derived.confidence,
-    responseTimeMs,
-  );
-
-  if (derived.emptiness_reason === 'api_error') {
-    void recordApiErrorAlert(tool, `emptiness_reason=api_error engine_status=${derived.diagnostic.engine_status}`, requestedCountry, responseTimeMs);
   }
 }
 
@@ -2130,7 +1796,7 @@ router.post('/', requireApiKey, checkRateLimit, queryLogMiddleware('mcp'), async
         // BUY-22733: surface tool name to queryLog middleware so the finish
         // handler emits `mcp_tool_call` (with tool_name) instead of `api_query`.
         res.locals.mcpToolName = toolName;
-        const result = await dispatchTool(toolName, toolArgs, callerContextForUrl(req), mcpToolContext(res));
+        const result = await dispatchTool(toolName, toolArgs);
         return res.json(jsonrpcOk(id, {
           content: [{ type: 'text', text: JSON.stringify(result) }],
         }));
