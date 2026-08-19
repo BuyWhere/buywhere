@@ -32,7 +32,7 @@ Every response from both surfaces carries the `X-Agent-*` namespace. CORS expose
 | `X-Agent-Card` | every response | `https://api.buywhere.ai/.well-known/agent.json` |
 | `X-LLMs-Txt` | every response | `https://api.buywhere.ai/llms.txt` |
 | `X-Agent-Index` | 200 catalog only | `https://api.buywhere.ai/v1/products?q={q}&country_code={cc}` |
-| `X-Agent-Auth` | 401/403 only | `Bearer; register=https://buywhere.ai/keys` |
+| `X-Agent-Auth` | 401/403 only | `Bearer; register=https://buywhere.ai/api-keys` |
 
 Plus the CORS directive:
 
@@ -83,7 +83,7 @@ Substitute `{q}` with your original query string (URL-encoded) and `{cc}` with t
 **5. On 401 or 403, follow `X-Agent-Auth`.**
 
 ```
-x-agent-auth: Bearer; register=https://buywhere.ai/keys
+x-agent-auth: Bearer; register=https://buywhere.ai/api-keys
 ```
 
 The header value tells you (a) the auth scheme is `Bearer`, and (b) where to register a new key. Hit the register URL, get a `bw_live_...` key, and retry. Do not retry on `429` — that header carries `Retry-After` and `X-RateLimit-*` instead.
@@ -110,7 +110,7 @@ manifest = httpx.get(f"{API}/llms.txt").text
 resp = httpx.get(f"{API}/v1/products/search", params={"q": "laptop", "country_code": "US"})
 if resp.status_code in (401, 403):
     auth_hint = resp.headers["x-agent-auth"]
-    # "Bearer; register=https://buywhere.ai/keys"
+    # "Bearer; register=https://buywhere.ai/api-keys"
     print("register at:", auth_hint.split("register=")[1])
 
 # Register, then retry with the key

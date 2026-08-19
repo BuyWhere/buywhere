@@ -20,7 +20,7 @@ Every response from `https://buywhere.ai/*` and `https://api.buywhere.ai/*` carr
 | `X-Agent-Card` | every response | `https://api.buywhere.ai/.well-known/agent.json` |
 | `X-LLMs-Txt` | every response | `https://api.buywhere.ai/llms.txt` |
 | `X-Agent-Index` | 200 catalog responses only | `https://api.buywhere.ai/v1/products?q={q}&country_code={cc}` |
-| `X-Agent-Auth` | 401 and 403 responses only | `Bearer; register=https://buywhere.ai/keys` |
+| `X-Agent-Auth` | 401 and 403 responses only | `Bearer; register=https://buywhere.ai/api-keys` |
 
 Plus the CORS directive:
 
@@ -36,9 +36,9 @@ Access-Control-Expose-Headers: X-Agent-Protocol, X-Agent-Card, X-LLMs-Txt, X-Age
 
 **`X-LLMs-Txt`** — points at the [llms.txt manifest](#llms-txt). Always present.
 
-**`X-Agent-Index`** — only on 200 responses from catalog endpoints (`/v1/products/search`, `/v1/products/compare`, `/v1/products/{id}`, `/v1/categories`, `/v1/deals`). The value is a templated URL with `{q}` and `{cc}` placeholders; agents substitute them client-side using the request they just sent.
+**`X-Agent-Index`** — only on 200 responses from catalog endpoints (`/v1/products/search`, `/v1/products/compare`, `/v1/products/{id}`, `/v1/p/{id}` (PDP alias), `/v1/categories`, `/v1/deals`). The value is a templated URL with `{q}` and `{cc}` placeholders; agents substitute them client-side using the request they just sent.
 
-**`X-Agent-Auth`** — only on `401 Unauthorized` and `403 Forbidden`. The value `Bearer; register=https://buywhere.ai/keys` tells agents the auth scheme is `Bearer` and where to register a key. Not emitted on `429` (rate-limit responses already carry `Retry-After` and `X-RateLimit-*`).
+**`X-Agent-Auth`** — only on `401 Unauthorized` and `403 Forbidden`. The value `Bearer; register=https://buywhere.ai/api-keys` tells agents the auth scheme is `Bearer` and where to register a key. Not emitted on `429` (rate-limit responses already carry `Retry-After` and `X-RateLimit-*`).
 
 ### CORS
 
