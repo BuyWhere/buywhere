@@ -571,6 +571,7 @@ const LIST_SORT_COLUMNS: Record<string, string> = {
   created_at: 'created_at',
 };
 const LIST_SORT_TTL_SECONDS = 60;
+const LIST_FILTER_SLICE_CAP = Math.max(1000, Number(process.env.LIST_FILTER_SLICE_CAP) || 50000);
 
 router.get(
   '/',
@@ -681,20 +682,36 @@ router.get(
     // indexes are invalid due to interrupted CONCURRENTLY builds; BUY-39987 tracks the rebuild).
     // Sort param is honoured for id-tied pages but the primary sort is always id DESC.
     const orderBy = `ORDER BY products.id DESC`;
+    const explicitScopeRequested = Boolean(explicitCountry || region || category);
+    const dataQuery = explicitScopeRequested
+      ? `WITH recent_products AS MATERIALIZED (
+           SELECT id
+           FROM products
+           WHERE is_active = true AND price > 0
+           ORDER BY id DESC
+           LIMIT $${idx + 2}
+         )
+         SELECT ${SELECT_COLUMNS}
+         FROM recent_products rp
+         JOIN products ON products.id = rp.id
+         ${whereClause}
+         ${orderBy}
+         LIMIT $${idx} OFFSET $${idx + 1}`
+      : `SELECT ${SELECT_COLUMNS}
+         FROM products
+         ${whereClause}
+         ${orderBy}
+         LIMIT $${idx} OFFSET $${idx + 1}`;
+    const dataParams = explicitScopeRequested
+      ? [...params, limit, offset, LIST_FILTER_SLICE_CAP]
+      : [...params, limit, offset];
 
     const [countResult, dataResult] = await Promise.all([
       // Fast statistical estimate — avoids a full 65M-row COUNT seq scan. The returned value
       // is approximate (pg_class.reltuples is updated by VACUUM/ANALYZE) but accurate enough
       // for pagination totals. Exact counts would hit the 30s statement_timeout.
       db.query(`SELECT reltuples::bigint AS count FROM pg_class WHERE relname = 'products'`),
-      db.query(
-        `SELECT ${SELECT_COLUMNS}
-         FROM products
-         ${whereClause}
-         ${orderBy}
-         LIMIT $${idx} OFFSET $${idx + 1}`,
-        [...params, limit, offset]
-      ),
+      db.query(dataQuery, dataParams),
     ]);
 
     const total = parseInt(countResult.rows[0].count, 10);
