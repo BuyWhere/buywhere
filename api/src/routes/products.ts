@@ -583,8 +583,11 @@ router.get(
     // `/v1/products?query=...` for search. Treat that as the canonical
     // bounded search route instead of falling through to the unsearched list
     // query, which is intentionally optimized for paginated browsing.
+    // BUY-71693: also redirect `?q=` (not just `?query=`) to /search — the list
+    // handler has no search logic and returns stale cached results.
     const legacyQuery = req.query.query as string | undefined;
-    if (legacyQuery && !req.query.q) {
+    const searchQuery = req.query.q as string | undefined;
+    if ((legacyQuery || searchQuery) && !req.query.search) {
       const searchParams = new URLSearchParams();
       for (const [key, value] of Object.entries(req.query)) {
         if (value === undefined) continue;
