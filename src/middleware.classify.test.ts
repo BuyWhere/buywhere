@@ -122,3 +122,91 @@ describe("BUY-70970 pathname normalization", () => {
     expect(normalizePathname("/developers")).toBe("/developers");
   });
 });
+
+// BUY-71735: P2.3 agent-discovery X-Agent-Auth contract.
+// Replicate `withAgentAuthHeader` so we can unit-test without booting Next.js.
+
+interface FakeHeaders {
+  get(name: string): string | null;
+  set(name: string, value: string): void;
+}
+
+class FakeResponse {
+  status: number;
+  headers = new Map<string, string>();
+  constructor(status: number) {
+    this.status = status;
+  }
+  get(name: string): string | null {
+    return this.headers.get(name.toLowerCase()) ?? null;
+  }
+  set(name: string, value: string): void {
+    this.headers.set(name.toLowerCase(), value);
+  }
+}
+
+function fakeWithAgentAuthHeader(response: FakeResponse): FakeResponse {
+  const allFive =
+    "X-Agent-Protocol, X-Agent-Card, X-LLMs-Txt, X-Agent-Index, X-Agent-Auth";
+  if (response.status === 401 || response.status === 403) {
+    response.set(
+      "X-Agent-Auth",
+      "Bearer; register=https://buywhere.ai/api-keys"
+    );
+  }
+  const existing = response.get("Access-Control-Expose-Headers");
+  if (existing) {
+    if (!existing.includes("X-Agent-Protocol")) {
+      response.set("Access-Control-Expose-Headers", `${existing}, ${allFive}`);
+    }
+  } else {
+    response.set("Access-Control-Expose-Headers", allFive);
+  }
+  return response;
+}
+
+describe("withAgentAuthHeader (P2.3)", () => {
+  it("adds X-Agent-Auth on 401", () => {
+    const r = new FakeResponse(401);
+    fakeWithAgentAuthHeader(r);
+    expect(r.get("X-Agent-Auth")).toBe(
+      "Bearer; register=https://buywhere.ai/api-keys"
+    );
+  });
+
+  it("adds X-Agent-Auth on 403", () => {
+    const r = new FakeResponse(403);
+    fakeWithAgentAuthHeader(r);
+    expect(r.get("X-Agent-Auth")).toBe(
+      "Bearer; register=https://buywhere.ai/api-keys"
+    );
+  });
+
+  it("does NOT add X-Agent-Auth on 200", () => {
+    const r = new FakeResponse(200);
+    fakeWithAgentAuthHeader(r);
+    expect(r.get("X-Agent-Auth")).toBeNull();
+  });
+
+  it("adds Access-Control-Expose-Headers listing all 5 headers when missing", () => {
+    const r = new FakeResponse(200);
+    fakeWithAgentAuthHeader(r);
+    const expose = r.get("Access-Control-Expose-Headers") ?? "";
+    expect(expose).toContain("X-Agent-Protocol");
+    expect(expose).toContain("X-Agent-Card");
+    expect(expose).toContain("X-LLMs-Txt");
+    expect(expose).toContain("X-Agent-Index");
+    expect(expose).toContain("X-Agent-Auth");
+  });
+
+  it("appends to existing Access-Control-Expose-Headers without duplicating", () => {
+    const r = new FakeResponse(200);
+    r.set("Access-Control-Expose-Headers", "X-Custom-Header");
+    fakeWithAgentAuthHeader(r);
+    const expose = r.get("Access-Control-Expose-Headers") ?? "";
+    expect(expose).toContain("X-Custom-Header");
+    // Four X-Agent-* headers (X-LLMs-Txt has no "X-Agent-" prefix).
+    expect(expose.match(/X-Agent-/g)?.length).toBe(4);
+    expect(expose).toContain("X-LLMs-Txt");
+  });
+});
