@@ -200,19 +200,19 @@ const SEARCH_IMAGE_BLOCKED_HOSTS = new Set([
   // Unsplash placeholder (existing)
   'source.unsplash.com', 'images.unsplash.com',
   // Hotlink-protected merchant CDNs (added for BUY-69615)
-  'c1.neweggimages.com', // Returns HTTP 400 for all requests
+  'c1.neweggimages.com', // Returns HTTP 400 for all requests (AkamaiGHost)
   'www.neweggimages.com',
   'www.harveynorman.com.sg', // Returns HTTP 404 for most images
   'harveynorman.com.sg',
   // BUY-67241: mediadecathlon content host returns hard 410 (max-age=2592000)
   'contents.mediadecathlon.com',
   'www.mediadecathlon.com',
-  // BUY-67241: cdn.shopify.com wireless-headphones catalog rows return mixed
-  // 200/404/410 (JBL, Sony, Beats break in QA 2026-08-09T02:13Z); filter the
-  // whole host and render BrandedPlaceholder instead.
-  'cdn.shopify.com',
-  'shopify.com',
-  'www.shopify.com',
+  // BUY-71647: cdn.shopify.com was previously blocked here because direct browser
+  // requests returned mixed 200/404/410. Now /api/image-proxy successfully fetches
+  // these images (HTTP 200), so we allow it through to be wrapped by the proxy.
+  // The proxy wraps it as /api/image-proxy?url=<encoded> and our hostname bypasses
+  // the CDN blocklist. Shopify hosts are NOT added to the subdomain wildcards below.
+  // 'cdn.shopify.com', 'shopify.com', 'www.shopify.com',
 ]);
 
 function hasUsableProductImage(value?: string | null) {
@@ -254,7 +254,9 @@ function hasUsableProductImage(value?: string | null) {
     // The Set above catches apex + www; matches here catch subdomains like
     // burst.shopifycdn.com and static.mediadecathlon.com.
     if (hostname.endsWith('.mediadecathlon.com')) return false;
-    if (hostname.endsWith('.shopify.com')) return false;
+    // BUY-71647: .shopify.com is no longer blocked because /api/image-proxy fetches
+    // cdn.shopify.com images successfully. Other shopify subdomains will also be
+    // wrapped through the proxy. shopifycdn.com remains blocked (different host).
     if (hostname.endsWith('.shopifycdn.com')) return false;
 
     return true;
@@ -550,11 +552,15 @@ function normalizeProduct(item: SearchApiItem, fallbackCurrency: string): Search
   const specs = item.structured_specs || item.metadata || null;
   const specBrand = typeof specs?.brand === 'string' ? specs.brand : null;
   const specCategory = typeof specs?.category === 'string' ? specs.category : null;
-  const imageUrl = hasUsableProductImage(item.image_url)
+  // BUY-71647: wrap blocked image URLs through /api/image-proxy so they render
+  // real images instead of the branded placeholder. The proxy hostname
+  // (buywhere.ai) bypasses S()'s CDN blocklist.
+  const u = hasUsableProductImage(item.image_url)
     ? item.image_url || null
     : hasUsableProductImage(item.image)
       ? item.image || null
       : null;
+  const imageUrl = u ? `/api/image-proxy?url=${encodeURIComponent(u)}` : null;
 
   const name = item.name || item.title || 'Untitled product';
   const category = item.category || specCategory;
