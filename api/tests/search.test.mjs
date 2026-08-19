@@ -268,6 +268,11 @@ describe('NL search queries — response correctness', () => {
     const body = await res.json();
     assert.equal(res.status, 200);
     assert.equal(body.data[0].country_code, 'US');
+
+    const listCacheKeys = redisGetMock.mock.calls
+      .map(c => c.arguments[0])
+      .filter(k => typeof k === 'string' && k.startsWith('list:v2:'));
+    assert.ok(listCacheKeys.some(k => k.includes(':US:us:')), 'Expected list cache key to include country and region');
   });
 
   it('uses search_products tier when requested for keyword searches', async () => {
