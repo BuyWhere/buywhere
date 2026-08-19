@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { parse as parseUrl } from 'url';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const onHeaders = require('on-headers');
 
@@ -81,9 +82,17 @@ export function withAgentHeaders(req: Request, res: Response, next: NextFunction
   // on-headers fires exactly once, immediately before headers are
   // flushed to the client. Status is final; res.path/url is set.
   // Setting headers here is safe and the body is never touched.
+  //
+  // CRITICAL: read req.originalUrl, NOT req.path or req.url. Once a
+  // sub-router (e.g. /v1/products/productsRouter) handles the request,
+  // Express mutates req.url to the sub-path and req.baseUrl to the
+  // mount point. Only req.originalUrl retains the full incoming URL.
+  // Without this, isCatalogPath('/v1/products/search?q=watch') becomes
+  // isCatalogPath('/search') and X-Agent-Index is silently dropped.
   onHeaders(res, function agentHeadersOnHeaders(this: Response) {
     const status = this.statusCode;
-    const pathname = (req as Request).path || req.originalUrl || req.url || '';
+    const original = req.originalUrl || req.url || '';
+    const pathname = parseUrl(original).pathname || '';
 
     if (status === 200 && isCatalogPath(pathname)) {
       this.setHeader('X-Agent-Index', AGENT_INDEX_URL);
