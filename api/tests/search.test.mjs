@@ -245,6 +245,31 @@ describe('NL search queries — response correctness', () => {
     assert.equal(responseTotal(body), 3);
   });
 
+  it('applies country alias and region filters on the /v1/products list route', async () => {
+    queryMock.mock.mockImplementation((sql, params) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({ rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }] });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (typeof sql === 'string' && sql.includes("pg_class")) {
+        return Promise.resolve({ rows: [{ count: '3' }] });
+      }
+      assert.ok(sql.includes('country_code = $2'), 'Expected country alias to become a country_code predicate');
+      assert.ok(sql.includes('LOWER(region) = LOWER($3)'), 'Expected region predicate on list route');
+      assert.deepEqual(params.slice(0, 3), ['USD', 'US', 'us']);
+      return Promise.resolve({ rows: [makeProduct('us-1', { country_code: 'US', region: 'us', currency: 'USD' })] });
+    });
+
+    const res = await fetch(`http://localhost:${port}/v1/products?country=US&region=us&limit=3`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(body.data[0].country_code, 'US');
+  });
+
   it('uses search_products tier when requested for keyword searches', async () => {
     const res = await fetch(`http://localhost:${port}/v1/products/search?q=wireless+headphones&country_code=US&_tier=1`, {
       headers: { Authorization: 'Bearer test-key' },

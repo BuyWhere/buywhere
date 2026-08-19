@@ -612,7 +612,10 @@ router.get(
 
     // Filters — country defaults to SG to prevent cross-region pollution (BUY-6598)
     const category = req.query.category as string | undefined;
-    const countryCode = (req.query.country_code as string | undefined)?.toUpperCase() || 'SG';
+    const explicitCountry = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase();
+    const rawRegion = (req.query.region as string | undefined)?.toUpperCase();
+    const countryCode = explicitCountry || (rawRegion && COUNTRY_CURRENCY[rawRegion] ? rawRegion : 'SG');
+    const region = (req.query.region as string | undefined)?.toLowerCase();
     const currency = (req.query.currency as string) || (COUNTRY_CURRENCY[countryCode] || 'SGD');
 
     // Sort — whitelist to safe columns, default to created_at desc
@@ -651,6 +654,11 @@ router.get(
     if (countryCode) {
       conditions.push(`country_code = $${idx}`);
       params.push(countryCode);
+      idx++;
+    }
+    if (region) {
+      conditions.push(`LOWER(region) = LOWER($${idx})`);
+      params.push(region);
       idx++;
     }
     if (category) {
