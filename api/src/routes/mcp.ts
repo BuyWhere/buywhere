@@ -872,7 +872,14 @@ async function handleListCategories(args: Record<string, unknown>, ctx: McpToolC
     const cached = await redis.get(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed.data) && parsed.data.length > 0) {
+      // BUY-68656: check for poisoned cache (unavailable=true but rows exist with all-zero counts)
+      const poisonedCategoryCache = parsed?.meta?.unavailable === true &&
+        Array.isArray(parsed.data) &&
+        parsed.data.length > 0 &&
+        parsed.data.every((row: { product_count?: unknown }) => Number(row.product_count) === 0);
+      if (poisonedCategoryCache) {
+        redis.del(cacheKey).catch(() => {});
+      } else if (Array.isArray(parsed.data) && parsed.data.length > 0) {
         return { ...parsed, meta: { ...parsed.meta, cached: true, response_time_ms: Date.now() - t0 } };
       }
     }
