@@ -205,14 +205,16 @@ async function tryTierSearch(
     jsonb_build_object('brand', sp.brand, 'category', sp.category,
       'availability', CASE WHEN sp.in_stock IS FALSE THEN 'out_of_stock' ELSE 'in_stock' END) AS metadata`;
 
-  // BUY-63738: add laptop accessory demotion and boost to tier search results.
-  // Accessories (backpacks, skins, cases, sleeves) should rank lower for laptop queries.
-  // Also boost products that contain "laptop" in title/category.
+  // BUY-63738 + BUY-71667: add laptop accessory demotion and boost to tier search results.
+  // Accessories (backpacks, skins, cases, sleeves, desks, tables, trays) should rank
+  // lower for laptop queries. Also boost products that contain "laptop" in title/category.
+  // BUY-71667: added desk/table/tray keywords so "Laptop Desk" / "Study Laptop Table"
+  // products are treated as accessories (not furniture) for bare laptop searches.
   const laptopAccessoryPenalty = `
     CASE
-      WHEN sp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-        OR sp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-        OR array_to_string(sp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+      WHEN sp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|desk|desks|table|tables|tray|trays)\\M'
+        OR sp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|desk|desks|table|tables|tray|trays)\\M'
+        OR array_to_string(sp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|desk|desks|table|tables|tray|trays)\\M'
       THEN 0.25 ELSE 1.0
     END`;
   // BUY-69753: boost phone-handset brands and demote phone accessories in title-fallback
@@ -240,23 +242,24 @@ async function tryTierSearch(
       THEN 0.15 ELSE 1.0
     END`;
 
-  // BUY-71653: Primary-product laptop scoring.
-  // Boost actual laptops (HP Laptop, Dell Inspiron, MacBook Pro) above desk/table/
-  // accessory products. The old 2.0x blanket boost was insufficient — "Laptop Desk"
-  // and "Study Laptop Table" also got 2.0x, drowning real laptops for US queries.
+  // BUY-71653 + BUY-71667: Primary-product laptop scoring.
+  // Boost actual laptops (HP Laptop, Dell Inspiron, MacBook Pro, ASUS VivoBook)
+  // above desk/table/accessory products. The old 2.0x blanket boost was insufficient —
+  // "Laptop Desk" and "Study Laptop Table" also got 2.0x, drowning real laptops.
   //
   // Scoring tiers:
-  //   2.5x — actual laptops: title contains "laptop"/"notebook"/"macbook" standalone
-  //           word AND does NOT contain desk/table/bag/stand/accessory modifiers
-  //   0.75x — laptop-desk/table products (laptop is a USE-CASE modifier, not product type)
-  //   0.25x — laptop bags/cases/sleeves/covers (BUY-63738 covered these partially)
-  //   0.10x — laptop stands/arms/coolers (accessories that "contain" laptop use-case)
-  //   0.05x — laptop repair/soldering materials (laptop is a TARGET, not a product)
-  //   1.5x — category-only match (no title match) — keep category signals active
-  //   1.0x — no laptop signal at all
+  //   3.0x  — actual laptops WITH known laptop brand names (HP/ASUS/Lenovo/Dell/etc.)
+  //   2.5x  — actual laptops without brand name in title
+  //   0.25x — laptop bags/cases/sleeves/covers and stands/arms/coolers (accessories)
+  //   0.25x — laptop desk/table/tray (BUY-71667: reclassified from 0.75 — a "Study
+  //           Laptop Table" is an accessory with laptop as use-case modifier, not furniture)
+  //   0.10x — laptop chargers/batteries/cables (power accessories)
+  //   0.05x — laptop repair/soldering materials (laptop is the repair TARGET)
+  //   1.5x  — category-only match (no title match) — keep category signals active
+  //   1.0x  — no laptop signal at all
   //
-  // ORDER MATTERS: stand/arm/cooler checked BEFORE desk/table because the desk
-  // regex matches "laptop stand" via its `stand` alternative (greedy .*).
+  // ORDER MATTERS: repair → charger → bag/case/cover → stand/arm/cooler → desk/table/bed
+  // THEN actual laptop (nested brand-boost CASE differentiates branded vs generic).
   const laptopBoost = `
     CASE
       WHEN lower(sp.title) ~* '\\mlaptop\\M'
@@ -269,24 +272,42 @@ async function tryTierSearch(
           WHEN lower(sp.title) ~* '(soldering|solder|paste|flux|repair|tool|tools|replacement|part|parts)\\M'
             AND (lower(sp.title) ~* '\\mlaptop\\M' OR lower(sp.title) ~* '\\mnotebook\\M')
           THEN 0.05
-          -- Chargers, power banks, batteries — laptop is the POWER TARGET
-          WHEN lower(sp.title) ~* '(charger|chargers|power bank|powerbank|battery|batteries|adapter|adapters|cable|cables|organiser|organizer)\\M'
+          -- Chargers, power banks, batteries, cables — laptop is the POWER/CONNECT target
+          WHEN lower(sp.title) ~* '(charger|chargers|power bank|powerbank|battery|batteries|cable|cables|organiser|organizer)\\M'
             AND (lower(sp.title) ~* '\\mlaptop\\M' OR lower(sp.title) ~* '\\mnotebook\\M')
           THEN 0.10
           -- Bags, backpacks, sleeves, cases, covers
           WHEN lower(sp.title) ~* '(laptop|notebook|macbook|chromebook)\\M.*(bag|bags|backpack|backpacks|sleeve|sleeves|case|cases|cover|covers|pouch|carrier)'
             OR lower(sp.category) ~* '\\m(bag|bags|backpack|backpacks|sleeve|sleeves|case|cases|cover|covers)\\M'
           THEN 0.25
-          -- Stands, arms, coolers, risers (CHECKED BEFORE desk/table — both match "laptop stand")
+          -- Stands, arms, coolers, risers
           WHEN lower(sp.title) ~* '(laptop|notebook|macbook|chromebook)\\M.*(stand|stands|arm|arms|cooler|coolers|riser|risers|mount|mounts|extension)'
-          THEN 0.10
-          -- Desk/table/bamboo furniture: laptop is the USE-CASE modifier, not the product
+          THEN 0.25
+          -- Desk/table/tray/bed: laptop is the USE-CASE modifier, not the product type
+          -- BUY-71667: reclassified from 0.75 — a "Study Laptop Table" is an accessory
           WHEN lower(sp.title) ~* 'laptop\\M.*(desk|table|tray|shelf|bed)'
             OR lower(sp.title) ~* '\\m(study|wooden|wood|bamboo|foldable|bed|breakfast)\\M.*\\m(laptop|desk|table|tray)\\M'
             OR lower(sp.title) ~* '(bamboo|wooden|foldable|bed|breakfast)\\M'
-          THEN 0.75
+          THEN 0.25
           -- ACTUAL LAPTOP: title contains laptop/notebook/macbook as the product type
-          ELSE 2.5
+          -- BUY-71667: brand boost — laptops with a known laptop-brand family name
+          -- (HP/ASUS/Lenovo/Dell/Surface/Acer/MSI/Samsung/...) outrank generic
+          -- "Business Laptop" listings for bare laptop queries.
+          ELSE
+            CASE
+              -- BUY-71667: brand boost — known laptop-brand families get 3.0x vs 2.5x generic.
+              -- \m at BOTH ends ensures brand word is whole (not substring in e.g. "compatibility").
+              WHEN lower(sp.title) ~* '\\m(hp|hewlett|asus|vivobook|zenbook|rog|tuf|expertbook|proart)\\M'
+                OR lower(sp.title) ~* '\\m(lenovo|thinkpad|ideapad|yoga|legion|loq|flex|slim)\\M'
+                OR lower(sp.title) ~* '\\m(dell|inspiron|latitude|xps|precision|alienware|vostro)\\M'
+                OR lower(sp.title) ~* '\\m(surface|macbook|chromebook)\\M'
+                OR lower(sp.title) ~* '\\m(acer|aspire|swift|spin|predator|nitro)\\M'
+                OR lower(sp.title) ~* '\\m(msi|gigabyte|aorus)\\M'
+                OR lower(sp.title) ~* '\\m(toshiba|dynabook|portege|satellite)\\M'
+                OR lower(sp.title) ~* '\\m(samsung|galaxy|huawei|matebook|razer|vaio)\\M'
+              THEN 3.0
+              ELSE 2.5
+            END
         END
       -- Category-only match (no title match) — keep category signal active but not as strong
       WHEN lower(sp.category) LIKE '%laptop%'
@@ -342,13 +363,14 @@ async function tryTierSearch(
 
   const andMatch = `sp.search_vector @@ plainto_tsquery('english', $${qIdx}) AND $${orIdx}::text IS NOT NULL`;
   const orMatch = `sp.search_vector @@ to_tsquery('english', $${orIdx})`;
-  // BUY-63738: add accessory penalty to title fallback queries so accessories don't
-  // dominate results when FTS returns no matches. Uses 0.25x multiplier like mkQuery.
+  // BUY-63738 + BUY-71667: add accessory penalty to title fallback queries so accessories
+  // don't dominate results when FTS returns no matches. Uses 0.25x multiplier like mkQuery.
+  // BUY-71667: added desk/table/tray to match the tier path changes.
   const laptopAccessoryPenaltyTitle = `
     CASE
-      WHEN sp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-        OR sp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-        OR array_to_string(sp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+      WHEN sp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|desk|desks|table|tables|tray|trays)\\M'
+        OR sp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|desk|desks|table|tables|tray|trays)\\M'
+        OR array_to_string(sp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|desk|desks|table|tables|tray|trays)\\M'
       THEN 0 ELSE 1
     END`;
   // BUY-67275 (#37, 2026-08-14): bound the fallback candidates BEFORE ordering —
@@ -1182,8 +1204,8 @@ router.get(
         ), top_ids AS (
           SELECT rh.id, rh.country_code,
                  ts_rank(rhp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
-                 -- BUY-71653: refined laptop scoring (same as tier path).
-                 -- ORDER MATTERS: repair/charger BEFORE bag/before stand/before desk.
+                 -- BUY-71653 + BUY-71667: refined laptop scoring (same as tier path).
+                 -- ORDER MATTERS: repair → charger → bag/case/cover → stand/arm/cooler → desk/table/bed.
                  CASE
                    WHEN lower(rhp.title) ~* '\\mlaptop\\M'
                      OR lower(rhp.title) ~* '\\mnotebook\\M'
@@ -1191,21 +1213,32 @@ router.get(
                      OR lower(rhp.title) ~* '\\mchromebook\\M'
                    THEN
                      CASE
+                       -- BUY-71667: brand boost — laptops with known brand get 3.0 vs 2.5 generic
+                       WHEN lower(rhp.title) ~* '\\m(hp|hewlett|asus|vivobook|zenbook|rog|tuf|expertbook|proart)\\M'
+                         OR lower(rhp.title) ~* '\\m(lenovo|thinkpad|ideapad|yoga|legion|loq|flex|slim)\\M'
+                         OR lower(rhp.title) ~* '\\m(dell|inspiron|latitude|xps|precision|alienware|vostro)\\M'
+                         OR lower(rhp.title) ~* '\\m(surface|macbook|chromebook)\\M'
+                         OR lower(rhp.title) ~* '\\m(acer|aspire|swift|spin|predator|nitro)\\M'
+                         OR lower(rhp.title) ~* '\\m(msi|gigabyte|aorus)\\M'
+                         OR lower(rhp.title) ~* '\\m(toshiba|dynabook|portege|satellite)\\M'
+                         OR lower(rhp.title) ~* '\\m(samsung|galaxy|huawei|matebook|razer|vaio)\\M'
+                       THEN 3.0
                        WHEN lower(rhp.title) ~* '(soldering|solder|paste|flux|repair|tool|tools|replacement|part|parts)\\M'
                          AND (lower(rhp.title) ~* '\\mlaptop\\M' OR lower(rhp.title) ~* '\\mnotebook\\M')
                        THEN 0.05
-                       WHEN lower(rhp.title) ~* '(charger|chargers|power bank|powerbank|battery|batteries|adapter|adapters|cable|cables|organiser|organizer)\\M'
+                       WHEN lower(rhp.title) ~* '(charger|chargers|power bank|powerbank|battery|batteries|cable|cables|organiser|organizer)\\M'
                          AND (lower(rhp.title) ~* '\\mlaptop\\M' OR lower(rhp.title) ~* '\\mnotebook\\M')
                        THEN 0.10
                        WHEN lower(rhp.title) ~* '(laptop|notebook|macbook|chromebook)\\M.*(bag|bags|backpack|backpacks|sleeve|sleeves|case|cases|cover|covers|pouch|carrier)'
                          OR lower(rhp.category) ~* '\\m(bag|bags|backpack|backpacks|sleeve|sleeves|case|cases|cover|covers)\\M'
                        THEN 0.25
                        WHEN lower(rhp.title) ~* '(laptop|notebook|macbook|chromebook)\\M.*(stand|stands|arm|arms|cooler|coolers|riser|risers|mount|mounts|extension)'
-                       THEN 0.10
+                       THEN 0.25
+                       -- BUY-71667: reclassified desk/table from 0.75 to 0.25 (they're accessories)
                        WHEN lower(rhp.title) ~* 'laptop\\M.*(desk|table|tray|shelf|bed)'
                          OR lower(rhp.title) ~* '\\m(study|wooden|wood|bamboo|foldable|bed|breakfast)\\M.*\\m(laptop|desk|table|tray)\\M'
                          OR lower(rhp.title) ~* '(bamboo|wooden|foldable|bed|breakfast)\\M'
-                       THEN 0.75
+                       THEN 0.25
                        ELSE 2.5
                      END
                    WHEN lower(rhp.category) LIKE '%laptop%'
@@ -1214,9 +1247,10 @@ router.get(
                    ELSE 1.0
                  END *
                  CASE
-                   WHEN rhp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-                     OR rhp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
-                     OR array_to_string(rhp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
+                   -- BUY-71667: added desk/table/tray to match tier path changes
+                   WHEN rhp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|desk|desks|table|tables|tray|trays)\\M'
+                     OR rhp.category ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|desk|desks|table|tables|tray|trays)\\M'
+                     OR array_to_string(rhp.category_path, ' ') ~* '\\m(accessor|accessory|accessories|skin|skins|decal|decals|sleeve|sleeves|case|cases|cover|covers|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats|desk|desks|table|tables|tray|trays)\\M'
                    THEN 0.25 ELSE 1.0
                  END *
                  CASE WHEN COALESCE(rhp.in_stock, true) IS NOT FALSE THEN 1.8 ELSE 1.0 END *

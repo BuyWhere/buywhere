@@ -1,5 +1,5 @@
 /**
- * BUY-71653: Real-PG regression tests for primary-product laptop ranking.
+ * BUY-71653 + BUY-71667: Real-PG regression tests for primary-product laptop ranking.
  *
  * Verifies that for laptop-intent queries, actual laptop computers outrank
  * accessories and wrong-type products (desks/tables, bags, soldering paste),
@@ -34,8 +34,9 @@ const describe_or_skip = TEST_DATABASE_URL ? describe : (name, fn) => {
   return undefined;
 };
 
-// BUY-71653 laptopBoost — mirrors the archive-path CASE in products.ts.
+// BUY-71653 + BUY-71667 laptopBoost — mirrors the archive-path CASE in products.ts.
 // (rhp alias replaced with sp for fixture-query use.)
+// NOTE: In TS/JS strings, '\\' is one backslash character. PostgreSQL regex \m = word boundary.
 const LAPTOP_BOOST_SQL = `
   CASE
     WHEN lower(sp.title) ~* '\\mlaptop\\M'
@@ -44,21 +45,32 @@ const LAPTOP_BOOST_SQL = `
       OR lower(sp.title) ~* '\\mchromebook\\M'
     THEN
       CASE
+        -- BUY-71667: brand boost — laptops with known brand get 3.0 vs 2.5 generic
+        WHEN lower(sp.title) ~* '\\m(hp|hewlett|asus|vivobook|zenbook|rog|tuf|expertbook|proart)\\M'
+          OR lower(sp.title) ~* '\\m(lenovo|thinkpad|ideapad|yoga|legion|loq|flex|slim)\\M'
+          OR lower(sp.title) ~* '\\m(dell|inspiron|latitude|xps|precision|alienware|vostro)\\M'
+          OR lower(sp.title) ~* '\\m(surface|macbook|chromebook)\\M'
+          OR lower(sp.title) ~* '\\m(acer|aspire|swift|spin|predator|nitro)\\M'
+          OR lower(sp.title) ~* '\\m(msi|gigabyte|aorus)\\M'
+          OR lower(sp.title) ~* '\\m(toshiba|dynabook|portege|satellite)\\M'
+          OR lower(sp.title) ~* '\\m(samsung|galaxy|huawei|matebook|razer|vaio)\\M'
+        THEN 3.0
         WHEN lower(sp.title) ~* '(soldering|solder|paste|flux|repair|tool|tools|replacement|part|parts)\\M'
           AND (lower(sp.title) ~* '\\mlaptop\\M' OR lower(sp.title) ~* '\\mnotebook\\M')
         THEN 0.05
-        WHEN lower(sp.title) ~* '(charger|chargers|power bank|powerbank|battery|batteries|adapter|adapters|cable|cables|organiser|organizer)\\M'
+        WHEN lower(sp.title) ~* '(charger|chargers|power bank|powerbank|battery|batteries|cable|cables|organiser|organizer)\\M'
           AND (lower(sp.title) ~* '\\mlaptop\\M' OR lower(sp.title) ~* '\\mnotebook\\M')
         THEN 0.10
         WHEN lower(sp.title) ~* '(laptop|notebook|macbook|chromebook)\\M.*(bag|bags|backpack|backpacks|sleeve|sleeves|case|cases|cover|covers|pouch|carrier)'
           OR lower(sp.category) ~* '\\m(bag|bags|backpack|backpacks|sleeve|sleeves|case|cases|cover|covers)\\M'
         THEN 0.25
         WHEN lower(sp.title) ~* '(laptop|notebook|macbook|chromebook)\\M.*(stand|stands|arm|arms|cooler|coolers|riser|risers|mount|mounts|extension)'
-        THEN 0.10
+        THEN 0.25
+        -- BUY-71667: desks/tables reclassified from 0.75 to 0.25
         WHEN lower(sp.title) ~* 'laptop\\M.*(desk|table|tray|shelf|bed)'
           OR lower(sp.title) ~* '\\m(study|wooden|wood|bamboo|foldable|bed|breakfast)\\M.*\\m(laptop|desk|table|tray)\\M'
           OR lower(sp.title) ~* '(bamboo|wooden|foldable|bed|breakfast)\\M'
-        THEN 0.75
+        THEN 0.25
         ELSE 2.5
       END
     WHEN lower(sp.category) LIKE '%laptop%'
@@ -83,7 +95,7 @@ const FIXTURES = [
   [970000010, 'Laptop Bag 15.6 Inch Water Resistant Briefcase', 'Accessories'],
 ];
 
-describe_or_skip('BUY-71653: primary-product laptop ranking', () => {
+describe_or_skip('BUY-71653 + BUY-71667: primary-product laptop ranking', () => {
   let pool;
 
   before(async () => {
@@ -93,7 +105,7 @@ describe_or_skip('BUY-71653: primary-product laptop ranking', () => {
         `INSERT INTO products (id, sku, source, title, price, currency, url, region,
            country_code, is_active, category, metadata, search_vector, updated_at)
          VALUES ($1, $2, 'buy71653_fixture', $3, 99.99, 'USD', $4, 'US', 'US', true,
-           $5, '{"brand":"Fixture","category":"' || $5 || '"'}::jsonb,
+           $5, '{"brand":"Fixture","category":"' || $5 || '"}'::jsonb,
            to_tsvector('english', $3), NOW())
          ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title,
            category = EXCLUDED.category,
@@ -137,9 +149,16 @@ describe_or_skip('BUY-71653: primary-product laptop ranking', () => {
     );
     const byId = Object.fromEntries(rows.map((r) => [Number(r.id), Number(r.boost)]));
     assert.equal(byId[970000007], 0.05, 'soldering flux paste → 0.05');
-    assert.equal(byId[970000008], 0.75, 'foldable laptop desk → 0.75');
-    assert.equal(byId[970000009], 0.75, 'wooden study table → 0.75');
+    // BUY-71667: desks/tables reclassified from 0.75 to 0.25
+    assert.equal(byId[970000008], 0.25, 'foldable laptop desk → 0.25');
+    assert.equal(byId[970000009], 0.25, 'wooden study table → 0.25');
     assert.equal(byId[970000010], 0.25, 'laptop bag → 0.25');
-    assert.equal(byId[970000001], 2.5, 'actual laptop → 2.5');
+    // BUY-71667: branded laptops get 3.0x boost
+    assert.equal(byId[970000001], 3.0, 'ASUS ROG laptop → 3.0 (brand)');
+    assert.equal(byId[970000002], 3.0, 'Dell XPS laptop → 3.0 (brand)');
+    assert.equal(byId[970000003], 3.0, 'HP Pavilion laptop → 3.0 (brand)');
+    assert.equal(byId[970000004], 3.0, 'MacBook Pro → 3.0 (brand)');
+    assert.equal(byId[970000005], 3.0, 'Lenovo IdeaPad → 3.0 (brand)');
+    assert.equal(byId[970000006], 3.0, 'Acer Aspire → 3.0 (brand)');
   });
 });
