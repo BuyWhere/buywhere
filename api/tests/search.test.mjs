@@ -256,9 +256,9 @@ describe('NL search queries — response correctness', () => {
       if (typeof sql === 'string' && sql.includes("pg_class")) {
         return Promise.resolve({ rows: [{ count: '3' }] });
       }
-      assert.ok(sql.includes('country_code = $2'), 'Expected country alias to become a country_code predicate');
-      assert.ok(sql.includes('LOWER(region) = LOWER($3)'), 'Expected region predicate on list route');
-      assert.deepEqual(params.slice(0, 3), ['USD', 'US', 'us']);
+      assert.ok(sql.includes('country_code = $1'), 'Expected country alias to become a country_code predicate');
+      assert.ok(sql.includes('LOWER(region) = LOWER($2)'), 'Expected region predicate on list route');
+      assert.deepEqual(params.slice(0, 2), ['US', 'us']);
       return Promise.resolve({ rows: [makeProduct('us-1', { country_code: 'US', region: 'us', currency: 'USD' })] });
     });
 

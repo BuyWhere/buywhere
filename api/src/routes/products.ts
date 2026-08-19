@@ -616,7 +616,8 @@ router.get(
     const rawRegion = (req.query.region as string | undefined)?.toUpperCase();
     const countryCode = explicitCountry || (rawRegion && COUNTRY_CURRENCY[rawRegion] ? rawRegion : 'SG');
     const region = (req.query.region as string | undefined)?.toLowerCase();
-    const currency = (req.query.currency as string) || (COUNTRY_CURRENCY[countryCode] || 'SGD');
+    const explicitCurrency = req.query.currency as string | undefined;
+    const currency = explicitCurrency || (COUNTRY_CURRENCY[countryCode] || 'SGD');
 
     // Sort — whitelist to safe columns, default to created_at desc
     const sortParam = (req.query.sort as string) || 'created_at';
@@ -647,9 +648,19 @@ router.get(
       // Redis miss or error — fall through to DB
     }
 
-    const conditions: string[] = ['currency = $1', 'is_active = true', 'price > 0'];
-    const params: unknown[] = [currency];
-    let idx = 2;
+    const conditions: string[] = ['is_active = true', 'price > 0'];
+    const params: unknown[] = [];
+    let idx = 1;
+
+    // BUY-71722: inferred currency is only a response/default-price context. Do
+    // not add it as an implicit list predicate: catalog only has a country index,
+    // and currency+country filters force multi-second seq scans on SG/MY. Honor
+    // currency only when the client explicitly requests it.
+    if (explicitCurrency) {
+      conditions.push(`currency = $${idx}`);
+      params.push(explicitCurrency);
+      idx++;
+    }
 
     if (countryCode) {
       conditions.push(`country_code = $${idx}`);
