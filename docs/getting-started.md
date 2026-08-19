@@ -36,6 +36,8 @@ Or sign up at [buywhere.ai/api-keys](https://buywhere.ai/api-keys).
 
 ## Your First API Call
 
+> **Recommended: MCP v2.** The new MCP tool surface (`search_products_v2`, `find_best_price_v2`, `get_deals_v2`) makes `deliver_to` a required parameter, so results rank for the end user's market and every row carries an `availability` label. The v1 REST endpoints below still work and are unchanged. See [agent-dx.md](agent-dx.md) for the full v1→v2 migration guide and the current rollout status of v2.
+
 ### curl
 
 ```bash
@@ -104,6 +106,70 @@ data.results.forEach((p) =>
 }
 ```
 
+## Your First MCP v2 Call (recommended for agents)
+
+If you are building an AI agent, prefer the v2 MCP tool surface. The single difference that matters: **v2 requires `deliver_to`**, the end-user's ISO 3166-1 alpha-2 country code.
+
+### curl (MCP over HTTP)
+
+```bash
+export BUYWHERE_API_KEY="bw_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+curl -s https://api.buywhere.ai/mcp \
+  -H "Authorization: Bearer $BUYWHERE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "search_products_v2",
+      "arguments": {
+        "query": "wireless headphones",
+        "deliver_to": "SG",
+        "limit": 3
+      }
+    }
+  }' | jq .
+```
+
+### Python (MCP over HTTP)
+
+```python
+import httpx
+
+API_KEY = "bw_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+resp = httpx.post(
+    "https://api.buywhere.ai/mcp",
+    headers={
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json",
+    },
+    json={
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": "search_products_v2",
+            "arguments": {
+                "query": "wireless headphones",
+                "deliver_to": "SG",   # required on v2
+                "limit": 3,
+            },
+        },
+    },
+    timeout=10,
+)
+data = resp.json()
+
+for product in data["result"]["results"]:
+    if product["availability"] == "in_stock":
+        print(f"{product['title']} — {product['price']['currency']} {product['price']['amount']}")
+```
+
+`deliver_to` should come from the end user's profile, account, or a one-time confirmation — not a hardcoded guess. See [agent-dx.md](agent-dx.md) for the full v1 vs v2 comparison, the migration guide, and the current v2 rollout status.
+
 ## Pricing Tiers
 
 | Tier | Requests/min | Requests/day | How to Get |
@@ -120,5 +186,6 @@ See [Pricing](https://buywhere.ai/pricing) for full details.
 - [Authentication](/authentication) — API key usage, rate limits, and headers
 - [API Reference](/api-reference/search) — full endpoint documentation
 - [Error Reference](/errors) — all error codes and responses
+- [Agent Developer Experience](/agent-dx) — v2 quickstart, v1 vs v2 comparison, migration guide
 - [Build a Price Comparison Tool](/guides/price-comparison) — Python quickstart guide
 - [MCP Integration](/guides/mcp-integration) — connect BuyWhere to Claude Desktop, Cursor, and other AI tools
