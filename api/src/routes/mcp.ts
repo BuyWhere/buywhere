@@ -281,7 +281,16 @@ async function handleSearchProducts(args: Record<string, unknown>, caller: Retur
   const currency = country ? (COUNTRY_CURRENCY[country] || 'SGD') : 'SGD';
   const COUNT_CAP = 1001;
 
-  const cacheKey = `fts:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${useVector ? mode : 'kw'}`;
+  // BUY-68652: mode-aware cache key. Include mode in key so semantic/hybrid cannot
+  // be satisfied by keyword results (and vice versa). When embedding fails and we
+  // fall through to keyword, use 'kw' suffix to prevent polluting the semantic cache.
+  const effectiveCacheMode = useVector ? mode : 'kw';
+  const cacheKey = `fts:v7:${q}:${domain}:${region}:${country}:${category}:${currency}:${minPrice}:${maxPrice}:${limit}:${offset}:${compact ? 'c' : 'f'}:${effectiveCacheMode}`;
+  // BUY-68652: true if we ended up serving keyword FTS rows for a semantic/hybrid
+  // request (embed/vector unavailable). The result must be cached under the 'kw'
+  // suffix, never the requested-mode key, or cached keyword rows get served as
+  // "semantic" within the 60s TTL.
+  let keywordFallbackServed = !useVector;
   try {
     const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
     if (cached) {
@@ -383,6 +392,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller: Retur
         if (queryVec && vectorDb && !embedTimedOut) {
           let candidateIds: string[] = [];
           let vectorCandidateIds: string[] | null = null;
+          let hybridFtsTotal = 0;
 
           if (mode === 'semantic') {
             // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
@@ -427,6 +437,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller: Retur
             } catch (ftsErr) {
               console.warn('[search] hybrid FTS query failed:', (ftsErr as Error).message);
             }
+            hybridFtsTotal = Math.min(ftsRows.length, 200); // use bounded FTS fetch as a catalog estimate
             const ftsRank = new Map(ftsRows.map((r, i) => [r.id, i + 1]));
             const vecRank = new Map(vecRows.map((r, i) => [r.product_id, i + 1]));
             const allIds = new Set([...ftsRank.keys(), ...vecRank.keys()]);
@@ -443,7 +454,13 @@ async function handleSearchProducts(args: Record<string, unknown>, caller: Retur
           if (vectorCandidateIds !== null) {
             candidateIds = vectorCandidateIds;
           }
-          total = candidateIds.length;
+          // BUY-68652: hybrid must report the catalog/page total, not the small RRF
+          // candidate cardinality (e.g. 5). Semantic reports its own candidate count;
+          // if the vector leg failed entirely, candidateIds is empty → zero total.
+          // Use hybridFtsTotal (bounded FTS count) as a catalog estimate.
+          total = mode === 'hybrid'
+            ? Math.min(Math.max(hybridFtsTotal, candidateIds.length), COUNT_CAP)
+            : candidateIds.length;
           const pageIds = candidateIds.slice(offset, offset + limit);
 
           if (pageIds.length === 0) {
@@ -472,6 +489,7 @@ async function handleSearchProducts(args: Record<string, unknown>, caller: Retur
           }
         } else {
           // Embed failed — fall through to keyword FTS
+          keywordFallbackServed = true;
           const CANDIDATE_LIMIT = Math.min((limit + offset) * 10, 5000);
           params.push(CANDIDATE_LIMIT, limit, offset);
           const result = await searchClient.query(
@@ -552,8 +570,9 @@ async function handleSearchProducts(args: Record<string, unknown>, caller: Retur
     );
   }
 
-  if (q) {
-    total = Math.min((rows as Record<string, unknown>[]).length + offset, COUNT_CAP);
+  if (q && mode !== 'semantic') {
+    const resultCount = (rows as Record<string, unknown>[]).length;
+    total = resultCount >= limit ? COUNT_CAP : Math.min(resultCount + offset, COUNT_CAP);
   }
 
   // Defense in depth for buyer-market routing: SQL includes country_code/region
@@ -595,7 +614,13 @@ async function handleSearchProducts(args: Record<string, unknown>, caller: Retur
   }, Date.now() - t0);
 
   try {
-    await redis.set(cacheKey, JSON.stringify(result), 'EX', 60);
+    // BUY-68652: if the requested mode was semantic/hybrid but embed/vector failed
+    // and we served keyword FTS, cache under the 'kw'-suffixed key so the semantic
+    // cache never gets polluted with keyword rows.
+    const writeKey = keywordFallbackServed && (mode === 'semantic' || mode === 'hybrid')
+      ? cacheKey.replace(/:(semantic|hybrid)$/, ':kw')
+      : cacheKey;
+    await redis.set(writeKey, JSON.stringify(result), 'EX', 60);
   } catch (_) { /* cache write failure is non-fatal */ }
 
   return result;
