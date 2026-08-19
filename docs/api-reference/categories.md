@@ -4,8 +4,6 @@ description: "Returns all top-level product categories with product counts."
 public: true
 ---
 
-# Categories
-
 ## List Categories
 
 ```

@@ -109,6 +109,41 @@ function getDocBySlug(slugParts: string[]) {
   return docs.find((doc) => doc.slug === slug);
 }
 
+function buildDocSchema(doc: DocRecord) {
+  const path = `/docs/${doc.slug}`;
+  const isGuide = doc.slug.startsWith("guides/");
+  const isApiReference = doc.slug.startsWith("api-reference/");
+  const dateModified = doc.lastUpdated || "2026-08-14";
+  return {
+    "@context": "https://schema.org",
+    "@type": isApiReference ? ["TechArticle", "APIReference"] : isGuide ? ["TechArticle", "HowTo"] : "TechArticle",
+    headline: doc.title,
+    name: doc.title,
+    description: doc.description,
+    url: toSiteUrl(path),
+    dateModified,
+    author: {
+      "@type": "Organization",
+      name: doc.author || "BuyWhere",
+      url: toSiteUrl("/"),
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "BuyWhere",
+      url: toSiteUrl("/"),
+      logo: {
+        "@type": "ImageObject",
+        url: toSiteUrl("/og-image.png"),
+      },
+    },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": toSiteUrl(path),
+    },
+    image: [toSiteUrl("/og-image.png")],
+  };
+}
+
 // Only the published docs are valid slugs; anything else 404s at the routing layer
 export const dynamicParams = false;
 
@@ -173,6 +208,7 @@ export default function DocPage({ params }: DocRouteParams) {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
+      <Schema data={buildDocSchema(doc)} />
       <Nav />
 
       <main id="main-content" className="flex-1">
