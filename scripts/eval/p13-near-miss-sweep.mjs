@@ -211,7 +211,9 @@ async function callMcpTool(toolName, args) {
     );
     const near_miss = payload2?.near_miss ?? null;
     const near_miss_predicate_fails = payload2?.near_miss_predicate_fails ?? null;
-    return { results, near_miss, near_miss_predicate_fails, error: null };
+    // P2.6 (BUY-71543): per-cell emptiness_reason from MCP wire; null when results returned.
+    const emptiness_reason = payload2?.meta?.emptiness_reason ?? payload2?.emptiness_reason ?? null;
+    return { results, near_miss, near_miss_predicate_fails, emptiness_reason, error: null };
   } catch (e) {
     return { error: String(e?.message || e), results: [] };
   } finally {
@@ -298,6 +300,14 @@ async function runCell(market, category, queryLength, merchantDomain, tool = 'se
     { near_miss: result.near_miss, near_miss_predicate_fails: result.near_miss_predicate_fails }
   );
 
+  // Determine emptiness_reason per P2.6 spec (§2.1). Prefer the wire value
+  // from MCP meta; fallback keeps the sweep useful until all tools are upgraded.
+  let emptiness_reason = null;
+  const resultCount = result.results?.length || 0;
+  if (resultCount === 0) {
+    emptiness_reason = result.emptiness_reason || (result.error ? 'api_error' : 'missing');
+  }
+
   return {
     // Cell identifiers
     market,
@@ -314,7 +324,11 @@ async function runCell(market, category, queryLength, merchantDomain, tool = 'se
     latency_ms: latencyMs,
     error: result.error,
 
-    // P1.3-NM fields (new)
+    // P2.6 (BUY-71543): emptiness_reason per cell.
+    // Values: null (results returned), MCP enum, 'missing' (silent empty), 'api_error' (transport/RPC failure).
+    emptiness_reason,
+
+    // P1.3-NM fields
     near_miss,
     near_miss_predicate_fails: predicate_fails,
 
@@ -417,6 +431,7 @@ async function main() {
           ...cell,
           error: String(e?.message || e),
           result_count: 0,
+          emptiness_reason: 'api_error',
           near_miss: false,
           near_miss_predicate_fails: [],
           swept_at: nowIso(),
@@ -528,6 +543,37 @@ async function main() {
           console.error(`[p13-sweep] Inserted ${breachMarkets.length} near_miss_breach alert rows for ${summary.sweep_id}`);
         } else {
           console.error(`[p13-sweep] No near_miss_breach alerts for ${summary.sweep_id}; all markets below 4%`);
+        }
+
+        // P2.6 (BUY-71543): each api_error empty cell is a Category A regression.
+        // One alert_history row per api_error cell so the morning review treats it
+        // with the same severity as a SEV-1 like BUY-71431.
+        const apiErrorCells = results.filter(r => r.emptiness_reason === 'api_error');
+        for (const cell of apiErrorCells) {
+          await client.query(
+            `INSERT INTO monitoring.alert_history
+               (market, p95_ms, threshold_ms, kind, sweep_id, near_miss_rate, predicate_fails_reason, triggered_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+            [
+              cell.market.toLowerCase(),
+              cell.latency_ms,
+              300,
+              'api_error_empty',
+              `${summary.sweep_id}:${cell.market}:${cell.category}:${cell.query_length}:${cell.merchant_domain}`,
+              null,
+              `api_error empty cell: ${cell.error || 'unknown error'}`,
+            ]
+          );
+        }
+        if (apiErrorCells.length > 0) {
+          console.error(`[p13-sweep] Inserted ${apiErrorCells.length} api_error_empty Cat-A rows for ${summary.sweep_id}`);
+        }
+
+        // Signal: zero-result cells still missing emptiness_reason means the MCP
+        // wire contract isn't shipping the field; morning review should ping Rex.
+        const silentEmptyCells = results.filter(r => r.result_count === 0 && !r.emptiness_reason);
+        if (silentEmptyCells.length > 0) {
+          console.error(`[p13-sweep] WARN: ${silentEmptyCells.length} zero-result cells are missing emptiness_reason (P2.6 server-side gap)`);
         }
       } finally {
         client.release();
