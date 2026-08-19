@@ -240,12 +240,59 @@ async function tryTierSearch(
       THEN 0.15 ELSE 1.0
     END`;
 
+  // BUY-71653: Primary-product laptop scoring.
+  // Boost actual laptops (HP Laptop, Dell Inspiron, MacBook Pro) above desk/table/
+  // accessory products. The old 2.0x blanket boost was insufficient — "Laptop Desk"
+  // and "Study Laptop Table" also got 2.0x, drowning real laptops for US queries.
+  //
+  // Scoring tiers:
+  //   2.5x — actual laptops: title contains "laptop"/"notebook"/"macbook" standalone
+  //           word AND does NOT contain desk/table/bag/stand/accessory modifiers
+  //   0.75x — laptop-desk/table products (laptop is a USE-CASE modifier, not product type)
+  //   0.25x — laptop bags/cases/sleeves/covers (BUY-63738 covered these partially)
+  //   0.10x — laptop stands/arms/coolers (accessories that "contain" laptop use-case)
+  //   0.05x — laptop repair/soldering materials (laptop is a TARGET, not a product)
+  //   1.5x — category-only match (no title match) — keep category signals active
+  //   1.0x — no laptop signal at all
+  //
+  // ORDER MATTERS: stand/arm/cooler checked BEFORE desk/table because the desk
+  // regex matches "laptop stand" via its `stand` alternative (greedy .*).
   const laptopBoost = `
     CASE
-      WHEN lower(sp.title) LIKE '%laptop%' OR lower(sp.title) LIKE '%notebook%' OR lower(sp.title) LIKE '%macbook%'
-        OR lower(sp.category) LIKE '%laptop%'
+      WHEN lower(sp.title) ~* '\\mlaptop\\M'
+        OR lower(sp.title) ~* '\\mnotebook\\M'
+        OR lower(sp.title) ~* '\\mmacbook\\M'
+        OR lower(sp.title) ~* '\\mchromebook\\M'
+      THEN
+        CASE
+          -- Repair materials: soldering, paste, tools — laptop is the REPAIR TARGET
+          WHEN lower(sp.title) ~* '(soldering|solder|paste|flux|repair|tool|tools|replacement|part|parts)\\M'
+            AND (lower(sp.title) ~* '\\mlaptop\\M' OR lower(sp.title) ~* '\\mnotebook\\M')
+          THEN 0.05
+          -- Chargers, power banks, batteries — laptop is the POWER TARGET
+          WHEN lower(sp.title) ~* '(charger|chargers|power bank|powerbank|battery|batteries|adapter|adapters|cable|cables|organiser|organizer)\\M'
+            AND (lower(sp.title) ~* '\\mlaptop\\M' OR lower(sp.title) ~* '\\mnotebook\\M')
+          THEN 0.10
+          -- Bags, backpacks, sleeves, cases, covers
+          WHEN lower(sp.title) ~* '(laptop|notebook|macbook|chromebook)\\M.*(bag|bags|backpack|backpacks|sleeve|sleeves|case|cases|cover|covers|pouch|carrier)'
+            OR lower(sp.category) ~* '\\m(bag|bags|backpack|backpacks|sleeve|sleeves|case|cases|cover|covers)\\M'
+          THEN 0.25
+          -- Stands, arms, coolers, risers (CHECKED BEFORE desk/table — both match "laptop stand")
+          WHEN lower(sp.title) ~* '(laptop|notebook|macbook|chromebook)\\M.*(stand|stands|arm|arms|cooler|coolers|riser|risers|mount|mounts|extension)'
+          THEN 0.10
+          -- Desk/table/bamboo furniture: laptop is the USE-CASE modifier, not the product
+          WHEN lower(sp.title) ~* 'laptop\\M.*(desk|table|tray|shelf|bed)'
+            OR lower(sp.title) ~* '\\m(study|wooden|wood|bamboo|foldable|bed|breakfast)\\M.*\\m(laptop|desk|table|tray)\\M'
+            OR lower(sp.title) ~* '(bamboo|wooden|foldable|bed|breakfast)\\M'
+          THEN 0.75
+          -- ACTUAL LAPTOP: title contains laptop/notebook/macbook as the product type
+          ELSE 2.5
+        END
+      -- Category-only match (no title match) — keep category signal active but not as strong
+      WHEN lower(sp.category) LIKE '%laptop%'
         OR array_to_string(sp.category_path, ' ') LIKE '%laptop%'
-      THEN 2.0 ELSE 1.0
+      THEN 1.5
+      ELSE 1.0
     END`;
   // BUY-70592: boost in-stock products for VN/TH laptop and phone queries
   const inStockBoost = `
@@ -316,7 +363,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}${urlStatusJoin}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}${sortPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}${sortPrefix}((${laptopBoost}) * (${phoneHandsetBoost}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const tokenTitleFallbackQuery = `
     WITH tcand AS (
@@ -327,7 +374,7 @@ async function tryTierSearch(
     SELECT ${cols}, 0 AS _fts_rank
     FROM tcand JOIN search_products sp ON sp.id = tcand.id${storageJoinFilter}${urlStatusJoin}
     LEFT JOIN affiliate_links al ON al.product_id = sp.id::text AND al.merchant_id = sp.merchant_id
-    ORDER BY ${orderPrefix}${sortPrefix}((${phoneHandsetBoost}) * (${laptopAccessoryPenaltyTitle}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
+    ORDER BY ${orderPrefix}${sortPrefix}((${laptopBoost}) * (${phoneHandsetBoost}) * (${phoneAccessoryPenalty})) DESC, sp.id DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
   const phoneCategoryFallbackQuery = `
     WITH pcand AS (
@@ -1135,12 +1182,36 @@ router.get(
         ), top_ids AS (
           SELECT rh.id, rh.country_code,
                  ts_rank(rhp.search_vector, plainto_tsquery('english', $${ftsParamIdx})) *
-                 -- BUY-63738: boost laptop products and penalize accessories
+                 -- BUY-71653: refined laptop scoring (same as tier path).
+                 -- ORDER MATTERS: repair/charger BEFORE bag/before stand/before desk.
                  CASE
-                   WHEN lower(rhp.title) LIKE '%laptop%' OR lower(rhp.title) LIKE '%notebook%' OR lower(rhp.title) LIKE '%macbook%'
-                     OR lower(rhp.category) LIKE '%laptop%'
+                   WHEN lower(rhp.title) ~* '\\mlaptop\\M'
+                     OR lower(rhp.title) ~* '\\mnotebook\\M'
+                     OR lower(rhp.title) ~* '\\mmacbook\\M'
+                     OR lower(rhp.title) ~* '\\mchromebook\\M'
+                   THEN
+                     CASE
+                       WHEN lower(rhp.title) ~* '(soldering|solder|paste|flux|repair|tool|tools|replacement|part|parts)\\M'
+                         AND (lower(rhp.title) ~* '\\mlaptop\\M' OR lower(rhp.title) ~* '\\mnotebook\\M')
+                       THEN 0.05
+                       WHEN lower(rhp.title) ~* '(charger|chargers|power bank|powerbank|battery|batteries|adapter|adapters|cable|cables|organiser|organizer)\\M'
+                         AND (lower(rhp.title) ~* '\\mlaptop\\M' OR lower(rhp.title) ~* '\\mnotebook\\M')
+                       THEN 0.10
+                       WHEN lower(rhp.title) ~* '(laptop|notebook|macbook|chromebook)\\M.*(bag|bags|backpack|backpacks|sleeve|sleeves|case|cases|cover|covers|pouch|carrier)'
+                         OR lower(rhp.category) ~* '\\m(bag|bags|backpack|backpacks|sleeve|sleeves|case|cases|cover|covers)\\M'
+                       THEN 0.25
+                       WHEN lower(rhp.title) ~* '(laptop|notebook|macbook|chromebook)\\M.*(stand|stands|arm|arms|cooler|coolers|riser|risers|mount|mounts|extension)'
+                       THEN 0.10
+                       WHEN lower(rhp.title) ~* 'laptop\\M.*(desk|table|tray|shelf|bed)'
+                         OR lower(rhp.title) ~* '\\m(study|wooden|wood|bamboo|foldable|bed|breakfast)\\M.*\\m(laptop|desk|table|tray)\\M'
+                         OR lower(rhp.title) ~* '(bamboo|wooden|foldable|bed|breakfast)\\M'
+                       THEN 0.75
+                       ELSE 2.5
+                     END
+                   WHEN lower(rhp.category) LIKE '%laptop%'
                      OR array_to_string(rhp.category_path, ' ') LIKE '%laptop%'
-                   THEN 2.0 ELSE 1.0
+                   THEN 1.5
+                   ELSE 1.0
                  END *
                  CASE
                    WHEN rhp.title ~* '\\m(skin|skins|decal|decals|sticker|stickers|sleeve|sleeves|case|cases|cover|covers|protector|protectors|backpack|backpacks|bag|bags|briefcase|briefcases|messenger|shell|shells|pad|pads|cooler|coolers|adapter|adapters|dock|docks|hub|hubs|lock|locks|charger|chargers|cable|cables|stand|stands|mat|mats)\\M'
