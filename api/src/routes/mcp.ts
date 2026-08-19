@@ -392,6 +392,7 @@ async function handleSearchProducts(args: Record<string, unknown>) {
         if (queryVec && vectorDb) {
           let candidateIds: string[] = [];
           let vectorCandidateIds: string[] | null = null;
+          let hybridFtsTotal = 0;
 
           if (mode === 'semantic') {
             // Vector-only: fetch top-200 nearest neighbours from vector DB, then fetch details
@@ -414,7 +415,6 @@ async function handleSearchProducts(args: Record<string, unknown>) {
             // Hybrid: app-level RRF of FTS ranks + vector ranks
             let vecRows: { product_id: string }[] = [];
             let ftsRows: { id: string }[] = [];
-            let hybridFtsTotal = 0;
             try {
               // BUY-68327: keep vector failures (including 512/1024 dimension
               // mismatch) from rejecting the whole hybrid request.
