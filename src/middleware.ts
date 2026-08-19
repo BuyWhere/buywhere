@@ -516,7 +516,7 @@ const ROUTER_STATE_TREE_HEADER = "next-router-state-tree";
 // below cannot bypass the redirect/rewrite logic for any other path.
 const DYNAMIC_RSC_ROUTES = new Set(["/search", "/compare"]);
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // BUY-67074: sanitise a malformed/non-canonical router state tree before it
@@ -653,6 +653,30 @@ export function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = `/p/${productId}`;
     return NextResponse.redirect(url, 308);
+  }
+
+  // BUY-71642 gate #3: hard 404 for unknown /p/{id}. The page handler calls
+  // notFound() for missing products but Next.js App Router streams the not-found
+  // shell as HTTP 200 (soft-404). Middleware runs BEFORE streaming, so we can
+  // return a real 404 here. This pre-check bypasses the entire page render.
+  const pIdMatch = /^\/p\/(\d{8,})\/?$/.exec(normalizedForDead);
+  if (pIdMatch) {
+    const productId = pIdMatch[1];
+    // Check via internal API - if 404, return hard 404 before page streams.
+    try {
+      const apiRes = await fetch(
+        `${process.env.BUYWHERE_API_INTERNAL_URL || "https://api.buywhere.ai"}/v1/products/${productId}`,
+        {
+          headers: { Accept: "application/json", Authorization: `Bearer ${process.env.BUYWHERE_API_KEY || ""}` },
+          signal: AbortSignal.timeout(3000),
+        }
+      );
+      if (!apiRes.ok) {
+        return new NextResponse(null, { status: 404, statusText: "Product Not Found" });
+      }
+    } catch {
+      // Network error - let page render (will show its own error state)
+    }
   }
 
   // BUY-71653: /p/{id} is the canonical short-alias route. Ensure it passes through

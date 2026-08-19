@@ -112,6 +112,8 @@ async function getProduct(productId: string): Promise<ProductDetail | null> {
       // The /api/products/[id] route returns 404 for unknown ids, but that
       // status must propagate to the page render (not become a soft-200).
       if (!res.ok) {
+        // Throw so we skip the fallback and let notFound() render the shell.
+        // The middleware will convert this to a hard 404 before streaming.
         throw new Error(`product_fetch_${res.status}`);
       }
       const payload = (await res.json()) as ProductDetail | { data?: ApiProductItem[] };
@@ -124,7 +126,7 @@ async function getProduct(productId: string): Promise<ProductDetail | null> {
     }
   }
 
-  // BUY-71642: fall back to curated SEO landing page products if the API is unavailable
+  // Fall back to curated SEO landing page products if the API is unavailable
   const fallback = await getSeoLandingFallbackProduct("us", productId, "catalog");
   if (!fallback) return null;
   return {
