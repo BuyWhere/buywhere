@@ -278,32 +278,32 @@ async function tryTierSearch(req, res, p) {
     // THEN actual laptop (nested brand-boost CASE differentiates branded vs generic).
     const laptopBoost = `
     CASE
-      WHEN lower(sp.title) ~* '\mlaptop\M'
-        OR lower(sp.title) ~* '\mnotebook\M'
-        OR lower(sp.title) ~* '\mmacbook\M'
-        OR lower(sp.title) ~* '\mchromebook\M'
+      WHEN lower(sp.title) ~* '\\mlaptop\\M'
+        OR lower(sp.title) ~* '\\mnotebook\\M'
+        OR lower(sp.title) ~* '\\mmacbook\\M'
+        OR lower(sp.title) ~* '\\mchromebook\\M'
       THEN
         CASE
           -- Repair materials: soldering, paste, tools — laptop is the REPAIR TARGET
-          WHEN lower(sp.title) ~* '(soldering|solder|paste|flux|repair|tool|tools|replacement|part|parts)\M'
-            AND (lower(sp.title) ~* '\mlaptop\M' OR lower(sp.title) ~* '\mnotebook\M')
+          WHEN lower(sp.title) ~* '(soldering|solder|paste|flux|repair|tool|tools|replacement|part|parts)\\M'
+            AND (lower(sp.title) ~* '\\mlaptop\\M' OR lower(sp.title) ~* '\\mnotebook\\M')
           THEN 0.05
           -- Chargers, power banks, batteries, cables — laptop is the POWER/CONNECT target
-          WHEN lower(sp.title) ~* '(charger|chargers|power bank|powerbank|battery|batteries|cable|cables|organiser|organizer)\M'
-            AND (lower(sp.title) ~* '\mlaptop\M' OR lower(sp.title) ~* '\mnotebook\M')
+          WHEN lower(sp.title) ~* '(charger|chargers|power bank|powerbank|battery|batteries|cable|cables|organiser|organizer)\\M'
+            AND (lower(sp.title) ~* '\\mlaptop\\M' OR lower(sp.title) ~* '\\mnotebook\\M')
           THEN 0.10
           -- Bags, backpacks, sleeves, cases, covers
-          WHEN lower(sp.title) ~* '(laptop|notebook|macbook|chromebook)\M.*(bag|bags|backpack|backpacks|sleeve|sleeves|case|cases|cover|covers|pouch|carrier)'
-            OR lower(sp.category) ~* '\m(bag|bags|backpack|backpacks|sleeve|sleeves|case|cases|cover|covers)\M'
+          WHEN lower(sp.title) ~* '(laptop|notebook|macbook|chromebook)\\M.*(bag|bags|backpack|backpacks|sleeve|sleeves|case|cases|cover|covers|pouch|carrier)'
+            OR lower(sp.category) ~* '\\m(bag|bags|backpack|backpacks|sleeve|sleeves|case|cases|cover|covers)\\M'
           THEN 0.25
           -- Stands, arms, coolers, risers
-          WHEN lower(sp.title) ~* '(laptop|notebook|macbook|chromebook)\M.*(stand|stands|arm|arms|cooler|coolers|riser|risers|mount|mounts|extension)'
+          WHEN lower(sp.title) ~* '(laptop|notebook|macbook|chromebook)\\M.*(stand|stands|arm|arms|cooler|coolers|riser|risers|mount|mounts|extension)'
           THEN 0.25
           -- Desk/table/tray/bed: laptop is the USE-CASE modifier, not the product type
           -- BUY-71667: reclassified from 0.75 — a "Study Laptop Table" is an accessory
-          WHEN lower(sp.title) ~* 'laptop\M.*(desk|table|tray|shelf|bed)'
-            OR lower(sp.title) ~* '\m(study|wooden|wood|bamboo|foldable|bed|breakfast)\M.*\m(laptop|desk|table|tray)\M'
-            OR lower(sp.title) ~* '(bamboo|wooden|foldable|bed|breakfast)\M'
+          WHEN lower(sp.title) ~* 'laptop\\M.*(desk|table|tray|shelf|bed)'
+            OR lower(sp.title) ~* '\\m(study|wooden|wood|bamboo|foldable|bed|breakfast)\\M.*\\m(laptop|desk|table|tray)\\M'
+            OR lower(sp.title) ~* '(bamboo|wooden|foldable|bed|breakfast)\\M'
           THEN 0.25
           -- ACTUAL LAPTOP: title contains laptop/notebook/macbook as the product type
           -- BUY-71667: brand boost — laptops with a known laptop-brand family name
@@ -311,15 +311,16 @@ async function tryTierSearch(req, res, p) {
           -- "Business Laptop" listings for bare laptop queries.
           ELSE
             CASE
-              WHEN lower(sp.title) ~ '(hp|hewlett[- ]packard|elitebook|pavilion|probook|envy|spectre|victus|omen)[[:space:]]'
-                OR lower(sp.title) ~ '\m(asus|vivobook|zenbook|expertbook|proart|rog|tuf)\M'
-                OR lower(sp.title) ~ '\m(lenovo|thinkpad|ideapad|yoga|legion|loq|flex)\M'
-                OR lower(sp.title) ~ '\m(dell|inspiron|latitude|xps|precision|alienware|vostro)\M'
-                OR lower(sp.title) ~ '\m(surface|macbook|chromebook)\M'
-                OR lower(sp.title) ~ '\m(acer|aspire|swift|spin|predator|nitro)\M'
-                OR lower(sp.title) ~ '\m(msi|gigabyte|aorus)\M'
-                OR lower(sp.title) ~ '\m(toshiba|dynabook|portege|satellite)\M'
-                OR lower(sp.title) ~ '\m(galaxy book|matebook|razer blade|vaio)\M'
+              -- BUY-71667: brand boost — known laptop-brand families get 3.0x vs 2.5x generic.
+              -- \m at BOTH ends ensures brand word is whole (not substring in e.g. "compatibility").
+              WHEN lower(sp.title) ~* '\\m(hp|hewlett|asus|vivobook|zenbook|rog|tuf|expertbook|proart)\\M'
+                OR lower(sp.title) ~* '\\m(lenovo|thinkpad|ideapad|yoga|legion|loq|flex|slim)\\M'
+                OR lower(sp.title) ~* '\\m(dell|inspiron|latitude|xps|precision|alienware|vostro)\\M'
+                OR lower(sp.title) ~* '\\m(surface|macbook|chromebook)\\M'
+                OR lower(sp.title) ~* '\\m(acer|aspire|swift|spin|predator|nitro)\\M'
+                OR lower(sp.title) ~* '\\m(msi|gigabyte|aorus)\\M'
+                OR lower(sp.title) ~* '\\m(toshiba|dynabook|portege|satellite)\\M'
+                OR lower(sp.title) ~* '\\m(samsung|galaxy|huawei|matebook|razer|vaio)\\M'
               THEN 3.0
               ELSE 2.5
             END
@@ -606,8 +607,11 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
     // `/v1/products?query=...` for search. Treat that as the canonical
     // bounded search route instead of falling through to the unsearched list
     // query, which is intentionally optimized for paginated browsing.
+    // BUY-71693: also redirect `?q=` (not just `?query=`) to /search — the list
+    // handler has no search logic and returns stale cached results.
     const legacyQuery = req.query.query;
-    if (legacyQuery && !req.query.q) {
+    const searchQuery = req.query.q;
+    if ((legacyQuery || searchQuery) && !req.query.search) {
         const searchParams = new URLSearchParams();
         for (const [key, value] of Object.entries(req.query)) {
             if (value === undefined)
@@ -630,16 +634,22 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
     const rawLimit = parseInt(req.query.limit || '20');
     const limit = Math.min(Math.max(1, Number.isFinite(rawLimit) ? rawLimit : 20), 100);
     const offset = (page - 1) * limit;
-    // Filters — country defaults to SG to prevent cross-region pollution (BUY-6598)
+    // Filters — country defaults to SG to prevent cross-region pollution (BUY-6598).
+    // BUY-71722: accept the same `country` alias as /v1/products/search and honor
+    // `region` on the list route. Otherwise `?country=US` is ignored, shares the
+    // default-SG cache key, and returns the same rows as every other country.
     const category = req.query.category;
-    const countryCode = req.query.country_code?.toUpperCase() || 'SG';
+    const explicitCountry = (req.query.country_code || req.query.country)?.toUpperCase() || undefined;
+    const region = req.query.region?.toLowerCase() || undefined;
+    const inferredRegionCountry = region && /^[a-z]{2}$/.test(region) ? region.toUpperCase() : undefined;
+    const countryCode = explicitCountry || inferredRegionCountry || 'SG';
     const currency = req.query.currency || (response_1.COUNTRY_CURRENCY[countryCode] || 'SGD');
     // Sort — whitelist to safe columns, default to created_at desc
     const sortParam = req.query.sort || 'created_at';
     const sortColumn = LIST_SORT_COLUMNS[sortParam] || 'created_at';
     const orderParam = req.query.order?.toLowerCase();
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
-    const cacheKey = `list:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}`;
+    const cacheKey = `list:v2:${currency}:${countryCode}:${region || ''}:${category || ''}:${sortColumn}:${order}:${page}:${limit}`;
     res.locals.cacheHit = false;
     try {
         const cached = await (0, cacheStats_1.recordQueryCacheLookup)(config_1.redis, cacheKey, () => config_1.redis.get(cacheKey));
@@ -668,6 +678,11 @@ router.get('/', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKey, api
     if (countryCode) {
         conditions.push(`country_code = $${idx}`);
         params.push(countryCode);
+        idx++;
+    }
+    if (region) {
+        conditions.push(`LOWER(region) = LOWER($${idx})`);
+        params.push(region);
         idx++;
     }
     if (category) {
@@ -1194,8 +1209,15 @@ router.get('/search', agentDetect_1.agentDetectMiddleware, apiKey_1.requireApiKe
                      OR lower(rhp.title) ~* '\\mchromebook\\M'
                    THEN
                      CASE
-                       -- BUY-71667: added nested brand-boost CASE for actual laptops
-                       WHEN lower(rhp.title) ~* '(hp|hewlett|elitebook|pavilion|envy|spectre|probook|omen|asus|vivobook|zenbook|rog|tuf|lenovo|thinkpad|ideapad|yoga|legion|flex|loq|dell|inspiron|latitude|xps|precision|alienware|surface|macbook|acer|aspire|swift|predator|msi|gigabyte|toshiba|dynabook|samsung|galaxy|razer|huawei|matebook|vaio)\\M'
+                       -- BUY-71667: brand boost — laptops with known brand get 3.0 vs 2.5 generic
+                       WHEN lower(rhp.title) ~* '\\m(hp|hewlett|asus|vivobook|zenbook|rog|tuf|expertbook|proart)\\M'
+                         OR lower(rhp.title) ~* '\\m(lenovo|thinkpad|ideapad|yoga|legion|loq|flex|slim)\\M'
+                         OR lower(rhp.title) ~* '\\m(dell|inspiron|latitude|xps|precision|alienware|vostro)\\M'
+                         OR lower(rhp.title) ~* '\\m(surface|macbook|chromebook)\\M'
+                         OR lower(rhp.title) ~* '\\m(acer|aspire|swift|spin|predator|nitro)\\M'
+                         OR lower(rhp.title) ~* '\\m(msi|gigabyte|aorus)\\M'
+                         OR lower(rhp.title) ~* '\\m(toshiba|dynabook|portege|satellite)\\M'
+                         OR lower(rhp.title) ~* '\\m(samsung|galaxy|huawei|matebook|razer|vaio)\\M'
                        THEN 3.0
                        WHEN lower(rhp.title) ~* '(soldering|solder|paste|flux|repair|tool|tools|replacement|part|parts)\\M'
                          AND (lower(rhp.title) ~* '\\mlaptop\\M' OR lower(rhp.title) ~* '\\mnotebook\\M')

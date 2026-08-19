@@ -610,9 +610,15 @@ router.get(
     const limit = Math.min(Math.max(1, Number.isFinite(rawLimit) ? rawLimit : 20), 100);
     const offset = (page - 1) * limit;
 
-    // Filters — country defaults to SG to prevent cross-region pollution (BUY-6598)
+    // Filters — country defaults to SG to prevent cross-region pollution (BUY-6598).
+    // BUY-71722: accept the same `country` alias as /v1/products/search and honor
+    // `region` on the list route. Otherwise `?country=US` is ignored, shares the
+    // default-SG cache key, and returns the same rows as every other country.
     const category = req.query.category as string | undefined;
-    const countryCode = (req.query.country_code as string | undefined)?.toUpperCase() || 'SG';
+    const explicitCountry = ((req.query.country_code as string | undefined) || (req.query.country as string | undefined))?.toUpperCase() || undefined;
+    const region = (req.query.region as string | undefined)?.toLowerCase() || undefined;
+    const inferredRegionCountry = region && /^[a-z]{2}$/.test(region) ? region.toUpperCase() : undefined;
+    const countryCode = explicitCountry || inferredRegionCountry || 'SG';
     const currency = (req.query.currency as string) || (COUNTRY_CURRENCY[countryCode] || 'SGD');
 
     // Sort — whitelist to safe columns, default to created_at desc
@@ -621,7 +627,7 @@ router.get(
     const orderParam = (req.query.order as string)?.toLowerCase();
     const order = orderParam === 'asc' ? 'ASC' : 'DESC';
 
-    const cacheKey = `list:${currency}:${countryCode}:${category || ''}:${sortColumn}:${order}:${page}:${limit}`;
+    const cacheKey = `list:v2:${currency}:${countryCode}:${region || ''}:${category || ''}:${sortColumn}:${order}:${page}:${limit}`;
     res.locals.cacheHit = false;
     try {
       const cached = await recordQueryCacheLookup(redis, cacheKey, () => redis.get(cacheKey));
@@ -651,6 +657,11 @@ router.get(
     if (countryCode) {
       conditions.push(`country_code = $${idx}`);
       params.push(countryCode);
+      idx++;
+    }
+    if (region) {
+      conditions.push(`LOWER(region) = LOWER($${idx})`);
+      params.push(region);
       idx++;
     }
     if (category) {

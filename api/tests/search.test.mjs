@@ -795,6 +795,104 @@ describe('NL search queries — error handling', () => {
   });
 });
 
+describe('BUY-71722 /v1/products list country/region filters', () => {
+  let server;
+  let port;
+
+  before(async () => {
+    const express = require('express');
+    const productsRouter = require('../dist/routes/products').default;
+
+    const app = express();
+    app.use(express.json());
+    app.use('/v1/products', productsRouter);
+    server = http.createServer(app);
+    await new Promise(r => server.listen(0, r));
+    port = server.address().port;
+  });
+
+  after(() => { server?.close(); });
+  beforeEach(() => { setupDefaultMocks(); });
+
+  function setupListMocks() {
+    queryMock.mock.mockImplementation((sql, params = []) => {
+      if (typeof sql === 'string' && sql.includes('api_keys')) {
+        return Promise.resolve({
+          rows: [{ id: 'test-k', key_hash: 'x', name: 'test', tier: 'free', signup_channel: null, attribution_source: null, is_active: true }],
+        });
+      }
+      if (typeof sql === 'string' && (sql.includes('last_used_at') || sql.includes('query_log'))) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (typeof sql === 'string' && sql.includes("FROM pg_class WHERE relname = 'products'")) {
+        return Promise.resolve({ rows: [{ count: '4' }] });
+      }
+      if (typeof sql === 'string' && sql.includes('FROM products')) {
+        const country = params.includes('US') ? 'US' : params.includes('SG') ? 'SG' : 'MY';
+        const region = params.includes('us') ? 'us' : params.includes('sg') ? 'sg' : country.toLowerCase();
+        return Promise.resolve({ rows: [makeProduct(`${country}-${region}-1`, { country_code: country, region })] });
+      }
+      return defaultQueryHandler(sql, params);
+    });
+  }
+
+  it('applies the country alias and partitions list cache keys by country', async () => {
+    setupListMocks();
+
+    const sg = await fetch(`http://localhost:${port}/v1/products?limit=1&country=SG`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+    const us = await fetch(`http://localhost:${port}/v1/products?limit=1&country=US`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+
+    assert.equal(sg.status, 200);
+    assert.equal(us.status, 200);
+    const sgBody = await sg.json();
+    const usBody = await us.json();
+    assert.equal(sgBody.data[0].country_code, 'SG');
+    assert.equal(usBody.data[0].country_code, 'US');
+    assert.notEqual(sgBody.data[0].id, usBody.data[0].id);
+
+    const productQueries = queryMock.mock.calls.filter(
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM products')
+    );
+    assert.ok(productQueries.some(c => c.arguments[1].includes('SG')), 'expected SG country bind');
+    assert.ok(productQueries.some(c => c.arguments[1].includes('US')), 'expected US country bind');
+
+    const cacheKeys = redisGetMock.mock.calls.map(c => c.arguments[0]).filter(k => typeof k === 'string' && k.startsWith('list:v2:'));
+    assert.ok(cacheKeys.some(k => k.includes(':SG:')));
+    assert.ok(cacheKeys.some(k => k.includes(':US:')));
+  });
+
+  it('applies region filters and infers matching country for two-letter regions', async () => {
+    setupListMocks();
+
+    const sg = await fetch(`http://localhost:${port}/v1/products?limit=1&region=sg`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+    const us = await fetch(`http://localhost:${port}/v1/products?limit=1&region=us`, {
+      headers: { Authorization: 'Bearer test-key' },
+    });
+
+    assert.equal(sg.status, 200);
+    assert.equal(us.status, 200);
+    const sgBody = await sg.json();
+    const usBody = await us.json();
+    assert.equal(sgBody.data[0].region, 'sg');
+    assert.equal(usBody.data[0].region, 'us');
+    assert.equal(sgBody.data[0].country_code, 'SG');
+    assert.equal(usBody.data[0].country_code, 'US');
+    assert.notEqual(sgBody.data[0].id, usBody.data[0].id);
+
+    const productQueries = queryMock.mock.calls.filter(
+      c => typeof c.arguments[0] === 'string' && c.arguments[0].includes('FROM products')
+    );
+    assert.ok(productQueries.some(c => c.arguments[0].includes('LOWER(region) = LOWER') && c.arguments[1].includes('sg')));
+    assert.ok(productQueries.some(c => c.arguments[0].includes('LOWER(region) = LOWER') && c.arguments[1].includes('us')));
+  });
+});
+
 describe('NL search — Redis caching behavior', () => {
   let server;
   let port;
